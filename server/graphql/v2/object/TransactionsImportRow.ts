@@ -1,9 +1,10 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { TransactionsImportRow } from '../../../models';
 import { GraphQLTransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { getIdEncodeResolver } from '../identifiers';
+import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLAmount } from './Amount';
 import { GraphQLExpense } from './Expense';
@@ -59,6 +60,20 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         'If an account ID is available in the imported row, it will be stored here. Returns the default account ID otherwise.',
       // "__default__" must match `components/dashboard/sections/transactions-imports/lib/types.ts`
       resolve: (row: TransactionsImportRow) => row.rawValue?.['account_id'] || '__default__',
+    },
+    assignedAccounts: {
+      type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+      description: 'The accounts assigned to the row, based on its account ID',
+      resolve: async (row: TransactionsImportRow, _, req) => {
+        const transactionsImport = await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
+        const assignments = transactionsImport.settings?.assignments || {};
+        const accountId = (row.rawValue?.['account_id'] as string) || '__default__';
+        if (!assignments[accountId]?.length) {
+          return [];
+        }
+
+        return req.loaders.Collective.byId.loadMany(assignments[accountId]);
+      },
     },
     rawValue: {
       type: GraphQLJSONObject,

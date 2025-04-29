@@ -56,7 +56,10 @@ import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { generateSearchLoaders } from './search';
 import * as transactionLoaders from './transactions';
-import { generateTransactionsImportStatsLoader } from './transactions-import';
+import {
+  generateOffPlatformTransactionsStatsLoader,
+  generateTransactionsImportStatsLoader,
+} from './transactions-import';
 import updatesLoader from './updates';
 import { generateUserByCollectiveIdLoader, generateUserHasTwoFactorAuthEnabled } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
@@ -1197,6 +1200,7 @@ export const generateLoaders = req => {
     TransactionsImport: {
       ...context.loaders.TransactionsImport,
       stats: generateTransactionsImportStatsLoader(),
+      hostStats: generateOffPlatformTransactionsStatsLoader(),
     },
     TransactionsImportRow: {
       ...context.loaders.TransactionsImportRow,

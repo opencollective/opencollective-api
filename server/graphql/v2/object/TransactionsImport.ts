@@ -13,6 +13,7 @@ import { getCollectionArgs } from '../interface/Collection';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
 import { GraphQLConnectedAccount } from './ConnectedAccount';
+import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPlaidAccount } from './PlaidAccount';
 import { GraphQLTransactionsImportAssignment } from './TransactionsImportAssignment';
 
@@ -108,6 +109,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     rows: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
       description: 'List of rows in the import',
+      deprecationReason: '2025-04-29: Please use `host.offPlatformTransactions` instead.',
       args: {
         ...getCollectionArgs({ limit: 100 }),
         status: {
@@ -176,48 +178,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       },
     },
     stats: {
-      type: new GraphQLObjectType({
-        name: 'TransactionsImportStats',
-        fields: {
-          total: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Total number of rows in the import',
-          },
-          ignored: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that have been ignored',
-          },
-          expenses: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that have been converted to expenses',
-          },
-          orders: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that have been converted to orders',
-          },
-          processed: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description:
-              'Number of rows that have been processed (either dismissed or converted to expenses or orders)',
-          },
-          imported: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that have been imported (converted to expenses or orders)',
-          },
-          onHold: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that are on hold',
-          },
-          pending: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that are pending',
-          },
-          invalid: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that are invalid (e.g. linked but without an expense or order)',
-          },
-        },
-      }),
+      type: new GraphQLNonNull(GraphQLTransactionsImportStats),
       resolve: async (importInstance, _, req: Express.Request) => {
         return req.loaders.TransactionsImport.stats.load(importInstance.id);
       },

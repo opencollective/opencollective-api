@@ -31,7 +31,7 @@ import sequelize from '../../../lib/sequelize';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
-import models, { Collective, Op } from '../../../models';
+import models, { Collective, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
@@ -42,6 +42,7 @@ import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
+import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLHostedAccountCollection } from '../collection/HostedAccountCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
@@ -62,7 +63,11 @@ import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestS
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
+import { GraphQLTransactionsImportStatus } from '../enum/TransactionsImportStatus';
+import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
+import { idDecode } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
@@ -93,6 +98,7 @@ import { GraphQLHostMetrics } from './HostMetrics';
 import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
+import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
@@ -1849,6 +1855,10 @@ export const GraphQLHost = new GraphQLObjectType({
         description: 'Returns a list of transactions imports for this host',
         args: {
           ...CollectionArgs,
+          status: {
+            type: GraphQLTransactionsImportStatus,
+            description: 'Filter by status of transactions import',
+          },
           orderBy: {
             type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
             description: 'The order of results',
@@ -1861,7 +1871,16 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its transactions imports');
           }
 
-          const where = { CollectiveId: host.id };
+          const where: Parameters<typeof models.TransactionsImport.findAll>[0]['where'] = { CollectiveId: host.id };
+
+          if (args.status) {
+            if (args.status === 'ACTIVE') {
+              where['ConnectedAccountId'] = { [Op.not]: null };
+            } else {
+              where['ConnectedAccountId'] = null;
+            }
+          }
+
           return {
             limit: args.limit,
             offset: args.offset,
@@ -1891,6 +1910,122 @@ export const GraphQLHost = new GraphQLObjectType({
             plain: false,
             where: { CollectiveId: host.id },
           }).then((results: { DISTINCT: string }[]) => results.map(({ DISTINCT }) => DISTINCT));
+        },
+      },
+      offPlatformTransactions: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
+        args: {
+          ...getCollectionArgs({ limit: 100 }),
+          status: {
+            type: GraphQLTransactionsImportRowStatus,
+            description: 'Filter rows by status',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search by text',
+          },
+          accountId: {
+            type: new GraphQLList(GraphQLNonEmptyString),
+            description: 'Filter rows by plaid account id',
+          },
+          importId: {
+            type: new GraphQLList(new GraphQLNonNull(GraphQLNonEmptyString)),
+            description: 'The transactions import id(s)',
+          },
+          importType: {
+            type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportType)),
+            description: 'Filter rows by import type',
+          },
+        },
+        async resolve(
+          host,
+          args: {
+            limit: number;
+            offset: number;
+            status: TransactionsImportRowStatus;
+            searchTerm: string;
+            accountId: string[];
+            importId: string[];
+            importType: string[];
+          },
+          req,
+        ) {
+          if (!req.remoteUser?.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see its off platform transactions',
+            );
+          }
+
+          checkRemoteUserCanUseTransactions(req);
+
+          // This include is about:
+          // 1. Security: making sure we only return transactions import rows for the host.
+          // 2. Performance: the index on `TransactionsImports.CollectiveId` is used to filter the rows.
+          const include: Parameters<typeof TransactionsImportRow.findAll>[0]['include'] = [
+            {
+              association: 'import',
+              required: true,
+              where: {
+                ...((args.importType && { type: args.importType }) || {}),
+                ...((args.importId && { id: args.importId.map(id => idDecode(id, 'transactions-import')) }) || {}),
+                CollectiveId: host.id,
+              },
+            },
+          ];
+
+          const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = [];
+
+          // Filter by status
+          if (args.status) {
+            where.push({ status: args.status });
+          }
+
+          // Search term
+          if (args.searchTerm) {
+            where.push({
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                textFields: ['description', 'sourceId'],
+              }),
+            });
+          }
+
+          // Filter by plaid account id
+          if (args.accountId?.length) {
+            // eslint-disable-next-line camelcase
+            where.push({ rawValue: { account_id: { [Op.in]: args.accountId } } });
+          }
+
+          return {
+            offset: args.offset,
+            limit: args.limit,
+            totalCount: () => TransactionsImportRow.count({ where, include }),
+            nodes: () =>
+              TransactionsImportRow.findAll({
+                where,
+                include,
+                limit: args.limit,
+                offset: args.offset,
+                order: [
+                  ['date', 'DESC'],
+                  ['createdAt', 'DESC'],
+                  ['id', 'DESC'],
+                ],
+              }),
+          };
+        },
+      },
+      offPlatformTransactionsStats: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportStats),
+        description: 'Returns stats for off platform transactions',
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see its off platform transactions',
+            );
+          }
+
+          checkRemoteUserCanUseTransactions(req);
+          return req.loaders.TransactionsImport.hostStats.load(host.id);
         },
       },
     };
