@@ -538,7 +538,6 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
 
 const createPermissionEvaluator = (
   permissionMatrix: Partial<Record<ExpenseStatuses, ExpensePermissionEvaluator[]>>,
-  errorMessage = 'You do not have permission for this action',
 ): ExpensePermissionEvaluator => {
   return async (req: express.Request, expense: Expense, options = { throw: false }) => {
     if (!validateExpenseScope(req, options)) {
@@ -563,25 +562,15 @@ const createPermissionEvaluator = (
     }
 
     const permissions = permissionMatrix[expense.status];
-    // Check each role independently
-    const hasPermission = remoteUserMeetsOneCondition(req, expense, permissions, options);
-
-    if (!hasPermission && options?.throw) {
-      throw new Forbidden(errorMessage, EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET);
-    }
-
-    return hasPermission;
+    return remoteUserMeetsOneCondition(req, expense, permissions, options);
   };
 };
 
-export const canEditTitle = createPermissionEvaluator(
-  {
-    PENDING: [isOwner, isCollectiveAdmin],
-    APPROVED: [isHostAdmin],
-    INCOMPLETE: [isOwner, isCollectiveAdmin, isHostAdmin],
-  },
-  'You do not have permission to edit the title for this expense',
-);
+export const canEditTitle = createPermissionEvaluator({
+  PENDING: [isOwner, isCollectiveAdmin],
+  APPROVED: [isHostAdmin],
+  INCOMPLETE: [isOwner, isCollectiveAdmin, isHostAdmin],
+});
 
 export const canEditType = createPermissionEvaluator({
   PENDING: [isOwner, isCollectiveAdmin],
