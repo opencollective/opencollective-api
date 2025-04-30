@@ -7828,6 +7828,36 @@ type ExpensePermissions {
   canEdit: Boolean!
 
   """
+  Whether the current user can edit the expense title
+  """
+  canEditTitle: Boolean!
+
+  """
+  Whether the current user can edit the expense type
+  """
+  canEditType: Boolean!
+
+  """
+  Whether the current user can edit the paid by account
+  """
+  canEditPaidBy: Boolean!
+
+  """
+  Whether the current user can edit the payee
+  """
+  canEditPayee: Boolean!
+
+  """
+  Whether the current user can edit the payout method
+  """
+  canEditPayoutMethod: Boolean!
+
+  """
+  Whether the current user can edit the expense items and attachments
+  """
+  canEditItems: Boolean!
+
+  """
   Whether the current user can edit the expense accounting category
   """
   canEditAccountingCategory: Boolean!
