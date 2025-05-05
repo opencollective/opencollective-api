@@ -25,42 +25,42 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense title',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
-        return ExpenseLib.canEditExpense(req, expense);
+        return ExpenseLib.canEditTitle(req, expense);
       },
     },
     canEditType: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense type',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
-        return ExpenseLib.canEditExpense(req, expense);
+        return ExpenseLib.canEditType(req, expense);
       },
     },
     canEditPaidBy: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the paid by account',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
-        return ExpenseLib.canEditExpense(req, expense);
+        return ExpenseLib.canEditPaidBy(req, expense);
       },
     },
     canEditPayee: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the payee',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
-        return ExpenseLib.canEditExpense(req, expense);
+        return ExpenseLib.canEditPayee(req, expense);
       },
     },
     canEditPayoutMethod: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the payout method',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
-        return ExpenseLib.canEditExpense(req, expense);
+        return ExpenseLib.canEditPayoutMethod(req, expense);
       },
     },
     canEditItems: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense items and attachments',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
-        return ExpenseLib.canEditExpense(req, expense);
+        return ExpenseLib.canEditItems(req, expense);
       },
     },
     canEditAccountingCategory: {
