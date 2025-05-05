@@ -71,6 +71,8 @@ export const canAddFundsFromAccount = (fromCollective: Collective, host: Collect
     return false;
   } else {
     return (
+      // Allowed if admin of fromCollective
+      remoteUser.isAdminOfCollective(fromCollective) ||
       // Allowed from vendors under the same host
       (fromCollective.type === CollectiveType.VENDOR && fromCollective.ParentCollectiveId === host.id) ||
       // Allowed from profiles under the same host
