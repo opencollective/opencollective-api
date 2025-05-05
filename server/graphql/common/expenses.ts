@@ -148,9 +148,6 @@ const createPermissionEvaluator = (rules: PermissionRule[]): ExpensePermissionEv
         typeMatches = types.includes(expense.type);
       }
 
-      if (statusMatches && typeMatches) {
-        console.log({ type: expense.type, status: expense.status, condition: rule.condition });
-      }
       // Both conditions must match (if provided)
       return statusMatches && typeMatches;
     });
