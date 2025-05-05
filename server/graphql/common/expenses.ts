@@ -617,7 +617,13 @@ export const canEditExpense = createPermissionEvaluator([
   },
   {
     condition: {
-      status: [ExpenseStatus.PENDING, ExpenseStatus.APPROVED, ExpenseStatus.REJECTED, ExpenseStatus.INCOMPLETE],
+      status: [
+        ExpenseStatus.PENDING,
+        ExpenseStatus.APPROVED,
+        ExpenseStatus.ERROR,
+        ExpenseStatus.REJECTED,
+        ExpenseStatus.INCOMPLETE,
+      ],
     },
     evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
   },
