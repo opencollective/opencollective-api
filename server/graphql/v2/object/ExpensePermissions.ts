@@ -63,6 +63,20 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canEditItems(req, expense);
       },
     },
+    canAttachReceipts: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can attach receipts',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canAttachReceipts(req, expense);
+      },
+    },
+    canEditItemDescription: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense item descriptions',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditItemDescription(req, expense);
+      },
+    },
     canEditAccountingCategory: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense accounting category',

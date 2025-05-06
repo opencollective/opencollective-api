@@ -107,19 +107,15 @@ import { hasProtectedUrlPermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
 
-// Define a condition that can match against expense properties
-type ExpenseCondition = {
-  status?: ExpenseStatus | ExpenseStatus[];
-  type?: EXPENSE_TYPE | EXPENSE_TYPE[];
-};
-
-// Define a rule that maps conditions to permission evaluators
-type PermissionRule = {
-  condition: ExpenseCondition;
-  evaluators: ExpensePermissionEvaluator[];
-};
-
-const createPermissionEvaluator = (rules: PermissionRule[]): ExpensePermissionEvaluator => {
+const evaluateFirstMatch = (
+  rules: {
+    condition: {
+      status?: ExpenseStatus | ExpenseStatus[];
+      type?: EXPENSE_TYPE | EXPENSE_TYPE[];
+    };
+    evaluators: ExpensePermissionEvaluator[];
+  }[],
+): ExpensePermissionEvaluator => {
   return async (req: express.Request, expense: Expense, options = { throw: false }) => {
     if (!validateExpenseScope(req, options)) {
       if (options?.throw) {
@@ -162,7 +158,6 @@ const createPermissionEvaluator = (rules: PermissionRule[]): ExpensePermissionEv
       return false;
     }
 
-    // Check feature flag before checking permissions (which could be expensive operations)
     if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
       if (options?.throw) {
         throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
@@ -603,7 +598,7 @@ export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, exp
 //   }
 // };
 
-export const canEditExpense = createPermissionEvaluator([
+export const canEditExpense = evaluateFirstMatch([
   {
     condition: { type: EXPENSE_TYPE.CHARGE, status: [ExpenseStatus.PAID, ExpenseStatus.PROCESSING] },
     evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
@@ -626,40 +621,46 @@ export const canEditExpense = createPermissionEvaluator([
   },
 ]);
 
-export const canEditTitle = createPermissionEvaluator([
+export const canEditTitle = evaluateFirstMatch([
   { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner, isCollectiveAdmin] },
   { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
   { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isCollectiveAdmin, isHostAdmin] },
 ]);
 
-export const canEditType = createPermissionEvaluator([
+export const canEditType = evaluateFirstMatch([
   { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner, isCollectiveAdmin] },
   { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
   { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isCollectiveAdmin, isHostAdmin] },
 ]);
 
-export const canEditPaidBy = createPermissionEvaluator([
+export const canEditPaidBy = evaluateFirstMatch([
   { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner, isCollectiveAdmin] },
   { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
   { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isHostAdmin] },
 ]);
 
-export const canEditPayee = createPermissionEvaluator([
+export const canEditPayee = evaluateFirstMatch([
   { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner] },
-  // add permission for INCOMPLETE: [isOwner]?
 ]);
 
-export const canEditPayoutMethod = createPermissionEvaluator([
+export const canEditPayoutMethod = evaluateFirstMatch([
   { condition: { status: [ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE] }, evaluators: [isOwner] },
 ]);
 
-export const canEditItems = createPermissionEvaluator([
+export const canEditItems = evaluateFirstMatch([
   { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner] },
   { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
   { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isHostAdmin] },
 ]);
 
-export const canAttachReceipts = createPermissionEvaluator([
+export const canAttachReceipts = evaluateFirstMatch([
+  {
+    condition: { status: [ExpenseStatus.PAID, ExpenseStatus.PROCESSING] },
+    evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
+  },
+]);
+
+export const canEditItemDescription = evaluateFirstMatch([
   {
     condition: { status: [ExpenseStatus.PAID, ExpenseStatus.PROCESSING] },
     evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
@@ -697,7 +698,7 @@ export const canAttachReceipts = createPermissionEvaluator([
 //   }
 // };
 
-export const canEditExpenseTags = createPermissionEvaluator([
+export const canEditExpenseTags = evaluateFirstMatch([
   { condition: { status: ExpenseStatus.PAID }, evaluators: [isHostAdmin, isCollectiveAdmin] },
   { condition: {}, evaluators: [isOwner, isOwnerAccountant, isHostAdmin, isCollectiveAdmin] },
 ]);
@@ -741,10 +742,14 @@ export const canEditExpenseTags = createPermissionEvaluator([
 //     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
 //   }
 // };
-export const canDeleteExpense = createPermissionEvaluator([
+export const canDeleteExpense = evaluateFirstMatch([
   {
-    condition: { status: [ExpenseStatus.DRAFT, ExpenseStatus.PENDING, ExpenseStatus.INVITE_DECLINED] },
+    condition: { status: [ExpenseStatus.PENDING, ExpenseStatus.INVITE_DECLINED] },
     evaluators: [isOwner],
+  },
+  {
+    condition: { status: ExpenseStatus.DRAFT },
+    evaluators: [isOwner, isCollectiveAdmin, isHostAdmin],
   },
   {
     condition: { status: [ExpenseStatus.REJECTED, ExpenseStatus.SPAM, ExpenseStatus.CANCELED] },
@@ -782,7 +787,7 @@ export const canDeleteExpense = createPermissionEvaluator([
 //     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
 //   }
 // };
-export const canPayExpense = createPermissionEvaluator([
+export const canPayExpense = evaluateFirstMatch([
   { condition: { status: [ExpenseStatus.APPROVED, ExpenseStatus.ERROR] }, evaluators: [isHostAdmin] },
 ]);
 
