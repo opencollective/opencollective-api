@@ -86,6 +86,7 @@ import {
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { GraphQLTransactionsImportRowOrderInput } from '../input/TransactionsImportRowOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
@@ -1864,6 +1865,10 @@ export const GraphQLHost = new GraphQLObjectType({
             description: 'The order of results',
             defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
           },
+          type: {
+            type: new GraphQLList(GraphQLTransactionsImportType),
+            description: 'Filter by type of transactions import',
+          },
         },
         async resolve(host, args, req) {
           checkRemoteUserCanUseTransactions(req);
@@ -1879,6 +1884,10 @@ export const GraphQLHost = new GraphQLObjectType({
             } else {
               where['ConnectedAccountId'] = null;
             }
+          }
+
+          if (args.type) {
+            where['type'] = args.type;
           }
 
           return {
@@ -1898,6 +1907,12 @@ export const GraphQLHost = new GraphQLObjectType({
       transactionsImportsSources: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLNonEmptyString)),
         description: 'Returns a list of transactions imports sources for this host',
+        args: {
+          type: {
+            type: new GraphQLList(GraphQLTransactionsImportType),
+            description: 'Filter by type of transactions import',
+          },
+        },
         async resolve(host: Collective, args, req: express.Request) {
           checkRemoteUserCanUseHost(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -1906,10 +1921,17 @@ export const GraphQLHost = new GraphQLObjectType({
             );
           }
 
+          const where: Parameters<typeof models.TransactionsImport.findAll>[0]['where'] = {
+            CollectiveId: host.id,
+            ...(args.type && { type: args.type }),
+          };
+
           return models.TransactionsImport.aggregate('source', 'DISTINCT', {
             plain: false,
-            where: { CollectiveId: host.id },
-          }).then((results: { DISTINCT: string }[]) => results.map(({ DISTINCT }) => DISTINCT));
+            where,
+          }).then((results: { DISTINCT: string }[]) => {
+            return results.map(({ DISTINCT }) => DISTINCT);
+          });
         },
       },
       offPlatformTransactions: {
@@ -1936,6 +1958,11 @@ export const GraphQLHost = new GraphQLObjectType({
             type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportType)),
             description: 'Filter rows by import type',
           },
+          orderBy: {
+            type: new GraphQLNonNull(GraphQLTransactionsImportRowOrderInput),
+            description: 'The order of results',
+            defaultValue: { field: 'date', direction: 'DESC' },
+          },
         },
         async resolve(
           host,
@@ -1947,6 +1974,7 @@ export const GraphQLHost = new GraphQLObjectType({
             accountId: string[];
             importId: string[];
             importType: string[];
+            orderBy: { field: 'date'; direction: 'ASC' | 'DESC' };
           },
           req,
         ) {
@@ -2006,9 +2034,8 @@ export const GraphQLHost = new GraphQLObjectType({
                 limit: args.limit,
                 offset: args.offset,
                 order: [
-                  ['date', 'DESC'],
-                  ['createdAt', 'DESC'],
-                  ['id', 'DESC'],
+                  [args.orderBy.field, args.orderBy.direction],
+                  ['id', args.orderBy.direction],
                 ],
               }),
           };

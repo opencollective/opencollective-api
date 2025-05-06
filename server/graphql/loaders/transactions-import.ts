@@ -76,6 +76,7 @@ export const generateOffPlatformTransactionsStatsLoader = () => {
       FROM "TransactionsImportsRows" row
       INNER JOIN "TransactionsImports" ti ON ti.id = row."TransactionsImportId"
       WHERE ti."CollectiveId" IN (:hostIds)
+      AND ti."type" = 'PLAID'
       GROUP BY ti."CollectiveId"
       `,
       {

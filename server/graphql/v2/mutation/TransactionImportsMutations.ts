@@ -3,13 +3,12 @@ import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { isEmpty, keyBy, mapValues, omit, pick, uniq } from 'lodash';
+import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import {
-  Collective,
   ConnectedAccount,
   Op,
   sequelize,
@@ -23,11 +22,10 @@ import {
   GraphQLTransactionsImportRowAction,
   TransactionsImportRowActionTypes,
 } from '../enum/TransactionsImportRowAction';
-import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
+import { TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode } from '../identifiers';
 import {
-  AccountReferenceInput,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
@@ -234,6 +232,8 @@ const transactionImportsMutations = {
         await importInstance.addRows(
           args.data.map(row => ({
             ...row,
+            sourceId: truncate(row.sourceId, { length: 255 }),
+            description: truncate(row.description, { length: 255 }),
             amount: getValueInCentsFromAmountInput(row.amount),
             currency: row.amount.currency,
           })),
@@ -250,11 +250,11 @@ const transactionImportsMutations = {
         name: 'TransactionsImportEditResponse',
         fields: {
           host: {
-            type: new GraphQLNonNull(GraphQLHost),
+            type: GraphQLHost,
             description: 'The host account that owns the off-platform transactions',
           },
           rows: {
-            type: new GraphQLNonNull(new GraphQLList(GraphQLTransactionsImportRow)),
+            type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRow))),
             description: 'The rows updated by the mutation',
           },
         },
@@ -262,21 +262,13 @@ const transactionImportsMutations = {
     ),
     description: 'Update transactions import rows to set new values or perform actions on them',
     args: {
-      host: {
-        type: GraphQLAccountReferenceInput,
-        description: 'Host account that owns the off-platform transactions',
-      },
       rows: {
-        type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput)),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput))),
         description: 'Rows to update',
       },
       action: {
         type: new GraphQLNonNull(GraphQLTransactionsImportRowAction),
         description: 'Action to perform on all non-processed rows',
-      },
-      status: {
-        type: GraphQLTransactionsImportRowStatus,
-        description: 'If provided, only the row matching this status will be updated by the action',
       },
     },
     resolve: async (
@@ -284,31 +276,18 @@ const transactionImportsMutations = {
       args: {
         rows?: TransactionImportRowGraphQLType[];
         action: (typeof TransactionsImportRowActionTypes)[number];
-        status?: TransactionsImportRowStatus;
-        host: AccountReferenceInput;
       },
       req: Request,
     ) => {
-      let host: Collective;
-
       checkRemoteUserCanUseTransactions(req);
 
-      if (!args.rows && !args.host) {
-        throw new ValidationFailed('You must provide either a list of rows or a host');
+      if (!args.rows) {
+        throw new ValidationFailed('You must provide a list of rows');
+      } else if (!args.rows.length) {
+        return { host: null, rows: [] };
       }
 
-      if (args.host) {
-        host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
-        if (!req.remoteUser.isAdminOfCollective(host)) {
-          throw new Unauthorized('You need to be an admin of the host to update transactions imports');
-        }
-      }
-
-      if (args.rows && !args.rows.length) {
-        return { host, rows: [] };
-      }
-
-      const inputRowIds = args.rows?.map(row => idDecode(row.id, 'transactions-import-row'));
+      const inputRowIds = args.rows.map(row => idDecode(row.id, 'transactions-import-row'));
       const importMetadata = (await TransactionsImportRow.findAll({
         raw: true,
         attributes: [
@@ -318,10 +297,15 @@ const transactionImportsMutations = {
           [sequelize.col('import.type'), 'type'],
         ],
         where: {
-          ...(inputRowIds ? { id: { [Op.in]: inputRowIds } } : {}),
-          ...(args.status ? { status: args.status } : {}),
+          id: inputRowIds,
         },
-        include: [{ association: 'import', required: false, attributes: [] }],
+        include: [
+          {
+            association: 'import',
+            required: false,
+            attributes: [],
+          },
+        ],
         group: ['import.CollectiveId', 'import.type'],
       })) as unknown as Array<{
         rowsIds: number[];
@@ -331,20 +315,17 @@ const transactionImportsMutations = {
       }>;
 
       // Infer the host from provided rows
-      if (!host) {
-        host = await req.loaders.Collective.byId.load(importMetadata[0].CollectiveId);
-      }
-
       if (!importMetadata.length) {
         return { rows: [] };
-      } else if (importMetadata.length > 1 || importMetadata[0].CollectiveId !== host.id) {
+      } else if (importMetadata.length > 1) {
         throw new ValidationFailed('All rows must belong to the same host and have the same import type');
-      } else if (!req.remoteUser.isAdmin(host.id)) {
+      } else if (!req.remoteUser.isAdmin(importMetadata[0].CollectiveId)) {
         throw new Unauthorized('You need to be an admin of the host to update transactions imports');
       }
 
       const importType = importMetadata[0].type;
       const selectedRowIds = importMetadata[0].rowsIds;
+      const hostId = importMetadata[0].CollectiveId;
       await sequelize.transaction(async transaction => {
         // Update rows
         if (args.action === 'UPDATE_ROWS') {
@@ -373,7 +354,7 @@ const transactionImportsMutations = {
                 const orderId = getDatabaseIdFromOrderReference(row.order);
                 const order = await req.loaders.Order.byId.load(orderId);
                 const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
-                if (!order || !collective || collective.HostCollectiveId !== host.id) {
+                if (!order || !collective || collective.HostCollectiveId !== hostId) {
                   throw new Unauthorized(`Order not found or not associated with the import: ${orderId}`);
                 }
 
@@ -385,7 +366,7 @@ const transactionImportsMutations = {
                   throwIfMissing: true,
                 });
                 const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-                if (collective.HostCollectiveId !== host.id) {
+                if (collective.HostCollectiveId !== hostId) {
                   throw new Unauthorized(`Expense not associated with the import: ${expense.id}`);
                 }
 
@@ -394,9 +375,6 @@ const transactionImportsMutations = {
               } else if (row.status) {
                 values['status'] = row.status;
                 where['status'] = { [Op.not]: TransactionsImportRowStatus.LINKED }; // Cannot change the status of a LINKED row
-                if (args.status) {
-                  where['status'][Op.is] = args.status;
-                }
               }
 
               // For plaid imports, users can't change imported data
@@ -430,7 +408,7 @@ const transactionImportsMutations = {
               transaction,
               where: {
                 id: { [Op.in]: selectedRowIds },
-                status: 'IGNORED',
+                status: ['IGNORED', 'ON_HOLD'],
               },
             },
           );
@@ -450,12 +428,12 @@ const transactionImportsMutations = {
         // Update matching imports
         await TransactionsImport.update(
           { updatedAt: new Date() },
-          { where: { id: { [Op.in]: importMetadata[0].importsIds }, CollectiveId: host.id }, transaction },
+          { where: { id: { [Op.in]: importMetadata[0].importsIds }, CollectiveId: hostId }, transaction },
         );
       });
 
       return {
-        host,
+        host: () => req.loaders.Collective.byId.load(hostId),
         rows: () => TransactionsImportRow.findAll({ where: { id: { [Op.in]: selectedRowIds } } }),
       };
     },

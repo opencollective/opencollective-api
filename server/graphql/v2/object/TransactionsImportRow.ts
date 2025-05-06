@@ -9,6 +9,7 @@ import { GraphQLAccount } from '../interface/Account';
 import { GraphQLAmount } from './Amount';
 import { GraphQLExpense } from './Expense';
 import { GraphQLOrder } from './Order';
+import { GraphQLPlaidAccount } from './PlaidAccount';
 import { GraphQLTransactionsImport } from './TransactionsImport';
 
 export const GraphQLTransactionsImportRow = new GraphQLObjectType({
@@ -60,6 +61,36 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         'If an account ID is available in the imported row, it will be stored here. Returns the default account ID otherwise.',
       // "__default__" must match `components/dashboard/sections/transactions-imports/lib/types.ts`
       resolve: (row: TransactionsImportRow) => row.rawValue?.['account_id'] || '__default__',
+    },
+    plaidAccount: {
+      type: GraphQLPlaidAccount,
+      description: 'If the row was imported from plaid, this is the account it was imported from',
+      resolve: async (row: TransactionsImportRow, _, req) => {
+        const accountId = row.rawValue?.['account_id'] as string;
+        if (accountId) {
+          const transactionsImport =
+            row.import || (await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId));
+          if (transactionsImport) {
+            const matchingPlaidAccount = transactionsImport.data?.plaid?.availableAccounts?.find(
+              plaidAccount => plaidAccount.accountId === accountId,
+            );
+
+            if (matchingPlaidAccount) {
+              return matchingPlaidAccount;
+            }
+          }
+
+          // Fallback
+          return {
+            accountId: accountId,
+            mask: '',
+            name: '',
+            officialName: '',
+            subtype: '',
+            type: '',
+          };
+        }
+      },
     },
     assignedAccounts: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
