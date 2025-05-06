@@ -7858,6 +7858,16 @@ type ExpensePermissions {
   canEditItems: Boolean!
 
   """
+  Whether the current user can attach receipts
+  """
+  canAttachReceipts: Boolean!
+
+  """
+  Whether the current user can edit the expense item descriptions
+  """
+  canEditItemDescription: Boolean!
+
+  """
   Whether the current user can edit the expense accounting category
   """
   canEditAccountingCategory: Boolean!
