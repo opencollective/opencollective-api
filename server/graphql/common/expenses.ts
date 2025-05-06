@@ -113,7 +113,7 @@ const evaluateFirstMatch = (
       status?: ExpenseStatus | ExpenseStatus[];
       type?: EXPENSE_TYPE | EXPENSE_TYPE[];
     };
-    evaluators: ExpensePermissionEvaluator[];
+    evaluator: ExpensePermissionEvaluator;
   }[],
 ): ExpensePermissionEvaluator => {
   return async (req: express.Request, expense: Expense, options = { throw: false }) => {
@@ -165,7 +165,8 @@ const evaluateFirstMatch = (
       return false;
     }
 
-    return remoteUserMeetsOneCondition(req, expense, matchingRule.evaluators, options);
+    const { evaluator } = matchingRule;
+    return evaluator(req, expense, options);
   };
 };
 
@@ -377,6 +378,50 @@ const validateExpenseScope = (req: express.Request, options: { throw?: boolean }
     }
   }
 
+  return true;
+};
+
+const validateExpenseAuthorApproval = async (req: express.Request, expense: Expense, options: { throw?: boolean }) => {
+  if (req.remoteUser.id === expense.UserId) {
+    expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+
+    if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
+      expense.collective.host =
+        expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
+    }
+
+    const currency = expense.collective.host?.currency || expense.collective.currency;
+    const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+    const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+
+    let policy = collectivePolicy;
+    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
+      policy = hostPolicy;
+
+      if (!hostPolicy.appliesToSingleAdminCollectives) {
+        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+        if (collectiveAdminCount === 1) {
+          policy = collectivePolicy;
+        }
+      }
+    }
+
+    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'User cannot approve their own expenses',
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+          {
+            reasonDetails: {
+              amount: policy.amountInCents / 100,
+              currency,
+            },
+          },
+        );
+      }
+      return false;
+    }
+  }
   return true;
 };
 
@@ -601,11 +646,13 @@ export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, exp
 export const canEditExpense = evaluateFirstMatch([
   {
     condition: { type: EXPENSE_TYPE.CHARGE, status: [ExpenseStatus.PAID, ExpenseStatus.PROCESSING] },
-    evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options),
   },
   {
     condition: { status: ExpenseStatus.DRAFT },
-    evaluators: [isOwner, isHostAdmin, isDraftPayee],
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options),
   },
   {
     condition: {
@@ -617,53 +664,103 @@ export const canEditExpense = evaluateFirstMatch([
         ExpenseStatus.INCOMPLETE,
       ],
     },
-    evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options),
   },
 ]);
 
 export const canEditTitle = evaluateFirstMatch([
-  { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner, isCollectiveAdmin] },
-  { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
-  { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isCollectiveAdmin, isHostAdmin] },
+  {
+    condition: { status: ExpenseStatus.PENDING },
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.APPROVED },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.INCOMPLETE },
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options),
+  },
 ]);
 
 export const canEditType = evaluateFirstMatch([
-  { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner, isCollectiveAdmin] },
-  { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
-  { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isCollectiveAdmin, isHostAdmin] },
+  {
+    condition: { status: ExpenseStatus.PENDING },
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.APPROVED },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.INCOMPLETE },
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options),
+  },
 ]);
 
 export const canEditPaidBy = evaluateFirstMatch([
-  { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner, isCollectiveAdmin] },
-  { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
-  { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isHostAdmin] },
+  {
+    condition: { status: ExpenseStatus.PENDING },
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.APPROVED },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.INCOMPLETE },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options),
+  },
 ]);
 
 export const canEditPayee = evaluateFirstMatch([
-  { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner] },
+  {
+    condition: { status: ExpenseStatus.PENDING },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isOwner], options),
+  },
 ]);
 
 export const canEditPayoutMethod = evaluateFirstMatch([
-  { condition: { status: [ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE] }, evaluators: [isOwner] },
+  {
+    condition: { status: [ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE] },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isOwner], options),
+  },
 ]);
 
 export const canEditItems = evaluateFirstMatch([
-  { condition: { status: ExpenseStatus.PENDING }, evaluators: [isOwner] },
-  { condition: { status: ExpenseStatus.APPROVED }, evaluators: [isHostAdmin] },
-  { condition: { status: ExpenseStatus.INCOMPLETE }, evaluators: [isOwner, isHostAdmin] },
+  {
+    condition: { status: ExpenseStatus.PENDING },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isOwner], options),
+  },
+  {
+    condition: { status: ExpenseStatus.APPROVED },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.INCOMPLETE },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options),
+  },
 ]);
 
 export const canAttachReceipts = evaluateFirstMatch([
   {
     condition: { status: [ExpenseStatus.PAID, ExpenseStatus.PROCESSING] },
-    evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options),
   },
 ]);
 
 export const canEditItemDescription = evaluateFirstMatch([
   {
     condition: { status: [ExpenseStatus.PAID, ExpenseStatus.PROCESSING] },
-    evaluators: [isOwner, isHostAdmin, isCollectiveAdmin],
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options),
   },
 ]);
 
@@ -699,8 +796,16 @@ export const canEditItemDescription = evaluateFirstMatch([
 // };
 
 export const canEditExpenseTags = evaluateFirstMatch([
-  { condition: { status: ExpenseStatus.PAID }, evaluators: [isHostAdmin, isCollectiveAdmin] },
-  { condition: {}, evaluators: [isOwner, isOwnerAccountant, isHostAdmin, isCollectiveAdmin] },
+  {
+    condition: { status: ExpenseStatus.PAID },
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin], options),
+  },
+  {
+    condition: {},
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isOwnerAccountant, isHostAdmin, isCollectiveAdmin], options),
+  },
 ]);
 
 /**
@@ -745,15 +850,17 @@ export const canEditExpenseTags = evaluateFirstMatch([
 export const canDeleteExpense = evaluateFirstMatch([
   {
     condition: { status: [ExpenseStatus.PENDING, ExpenseStatus.INVITE_DECLINED] },
-    evaluators: [isOwner],
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isOwner], options),
   },
   {
     condition: { status: ExpenseStatus.DRAFT },
-    evaluators: [isOwner, isCollectiveAdmin, isHostAdmin],
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options),
   },
   {
     condition: { status: [ExpenseStatus.REJECTED, ExpenseStatus.SPAM, ExpenseStatus.CANCELED] },
-    evaluators: [isOwner, isCollectiveAdmin, isHostAdmin],
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options),
   },
 ]);
 
@@ -788,127 +895,151 @@ export const canDeleteExpense = evaluateFirstMatch([
 //   }
 // };
 export const canPayExpense = evaluateFirstMatch([
-  { condition: { status: [ExpenseStatus.APPROVED, ExpenseStatus.ERROR] }, evaluators: [isHostAdmin] },
+  {
+    condition: { status: [ExpenseStatus.APPROVED, ExpenseStatus.ERROR] },
+    evaluator: (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+  },
 ]);
 
 /**
  * Returns true if expense can be approved by user
  */
-export const canApprove: ExpensePermissionEvaluator = async (
-  req: express.Request,
-  expense: Expense,
-  options = { throw: false },
-) => {
-  if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
-    return false;
-  } else if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        `Can not approve expense in current status (${expense.status})`,
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-      );
-    }
-    return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
-    if (options?.throw) {
-      throw new Forbidden('User cannot approve expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
-    }
-    return false;
-  } else {
-    expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+// export const canApprove: ExpensePermissionEvaluator = async (
+//   req: express.Request,
+//   expense: Expense,
+//   options = { throw: false },
+// ) => {
+//   if (!validateExpenseScope(req, options)) {
+//     if (options?.throw) {
+//       throw new Forbidden(
+//         'Your current token is missing the necessary scope',
+//         EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+//       );
+//     }
+//     return false;
+//   } else if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
+//     if (options?.throw) {
+//       throw new Forbidden(
+//         `Can not approve expense in current status (${expense.status})`,
+//         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+//       );
+//     }
+//     return false;
+//   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+//     if (options?.throw) {
+//       throw new Forbidden('User cannot approve expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+//     }
+//     return false;
+//   } else {
+//     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
 
-    if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
-      expense.collective.host =
-        expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
-    }
+//     if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
+//       expense.collective.host =
+//         expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
+//     }
 
-    const currency = expense.collective.host?.currency || expense.collective.currency;
-    const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-    const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+//     const currency = expense.collective.host?.currency || expense.collective.currency;
+//     const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+//     const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
 
-    let policy = collectivePolicy;
-    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
-      policy = hostPolicy;
+//     let policy = collectivePolicy;
+//     if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
+//       policy = hostPolicy;
 
-      if (!hostPolicy.appliesToSingleAdminCollectives) {
-        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
-        if (collectiveAdminCount === 1) {
-          policy = collectivePolicy;
-        }
-      }
-    }
+//       if (!hostPolicy.appliesToSingleAdminCollectives) {
+//         const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+//         if (collectiveAdminCount === 1) {
+//           policy = collectivePolicy;
+//         }
+//       }
+//     }
 
-    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
-      if (options?.throw) {
-        throw new Forbidden(
-          'User cannot approve their own expenses',
-          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
-          {
-            reasonDetails: {
-              amount: policy.amountInCents / 100,
-              currency,
-            },
-          },
-        );
-      }
-      return false;
-    }
-    if (expense.status === 'INCOMPLETE') {
-      if (await isHostAdmin(req, expense)) {
-        return true;
-      } else {
-        if (options?.throw) {
-          throw new Forbidden(
-            'Only host admins can approve incomplete expenses',
-            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
-          );
-        }
-        return false;
-      }
-    }
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
-  }
-};
+//     if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
+//       if (options?.throw) {
+//         throw new Forbidden(
+//           'User cannot approve their own expenses',
+//           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+//           {
+//             reasonDetails: {
+//               amount: policy.amountInCents / 100,
+//               currency,
+//             },
+//           },
+//         );
+//       }
+//       return false;
+//     }
+//     if (expense.status === 'INCOMPLETE') {
+//       if (await isHostAdmin(req, expense)) {
+//         return true;
+//       } else {
+//         if (options?.throw) {
+//           throw new Forbidden(
+//             'Only host admins can approve incomplete expenses',
+//             EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+//           );
+//         }
+//         return false;
+//       }
+//     }
+//     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
+//   }
+// };
+export const canApprove = evaluateFirstMatch([
+  {
+    condition: { status: [ExpenseStatus.REJECTED, ExpenseStatus.PENDING] },
+    evaluator: async (req, expense, options) =>
+      (await validateExpenseAuthorApproval(req, expense, options)) &&
+      remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
+  },
+  {
+    condition: { status: ExpenseStatus.INCOMPLETE },
+    evaluator: async (req, expense, options) =>
+      (await validateExpenseAuthorApproval(req, expense, options)) &&
+      remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+  },
+]);
 
 /**
  * Returns true if expense can be rejected by user
  */
-export const canReject: ExpensePermissionEvaluator = async (
-  req: express.Request,
-  expense: Expense,
-  options = { throw: false },
-) => {
-  if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
-    return false;
-  } else if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        `Can not reject expense in current status (${expense.status})`,
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-      );
-    }
-    return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
-    if (options?.throw) {
-      throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
-    }
-    return false;
-  } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
-  }
-};
+// export const canReject: ExpensePermissionEvaluator = async (
+//   req: express.Request,
+//   expense: Expense,
+//   options = { throw: false },
+// ) => {
+//   if (!validateExpenseScope(req, options)) {
+//     if (options?.throw) {
+//       throw new Forbidden(
+//         'Your current token is missing the necessary scope',
+//         EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+//       );
+//     }
+//     return false;
+//   } else if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
+//     if (options?.throw) {
+//       throw new Forbidden(
+//         `Can not reject expense in current status (${expense.status})`,
+//         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+//       );
+//     }
+//     return false;
+//   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+//     if (options?.throw) {
+//       throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+//     }
+//     return false;
+//   } else {
+//     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
+//   }
+// };
+export const canReject = evaluateFirstMatch([
+  {
+    condition: { status: [ExpenseStatus.PENDING, ExpenseStatus.UNVERIFIED, ExpenseStatus.INCOMPLETE] },
+    evaluator: (req, expense, options) =>
+      remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
+  },
+]);
 
 /**
  * Creates an evaluator for an optional draftKey input that returns true if expense invite can be declined by this request
@@ -965,44 +1096,63 @@ export const buildCanDeclineExpenseInviteEvaluator: (draftKey?: string) => Expen
 /**
  * Returns true if expense can be rejected by user
  */
-export const canMarkAsSpam: ExpensePermissionEvaluator = async (
-  req: express.Request,
-  expense: Expense,
-  options = { throw: false },
-) => {
-  if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
-    return false;
-  } else if (!['REJECTED'].includes(expense.status)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        `Can not mark expense as spam in current status (${expense.status})`,
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-      );
-    }
-    return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
-    if (options?.throw) {
-      throw new Forbidden('User cannot mark expenses as spam', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
-    }
-    return false;
-  } else if (expense.UserId === PlatformConstants.PlatformUserId) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Cannot mark platform expenses as spam',
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
-      );
-    }
-    return false;
-  } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
-  }
-};
+// export const canMarkAsSpam: ExpensePermissionEvaluator = async (
+//   req: express.Request,
+//   expense: Expense,
+//   options = { throw: false },
+// ) => {
+//   if (!validateExpenseScope(req, options)) {
+//     if (options?.throw) {
+//       throw new Forbidden(
+//         'Your current token is missing the necessary scope',
+//         EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+//       );
+//     }
+//     return false;
+//   } else if (!['REJECTED'].includes(expense.status)) {
+//     if (options?.throw) {
+//       throw new Forbidden(
+//         `Can not mark expense as spam in current status (${expense.status})`,
+//         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+//       );
+//     }
+//     return false;
+//   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+//     if (options?.throw) {
+//       throw new Forbidden('User cannot mark expenses as spam', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+//     }
+//     return false;
+//   } else if (expense.UserId === PlatformConstants.PlatformUserId) {
+//     if (options?.throw) {
+//       throw new Forbidden(
+//         'Cannot mark platform expenses as spam',
+//         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+//       );
+//     }
+//     return false;
+//   } else {
+//     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
+//   }
+// };
+
+export const canMarkAsSpam = evaluateFirstMatch([
+  {
+    condition: { status: ExpenseStatus.REJECTED },
+    evaluator: async (req, expense, options) => {
+      if (expense.UserId === PlatformConstants.PlatformUserId) {
+        if (options?.throw) {
+          throw new Forbidden(
+            'Cannot mark platform expenses as spam',
+            EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+          );
+        }
+        return false;
+      }
+
+      return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
+    },
+  },
+]);
 
 /**
  * Returns true if expense can be unapproved by user
