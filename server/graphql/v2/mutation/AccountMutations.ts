@@ -182,6 +182,7 @@ const accountMutations = {
             FromCollectiveId: account.id,
             HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
             data: {
+              collective: updatedAccount.minimal,
               previousData,
               newData: { settings: { [args.key]: args.value } },
             },
@@ -266,6 +267,7 @@ const accountMutations = {
             FromCollectiveId: account.id,
             HostCollectiveId: account.HostCollectiveId,
             data: {
+              collective: account.minimal,
               previousData,
               newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
             },
@@ -661,7 +663,11 @@ const accountMutations = {
               CollectiveId: account.id,
               FromCollectiveId: account.id,
               HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-              data: { previousData, newData: { currency: args.account[key] } },
+              data: {
+                collective: account.minimal,
+                previousData,
+                newData: { currency: args.account[key] },
+              },
             });
           }
         }
@@ -722,7 +728,11 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData: { policies: previousPolicies }, newData: { policies: updatedPolicies } },
+        data: {
+          collective: account.minimal,
+          previousData: { policies: previousPolicies },
+          newData: { policies: updatedPolicies },
+        },
       });
 
       return account;
