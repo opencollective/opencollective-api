@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { findLast, keyBy, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
@@ -573,9 +573,21 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
 
             const draftData = pick(expense.data, draftFields);
             const items = ((expense.data.items as { url?: string }[]) || []).map(item => pick(item, itemsFields));
+            const attachedFiles = (draftData.attachedFiles as { url?: string }[]) || [];
+
+            const uploadedFiles = keyBy(
+              (
+                await req.loaders.UploadedFile.byUrl.loadMany([
+                  ...items.filter(item => item.url).map(item => item.url),
+                  ...attachedFiles.filter(attachedFile => attachedFile.url).map(attachedFile => attachedFile.url),
+                ])
+              ).filter(Boolean) as UploadedFile[],
+              uploadedFile => uploadedFile.getDataValue('url'),
+            );
+
             for (const item of items) {
               if (item.url) {
-                const uploadedFile = await req.loaders.UploadedFile.byUrl.load(item.url);
+                const uploadedFile = uploadedFiles[item.url];
                 item.url = uploadedFile
                   ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
                       expenseId: expense.id,
@@ -589,10 +601,9 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
               draftData.items = items;
             }
 
-            const attachedFiles = (draftData.attachedFiles as { url?: string }[]) || [];
             for (const attachedFile of attachedFiles) {
               if (attachedFile.url) {
-                const uploadedFile = await req.loaders.UploadedFile.byUrl.load(attachedFile.url);
+                const uploadedFile = uploadedFiles[attachedFile.url];
 
                 attachedFile.url = uploadedFile
                   ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
