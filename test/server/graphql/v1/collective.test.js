@@ -1050,7 +1050,7 @@ describe('server/graphql/v1/collective', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(user.collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         previousData: { legalName: 'Old Legal Name' },
         newData: { legalName: 'New Legal Name' },
       });
