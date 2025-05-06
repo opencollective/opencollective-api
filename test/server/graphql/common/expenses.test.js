@@ -435,9 +435,9 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canDeleteExpense, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true, // TODO: verify
+          collectiveAdmin: true,
           collectiveAccountant: false,
-          hostAdmin: true, // TODO: verify
+          hostAdmin: true,
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
