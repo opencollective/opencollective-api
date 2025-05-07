@@ -146,10 +146,17 @@ const evaluateFirstMatch = (rules: [ExpenseStateMatcher, ExpensePermissionEvalua
 
     if (!matchingRule) {
       if (options?.throw) {
-        throw new Forbidden(
-          `Cannot perform this action with current expense (status: ${expense.status}, type: ${expense.type})`,
-          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-        );
+        const statusInMatcher = rules.some(rule => rule[0].status !== undefined);
+        const typeInMatcher = rules.some(rule => rule[0].type !== undefined);
+        const errorMessage = [
+          'Can not perform this action with current expense',
+          statusInMatcher ? `(status: ${expense.status})` : '',
+          typeInMatcher ? `(type: ${expense.type})` : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        throw new Forbidden(errorMessage, EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
       }
       return false;
     }
