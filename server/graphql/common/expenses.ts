@@ -154,7 +154,7 @@ const evaluateFirstMatch = (rules: [ExpenseStateMatcher, ExpensePermissionEvalua
       return false;
     }
 
-    if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
       if (options?.throw) {
         throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
       }
