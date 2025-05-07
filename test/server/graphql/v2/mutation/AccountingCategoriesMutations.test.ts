@@ -13,7 +13,7 @@ import {
   fakeUserToken,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, sleep } from '../../../../utils';
 
 const fakeValidCategoryInput = (attrs = {}) => ({
   code: randStr(),
@@ -258,6 +258,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
         order: [['createdAt', 'ASC']],
       });
 
+      await sleep(50); // For the async activity creation
       expect(activities).to.have.length(3);
       activities.forEach(activity => {
         expect(activity.HostCollectiveId).to.equal(host.id);

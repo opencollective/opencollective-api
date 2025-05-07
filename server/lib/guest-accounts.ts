@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 
-import { isEmpty } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../constants/collectives';
@@ -15,25 +14,6 @@ export const DEFAULT_GUEST_NAME = 'Guest';
 type GuestProfileDetails = {
   user: User;
   collective: Collective;
-};
-
-/**
- * If more recent info on the collective has been provided, update it. Otherwise do nothing.
- */
-const updateCollective = async (collective, newInfo, transaction) => {
-  const fieldsToUpdate = {};
-
-  if (newInfo.name && collective.name !== newInfo.name) {
-    fieldsToUpdate['name'] = newInfo.name;
-  }
-
-  if (newInfo.location) {
-    await collective.setLocation(newInfo.location, transaction);
-  }
-
-  return isEmpty(fieldsToUpdate)
-    ? collective
-    : collective.update(fieldsToUpdate, { transaction, include: [{ association: 'location' }] });
 };
 
 type UserInfoInput = {
@@ -87,10 +67,6 @@ export const getOrCreateGuestProfile = async (
       if (user.confirmedAt && throwIfAVerifiedAccountExists) {
         throw new BadRequest('There is already an account associated with this email, please sign in.');
       }
-
-      const newLegalName = legalName || collective.legalName;
-      const newValues = { name, location, legalName: newLegalName };
-      collective = await updateCollective(collective, newValues, transaction);
     }
 
     // Create the public guest profile

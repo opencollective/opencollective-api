@@ -21,7 +21,7 @@ export const getTransactionPdf = async (transaction, user) => {
   };
   let pdfUrl;
   if (config.host.pdfV2) {
-    pdfUrl = `${config.host.pdf}/receipts/transaction/${transaction.uuid}/receipt.pdf`;
+    pdfUrl = `${config.host.pdfV2}/receipts/transaction/${transaction.uuid}/receipt.pdf`;
     headers['x-api-key'] = config.keys.opencollective.pdfApiKey;
   } else {
     pdfUrl = `${config.host.pdf}/receipts/transactions/${transaction.uuid}/receipt.pdf`;
@@ -137,11 +137,18 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
     });
 
     // Call PDF service for the invoice
-    const pdfUrl = `${config.host.pdf}/receipts/collectives/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}/receipt.pdf`;
     const accessToken = fromCollectiveUser.jwt({}, TOKEN_EXPIRATION_PDF);
     const headers = {
       Authorization: `Bearer ${accessToken}`,
     };
+
+    let pdfUrl;
+    if (config.host.pdfV2) {
+      pdfUrl = `${config.host.pdf2}/receipts/period/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}/receipt.pdf`;
+      headers['x-api-key'] = config.keys.opencollective.pdfApiKey;
+    } else {
+      pdfUrl = `${config.host.pdf}/receipts/collectives/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}/receipt.pdf`;
+    }
 
     let invoicePdf;
     try {

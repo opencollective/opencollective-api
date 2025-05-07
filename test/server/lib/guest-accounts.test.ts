@@ -51,7 +51,7 @@ describe('server/lib/guest-accounts.ts', () => {
       expect(collective.id).to.eq(user.CollectiveId);
     });
 
-    it('Updates the profile with new info', async () => {
+    it('Does not update the profile with new info', async () => {
       const email = randEmail();
       const firstLocation = { country: 'US', structured: { address1: '422 Beverly Plaza' } };
       const firstResult = await getOrCreateGuestProfile({ email, location: firstLocation });
@@ -61,9 +61,11 @@ describe('server/lib/guest-accounts.ts', () => {
       expect(secondResult.collective).to.exist;
       expect(firstResult.collective.id).to.eq(secondResult.collective.id);
       expect(firstResult.collective.name).to.eq('Guest');
-      expect(secondResult.collective.name).to.eq('Updated name');
+      expect(secondResult.collective.name).to.eq('Guest');
       expect(firstResult.collective.location?.structured).to.deep.eq(firstLocation.structured);
-      expect(secondResult.collective.location?.structured).to.deep.eq(secondLocation.structured);
+      expect(secondResult.collective.location?.structured).to.deep.eq(firstLocation.structured);
+      expect(firstResult.collective.location?.structured).to.deep.eq(firstLocation.structured);
+      expect(secondResult.collective.location?.structured).to.deep.eq(firstLocation.structured);
     });
   });
 

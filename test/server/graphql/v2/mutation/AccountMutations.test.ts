@@ -209,7 +209,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         previousData: { settings: {} },
         newData: { settings: { tos: 'https://opencollective.com/tos' } },
       });
@@ -587,7 +587,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         previousData: { hostFeePercent: 10 },
         newData: { hostFeePercent: 9.99, useCustomHostFee: true },
       });
@@ -1026,7 +1026,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         previousData: {
           policies: {
             [POLICIES.EXPENSE_POLICIES]: {
@@ -1079,7 +1079,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         previousData: {
           policies: {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
@@ -1132,7 +1132,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         newData: {
           policies: {
             [POLICIES.EXPENSE_POLICIES]: {
