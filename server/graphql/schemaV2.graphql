@@ -7956,6 +7956,14 @@ type ExpensePermissions {
   """
   canSeePayoutMethodPrivateDetails: Boolean!
   edit: Permission!
+  editTitle: Permission!
+  editType: Permission!
+  editPaidBy: Permission!
+  editPayee: Permission!
+  editPayoutMethod: Permission!
+  editItems: Permission!
+  attachReceipts: Permission!
+  editItemDescription: Permission!
 
   """
   Whether the current user can edit the expense accounting category

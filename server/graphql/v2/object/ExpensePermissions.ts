@@ -215,6 +215,38 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpense),
     },
+    editTitle: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditTitle),
+    },
+    editType: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditType),
+    },
+    editPaidBy: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditPaidBy),
+    },
+    editPayee: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditPayee),
+    },
+    editPayoutMethod: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditPayoutMethod),
+    },
+    editItems: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditItems),
+    },
+    attachReceipts: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canAttachReceipts),
+    },
+    editItemDescription: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditItemDescription),
+    },
     editAccountingCategory: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense accounting category',
