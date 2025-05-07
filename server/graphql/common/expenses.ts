@@ -10,6 +10,7 @@ import {
   first,
   flatten,
   get,
+  has,
   isBoolean,
   isEmpty,
   isEqual,
@@ -24,6 +25,7 @@ import {
   pick,
   set,
   size,
+  some,
   uniq,
   without,
 } from 'lodash';
@@ -113,7 +115,10 @@ export type ExpensePermissionEvaluator = (
   options?: { throw?: boolean },
 ) => Promise<boolean>;
 
-const evaluateFirstMatch = (rules: [ExpenseStateMatcher, ExpensePermissionEvaluator][]): ExpensePermissionEvaluator => {
+const evaluateFirstMatch = (
+  rules: [ExpenseStateMatcher, ExpensePermissionEvaluator][],
+  getErrorMessage?: (expense: Expense) => string,
+): ExpensePermissionEvaluator => {
   return async (req: express.Request, expense: Expense, options = { throw: false }) => {
     if (!validateExpenseScope(req, options)) {
       if (options?.throw) {
@@ -146,15 +151,17 @@ const evaluateFirstMatch = (rules: [ExpenseStateMatcher, ExpensePermissionEvalua
 
     if (!matchingRule) {
       if (options?.throw) {
-        const statusInMatcher = rules.some(rule => rule[0].status !== undefined);
-        const typeInMatcher = rules.some(rule => rule[0].type !== undefined);
-        const errorMessage = [
-          'Can not perform this action with current expense',
-          statusInMatcher ? `(status: ${expense.status})` : '',
-          typeInMatcher ? `(type: ${expense.type})` : '',
-        ]
-          .filter(Boolean)
-          .join(' ');
+        const statusInMatcher = some(rules, ([stateMatcher]) => has(stateMatcher, 'status'));
+        const typeInMatcher = some(rules, ([stateMatcher]) => has(stateMatcher, 'type'));
+        const errorMessage = getErrorMessage
+          ? getErrorMessage(expense)
+          : [
+              'Can not perform this action with current expense',
+              statusInMatcher ? `(status: ${expense.status})` : '',
+              typeInMatcher ? `(type: ${expense.type})` : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
 
         throw new Forbidden(errorMessage, EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
       }
@@ -766,30 +773,36 @@ export const canPayExpense = evaluateFirstMatch([
 /**
  * Returns true if expense can be approved by user
  */
-export const canApprove = evaluateFirstMatch([
+export const canApprove = evaluateFirstMatch(
   [
-    { status: [ExpenseStatus.REJECTED, ExpenseStatus.PENDING] },
-    async (req, expense, options) =>
-      (await validateExpenseAuthorApproval(req, expense, options)) &&
-      remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
+    [
+      { status: [ExpenseStatus.REJECTED, ExpenseStatus.PENDING] },
+      async (req, expense, options) =>
+        (await validateExpenseAuthorApproval(req, expense, options)) &&
+        remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
+    ],
+    [
+      { status: ExpenseStatus.INCOMPLETE },
+      async (req, expense, options) =>
+        (await validateExpenseAuthorApproval(req, expense, options)) &&
+        remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+    ],
   ],
-  [
-    { status: ExpenseStatus.INCOMPLETE },
-    async (req, expense, options) =>
-      (await validateExpenseAuthorApproval(req, expense, options)) &&
-      remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
-  ],
-]);
+  expense => `Can not approve expense in current status (${expense.status})`,
+);
 
 /**
  * Returns true if expense can be rejected by user
  */
-export const canReject = evaluateFirstMatch([
+export const canReject = evaluateFirstMatch(
   [
-    { status: [ExpenseStatus.PENDING, ExpenseStatus.UNVERIFIED, ExpenseStatus.INCOMPLETE] },
-    (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
+    [
+      { status: [ExpenseStatus.PENDING, ExpenseStatus.UNVERIFIED, ExpenseStatus.INCOMPLETE] },
+      (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
+    ],
   ],
-]);
+  expense => `Can not reject expense in current status (${expense.status})`,
+);
 
 /**
  * Creates an evaluator for an optional draftKey input that returns true if expense invite can be declined by this request
@@ -868,16 +881,19 @@ export const canMarkAsSpam = evaluateFirstMatch([
 /**
  * Returns true if expense can be unapproved by user
  */
-export const canUnapprove = evaluateFirstMatch([
+export const canUnapprove = evaluateFirstMatch(
   [
-    { status: ExpenseStatus.INCOMPLETE },
-    (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+    [
+      { status: ExpenseStatus.INCOMPLETE },
+      (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options),
+    ],
+    [
+      { status: [ExpenseStatus.APPROVED, ExpenseStatus.ERROR] },
+      (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
+    ],
   ],
-  [
-    { status: [ExpenseStatus.APPROVED, ExpenseStatus.ERROR] },
-    (req, expense, options) => remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options),
-  ],
-]);
+  expense => `Can not unapprove expense in current status (${expense.status})`,
+);
 
 export const canMarkAsIncomplete = evaluateFirstMatch([
   [
