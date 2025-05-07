@@ -13,7 +13,7 @@ paymentMethodProvider.features = {
   waitToCharge: false,
 };
 
-paymentMethodProvider.refundTransaction = async (transaction, user) => {
+paymentMethodProvider.refundTransaction = async (transaction, user, reason, refundKind) => {
   if (transaction.type === TransactionTypes.DEBIT) {
     transaction = await transaction.getRelatedTransaction({ type: TransactionTypes.CREDIT });
   }
@@ -36,7 +36,7 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
     );
   }
 
-  return createRefundTransaction(transaction, 0, null, user);
+  return createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
 };
 
 // We don't check balance for "Added Funds"

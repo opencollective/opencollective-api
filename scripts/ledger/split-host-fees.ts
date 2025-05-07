@@ -2,6 +2,7 @@ import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
 
+import { RefundKind } from '../../server/constants/refund-kind';
 import {
   associateTransactionRefundId,
   buildRefundForTransaction,
@@ -134,6 +135,7 @@ const migrate = async () => {
         ...buildRefundForTransaction(hostFeeTransaction, null, transactionsData),
         TransactionGroup: refundCredit.TransactionGroup,
         createdAt: refundCredit.createdAt,
+        RefundKind: RefundKind.REFUND,
       };
 
       const hostFeeRefundTransaction = await models.Transaction.createDoubleEntry(hostFeeRefund);
