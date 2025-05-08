@@ -7,6 +7,7 @@
 
 import '../../server/env';
 
+import { RefundKind } from '../../server/constants/refund-kind';
 import logger from '../../server/lib/logger';
 import { refundTransaction } from '../../server/lib/payments';
 import models, { Op, sequelize } from '../../server/models';
@@ -64,7 +65,12 @@ const main = async () => {
       logger.info(`Would refund double-charged contribution #${order.id}`);
     } else {
       logger.info(`Refunding double-charged contribution #${order.id} (${count}/${orders.length})`);
-      await refundTransaction(transactions[0], null, `Refunding double-charged contribution #${order.id}`);
+      await refundTransaction(
+        transactions[0],
+        null,
+        `Refunding double-charged contribution #${order.id}`,
+        RefundKind.DUPLICATE,
+      );
     }
   }
 };

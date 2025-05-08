@@ -13,6 +13,7 @@ import { SupportedCurrency } from '../../constants/currencies';
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
+import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
@@ -498,6 +499,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
           null,
           refundTransactionGroup,
           clearedAt,
+          RefundKind.DISPUTE,
         );
       }
       // A won dispute means it was decided as not fraudulent
@@ -546,6 +548,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
         kind: TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE,
         clearedAt,
         data: { dispute },
+        refundKind: RefundKind.DISPUTE,
       });
 
       const user = chargeTransaction.createdByUser;

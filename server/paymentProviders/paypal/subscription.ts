@@ -7,6 +7,7 @@ import FEATURE from '../../constants/feature';
 import INTERVALS from '../../constants/intervals';
 import ORDER_STATUS from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { RefundKind } from '../../constants/refund-kind';
 import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
 import { createRefundTransaction } from '../../lib/payments';
@@ -390,17 +391,30 @@ const PaymentMethodServicePayPalSubscription: PaymentMethodServiceWithExternalRe
     await setupPaypalSubscriptionForOrder(order, order.paymentMethod);
   },
 
-  async refundTransaction(transaction, user, reason) {
+  async refundTransaction(transaction, user, reason, refundKind: RefundKind) {
     const captureId = getCaptureIdFromPaypalTransaction(transaction);
     if (!captureId) {
       throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);
     }
 
-    return refundPaypalCapture(transaction, captureId, user, reason);
+    return refundPaypalCapture(transaction, captureId, user, reason, refundKind);
   },
 
-  async refundTransactionOnlyInDatabase(transaction: Transaction, user: User, reason: string): Promise<Transaction> {
-    return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
+  async refundTransactionOnlyInDatabase(
+    transaction: Transaction,
+    user: User,
+    reason: string,
+    refundKind: RefundKind,
+  ): Promise<Transaction> {
+    return createRefundTransaction(
+      transaction,
+      0,
+      { ...transaction.data, refundReason: reason },
+      user,
+      null,
+      null,
+      refundKind,
+    );
   },
 
   async pauseSubscription(order: Order, reason: string): Promise<void> {

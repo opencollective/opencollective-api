@@ -7,6 +7,7 @@ import moment from 'moment';
 import { roles } from '../../constants';
 import orderStatus from '../../constants/order-status';
 import POLICIES from '../../constants/policies';
+import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { refundTransaction as refundTransactionPayment } from '../../lib/payments';
@@ -214,6 +215,7 @@ export const canReject = canRefund;
 export async function refundTransaction(
   passedTransaction: Transaction,
   req: Express.Request,
+  refundKind: RefundKind,
   args: { message?: string; ignoreBalanceCheck?: boolean } = {},
 ) {
   // 0. Retrieve transaction from database
@@ -273,7 +275,7 @@ export async function refundTransaction(
 
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
-  const result = await refundTransactionPayment(transaction, req.remoteUser, args.message);
+  const result = await refundTransactionPayment(transaction, req.remoteUser, args.message, refundKind);
 
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.

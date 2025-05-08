@@ -612,9 +612,9 @@ async function registerCreateInCache(collectiveId, count) {
   cache.set(countCacheKey, existingCount + count, oneDayInSeconds);
 }
 
-async function refundTransaction(transaction, user) {
+async function refundTransaction(transaction, user, reason, refundKind) {
   /* Create negative transactions for the received transaction */
-  return await createRefundTransaction(transaction, 0, null, user);
+  return await createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
 }
 
 /* Expected API of a Payment Method Type */

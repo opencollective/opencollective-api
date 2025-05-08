@@ -7,6 +7,7 @@ import Stripe from 'stripe';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
 import { isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
@@ -24,14 +25,16 @@ import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
 import Transaction, { TransactionCreationAttributes, TransactionData } from '../../models/Transaction';
 import User from '../../models/User';
+import { BasePaymentProviderService } from '../types';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
-export const refundTransaction = async (
+export const refundTransaction: BasePaymentProviderService['refundTransaction'] = async (
   transaction: Transaction,
   user?: User,
   reason?: string,
+  refundKind?: RefundKind,
 ): Promise<Transaction> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
@@ -71,16 +74,20 @@ export const refundTransaction = async (
       refundReason: reason,
     },
     user,
+    null,
+    null,
+    refundKind,
   );
 };
 
 /** Refund a given transaction that was already refunded
  * in stripe but not in our database
  */
-export const refundTransactionOnlyInDatabase = async (
+export const refundTransactionOnlyInDatabase: BasePaymentProviderService['refundTransactionOnlyInDatabase'] = async (
   transaction: Transaction,
   user?: User,
   reason?: string,
+  refundKind?: RefundKind,
 ): Promise<Transaction> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
@@ -110,6 +117,9 @@ export const refundTransactionOnlyInDatabase = async (
     refund ? fees.stripeFee : 0, // With disputes, we get 1500 as a value but will not handle this
     { ...transaction.data, charge, refund, balanceTransaction: refundBalance, refundReason: reason },
     user,
+    null,
+    null,
+    refundKind,
   );
 };
 

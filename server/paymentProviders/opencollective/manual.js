@@ -95,8 +95,16 @@ async function processOrder(order) {
  * There's nothing more to do because it's up to the host/collective to see how
  * they want to actually refund the money.
  */
-const refundTransaction = async (transaction, user, reason) => {
-  return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
+const refundTransaction = async (transaction, user, reason, refundKind) => {
+  return createRefundTransaction(
+    transaction,
+    0,
+    { ...transaction.data, refundReason: reason },
+    user,
+    null,
+    null,
+    refundKind,
+  );
 };
 
 /* Expected API of a Payment Method Type */

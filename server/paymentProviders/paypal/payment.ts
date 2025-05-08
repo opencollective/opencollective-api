@@ -1,6 +1,7 @@
 import { get, isUndefined, omit, pickBy, truncate } from 'lodash';
 
 import FEATURE from '../../constants/feature';
+import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { floatAmountToCents } from '../../lib/math';
@@ -19,7 +20,7 @@ import Order from '../../models/Order';
 import Transaction from '../../models/Transaction';
 import User from '../../models/User';
 import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
-import { PaymentProviderServiceWithoutRecurring } from '../types';
+import { BasePaymentProviderService, PaymentProviderServiceWithoutRecurring } from '../types';
 
 import { paypalRequestV2 } from './api';
 
@@ -222,6 +223,7 @@ export const refundPaypalCapture = async (
   captureId: string,
   user: User,
   reason: string,
+  refundKind?: RefundKind,
 ): Promise<Transaction> => {
   const host = await transaction.getHostCollective();
   if (!host) {
@@ -243,6 +245,9 @@ export const refundPaypalCapture = async (
       refundedPaypalFee,
       { refundReason: reason, paypalResponse: result },
       user,
+      null,
+      null,
+      refundKind,
     );
   } catch (error) {
     reportErrorToSentry(error, {
@@ -261,8 +266,17 @@ const refundTransactionOnlyInDatabase = async (
   transaction: Transaction,
   user: User,
   reason: string,
+  refundKind?: RefundKind,
 ): Promise<Transaction> => {
-  return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
+  return createRefundTransaction(
+    transaction,
+    0,
+    { ...transaction.data, refundReason: reason },
+    user,
+    null,
+    null,
+    refundKind,
+  );
 };
 
 /** Process order in paypal and create transactions in our db */
@@ -285,17 +299,18 @@ export const getCaptureIdFromPaypalTransaction = transaction => {
   }
 };
 
-const refundPaypalPaymentTransaction = async (
+const refundPaypalPaymentTransaction: BasePaymentProviderService['refundTransaction'] = async (
   transaction: Transaction,
   user: User,
   reason: string,
+  refundKind?: RefundKind,
 ): Promise<Transaction> => {
   const captureId = getCaptureIdFromPaypalTransaction(transaction);
   if (!captureId) {
     throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);
   }
 
-  return refundPaypalCapture(transaction, captureId, user, reason);
+  return refundPaypalCapture(transaction, captureId, user, reason, refundKind);
 };
 
 /* Interface expected for a payment method */
