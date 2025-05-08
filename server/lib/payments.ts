@@ -296,17 +296,15 @@ export const buildRefundForTransaction = (
   t: Transaction,
   user?: User,
   data?: TransactionData,
-  {
-    refundedPaymentProcessorFeeInHostCurrency = null,
-    refundedAmountInHostCurrency = null,
-  }: {
+  amounts?: {
     /** If the payment processor fee is not recorded as a separate transaction, use this field to refund it as part of the main transaction */
     refundedPaymentProcessorFeeInHostCurrency?: number;
     /** If the refunded amount is different from the original transaction amount */
     refundedAmountInHostCurrency?: number;
-  } = {},
+  },
   refundKind?: RefundKind,
 ): TransactionCreationAttributes => {
+  const { refundedPaymentProcessorFeeInHostCurrency, refundedAmountInHostCurrency } = amounts || {};
   const refund = pick(t, [
     'currency',
     'FromCollectiveId',
