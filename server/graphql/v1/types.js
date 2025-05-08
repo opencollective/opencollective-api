@@ -30,6 +30,7 @@ import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethodPrivateDetails } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
+import { Unauthorized } from '../errors';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
@@ -1546,6 +1547,9 @@ export const ConnectedAccountType = new GraphQLObjectType({
           }
         },
       },
+      hash: {
+        type: GraphQLString,
+      },
       settings: {
         type: GraphQLJSON,
         resolve(ca) {
@@ -1562,6 +1566,16 @@ export const ConnectedAccountType = new GraphQLObjectType({
         type: DateString,
         resolve(ca) {
           return ca.updatedAt;
+        },
+      },
+      createdByUser: {
+        type: UserType,
+        description: 'The account who connected this account',
+        async resolve(connectedAccount, _, req) {
+          if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
+            throw new Unauthorized('You need to be logged in as an admin of the account');
+          }
+          return connectedAccount.CreatedByUserId && req.loaders.User.byId.load(connectedAccount.CreatedByUserId);
         },
       },
     };

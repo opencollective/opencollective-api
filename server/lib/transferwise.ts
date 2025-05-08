@@ -20,7 +20,7 @@ import {
   BatchGroup,
   CurrencyPair,
   ExchangeRate,
-  Profile,
+  ProfileV2,
   QuoteV3,
   RecipientAccount,
   TransactionRequirementsType,
@@ -404,10 +404,21 @@ export const fundTransfer = async (
   );
 };
 
-export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<Profile[]> => {
+export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<ProfileV2[]> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
     `/v2/profiles`,
+    {
+      connectedAccount,
+    },
+    'There was an error fetching the profiles for Wise',
+  );
+};
+
+export const getProfile = async (connectedAccount: ConnectedAccount, profileId: number): Promise<ProfileV2> => {
+  return requestDataAndThrowParsedError(
+    axiosClient.get,
+    `/v2/profiles/${profileId}`,
     {
       connectedAccount,
     },
