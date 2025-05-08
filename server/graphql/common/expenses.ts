@@ -3480,7 +3480,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         if (host.settings?.transferwise?.ott === true) {
           throw new Error('You cannot pay this expense directly without Scheduling it for payment first.');
         }
-        const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
+        const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+          CreatedByUserId: remoteUser.id,
+          fallbackToNonUserAccount: true,
+        });
 
         const data = await paymentProviders.transferwise.payExpense(
           connectedAccount,
