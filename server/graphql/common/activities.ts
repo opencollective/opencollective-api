@@ -30,6 +30,9 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     }
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_MOVED) {
     toPick.push('movedFromCollective');
+  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_UPDATED) {
+    // TODO: add permissions if data is sensitive
+    toPick.push('newData', 'previousData');
   } else if (
     [
       ActivityTypes.COLLECTIVE_MEMBER_INVITED,
