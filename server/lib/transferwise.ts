@@ -96,6 +96,8 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   const checkTokenIsExpired = connectedAccount => {
     if (refresh) {
       return true;
+    } else if (connectedAccount.isNewRecord) {
+      return false;
     }
     const tokenCreation = moment.utc(connectedAccount.data.created_at);
     const diff = moment.duration(moment.utc().diff(tokenCreation)).asSeconds();
