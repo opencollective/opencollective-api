@@ -47,7 +47,7 @@ import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
-import { simulateDBEntriesDiff } from '../../lib/data';
+import { getDiffBetweenInstances, simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
 import { formatAddress } from '../../lib/format-address';
 import logger from '../../lib/logger';
@@ -2527,6 +2527,9 @@ export async function editExpense(
     throw new NotFound('Expense not found');
   }
 
+  // Store the original expense data for later comparison
+  const originalExpense = expense.toJSON();
+
   const { collective } = expense;
   const { host } = collective;
   const expenseType = expenseData.type || expense.type;
@@ -2816,7 +2819,21 @@ export async function editExpense(
 
   if (!options?.skipActivity) {
     const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
-    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, { notifyCollective });
+    const { newData, previousData } = getDiffBetweenInstances(updatedExpense, originalExpense, [
+      'data.recipient',
+      'data.quote',
+      'data.transfer',
+      'data.draftKey',
+      'updatedAt',
+      'incurredAt', // why is this updated?
+    ]);
+    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, {
+      notifyCollective,
+      newData,
+      previousData,
+    });
+    console.log(newData);
+    console.log(previousData);
   }
 
   try {

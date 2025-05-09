@@ -140,6 +140,13 @@ export const GraphQLActivity = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLJSON),
       description: 'Data attached to this activity (if any)',
       async resolve(activity, _, req: express.Request): Promise<Record<string, unknown>> {
+        const data = activity.data;
+        console.log('data:');
+        console.log(data);
+
+        const sanitizedData = await sanitizeActivityData(req, activity);
+        console.log('santized data:');
+        console.log(sanitizedData);
         return sanitizeActivityData(req, activity);
       },
     },
