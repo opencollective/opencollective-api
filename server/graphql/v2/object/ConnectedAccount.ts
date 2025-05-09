@@ -67,11 +67,13 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
         if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
           throw new Unauthorized('You need to be logged in as an admin of the account');
         }
-        const user = await req.loaders.User.byId.load(connectedAccount.CreatedByUserId);
-        if (user && user.CollectiveId) {
-          const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
-          if (collective && !collective.isIncognito) {
-            return collective;
+        if (connectedAccount.CreatedByUserId) {
+          const user = await req.loaders.User.byId.load(connectedAccount.CreatedByUserId);
+          if (user && user.CollectiveId) {
+            const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
+            if (collective && !collective.isIncognito) {
+              return collective;
+            }
           }
         }
       },
