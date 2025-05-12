@@ -106,8 +106,8 @@ describe('MemberInvitationMutations', () => {
       expect(result.errors[0].message).to.equal('Only admins can send an invitation.');
     });
 
-    it('can only add with role accountant, admin, or member', async () => {
-      const validRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
+    it('can only add with role accountant, admin, community manager, or member', async () => {
+      const validRoles = [roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER, roles.ACCOUNTANT];
       for (const role of validRoles) {
         const invitedUser = await fakeUser();
         const result = await utils.graphqlQueryV2(
@@ -249,7 +249,7 @@ describe('MemberInvitationMutations', () => {
     });
 
     it('can only update role to accountant, admin or member', async () => {
-      const validRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
+      const validRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT, roles.COMMUNITY_MANAGER];
       for (const role of validRoles) {
         const result = await utils.graphqlQueryV2(
           editMemberInvitationMutation,
@@ -285,7 +285,9 @@ describe('MemberInvitationMutations', () => {
         );
 
         expect(result.errors).to.have.length(1);
-        expect(result.errors[0].message).to.equal('You can only edit accountants, admins, or members.');
+        expect(result.errors[0].message).to.equal(
+          'You can only edit accountants, admins, members, or community managers.',
+        );
       }
     });
   });

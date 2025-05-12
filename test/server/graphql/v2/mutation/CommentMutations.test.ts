@@ -154,7 +154,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
-        'You must be the author or an admin of this collective to edit this comment',
+        'You must be the author, an admin, or a community manager of this collective to edit this comment',
       );
     });
 
@@ -168,6 +168,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       utils.expectNoErrorsFromResult(result);
 
       // Check the returned edited comment has the correct value.
+      result.errors && console.error(result.errors);
       expect(result.data.editComment.html).to.equal(html);
 
       // Check the database has the correct value.
@@ -208,7 +209,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       const result = await utils.graphqlQueryV2(deleteCommentMutation, { id: idEncode(comment.id, 'comment') }, user);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
-        'You need to be logged in as a core contributor or as a host to delete this comment',
+        'You need to be logged in as the author, an admin, a community manager, or as a host to delete this comment',
       );
       return models.Comment.findByPk(comment.id).then(commentFound => {
         expect(commentFound).to.not.be.null;

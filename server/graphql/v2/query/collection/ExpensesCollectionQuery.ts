@@ -506,7 +506,7 @@ export const ExpensesCollectionQueryResolver = async (
     } else if (
       !(fromAccount && req.remoteUser.isAdminOfCollective(fromAccount)) &&
       !(accounts.length && accounts.every(account => req.remoteUser.isAdminOfCollective(account))) &&
-      !(host && req.remoteUser.isAdmin(host))
+      !(host && req.remoteUser.isAdminOfCollective(host))
     ) {
       throw new Unauthorized('You need to be an admin of the fromAccount, account or host to filter by customData');
     }
