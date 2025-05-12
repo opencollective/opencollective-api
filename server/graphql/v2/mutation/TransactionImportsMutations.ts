@@ -449,6 +449,7 @@ const transactionImportsMutations = {
     },
     resolve: async (_: void, args, req: Request) => {
       checkRemoteUserCanUseTransactions(req);
+
       const importId = idDecode(args.id, 'transactions-import');
       const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
       if (!importInstance) {
@@ -459,7 +460,9 @@ const transactionImportsMutations = {
 
       let connectedAccount;
       if (importInstance.type === 'PLAID' && importInstance.ConnectedAccountId) {
-        connectedAccount = await importInstance.getConnectedAccount();
+        connectedAccount = await importInstance.getConnectedAccount({
+          include: [{ association: 'collective', required: true }],
+        });
         if (!connectedAccount) {
           throw new Error('Connected account not found');
         }
