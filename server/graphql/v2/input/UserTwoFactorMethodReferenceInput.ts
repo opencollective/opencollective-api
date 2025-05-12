@@ -20,7 +20,7 @@ export async function fetchUserTwoFactorMethodWithReference(input, { include = n
 
   let userTwoFactorMethod: UserTwoFactorMethod<Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>>;
   if (input.id) {
-    const id = idDecode(input.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
+    const id = idDecode(input.id, IDENTIFIER_TYPES.USER_TWO_FACTOR_METHOD);
     userTwoFactorMethod = await loadUserTwoFactorMethodById(id);
   } else if (input.legacyId) {
     userTwoFactorMethod = await loadUserTwoFactorMethodById(input.legacyId);

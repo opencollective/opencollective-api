@@ -181,6 +181,23 @@ export const fakeUser = async (
   return user;
 };
 
+export const fakeUserTwoFactorMethod = async (
+  data: Partial<
+    | InferCreationAttributes<UserTwoFactorMethod<TwoFactorMethod.TOTP>>
+    | InferCreationAttributes<UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN>>
+    | InferCreationAttributes<UserTwoFactorMethod<TwoFactorMethod.YUBIKEY_OTP>>
+  > = {},
+) => {
+  const user = data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser();
+  return models.UserTwoFactorMethod.create({
+    ...data,
+    UserId: user.id,
+    method: data.method || TwoFactorMethod.TOTP,
+    name: data.name || 'Generic TOTP',
+    data: data.data || { secret: 'secret' },
+  });
+};
+
 export const fakeIncognitoProfile = async user => {
   const incognitoCollective = await fakeCollective({
     type: CollectiveType.USER,
