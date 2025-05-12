@@ -11,6 +11,7 @@ import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import status from '../constants/order-status';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { RefundKind } from '../constants/refund-kind';
 import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
@@ -213,7 +214,12 @@ export async function resumeOrderInDb(order: Order, reason: string): Promise<voi
  *  associated to the refund transaction as who performed the refund.
  * @param {string} message a optional message to explain why the transaction is rejected
  */
-export async function refundTransaction(transaction: Transaction, user?: User, message?: string): Promise<Transaction> {
+export async function refundTransaction(
+  transaction: Transaction,
+  user?: User,
+  message?: string,
+  refundKind?: RefundKind,
+): Promise<Transaction> {
   // Make sure to fetch PaymentMethod
   // Fetch PaymentMethod even if it's deleted
   if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
@@ -235,14 +241,14 @@ export async function refundTransaction(transaction: Transaction, user?: User, m
   let result;
 
   try {
-    result = await paymentMethodProvider.refundTransaction(transaction, user, message);
+    result = await paymentMethodProvider.refundTransaction(transaction, user, message, refundKind);
   } catch (e) {
     if (
       (e.message.includes('has already been refunded') || e.message.includes('has been charged back')) &&
       paymentMethodProvider &&
       paymentMethodProvider.refundTransactionOnlyInDatabase
     ) {
-      result = await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
+      result = await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction, null, null, refundKind);
     } else {
       throw e;
     }
@@ -263,20 +269,42 @@ export function calcFee(amount: number, fee: number): number {
   return Math.round((amount * fee) / 100);
 }
 
+const makeRefundDescription = (refundKind: RefundKind, referencedTransaction: Transaction): string => {
+  let description;
+  switch (refundKind) {
+    case RefundKind.REFUND:
+      description = `Refund of "${referencedTransaction.description}`;
+      break;
+    case RefundKind.DISPUTE:
+      description = `Dispute of "${referencedTransaction.description}`;
+      break;
+    case RefundKind.DUPLICATE:
+      description = `Duplicate return of "${referencedTransaction.description}`;
+      break;
+    case RefundKind.REJECT:
+      description = `Rejection of "${referencedTransaction.description}`;
+      break;
+    default:
+      description = `Reverse of "${referencedTransaction.description}`;
+      break;
+  }
+
+  return `${truncate(description, { length: 254 })}"`;
+};
+
 export const buildRefundForTransaction = (
   t: Transaction,
   user?: User,
   data?: TransactionData,
-  {
-    refundedPaymentProcessorFeeInHostCurrency = null,
-    refundedAmountInHostCurrency = null,
-  }: {
+  amounts?: {
     /** If the payment processor fee is not recorded as a separate transaction, use this field to refund it as part of the main transaction */
     refundedPaymentProcessorFeeInHostCurrency?: number;
     /** If the refunded amount is different from the original transaction amount */
     refundedAmountInHostCurrency?: number;
-  } = {},
+  },
+  refundKind?: RefundKind,
 ): TransactionCreationAttributes => {
+  const { refundedPaymentProcessorFeeInHostCurrency, refundedAmountInHostCurrency } = amounts || {};
   const refund = pick(t, [
     'currency',
     'FromCollectiveId',
@@ -298,8 +326,9 @@ export const buildRefundForTransaction = (
     'PayoutMethodId',
   ]) as TransactionCreationAttributes;
 
+  refund.refundKind = refundKind || RefundKind.REFUND;
   refund.CreatedByUserId = user?.id || null;
-  refund.description = `Refund of "${truncate(t.description, { length: 255 - 12 })}"`; // 12 is the length of 'Refund of ""'
+  refund.description = makeRefundDescription(refund.refundKind, t);
   refund.data = { ...refund.data, ...data };
   refund.isRefund = true;
   refund.hostFeeInHostCurrency = 0; // We're handling host fees in separate transactions
@@ -365,6 +394,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     /** If the refunded amount is different from the original transaction amount */
     hostCoverInHostCurrency?: number;
   } = {},
+  refundKind?: RefundKind,
 ): Promise<void> => {
   if (transaction.CollectiveId === transaction.HostCollectiveId) {
     return;
@@ -415,6 +445,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     hostFeeInHostCurrency: 0,
     data,
     createdAt,
+    refundKind,
   });
 };
 
@@ -424,6 +455,7 @@ async function refundPaymentProcessorFee(
   refundedPaymentProcessorFeeInHostCurrency: number,
   transactionGroup: string,
   clearedAt?: Date,
+  refundKind?: RefundKind,
 ): Promise<void> {
   const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
   let originalProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
@@ -462,15 +494,21 @@ async function refundPaymentProcessorFee(
 
     if (processorFeeTransaction) {
       const processorFeeRefund = {
-        ...buildRefundForTransaction(processorFeeTransaction, user, null, {
-          refundedAmountInHostCurrency: refundedPaymentProcessorFeeInHostCurrency,
-        }),
+        ...buildRefundForTransaction(
+          processorFeeTransaction,
+          user,
+          null,
+          {
+            refundedAmountInHostCurrency: refundedPaymentProcessorFeeInHostCurrency,
+          },
+          refundKind,
+        ),
         TransactionGroup: transactionGroup,
         clearedAt,
       };
 
       const processorFeeRefundTransaction = await Transaction.createDoubleEntry(processorFeeRefund);
-      await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction);
+      await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, null, refundKind);
     }
   }
 
@@ -496,6 +534,7 @@ async function refundPaymentProcessorFee(
             ? originalProcessorFeeInHostCurrency
             : Math.abs(originalProcessorFeeInHostCurrency) - Math.abs(refundedPaymentProcessorFeeInHostCurrency),
         },
+        refundKind,
       );
     }
   }
@@ -507,11 +546,12 @@ export async function refundHostFee(
   refundedPaymentProcessorFeeInHostCurrency: number,
   transactionGroup: string,
   clearedAt?: Date,
+  refundKind?: RefundKind,
 ): Promise<void> {
   const hostFeeTransaction = await transaction.getHostFeeTransaction({ type: CREDIT });
   const buildRefund = transaction => {
     return {
-      ...buildRefundForTransaction(transaction, user, null, { refundedPaymentProcessorFeeInHostCurrency }),
+      ...buildRefundForTransaction(transaction, user, null, { refundedPaymentProcessorFeeInHostCurrency }, refundKind),
       TransactionGroup: transactionGroup,
       clearedAt,
     };
@@ -520,14 +560,14 @@ export async function refundHostFee(
   if (hostFeeTransaction && hostFeeTransaction.id !== transaction.id) {
     const hostFeeRefund = buildRefund(hostFeeTransaction);
     const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund);
-    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction);
+    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, null, refundKind);
 
     // Refund Host Fee Share
     const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction();
     if (hostFeeShareTransaction) {
       const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
       const hostFeeShareRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareRefund);
-      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction);
+      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction, null, refundKind);
 
       // Refund Host Fee Share Debt
       const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction();
@@ -548,7 +588,12 @@ export async function refundHostFee(
 
         const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
         const hostFeeShareDebtRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtRefund);
-        await associateTransactionRefundId(hostFeeShareDebtTransaction, hostFeeShareDebtRefundTransaction);
+        await associateTransactionRefundId(
+          hostFeeShareDebtTransaction,
+          hostFeeShareDebtRefundTransaction,
+          null,
+          refundKind,
+        );
         await TransactionSettlement.createForTransaction(
           hostFeeShareDebtRefundTransaction,
           hostFeeShareRefundSettlementStatus,
@@ -563,16 +608,17 @@ async function refundTax(
   user: User,
   transactionGroup: string,
   clearedAt?: Date,
+  refundKind?: RefundKind,
 ): Promise<void> {
   const taxTransaction = await transaction.getTaxTransaction();
   if (taxTransaction) {
     const taxRefundData = {
-      ...buildRefundForTransaction(taxTransaction, user),
+      ...buildRefundForTransaction(taxTransaction, user, null, null, refundKind),
       TransactionGroup: transactionGroup,
       clearedAt,
     };
     const taxRefundTransaction = await Transaction.createDoubleEntry(taxRefundData);
-    await associateTransactionRefundId(taxTransaction, taxRefundTransaction);
+    await associateTransactionRefundId(taxTransaction, taxRefundTransaction, null, refundKind);
   }
 }
 
@@ -607,6 +653,7 @@ export async function createRefundTransaction(
   user: User,
   transactionGroupId?: string,
   clearedAt?: Date,
+  refundKind: RefundKind = RefundKind.REFUND,
 ): Promise<Transaction> {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
@@ -629,7 +676,7 @@ export async function createRefundTransaction(
   const transactionGroup = transactionGroupId || uuid();
   const buildRefund = transaction => {
     return {
-      ...buildRefundForTransaction(transaction, user, data, { refundedPaymentProcessorFeeInHostCurrency }),
+      ...buildRefundForTransaction(transaction, user, data, { refundedPaymentProcessorFeeInHostCurrency }, refundKind),
       clearedAt: clearedAt,
       TransactionGroup: transactionGroup,
     };
@@ -640,7 +687,7 @@ export async function createRefundTransaction(
   if (platformTipTransaction && platformTipTransaction.id !== transaction.id) {
     const platformTipRefund = buildRefund(platformTipTransaction);
     const platformTipRefundTransaction = await Transaction.createDoubleEntry(platformTipRefund);
-    await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data);
+    await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data, refundKind);
 
     // Refund Platform Tip Debt
     // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
@@ -663,7 +710,12 @@ export async function createRefundTransaction(
 
       const platformTipDebtRefund = buildRefund(platformTipDebtTransaction);
       const platformTipDebtRefundTransaction = await Transaction.createDoubleEntry(platformTipDebtRefund);
-      await associateTransactionRefundId(platformTipDebtTransaction, platformTipDebtRefundTransaction, data);
+      await associateTransactionRefundId(
+        platformTipDebtTransaction,
+        platformTipDebtRefundTransaction,
+        data,
+        refundKind,
+      );
       await TransactionSettlement.createForTransaction(platformTipDebtRefundTransaction, tipRefundSettlementStatus);
     }
   }
@@ -675,24 +727,33 @@ export async function createRefundTransaction(
     refundedPaymentProcessorFeeInHostCurrency,
     transactionGroup,
     clearedAt,
+    refundKind,
   );
 
   // Refund Host Fee
-  await refundHostFee(transaction, user, refundedPaymentProcessorFeeInHostCurrency, transactionGroup, clearedAt);
+  await refundHostFee(
+    transaction,
+    user,
+    refundedPaymentProcessorFeeInHostCurrency,
+    transactionGroup,
+    clearedAt,
+    refundKind,
+  );
 
   // Refund Tax
-  await refundTax(transaction, user, transactionGroup, clearedAt);
+  await refundTax(transaction, user, transactionGroup, clearedAt, refundKind);
 
   // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);
   const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund);
-  return associateTransactionRefundId(transaction, refundTransaction, data);
+  return associateTransactionRefundId(transaction, refundTransaction, data, refundKind);
 }
 
 export async function associateTransactionRefundId(
   transaction: Transaction,
   refund: Transaction,
   data?: TransactionData,
+  refundKind?: RefundKind,
 ): Promise<Transaction> {
   const transactions = await Transaction.findAll({
     order: ['id'],
@@ -717,19 +778,20 @@ export async function associateTransactionRefundId(
 
   if (refundCredit && debit) {
     debit.RefundTransactionId = refundCredit.id;
+    debit.refundKind = refundKind;
     await debit.save(); // User Ledger
+    refundCredit.RefundTransactionId = debit.id;
+    refundCredit.refundKind = refundKind;
+    await refundCredit.save(); // User Ledger
   }
 
   if (refundDebit && credit) {
     credit.RefundTransactionId = refundDebit.id;
+    credit.refundKind = refundKind;
     await credit.save(); // Collective Ledger
     refundDebit.RefundTransactionId = credit.id;
+    refundDebit.refundKind = refundKind;
     await refundDebit.save(); // Collective Ledger
-  }
-
-  if (refundCredit && debit) {
-    refundCredit.RefundTransactionId = debit.id;
-    await refundCredit.save(); // User Ledger
   }
 
   // We need to return the same transactions we received because the

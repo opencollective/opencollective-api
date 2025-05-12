@@ -3,11 +3,13 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import moment from 'moment';
 import { InferAttributes } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import OrderStatuses from '../../../constants/order-status';
+import { RefundKind } from '../../../constants/refund-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { executeOrder } from '../../../lib/payments';
@@ -15,6 +17,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Order } from '../../../models';
 import { addFunds, canAddFundsFromAccount, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { refundTransaction } from '../../common/transactions';
 import { ValidationFailed } from '../../errors';
 import { getOrderTaxInfoFromTaxInput } from '../../v1/mutations/orders';
 import {
@@ -348,7 +351,15 @@ export default {
 
       await twoFactorAuthLib.enforceForAccount(req, host);
       const editedTransactions = transactions.map(t => t.id);
-      await Promise.all(transactions.map(transaction => transaction.destroy()));
+
+      const shouldRevert = moment().diff(order.createdAt, 'hours', true) > 24;
+      if (shouldRevert) {
+        const creditTransction = transactions.find(t => t.type === 'CREDIT');
+        assert(creditTransction, 'No CREDIT transaction found for this order');
+        await refundTransaction(creditTransction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
+      } else {
+        await Promise.all(transactions.map(transaction => transaction.destroy()));
+      }
 
       const previousData = order.toJSON();
       // Update existing Order
