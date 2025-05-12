@@ -44,6 +44,7 @@ import {
   InferCreationAttributes,
   Model,
   NonAttribute,
+  WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
@@ -3238,10 +3239,26 @@ class Collective extends Model<
       });
   };
 
-  getAccountForPaymentProvider = async function (provider: Service, options = { throwIfMissing: true }) {
+  getAccountForPaymentProvider = async function (
+    provider: Service,
+    options: { throwIfMissing?: boolean; CreatedByUserId?: number; fallbackToNonUserAccount?: boolean } = {
+      throwIfMissing: true,
+    },
+  ) {
+    const where: WhereOptions<ConnectedAccount> = { service: provider, CollectiveId: this.id };
+    if (options.CreatedByUserId) {
+      where.CreatedByUserId = options.CreatedByUserId;
+    }
+
     let connectedAccount = await ConnectedAccount.findOne({
-      where: { service: provider, CollectiveId: this.id },
+      where,
     });
+
+    if (!connectedAccount && options.fallbackToNonUserAccount) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: omit(where, ['CreatedByUserId']),
+      });
+    }
 
     // If the account is connected to another account, we follow the chain
     if (connectedAccount?.data?.MirrorConnectedAccountId) {

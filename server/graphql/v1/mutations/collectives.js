@@ -485,7 +485,6 @@ export function editCollective(_, args, req) {
       .then(async () => {
         // Ask cloudflare to refresh the cache for this collective's page
         purgeCacheForCollective(collective.slug);
-        const data = getCollectiveDataDiff(originalCollective, collective);
         // Create the activity which will store the data diff
         await models.Activity.create({
           type: activities.COLLECTIVE_EDITED,
@@ -494,7 +493,10 @@ export function editCollective(_, args, req) {
           CollectiveId: collective.id,
           FromCollectiveId: collective.id,
           HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-          data,
+          data: {
+            collective: collective.minimal,
+            ...getCollectiveDataDiff(originalCollective, collective),
+          },
         });
         return collective;
       })

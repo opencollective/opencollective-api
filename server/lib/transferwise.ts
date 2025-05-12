@@ -20,7 +20,7 @@ import {
   BatchGroup,
   CurrencyPair,
   ExchangeRate,
-  Profile,
+  ProfileV2,
   QuoteV3,
   RecipientAccount,
   TransactionRequirementsType,
@@ -96,6 +96,8 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   const checkTokenIsExpired = connectedAccount => {
     if (refresh) {
       return true;
+    } else if (connectedAccount.isNewRecord) {
+      return false;
     }
     const tokenCreation = moment.utc(connectedAccount.data.created_at);
     const diff = moment.duration(moment.utc().diff(tokenCreation)).asSeconds();
@@ -404,10 +406,21 @@ export const fundTransfer = async (
   );
 };
 
-export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<Profile[]> => {
+export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<ProfileV2[]> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
     `/v2/profiles`,
+    {
+      connectedAccount,
+    },
+    'There was an error fetching the profiles for Wise',
+  );
+};
+
+export const getProfile = async (connectedAccount: ConnectedAccount, profileId: number): Promise<ProfileV2> => {
+  return requestDataAndThrowParsedError(
+    axiosClient.get,
+    `/v2/profiles/${profileId}`,
     {
       connectedAccount,
     },

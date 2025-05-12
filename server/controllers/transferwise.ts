@@ -1,5 +1,5 @@
 import config from 'config';
-import { Request, Response } from 'express';
+import type Express from 'express';
 
 import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
@@ -34,8 +34,8 @@ const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async e
 };
 
 export async function payBatch(
-  req: Request<any, any, { expenseIds: Array<string>; hostId: string }>,
-  res: Response,
+  req: Express.Request<any, any, { expenseIds: Array<string>; hostId: string }>,
+  res: Express.Response,
 ): Promise<void> {
   try {
     const { remoteUser, headers, body } = req;

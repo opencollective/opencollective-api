@@ -13,6 +13,7 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
+import { hashObject } from '../utils';
 
 import bacsdebit from './bacsdebit';
 import bancontact from './bancontact';
@@ -109,6 +110,7 @@ export default {
           username: token.stripe_user_id,
           token: token.access_token,
           refreshToken: token.refresh_token,
+          hash: hashObject({ CollectiveId, username: token.stripe_user_id }),
           data: {
             publishableKey: token.stripe_publishable_key,
             tokenType: token.token_type,
