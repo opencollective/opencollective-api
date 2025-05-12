@@ -24,6 +24,7 @@ import {
   fakeProject,
   fakeTier,
   fakeUser,
+  fakeUserTwoFactorMethod,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
@@ -1638,6 +1639,84 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(duplicatedEvent.slug).to.not.equal(originalEvent.slug);
       const getSlugWithoutRandom = (slug: string) => slug.split('-').slice(0, -1).join('-');
       expect(getSlugWithoutRandom(duplicatedEvent.slug)).to.equal(getSlugWithoutRandom(originalEvent.slug));
+    });
+  });
+
+  describe('editTwoFactorAuthenticationMethod', () => {
+    const editTwoFactorAuthenticationMethodMutation = gql`
+      mutation EditTwoFactorAuthenticationMethod(
+        $userTwoFactorMethod: UserTwoFactorMethodReferenceInput!
+        $name: String!
+      ) {
+        editTwoFactorAuthenticationMethod(userTwoFactorMethod: $userTwoFactorMethod, name: $name) {
+          id
+          hasTwoFactorAuth
+          twoFactorMethods {
+            id
+            method
+            name
+            createdAt
+            description
+            icon
+          }
+        }
+      }
+    `;
+
+    it('needs to be a valid ID', async () => {
+      const result = await graphqlQueryV2(
+        editTwoFactorAuthenticationMethodMutation,
+        {
+          userTwoFactorMethod: { id: 'invalid' },
+          name: 'New name',
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Invalid user-two-factor-method id: invalid');
+    });
+
+    it('must be authenticated', async () => {
+      const twoFactorMethod = await fakeUserTwoFactorMethod();
+      const result = await graphqlQueryV2(editTwoFactorAuthenticationMethodMutation, {
+        userTwoFactorMethod: { id: idEncode(twoFactorMethod.id, 'user-two-factor-method') },
+        name: 'New name',
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('must be an admin of the account', async () => {
+      const twoFactorMethod = await fakeUserTwoFactorMethod();
+      const result = await graphqlQueryV2(
+        editTwoFactorAuthenticationMethodMutation,
+        {
+          userTwoFactorMethod: { id: idEncode(twoFactorMethod.id, 'user-two-factor-method') },
+          name: 'New name',
+        },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
+    });
+
+    it('edits the name of the method', async () => {
+      const user = await fakeUser();
+      const method = await fakeUserTwoFactorMethod({ UserId: user.id });
+      const result = await graphqlQueryV2(
+        editTwoFactorAuthenticationMethodMutation,
+        {
+          userTwoFactorMethod: { id: idEncode(method.id, 'user-two-factor-method') },
+          name: 'New name',
+        },
+        user,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editTwoFactorAuthenticationMethod.hasTwoFactorAuth).to.eq(true);
+      expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods).to.have.lengthOf(1);
+      expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods[0].name).to.equal('New name');
     });
   });
 });

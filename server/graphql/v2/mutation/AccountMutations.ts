@@ -610,11 +610,14 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
+      checkRemoteUserCanUseAccount(req);
+
       const userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
         throwIfMissing: true,
+        include: [{ association: 'User', required: true }],
       });
-      const account = await req.remoteUser.getCollective({ loaders: req.loaders });
 
+      const account = await userTwoFactorMethod.User.getCollective({ loaders: req.loaders });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
       }
