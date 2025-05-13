@@ -131,7 +131,8 @@
     "website": "WEBSITE_URL",
     "pdf": "PDF_SERVICE_URL",
     "pdfV2": "PDF_SERVICE_V2_URL",
-    "rest": "REST_URL"
+    "rest": "REST_URL",
+    "ml": "ML_SERVICE_URL"
   },
   "limits": {
     "ordersPerHour": {

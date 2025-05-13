@@ -50,6 +50,7 @@ import errors from '../../lib/errors';
 import { formatAddress } from '../../lib/format-address';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
+import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
 import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
@@ -97,7 +98,7 @@ import {
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
-import { getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
+import { AmountInputType, getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
@@ -1728,7 +1729,7 @@ type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
   payeeLocation?: Location;
-  items?: (Record<string, unknown> & { url?: string })[];
+  items?: { url?: string; amount?: number; amountV2?: AmountInputType; description?: string; incurredAt?: Date }[];
   attachedFiles?: (Record<string, unknown> & { url: string })[];
   invoiceFile?: { url: string };
   collective?: Collective;
@@ -2014,6 +2015,41 @@ const getUserRole = (user: User, collective: Collective): keyof ExpenseDataValue
       : ExpenseRoles.submitter;
 };
 
+const tryToPredictExpenseCategory = async (collective, expenseData, req): Promise<AccountingCategory | null> => {
+  try {
+    const predictions = await fetchExpenseCategoryPredictions({
+      hostSlug: collective.host.slug,
+      accountSlug: collective.slug,
+      type: expenseData.type,
+      description: expenseData.description,
+      items: expenseData.items,
+    });
+
+    for (const prediction of predictions) {
+      if (prediction.confidence >= 0.1) {
+        const predictedCategory = await models.AccountingCategory.findOne({
+          where: { CollectiveId: collective.HostCollectiveId, code: prediction.code },
+        });
+
+        try {
+          checkCanUseAccountingCategory(
+            req.remoteUser,
+            expenseData.type,
+            predictedCategory,
+            collective.host,
+            collective,
+          );
+          return predictedCategory;
+        } catch {
+          continue;
+        }
+      }
+    }
+  } catch (e) {
+    reportErrorToSentry(e, { req, user: req.remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expenseData } });
+  }
+};
+
 export async function createExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -2065,6 +2101,7 @@ export async function createExpense(
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
   checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
+
   if (expenseData.accountingCategory) {
     checkCanUseAccountingCategory(
       remoteUser,
@@ -2073,6 +2110,8 @@ export async function createExpense(
       collective.host,
       collective,
     );
+  } else if (collective.host?.settings?.autoAssignExpenseCategoryPredictions) {
+    expenseData.accountingCategory = await tryToPredictExpenseCategory(collective, expenseData, req);
   }
 
   if (size(expenseData.attachedFiles) > 15) {

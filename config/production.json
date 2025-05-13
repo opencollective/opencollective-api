@@ -21,7 +21,8 @@
     "website": "https://opencollective.com",
     "images": "https://images.opencollective.com",
     "pdf": "https://pdf.opencollective.com",
-    "rest": "https://rest.opencollective.com"
+    "rest": "https://rest.opencollective.com",
+    "ml": "https://ml.opencollective.com"
   },
   "log": {
     "slowRequest": true

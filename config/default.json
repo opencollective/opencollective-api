@@ -40,7 +40,8 @@
     "website": "http://localhost:3000",
     "images": "https://images-staging.opencollective.com",
     "pdf": "https://pdf-staging.opencollective.com",
-    "rest": "https://rest-staging.opencollective.com"
+    "rest": "https://rest-staging.opencollective.com",
+    "ml": "http://ml.opencollective.com"
   },
   "fees": {
     "default": {
