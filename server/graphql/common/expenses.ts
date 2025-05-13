@@ -36,8 +36,9 @@ import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import { ExpenseRoles } from '../../constants/expense-roles';
-import ExpenseStatus from '../../constants/expense-status';
-import ExpenseType from '../../constants/expense-type';
+import statuses from '../../constants/expense-status';
+import ExpenseStatuses from '../../constants/expense-status';
+import EXPENSE_TYPE from '../../constants/expense-type';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
@@ -64,7 +65,12 @@ import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
-import Expense, { ExpenseDataValuesByRole, ExpenseLockableFields, ExpenseTaxDefinition } from '../../models/Expense';
+import Expense, {
+  ExpenseDataValuesByRole,
+  ExpenseLockableFields,
+  ExpenseStatus,
+  ExpenseTaxDefinition,
+} from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
@@ -100,17 +106,6 @@ import { checkRemoteUserCanRoot, checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
-
-export type ExpenseStateMatcher = {
-  status?: ExpenseStatus | ExpenseStatus[];
-  type?: ExpenseType | ExpenseType[];
-};
-
-export type ExpensePermissionEvaluator = (
-  req: express.Request,
-  expense: Expense,
-  options?: { throw?: boolean },
-) => Promise<boolean>;
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
@@ -263,12 +258,18 @@ const isAdminOfCollectiveAndExpenseIsAVirtualCard = async (
 ): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.type !== ExpenseType.CHARGE) {
+  } else if (expense.type !== EXPENSE_TYPE.CHARGE) {
     return false;
   } else {
     return isCollectiveAdmin(req, expense);
   }
 };
+
+export type ExpensePermissionEvaluator = (
+  req: express.Request,
+  expense: Expense,
+  options?: { throw?: boolean },
+) => Promise<boolean>;
 
 /**
  * Returns true if the expense meets at least one condition.
@@ -314,69 +315,6 @@ const validateExpenseScope = (req: express.Request, options: { throw?: boolean }
     }
   }
 
-  return true;
-};
-
-/**
- * A helper function to create expense permission evaluators that handle common validation logic.
- * This handles scope validation and feature flag checking automatically.
- */
-const createExpensePermissionsEvaluator =
-  (evaluator: ExpensePermissionEvaluator): ExpensePermissionEvaluator =>
-  async (req, expense, options = { throw: false }) => {
-    if (!validateExpenseScope(req, options)) {
-      return false;
-    } else if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
-      if (options?.throw) {
-        throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
-      }
-      return false;
-    } else {
-      return evaluator(req, expense, options);
-    }
-  };
-
-const validateExpenseAuthorApproval = async (req: express.Request, expense: Expense, options: { throw?: boolean }) => {
-  if (req.remoteUser.id === expense.UserId) {
-    expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-
-    if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
-      expense.collective.host =
-        expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
-    }
-
-    const currency = expense.collective.host?.currency || expense.collective.currency;
-    const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-    const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-
-    let policy = collectivePolicy;
-    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
-      policy = hostPolicy;
-
-      if (!hostPolicy.appliesToSingleAdminCollectives) {
-        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
-        if (collectiveAdminCount === 1) {
-          policy = collectivePolicy;
-        }
-      }
-    }
-
-    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
-      if (options?.throw) {
-        throw new Forbidden(
-          'User cannot approve their own expenses',
-          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
-          {
-            reasonDetails: {
-              amount: policy.amountInCents / 100,
-              currency,
-            },
-          },
-        );
-      }
-      return false;
-    }
-  }
   return true;
 };
 
@@ -561,102 +499,232 @@ export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, exp
 /**
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
-export const canEditExpense = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (
-    expense.type === ExpenseType.CHARGE &&
-    [ExpenseStatus.PAID, ExpenseStatus.PROCESSING].includes(expense.status as ExpenseStatus)
-  ) {
+export const canEditExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  }
+
+  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED', 'INVITE_DECLINED'];
+
+  // Host and expense owner can attach receipts to paid charge expenses
+  if (expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
-  } else if (expense.status === ExpenseStatus.DRAFT) {
+  } else if (expense.status === 'DRAFT') {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
-  } else if (
-    [
-      ExpenseStatus.PENDING,
-      ExpenseStatus.APPROVED,
-      ExpenseStatus.ERROR,
-      ExpenseStatus.REJECTED,
-      ExpenseStatus.INCOMPLETE,
-    ].includes(expense.status as ExpenseStatus)
-  ) {
+  } else if (nonEditableStatuses.includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden('Can not edit expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot edit expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
-  return false;
-});
+};
 
-export const canEditTitle = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.PENDING) {
+export const canEditTitle: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
   }
-  return false;
-});
 
-export const canEditType = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.PENDING) {
+  if (options?.throw) {
+    throw new Forbidden('Can not edit title in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+  }
+  return false;
+};
+
+export const canEditType: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
   }
-  return false;
-});
 
-export const canEditPaidBy = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.PENDING) {
+  if (options?.throw) {
+    throw new Forbidden('Can not edit type in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+  }
+  return false;
+};
+
+export const canEditPaidBy: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   }
-  return false;
-});
 
-export const canEditPayee = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.PENDING) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
+  if (options?.throw) {
+    throw new Forbidden('Can not edit paid by in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
   }
   return false;
-});
+};
 
-export const canEditPayoutMethod = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if ([ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE].includes(expense.status as ExpenseStatus)) {
+export const canEditPayee: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
-  return false;
-});
 
-export const canEditItems = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.PENDING) {
+  if (options?.throw) {
+    throw new Forbidden('Can not edit payee in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+  }
+  return false;
+};
+
+export const canEditPayoutMethod: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if ([ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE].includes(expense.status as ExpenseStatus)) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
+  }
+
+  if (options?.throw) {
+    throw new Forbidden(
+      'Can not edit payout method in current status',
+      EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+    );
+  }
+  return false;
+};
+
+export const canEditItems: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   }
-  return false;
-});
 
-export const canAttachReceipts = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if ([ExpenseStatus.PAID, ExpenseStatus.PROCESSING].includes(expense.status as ExpenseStatus)) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
+  if (options?.throw) {
+    throw new Forbidden(
+      'Can not edit expense items in current status',
+      EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+    );
   }
   return false;
-});
+};
 
-export const canEditItemDescription = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if ([ExpenseStatus.PAID, ExpenseStatus.PROCESSING].includes(expense.status as ExpenseStatus)) {
+export const canAttachReceipts: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if ([ExpenseStatus.PAID, ExpenseStatus.PROCESSING].includes(expense.status as ExpenseStatus)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
-  return false;
-});
 
-export const canEditExpenseTags = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.PAID) {
+  if (options?.throw) {
+    throw new Forbidden('Can not attach receipts in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+  }
+  return false;
+};
+
+export const canEditItemDescription: ExpensePermissionEvaluator = async (req, expense, options) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if ([ExpenseStatus.PAID, ExpenseStatus.PROCESSING].includes(expense.status as ExpenseStatus)) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
+  }
+
+  if (options?.throw) {
+    throw new Forbidden(
+      'Can not edit item description in current status',
+      EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+    );
+  }
+  return false;
+};
+
+export const canEditExpenseTags: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot edit expense tags', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.status === 'PAID') {
+    // Only collective/host admins can edit tags after the expense is paid
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin], options);
   } else {
     return remoteUserMeetsOneCondition(
@@ -666,86 +734,203 @@ export const canEditExpenseTags = createExpensePermissionsEvaluator(async (req, 
       options,
     );
   }
-});
+};
 
 /**
  * Only the author or an admin of the collective or collective.host can delete an expense,
  * and only when its status is REJECTED.
  */
-export const canDeleteExpense = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if ([ExpenseStatus.PENDING, ExpenseStatus.INVITE_DECLINED].includes(expense.status as ExpenseStatus)) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
-  } else if (expense.status === ExpenseStatus.DRAFT) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
+export const canDeleteExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
   } else if (
-    [ExpenseStatus.REJECTED, ExpenseStatus.SPAM, ExpenseStatus.CANCELED].includes(expense.status as ExpenseStatus)
+    ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
+    (await remoteUserMeetsOneCondition(req, expense, [isOwner], options))
   ) {
+    return true;
+  } else if (!['REJECTED', 'SPAM', 'DRAFT', 'CANCELED'].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not delete expense in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot delete expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
   }
-  return false;
-});
+};
 
 /**
  * Returns true if expense can be paid by user
  */
-export const canPayExpense = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if ([ExpenseStatus.APPROVED, ExpenseStatus.ERROR].includes(expense.status as ExpenseStatus)) {
+export const canPayExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
-  return false;
-});
+};
 
 /**
  * Returns true if expense can be approved by user
  */
-export const canApprove = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if ([ExpenseStatus.REJECTED, ExpenseStatus.PENDING].includes(expense.status as ExpenseStatus)) {
-    return (
-      (await validateExpenseAuthorApproval(req, expense, options)) &&
-      remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options)
-    );
-  } else if (expense.status === ExpenseStatus.INCOMPLETE) {
-    return (
-      (await validateExpenseAuthorApproval(req, expense, options)) &&
-      remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options)
-    );
-  }
+export const canApprove: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not approve expense in current status (${expense.status})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot approve expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else {
+    expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
 
-  if (options?.throw) {
-    throw new Forbidden(
-      `Can not approve expense in current status (${expense.status})`,
-      EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-    );
+    if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
+      expense.collective.host =
+        expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
+    }
+
+    const currency = expense.collective.host?.currency || expense.collective.currency;
+    const hostPolicy = await getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+    const collectivePolicy = await getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+
+    let policy = collectivePolicy;
+    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
+      policy = hostPolicy;
+
+      if (!hostPolicy.appliesToSingleAdminCollectives) {
+        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+        if (collectiveAdminCount === 1) {
+          policy = collectivePolicy;
+        }
+      }
+    }
+
+    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'User cannot approve their own expenses',
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+          {
+            reasonDetails: {
+              amount: policy.amountInCents / 100,
+              currency,
+            },
+          },
+        );
+      }
+      return false;
+    }
+    if (expense.status === 'INCOMPLETE') {
+      if (await isHostAdmin(req, expense)) {
+        return true;
+      } else {
+        if (options?.throw) {
+          throw new Forbidden(
+            'Only host admins can approve incomplete expenses',
+            EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+          );
+        }
+        return false;
+      }
+    }
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
-  return false;
-});
+};
 
 /**
  * Returns true if expense can be rejected by user
  */
-export const canReject = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (
-    [ExpenseStatus.PENDING, ExpenseStatus.UNVERIFIED, ExpenseStatus.INCOMPLETE].includes(
-      expense.status as ExpenseStatus,
-    )
-  ) {
+export const canReject: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not reject expense in current status (${expense.status})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
-
-  if (options?.throw) {
-    throw new Forbidden(
-      `Can not reject expense in current status (${expense.status})`,
-      EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-    );
-  }
-  return false;
-});
+};
 
 /**
  * Creates an evaluator for an optional draftKey input that returns true if expense invite can be declined by this request
  */
-export const buildCanDeclineExpenseInviteEvaluator =
-  (draftKey?: string): ExpensePermissionEvaluator =>
+export const buildCanDeclineExpenseInviteEvaluator: (draftKey?: string) => ExpensePermissionEvaluator =
+  draftKey =>
   async (req: express.Request, expense: Expense, options = { throw: false }) => {
     if (req.remoteUser && !validateExpenseScope(req, options)) {
       if (options?.throw) {
@@ -796,59 +981,159 @@ export const buildCanDeclineExpenseInviteEvaluator =
 /**
  * Returns true if expense can be rejected by user
  */
-export const canMarkAsSpam = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.REJECTED) {
-    if (expense.UserId === PlatformConstants.PlatformUserId) {
-      if (options?.throw) {
-        throw new Forbidden(
-          'Cannot mark platform expenses as spam',
-          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
-        );
-      }
-      return false;
+export const canMarkAsSpam: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
     }
-
+    return false;
+  } else if (!['REJECTED'].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not mark expense as spam in current status (${expense.status})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot mark expenses as spam', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.UserId === PlatformConstants.PlatformUserId) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Cannot mark platform expenses as spam',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
+    return false;
+  } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
-  return false;
-});
+};
 
 /**
  * Returns true if expense can be unapproved by user
  */
-export const canUnapprove = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.INCOMPLETE) {
+export const canUnapprove: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (
+    ![ExpenseStatuses.INCOMPLETE, ExpenseStatuses.APPROVED, ExpenseStatuses.ERROR].includes(
+      expense.status as ExpenseStatuses,
+    )
+  ) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not unapprove expense in current status (${expense.status})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot unapprove expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if (expense.status === ExpenseStatuses.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
-  } else if ([ExpenseStatus.APPROVED, ExpenseStatus.ERROR].includes(expense.status as ExpenseStatus)) {
+  } else {
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
+};
 
-  if (options?.throw) {
-    throw new Forbidden(
-      `Can not unapprove expense in current status (${expense.status})`,
-      EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-    );
+export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not mark expense as incomplete in current status (${expense.status})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'User cannot mark expense as incomplete',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
+    return false;
+  } else if (!(await isHostAdmin(req, expense))) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Only host admins can mark expenses as incomplete',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
+    return false;
   }
-  return false;
-});
 
-export const canMarkAsIncomplete = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if ([ExpenseStatus.APPROVED, ExpenseStatus.ERROR].includes(expense.status as ExpenseStatus)) {
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
-  }
-  return false;
-});
+  return true;
+};
 
 /**
  * Returns true if user is allowed to change the accounting category of the expense
  */
-export const canEditExpenseAccountingCategory = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  // Host admins and accountants can always change the accounting category
+export const canEditExpenseAccountingCategory = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+): Promise<boolean> => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'User cannot edit accounting categories for expenses',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
+    return false;
+  }
+
+  // Host admins and accountants can always change the accounting category.
   if (await remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isHostAccountant])) {
     return true;
   }
 
-  // Non-editable statuses check
+  // Other roles can only change the accounting category if the expense is not paid yet
   const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
   if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
@@ -867,35 +1152,90 @@ export const canEditExpenseAccountingCategory = createExpensePermissionsEvaluato
 
   // Otherwise, fallback to the default edit expense permissions
   return canEditExpense(req, expense, options);
-});
+};
 
 /**
  * Returns true if expense can be marked as unpaid by user
  */
-export const canMarkAsUnpaid = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (
-    expense.status === ExpenseStatus.PAID &&
-    !Object.values(ExpenseType).includes(ExpenseType.CHARGE) // All types except CHARGE
-  ) {
-    if (expense.FromCollectiveId === PlatformConstants.PlatformCollectiveId && req.remoteUser?.isRoot()) {
-      return true;
+export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
     }
+    return false;
+  } else if (expense.status !== 'PAID') {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not mark expense as unpaid in current status (${expense.status})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (expense.type === EXPENSE_TYPE.CHARGE) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not mark this type of expense as unpaid',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'User cannot mark expenses as unpaid',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
+    return false;
+  } else if (
+    expense.type === EXPENSE_TYPE.SETTLEMENT &&
+    expense.FromCollectiveId === PlatformConstants.PlatformCollectiveId &&
+    req.remoteUser.isRoot()
+  ) {
+    // Allow platform admins to mark settlements as unpaid
+    return true;
+  } else {
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
-  return false;
-});
+};
 
 /**
  * Returns true if user can comment and see others comments for this expense
  */
-export const canComment = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  return remoteUserMeetsOneCondition(
-    req,
-    expense,
-    [isCollectiveAdmin, isHostAdmin, isOwner, isOwnerAccountant, isCollectiveOrHostAccountant],
-    options,
-  );
-});
+export const canComment: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(
+      req,
+      expense,
+      [isCollectiveAdmin, isHostAdmin, isOwner, isOwnerAccountant, isCollectiveOrHostAccountant],
+      options,
+    );
+  }
+};
 
 export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (req, expense) => {
   if (!validateExpenseScope(req)) {
@@ -917,47 +1257,77 @@ export const canDownloadTaxForm: ExpensePermissionEvaluator = async (req, expens
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isHostAccountant]);
 };
 
-/**
- * Returns true if user can unschedule a payment
- */
-export const canUnschedulePayment = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.SCHEDULED_FOR_PAYMENT) {
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
-  }
-  return false;
-});
-
-/**
- * Returns true if user can put an expense on hold
- */
-export const canPutOnHold = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (expense.status === ExpenseStatus.APPROVED) {
-    if (expense.onHold === true) {
-      if (options?.throw) {
-        throw new Forbidden(
-          'Only approved expenses that are not on hold can be put on hold',
-          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
-        );
-      }
-      return false;
+export const canUnschedulePayment: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
     }
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+    return false;
+  } else if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not unschedule expense for payment in current status (${expense.status})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
   }
-  return false;
-});
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+};
 
-/**
- * Returns true if user can release an expense that's on hold
- */
-export const canReleaseHold = createExpensePermissionsEvaluator(async (req, expense, options) => {
-  if (!expense.onHold) {
+export const canPutOnHold: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (expense.status !== 'APPROVED' || expense.onHold === true) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Only approved expenses that are not on hold can be put on hold',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  }
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+};
+
+export const canReleaseHold: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Your current token is missing the necessary scope',
+        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
+      );
+    }
+    return false;
+  } else if (!expense.onHold) {
     if (options?.throw) {
       throw new Forbidden('Only expenses on hold can be released', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
     return false;
   }
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
-});
+};
 
 export const canSeeExpenseOnHoldFlag = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!validateExpenseScope(req)) {
@@ -1250,11 +1620,11 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
   }
 
   // If expense is a receipt (not an invoice) then files must be attached
-  if (expenseType === ExpenseType.RECEIPT) {
+  if (expenseType === EXPENSE_TYPE.RECEIPT) {
     if (items.some(a => !a.url)) {
       throw new ValidationFailed('Some items are missing a file');
     }
-  } else if (expenseType === ExpenseType.INVOICE) {
+  } else if (expenseType === EXPENSE_TYPE.INVOICE) {
     if (items.some(a => a.url)) {
       throw new ValidationFailed(
         'Invoice items cannot have a file attached. To attach documentation. please use `attachedFiles` on the expense instead.',
@@ -1264,7 +1634,7 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
 };
 
 const checkExpenseType = (
-  newType: ExpenseType,
+  newType: EXPENSE_TYPE,
   account: Collective,
   parent: Collective | null,
   host: Collective | null,
@@ -1272,9 +1642,9 @@ const checkExpenseType = (
 ): void => {
   // Prevent changing the type in certain cases
   if (existingExpense && newType && existingExpense.type !== newType) {
-    if (existingExpense.type === ExpenseType.CHARGE) {
+    if (existingExpense.type === EXPENSE_TYPE.CHARGE) {
       throw new ValidationFailed('Cannot change the type for this expense');
-    } else if (newType === ExpenseType.CHARGE) {
+    } else if (newType === EXPENSE_TYPE.CHARGE) {
       throw new ValidationFailed('Cannot manually change the type of an expense to "Charge"');
     }
   }
@@ -1294,7 +1664,7 @@ const checkExpenseType = (
   }
 
   // Fallback on default values
-  if (newType === ExpenseType.GRANT) {
+  if (newType === EXPENSE_TYPE.GRANT) {
     // TODO: enforce this to resolve https://github.com/opencollective/opencollective/issues/5395
   }
 };
@@ -1362,7 +1732,7 @@ type ExpenseData = {
   fromCollective?: Collective;
   tags?: string[];
   incurredAt?: Date;
-  type?: ExpenseType;
+  type?: EXPENSE_TYPE;
   description?: string;
   privateMessage?: string;
   invoiceInfo?: string;
@@ -1398,7 +1768,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
     return;
   } else if (taxes.length > 1) {
     throw new ValidationFailed('Only one tax is allowed per expense');
-  } else if (expenseType !== ExpenseType.INVOICE) {
+  } else if (expenseType !== EXPENSE_TYPE.INVOICE) {
     throw new ValidationFailed('Only invoices can have taxes');
   } else {
     return taxes.forEach(({ type, rate }) => {
@@ -1418,7 +1788,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
  */
 const checkCanUseAccountingCategory = (
   remoteUser: User | null,
-  expenseType: ExpenseType,
+  expenseType: EXPENSE_TYPE,
   accountingCategory: AccountingCategory | undefined | null,
   host: Collective | undefined,
   account: Collective,
@@ -1818,7 +2188,7 @@ export async function createExpense(
     data['isNewExpenseFlow'] = true;
   }
 
-  let status = ExpenseStatus.PENDING;
+  let status = statuses.PENDING;
 
   // Auto-approve expenses for host vendor expenses if the user is admin of both the vendor and the host
   if (
@@ -1827,12 +2197,12 @@ export async function createExpense(
     fromCollective.type === CollectiveType.VENDOR &&
     collective.isHostAccount
   ) {
-    status = ExpenseStatus.APPROVED;
+    status = statuses.APPROVED;
   }
 
   const expense = await sequelize.transaction(async t => {
     let invoiceFileId: number;
-    if (expenseData.type === ExpenseType.INVOICE && expenseData.invoiceFile) {
+    if (expenseData.type === EXPENSE_TYPE.INVOICE && expenseData.invoiceFile) {
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
       invoiceFileId = invoiceFile.id;
     }
@@ -1910,7 +2280,7 @@ export const changesRequireStatusUpdate = (
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   const isPaidOrProcessingCharge =
-    expense.type === ExpenseType.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
+    expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
   if (isPaidOrProcessingCharge && !hasAmountChanges) {
     return false;
@@ -1990,7 +2360,7 @@ export async function submitExpenseDraft(
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
   }
-  if (existingExpense.status !== ExpenseStatus.DRAFT) {
+  if (existingExpense.status !== statuses.DRAFT) {
     throw new Forbidden('Expense can not be edited.');
   }
 
@@ -2041,9 +2411,9 @@ export async function submitExpenseDraft(
     existingExpense.data?.draftKey === args.draftKey &&
     existingExpense.data?.payee?.email === options.overrideRemoteUser.email
   ) {
-    status = ExpenseStatus.PENDING;
+    status = statuses.PENDING;
   } else if (options.overrideRemoteUser?.id) {
-    status = ExpenseStatus.UNVERIFIED;
+    status = statuses.UNVERIFIED;
   }
 
   existingExpense = await editExpense(req, expenseData, options);
@@ -2170,7 +2540,7 @@ export async function editExpenseDraft(
     throw new NotFound('Expense not found.');
   }
 
-  if (existingExpense.status !== ExpenseStatus.DRAFT) {
+  if (existingExpense.status !== statuses.DRAFT) {
     throw new Unauthorized('Expense can not be edited.');
   }
   if (!req.remoteUser || req.remoteUser?.id !== existingExpense.UserId) {
@@ -2183,7 +2553,7 @@ export async function editExpenseDraft(
 
   const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
   const invoiceFile =
-    (expenseData.type || existingExpense.type) === ExpenseType.INVOICE
+    (expenseData.type || existingExpense.type) === EXPENSE_TYPE.INVOICE
       ? await prepareInvoiceFile(req, expenseData.invoiceFile)
       : null;
 
@@ -2330,7 +2700,7 @@ export async function editExpense(
   const { host } = collective;
   const expenseType = expenseData.type || expense.type;
   const isPaidCreditCardCharge =
-    expense.type === ExpenseType.CHARGE &&
+    expense.type === EXPENSE_TYPE.CHARGE &&
     ['PAID', 'PROCESSING'].includes(expense.status) &&
     Boolean(expense.VirtualCardId);
 
@@ -2456,7 +2826,7 @@ export async function editExpense(
 
   // Validate bank account payout method
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    if (![ExpenseStatus.PAID, ExpenseStatus.PROCESSING].includes(expense.status as ExpenseStatus)) {
+    if (![statuses.PAID, statuses.PROCESSING].includes(expense.status as ExpenseStatus)) {
       cleanExpenseData.data = omit(cleanExpenseData.data, ['recipient', 'quote']);
     }
     const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
@@ -2545,7 +2915,7 @@ export async function editExpense(
       );
     }
 
-    if (!isUndefined(expenseData.invoiceFile) && (expenseData.type || expense.type) === ExpenseType.INVOICE) {
+    if (!isUndefined(expenseData.invoiceFile) && (expenseData.type || expense.type) === EXPENSE_TYPE.INVOICE) {
       const newInvoiceUploadedFile = expenseData.invoiceFile
         ? await prepareInvoiceFile(req, expenseData.invoiceFile)
         : null;
@@ -3158,18 +3528,18 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     if (!expense) {
       throw new NotFound('Expense not found');
     }
-    if (expense.status === ExpenseStatus.PAID) {
+    if (expense.status === statuses.PAID) {
       throw new Forbidden('Expense has already been paid');
     }
-    if (expense.status === ExpenseStatus.PROCESSING) {
+    if (expense.status === statuses.PROCESSING) {
       throw new Forbidden(
         'Expense is currently being processed, this means someone already started the payment process',
       );
     }
     if (
-      expense.status !== ExpenseStatus.APPROVED &&
+      expense.status !== statuses.APPROVED &&
       // Allow errored expenses to be marked as paid
-      expense.status !== ExpenseStatus.ERROR
+      expense.status !== statuses.ERROR
     ) {
       throw new Forbidden(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
     }
@@ -3347,9 +3717,9 @@ export async function markExpenseAsUnpaid(
   req: express.Request,
   expenseId: number,
   shouldRefundPaymentProcessorFee: boolean,
-  markAsUnPaidStatus: ExpenseStatus.APPROVED | ExpenseStatus.ERROR | ExpenseStatus.INCOMPLETE = ExpenseStatus.APPROVED,
+  markAsUnPaidStatus: statuses.APPROVED | statuses.ERROR | statuses.INCOMPLETE = statuses.APPROVED,
 ): Promise<Expense> {
-  const newExpenseStatus = markAsUnPaidStatus || ExpenseStatus.APPROVED;
+  const newExpenseStatus = markAsUnPaidStatus || statuses.APPROVED;
 
   const { remoteUser } = req;
   const { expense, transaction } = await lockExpense(expenseId, async () => {
@@ -3375,7 +3745,7 @@ export async function markExpenseAsUnpaid(
       throw new Forbidden("You don't have permission to mark this expense as unpaid");
     }
 
-    if (expense.status !== ExpenseStatus.PAID) {
+    if (expense.status !== statuses.PAID) {
       throw new Forbidden('Expense has not been paid yet');
     }
 
@@ -3410,7 +3780,7 @@ export async function markExpenseAsUnpaid(
     ledgerTransaction: transaction,
   });
 
-  if (newExpenseStatus === ExpenseStatus.INCOMPLETE) {
+  if (newExpenseStatus === statuses.INCOMPLETE) {
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
   }
   return expense;
