@@ -449,7 +449,7 @@ const transactionImportsMutations = {
 
         // Delete associated connected accounts
         if (connectedAccount) {
-          await connectedAccount.destroy({ transaction, force: true });
+          await connectedAccount.destroy({ transaction });
           await ConnectedAccount.destroy({
             transaction,
             where: { data: { MirrorConnectedAccountId: connectedAccount.id } },

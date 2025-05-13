@@ -119,7 +119,7 @@ const connectedAccountMutations = {
         await disconnectPlaidAccount(connectedAccount);
       }
 
-      await connectedAccount.destroy({ force: true });
+      await connectedAccount.destroy();
       await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: connectedAccount.id } } });
 
       return connectedAccount;
