@@ -32,6 +32,7 @@ export const generateTransactionsImportStatsLoader = () => {
         COUNT(row.id) FILTER (WHERE "status" = 'PENDING') AS pending
       FROM "TransactionsImportsRows" row
       WHERE row."TransactionsImportId" IN (:importIds)
+      AND row."deletedAt" IS NULL
       GROUP BY row."TransactionsImportId"
       `,
       {
@@ -77,6 +78,7 @@ export const generateOffPlatformTransactionsStatsLoader = () => {
       INNER JOIN "TransactionsImports" ti ON ti.id = row."TransactionsImportId"
       WHERE ti."CollectiveId" IN (:hostIds)
       AND ti."type" = 'PLAID'
+      AND row."deletedAt" IS NULL
       GROUP BY ti."CollectiveId"
       `,
       {
