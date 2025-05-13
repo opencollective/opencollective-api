@@ -71,11 +71,3 @@ export const getCollectiveTransactionsCsv = async (collective, options) => {
 
   return getTransactionsCsv('transactions', collective, options);
 };
-
-export const getHostTransactionsCsvAsAdmin = async (collective, options) => {
-  if (parseToBoolean(config.restService.fetchHostTransactionsCsv) === false) {
-    return;
-  }
-
-  return getTransactionsCsv('hostTransactions', collective, { ...options, useAdminAccount: true });
-};

@@ -308,10 +308,6 @@ const generateEmailFromTemplate = (
     }
   }
 
-  if (template.match(/^host\.(monthly|yearly)report$/)) {
-    template = 'host.report';
-  }
-
   if (template === activities.ORDER_PROCESSED) {
     if (['opensource'].includes(hostSlug)) {
       template = `${activities.ORDER_PROCESSED}.${hostSlug}`;
