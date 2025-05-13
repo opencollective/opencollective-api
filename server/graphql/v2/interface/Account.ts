@@ -572,7 +572,12 @@ const accountFieldsDefinition = () => ({
         CollectiveId: collective.id,
         [Op.and]: [],
       };
-      if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'updates')) {
+
+      const canSeeDraftUpdates =
+        checkScope(req, 'updates') &&
+        (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.isCommunityManager(collective));
+
+      if (onlyPublishedUpdates || !canSeeDraftUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       } else if (isDraft) {
         where = assign(where, { publishedAt: null });

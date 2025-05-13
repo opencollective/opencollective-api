@@ -5,6 +5,8 @@ enum MemberRoles {
   ADMIN = 'ADMIN',
   /** Member of the collective but cannot approve expenses */
   MEMBER = 'MEMBER',
+  /** Can post updates and moderate comments, similar to MEMBER */
+  COMMUNITY_MANAGER = 'COMMUNITY_MANAGER',
   /** Occasional contributor (giving time) */
   CONTRIBUTOR = 'CONTRIBUTOR',
   /** Supporter giving money */
@@ -23,6 +25,7 @@ export const MemberRoleLabels = {
   [MemberRoles.HOST]: 'Host',
   [MemberRoles.ADMIN]: 'Administrator',
   [MemberRoles.MEMBER]: 'Core Contributor',
+  [MemberRoles.COMMUNITY_MANAGER]: 'Community Manager',
   [MemberRoles.CONTRIBUTOR]: 'Contributor',
   [MemberRoles.BACKER]: 'Financial Contributor',
   [MemberRoles.ATTENDEE]: 'Attendee',

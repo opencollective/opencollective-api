@@ -70,7 +70,10 @@ const GraphQLUpdate = new GraphQLObjectType({
 
           update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
 
-          if (!req.remoteUser.isAdminOfCollective(update.collective)) {
+          if (
+            !req.remoteUser.isAdminOfCollective(update.collective) &&
+            !req.remoteUser.isCommunityManager(update.collective)
+          ) {
             return null;
           }
 

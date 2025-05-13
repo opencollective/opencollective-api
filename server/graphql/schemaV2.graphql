@@ -850,7 +850,12 @@ interface Account {
   """
   The list of connected accounts (Stripe, PayPal, etc ...)
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -1840,6 +1845,7 @@ enum MemberRole {
   HOST
   ATTENDEE
   MEMBER
+  COMMUNITY_MANAGER
   FUNDRAISER @deprecated(reason: "2022-09-12: This role does not exist anymore")
   FOLLOWER
   ACCOUNTANT
@@ -3420,7 +3426,12 @@ type Host implements Account & AccountWithContributions {
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -5431,6 +5442,17 @@ type ConnectedAccount {
   updatedAt: DateTime!
   settings: JSON
   service: ConnectedAccountService!
+
+  """
+  The accounts that are mirroring this connected account
+  """
+  accountsMirrored: [Account]!
+  hash: String
+
+  """
+  The account who connected this account
+  """
+  createdByAccount: Account
 }
 
 """
@@ -8907,7 +8929,12 @@ type Bot implements Account {
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -9820,7 +9847,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -11282,7 +11314,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -12464,7 +12501,12 @@ type Individual implements Account {
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -13624,7 +13666,12 @@ type Organization implements Account & AccountWithContributions {
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -14650,7 +14697,12 @@ type Vendor implements Account & AccountWithContributions {
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -18353,7 +18405,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -19413,7 +19470,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".

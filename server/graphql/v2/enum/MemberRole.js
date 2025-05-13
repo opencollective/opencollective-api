@@ -10,6 +10,7 @@ export const GraphQLMemberRole = new GraphQLEnumType({
     HOST: {},
     ATTENDEE: {},
     MEMBER: {},
+    COMMUNITY_MANAGER: {},
     FUNDRAISER: { deprecationReason: '2022-09-12: This role does not exist anymore' },
     FOLLOWER: {},
     ACCOUNTANT: {},
