@@ -140,7 +140,7 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       connectedAccount = await fakeConnectedAccount({ CollectiveId: collective.id });
     });
 
-    it('should force delete the connected account', async () => {
+    it('should soft delete the connected account', async () => {
       const result = await graphqlQueryV2(
         deleteConnectedAccountMutation,
         {
@@ -156,7 +156,8 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       expect(result.data).to.exist;
 
       const createdConnectedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id, { paranoid: false });
-      expect(createdConnectedAccount).to.be.null;
+      expect(createdConnectedAccount).to.not.be.null;
+      expect(createdConnectedAccount.deletedAt).to.not.be.null;
     });
 
     describe('should disconnect on 3rd party services', () => {
