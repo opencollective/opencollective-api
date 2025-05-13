@@ -1,4 +1,5 @@
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLNonNull } from 'graphql';
+import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
@@ -11,7 +12,7 @@ const TransactionsImportQuery = {
   description: 'Fetch a transactions import',
   args: {
     id: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The public id identifying the import (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)',
     },
   },
