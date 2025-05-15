@@ -3,7 +3,6 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 import { InferAttributes } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
@@ -344,22 +343,14 @@ export default {
           "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
         );
       }
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       // Refund Existing Order
       const transactions = await order.getTransactions({ order: [['id', 'desc']] });
       assert(transactions.length > 0, 'No ADDED FUNDS transaction found for this order');
-
-      await twoFactorAuthLib.enforceForAccount(req, host);
-      const editedTransactions = transactions.map(t => t.id);
-
-      const shouldRevert = moment().diff(order.createdAt, 'hours', true) > 24;
-      if (shouldRevert) {
-        const creditTransction = transactions.find(t => t.type === 'CREDIT');
-        assert(creditTransction, 'No CREDIT transaction found for this order');
-        await refundTransaction(creditTransction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
-      } else {
-        await Promise.all(transactions.map(transaction => transaction.destroy()));
-      }
+      const creditTransction = transactions.find(t => t.type === 'CREDIT');
+      assert(creditTransction, 'No CREDIT transaction found for this order');
+      await refundTransaction(creditTransction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
 
       const previousData = order.toJSON();
       // Update existing Order
@@ -395,6 +386,7 @@ export default {
       });
 
       // Create Activity
+      const editedTransactions = transactions.map(t => t.id);
       await models.Activity.create({
         type: ActivityTypes.ADDED_FUNDS_EDITED,
         UserId: req.remoteUser.id,

@@ -136,6 +136,8 @@ const editAddedFundsMutation = gql`
         id
         kind
         type
+        isRefund
+        isRefunded
         amount {
           valueInCents
           currency
@@ -706,10 +708,9 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       });
     });
 
-    it('soft deletes the original set of transactions', async () => {
+    it('revertes the original set of transactions', async () => {
       const transactions = await models.Transaction.findAll({
-        where: { OrderId, deletedAt: { [Op.ne]: null } },
-        paranoid: false,
+        where: { OrderId, RefundTransactionId: { [Op.ne]: null }, isRefund: false },
       });
 
       expect(transactions).to.have.length(4);
@@ -719,6 +720,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
             CollectiveId: collective.id,
             type: 'CREDIT',
             kind: 'ADDED_FUNDS',
+            refundKind: 'EDIT',
             amount: 2000,
           },
         },
@@ -727,6 +729,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
             CollectiveId: collective.id,
             type: 'DEBIT',
             kind: 'HOST_FEE',
+            refundKind: 'EDIT',
             amount: -200,
           },
         },
@@ -735,7 +738,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
 
     it('create the necessary transactions to reflect the updated values', async () => {
       const transactions = await models.Transaction.findAll({
-        where: { OrderId },
+        where: { OrderId, RefundTransactionId: null },
       });
 
       expect(transactions).to.have.length(2);
@@ -796,15 +799,23 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       const groupedTransactions = groupBy(transactions, 'kind');
 
       // Taxes should be added on CONTRIBUTION transactions
-      const addFundsCredit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'CREDIT');
-      const addFundsDebit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'DEBIT');
+      const addFundsCredit = groupedTransactions['ADDED_FUNDS'].find(
+        t => t.type === 'CREDIT' && !t.isRefund && !t.isRefunded,
+      );
+      const addFundsDebit = groupedTransactions['ADDED_FUNDS'].find(
+        t => t.type === 'DEBIT' && !t.isRefund && !t.isRefunded,
+      );
       expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
       expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
       expect(addFundsDebit.taxAmount.valueInCents).to.equal(-521);
 
       // Taxes should not be added on HOST_FEE transactions
-      const hostFeeCredit = groupedTransactions['HOST_FEE'].find(t => t.type === 'CREDIT');
-      const hostFeeDebit = groupedTransactions['HOST_FEE'].find(t => t.type === 'DEBIT');
+      const hostFeeCredit = groupedTransactions['HOST_FEE'].find(
+        t => t.type === 'CREDIT' && !t.isRefund && !t.isRefunded,
+      );
+      const hostFeeDebit = groupedTransactions['HOST_FEE'].find(
+        t => t.type === 'DEBIT' && !t.isRefund && !t.isRefunded,
+      );
       expect(hostFeeCredit.taxAmount.valueInCents).to.be.null;
       expect(hostFeeDebit.taxAmount.valueInCents).to.be.null;
     });
