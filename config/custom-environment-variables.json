@@ -144,7 +144,8 @@
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
     },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
-    "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS"
+    "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
+    "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR"
   },
   "slack": {
     "webhooks": {

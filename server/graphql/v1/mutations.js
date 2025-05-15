@@ -1,3 +1,4 @@
+import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import FEATURE_STATUS from '../../constants/feature-status';
@@ -143,7 +144,7 @@ const mutations = {
     async resolve(_, args, req) {
       const { remoteUser } = req;
       const rateLimitKey = remoteUser ? `user_create_${remoteUser.id}` : `user_create_ip_${req.ip}`;
-      const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
+      const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
       }

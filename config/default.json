@@ -96,6 +96,7 @@
       }
     },
     "userSigninAttemptsPerHourPerIp": 50,
+    "userSignUpPerHour": 3,
     "userExchangeLoginTokenPerHourPerIp": 50,
     "userRefreshTokenPerHourPerIp": 50,
     "collectiveEmailMessagePerHour": 5,
