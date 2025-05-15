@@ -361,6 +361,7 @@ const getOrCreateActiveBatch = async (
 async function scheduleExpenseForPayment(
   expense: Expense,
   transferDetails?: transferwise.CreateTransfer['details'],
+  remoteUser?: User,
 ): Promise<Expense> {
   const collective = await expense.getCollective();
   const host = await collective.getHostCollective();
@@ -376,7 +377,10 @@ async function scheduleExpenseForPayment(
   }
 
   const transferNature = transferDetails?.transferNature;
-  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME, {
+    CreatedByUserId: remoteUser?.id,
+    fallbackToNonUserAccount: true,
+  });
   const token = await transferwise.getToken(connectedAccount);
   const [wiseBalances, quote] = await Promise.all([
     getAccountBalances(host, { connectedAccount }),
