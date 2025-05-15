@@ -20790,6 +20790,21 @@ type Mutation {
   ): Expense!
 
   """
+  Moves an expense from one account within a Collective to another
+  """
+  moveExpense(
+    """
+    Reference of the expense to move
+    """
+    expense: ExpenseReferenceInput!
+
+    """
+    Reference of the account to move the expense to
+    """
+    destinationAccount: AccountReferenceInput!
+  ): Expense!
+
+  """
   Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".
   """
   deleteExpense(

@@ -100,7 +100,7 @@ import { getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
-import { checkRemoteUserCanRoot, checkScope } from './scope-check';
+import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
@@ -3907,12 +3907,11 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
 };
 
 /**
+ * DANGER: This function needs pre-authorization and permissions checks
  * Move expenses to destination account
  * @param expenses the list of models.Expense, with the collective association preloaded
  */
 export const moveExpenses = async (req: express.Request, expenses: Expense[], destinationAccount: Collective) => {
-  // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere
-  checkRemoteUserCanRoot(req);
   if (!expenses.length) {
     return [];
   } else if (destinationAccount.type === CollectiveType.USER) {
