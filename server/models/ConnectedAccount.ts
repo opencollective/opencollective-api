@@ -12,7 +12,8 @@ import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-import Collective from './Collective';
+import type Collective from './Collective';
+import type User from './User';
 
 class ConnectedAccount extends Model<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
@@ -35,6 +36,7 @@ class ConnectedAccount extends Model<
   declare public deletedAt: CreationOptional<Date>;
 
   declare public collective?: NonAttribute<Collective>;
+  declare public user?: NonAttribute<User>;
   declare public getCollective: BelongsToGetAssociationMixin<Collective>;
 
   get info() {
