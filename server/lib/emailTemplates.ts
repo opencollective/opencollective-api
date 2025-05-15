@@ -59,7 +59,6 @@ export const templateNames = [
   'expense-accounting-category-educational',
   'host.application.contact',
   'host.application.comment.created',
-  'host.report',
   'member.invitation',
   'oauth.application.authorized',
   'onboarding.day2',
