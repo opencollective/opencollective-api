@@ -47,7 +47,7 @@ import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
-import { getDiffBetweenInstances, simulateDBEntriesDiff } from '../../lib/data';
+import { getDiffBetweenInstancesWithFullObjects, simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
 import { formatAddress } from '../../lib/format-address';
 import logger from '../../lib/logger';
@@ -2528,8 +2528,9 @@ export async function editExpense(
   }
 
   // Store the original expense data for later comparison
-  const originalExpense = expense.toJSON();
-
+  const originalExpenseJSON = expense.toJSON();
+  console.log('original expense:');
+  console.log(originalExpenseJSON.PayoutMethod);
   const { collective } = expense;
   const { host } = collective;
   const expenseType = expenseData.type || expense.type;
@@ -2781,6 +2782,7 @@ export async function editExpense(
       status,
       FromCollectiveId: fromCollective.id,
       PayoutMethodId: PayoutMethodId,
+      PayoutMethod: payoutMethod,
       legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
       tags: cleanExpenseData.tags,
     };
@@ -2819,7 +2821,9 @@ export async function editExpense(
 
   if (!options?.skipActivity) {
     const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
-    const { newData, previousData } = getDiffBetweenInstances(updatedExpense, originalExpense, [
+    const updatedExpenseJSON = updatedExpense.toJSON();
+
+    const { newData, previousData } = getDiffBetweenInstancesWithFullObjects(updatedExpenseJSON, originalExpenseJSON, [
       'data.recipient',
       'data.quote',
       'data.transfer',
@@ -2832,8 +2836,6 @@ export async function editExpense(
       newData,
       previousData,
     });
-    console.log(newData);
-    console.log(previousData);
   }
 
   try {

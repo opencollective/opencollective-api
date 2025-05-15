@@ -170,3 +170,48 @@ export const getDiffBetweenInstances = <T extends Model>(
     previousData: pick(previousData, updatedKeys),
   };
 };
+
+/**
+ * Finds root keys that have changes in them (even nested)
+ */
+const findRootKeysWithChanges = (newData: object, previousData: object, updatedKeys: string[]): string[] => {
+  const rootKeys = new Set<string>();
+  updatedKeys.forEach(key => {
+    const rootKey = key.split('.')[0];
+    rootKeys.add(rootKey);
+  });
+  return Array.from(rootKeys);
+};
+
+/**
+ * Similar to getDiffBetweenInstances but returns the entire nested objects for root keys
+ * that have changes, rather than just the specific changed fields.
+ *
+ * @param newData The new data object or model instance
+ * @param previousData The previous data object or model instance
+ * @param omitKeys Keys to omit from the comparison
+ * @returns Object with newData and previousData, containing the full nested objects that have changes
+ */
+export const getDiffBetweenInstancesWithFullObjects = <T extends Model>(
+  newData: object | T,
+  previousData: object | T,
+  omitKeys: string[] = [],
+) => {
+  newData = omit(newData instanceof Model ? newData.toJSON() : newData, omitKeys);
+  previousData = omit(previousData instanceof Model ? previousData.toJSON() : previousData, omitKeys);
+
+  const newKeys = keysDeep(newData);
+  const updatedKeys = newKeys.filter(k => !isEqual(get(newData, k), get(previousData, k)));
+
+  // Find the root keys that have changes
+  const rootKeysWithChanges = findRootKeysWithChanges(newData, previousData, updatedKeys);
+
+  // Pick the entire objects for the root keys that have changes
+  const newDataWithFullObjects = pick(newData, rootKeysWithChanges);
+  const previousDataWithFullObjects = pick(previousData, rootKeysWithChanges);
+
+  return {
+    newData: newDataWithFullObjects,
+    previousData: previousDataWithFullObjects,
+  };
+};
