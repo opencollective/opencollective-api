@@ -2,7 +2,9 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import FEATURE_STATUS from '../../constants/feature-status';
+import { checkCaptcha } from '../../lib/check-captcha';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
+import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
@@ -29,6 +31,7 @@ import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { updateUserEmail } from './mutations/users';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
+  CaptchaInputType,
   CollectiveInputType,
   ConnectedAccountInputType,
   MemberInputType,
@@ -140,6 +143,10 @@ const mutations = {
         description: 'If true, a signIn link will be sent to the user',
         defaultValue: true,
       },
+      captcha: {
+        type: CaptchaInputType,
+        description: 'Captcha verification data',
+      },
     },
     async resolve(_, args, req) {
       const { remoteUser } = req;
@@ -147,6 +154,15 @@ const mutations = {
       const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
+      }
+
+      if (args.captcha) {
+        await checkCaptcha(args.captcha, req.ip);
+      } else {
+        reportMessageToSentry('Signup request without captcha', {
+          severity: 'warning',
+          extra: { args },
+        });
       }
 
       return createUser(args.user, {
