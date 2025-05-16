@@ -65,14 +65,20 @@ const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurre
 
 async function populateProfileId(connectedAccount: ConnectedAccount, profileId: number): Promise<void> {
   if (!connectedAccount.data?.id) {
-    const profile = await transferwise.getProfile(connectedAccount, profileId);
-    if (profile) {
-      const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME, userId: profile.userId });
-      const isOwner = profile.type === 'BUSINESS' && profile.companyRole === 'OWNER';
+    const profiles = await transferwise.getProfiles(connectedAccount);
+    const personalProfile = profiles.find(p => p.type === 'PERSONAL');
+    const businessProfile = profiles.find(p => p.id === profileId);
+    if (businessProfile) {
+      const hash = hashObject({
+        profileId: businessProfile.id,
+        service: PROVIDER_NAME,
+        userId: personalProfile.userId,
+      });
+      const isOwner = businessProfile.type === 'BUSINESS' && businessProfile.companyRole === 'OWNER';
       await connectedAccount.update({
-        data: { ...connectedAccount.data, ...profile },
+        data: { ...connectedAccount.data, ...businessProfile, personalProfile },
         hash,
-        settings: { isOwner, userId: profile.userId },
+        settings: { isOwner, userId: personalProfile.userId },
       });
     } else {
       throw new Error(`Could not find a Wise profile for connected account ${connectedAccount.id}`);
@@ -728,8 +734,11 @@ const oauth = {
         refreshToken,
         data,
       });
-      const profile = await transferwise.getProfile(connectedAccount, toNumber(profileId));
-      const hash = hashObject({ profileId: profile.id, service: 'transferwise', userId: profile.userId });
+      const profiles = await transferwise.getProfiles(connectedAccount);
+      const personalProfile = profiles.find(p => p.type === 'PERSONAL');
+      const profile = profiles.find(p => p.id === toNumber(profileId));
+      assert(profile, `Could not find Wise profile with id ${profileId}`);
+      const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME, userId: personalProfile.userId });
 
       const collective = await Collective.findByPk(CollectiveId);
       assert(collective, `Could not find Collective #${CollectiveId}`);
