@@ -2,7 +2,7 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import FEATURE_STATUS from '../../constants/feature-status';
-import { checkCaptcha } from '../../lib/check-captcha';
+import { checkCaptcha, isCaptchaSetup } from '../../lib/check-captcha';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import { reportMessageToSentry } from '../../lib/sentry';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
@@ -11,7 +11,7 @@ import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProv
 import { checkCanEmitGiftCards } from '../common/features';
 import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
-import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
+import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
 import {
   activateBudget,
@@ -158,8 +158,10 @@ const mutations = {
 
       if (args.captcha) {
         await checkCaptcha(args.captcha, req.ip);
+      } else if (!remoteUser && isCaptchaSetup()) {
+        throw new ValidationFailed('Captcha is required');
       } else {
-        reportMessageToSentry('Signup request without captcha', {
+        reportMessageToSentry('CreateUser request without captcha', {
           severity: 'warning',
           extra: { args },
         });
