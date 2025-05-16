@@ -194,6 +194,31 @@ program.command('check-host <hostSlug> [since] [until]').action(async (hostSlug,
   sequelize.close();
 });
 
+program.command('check-tokens <hostSlug> [env]').action(async hostSlug => {
+  console.log(`Checking tokens for host ${hostSlug}...\n`);
+  const host = await models.Collective.findOne({ where: { slug: hostSlug } });
+  const connectedAccounts = await models.ConnectedAccount.findAll({
+    where: {
+      CollectiveId: host.id,
+      service: Service.TRANSFERWISE,
+    },
+    include: [{ model: models.User, as: 'user', include: [{ model: models.Collective, as: 'collective' }] }],
+  });
+  for (const connectedAccount of connectedAccounts) {
+    console.log(
+      `Checking token #${connectedAccount.id} created by user ${connectedAccount.user.email} #${connectedAccount.user.id}`,
+    );
+    try {
+      const profiles = await transferwiseLib.getProfiles(connectedAccount);
+      console.log(`Found ${profiles.length} profiles`);
+      console.dir(profiles, { depth: null });
+    } catch (e) {
+      console.error(`Error while checking token #${connectedAccount.id}: ${e.message}`);
+    }
+    console.log('\n');
+  }
+});
+
 program.addHelpText(
   'after',
   `
