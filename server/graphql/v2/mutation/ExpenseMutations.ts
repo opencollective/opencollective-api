@@ -283,7 +283,7 @@ const expenseMutations = {
       const expense = await models.Expense.findByPk(expenseId, {
         // Need to load the collective/fromCollective because canEditPaidBy checks these
         include: [
-          { model: models.Collective, as: 'collective' },
+          { model: models.Collective, as: 'collective', required: true },
           { model: models.Collective, as: 'fromCollective' },
         ],
       });
