@@ -412,31 +412,16 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
-
-        // In a self-hosted context, both collectiveAdmin and hostAdmin roles point to the same user
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true,
-            collectiveAccountant: false,
-            hostAdmin: true, // Host admin can edit in self-hosted cases
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true,
-            collectiveAccountant: false,
-            hostAdmin: false,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        }
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: context.isSelfHosted,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
 
@@ -444,31 +429,16 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'APPROVED' });
-
-        // In a self-hosted context, collectiveAdmin and hostAdmin are the same user
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true, // In self-hosted collectives, collectiveAdmin is also hostAdmin
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: false,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        }
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
       });
     });
 
@@ -495,7 +465,6 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense, req } = context;
 
-        // Expense owner can edit type only in specific statuses
         await expense.update({ status: 'PAID' });
         expect(await canEditType(req.expenseOwner, expense)).to.be.false;
         await expense.update({ status: 'PROCESSING' });
@@ -505,7 +474,6 @@ describe('server/graphql/common/expenses', () => {
         await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
         expect(await canEditType(req.expenseOwner, expense)).to.be.false;
 
-        // Expense owner can edit in allowed statuses
         await expense.update({ status: 'PENDING' });
         expect(await canEditType(req.expenseOwner, expense)).to.be.true;
         await expense.update({ status: 'INCOMPLETE' });
@@ -518,30 +486,16 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
 
-        // In a self-hosted context, both collectiveAdmin and hostAdmin roles point to the same user
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true,
-            collectiveAccountant: false,
-            hostAdmin: true, // Host admin can edit in self-hosted cases
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true,
-            collectiveAccountant: false,
-            hostAdmin: false,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        }
+        expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: context.isSelfHosted,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
 
@@ -550,30 +504,16 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'APPROVED' });
 
-        // In a self-hosted context, collectiveAdmin and hostAdmin are the same user
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true, // In self-hosted collectives, collectiveAdmin is also hostAdmin
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: false,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        }
+        expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
       });
     });
 
@@ -584,7 +524,7 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
+          collectiveAdmin: context.isSelfHosted,
           collectiveAccountant: false,
           hostAdmin: true,
           hostAccountant: false,
@@ -623,30 +563,16 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
 
-        // In a self-hosted context, the roles may differ
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true,
-            collectiveAccountant: false,
-            hostAdmin: false,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        }
+        expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: context.isSelfHosted,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
 
@@ -655,30 +581,16 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'APPROVED' });
 
-        // In a self-hosted context, the roles may differ
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: false,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        }
+        expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
       });
     });
 
@@ -687,29 +599,16 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'INCOMPLETE' });
 
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true, // For self-hosted, collectiveAdmin is the same as hostAdmin
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: false,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        }
+        expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
   });
@@ -855,29 +754,27 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'APPROVED' });
 
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true, // For self-hosted, collectiveAdmin is the same as hostAdmin
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: false,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: false,
-            limitedHostAdmin: false,
-          });
-        }
+        // if (context.name === 'selfHosted') {
+        //   expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+        //     public: false,
+        //     randomUser: false,
+        //     collectiveAdmin: true, // For self-hosted, collectiveAdmin is the same as hostAdmin
+        //     collectiveAccountant: false,
+        //     hostAdmin: true,
+        //     hostAccountant: false,
+        //     expenseOwner: false,
+        //     limitedHostAdmin: false,
+        //   });
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
       });
     });
 
@@ -886,35 +783,33 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'INCOMPLETE' });
 
-        if (context.name === 'selfHosted') {
-          expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: true, // For self-hosted, collectiveAdmin is the same as hostAdmin
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        } else {
-          expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
-            public: false,
-            randomUser: false,
-            collectiveAdmin: false,
-            collectiveAccountant: false,
-            hostAdmin: true,
-            hostAccountant: false,
-            expenseOwner: true,
-            limitedHostAdmin: false,
-          });
-        }
+        // if (context.name === 'selfHosted') {
+        //   expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+        //     public: false,
+        //     randomUser: false,
+        //     collectiveAdmin: true, // For self-hosted, collectiveAdmin is the same as hostAdmin
+        //     collectiveAccountant: false,
+        //     hostAdmin: true,
+        //     hostAccountant: false,
+        //     expenseOwner: true,
+        //     limitedHostAdmin: false,
+        //   });
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
   });
 
   describe('canAttachReceipts', () => {
-    it('only if expense is in PAID or PROCESSING status', async () => {
+    it('only if expense is of type CHARGE and in PAID or PROCESSING status', async () => {
       await runForAllContexts(async context => {
         const { expense, req } = context;
 
@@ -930,11 +825,20 @@ describe('server/graphql/common/expenses', () => {
         await expense.update({ status: 'INCOMPLETE' });
         expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
 
-        // Can attach receipts in allowed statuses
-        await expense.update({ status: 'PAID' });
-        expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.true;
-        await expense.update({ status: 'PROCESSING' });
-        expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.true;
+        const isVirtualCard = expense.type === 'CHARGE';
+        if (isVirtualCard) {
+          // Can attach receipts in allowed statuses if it is a virtual card
+          await expense.update({ status: 'PAID' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.true;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.true;
+        } else {
+          // But not if it is not a virtual card
+          await expense.update({ status: 'PAID' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+        }
       });
     });
 
@@ -943,14 +847,16 @@ describe('server/graphql/common/expenses', () => {
         const { expense } = context;
         await expense.update({ status: 'PAID' });
 
+        const isVirtualCard = expense.type === 'CHARGE';
+
         expect(await checkAllPermissions(canAttachReceipts, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
+          collectiveAdmin: isVirtualCard,
           collectiveAccountant: false,
-          hostAdmin: true,
+          hostAdmin: isVirtualCard,
           hostAccountant: false,
-          expenseOwner: true,
+          expenseOwner: isVirtualCard,
           limitedHostAdmin: false,
         });
       });
@@ -958,7 +864,7 @@ describe('server/graphql/common/expenses', () => {
   });
 
   describe('canEditItemDescription', () => {
-    it('only if expense is in PAID or PROCESSING status', async () => {
+    it('only if expense is of type CHARGE and in PAID or PROCESSING status', async () => {
       await runForAllContexts(async context => {
         const { expense, req } = context;
 
@@ -974,11 +880,21 @@ describe('server/graphql/common/expenses', () => {
         await expense.update({ status: 'INCOMPLETE' });
         expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
 
-        // Can edit item description in allowed statuses
-        await expense.update({ status: 'PAID' });
-        expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.true;
-        await expense.update({ status: 'PROCESSING' });
-        expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.true;
+        const isVirtualCard = expense.type === 'CHARGE';
+
+        if (isVirtualCard) {
+          // Can edit item description in allowed statuses
+          await expense.update({ status: 'PAID' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.true;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.true;
+        } else {
+          // But not if it is not a CHARGE
+          await expense.update({ status: 'PAID' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+        }
       });
     });
 
@@ -986,15 +902,16 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'PAID' });
+        const isVirtualCard = expense.type === 'CHARGE';
 
         expect(await checkAllPermissions(canEditItemDescription, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
+          collectiveAdmin: isVirtualCard,
           collectiveAccountant: false,
-          hostAdmin: true,
+          hostAdmin: isVirtualCard,
           hostAccountant: false,
-          expenseOwner: true,
+          expenseOwner: isVirtualCard,
           limitedHostAdmin: false,
         });
       });
