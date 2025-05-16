@@ -151,7 +151,6 @@ const checkCanRequestVirtualCards = async (req: Express.Request, collective) => 
 
 export const checkCanEmitGiftCards = async collective => {
   // Ignore type if the account already has some gift cards setup. Useful for Organizations that were turned into Funds.
-
   const hasCreatedGiftCards = await checkExistsInDB(
     `
     SELECT 1 FROM "PaymentMethods" pm
