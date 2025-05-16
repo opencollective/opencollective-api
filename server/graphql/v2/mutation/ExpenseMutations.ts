@@ -292,7 +292,7 @@ const expenseMutations = {
         throw new NotFound('Expense not found');
 
         // Check if user has permissions to move expense and that expense can be moved
-      } else if (!(await canEditPaidBy(req, expense, { throw: true }))) {
+      } else if (!(await canEditPaidBy(req, expense))) {
         throw new Unauthorized('You do not have permission to move this expense');
       }
 
