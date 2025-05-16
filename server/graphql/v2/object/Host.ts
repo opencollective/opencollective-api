@@ -1675,7 +1675,9 @@ export const GraphQLHost = new GraphQLObjectType({
               where: { HostCollectiveId: host.id, status: 'APPROVED' },
             });
             where.HostCollectiveId = { [Op.or]: [{ [Op.ne]: host.id }, { [Op.is]: null }] };
-            where.id = collectiveIds.map(({ CollectiveId }) => CollectiveId);
+            const id = collectiveIds.map(({ CollectiveId }) => CollectiveId);
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            where[Op.and].push({ [Op.or]: [{ id: id }, { ParentCollectiveId: id }] });
           } else {
             where.isActive = true;
             where.approvedAt = args.isApproved ? { [Op.not]: null } : null;
