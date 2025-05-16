@@ -25,6 +25,7 @@ import { createComment } from '../../common/comment';
 import {
   approveExpense,
   canDeleteExpense,
+  canEditPaidBy,
   canVerifyDraftExpense,
   createExpense,
   declineInvitedExpense,
@@ -35,6 +36,7 @@ import {
   markExpenseAsIncomplete,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
+  moveExpenses,
   payExpense,
   prepareAttachedFiles,
   prepareExpenseItemInputs,
@@ -261,6 +263,61 @@ const expenseMutations = {
       }
     },
   },
+  moveExpense: {
+    type: new GraphQLNonNull(GraphQLExpense),
+    description: `Moves an expense from one account within a Collective to another`,
+    args: {
+      expense: {
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
+        description: 'Reference of the expense to move',
+      },
+      destinationAccount: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Reference of the account to move the expense to',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
+      checkRemoteUserCanUseExpenses(req);
+
+      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expense = await models.Expense.findByPk(expenseId, {
+        // Need to load the collective/fromCollective because canEditPaidBy checks these
+        include: [
+          { model: models.Collective, as: 'collective', required: true },
+          { model: models.Collective, as: 'fromCollective' },
+        ],
+      });
+
+      if (!expense) {
+        throw new NotFound('Expense not found');
+
+        // Check if user has permissions to move expense and that expense can be moved
+      } else if (!(await canEditPaidBy(req, expense))) {
+        throw new Unauthorized('You do not have permission to move this expense');
+      }
+
+      const destinationAccount = await fetchAccountWithReference(args.destinationAccount, {
+        loaders: req.loaders,
+        throwIfMissing: true,
+      });
+
+      if (expense.collective.id === destinationAccount.id) {
+        throw new Unauthorized('The expense is already on this account');
+      }
+
+      const currentAccountParentId = expense.collective.ParentCollectiveId ?? expense.collective.id;
+      const destinationAccountParentId = destinationAccount.ParentCollectiveId ?? destinationAccount.id;
+
+      // Check that destination account is within the same Collective
+      if (currentAccountParentId !== destinationAccountParentId) {
+        throw new Unauthorized('You can only move expenses within the same collective');
+      }
+
+      const [movedExpense] = await moveExpenses(req, [expense], destinationAccount);
+      return movedExpense;
+    },
+  },
+
   deleteExpense: {
     type: new GraphQLNonNull(GraphQLExpense),
     description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".`,
