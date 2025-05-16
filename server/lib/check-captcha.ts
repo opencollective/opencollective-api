@@ -8,6 +8,15 @@ import recaptcha from './recaptcha';
 import turnstile from './turnstile';
 import { parseToBoolean } from './utils';
 
+export const isCaptchaSetup = (): boolean => {
+  return (
+    (config.captcha?.enabled && config.captcha?.provider) ||
+    (config.hcaptcha?.enabled && config.hcaptcha?.secret) ||
+    (config.recaptcha?.enabled && config.recaptcha?.secret) ||
+    (config.turnstile?.enabled && config.turnstile?.secretKey)
+  );
+};
+
 export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_PROVIDERS }, reqIp: string) {
   const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
 
