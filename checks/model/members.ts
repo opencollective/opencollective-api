@@ -173,7 +173,51 @@ async function checkMissingMembers({ fix = false }) {
   }
 }
 
-export const checks = [checkDeletedMembers, checkMemberTypes, checkDuplicateMembers, checkMissingMembers];
+async function checkExtraMembers({ fix = false }) {
+  const message = 'No extra members (BACKER)';
+
+  const results = await sequelize.query(
+    `
+    SELECT *
+    FROM "Members"
+    WHERE "role" = 'BACKER' AND "deletedAt" IS NULL
+    AND NOT EXISTS (
+      SELECT * FROM "Transactions"
+      WHERE "deletedAt" IS NULL
+      AND "Transactions"."CollectiveId" = "Members"."CollectiveId"
+      AND "Transactions"."FromCollectiveId" = "Members"."MemberCollectiveId"
+    )`,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    if (!fix) {
+      throw new Error(message);
+    } else {
+      logger.warn(`Fixing: ${message}`);
+      await sequelize.query(
+        `
+        UPDATE "Members"
+        SET "deletedAt" = NOW()
+        WHERE "role" = 'BACKER' AND "deletedAt" IS NULL
+        AND NOT EXISTS (
+          SELECT * FROM "Transactions"
+          WHERE "deletedAt" IS NULL
+          AND "Transactions"."CollectiveId" = "Members"."CollectiveId"
+          AND "Transactions"."FromCollectiveId" = "Members"."MemberCollectiveId"
+        )`,
+      );
+    }
+  }
+}
+
+export const checks = [
+  checkDeletedMembers,
+  checkMemberTypes,
+  checkDuplicateMembers,
+  checkMissingMembers,
+  checkExtraMembers,
+];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);
