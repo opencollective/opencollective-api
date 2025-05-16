@@ -5,6 +5,7 @@ import config from 'config';
 import { activities } from '../../../constants';
 import cache from '../../../lib/cache';
 import emailLib from '../../../lib/email';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import models from '../../../models';
 import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
@@ -63,9 +64,15 @@ export const updateUserEmail = async (user, newEmail) => {
   };
 
   // Send the email and return updated user
-  await emailLib.send(activities.USER_CHANGE_EMAIL, data.user.emailWaitingForValidation, data, {
-    sendEvenIfNotProduction: true,
-  });
+  try {
+    await emailLib.send(activities.USER_CHANGE_EMAIL, data.user.emailWaitingForValidation, data, {
+      sendEvenIfNotProduction: true,
+    });
+  } catch (e) {
+    reportErrorToSentry(e, { user, extra: { newEmail } });
+    throw new Error('Error while sending the verification email, please try again later');
+  }
+
   await models.Activity.create({
     type: activities.USER_CHANGE_EMAIL,
     UserId: user.id,
