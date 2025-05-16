@@ -8,6 +8,7 @@ import roles from '../../constants/roles';
 import cache from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective, Op, sequelize } from '../../models';
 import User from '../../models/User';
 import { InvalidToken, ValidationFailed } from '../errors';
@@ -82,7 +83,18 @@ export const createUser = (
       if (config.env === 'development') {
         logger.info(`Login Link: ${loginLink}`);
       }
-      await emailLib.send(activities.USER_NEW_TOKEN, user.email, { loginLink }, { sendEvenIfNotProduction: true });
+
+      try {
+        await emailLib.send(activities.USER_NEW_TOKEN, user.email, { loginLink }, { sendEvenIfNotProduction: true });
+      } catch (e) {
+        reportErrorToSentry(e, {
+          user,
+          extra: { userData, organizationData, throwIfExists, redirect, websiteUrl, creationRequest },
+        });
+
+        throw new Error('Failed to send the confirmation email, please try again later');
+      }
+
       await models.Activity.create(
         {
           type: activities.USER_NEW_TOKEN,

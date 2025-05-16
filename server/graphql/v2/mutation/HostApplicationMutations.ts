@@ -14,6 +14,7 @@ import * as github from '../../../lib/github';
 import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op, sequelize } from '../../../models';
 import ConversationModel from '../../../models/Conversation';
@@ -434,19 +435,24 @@ const rejectApplication = async (host, collective, req, reason: string) => {
 
 const sendPrivateMessage = async (host, collective, message: string): Promise<void> => {
   const adminUsers = await collective.getAdminUsers();
-  await emailLib.send(
-    activities.HOST_APPLICATION_CONTACT,
-    config.email.noReply,
-    {
-      host: host.info,
-      collective: collective.info,
-      message,
-    },
-    {
-      bcc: adminUsers.map(u => u.email),
-      replyTo: host.data?.replyToEmail || undefined,
-    },
-  );
+  try {
+    await emailLib.send(
+      activities.HOST_APPLICATION_CONTACT,
+      config.email.noReply,
+      {
+        host: host.info,
+        collective: collective.info,
+        message,
+      },
+      {
+        bcc: adminUsers.map(u => u.email),
+        replyTo: host.data?.replyToEmail || undefined,
+      },
+    );
+  } catch (e) {
+    reportErrorToSentry(e, { extra: { host: host.info, collective: collective.info, message } });
+    throw new Error('Failed to send the contact message, please try again later');
+  }
 };
 
 const sendPublicMessage = async (host, collective, user, message: string): Promise<ConversationModel> => {
