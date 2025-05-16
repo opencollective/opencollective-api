@@ -227,6 +227,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: new GraphQLNonNull(GraphQLDateTime),
         description: 'The time of creation',
       },
+      incurredAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'Date of the expense',
+      },
       currency: {
         type: new GraphQLNonNull(GraphQLCurrency),
         description: 'Currency that should be used for the payout',
