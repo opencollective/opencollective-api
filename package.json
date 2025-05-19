@@ -60,7 +60,7 @@
     "axios": "1.8.4",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
-    "bcrypt": "5.1.1",
+    "bcrypt": "6.0.0",
     "blurhash": "2.0.5",
     "burner-email-providers": "github:opencollective/burner-email-providers",
     "cloudflare": "3.5.0",
