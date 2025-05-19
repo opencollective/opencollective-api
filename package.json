@@ -65,7 +65,7 @@
     "burner-email-providers": "github:opencollective/burner-email-providers",
     "cloudflare": "3.5.0",
     "cloudflare-ip": "0.0.7",
-    "commander": "13.1.0",
+    "commander": "14.0.0",
     "config": "3.3.12",
     "connect-redis": "8.0.2",
     "cookie-parser": "1.4.7",
