@@ -141,6 +141,13 @@ async function checkMissingMembers({ fix = false }) {
     AND (o."data" ->> 'isBalanceTransfer')::boolean IS DISTINCT FROM true -- Ignore balance transfers
     AND o."totalAmount" > 0 -- Ignore free tickets
     AND m.id IS NULL
+    AND EXISTS (
+      SELECT * FROM "Transactions"
+      WHERE "deletedAt" IS NULL
+      AND "Transactions"."CollectiveId" = o."CollectiveId"
+      AND "Transactions"."FromCollectiveId" = o."FromCollectiveId"
+      AND "Transactions"."OrderId" = o."id"
+    )
     GROUP BY o."FromCollectiveId", o."CollectiveId", o."TierId", t."type"
     `,
     { type: sequelize.QueryTypes.SELECT, raw: true },
