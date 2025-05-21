@@ -66,7 +66,11 @@ const getCollectivesJoinCondition = (
 
   // Children collectives
   if (includeChildrenAccounts) {
-    conditions.push({ [`$${association}.ParentCollectiveId$`]: allTopAccountIds });
+    if (limitToHostedAccountsIds.length) {
+      conditions.push({ [`$${association}.ParentCollectiveId$`]: limitToHostedAccountsIds });
+    } else {
+      conditions.push({ [`$${association}.ParentCollectiveId$`]: allTopAccountIds });
+    }
   }
 
   return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
