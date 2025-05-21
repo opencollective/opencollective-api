@@ -108,6 +108,7 @@ export const notify = {
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
+      UserId: users.map(u => (typeof u === 'number' ? u : u.id)),
       attributes: ['id'],
     });
 
