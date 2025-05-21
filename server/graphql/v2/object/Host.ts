@@ -16,6 +16,7 @@ import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 
 import moment from 'moment';
 
 import { roles } from '../../../constants';
+import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense-type';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
@@ -1705,6 +1706,13 @@ export const GraphQLHost = new GraphQLObjectType({
               orderBy.push(['approvedAt', direction]);
             } else if (field === ORDER_BY_PSEUDO_FIELDS.BALANCE) {
               orderBy.push([ACCOUNT_CONSOLIDATED_BALANCE_QUERY, direction]);
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.UNHOSTED_AT) {
+              orderBy.push([
+                sequelize.literal(
+                  `(SELECT "Activities"."createdAt" FROM "Activities" WHERE "CollectiveId" = "Collective"."id" AND "Activities"."HostCollectiveId" = ${host.id} AND "Activities"."type" = '${ActivityTypes.COLLECTIVE_UNHOSTED}' ORDER BY "Activities"."id" DESC LIMIT 1)`,
+                ),
+                direction,
+              ]);
             } else {
               orderBy.push([field, direction]);
             }
