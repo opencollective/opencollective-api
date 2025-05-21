@@ -107,10 +107,10 @@ import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { isValidURL } from '../lib/url-utils';
+import { getHostname, isValidURL } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, md5 } from '../lib/utils';
 import { Location as LocationType, StructuredAddress } from '../types/Location';
 
 import AccountingCategory from './AccountingCategory';
@@ -132,7 +132,7 @@ import Subscription from './Subscription';
 import Tier from './Tier';
 import Transaction from './Transaction';
 import Update from './Update';
-import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
+import UploadedFile, { FileKind, MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 import VirtualCard from './VirtualCard';
 
@@ -847,8 +847,9 @@ class Collective extends Model<
       return;
     }
 
-    if (this.type === 'ORGANIZATION' && this.website && !this.website.match(/^https:\/\/twitter\.com\//)) {
-      const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
+    if (this.type === 'ORGANIZATION' && this.website && config.env.logo_dev_api_token) {
+      const domain = getHostname(this.website);
+      const image = `https://img.logo.dev/${domain}?token=${process.env.LOGO_DEV_API_TOKEN}`;
       return this.checkAndUpdateImage(image, force);
     }
 
@@ -961,11 +962,30 @@ class Collective extends Model<
         if (response.status !== 200) {
           throw new Error(`status=${response.status}`);
         }
-        const body = await response.text();
-        if (body.length === 0) {
+        const buffer = await response.buffer();
+        if (buffer.length === 0) {
           throw new Error(`length=0`);
         }
-        return this.update({ image });
+
+        // Get the content type from the response headers
+        const contentType = response.headers.get('content-type');
+        if (!UploadedFile.isSupportedImageMimeType(contentType)) {
+          throw new Error(`Unsupported image type: ${contentType}`);
+        }
+
+        // Create a file upload object
+        const fileUpload = {
+          buffer,
+          size: buffer.length,
+          mimetype: contentType,
+          originalname: image.split('/').pop() || 'image',
+        };
+
+        // Upload the file using UploadedFile.upload
+        const uploadedFile = await UploadedFile.upload(fileUpload, FileKind.ACCOUNT_AVATAR, null);
+
+        // Update the collective with the new image URL
+        return this.update({ image: uploadedFile.url });
       } catch (err) {
         logger.info(`collective.checkAndUpdateImage: Unable to fetch ${image} (${err.message})`);
       }

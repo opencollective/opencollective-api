@@ -270,5 +270,8 @@
   },
   "settlement": {
     "minimumAmountInUSD": "SETTLEMENT_MINIMUM_AMOUNT_IN_USD"
+  },
+  "logo": {
+    "devApiToken": "LOGO_DEV_API_TOKEN"
   }
 }
