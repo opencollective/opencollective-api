@@ -47,7 +47,7 @@ describe('server/lib/allowed-features', () => {
       expect(isFeatureAllowedForCollectiveType('COLLECTIVE', FEATURE.USE_EXPENSES)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.USE_EXPENSES)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.USE_EXPENSES, true)).to.be.true;
-      expect(isFeatureAllowedForCollectiveType('USER', FEATURE.USE_EXPENSES)).to.be.false;
+      expect(isFeatureAllowedForCollectiveType('USER', FEATURE.USE_EXPENSES)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.USE_EXPENSES)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('FUND', FEATURE.USE_EXPENSES)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.USE_EXPENSES)).to.be.true;
