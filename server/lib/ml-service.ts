@@ -2,6 +2,8 @@ import config from 'config';
 
 import { ExpenseType } from '../models/Expense';
 
+import { fetchWithTimeout } from './fetch';
+
 const ML_SERVICE_URL = config.host.ml;
 
 type ExpenseCategoryPrediction = {
@@ -16,12 +18,14 @@ export const fetchExpenseCategoryPredictions = async ({
   type,
   description,
   items,
+  timeoutInMs = 6_000,
 }: {
   hostSlug: string;
   accountSlug: string;
   type: ExpenseType;
   description: string;
   items: Array<{ description?: string }>;
+  timeoutInMs?: number;
 }) => {
   if (!ML_SERVICE_URL) {
     return [];
@@ -41,7 +45,10 @@ export const fetchExpenseCategoryPredictions = async ({
       .join(' | '),
   );
 
-  const response = await fetch(`${ML_SERVICE_URL}/models/expense-category?${urlParams}`);
+  const response = await fetchWithTimeout(`${ML_SERVICE_URL}/models/expense-category?${urlParams}`, {
+    timeoutInMs,
+  });
+
   const data = await response.json();
   return data.predictions as ExpenseCategoryPrediction[];
 };
