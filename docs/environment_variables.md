@@ -79,7 +79,6 @@
 | IMAGES_URL                                    | .host.images                                       | Images URL                                                                         |
 | FRONTEND_URL                                  | .host.frontend                                     | URL of the frontend service                                                        |
 | WEBSITE_URL                                   | .host.website                                      | Website URL                                                                        |
-| PDF_SERVICE_URL                               | .host.pdf                                          | PDF service URL                                                                    |
 | PDF_SERVICE_V2_URL                            | .host.pdfV2                                        | PDF service V2 URL                                                                 |
 | REST_URL                                      | .host.rest                                         | REST service URL                                                                   |
 | ORDERS_LIMIT_ACCOUNT                          | .limits.ordersPerHour.perAccount                   | Orders limit per account                                                           |
