@@ -21,7 +21,8 @@
     "api": "https://api-staging.opencollective.com",
     "frontend": "https://frontend-staging.opencollective.com",
     "images": "https://images-staging.opencollective.com",
-    "website": "https://staging.opencollective.com"
+    "website": "https://staging.opencollective.com",
+    "ml": "https://ml.opencollective.com"
   },
   "log": {
     "slowRequest": true
