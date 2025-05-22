@@ -31,6 +31,7 @@ const FeatureAllowedForTypes = {
     CollectiveType.EVENT,
     CollectiveType.FUND,
     CollectiveType.PROJECT,
+    CollectiveType.USER,
   ],
   [FEATURE.RECEIVE_EXPENSES]: [
     CollectiveType.ORGANIZATION,
