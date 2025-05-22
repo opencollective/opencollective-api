@@ -12,20 +12,16 @@ import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { parseToBoolean } from './utils';
 
 export const getTransactionPdf = async (transaction, user) => {
-  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {
+  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false || !config.host.pdfV2) {
     return;
   }
+
+  const pdfUrl = `${config.host.pdfV2}/receipts/transaction/${transaction.uuid}/receipt.pdf`;
   const accessToken = user.jwt({}, TOKEN_EXPIRATION_PDF);
   const headers = {
     Authorization: `Bearer ${accessToken}`,
+    'x-api-key': config.keys.opencollective.pdfApiKey,
   };
-  let pdfUrl;
-  if (config.host.pdfV2) {
-    pdfUrl = `${config.host.pdfV2}/receipts/transaction/${transaction.uuid}/receipt.pdf`;
-    headers['x-api-key'] = config.keys.opencollective.pdfApiKey;
-  } else {
-    pdfUrl = `${config.host.pdf}/receipts/transactions/${transaction.uuid}/receipt.pdf`;
-  }
 
   return fetchWithTimeout(pdfUrl, { method: 'get', headers, timeoutInMs: 10000 })
     .then(response => {
@@ -109,7 +105,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
 };
 
 export const getConsolidatedInvoicePdfs = async fromCollective => {
-  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false) {
+  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false || !config.host.pdfV2) {
     return;
   }
 
@@ -137,18 +133,12 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
     });
 
     // Call PDF service for the invoice
+    const pdfUrl = `${config.host.pdf2}/receipts/period/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}/receipt.pdf`;
     const accessToken = fromCollectiveUser.jwt({}, TOKEN_EXPIRATION_PDF);
     const headers = {
       Authorization: `Bearer ${accessToken}`,
+      'x-api-key': config.keys.opencollective.pdfApiKey,
     };
-
-    let pdfUrl;
-    if (config.host.pdfV2) {
-      pdfUrl = `${config.host.pdf2}/receipts/period/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}/receipt.pdf`;
-      headers['x-api-key'] = config.keys.opencollective.pdfApiKey;
-    } else {
-      pdfUrl = `${config.host.pdf}/receipts/collectives/${fromCollectiveSlug}/${toOrgCollectiveSlug}/${startOfMonth}/${endOfMonth}/receipt.pdf`;
-    }
 
     let invoicePdf;
     try {
@@ -178,7 +168,7 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
 };
 
 export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
-  const pdfURL = new URL(`${config.host.pdf}/api/tax-form/${formType}.pdf`);
+  const pdfURL = new URL(`${config.host.pdfV2}/tax-forms/${formType}.pdf`);
   const base64Values = Buffer.from(JSON.stringify(formData)).toString('base64');
   pdfURL.searchParams.set('formType', formType);
   pdfURL.searchParams.set('values', base64Values);
@@ -186,7 +176,10 @@ export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
 
   let response;
   try {
-    response = await fetchWithTimeout(pdfURL.toString(), { method: 'get', timeoutInMs: 15000 });
+    const headers = {
+      'x-api-key': config.keys.opencollective.pdfApiKey,
+    };
+    response = await fetchWithTimeout(pdfURL.toString(), { method: 'get', headers, timeoutInMs: 15000 });
   } catch (e) {
     reportErrorToSentry(e, { severity: 'error', extra: { formType, formData } });
     throw new Error(`Failed to generate PDF. The service is either offline or unresponsive.`);
