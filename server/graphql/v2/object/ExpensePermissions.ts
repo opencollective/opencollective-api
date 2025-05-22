@@ -21,6 +21,62 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canEditExpense(req, expense);
       },
     },
+    canEditTitle: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense title',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditTitle(req, expense);
+      },
+    },
+    canEditType: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense type',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditType(req, expense);
+      },
+    },
+    canEditPaidBy: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the paid by account',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditPaidBy(req, expense);
+      },
+    },
+    canEditPayee: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the payee',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditPayee(req, expense);
+      },
+    },
+    canEditPayoutMethod: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the payout method',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditPayoutMethod(req, expense);
+      },
+    },
+    canEditItems: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense items and attachments',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditItems(req, expense);
+      },
+    },
+    canAttachReceipts: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can attach receipts',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canAttachReceipts(req, expense);
+      },
+    },
+    canEditItemDescription: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can edit the expense item descriptions',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canEditItemDescription(req, expense);
+      },
+    },
     canEditAccountingCategory: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can edit the expense accounting category',
@@ -158,6 +214,38 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     edit: {
       type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpense),
+    },
+    editTitle: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditTitle),
+    },
+    editType: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditType),
+    },
+    editPaidBy: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditPaidBy),
+    },
+    editPayee: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditPayee),
+    },
+    editPayoutMethod: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditPayoutMethod),
+    },
+    editItems: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditItems),
+    },
+    attachReceipts: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canAttachReceipts),
+    },
+    editItemDescription: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditItemDescription),
     },
     editAccountingCategory: {
       type: new GraphQLNonNull(GraphQLBoolean),

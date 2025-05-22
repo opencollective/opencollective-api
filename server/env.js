@@ -28,7 +28,9 @@ if (process.env.EXTRA_ENV || process.env.OC_ENV === 'development') {
   }
 }
 
-dotenv.config();
+if (process.env.NODE_ENV !== 'test') {
+  dotenv.config();
+}
 
 debug.enable(process.env.DEBUG);
 

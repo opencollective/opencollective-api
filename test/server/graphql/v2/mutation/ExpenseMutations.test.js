@@ -3334,6 +3334,298 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
   });
 
+  describe('moveExpense', () => {
+    const moveExpenseMutation = gql`
+      mutation MoveExpense($expense: ExpenseReferenceInput!, $destinationAccount: AccountReferenceInput!) {
+        moveExpense(expense: $expense, destinationAccount: $destinationAccount) {
+          id
+          legacyId
+          status
+          account {
+            id
+            name
+            slug
+          }
+        }
+      }
+    `;
+
+    it('needs to be authenticated', async () => {
+      const expense = await fakeExpense({ status: 'PENDING' });
+      const destinationCollective = await fakeCollective();
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: destinationCollective.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+    });
+
+    it('fails if user is not authorized to move expense', async () => {
+      const randomUser = await fakeUser();
+      const expense = await fakeExpense({ status: 'PENDING' });
+      const destinationCollective = await fakeCollective();
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: destinationCollective.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You do not have permission to move this expense');
+    });
+
+    it('fails if destination is the same as current account', async () => {
+      const expense = await fakeExpense({ status: 'PENDING' });
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: expense.CollectiveId },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('The expense is already on this account');
+    });
+
+    it('fails if destination is not part of the same collective', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const collective1 = await fakeCollective({ HostCollectiveId: host.id });
+      const expense = await fakeExpense({ CollectiveId: collective1.id, status: 'APPROVED' });
+
+      // Create a different collective with different parent
+      const otherHost = await fakeHost();
+      const collective2 = await fakeCollective({ HostCollectiveId: otherHost.id });
+
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: collective2.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You can only move expenses within the same collective');
+    });
+
+    it('allows expense owner to move PENDING expense', async () => {
+      // Create parent collective and project
+      const parentCollective = await fakeCollective();
+      const project = await fakeCollective({
+        ParentCollectiveId: parentCollective.id,
+        type: 'PROJECT',
+      });
+
+      // Create a PENDING expense as a user
+      const expenseOwner = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: parentCollective.id,
+        status: 'PENDING',
+        UserId: expenseOwner.id,
+        FromCollectiveId: expenseOwner.CollectiveId,
+      });
+
+      // Move expense to the project (as expense owner)
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: project.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, expenseOwner);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.moveExpense.account.id).to.equal(idEncode(project.id, 'account'));
+
+      // Verify expense got moved
+      await expense.reload();
+      expect(expense.CollectiveId).to.equal(project.id);
+    });
+
+    it('allows collective admin to move PENDING expense', async () => {
+      const collectiveAdmin = await fakeUser();
+
+      // Create a collective with a project, and make collectiveAdmin an admin
+      const parentCollective = await fakeCollective({
+        admin: collectiveAdmin.collective,
+      });
+      const project = await fakeCollective({
+        ParentCollectiveId: parentCollective.id,
+        type: 'PROJECT',
+      });
+
+      // Create a PENDING expense on the parent collective
+      const expense = await fakeExpense({ CollectiveId: parentCollective.id, status: 'PENDING' });
+
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: project.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, collectiveAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.moveExpense.account.id).to.equal(idEncode(project.id, 'account'));
+
+      // Verify expense got moved
+      await expense.reload();
+      expect(expense.CollectiveId).to.equal(project.id);
+    });
+
+    it('allows host admin to move APPROVED expense', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+
+      // Create a collective with a project
+      const parentCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        HostCollectiveId: host.id,
+        ParentCollectiveId: parentCollective.id,
+        type: 'PROJECT',
+      });
+
+      // Create an APPROVED expense attached to the parent collective
+      const expense = await fakeExpense({ CollectiveId: parentCollective.id, status: 'APPROVED' });
+
+      // Move expense to the project
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: project.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, hostAdmin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.moveExpense.account.id).to.equal(idEncode(project.id, 'account'));
+
+      // Verify expense got moved
+      await expense.reload();
+      expect(expense.CollectiveId).to.equal(project.id);
+    });
+
+    it('allows expense owner to move INCOMPLETE expense', async () => {
+      // Create parent collective and project
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+      const parentCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        HostCollectiveId: host.id,
+        ParentCollectiveId: parentCollective.id,
+        type: 'PROJECT',
+      });
+
+      // Create an INCOMPLETE expense as a user
+      const expenseOwner = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: parentCollective.id,
+        status: 'INCOMPLETE',
+        UserId: expenseOwner.id,
+        FromCollectiveId: expenseOwner.CollectiveId,
+      });
+
+      // Move expense to the project (as expense owner)
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: project.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, expenseOwner);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.moveExpense.account.id).to.equal(idEncode(project.id, 'account'));
+
+      // Verify expense got moved
+      await expense.reload();
+      expect(expense.CollectiveId).to.equal(project.id);
+    });
+
+    it('does not allow collective admin to move APPROVED expense', async () => {
+      const collectiveAdmin = await fakeUser();
+      const host = await fakeHost();
+
+      // Create a collective with a project, and make collectiveAdmin an admin
+      const parentCollective = await fakeCollective({
+        admin: collectiveAdmin.collective,
+        HostCollectiveId: host.id,
+      });
+      const project = await fakeCollective({
+        HostCollectiveId: host.id,
+        ParentCollectiveId: parentCollective.id,
+        type: 'PROJECT',
+      });
+
+      // Create an APPROVED expense
+      const expense = await fakeExpense({ CollectiveId: parentCollective.id, status: 'APPROVED' });
+
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: project.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, collectiveAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You do not have permission to move this expense');
+    });
+
+    it('does not allow expense owner to move APPROVED expense', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+
+      // Create a collective with a project
+      const parentCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        HostCollectiveId: host.id,
+        ParentCollectiveId: parentCollective.id,
+        type: 'PROJECT',
+      });
+
+      // Create an APPROVED expense owned by a user
+      const expenseOwner = await fakeUser();
+      const expense = await fakeExpense({
+        CollectiveId: parentCollective.id,
+        status: 'APPROVED',
+        UserId: expenseOwner.id,
+        FromCollectiveId: expenseOwner.CollectiveId,
+      });
+
+      // Try to move expense to the project (as expense owner)
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: project.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, expenseOwner);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You do not have permission to move this expense');
+    });
+
+    it('does not allow moving expense with unsupported status (like PAID)', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+
+      // Create a collective with a project
+      const parentCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const project = await fakeCollective({
+        HostCollectiveId: host.id,
+        ParentCollectiveId: parentCollective.id,
+        type: 'PROJECT',
+      });
+
+      // Create a PAID expense
+      const expense = await fakeExpense({ CollectiveId: parentCollective.id, status: 'PAID' });
+
+      // Try to move expense to the project (as host admin)
+      const mutationParams = {
+        expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) },
+        destinationAccount: { legacyId: project.id },
+      };
+
+      const result = await graphqlQueryV2(moveExpenseMutation, mutationParams, hostAdmin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You do not have permission to move this expense');
+    });
+  });
+
   describe('processExpense', () => {
     let collective, host, collectiveAdmin, hostAdmin, hostPaypalPm;
 
