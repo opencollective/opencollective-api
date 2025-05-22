@@ -168,6 +168,10 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
 };
 
 export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
+  if (!config.host.pdfV2) {
+    throw new Error('The PDF generation service is not available at this time');
+  }
+
   const pdfURL = new URL(`${config.host.pdfV2}/tax-forms/${formType}.pdf`);
   const base64Values = Buffer.from(JSON.stringify(formData)).toString('base64');
   pdfURL.searchParams.set('formType', formType);
