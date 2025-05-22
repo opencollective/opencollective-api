@@ -321,7 +321,10 @@ export const usersToNotifyForUpdateSQLQuery = `
     ON u."CollectiveId" = admins_of_members.id
   LEFT JOIN member_collectives
     ON (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
+  LEFT JOIN "Notifications" n
+    ON n.channel = 'email' AND n.type = 'collective.update.published' AND n."UserId" = u.id AND n."CollectiveId" = :collectiveId
   WHERE (admins_of_members.id IS NOT NULL OR member_collectives.id IS NOT NULL)
+  AND n.active IS NOT FALSE
   AND u."deletedAt" IS NULL
   GROUP BY u.id
 `;
