@@ -124,6 +124,10 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Reference of an account that is the payee of an expense',
   },
+  fromAccounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'An alternative to filter by fromAccount (singular), both cannot be used together',
+  },
   account: {
     type: GraphQLAccountReferenceInput,
     description: 'Reference of an account that is the payer of an expense',
@@ -225,7 +229,7 @@ const loadAllAccountsFromArgs = async (
   args,
   req,
 ): Promise<{
-  fromAccount: Collective;
+  fromAccounts: Collective[];
   accounts: Collective[];
   host: Collective;
   createdByAccount: Collective;
@@ -245,16 +249,27 @@ const loadAllAccountsFromArgs = async (
     }
   };
 
-  const [accounts, fromAccount, host, createdByAccount] = await Promise.all([
+  const getFromAccountPromise = async (): Promise<Collective[]> => {
+    if (args.fromAccount) {
+      return [await fetchAccountWithReference(args.fromAccount, fetchAccountParams)];
+    } else if (args.fromAccounts && args.fromAccounts.length > 0) {
+      return fetchAccountsWithReferences(args.fromAccounts, fetchAccountParams);
+    } else {
+      return [];
+    }
+  };
+
+  const [accounts, fromAccounts, host, createdByAccount] = await Promise.all([
     getAccountsPromise(),
-    ...[args.fromAccount, args.host, args.createdByAccount].map(reference => {
+    getFromAccountPromise(),
+    ...[args.host, args.createdByAccount].map(reference => {
       if (reference) {
         return fetchAccountWithReference(reference, fetchAccountParams);
       }
     }),
   ]);
 
-  return { fromAccount, accounts, host, createdByAccount };
+  return { fromAccounts, accounts, host, createdByAccount };
 };
 
 export const ExpensesCollectionQueryResolver = async (
@@ -271,15 +286,15 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // Load accounts
-  const { fromAccount, accounts, host, createdByAccount } = await loadAllAccountsFromArgs(args, req);
+  const { fromAccounts, accounts, host, createdByAccount } = await loadAllAccountsFromArgs(args, req);
 
-  if (fromAccount) {
-    const fromAccounts = [fromAccount.id];
+  if (fromAccounts.length > 0) {
+    const fromAccountIds = fromAccounts.map(account => account.id);
     if (args.includeChildrenExpenses) {
-      const childIds = await req.loaders.Collective.childrenIds.load(fromAccount.id);
-      fromAccounts.push(...childIds);
+      const childIds = await req.loaders.Collective.childrenIds.loadMany(fromAccountIds);
+      fromAccountIds.push(...childIds.filter(result => typeof result === 'number'));
     }
-    where['FromCollectiveId'] = fromAccounts;
+    where['FromCollectiveId'] = fromAccountIds;
   }
   if (accounts.length > 0) {
     if (host && accounts.some(account => account.HostCollectiveId !== host.id || !account.isActive)) {
@@ -499,14 +514,14 @@ export const ExpensesCollectionQueryResolver = async (
     // Check permissions
     if (!req.remoteUser) {
       throw new Unauthorized('You need to be logged in to filter by customData');
-    } else if (!fromAccount && !accounts.length && !host) {
+    } else if (!fromAccounts.length && !accounts.length && !host) {
       throw new Unauthorized(
         'You need to filter by at least one of fromAccount, account or host to filter by customData',
       );
     } else if (
-      !(fromAccount && req.remoteUser.isAdminOfCollective(fromAccount)) &&
-      !(accounts.length && accounts.every(account => req.remoteUser.isAdminOfCollective(account))) &&
-      !(host && req.remoteUser.isAdminOfCollective(host))
+      (host && !req.remoteUser.isAdminOfCollectiveOrHost(host)) ||
+      (fromAccounts.length && !fromAccounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) ||
+      (accounts.length && !accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account)))
     ) {
       throw new Unauthorized('You need to be an admin of the fromAccount, account or host to filter by customData');
     }
