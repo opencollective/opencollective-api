@@ -20,6 +20,7 @@ import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
+import { GraphQLCurrency } from '../../enum';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
 import { GraphQLLastCommentBy } from '../../enum/LastCommentByType';
@@ -176,6 +177,10 @@ export const ExpensesCollectionQueryArgs = {
   maxAmount: {
     type: GraphQLInt,
     description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
+  },
+  amountCurrency: {
+    type: GraphQLCurrency,
+    description: 'The currency to use for the amount filter',
   },
   payoutMethodType: {
     type: GraphQLPayoutMethodType,
@@ -396,12 +401,43 @@ export const ExpensesCollectionQueryResolver = async (
   } else if (args.tag === null || args.tags === null) {
     where['tags'] = { [Op.is]: null };
   }
-  if (args.minAmount) {
-    where['amount'] = { [Op.gte]: args.minAmount };
+  if (args.minAmount || args.maxAmount) {
+    console.log(args);
+    const operator =
+      args.minAmount && args.maxAmount
+        ? { [Op.between]: [args.minAmount, args.maxAmount] }
+        : args.minAmount
+          ? { [Op.gte]: args.minAmount }
+          : { [Op.lte]: args.maxAmount };
+
+    if (args.amountCurrency) {
+      console.log(
+        `Filtering expenses by amount in ${args.amountCurrency} is deprecated. Please use the currency field instead.`,
+      );
+      where[Op.and].push(
+        sequelize.where(
+          sequelize.literal(`
+            CASE
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = '${args.amountCurrency}'
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = "Expense"."currency"
+                THEN 1.0 / ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = '${args.amountCurrency}'
+                THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Expense"."currency" AND "to" = '${args.amountCurrency}' AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Expense"."incurredAt", "Expense"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1),
+                1
+              )
+            END * "Expense"."amount" 
+          `),
+          operator,
+        ),
+      );
+    } else {
+      where['amount'] = operator;
+    }
   }
-  if (args.maxAmount) {
-    where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
-  }
+
   if (args.dateFrom) {
     where['createdAt'] = { [Op.gte]: args.dateFrom };
   }
@@ -543,7 +579,7 @@ export const ExpensesCollectionQueryResolver = async (
   const { offset, limit } = args;
 
   const fetchNodes = () => {
-    return Expense.findAll({ include, where, order, offset, limit });
+    return Expense.findAll({ include, where, order, offset, limit, logging: true });
   };
 
   const fetchTotalCount = () => {
