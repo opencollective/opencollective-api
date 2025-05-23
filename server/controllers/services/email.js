@@ -111,6 +111,8 @@ export const messageSupport = async (req, res) => {
     res.status(500).send({
       message: 'Error while opening the support ticket, please reach out directly to support@opencollective.com',
     });
+
+    return;
   }
 
   res.status(200).send({ sent: true });
