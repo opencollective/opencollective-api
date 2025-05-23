@@ -434,10 +434,15 @@ describe('server/graphql/v2/object/Host', () => {
 
   describe('vendors', () => {
     const accountQuery = gql`
-      query Host($slug: String!, $forAccount: AccountReferenceInput, $searchTerm: String) {
+      query Host(
+        $slug: String!
+        $forAccount: AccountReferenceInput
+        $searchTerm: String
+        $visibleToAccounts: [AccountReferenceInput]
+      ) {
         host(slug: $slug) {
           id
-          vendors(forAccount: $forAccount, searchTerm: $searchTerm) {
+          vendors(forAccount: $forAccount, searchTerm: $searchTerm, visibleToAccounts: $visibleToAccounts) {
             totalCount
             nodes {
               id
@@ -450,21 +455,56 @@ describe('server/graphql/v2/object/Host', () => {
       }
     `;
 
-    let hostAdmin, host, account, vendor, knownVendor;
+    let hostAdmin,
+      host,
+      account,
+      collectiveA,
+      collectiveB,
+      vendor,
+      knownVendor,
+      vendorVisibleToCollectiveA,
+      vendorVisibleToCollectiveAAndB;
     before(async () => {
       hostAdmin = await fakeUser();
       host = await fakeActiveHost({ admin: hostAdmin });
       account = await fakeCollective({ HostCollectiveId: host.id });
+      collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+      collectiveB = await fakeCollective({ HostCollectiveId: host.id });
       vendor = await fakeCollective({
         ParentCollectiveId: host.id,
         type: CollectiveType.VENDOR,
         name: 'Vendor Dafoe',
+        data: {
+          visibleToAccountIds: null,
+        },
       });
       knownVendor = await fakeCollective({
         ParentCollectiveId: host.id,
         type: CollectiveType.VENDOR,
         name: 'Vendor 2',
+        data: {
+          visibleToAccountIds: [],
+        },
       });
+
+      vendorVisibleToCollectiveA = await fakeCollective({
+        ParentCollectiveId: host.id,
+        type: CollectiveType.VENDOR,
+        name: 'vendorVisibleToCollectiveA',
+        data: {
+          visibleToAccountIds: [collectiveA.id],
+        },
+      });
+
+      vendorVisibleToCollectiveAAndB = await fakeCollective({
+        ParentCollectiveId: host.id,
+        type: CollectiveType.VENDOR,
+        name: 'vendorVisibleToCollectiveAAndB',
+        data: {
+          visibleToAccountIds: [collectiveA.id, collectiveB.id],
+        },
+      });
+
       await fakeExpense({ CollectiveId: account.id, FromCollectiveId: knownVendor.id, status: 'PAID' });
     });
 
@@ -500,6 +540,53 @@ describe('server/graphql/v2/object/Host', () => {
 
       expect(result.data.host.vendors.nodes).to.have.length(1);
       expect(result.data.host.vendors.nodes[0]).to.include({ slug: vendor.slug });
+    });
+
+    it('should return vendors visible to given accounts', async () => {
+      let result = await graphqlQueryV2(accountQuery, { slug: host.slug, visibleToAccounts: [] }, hostAdmin);
+
+      expect(result.data.host.vendors.nodes.map(n => n.slug)).to.include.members([
+        vendor.slug,
+        knownVendor.slug,
+        vendorVisibleToCollectiveA.slug,
+        vendorVisibleToCollectiveAAndB.slug,
+      ]);
+
+      result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
+
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+
+      result = await graphqlQueryV2(
+        accountQuery,
+        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveA.id }] },
+        hostAdmin,
+      );
+
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+
+      result = await graphqlQueryV2(
+        accountQuery,
+        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }] },
+        hostAdmin,
+      );
+
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+
+      result = await graphqlQueryV2(
+        accountQuery,
+        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveB.id }] },
+        hostAdmin,
+      );
+
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
     });
   });
 });

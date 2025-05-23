@@ -2055,6 +2055,20 @@ export const VendorCollectiveType = new GraphQLObjectType({
         return payoutMethods.length > 0;
       },
     },
+    visibleToAccounts: {
+      type: new GraphQLList(CollectiveInterfaceType),
+      description:
+        'The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host',
+      async resolve(vendor, _, req) {
+        const visibleToAccountIds = vendor.data?.visibleToAccountIds || [];
+
+        if (visibleToAccountIds.length === 0) {
+          return [];
+        }
+
+        return req.loaders.Collective.byId.loadMany(visibleToAccountIds);
+      },
+    },
   }),
 });
 

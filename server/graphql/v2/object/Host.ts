@@ -1407,6 +1407,10 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLAccountReferenceInput,
             description: 'Rank vendors based on their relationship with this account',
           },
+          visibleToAccounts: {
+            type: new GraphQLList(GraphQLAccountReferenceInput),
+            description: 'Only returns vendors that are visible to the given accounts',
+          },
           isArchived: {
             type: GraphQLBoolean,
             description: 'Filter on archived vendors',
@@ -1468,6 +1472,28 @@ export const GraphQLHost = new GraphQLObjectType({
             ];
           }
 
+          if (args.visibleToAccounts?.length > 0) {
+            const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
+              throwIfMissing: true,
+            });
+            findArgs.where[Op.and] = [
+              sequelize.literal(`
+                    data#>'{visibleToAccountIds}' IS NULL 
+                    OR data#>'{visibleToAccountIds}' = '[]'::jsonb
+                    OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+                    OR
+                    (
+                      jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+                      AND 
+                      EXISTS (
+                        SELECT v FROM (
+                          SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                        ) WHERE v = ANY(${sequelize.escape(visibleToAccountIds)})
+                      )  
+                    )
+              `),
+            ];
+          }
           const { rows, count } = await models.Collective.findAndCountAll(findArgs);
           const vendors = args.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
 

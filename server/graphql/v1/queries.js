@@ -464,6 +464,10 @@ const queries = {
         type: GraphQLInt,
         description: 'Included vendors for specific host ID',
       },
+      vendorVisibleToAccountIds: {
+        type: new GraphQLList(GraphQLInt),
+        description: 'Only return vendors visible to given account ids',
+      },
       skipRecentAccounts: {
         type: GraphQLBoolean,
         description: 'Whether to skip recent accounts (48h)',
@@ -497,6 +501,7 @@ const queries = {
         skipGuests,
         includeArchived,
         includeVendorsForHostId,
+        vendorVisibleToAccountIds,
       } = args;
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);
@@ -531,6 +536,7 @@ const queries = {
           skipGuests,
           includeArchived,
           includeVendorsForHostId,
+          vendorVisibleToAccountIds,
         });
         return generateResults(collectives, total);
       }
