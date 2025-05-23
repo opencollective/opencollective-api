@@ -57,7 +57,50 @@ async function checkPaidOrdersWithNullProcessedAt({ fix = false } = {}) {
   }
 }
 
-export const checks = [checkDuplicateNonRecurringContribution, checkPaidOrdersWithNullProcessedAt];
+async function checkPaidOrdersWithDeletedTransactions({ fix = false } = {}) {
+  const message = 'Paid Orders with deleted transactions';
+
+  const results = await sequelize.query(
+    `
+    SELECT *
+    FROM "Orders"
+    WHERE "deletedAt" IS NULL
+    AND "status" = 'PAID'
+    AND EXISTS (
+      SELECT * FROM "Transactions" WHERE "OrderId" = "Orders"."id" AND "deletedAt" IS NOT NULL
+    )
+    AND NOT EXISTS (
+      SELECT * FROM "Transactions" WHERE "OrderId" = "Orders"."id" AND "deletedAt" IS NULL
+    )
+    `,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    if (!fix) {
+      throw new Error(message);
+    } else {
+      await sequelize.query(`
+        UPDATE "Orders"
+        SET "deletedAt" = NOW()
+        WHERE "deletedAt" IS NULL
+        AND "status" = 'PAID'
+        AND EXISTS (
+          SELECT * FROM "Transactions" WHERE "OrderId" = "Orders"."id" AND "deletedAt" IS NOT NULL
+        )
+        AND NOT EXISTS (
+          SELECT * FROM "Transactions" WHERE "OrderId" = "Orders"."id" AND "deletedAt" IS NULL
+        )
+      `);
+    }
+  }
+}
+
+export const checks = [
+  checkDuplicateNonRecurringContribution,
+  checkPaidOrdersWithNullProcessedAt,
+  checkPaidOrdersWithDeletedTransactions,
+];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);
