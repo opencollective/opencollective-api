@@ -5,6 +5,7 @@ import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth';
 import emailLib from '../../../lib/email';
 import { confirmGuestAccountByEmail } from '../../../lib/guest-accounts';
 import RateLimit from '../../../lib/rate-limit';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import models, { Collective } from '../../../models';
 import { BadRequest, NotFound, RateLimitExceeded } from '../../errors';
 import { GraphQLAccount } from '../interface/Account';
@@ -84,16 +85,21 @@ const guestMutations = {
 
       // Send email
       const encodedEmail = encodeURIComponent(user.email);
-      await emailLib.send(
-        'confirm-guest-account',
-        user.email,
-        {
-          email: user.email,
-          verifyAccountLink: `${config.host.website}/confirm/guest/${user.emailConfirmationToken}?email=${encodedEmail}`,
-          clientIp: req.ip,
-        },
-        { sendEvenIfNotProduction: true },
-      );
+      try {
+        await emailLib.send(
+          'confirm-guest-account',
+          user.email,
+          {
+            email: user.email,
+            verifyAccountLink: `${config.host.website}/confirm/guest/${user.emailConfirmationToken}?email=${encodedEmail}`,
+            clientIp: req.ip,
+          },
+          { sendEvenIfNotProduction: true },
+        );
+      } catch (e) {
+        reportErrorToSentry(e, { user, extra: { email: user.email } });
+        throw new Error('Failed to send the confirmation email, please try again later');
+      }
 
       return true;
     },
