@@ -1947,27 +1947,33 @@ class Collective extends Model<
     // We only send the notification for new member for role MEMBER and ADMIN
     const lowercaseType = this.type.toLowerCase();
     const template = lowercaseType === 'organization' ? 'organization.newmember' : 'collective.newmember';
-    return emailLib.send(
-      template,
-      memberUser.email,
-      {
-        remoteUser: {
-          email: remoteUser.email,
-          collective: pick(remoteUser.collective, ['slug', 'name', 'image']),
+
+    try {
+      return await emailLib.send(
+        template,
+        memberUser.email,
+        {
+          remoteUser: {
+            email: remoteUser.email,
+            collective: pick(remoteUser.collective, ['slug', 'name', 'image']),
+          },
+          role: MemberRoleLabels[role] || role.toLowerCase(),
+          isAdmin: role === roles.ADMIN,
+          collective: {
+            slug: this.slug,
+            name: this.name,
+            type: lowercaseType,
+          },
+          recipient: {
+            collective: memberUser.collective.activity,
+          },
         },
-        role: MemberRoleLabels[role] || role.toLowerCase(),
-        isAdmin: role === roles.ADMIN,
-        collective: {
-          slug: this.slug,
-          name: this.name,
-          type: lowercaseType,
-        },
-        recipient: {
-          collective: memberUser.collective.activity,
-        },
-      },
-      { bcc: remoteUser.email },
-    );
+        { bcc: remoteUser.email },
+      );
+    } catch (e) {
+      reportErrorToSentry(e, { user: remoteUser });
+      throw new Error(`The member was invited, but we couldn't send the email`);
+    }
   };
 
   /**
