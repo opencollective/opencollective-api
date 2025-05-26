@@ -31,6 +31,8 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput } from '../../input/AmountInput';
+import { GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -110,6 +112,10 @@ export const TransactionsCollectionArgs = {
     type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  },
+  amount: {
+    type: GraphQLAmountRangeInput,
+    description: 'Only return expenses that match this amount range',
   },
   minAmount: {
     type: GraphQLInt,
@@ -414,16 +420,51 @@ export const TransactionsCollectionResolver = async (
   if (!isEmpty(args.group)) {
     where.push({ TransactionGroup: { [Op.in]: args.group } });
   }
-  if (args.minAmount) {
-    where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
-  }
-  if (args.maxAmount) {
-    let amount = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
-    if (where['amount']) {
-      amount = { [Op.and]: [where['amount'], amount] };
+
+  if (args.amount?.gte || args.amount?.lte) {
+    if (args.amount.gte && args.amount.lte) {
+      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
     }
-    where.push({ amount });
+    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
+    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
+    const operator =
+      args.amount.gte && args.amount.lte
+        ? gte === lte
+          ? { [Op.eq]: gte }
+          : { [Op.between]: [gte, lte] }
+        : args.amount.gte
+          ? { [Op.gte]: gte }
+          : { [Op.lte]: lte };
+
+    where.push(
+      sequelize.where(
+        sequelize.literal(`
+            CASE
+              WHEN "Transaction"."currency" = '${currency}' THEN "Transaction"."amount"
+              WHEN "Transaction"."hostCurrency" = '${currency}' THEN "Transaction"."amountInHostCurrency"
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = '${currency}' AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
+                "Transaction"."amount"
+              )
+            END
+          `),
+        operator,
+      ),
+    );
+  } else {
+    if (args.minAmount) {
+      where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
+    }
+    if (args.maxAmount) {
+      let amount = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
+      if (where['amount']) {
+        amount = { [Op.and]: [where['amount'], amount] };
+      }
+      where.push({ amount });
+    }
   }
+
   if (args.dateFrom) {
     where.push({ createdAt: { [Op.gte]: args.dateFrom } });
   }

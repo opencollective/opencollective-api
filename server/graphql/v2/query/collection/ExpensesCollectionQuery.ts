@@ -29,6 +29,8 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput } from '../../input/AmountInput';
+import { AmountRangeInputType, GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -169,13 +171,19 @@ export const ExpensesCollectionQueryArgs = {
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
+  amount: {
+    type: GraphQLAmountRangeInput,
+    description: 'Only return expenses that match this amount range',
+  },
   minAmount: {
     type: GraphQLInt,
     description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   maxAmount: {
     type: GraphQLInt,
     description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   payoutMethodType: {
     type: GraphQLPayoutMethodType,
@@ -274,7 +282,7 @@ const loadAllAccountsFromArgs = async (
 
 export const ExpensesCollectionQueryResolver = async (
   _: void,
-  args,
+  args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
 ): Promise<CollectionReturnType & { totalAmount?: any }> => {
   const where = { [Op.and]: [] };
@@ -396,12 +404,51 @@ export const ExpensesCollectionQueryResolver = async (
   } else if (args.tag === null || args.tags === null) {
     where['tags'] = { [Op.is]: null };
   }
-  if (args.minAmount) {
-    where['amount'] = { [Op.gte]: args.minAmount };
+
+  if (args.amount?.gte || args.amount?.lte) {
+    if (args.amount.gte && args.amount.lte) {
+      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
+    }
+    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
+    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
+    const operator =
+      args.amount.gte && args.amount.lte
+        ? gte === lte
+          ? { [Op.eq]: gte }
+          : { [Op.between]: [gte, lte] }
+        : args.amount.gte
+          ? { [Op.gte]: gte }
+          : { [Op.lte]: lte };
+
+    where[Op.and].push(
+      sequelize.where(
+        sequelize.literal(`
+            CASE
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = '${currency}'
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = "Expense"."currency"
+                THEN 1.0 / ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = '${currency}'
+                THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Expense"."currency" AND "to" = '${currency}' AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Expense"."incurredAt", "Expense"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1),
+                1
+              )
+            END * "Expense"."amount" 
+          `),
+        operator,
+      ),
+    );
+  } else {
+    if (args.minAmount) {
+      where['amount'] = { [Op.gte]: args.minAmount };
+    }
+    if (args.maxAmount) {
+      where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
+    }
   }
-  if (args.maxAmount) {
-    where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
-  }
+
   if (args.dateFrom) {
     where['createdAt'] = { [Op.gte]: args.dateFrom };
   }
