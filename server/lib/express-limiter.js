@@ -6,14 +6,19 @@ export default function expressLimiter(redisClient) {
       if (opts.whitelist && opts.whitelist(req)) {
         return next();
       }
-      opts.lookup = Array.isArray(opts.lookup) ? opts.lookup : [opts.lookup];
       opts.onRateLimited =
         typeof opts.onRateLimited === 'function'
           ? opts.onRateLimited
           : function (req, res) {
               res.status(429).send('Rate limit exceeded');
             };
-      const lookups = opts.lookup
+
+      // Make a local copy to avoid mutations
+      const total = opts.total ?? 60;
+      const expire = opts.expire ?? 1000 * 60;
+      const lookup = Array.isArray(opts.lookup) ? opts.lookup : [opts.lookup];
+
+      const lookups = lookup
         .map(item => {
           return `${item}:${item.split('.').reduce((prev, cur) => {
             return prev[cur];
@@ -33,20 +38,20 @@ export default function expressLimiter(redisClient) {
       limit = limit
         ? JSON.parse(limit)
         : {
-            total: opts.total,
-            remaining: opts.total,
-            reset: now + opts.expire,
+            total: total,
+            remaining: total,
+            reset: now + expire,
           };
 
       if (now > limit.reset) {
-        limit.reset = now + opts.expire;
-        limit.remaining = opts.total;
+        limit.reset = now + expire;
+        limit.remaining = total;
       }
 
       // do not allow negative remaining
       limit.remaining = Math.max(Number(limit.remaining) - 1, -1);
       try {
-        await redisClient.set(key, JSON.stringify(limit), { PX: opts.expire });
+        await redisClient.set(key, JSON.stringify(limit), { PX: expire });
       } catch {
         // Nothing
       }
