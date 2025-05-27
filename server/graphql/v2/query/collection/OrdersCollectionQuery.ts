@@ -4,7 +4,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, uniq } from 'lodash';
-import { Includeable, Order } from 'sequelize';
+import { Includeable, Order, Utils as SequelizeUtils } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/sql-search';
@@ -387,15 +387,21 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     where[Op.and].push(
       sequelize.where(
-        sequelize.literal(`
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
             CASE
-              WHEN "Order"."currency" = '${currency}' THEN "Order"."totalAmount"
+              WHEN "Order"."currency" = :currency THEN "Order"."totalAmount"
               ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Order"."currency" AND "to" = '${currency}' AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Order"."processedAt", "Order"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Order"."totalAmount",
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Order"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Order"."processedAt", "Order"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Order"."totalAmount",
                 "Order"."totalAmount"
               )
             END
-          `),
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
         operator,
       ),
     );

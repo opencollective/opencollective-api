@@ -4,7 +4,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
-import { OrderItem, Sequelize } from 'sequelize';
+import { OrderItem, Sequelize, Utils as SequelizeUtils } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
@@ -423,20 +423,26 @@ export const ExpensesCollectionQueryResolver = async (
 
     where[Op.and].push(
       sequelize.where(
-        sequelize.literal(`
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
             CASE
-              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = '${currency}'
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = :currency
                 AND "Expense"."data" #>> '{quote,targetCurrency}' = "Expense"."currency"
                 THEN 1.0 / ("Expense"."data" #> '{quote,rate}')::NUMERIC
               WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
-                AND "Expense"."data" #>> '{quote,targetCurrency}' = '${currency}'
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = :currency
                 THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
               ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Expense"."currency" AND "to" = '${currency}' AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Expense"."incurredAt", "Expense"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1),
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Expense"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Expense"."incurredAt", "Expense"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1),
                 1
               )
             END * "Expense"."amount" 
-          `),
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
         operator,
       ),
     );

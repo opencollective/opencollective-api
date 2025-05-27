@@ -5,7 +5,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
-import type { Order as SequelizeOrder } from 'sequelize';
+import { type Order as SequelizeOrder, Utils as SequelizeUtils } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
 import { TransactionKind } from '../../../../constants/transaction-kind';
@@ -439,16 +439,22 @@ export const TransactionsCollectionResolver = async (
 
     where.push(
       sequelize.where(
-        sequelize.literal(`
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
             CASE
-              WHEN "Transaction"."currency" = '${currency}' THEN "Transaction"."amount"
-              WHEN "Transaction"."hostCurrency" = '${currency}' THEN "Transaction"."amountInHostCurrency"
+              WHEN "Transaction"."currency" = :currency THEN "Transaction"."amount"
+              WHEN "Transaction"."hostCurrency" = :currency THEN "Transaction"."amountInHostCurrency"
               ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = '${currency}' AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
                 "Transaction"."amount"
               )
             END
-          `),
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
         operator,
       ),
     );
