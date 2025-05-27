@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
 import { runAllChecksThenExit } from './_utils';
@@ -47,6 +48,7 @@ async function checkPaidOrdersWithNullProcessedAt({ fix = false } = {}) {
     if (!fix) {
       throw new Error(message);
     } else {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(`
         UPDATE "Orders"
         SET "processedAt" = "updatedAt"
@@ -80,6 +82,7 @@ async function checkPaidOrdersWithDeletedTransactions({ fix = false } = {}) {
     if (!fix) {
       throw new Error(message);
     } else {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(`
         UPDATE "Orders"
         SET "deletedAt" = NOW()
@@ -125,6 +128,7 @@ async function checkOrdersCollectiveIdMismatch({ fix = false } = {}) {
     if (!fix) {
       throw new Error(message);
     } else {
+      logger.warn(`Fixing: ${message}`);
       await sequelize.query(`
       UPDATE "Orders"
       SET "FromCollectiveId" = "Transactions" ."FromCollectiveId", "CollectiveId" = "Transactions" ."CollectiveId"
