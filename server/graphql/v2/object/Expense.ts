@@ -436,7 +436,8 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return req.loaders.Expense.items.load(expense.id);
+          const items = await req.loaders.Expense.items.load(expense.id);
+          return items.sort((a, b) => a.order - b.order);
         },
       },
       privateMessage: {

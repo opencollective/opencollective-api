@@ -1930,9 +1930,10 @@ export const prepareExpenseItemInputs = async (
   }
 
   // Prepare items
-  return itemsInput.map(itemInput => {
+  return itemsInput.map((itemInput, index) => {
     const fieldsToPick = [...ExpenseItem.editableFields, ...(isEditing ? ['id'] : [])];
     const values: Partial<ExpenseItem> = pick(itemInput, fieldsToPick);
+    values.order = index;
 
     if (values.url) {
       values.url = mapItemUrlToUploadedFile[values.url];
