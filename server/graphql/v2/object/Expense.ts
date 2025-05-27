@@ -1,6 +1,7 @@
 import type Express from 'express';
 import {
   GraphQLBoolean,
+  GraphQLEnumType,
   GraphQLFloat,
   GraphQLInt,
   GraphQLList,
@@ -29,6 +30,7 @@ import * as ExpenseLib from '../../common/expenses';
 import { checkScope } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
+import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
@@ -46,6 +48,10 @@ import {
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 import { GraphQLFileInfo } from '../interface/FileInfo';
+import {
+  ExpensesCollectionQueryArgs,
+  ExpensesCollectionQueryResolver,
+} from '../query/collection/ExpensesCollectionQuery';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
 import { GraphQLActivity } from './Activity';
@@ -778,6 +784,48 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (await ExpenseLib.canSeeExpenseTransactionImportRow(req, expense)) {
             return req.loaders.TransactionsImportRow.byExpenseId.load(expense.id);
           }
+        },
+      },
+      payeeExpenseHistory: {
+        type: new GraphQLNonNull(GraphQLExpenseCollection),
+        args: {
+          fromExpenseAccount: {
+            description: 'Return expenses by payee with the expense account or host',
+            type: new GraphQLEnumType({
+              name: 'PayeeExpenseHistoryFromAccount',
+              values: {
+                HOST: {
+                  description: 'Expense host',
+                },
+                ACCOUNT: {
+                  description: 'Expense account',
+                },
+              },
+            }),
+            defaultValue: 'ACCOUNT',
+          },
+          ...pick(ExpensesCollectionQueryArgs, ['status', 'type', 'types', 'limit', 'orderBy']),
+        },
+        description: 'Payee history with this expense account or host',
+        async resolve(expense: ExpenseModel, args, req: Express.Request) {
+          const expenseQueryArgs = {
+            ...args,
+            fromAccount: { legacyId: expense.FromCollectiveId },
+          };
+
+          switch (args.fromExpenseAccount) {
+            case 'HOST': {
+              expenseQueryArgs.host = { legacyId: expense.HostCollectiveId ?? expense.CollectiveId };
+              break;
+            }
+            default:
+            case 'ACCOUNT': {
+              expenseQueryArgs.account = { legacyId: expense.CollectiveId };
+              break;
+            }
+          }
+
+          return ExpensesCollectionQueryResolver(undefined, expenseQueryArgs, req);
         },
       },
     };
