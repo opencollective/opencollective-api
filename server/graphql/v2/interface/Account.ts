@@ -7,6 +7,7 @@ import { Order, Sequelize } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import GoalTypes from '../../../constants/goal-types';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -67,6 +68,7 @@ import { GraphQLAccountStats } from '../object/AccountStats';
 import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLGoal } from '../object/Goal';
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 import { GraphQLLocation } from '../object/Location';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
@@ -95,6 +97,7 @@ import GraphQLEmailAddress from '../scalar/EmailAddress';
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
 import { IsMemberOfFields } from './IsMemberOf';
+import { GraphQLGoalType } from '../enum/GoalType';
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -1064,6 +1067,110 @@ const accountFieldsDefinition = () => ({
         dateFrom: args.dateFrom,
         dateTo: args.dateTo,
         nodes,
+      };
+    },
+  },
+  goal: {
+    type: GraphQLGoal,
+    async resolve(account, _, req) {
+      const goal = account.settings.goal;
+      if (!goal) {
+        return null;
+      }
+
+      let currentAmountProgress;
+
+      if (goal.type === GoalTypes.MONTHLY_BUDGET) {
+        currentAmountProgress = (await account.getYearlyBudget({ loaders: req.loaders })) / 12;
+      } else if (goal.type === GoalTypes.YEARLY_BUDGET) {
+        currentAmountProgress = await account.getYearlyBudget({ loaders: req.loaders });
+      } else {
+        currentAmountProgress = await account.getTotalAmountReceived({ loaders: req.loaders, net: true });
+      }
+      const progress = Math.floor((currentAmountProgress / goal.amount) * 100);
+
+      return {
+        ...goal,
+        amount: {
+          value: goal.amount,
+          currency: account.currency,
+        },
+        progress,
+        accountId: account.id,
+      };
+    },
+  },
+  activeContributors: {
+    type: GraphQLAccountCollection,
+    args: {
+      ...CollectionArgs,
+      forGoalType: { type: GraphQLGoalType },
+      dateFrom: { type: GraphQLDateTime },
+      dateTo: { type: GraphQLDateTime },
+      includeActiveRecurringContributions: { type: GraphQLBoolean },
+    },
+    async resolve(account, args) {
+      const collectiveIdsResult = await sequelize.query(
+        `WITH "CollectiveDonations" AS (
+            SELECT 
+              "Orders"."FromCollectiveId",
+              SUM("Transactions".amount) AS total_donated
+            FROM "Orders"
+            JOIN "Transactions" ON "Transactions"."OrderId" = "Orders".id
+            WHERE "Orders"."CollectiveId" = :accountId
+             ${
+               args.includeActiveRecurringContributions
+                 ? `
+              AND (
+                ("Orders".status = 'ACTIVE' AND "Orders".interval IN ('month', 'year'))
+                OR ("Orders".status = 'PAID' AND "Orders"."createdAt" >= :dateFrom)
+              )`
+                 : ''
+             }
+         
+              AND "Transactions".type = 'CREDIT'
+              AND "Transactions"."CollectiveId" = :accountId
+              AND "Transactions"."FromCollectiveId" = "Orders"."FromCollectiveId"
+              AND "Transactions"."isRefund" = FALSE
+              AND "Transactions"."RefundTransactionId" IS NULL
+              AND "Transactions"."deletedAt" IS NULL
+              AND "Orders"."deletedAt" IS NULL
+              ${!args.includeActiveRecurringContributions && args.dateTo ? `AND "Transactions"."createdAt" <= :dateTo` : ''}
+              ${!args.includeActiveRecurringContributions && args.dateFrom ? `AND "Transactions"."createdAt" >= :dateFrom` : ''}
+            GROUP BY "Orders"."FromCollectiveId"
+          )
+          SELECT "Collectives".id
+          FROM "Collectives"
+          JOIN "CollectiveDonations" ON "Collectives".id = "CollectiveDonations"."FromCollectiveId"
+          WHERE "Collectives"."deletedAt" IS NULL
+          ORDER BY "CollectiveDonations".total_donated DESC;
+          `,
+        {
+          replacements: {
+            accountId: account.id,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+          },
+          type: sequelize.QueryTypes.SELECT,
+        },
+      );
+
+      const collectiveIds = collectiveIdsResult.map(result => result.id);
+
+      const collectives = await models.Collective.findAll({
+        where: {
+          id: collectiveIds,
+        },
+        order: [['id', 'DESC']], // To maintain the order of total donations
+        offset: args.offset,
+        limit: args.limit,
+      });
+
+      return {
+        totalCount: collectiveIdsResult.length,
+        nodes: collectives,
+        limit: args.limit,
+        offset: args.offset,
       };
     },
   },
