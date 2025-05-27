@@ -208,6 +208,7 @@ type Data = Partial<{
     taxId: string;
     notes: string;
   }>;
+  visibleToAccountIds: number[];
 }> &
   Record<string, unknown>;
 

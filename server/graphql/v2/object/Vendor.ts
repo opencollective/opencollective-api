@@ -1,6 +1,7 @@
-import { GraphQLBoolean, GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { CollectiveType } from '../../../constants/collectives';
+import Collective from '../../../models/Collective';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 
@@ -75,10 +76,10 @@ export const GraphQLVendor = new GraphQLObjectType({
         },
       },
       visibleToAccounts: {
-        type: new GraphQLList(GraphQLAccount),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
         description:
           'The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host',
-        async resolve(vendor, _, req) {
+        async resolve(vendor: Collective, _, req) {
           const visibleToAccountIds = vendor.data?.visibleToAccountIds || [];
 
           if (visibleToAccountIds.length === 0) {
