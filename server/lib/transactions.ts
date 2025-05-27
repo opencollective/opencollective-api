@@ -340,7 +340,7 @@ export async function createTransactionsForManuallyPaidExpense(
     HostCollectiveId: host.id,
     PayoutMethodId: expense.PayoutMethodId,
     PaymentMethodId: expense.PaymentMethodId,
-    clearedAt: clearedAt,
+    clearedAt: clearedAt ?? expense.incurredAt,
     data: {
       isManual: true,
       ...data,
