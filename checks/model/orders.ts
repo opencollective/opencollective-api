@@ -131,7 +131,7 @@ async function checkOrdersCollectiveIdMismatch({ fix = false } = {}) {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(`
       UPDATE "Orders"
-      SET "FromCollectiveId" = "Transactions" ."FromCollectiveId", "CollectiveId" = "Transactions" ."CollectiveId"
+      SET "FromCollectiveId" = "Transactions"."FromCollectiveId", "CollectiveId" = "Transactions"."CollectiveId"
       FROM "Transactions"
       WHERE "Orders"."deletedAt" IS NULL
       AND "Orders"."status" = 'PAID'
