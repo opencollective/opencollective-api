@@ -5,6 +5,7 @@ import { checkCaptcha } from '../../lib/check-captcha';
 import emailLib from '../../lib/email';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models from '../../models';
 
 export const unsubscribe = async (req, res, next) => {
@@ -92,7 +93,27 @@ export const messageSupport = async (req, res) => {
     },
   });
 
-  await emailLib.sendMessage(recipient, topic, html, options);
+  try {
+    await emailLib.sendMessage(recipient, topic, html, options);
+  } catch (e) {
+    reportErrorToSentry(e, {
+      user: remoteUser,
+      extra: {
+        body,
+        recipient,
+        topic,
+        html,
+        options,
+        ip,
+      },
+    });
+
+    res.status(500).send({
+      message: 'Error while opening the support ticket, please reach out directly to support@opencollective.com',
+    });
+
+    return;
+  }
 
   res.status(200).send({ sent: true });
 };
