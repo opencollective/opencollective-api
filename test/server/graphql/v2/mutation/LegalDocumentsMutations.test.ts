@@ -179,6 +179,7 @@ describe('LegalDocumentsMutations', () => {
         year: new Date().getFullYear() - US_TAX_FORM_VALIDITY_IN_YEARS - 1,
       });
 
+      await LegalDocument.expireOldDocuments();
       const result = await graphqlQueryV2(submitLegalDocumentMutation, validParams, collectiveAdmin);
 
       // Check response
@@ -267,6 +268,8 @@ describe('LegalDocumentsMutations', () => {
         CollectiveId: expense.FromCollectiveId,
         year: new Date().getFullYear() - US_TAX_FORM_VALIDITY_IN_YEARS - 1,
       });
+
+      await LegalDocument.expireOldDocuments();
 
       const { errors } = await graphqlQueryV2(
         editLegalDocumentStatusMutation,

@@ -2,6 +2,7 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { LEGAL_DOCUMENT_REQUEST_STATUS } from '../../../models/LegalDocument';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentService } from '../enum/LegalDocumentService';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
@@ -39,7 +40,8 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
     isExpired: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether this legal document is expired',
-      resolve: document => document.isExpired(),
+      deprecationReason: '2025-05-27: Use "status" = "EXPIRED" instead',
+      resolve: document => document.status === LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED,
     },
     requestedAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
