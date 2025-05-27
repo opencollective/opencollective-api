@@ -1,8 +1,10 @@
+import assert from 'assert';
+
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, uniq } from 'lodash';
-import { Includeable, Order } from 'sequelize';
+import { Includeable, Order, Utils as SequelizeUtils } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/sql-search';
@@ -21,6 +23,8 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput } from '../../input/AmountInput';
+import { GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -127,13 +131,19 @@ export const OrdersCollectionArgs = {
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
+  amount: {
+    type: GraphQLAmountRangeInput,
+    description: 'Only return expenses that match this amount range',
+  },
   minAmount: {
     type: GraphQLInt,
     description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   maxAmount: {
     type: GraphQLInt,
     description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   dateFrom: {
     type: GraphQLDateTime,
@@ -359,12 +369,51 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
 
   // Add filters
-  if (args.minAmount) {
-    where['totalAmount'] = { [Op.gte]: args.minAmount };
+  if (args.amount?.gte || args.amount?.lte) {
+    if (args.amount.gte && args.amount.lte) {
+      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
+    }
+    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
+    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
+    const operator =
+      args.amount.gte && args.amount.lte
+        ? gte === lte
+          ? { [Op.eq]: gte }
+          : { [Op.between]: [gte, lte] }
+        : args.amount.gte
+          ? { [Op.gte]: gte }
+          : { [Op.lte]: lte };
+
+    where[Op.and].push(
+      sequelize.where(
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
+            CASE
+              WHEN "Order"."currency" = :currency THEN "Order"."totalAmount"
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Order"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Order"."processedAt", "Order"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Order"."totalAmount",
+                "Order"."totalAmount"
+              )
+            END
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
+        operator,
+      ),
+    );
+  } else {
+    if (args.minAmount) {
+      where['totalAmount'] = { [Op.gte]: args.minAmount };
+    }
+    if (args.maxAmount) {
+      where['totalAmount'] = { ...where['totalAmount'], [Op.lte]: args.maxAmount };
+    }
   }
-  if (args.maxAmount) {
-    where['totalAmount'] = { ...where['totalAmount'], [Op.lte]: args.maxAmount };
-  }
+
   if (args.dateFrom) {
     where['createdAt'] = { [Op.gte]: args.dateFrom };
   }
