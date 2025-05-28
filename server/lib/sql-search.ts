@@ -215,6 +215,7 @@ export const searchCollectivesInDB = async (
     hostCollectiveIds,
     includeArchived,
     includeVendorsForHostId,
+    vendorVisibleToAccountIds,
     isHost,
     onlyActive,
     orderBy,
@@ -230,6 +231,7 @@ export const searchCollectivesInDB = async (
     currency?: string;
     hasCustomContributionsEnabled?: boolean;
     hostCollectiveIds?: number[];
+    vendorVisibleToAccountIds?: number[];
     includeArchived?: boolean;
     includeVendorsForHostId?: number;
     isHost?: boolean;
@@ -287,6 +289,27 @@ export const searchCollectivesInDB = async (
       'AND (c."type" != \'VENDOR\' OR (c."type" = \'VENDOR\' AND c."ParentCollectiveId" = :includeVendorsForHostId)) ';
   } else if (!types) {
     dynamicConditions += 'AND c."type" != \'VENDOR\' ';
+  }
+
+  if (vendorVisibleToAccountIds) {
+    dynamicConditions += `
+      AND (
+        c."type" != \'VENDOR\'
+        OR data#>'{visibleToAccountIds}' IS NULL 
+        OR data#>'{visibleToAccountIds}' = '[]'::jsonb
+        OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+        OR
+          (
+            jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+            AND 
+            EXISTS (
+              SELECT v FROM (
+                SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+              ) WHERE v = ANY(${sequelize.escape(vendorVisibleToAccountIds)})
+            )  
+          )
+      )
+    `;
   }
 
   if (skipRecentAccounts) {
