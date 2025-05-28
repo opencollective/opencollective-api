@@ -566,6 +566,14 @@ export const canEditType: ExpensePermissionEvaluator = async (req, expense, opti
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.type !== ExpenseType.RECEIPT && expense.type !== ExpenseType.INVOICE) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not edit type for this type of expense (${expense.type})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
+      );
+    }
+    return false;
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
