@@ -1025,6 +1025,30 @@ class Collective extends Model<
     return this;
   };
 
+  getOrCreateInternalPaymentMethod = async function () {
+    const paymentMethod = await PaymentMethod.findOne({
+      where: {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        CollectiveId: this.id,
+        currency: this.currency,
+      },
+    });
+
+    if (paymentMethod) {
+      return paymentMethod;
+    }
+
+    return PaymentMethod.create({
+      CollectiveId: this.id,
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+      name: `${this.name} (${capitalize(this.type.toLowerCase())})`,
+      primary: true,
+      currency: this.currency,
+    });
+  };
+
   getOrCreateHostPaymentMethod = async function () {
     const hostPaymentMethod = await PaymentMethod.findOne({
       where: {
