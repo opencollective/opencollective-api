@@ -114,7 +114,6 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
         where: {
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
           CollectiveId: payee.id,
-          year: { [Op.gte]: new Date().getFullYear() - US_TAX_FORM_VALIDITY_IN_YEARS },
           requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
         },
         defaults: {
