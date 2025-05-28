@@ -422,6 +422,11 @@ export const refundPaymentProcessorFeeToCollective = async (
     amountInHostCurrency = Math.abs(hostCoverInHostCurrency);
   }
 
+  // Skip creating transaction if amount is zero
+  if (amountInHostCurrency === 0) {
+    return;
+  }
+
   const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
   await Transaction.createDoubleEntry({
     type: CREDIT,
