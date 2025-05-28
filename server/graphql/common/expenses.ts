@@ -1643,6 +1643,7 @@ const checkExpenseType = (
   parent: Collective | null,
   host: Collective | null,
   existingExpense: Expense | null = null,
+  remoteUser: User | null = null,
 ): void => {
   // Prevent changing the type in certain cases
   if (existingExpense && newType && existingExpense.type !== newType) {
@@ -1665,6 +1666,11 @@ const checkExpenseType = (
         throw new ValidationFailed(`Expenses of type ${newType.toLowerCase()} are not allowed by the ${level}`);
       }
     }
+  }
+
+  // Only allow virtual card charges to be manually created by host admins
+  if (!existingExpense && newType === ExpenseType.CHARGE && !remoteUser?.isAdmin(host?.id)) {
+    throw new ValidationFailed('Only host admins can manually create virtual card charges');
   }
 
   // Fallback on default values
@@ -2101,7 +2107,7 @@ export async function createExpense(
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
-  checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
+  checkExpenseType(expenseData.type, collective, collective.parent, collective.host, null, remoteUser);
 
   if (expenseData.accountingCategory) {
     checkCanUseAccountingCategory(
@@ -2775,7 +2781,7 @@ export async function editExpense(
 
   // When changing the type, we must make sure that the new type is allowed
   if (expenseData.type && expenseData.type !== expense.type) {
-    checkExpenseType(expenseData.type, collective, collective.parent, collective.host, expense);
+    checkExpenseType(expenseData.type, collective, collective.parent, collective.host, expense, remoteUser);
   }
 
   // Let submitter customize the currency
