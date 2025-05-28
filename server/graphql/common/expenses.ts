@@ -544,6 +544,8 @@ export const canEditTitle: ExpensePermissionEvaluator = async (req, expense, opt
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatus.DRAFT) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
@@ -566,6 +568,16 @@ export const canEditType: ExpensePermissionEvaluator = async (req, expense, opti
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.type !== ExpenseType.RECEIPT && expense.type !== ExpenseType.INVOICE) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not edit type for this type of expense (${expense.type})`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
+      );
+    }
+    return false;
+  } else if (expense.status === ExpenseStatus.DRAFT) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
@@ -588,6 +600,8 @@ export const canEditPaidBy: ExpensePermissionEvaluator = async (req, expense, op
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatus.DRAFT) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
@@ -610,6 +624,8 @@ export const canEditPayee: ExpensePermissionEvaluator = async (req, expense, opt
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatus.DRAFT) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
@@ -628,7 +644,9 @@ export const canEditPayoutMethod: ExpensePermissionEvaluator = async (req, expen
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
-  } else if ([ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE].includes(expense.status as ExpenseStatus)) {
+  } else if (
+    [ExpenseStatus.DRAFT, ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE].includes(expense.status as ExpenseStatus)
+  ) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
 
@@ -649,6 +667,8 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatus.DRAFT) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
