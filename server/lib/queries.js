@@ -2,11 +2,7 @@ import config from 'config';
 import { get, pick } from 'lodash';
 import moment from 'moment';
 
-import {
-  TAX_FORM_IGNORED_EXPENSE_STATUSES,
-  TAX_FORM_IGNORED_EXPENSE_TYPES,
-  US_TAX_FORM_VALIDITY_IN_YEARS,
-} from '../constants/tax-form';
+import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
@@ -844,8 +840,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       ON all_expenses_collectives.id = all_expenses."CollectiveId"
       AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
     LEFT JOIN "LegalDocuments" ld
-      ON ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
-      AND ld."documentType" = 'US_TAX_FORM'
+      ON ld."documentType" = 'US_TAX_FORM'
       AND ld."requestStatus" = 'RECEIVED'
       AND (
         ld."CollectiveId" = from_collective.id -- Either use the payee's legal document
@@ -872,7 +867,6 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       raw: true,
       replacements: {
         expenseIds,
-        validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
         ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
       },
@@ -939,8 +933,7 @@ const getTaxFormsRequiredForAccounts = async ({
       ignoreReceived,
       `
     LEFT JOIN "LegalDocuments" ld
-      ON ld.year + :validityInYears >= :year
-      AND ld."documentType" = 'US_TAX_FORM'
+      ON ld."documentType" = 'US_TAX_FORM'
       AND ld."requestStatus" = 'RECEIVED'
       AND (
         ld."CollectiveId" = account.id -- Either use the account's legal document
@@ -969,7 +962,6 @@ const getTaxFormsRequiredForAccounts = async ({
         CollectiveId,
         HostCollectiveId,
         year,
-        validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
         ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
       },

@@ -377,6 +377,8 @@ describe('server/lib/tax-forms', () => {
     };
 
     await RequiredLegalDocument.create(requiredDoc);
+
+    await LegalDocument.expireOldDocuments();
   });
 
   describe('SQLQueries', () => {
