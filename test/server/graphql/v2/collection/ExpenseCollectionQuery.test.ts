@@ -384,6 +384,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         requestStatus: 'RECEIVED',
         documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
       });
+
+      await models.LegalDocument.expireOldDocuments();
     });
 
     beforeEach(() => {

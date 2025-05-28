@@ -34,6 +34,7 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
   declare public deletedAt: CreationOptional<Date>;
   declare public incurredAt: Date;
   declare public description: CreationOptional<string>;
+  declare public order: number;
 
   declare public Expense: NonAttribute<Expense>;
 
@@ -45,6 +46,7 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
     'url',
     'description',
     'incurredAt',
+    'order',
   ];
 
   /**
@@ -193,6 +195,11 @@ ExpenseItem.init(
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
       allowNull: false,
+    },
+    order: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
     ExpenseId: {
       type: DataTypes.INTEGER,

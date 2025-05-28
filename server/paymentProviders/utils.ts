@@ -238,6 +238,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
       CreatedByUserId: UserId,
       amount,
       currency,
+      description: vendor.name,
     });
 
     await models.Transaction.createDoubleEntry({
