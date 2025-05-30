@@ -201,7 +201,15 @@ const orderMutations = {
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
-      const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+
+      let paymentMethod;
+      if (order.isBalanceTransfer && !order.paymentMethod) {
+        const internalTransferPaymentMethod = await fromCollective.getOrCreateInternalPaymentMethod();
+        paymentMethod = internalTransferPaymentMethod;
+      } else {
+        paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      }
+
       if (order.paymentMethod?.paymentIntentId) {
         paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
       }
