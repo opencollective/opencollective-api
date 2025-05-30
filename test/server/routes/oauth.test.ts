@@ -342,5 +342,61 @@ describe('server/routes/oauth', () => {
         error_description: 'Invalid request: `redirect_uri` is invalid',
       });
     });
+
+    describe('PKCE', () => {
+      let authorization, validParams;
+      const codeVerifier = 'vUBvHDGzaWDTEzzERaATJDN9Q1ybpwBpc_tvHqNOm0Q';
+      const codeChallenge = 'StsAewbAP7uOmN2VuoepTcaqY_0lRpQo28GNRbK-yjE';
+
+      beforeEach(async () => {
+        authorization = await fakeOAuthAuthorizationCode({
+          codeChallenge: codeChallenge,
+          codeChallengeMethod: 'S256',
+        });
+
+        validParams = {
+          grant_type: 'authorization_code',
+          code: authorization.code,
+          client_id: authorization.application.clientId,
+          client_secret: authorization.application.clientSecret,
+          redirect_uri: authorization.application.callbackUrl,
+          code_verifier: codeVerifier,
+        };
+      });
+
+      it('succeeds with a valid code_verifier', async () => {
+        await request(expressApp)
+          .post('/oauth/token')
+          .type(`application/x-www-form-urlencoded`)
+          .send({ ...validParams })
+          .expect(200);
+      });
+
+      it('must provide a code_verifier', async () => {
+        const response = await request(expressApp)
+          .post('/oauth/token')
+          .type(`application/x-www-form-urlencoded`)
+          .send({ ...validParams, code_verifier: undefined })
+          .expect(400);
+
+        expect(response.body).to.deep.eq({
+          error: 'invalid_grant',
+          error_description: 'Invalid grant: code verifier is invalid',
+        });
+      });
+
+      it('must provide a code_verifier that matches the PKCE code challenge', async () => {
+        const response = await request(expressApp)
+          .post('/oauth/token')
+          .type(`application/x-www-form-urlencoded`)
+          .send({ ...validParams, code_verifier: 'not-valid' })
+          .expect(400);
+
+        expect(response.body).to.deep.eq({
+          error: 'invalid_grant',
+          error_description: 'Invalid grant: code verifier is invalid',
+        });
+      });
+    });
   });
 });

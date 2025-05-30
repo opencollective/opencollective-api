@@ -42,6 +42,8 @@ export const dbOAuthAuthorizationCodeToAuthorizationCode = (
   authorizationCode: authorization.code,
   expiresAt: authorization.expiresAt,
   redirectUri: authorization.redirectUri,
+  codeChallenge: authorization.codeChallenge,
+  codeChallengeMethod: authorization.codeChallengeMethod,
   client: dbApplicationToClient(authorization.application),
   user: authorization.user,
   scope: authorization.scope,
@@ -152,6 +154,8 @@ const model: OauthModel = {
       code: code.authorizationCode,
       expiresAt: code.expiresAt,
       redirectUri: code.redirectUri,
+      codeChallenge: code.codeChallenge,
+      codeChallengeMethod: code.codeChallengeMethod,
       scope,
     });
 
