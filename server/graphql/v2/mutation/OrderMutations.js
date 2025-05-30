@@ -240,7 +240,12 @@ const orderMutations = {
 
       // Check 2FA for non-guest contributions
       if (req.remoteUser) {
-        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
+        const isUsingBalance = paymentMethod?.service === 'opencollective' && paymentMethod?.type === 'collective';
+        // This covers the case where the user is transfering balance between their own collectives
+        const isCollectiveRelated =
+          fromCollective?.id === collective.ParentCollectiveId || fromCollective?.ParentCollectiveId === collective.id;
+        const onlyAskOnLogin = isUsingBalance && !isCollectiveRelated ? false : true;
+        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin });
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
