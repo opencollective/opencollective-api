@@ -39,6 +39,7 @@ describe('server/routes/oauth', () => {
       client_id: application.clientId,
       client_secret: application.clientSecret,
       redirect_uri: application.callbackUrl,
+      scope: 'email account',
     });
 
     const authorizeResponse = await request(expressApp)
@@ -67,8 +68,12 @@ describe('server/routes/oauth', () => {
       });
 
     // Decode returned OAuth token
-    const oauthToken = tokenResponse.body.access_token;
+    const oauthToken = tokenResponse.body;
     expect(oauthToken).to.exist;
+    expect(oauthToken.access_token).to.exist;
+    expect(oauthToken.token_type).to.eq('Bearer');
+    expect(oauthToken.expires_in).to.eq(7776000);
+    expect(oauthToken.scope).to.equal('email account');
 
     const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
     expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());
@@ -76,6 +81,7 @@ describe('server/routes/oauth', () => {
     const iat = fakeNow.getTime() / 1000;
     expect(decodedToken.iat).to.eq(iat); // 1640995200
     expect(decodedToken.exp).to.eq(iat + 7776000); // 90 days
+    expect(decodedToken.scope).to.eq('oauth');
 
     // Test OAuth token with a real query
     const gqlRequestResult = await request(expressApp)
