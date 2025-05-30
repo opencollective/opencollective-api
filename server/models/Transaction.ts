@@ -174,6 +174,11 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   declare getOrder: (options?: { paranoid?: boolean }) => Promise<Order | null>;
   declare hasPlatformTip: () => boolean;
   declare getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<Transaction>;
+  declare getRelatedTransactions: (options: {
+    type?: string;
+    kind?: string;
+    isDebt?: boolean;
+  }) => Promise<Transaction[]>;
   declare getOppositeTransaction: () => Promise<Transaction | null>;
   declare getPaymentProcessorFeeTransaction: () => Promise<Transaction | null>;
   declare getTaxTransaction: () => Promise<Transaction | null>;
@@ -1742,6 +1747,19 @@ Transaction.prototype.getRelatedTransaction = function (
   options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
 ): Promise<Transaction | null> {
   return Transaction.findOne({
+    where: {
+      TransactionGroup: this.TransactionGroup,
+      type: options.type || this.type,
+      kind: options.kind || this.kind,
+      isDebt: options.isDebt || { [Op.not]: true },
+    },
+  });
+};
+
+Transaction.prototype.getRelatedTransactions = function (
+  options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
+): Promise<Transaction[] | null> {
+  return Transaction.findAll({
     where: {
       TransactionGroup: this.TransactionGroup,
       type: options.type || this.type,
