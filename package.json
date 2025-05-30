@@ -184,7 +184,7 @@
     "nock": "^13.5.0",
     "node-mocks-http": "^1.16.1",
     "nodemon": "^3.0.2",
-    "npm-run-all2": "^7.0.0",
+    "npm-run-all2": "^8.0.0",
     "nyc": "^17.0.0",
     "opentelemetry-instrumentation-sequelize": "^0.41.0",
     "prettier": "3.5.3",
