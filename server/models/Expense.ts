@@ -64,6 +64,7 @@ export type ExpenseDataValuesByRole = {
   hostAdmin?: ExpenseDataValuesRoleDetails;
   collectiveAdmin?: ExpenseDataValuesRoleDetails;
   submitter?: ExpenseDataValuesRoleDetails;
+  prediction?: ExpenseDataValuesRoleDetails;
 };
 
 export type ExpenseTaxDefinition = {

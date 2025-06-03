@@ -2129,6 +2129,7 @@ export async function createExpense(
   checkExpenseItems(expenseData.type, itemsData, taxes);
   checkExpenseType(expenseData.type, collective, collective.parent, collective.host, null, remoteUser);
 
+  let accountingCategorySource: 'submitter' | 'prediction' = 'submitter';
   if (expenseData.accountingCategory) {
     checkCanUseAccountingCategory(
       remoteUser,
@@ -2139,6 +2140,7 @@ export async function createExpense(
     );
   } else if (collective.host?.settings?.autoAssignExpenseCategoryPredictions) {
     expenseData.accountingCategory = await tryToPredictExpenseCategory(collective, expenseData, req);
+    accountingCategorySource = 'prediction';
   }
 
   if (size(expenseData.attachedFiles) > 15) {
@@ -2248,8 +2250,9 @@ export async function createExpense(
     data['customData'] = expenseData.customData;
   }
   if (expenseData.accountingCategory) {
+    const key = accountingCategorySource === 'submitter' ? getUserRole(remoteUser, collective) : 'prediction';
     data['valuesByRole'] = {
-      [getUserRole(remoteUser, collective)]: { accountingCategory: expenseData.accountingCategory.publicInfo },
+      [key]: { accountingCategory: expenseData.accountingCategory.publicInfo },
     };
   }
 
