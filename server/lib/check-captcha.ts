@@ -10,10 +10,7 @@ import { parseToBoolean } from './utils';
 
 export const isCaptchaSetup = (): boolean => {
   return (
-    (config.captcha?.enabled && config.captcha?.provider) ||
-    (config.hcaptcha?.enabled && config.hcaptcha?.secret) ||
-    (config.recaptcha?.enabled && config.recaptcha?.secret) ||
-    (config.turnstile?.enabled && config.turnstile?.secretKey)
+    config.captcha?.enabled && (config.hcaptcha?.secret || config.recaptcha?.secretKey || config.turnstile?.secretKey)
   );
 };
 
