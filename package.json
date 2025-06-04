@@ -87,6 +87,7 @@
     "fast-redact": "3.5.0",
     "fs-extra": "11.3.0",
     "get-urls": "10.0.1",
+    "gocardless-nodejs": "5.1.0",
     "gqlmin": "0.1.1",
     "graphql": "16.11.0",
     "graphql-scalars": "1.24.2",

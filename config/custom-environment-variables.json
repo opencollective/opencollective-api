@@ -71,6 +71,10 @@
     "slowRequest": "SLOW_REQUEST",
     "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD"
   },
+  "gocardless": {
+    "accessToken": "GOCARDLESS_ACCESS_TOKEN",
+    "env": "GOCARDLESS_ENV"
+  },
   "plaid": {
     "clientId": "PLAID_CLIENT_ID",
     "secret": "PLAID_SECRET",
