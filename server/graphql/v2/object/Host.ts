@@ -16,6 +16,7 @@ import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 
 import moment from 'moment';
 
 import { roles } from '../../../constants';
+import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense-type';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
@@ -31,7 +32,7 @@ import sequelize from '../../../lib/sequelize';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
-import models, { Collective, Op } from '../../../models';
+import models, { Collective, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
@@ -42,6 +43,7 @@ import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
+import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
 import { GraphQLHostedAccountCollection } from '../collection/HostedAccountCollection';
 import { GraphQLLegalDocumentCollection } from '../collection/LegalDocumentCollection';
@@ -62,7 +64,11 @@ import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestS
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
+import { GraphQLTransactionsImportStatus } from '../enum/TransactionsImportStatus';
+import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
+import { idDecode } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
@@ -81,6 +87,7 @@ import {
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { GraphQLTransactionsImportRowOrderInput } from '../input/TransactionsImportRowOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
@@ -93,6 +100,7 @@ import { GraphQLHostMetrics } from './HostMetrics';
 import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
+import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
@@ -1399,6 +1407,10 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLAccountReferenceInput,
             description: 'Rank vendors based on their relationship with this account',
           },
+          visibleToAccounts: {
+            type: new GraphQLList(GraphQLAccountReferenceInput),
+            description: 'Only returns vendors that are visible to the given accounts',
+          },
           isArchived: {
             type: GraphQLBoolean,
             description: 'Filter on archived vendors',
@@ -1460,6 +1472,28 @@ export const GraphQLHost = new GraphQLObjectType({
             ];
           }
 
+          if (args.visibleToAccounts?.length > 0) {
+            const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
+              throwIfMissing: true,
+            });
+            findArgs.where[Op.and] = [
+              sequelize.literal(`
+                    data#>'{visibleToAccountIds}' IS NULL 
+                    OR data#>'{visibleToAccountIds}' = '[]'::jsonb
+                    OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+                    OR
+                    (
+                      jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+                      AND 
+                      EXISTS (
+                        SELECT v FROM (
+                          SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                        ) WHERE v = ANY(${sequelize.escape(visibleToAccountIds)})
+                      )  
+                    )
+              `),
+            ];
+          }
           const { rows, count } = await models.Collective.findAndCountAll(findArgs);
           const vendors = args.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
 
@@ -1668,7 +1702,14 @@ export const GraphQLHost = new GraphQLObjectType({
               where: { HostCollectiveId: host.id, status: 'APPROVED' },
             });
             where.HostCollectiveId = { [Op.or]: [{ [Op.ne]: host.id }, { [Op.is]: null }] };
-            where.id = collectiveIds.map(({ CollectiveId }) => CollectiveId);
+            const id = collectiveIds.map(({ CollectiveId }) => CollectiveId);
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            if (!where[Op.and]) {
+              // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+              where[Op.and] = [];
+            }
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            where[Op.and].push({ [Op.or]: [{ id: id }, { ParentCollectiveId: id }] });
           } else {
             where.isActive = true;
             where.approvedAt = args.isApproved ? { [Op.not]: null } : null;
@@ -1698,6 +1739,13 @@ export const GraphQLHost = new GraphQLObjectType({
               orderBy.push(['approvedAt', direction]);
             } else if (field === ORDER_BY_PSEUDO_FIELDS.BALANCE) {
               orderBy.push([ACCOUNT_CONSOLIDATED_BALANCE_QUERY, direction]);
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.UNHOSTED_AT) {
+              orderBy.push([
+                sequelize.literal(
+                  `(SELECT "Activities"."createdAt" FROM "Activities" WHERE "CollectiveId" = "Collective"."id" AND "Activities"."HostCollectiveId" = ${host.id} AND "Activities"."type" = '${ActivityTypes.COLLECTIVE_UNHOSTED}' ORDER BY "Activities"."id" DESC LIMIT 1)`,
+                ),
+                direction,
+              ]);
             } else {
               orderBy.push([field, direction]);
             }
@@ -1849,10 +1897,18 @@ export const GraphQLHost = new GraphQLObjectType({
         description: 'Returns a list of transactions imports for this host',
         args: {
           ...CollectionArgs,
+          status: {
+            type: GraphQLTransactionsImportStatus,
+            description: 'Filter by status of transactions import',
+          },
           orderBy: {
             type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
             description: 'The order of results',
             defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+          },
+          type: {
+            type: new GraphQLList(GraphQLTransactionsImportType),
+            description: 'Filter by type of transactions import',
           },
         },
         async resolve(host, args, req) {
@@ -1861,7 +1917,20 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its transactions imports');
           }
 
-          const where = { CollectiveId: host.id };
+          const where: Parameters<typeof models.TransactionsImport.findAll>[0]['where'] = { CollectiveId: host.id };
+
+          if (args.status) {
+            if (args.status === 'ACTIVE') {
+              where['ConnectedAccountId'] = { [Op.not]: null };
+            } else {
+              where['ConnectedAccountId'] = null;
+            }
+          }
+
+          if (args.type) {
+            where['type'] = args.type;
+          }
+
           return {
             limit: args.limit,
             offset: args.offset,
@@ -1879,6 +1948,12 @@ export const GraphQLHost = new GraphQLObjectType({
       transactionsImportsSources: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLNonEmptyString)),
         description: 'Returns a list of transactions imports sources for this host',
+        args: {
+          type: {
+            type: new GraphQLList(GraphQLTransactionsImportType),
+            description: 'Filter by type of transactions import',
+          },
+        },
         async resolve(host: Collective, args, req: express.Request) {
           checkRemoteUserCanUseHost(req);
           if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -1887,10 +1962,138 @@ export const GraphQLHost = new GraphQLObjectType({
             );
           }
 
+          const where: Parameters<typeof models.TransactionsImport.findAll>[0]['where'] = {
+            CollectiveId: host.id,
+            ...(args.type && { type: args.type }),
+          };
+
           return models.TransactionsImport.aggregate('source', 'DISTINCT', {
             plain: false,
-            where: { CollectiveId: host.id },
-          }).then((results: { DISTINCT: string }[]) => results.map(({ DISTINCT }) => DISTINCT));
+            where,
+          }).then((results: { DISTINCT: string }[]) => {
+            return results.map(({ DISTINCT }) => DISTINCT);
+          });
+        },
+      },
+      offPlatformTransactions: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
+        args: {
+          ...getCollectionArgs({ limit: 100 }),
+          status: {
+            type: GraphQLTransactionsImportRowStatus,
+            description: 'Filter rows by status',
+          },
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search by text',
+          },
+          accountId: {
+            type: new GraphQLList(GraphQLNonEmptyString),
+            description: 'Filter rows by plaid account id',
+          },
+          importId: {
+            type: new GraphQLList(new GraphQLNonNull(GraphQLNonEmptyString)),
+            description: 'The transactions import id(s)',
+          },
+          importType: {
+            type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportType)),
+            description: 'Filter rows by import type',
+          },
+          orderBy: {
+            type: new GraphQLNonNull(GraphQLTransactionsImportRowOrderInput),
+            description: 'The order of results',
+            defaultValue: { field: 'date', direction: 'DESC' },
+          },
+        },
+        async resolve(
+          host,
+          args: {
+            limit: number;
+            offset: number;
+            status: TransactionsImportRowStatus;
+            searchTerm: string;
+            accountId: string[];
+            importId: string[];
+            importType: string[];
+            orderBy: { field: 'date'; direction: 'ASC' | 'DESC' };
+          },
+          req,
+        ) {
+          if (!req.remoteUser?.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see its off platform transactions',
+            );
+          }
+
+          checkRemoteUserCanUseTransactions(req);
+
+          // This include is about:
+          // 1. Security: making sure we only return transactions import rows for the host.
+          // 2. Performance: the index on `TransactionsImports.CollectiveId` is used to filter the rows.
+          const include: Parameters<typeof TransactionsImportRow.findAll>[0]['include'] = [
+            {
+              association: 'import',
+              required: true,
+              where: {
+                ...((args.importType && { type: args.importType }) || {}),
+                ...((args.importId && { id: args.importId.map(id => idDecode(id, 'transactions-import')) }) || {}),
+                CollectiveId: host.id,
+              },
+            },
+          ];
+
+          const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = [];
+
+          // Filter by status
+          if (args.status) {
+            where.push({ status: args.status });
+          }
+
+          // Search term
+          if (args.searchTerm) {
+            where.push({
+              [Op.or]: buildSearchConditions(args.searchTerm, {
+                textFields: ['description', 'sourceId'],
+              }),
+            });
+          }
+
+          // Filter by plaid account id
+          if (args.accountId?.length) {
+            // eslint-disable-next-line camelcase
+            where.push({ rawValue: { account_id: { [Op.in]: args.accountId } } });
+          }
+
+          return {
+            offset: args.offset,
+            limit: args.limit,
+            totalCount: () => TransactionsImportRow.count({ where, include }),
+            nodes: () =>
+              TransactionsImportRow.findAll({
+                where,
+                include,
+                limit: args.limit,
+                offset: args.offset,
+                order: [
+                  [args.orderBy.field, args.orderBy.direction],
+                  ['id', args.orderBy.direction],
+                ],
+              }),
+          };
+        },
+      },
+      offPlatformTransactionsStats: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportStats),
+        description: 'Returns stats for off platform transactions',
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdminOfCollective(host)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin of the host to see its off platform transactions',
+            );
+          }
+
+          checkRemoteUserCanUseTransactions(req);
+          return req.loaders.TransactionsImport.hostStats.load(host.id);
         },
       },
     };

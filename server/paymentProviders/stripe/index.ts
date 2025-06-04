@@ -13,6 +13,7 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
+import { hashObject } from '../utils';
 
 import bacsdebit from './bacsdebit';
 import bancontact from './bancontact';
@@ -109,6 +110,7 @@ export default {
           username: token.stripe_user_id,
           token: token.access_token,
           refreshToken: token.refresh_token,
+          hash: hashObject({ CollectiveId, username: token.stripe_user_id }),
           data: {
             publishableKey: token.stripe_publishable_key,
             tokenType: token.token_type,
@@ -122,8 +124,13 @@ export default {
 
         if (!location?.structured && account.legal_entity) {
           const {
-            address: { line1: address1, line2: address2, country, state: zone, city, postal_code: postalCode },
-          } = account.legal_entity;
+            line1: address1,
+            line2: address2,
+            country,
+            state: zone,
+            city,
+            postal_code: postalCode,
+          } = account.legal_entity.address || {};
 
           await collective.setLocation({
             country,

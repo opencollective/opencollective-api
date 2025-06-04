@@ -8,10 +8,18 @@ import POLICIES from '../../../../server/constants/policies';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import {
   canApprove,
+  canAttachReceipts,
   canComment,
   canDeleteExpense,
   canEditExpense,
   canEditExpenseTags,
+  canEditItemDescription,
+  canEditItems,
+  canEditPaidBy,
+  canEditPayee,
+  canEditPayoutMethod,
+  canEditTitle,
+  canEditType,
   canMarkAsUnpaid,
   canPayExpense,
   canReject,
@@ -371,6 +379,638 @@ describe('server/graphql/common/expenses', () => {
           hostAdmin: true,
           hostAccountant: false,
           expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+  });
+
+  describe('canEditTitle', () => {
+    it('only if expense is in PENDING, APPROVED, or INCOMPLETE status', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+
+        // Expense owner can edit title only in specific statuses
+        await expense.update({ status: 'PAID' });
+        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canEditTitle(req.expenseOwner, expense)).to.be.false;
+
+        // Expense owner can edit in allowed statuses
+        await expense.update({ status: 'PENDING' });
+        expect(await canEditTitle(req.expenseOwner, expense)).to.be.true;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await canEditTitle(req.expenseOwner, expense)).to.be.true;
+      });
+    });
+
+    it('only with the allowed roles in PENDING status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PENDING' });
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: context.isSelfHosted,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('only with the allowed roles in APPROVED status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'APPROVED' });
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('only with the allowed roles in INCOMPLETE status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await checkAllPermissions(canEditTitle, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+  });
+
+  describe('canEditType', () => {
+    it('only with the allowed roles in PENDING status and of type INVOICE or RECEIPT', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        const isVirtualCard = expense.type === 'CHARGE';
+
+        if (isVirtualCard) {
+          await expense.update({ status: 'PENDING' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: false,
+            collectiveAccountant: false,
+            hostAdmin: false,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+        } else {
+          await expense.update({ status: 'PENDING', type: 'RECEIPT' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: true,
+            collectiveAccountant: false,
+            hostAdmin: context.isSelfHosted,
+            hostAccountant: false,
+            expenseOwner: true,
+            limitedHostAdmin: false,
+          });
+
+          await expense.update({ status: 'PENDING', type: 'INVOICE' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: true,
+            collectiveAccountant: false,
+            hostAdmin: context.isSelfHosted,
+            hostAccountant: false,
+            expenseOwner: true,
+            limitedHostAdmin: false,
+          });
+
+          await expense.update({ status: 'PENDING', type: 'UNCLASSIFIED' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: false,
+            collectiveAccountant: false,
+            hostAdmin: false,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+        }
+      });
+    });
+
+    it('only with the allowed roles in APPROVED status and of type INVOICE or RECEIPT', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        const isVirtualCard = expense.type === 'CHARGE';
+
+        if (isVirtualCard) {
+          await expense.update({ status: 'APPROVED' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: false,
+            collectiveAccountant: false,
+            hostAdmin: false,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+        } else {
+          await expense.update({ status: 'APPROVED', type: 'RECEIPT' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: context.isSelfHosted,
+            collectiveAccountant: false,
+            hostAdmin: true,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+
+          await expense.update({ status: 'APPROVED', type: 'INVOICE' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: context.isSelfHosted,
+            collectiveAccountant: false,
+            hostAdmin: true,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+
+          await expense.update({ status: 'APPROVED', type: 'UNCLASSIFIED' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: false,
+            collectiveAccountant: false,
+            hostAdmin: false,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+        }
+      });
+    });
+
+    it('only with the allowed roles in INCOMPLETE status and of type INVOICE or RECEIPT', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+
+        const isVirtualCard = expense.type === 'CHARGE';
+
+        if (isVirtualCard) {
+          await expense.update({ status: 'INCOMPLETE' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: false,
+            collectiveAccountant: false,
+            hostAdmin: false,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+        } else {
+          await expense.update({ status: 'INCOMPLETE', type: 'RECEIPT' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: context.isSelfHosted,
+            collectiveAccountant: false,
+            hostAdmin: true,
+            hostAccountant: false,
+            expenseOwner: true,
+            limitedHostAdmin: false,
+          });
+
+          await expense.update({ status: 'INCOMPLETE', type: 'INVOICE' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: context.isSelfHosted,
+            collectiveAccountant: false,
+            hostAdmin: true,
+            hostAccountant: false,
+            expenseOwner: true,
+            limitedHostAdmin: false,
+          });
+
+          await expense.update({ status: 'INCOMPLETE', type: 'UNCLASSIFIED' });
+          expect(await checkAllPermissions(canEditType, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: false,
+            collectiveAccountant: false,
+            hostAdmin: false,
+            hostAccountant: false,
+            expenseOwner: false,
+            limitedHostAdmin: false,
+          });
+        }
+      });
+    });
+  });
+
+  describe('canEditPaidBy', () => {
+    it('only if expense is in PENDING, APPROVED, or INCOMPLETE status', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+
+        // Cannot edit paidBy in disallowed statuses
+        await expense.update({ status: 'PAID' });
+        expect(await canEditPaidBy(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canEditPaidBy(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canEditPaidBy(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canEditPaidBy(req.expenseOwner, expense)).to.be.false;
+
+        // Can edit paidBy in allowed statuses
+        await expense.update({ status: 'PENDING' });
+        expect(await canEditPaidBy(req.expenseOwner, expense)).to.be.true;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await canEditPaidBy(req.expenseOwner, expense)).to.be.true;
+      });
+    });
+
+    it('only with the allowed roles in PENDING status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PENDING' });
+
+        expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: context.isSelfHosted,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('only with the allowed roles in APPROVED status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'APPROVED' });
+
+        expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('only with the allowed roles in INCOMPLETE status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'INCOMPLETE' });
+
+        expect(await checkAllPermissions(canEditPaidBy, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+  });
+
+  describe('canEditPayee', () => {
+    it('only if expense is in PENDING status', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+
+        // Cannot edit payee in disallowed statuses
+        await expense.update({ status: 'PAID' });
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.false;
+
+        // Can edit payee only in PENDING status
+        await expense.update({ status: 'PENDING' });
+        expect(await canEditPayee(req.expenseOwner, expense)).to.be.true;
+      });
+    });
+
+    it('only the expense owner can edit the payee', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PENDING' });
+
+        expect(await checkAllPermissions(canEditPayee, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: false,
+          collectiveAccountant: false,
+          hostAdmin: false,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+  });
+
+  describe('canEditPayoutMethod', () => {
+    it('only if expense is in PENDING or INCOMPLETE status', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+
+        // Cannot edit payout method in disallowed statuses
+        await expense.update({ status: 'PAID' });
+        expect(await canEditPayoutMethod(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canEditPayoutMethod(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canEditPayoutMethod(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canEditPayoutMethod(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canEditPayoutMethod(req.expenseOwner, expense)).to.be.false;
+
+        // Can edit payout method in allowed statuses
+        await expense.update({ status: 'PENDING' });
+        expect(await canEditPayoutMethod(req.expenseOwner, expense)).to.be.true;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await canEditPayoutMethod(req.expenseOwner, expense)).to.be.true;
+      });
+    });
+
+    it('only the expense owner can edit the payout method', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PENDING' });
+
+        expect(await checkAllPermissions(canEditPayoutMethod, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: false,
+          collectiveAccountant: false,
+          hostAdmin: false,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+  });
+
+  describe('canEditItems', () => {
+    it('only if expense is in PENDING, APPROVED, or INCOMPLETE status', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+
+        // Cannot edit items in disallowed statuses
+        await expense.update({ status: 'PAID' });
+        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+
+        // Owner can edit items in PENDING or INCOMPLETE statuses
+        await expense.update({ status: 'PENDING' });
+        expect(await canEditItems(req.expenseOwner, expense)).to.be.true;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await canEditItems(req.expenseOwner, expense)).to.be.true;
+
+        // Owner cannot edit items in APPROVED status
+        await expense.update({ status: 'APPROVED' });
+        expect(await canEditItems(req.expenseOwner, expense)).to.be.false;
+
+        // But host admin can
+        expect(await canEditItems(req.hostAdmin, expense)).to.be.true;
+      });
+    });
+
+    it('only with the allowed roles in PENDING status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PENDING' });
+
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: false,
+          collectiveAccountant: false,
+          hostAdmin: false,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('only with the allowed roles in APPROVED status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'APPROVED' });
+
+        // if (context.name === 'selfHosted') {
+        //   expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+        //     public: false,
+        //     randomUser: false,
+        //     collectiveAdmin: true, // For self-hosted, collectiveAdmin is the same as hostAdmin
+        //     collectiveAccountant: false,
+        //     hostAdmin: true,
+        //     hostAccountant: false,
+        //     expenseOwner: false,
+        //     limitedHostAdmin: false,
+        //   });
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('only with the allowed roles in INCOMPLETE status', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'INCOMPLETE' });
+
+        // if (context.name === 'selfHosted') {
+        //   expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+        //     public: false,
+        //     randomUser: false,
+        //     collectiveAdmin: true, // For self-hosted, collectiveAdmin is the same as hostAdmin
+        //     collectiveAccountant: false,
+        //     hostAdmin: true,
+        //     hostAccountant: false,
+        //     expenseOwner: true,
+        //     limitedHostAdmin: false,
+        //   });
+        expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+  });
+
+  describe('canAttachReceipts', () => {
+    it('only if expense is of type CHARGE and in PAID or PROCESSING status', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+
+        // Cannot attach receipts in disallowed statuses
+        await expense.update({ status: 'PENDING' });
+        expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+
+        const isVirtualCard = expense.type === 'CHARGE';
+        if (isVirtualCard) {
+          // Can attach receipts in allowed statuses if it is a virtual card
+          await expense.update({ status: 'PAID' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.true;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.true;
+        } else {
+          // But not if it is not a virtual card
+          await expense.update({ status: 'PAID' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canAttachReceipts(req.expenseOwner, expense)).to.be.false;
+        }
+      });
+    });
+
+    it('only with the allowed roles', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PAID' });
+
+        const isVirtualCard = expense.type === 'CHARGE';
+
+        expect(await checkAllPermissions(canAttachReceipts, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: isVirtualCard,
+          collectiveAccountant: false,
+          hostAdmin: isVirtualCard,
+          hostAccountant: false,
+          expenseOwner: isVirtualCard,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+  });
+
+  describe('canEditItemDescription', () => {
+    it('only if expense is of type CHARGE and in PAID or PROCESSING status', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+
+        // Cannot edit item description in disallowed statuses
+        await expense.update({ status: 'PENDING' });
+        expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+        await expense.update({ status: 'INCOMPLETE' });
+        expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+
+        const isVirtualCard = expense.type === 'CHARGE';
+
+        if (isVirtualCard) {
+          // Can edit item description in allowed statuses
+          await expense.update({ status: 'PAID' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.true;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.true;
+        } else {
+          // But not if it is not a CHARGE
+          await expense.update({ status: 'PAID' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+          await expense.update({ status: 'PROCESSING' });
+          expect(await canEditItemDescription(req.expenseOwner, expense)).to.be.false;
+        }
+      });
+    });
+
+    it('only with the allowed roles', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PAID' });
+        const isVirtualCard = expense.type === 'CHARGE';
+
+        expect(await checkAllPermissions(canEditItemDescription, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: isVirtualCard,
+          collectiveAccountant: false,
+          hostAdmin: isVirtualCard,
+          hostAccountant: false,
+          expenseOwner: isVirtualCard,
           limitedHostAdmin: false,
         });
       });

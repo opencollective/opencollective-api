@@ -17,6 +17,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import PlatformConstants from '../constants/platform';
+import { RefundKind } from '../constants/refund-kind';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
@@ -127,6 +128,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   declare isDisputed: boolean;
   declare isInReview: boolean;
   declare isInternal: boolean;
+  declare refundKind: RefundKind | null;
 
   // Timestamps
   declare createdAt: Date;
@@ -1535,6 +1537,11 @@ Transaction.init(
     RefundTransactionId: {
       type: DataTypes.INTEGER,
       references: { model: 'Transactions', key: 'id' },
+    },
+
+    refundKind: {
+      type: DataTypes.ENUM(...Object.values(RefundKind)),
+      allowNull: true,
     },
 
     PaymentMethodId: {

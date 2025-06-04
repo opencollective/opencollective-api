@@ -247,8 +247,14 @@ const memberMutations = {
         throw new Unauthorized('Only admins can edit members.');
       }
 
-      if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
-        throw new Forbidden('You can only edit accountants, admins, or members.');
+      const editableRoles = [
+        MemberRoles.ACCOUNTANT,
+        MemberRoles.ADMIN,
+        MemberRoles.MEMBER,
+        MemberRoles.COMMUNITY_MANAGER,
+      ];
+      if (!editableRoles.includes(args.role)) {
+        throw new Forbidden('You can only edit accountants, admins, members or community managers.');
       }
 
       // Make sure we don't edit the role of last admin
@@ -269,7 +275,7 @@ const memberMutations = {
         where: {
           MemberCollectiveId: memberAccount.id,
           CollectiveId: account.id,
-          role: [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER],
+          role: editableRoles,
         },
       });
 
@@ -277,7 +283,7 @@ const memberMutations = {
         throw new ValidationFailed(`Member ${memberAccount.slug} does not exist in Collective ${account.slug}`);
       }
 
-      if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
+      if (editableRoles.includes(args.role)) {
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
           CollectiveId: account.id,
@@ -330,8 +336,12 @@ const memberMutations = {
         throw new Unauthorized('Only admins can remove a member.');
       }
 
-      if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
-        throw new Forbidden('You can only remove accountants, admins, or members.');
+      if (
+        ![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER, MemberRoles.COMMUNITY_MANAGER].includes(
+          args.role,
+        )
+      ) {
+        throw new Forbidden('You can only remove accountants, admins, members, or community managers.');
       }
 
       if (args.role === MemberRoles.ADMIN) {

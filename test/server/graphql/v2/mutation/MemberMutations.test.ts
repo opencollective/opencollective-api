@@ -102,8 +102,8 @@ describe('memberMutations', () => {
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('There must be at least one admin for the account.');
     });
-    it('can only update role to accountant, admin or member', async () => {
-      [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT, roles.HOST].forEach(async role => {
+    it('can only update role to accountant, admin, community manager or member', async () => {
+      [roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER, roles.ACCOUNTANT, roles.HOST].forEach(async role => {
         const result = await utils.graphqlQueryV2(
           editMemberMutation,
           {
@@ -118,7 +118,9 @@ describe('memberMutations', () => {
 
         if (role === roles.HOST) {
           expect(result.errors).to.have.length(1);
-          expect(result.errors[0].message).to.equal('You can only edit accountants, admins, or members.');
+          expect(result.errors[0].message).to.equal(
+            'You can only edit accountants, admins, members, or community managers.',
+          );
         } else {
           expect(result.errors).to.not.exist;
           expect(result.data.editMember.role).to.equal(role);
@@ -205,13 +207,15 @@ describe('memberMutations', () => {
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('Only admins can remove a member.');
     });
-    it('can only remove members with role accountant, admin or member', async () => {
+    it('can only remove members with role accountant, admin, community manager or member', async () => {
       const randomAdminUser = await fakeUser();
       const randomMemberUser = await fakeUser();
+      const randomCommunityManagerUser = await fakeUser();
       const randomAccountantUser = await fakeUser();
       const randomBackerUser = await fakeUser();
       await collective.addUserWithRole(randomAdminUser, roles.ADMIN);
       await collective.addUserWithRole(randomMemberUser, roles.MEMBER);
+      await collective.addUserWithRole(randomCommunityManagerUser, roles.COMMUNITY_MANAGER);
       await collective.addUserWithRole(randomAccountantUser, roles.ACCOUNTANT);
       await collective.addUserWithRole(randomBackerUser, roles.BACKER);
 
@@ -241,6 +245,21 @@ describe('memberMutations', () => {
       expect(removeMemberUserResult.errors).to.not.exist;
       expect(removeMemberUserResult.data.removeMember).to.equal(true);
 
+      const removeCommunityManagerUserResult = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        {
+          memberAccount: { id: idEncode(randomCommunityManagerUser.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'COMMUNITY_MANAGER User',
+          role: roles.COMMUNITY_MANAGER,
+        },
+        collectiveAdminUser,
+      );
+
+      removeCommunityManagerUserResult.errors && console.error(removeCommunityManagerUserResult.errors);
+      expect(removeCommunityManagerUserResult.errors).to.not.exist;
+      expect(removeCommunityManagerUserResult.data.removeMember).to.equal(true);
+
       const removeAccountantUserResult = await utils.graphqlQueryV2(
         removeMemberMutation,
         {
@@ -265,7 +284,9 @@ describe('memberMutations', () => {
         collectiveAdminUser,
       );
       expect(removeBackerUserResult.errors).to.have.length(1);
-      expect(removeBackerUserResult.errors[0].message).to.equal('You can only remove accountants, admins, or members.');
+      expect(removeBackerUserResult.errors[0].message).to.equal(
+        'You can only remove accountants, admins, members, or community managers.',
+      );
     });
   });
 

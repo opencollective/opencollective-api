@@ -201,7 +201,15 @@ const orderMutations = {
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
-      const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+
+      let paymentMethod;
+      if (order.isBalanceTransfer && !order.paymentMethod) {
+        const internalTransferPaymentMethod = await fromCollective.getOrCreateInternalPaymentMethod();
+        paymentMethod = internalTransferPaymentMethod;
+      } else {
+        paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      }
+
       if (order.paymentMethod?.paymentIntentId) {
         paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
       }
@@ -240,7 +248,12 @@ const orderMutations = {
 
       // Check 2FA for non-guest contributions
       if (req.remoteUser) {
-        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
+        const isUsingBalance = paymentMethod?.service === 'opencollective' && paymentMethod?.type === 'collective';
+        // This covers the case where the user is transfering balance between their own collectives
+        const isCollectiveRelated =
+          fromCollective?.id === collective.ParentCollectiveId || fromCollective?.ParentCollectiveId === collective.id;
+        const onlyAskOnLogin = isUsingBalance && !isCollectiveRelated ? false : true;
+        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin });
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);

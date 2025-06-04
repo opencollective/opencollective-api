@@ -64,6 +64,7 @@ export type ExpenseDataValuesByRole = {
   hostAdmin?: ExpenseDataValuesRoleDetails;
   collectiveAdmin?: ExpenseDataValuesRoleDetails;
   submitter?: ExpenseDataValuesRoleDetails;
+  prediction?: ExpenseDataValuesRoleDetails;
 };
 
 export type ExpenseTaxDefinition = {
@@ -986,7 +987,10 @@ Expense.init(
         const promises = [
           ExpenseItem.destroy({ where: { ExpenseId: expense.id } }),
           models.Comment.destroy({ where: { ExpenseId: expense.id } }),
-          models.TransactionsImportRow.update({ ExpenseId: null }, { where: { ExpenseId: expense.id } }),
+          models.TransactionsImportRow.update(
+            { ExpenseId: null, status: 'PENDING' },
+            { where: { ExpenseId: expense.id } },
+          ),
         ];
 
         if (expense.RecurringExpenseId) {

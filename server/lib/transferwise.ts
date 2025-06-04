@@ -20,7 +20,7 @@ import {
   BatchGroup,
   CurrencyPair,
   ExchangeRate,
-  Profile,
+  ProfileV2,
   QuoteV3,
   RecipientAccount,
   TransactionRequirementsType,
@@ -44,7 +44,7 @@ const axiosClient = axios.create({
 
 const isProduction = config.env === 'production';
 
-type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | string;
+type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | 'balance.insufficient-funds';
 
 const signString = (data: string) => {
   const sign = crypto.createSign('SHA256');
@@ -59,9 +59,14 @@ const compactRecipientDetails = <T>(object: T): Partial<T> => <Partial<T>>omitBy
 const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefined): T['data'] | undefined =>
   obj && obj.data;
 
+const errorMessages = {
+  'balance.insufficient-funds': 'You do not have enough funds in your Wise balance to complete this transfer.',
+};
+
 const parseError = (
   error: AxiosError<{
-    errorCode?: TransferwiseErrorCodes;
+    errorCode?: TransferwiseErrorCodes | string;
+    errorMessage?: string;
     errors?: Record<string, unknown>[];
     error?: string;
     error_description?: string;
@@ -78,11 +83,13 @@ const parseError = (
   if (error.response?.data?.errors) {
     message = error.response.data.errors.map(e => e.message).join(' ');
   } else if (error.response?.data?.error) {
-    message = error.response.data.error_description || error.response.data.error;
-    code = error.response.data.error;
+    message = error.response.data.error_description || error.response.data.errorMessage || error.response.data.error;
   }
   if (error.response?.status === 422) {
-    message = `TransferWise validation error: ${message}`;
+    message =
+      errorMessages[error.response.data?.errorCode] ||
+      error.response.data.errorMessage ||
+      `Validation error: ${message}`;
     code = `transferwise.error.validation`;
   }
 
@@ -96,6 +103,8 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   const checkTokenIsExpired = connectedAccount => {
     if (refresh) {
       return true;
+    } else if (connectedAccount.isNewRecord) {
+      return false;
     }
     const tokenCreation = moment.utc(connectedAccount.data.created_at);
     const diff = moment.duration(moment.utc().diff(tokenCreation)).asSeconds();
@@ -404,10 +413,21 @@ export const fundTransfer = async (
   );
 };
 
-export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<Profile[]> => {
+export const getProfiles = async (connectedAccount: ConnectedAccount): Promise<ProfileV2[]> => {
   return requestDataAndThrowParsedError(
     axiosClient.get,
     `/v2/profiles`,
+    {
+      connectedAccount,
+    },
+    'There was an error fetching the profiles for Wise',
+  );
+};
+
+export const getProfile = async (connectedAccount: ConnectedAccount, profileId: number): Promise<ProfileV2> => {
+  return requestDataAndThrowParsedError(
+    axiosClient.get,
+    `/v2/profiles/${profileId}`,
     {
       connectedAccount,
     },

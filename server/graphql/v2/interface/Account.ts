@@ -42,6 +42,7 @@ import {
 } from '../enum';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
+import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
@@ -487,6 +488,12 @@ const accountFieldsDefinition = () => ({
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
     description: 'The list of connected accounts (Stripe, PayPal, etc ...)',
+    args: {
+      service: {
+        type: GraphQLConnectedAccountService,
+        description: 'Filter connected accounts by service',
+      },
+    },
   },
   oAuthApplications: {
     type: GraphQLOAuthApplicationCollection,
@@ -565,7 +572,12 @@ const accountFieldsDefinition = () => ({
         CollectiveId: collective.id,
         [Op.and]: [],
       };
-      if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'updates')) {
+
+      const canSeeDraftUpdates =
+        checkScope(req, 'updates') &&
+        (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.isCommunityManager(collective));
+
+      if (onlyPublishedUpdates || !canSeeDraftUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       } else if (isDraft) {
         where = assign(where, { publishedAt: null });
@@ -1368,12 +1380,21 @@ export const AccountFields = {
     type: new GraphQLList(GraphQLConnectedAccount),
     description: 'The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".',
     // Only for admins, no pagination
-    async resolve(collective, _, req) {
+    args: {
+      service: {
+        type: GraphQLConnectedAccountService,
+        description: 'Filter connected accounts by service',
+      },
+    },
+    async resolve(collective: Collective, args, req: Express.Request) {
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'connectedAccounts')) {
         return null;
       }
 
       const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+      if (args.service) {
+        return connectedAccounts.filter(ca => ca.service === args.service);
+      }
       return connectedAccounts;
     },
   },

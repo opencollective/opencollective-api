@@ -171,6 +171,7 @@ Comment.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
 // ConnectedAccount
 ConnectedAccount.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+ConnectedAccount.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
 // Conversations
 Conversation.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });

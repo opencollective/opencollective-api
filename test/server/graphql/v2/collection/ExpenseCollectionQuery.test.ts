@@ -216,7 +216,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const testAccount = async (accountKey: string) => {
         const args = { [accountKey]: { legacyId: collective.id }, customData: { key: 'value' } };
         const result = await graphqlQueryV2(expensesQuery, args, user);
-        expect(result.errors).to.exist;
+        expect(result.errors, `Should not be allowed for ${accountKey}`).to.exist;
         expect(result.errors[0].message).to.eq(
           'You need to be an admin of the fromAccount, account or host to filter by customData',
         );
@@ -384,6 +384,8 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         requestStatus: 'RECEIVED',
         documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
       });
+
+      await models.LegalDocument.expireOldDocuments();
     });
 
     beforeEach(() => {

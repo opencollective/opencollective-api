@@ -44,6 +44,7 @@ import {
   InferCreationAttributes,
   Model,
   NonAttribute,
+  WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
@@ -176,6 +177,7 @@ type Settings = {
   customEmailMessage?: string;
   earlyAccess?: Record<string, boolean>;
   disableCustomContributions?: boolean;
+  autoAssignExpenseCategoryPredictions?: boolean;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -206,6 +208,7 @@ type Data = Partial<{
     taxId: string;
     notes: string;
   }>;
+  visibleToAccountIds: number[];
 }> &
   Record<string, unknown>;
 
@@ -1021,6 +1024,30 @@ class Collective extends Model<
     await this.activateBudget();
 
     return this;
+  };
+
+  getOrCreateInternalPaymentMethod = async function () {
+    const paymentMethod = await PaymentMethod.findOne({
+      where: {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        CollectiveId: this.id,
+        currency: this.currency,
+      },
+    });
+
+    if (paymentMethod) {
+      return paymentMethod;
+    }
+
+    return PaymentMethod.create({
+      CollectiveId: this.id,
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+      name: `${this.name} (${capitalize(this.type.toLowerCase())})`,
+      primary: true,
+      currency: this.currency,
+    });
   };
 
   getOrCreateHostPaymentMethod = async function () {
@@ -1945,27 +1972,33 @@ class Collective extends Model<
     // We only send the notification for new member for role MEMBER and ADMIN
     const lowercaseType = this.type.toLowerCase();
     const template = lowercaseType === 'organization' ? 'organization.newmember' : 'collective.newmember';
-    return emailLib.send(
-      template,
-      memberUser.email,
-      {
-        remoteUser: {
-          email: remoteUser.email,
-          collective: pick(remoteUser.collective, ['slug', 'name', 'image']),
+
+    try {
+      return await emailLib.send(
+        template,
+        memberUser.email,
+        {
+          remoteUser: {
+            email: remoteUser.email,
+            collective: pick(remoteUser.collective, ['slug', 'name', 'image']),
+          },
+          role: MemberRoleLabels[role] || role.toLowerCase(),
+          isAdmin: role === roles.ADMIN,
+          collective: {
+            slug: this.slug,
+            name: this.name,
+            type: lowercaseType,
+          },
+          recipient: {
+            collective: memberUser.collective.activity,
+          },
         },
-        role: MemberRoleLabels[role] || role.toLowerCase(),
-        isAdmin: role === roles.ADMIN,
-        collective: {
-          slug: this.slug,
-          name: this.name,
-          type: lowercaseType,
-        },
-        recipient: {
-          collective: memberUser.collective.activity,
-        },
-      },
-      { bcc: remoteUser.email },
-    );
+        { bcc: remoteUser.email },
+      );
+    } catch (e) {
+      reportErrorToSentry(e, { user: remoteUser });
+      throw new Error(`The member was invited, but we couldn't send the email`);
+    }
   };
 
   /**
@@ -3238,10 +3271,26 @@ class Collective extends Model<
       });
   };
 
-  getAccountForPaymentProvider = async function (provider: Service, options = { throwIfMissing: true }) {
+  getAccountForPaymentProvider = async function (
+    provider: Service,
+    options: { throwIfMissing?: boolean; CreatedByUserId?: number; fallbackToNonUserAccount?: boolean } = {
+      throwIfMissing: true,
+    },
+  ) {
+    const where: WhereOptions<ConnectedAccount> = { service: provider, CollectiveId: this.id };
+    if (options.CreatedByUserId) {
+      where.CreatedByUserId = options.CreatedByUserId;
+    }
+
     let connectedAccount = await ConnectedAccount.findOne({
-      where: { service: provider, CollectiveId: this.id },
+      where,
     });
+
+    if (!connectedAccount && options.fallbackToNonUserAccount) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: omit(where, ['CreatedByUserId']),
+      });
+    }
 
     // If the account is connected to another account, we follow the chain
     if (connectedAccount?.data?.MirrorConnectedAccountId) {

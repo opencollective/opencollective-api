@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order-status';
+import { RefundKind } from '../../../constants/refund-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
@@ -30,7 +31,7 @@ const transactionMutations = {
     async resolve(_: void, args, req: Express.Request): Promise<Transaction> {
       checkRemoteUserCanUseTransactions(req);
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
-      return refundTransaction(transaction, req, { ignoreBalanceCheck: args.ignoreBalanceCheck });
+      return refundTransaction(transaction, req, RefundKind.REFUND, { ignoreBalanceCheck: args.ignoreBalanceCheck });
     },
   },
   rejectTransaction: {
@@ -70,7 +71,7 @@ const transactionMutations = {
       let refundedTransaction;
       if (!transaction.RefundTransactionId) {
         const refundParams = { id: transaction.id, message: rejectionReason };
-        refundedTransaction = await refundTransaction(transaction, req, refundParams);
+        refundedTransaction = await refundTransaction(transaction, req, RefundKind.REJECT, refundParams);
       } else {
         refundedTransaction = await fetchTransactionWithReference({ legacyId: transaction.RefundTransactionId });
       }

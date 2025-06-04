@@ -41,5 +41,10 @@ export const GraphQLExpenseValuesByRole = new GraphQLObjectType({
       description: 'The values provided by the host admin(s)',
       resolve: (expense: Expense) => expense.data?.valuesByRole?.hostAdmin,
     },
+    prediction: {
+      type: GraphQLExpenseValuesRoleDetails,
+      description: 'The values provided by the prediction service',
+      resolve: (expense: Expense) => expense.data?.valuesByRole?.prediction,
+    },
   }),
 });

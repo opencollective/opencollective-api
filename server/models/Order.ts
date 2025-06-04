@@ -27,6 +27,7 @@ import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
+import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
@@ -351,6 +352,15 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
         replacements: [collectiveId],
       },
     );
+  }
+
+  static countActiveRecurringForPaymentService(
+    paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
+  ) {
+    return models.Order.count({
+      where: { status: { [Op.or]: [OrderStatuses.ACTIVE, OrderStatuses.ERROR] } },
+      include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
+    });
   }
 
   /**

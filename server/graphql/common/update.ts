@@ -17,7 +17,7 @@ export async function createUpdate(_, args, req) {
   const collective = await fetchAccountWithReference(args.update.account);
   if (!collective) {
     throw new Error('This collective does not exist');
-  } else if (!req.remoteUser.isAdminOfCollective(collective)) {
+  } else if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isCommunityManager(collective)) {
     throw new Forbidden("You don't have sufficient permissions to create an update");
   } else if (args.update.isChangelog && !collective.data?.canHaveChangelogUpdates) {
     throw new Forbidden('This account cannot have changelog updates');
@@ -55,7 +55,10 @@ async function fetchUpdateForEdit(id, req) {
   });
   if (!update) {
     throw new NotFound(`Update with id ${id} not found`);
-  } else if (!req.remoteUser?.isAdminOfCollective(update.collective)) {
+  } else if (
+    !req.remoteUser?.isAdminOfCollective(update.collective) &&
+    !req.remoteUser?.isCommunityManager(update.collective)
+  ) {
     throw new Forbidden("You don't have sufficient permissions to edit this update");
   }
 
@@ -104,7 +107,12 @@ export async function deleteUpdate(_, args, req) {
 }
 
 const canSeeUpdateForFinancialContributors = (req, collective): Promise<boolean> => {
-  const allowedNonAdminRoles = [MemberRoles.MEMBER, MemberRoles.CONTRIBUTOR, MemberRoles.BACKER];
+  const allowedNonAdminRoles = [
+    MemberRoles.MEMBER,
+    MemberRoles.COMMUNITY_MANAGER,
+    MemberRoles.CONTRIBUTOR,
+    MemberRoles.BACKER,
+  ];
   return (
     req.remoteUser.isAdminOfCollectiveOrHost(collective) ||
     req.remoteUser.hasRole(allowedNonAdminRoles, collective.id) ||
@@ -133,12 +141,17 @@ export async function canSeeUpdate(req, update): Promise<boolean> {
 
   // Load collective
   update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+  if (!update.collective) {
+    return false;
+  }
 
-  // Only admins can see drafts
-  if (!update.publishedAt) {
-    return req.remoteUser.isAdminOfCollective(update.collective);
-  } else if (req.remoteUser.isAdminOfCollectiveOrHost(update.collective)) {
-    return true; // Host and collective admins can always see published updates
+  // Admins & community managers can always see updates
+  if (req.remoteUser.isAdminOfCollective(update.collective) || req.remoteUser.isCommunityManager(update.collective)) {
+    return true;
+  } else if (!update.publishedAt) {
+    return false; // Only admins can see drafts
+  } else if (req.remoteUser.isAdmin(update.collective.HostCollectiveId)) {
+    return true; // Host admins can always see their collective's published updates
   }
 
   // If it's a private published update, we need to look at the audience

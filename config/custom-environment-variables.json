@@ -129,9 +129,9 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "pdf": "PDF_SERVICE_URL",
     "pdfV2": "PDF_SERVICE_V2_URL",
-    "rest": "REST_URL"
+    "rest": "REST_URL",
+    "ml": "ML_SERVICE_URL"
   },
   "limits": {
     "ordersPerHour": {
@@ -144,7 +144,8 @@
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
     },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
-    "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS"
+    "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
+    "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR"
   },
   "slack": {
     "webhooks": {

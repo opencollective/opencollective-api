@@ -20,7 +20,10 @@ export const GraphQLTransactionsImportReferenceInput = new GraphQLInputObjectTyp
 
 export const fetchTransactionsImportWithReference = async (
   input: GraphQLTransactionsImportReferenceInputFields,
-  { throwIfMissing = false, ...sequelizeOpts } = {},
+  {
+    throwIfMissing = false,
+    ...sequelizeOpts
+  }: { throwIfMissing?: boolean } & Parameters<typeof TransactionsImport.findByPk>[1] = {},
 ): Promise<TransactionsImport> => {
   let row;
   if (input.id) {
