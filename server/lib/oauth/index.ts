@@ -8,6 +8,7 @@ import BearerTokenType from '@node-oauth/oauth2-server/lib/token-types/bearer-to
 import { assign } from 'lodash';
 
 import * as auth from '../../lib/auth';
+import logger from '../logger';
 
 import model from './model';
 
@@ -218,6 +219,7 @@ const handleResponse = function (req, res, response) {
  */
 
 const handleError = function (e, req, res, response, next) {
+  logger.error(e);
   if (this.useErrorHandler === true) {
     next(e);
   } else {

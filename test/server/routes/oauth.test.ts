@@ -2,12 +2,21 @@
 import { expect } from 'chai';
 import config from 'config';
 import jwt from 'jsonwebtoken';
+import { createHash, randomBytes } from 'node:crypto';
 import { useFakeTimers } from 'sinon';
 import request from 'supertest';
 
 import { fakeApplication, fakeOAuthAuthorizationCode, fakeUser } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
+
+export function generatePKCECodeVerifier() {
+  return randomBytes(32).toString('base64url');
+}
+
+export async function calculatePKCECodeChallenge(codeVerifier: string): Promise<string> {
+  return createHash('sha256').update(codeVerifier).digest().toString('base64url');
+}
 
 describe('server/routes/oauth', () => {
   let expressApp, clock;
@@ -69,13 +78,13 @@ describe('server/routes/oauth', () => {
 
     // Decode returned OAuth token
     const oauthToken = tokenResponse.body;
-    expect(oauthToken).to.exist;
-    expect(oauthToken.access_token).to.exist;
+    expect(oauthToken).to.be.an('object');
+    expect(oauthToken.access_token).to.be.a('string');
     expect(oauthToken.token_type).to.eq('Bearer');
     expect(oauthToken.expires_in).to.eq(7776000);
-    expect(oauthToken.scope).to.equal('email account');
+    expect(oauthToken.scope).to.have.members(['email', 'account']);
 
-    const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
+    const decodedToken = jwt.verify(oauthToken.access_token, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
     expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());
     expect(decodedToken.access_token.startsWith('test_oauth_')).to.be.true;
     const iat = fakeNow.getTime() / 1000;
@@ -86,7 +95,7 @@ describe('server/routes/oauth', () => {
     // Test OAuth token with a real query
     const gqlRequestResult = await request(expressApp)
       .post('/graphql/v2')
-      .set('Authorization', `Bearer ${oauthToken}`)
+      .set('Authorization', `Bearer ${oauthToken.access_token}`)
       .accept('application/json')
       .send({
         query: '{ loggedInAccount { legacyId } }',
@@ -349,12 +358,13 @@ describe('server/routes/oauth', () => {
       });
     });
 
-    describe('PKCE', () => {
-      let authorization, validParams;
-      const codeVerifier = 'vUBvHDGzaWDTEzzERaATJDN9Q1ybpwBpc_tvHqNOm0Q';
-      const codeChallenge = 'StsAewbAP7uOmN2VuoepTcaqY_0lRpQo28GNRbK-yjE';
+    describe('PKCE', async () => {
+      let authorization, validParams, codeVerifier, codeChallenge;
 
       beforeEach(async () => {
+        codeVerifier = generatePKCECodeVerifier();
+        codeChallenge = await calculatePKCECodeChallenge(codeVerifier);
+
         authorization = await fakeOAuthAuthorizationCode({
           codeChallenge: codeChallenge,
           codeChallengeMethod: 'S256',
@@ -382,12 +392,18 @@ describe('server/routes/oauth', () => {
         const response = await request(expressApp)
           .post('/oauth/token')
           .type(`application/x-www-form-urlencoded`)
-          .send({ ...validParams, code_verifier: undefined })
+          .send({
+            grant_type: 'authorization_code',
+            code: authorization.code,
+            client_id: authorization.application.clientId,
+            client_secret: authorization.application.clientSecret,
+            redirect_uri: authorization.application.callbackUrl,
+          })
           .expect(400);
 
         expect(response.body).to.deep.eq({
           error: 'invalid_grant',
-          error_description: 'Invalid grant: code verifier is invalid',
+          error_description: 'Missing parameter: `code_verifier`',
         });
       });
 
