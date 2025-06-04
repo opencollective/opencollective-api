@@ -10,11 +10,11 @@ import { fakeApplication, fakeOAuthAuthorizationCode, fakeUser } from '../../tes
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
 
-export function generatePKCECodeVerifier() {
+function generatePKCECodeVerifier() {
   return randomBytes(32).toString('base64url');
 }
 
-export async function calculatePKCECodeChallenge(codeVerifier: string): Promise<string> {
+async function calculatePKCECodeChallenge(codeVerifier: string): Promise<string> {
   return createHash('sha256').update(codeVerifier).digest().toString('base64url');
 }
 
