@@ -42,10 +42,35 @@ export const dbOAuthAuthorizationCodeToAuthorizationCode = (
   authorizationCode: authorization.code,
   expiresAt: authorization.expiresAt,
   redirectUri: authorization.redirectUri,
+  codeChallenge: authorization.codeChallenge,
+  codeChallengeMethod: authorization.codeChallengeMethod,
   client: dbApplicationToClient(authorization.application),
   user: authorization.user,
   scope: authorization.scope,
 });
+
+// For some reason `saveAuthorizationCode` and `saveToken` can receive a `scope`
+// property that is a string[], string or undefined, and in the case of a string
+// it may still be URL encoded. I wouldn't expected the framework to parse the
+// scope value appropriately and just always give a `string[]` here, but
+// apparently it does not.
+//
+// In order to handle both the previous accepted value of `read,write` and
+// scope values that much the OAuth specification such as `read write` or
+// when URL encoded `read%20write` we use the regex split.
+//
+// If there is no scope value (i.e., the application's scope's should apply),
+// then we return an empty array, since OAuth Applications in OpenCollective
+// cannot currently specify their valid scope values ahead of time.
+function parseScopes(scope: string | string[] | undefined): string[] {
+  if (Array.isArray(scope)) {
+    return scope;
+  } else if (typeof scope === 'string') {
+    return decodeURIComponent(scope).split(/,|\s/);
+  } else {
+    return [];
+  }
+}
 
 /**
  * OAuth model implementation.
@@ -63,6 +88,7 @@ const model: OauthModel = {
     debug('model.saveToken', token, client, user);
     try {
       const application = await models.Application.findOne({ where: { clientId: client.id } });
+      const scope = parseScopes(token.scope);
 
       // Delete existing Tokens as we have a 1 token only policy
       await UserToken.destroy({
@@ -80,7 +106,7 @@ const model: OauthModel = {
         refreshTokenExpiresAt: token.refreshTokenExpiresAt,
         ApplicationId: application.id,
         UserId: user.id,
-        scope: Array.isArray(token.scope) ? token.scope : token.scope?.split(','),
+        scope,
         preAuthorize2FA: Boolean(application.preAuthorize2FA),
       });
       oauthToken.user = user;
@@ -144,7 +170,7 @@ const model: OauthModel = {
     debug('model.saveAuthorizationCode', code, client);
     const application = await models.Application.findOne({ where: { clientId: client.id } });
     const collective = await user.getCollective();
-    const scope = Array.isArray(code.scope) ? code.scope : code.scope?.split(',');
+    const scope = parseScopes(code.scope);
 
     const authorization = await models.OAuthAuthorizationCode.create({
       ApplicationId: application.id,
@@ -153,6 +179,8 @@ const model: OauthModel = {
       expiresAt: code.expiresAt,
       redirectUri: code.redirectUri,
       scope,
+      codeChallenge: code.codeChallenge ?? null,
+      codeChallengeMethod: code.codeChallengeMethod ?? null,
     });
 
     // Only send the email if there is no active user token right now

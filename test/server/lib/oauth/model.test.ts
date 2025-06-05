@@ -170,6 +170,19 @@ describe('server/lib/oauth/model', () => {
       expect(authorizationCode.redirectUri).to.eq(authorizationInDb.redirectUri);
     });
 
+    it('returns an authorization code with PKCE properties stored in the DB', async () => {
+      const codeChallenge = 'StsAewbAP7uOmN2VuoepTcaqY_0lRpQo28GNRbK-yjE';
+      const authorizationInDb = await fakeOAuthAuthorizationCode({
+        codeChallenge: codeChallenge,
+        codeChallengeMethod: 'S256',
+      });
+      const authorizationCode = <AuthorizationCode>await OAuthModel.getAuthorizationCode(authorizationInDb.code);
+
+      expect(authorizationCode).to.exist;
+      expect(authorizationCode.codeChallenge).to.eq(codeChallenge);
+      expect(authorizationCode.codeChallengeMethod).to.eq('S256');
+    });
+
     it('throws if the code does not exist', async () => {
       await expect(OAuthModel.getAuthorizationCode('not-a-valid-code')).to.be.rejectedWith(InvalidGrantError);
     });
@@ -195,6 +208,8 @@ describe('server/lib/oauth/model', () => {
       expect(authorizationFromDb.code).to.eq(code.authorizationCode);
       expect(authorizationFromDb.expiresAt.toISOString()).to.eq(code.expiresAt.toISOString());
       expect(authorizationFromDb.redirectUri).to.eq(code.redirectUri);
+      expect(authorizationFromDb.codeChallenge).to.be.null;
+      expect(authorizationFromDb.codeChallengeMethod).to.be.null;
 
       const activity = await models.Activity.findOne({
         where: { UserId: application.createdByUser.id },
@@ -206,6 +221,29 @@ describe('server/lib/oauth/model', () => {
       expect(activity.data.application.name).to.eq(application.name);
       expect(activity.data.application.description).to.eq(application.description);
       expect(activity.data.scope).deep.to.eq(['email']);
+    });
+
+    it('create the DB entry with PKCE properties', async () => {
+      const codeChallenge = 'StsAewbAP7uOmN2VuoepTcaqY_0lRpQo28GNRbK-yjE';
+      const application = await fakeApplication();
+      const client = dbApplicationToClient(application);
+      const code = {
+        authorizationCode: randStr(),
+        expiresAt: new Date(),
+        redirectUri: 'https://test.com',
+        scope: ['email'],
+        codeChallenge: codeChallenge,
+        codeChallengeMethod: 'S256',
+      };
+
+      await OAuthModel.saveAuthorizationCode(code, client, application.createdByUser);
+      const authorizationFromDb = await models.OAuthAuthorizationCode.findOne({
+        where: { code: code.authorizationCode },
+      });
+
+      expect(authorizationFromDb).to.exist;
+      expect(authorizationFromDb.codeChallenge).to.eq(codeChallenge);
+      expect(authorizationFromDb.codeChallengeMethod).to.eq('S256');
     });
   });
 
