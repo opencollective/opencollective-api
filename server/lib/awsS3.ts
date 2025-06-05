@@ -55,6 +55,11 @@ export function getSignedGetURL(params: GetObjectCommand['input'], options?: { e
   return getSignedUrl(s3, command, { expiresIn: options?.expiresIn || 10 * 60 });
 }
 
+export function getSignedHeadURL(params: HeadObjectCommand['input'], options?: { expiresIn: number }) {
+  const command = new HeadObjectCommand(params);
+  return getSignedUrl(s3, command, { expiresIn: options?.expiresIn || 10 * 60 });
+}
+
 export const uploadToS3 = async (
   params: PutObjectCommand['input'],
 ): Promise<{

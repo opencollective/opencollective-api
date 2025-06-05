@@ -8,7 +8,6 @@ import * as FilesController from '../../../server/controllers/files';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
 import * as awsS3 from '../../../server/lib/awsS3';
-import * as thumbnailsLib from '../../../server/lib/thumbnails';
 import { Collective, Expense, UploadedFile, User } from '../../../server/models';
 import {
   fakeActiveHost,
@@ -260,7 +259,8 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense item thumbnail', async () => {
       const thumbnailUrl = `${config.host.website}/static/images/generated.png`;
-      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').resolves(thumbnailUrl);
+      sandbox.stub(awsS3, 'objectExists').resolves(true);
+      sandbox.stub(awsS3, 'getSignedGetURL').resolves(thumbnailUrl);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,
@@ -288,7 +288,8 @@ describe('server/controllers/files', () => {
 
     it('should redirect to default resource if user has access to expense item thumbnail', async () => {
       const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
-      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').throws();
+      sandbox.stub(awsS3, 'objectExists').resolves(true);
+      sandbox.stub(awsS3, 'getSignedGetURL').resolves(thumbnailUrl);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,
@@ -316,7 +317,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to default resource if user has access to expense attached file thumbnail', async () => {
       const thumbnailUrl = `${config.host.website}/static/images/mime-pdf.png`;
-      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').throws();
+      sandbox.stub(awsS3, 'objectExists').resolves(false);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,
@@ -344,7 +345,8 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense attached file thumbnail', async () => {
       const thumbnailUrl = `${config.host.website}/static/images/generated.png`;
-      sandbox.stub(thumbnailsLib, 'getThumbnailSignedGetUrlFromBucketUrl').resolves(thumbnailUrl);
+      sandbox.stub(awsS3, 'objectExists').resolves(true);
+      sandbox.stub(awsS3, 'getSignedGetURL').resolves(thumbnailUrl);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser, {
         thumbnail: true,

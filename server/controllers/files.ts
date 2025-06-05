@@ -3,8 +3,7 @@ import { Request, Response } from 'express';
 
 import { hasUploadedFilePermission } from '../graphql/common/uploaded-file';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
-import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
-import { getThumbnailSignedGetUrlFromBucketUrl } from '../lib/thumbnails';
+import { getSignedGetURL, getSignedHeadURL, objectExists, parseS3Url } from '../lib/awsS3';
 import { UploadedFile } from '../models';
 import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
@@ -20,8 +19,6 @@ export async function getFile(req: Request, res: Response) {
   res.set('Cache-Control', 'private');
 
   const isJsonAccepted = req.query.json !== undefined;
-  const isThumbnail = req.query.thumbnail !== undefined;
-  const isDownload = req.query.download !== undefined;
 
   const { uploadedFileId } = req.params;
   const { expenseId, draftKey } = req.query;
@@ -67,37 +64,45 @@ export async function getFile(req: Request, res: Response) {
     return res.status(403).send({ message: 'Unauthorized' });
   }
 
-  let redirectUrl: string;
-
-  if (isThumbnail) {
-    try {
-      redirectUrl = await getThumbnailSignedGetUrlFromBucketUrl(actualUrl);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (_) {
-      if (SUPPORTED_FILE_TYPES_IMAGES.includes(uploadedFile.fileType as (typeof SUPPORTED_FILE_TYPES_IMAGES)[number])) {
-        redirectUrl = `${config.host.website}/static/images/file-text.svg`;
-      } else {
-        redirectUrl = `${config.host.website}/static/images/mime-pdf.png`;
-      }
-    }
-  } else {
-    if (!UploadedFile.isOpenCollectiveS3BucketURL(actualUrl)) {
-      redirectUrl = actualUrl;
-    } else {
-      const { bucket, key } = parseS3Url(actualUrl);
-      const responseContentDisposition = isDownload
-        ? `attachment; filename="${encodeURIComponent(uploadedFile.fileName || 'file')}"`
-        : null;
-      redirectUrl = await getSignedGetURL(
-        { Bucket: bucket, Key: key, ResponseContentDisposition: responseContentDisposition },
-        { expiresIn: 3600 },
-      );
-    }
-  }
+  const redirectUrl = await getRedirectUrl(req, uploadedFile);
 
   if (isJsonAccepted) {
     return res.send({ url: redirectUrl });
   } else {
     return res.redirect(307, redirectUrl);
   }
+}
+
+async function getRedirectUrl(req: Request, uploadedFile: UploadedFile) {
+  const isThumbnailRequest = req.query.thumbnail !== undefined;
+  const isDownloadRequest = req.query.download !== undefined;
+
+  let actualUrl = uploadedFile.getDataValue('url');
+
+  if (!UploadedFile.isOpenCollectiveS3BucketURL(actualUrl)) {
+    return actualUrl;
+  }
+
+  if (isThumbnailRequest) {
+    actualUrl = `${actualUrl}.thumbnail`;
+  }
+
+  if (isThumbnailRequest && !(await objectExists(actualUrl))) {
+    if (SUPPORTED_FILE_TYPES_IMAGES.includes(uploadedFile.fileType as (typeof SUPPORTED_FILE_TYPES_IMAGES)[number])) {
+      return `${config.host.website}/static/images/file-text.svg`;
+    } else {
+      return `${config.host.website}/static/images/mime-pdf.png`;
+    }
+  }
+
+  const { bucket, key } = parseS3Url(actualUrl);
+  const responseContentDisposition = isDownloadRequest
+    ? `attachment; filename="${encodeURIComponent(uploadedFile.fileName || 'file')}"`
+    : null;
+
+  const method = req.method === 'HEAD' ? getSignedHeadURL : getSignedGetURL;
+  return await method(
+    { Bucket: bucket, Key: key, ResponseContentDisposition: responseContentDisposition },
+    { expiresIn: 3600 },
+  );
 }
