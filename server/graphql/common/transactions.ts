@@ -212,6 +212,18 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
 /** Checks if the user can reject this transaction */
 export const canReject = canRefund;
 
+const getRefundableAmountFromCollective = async (transaction: Transaction) => {
+  const relatedTransactions = await transaction.getRelatedTransactions({ type: TransactionTypes.CREDIT });
+  const contribution = relatedTransactions.find(t => t.kind === TransactionKind.CONTRIBUTION);
+  assert(contribution, 'No contributions found for this transaction');
+  const hostFee = relatedTransactions.find(t => t.kind === TransactionKind.HOST_FEE);
+  const paymentFee = relatedTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
+
+  return (
+    contribution.amountInHostCurrency - (hostFee?.amountInHostCurrency || 0) - (paymentFee?.amountInHostCurrency || 0)
+  );
+};
+
 export async function refundTransaction(
   passedTransaction: Transaction,
   req: Express.Request,
@@ -268,7 +280,8 @@ export async function refundTransaction(
   // Check if the hosted collective has enough funds to refund the transaction
   else {
     const balanceInHostCurrency = await collective.getBalance({ currency: creditTransaction.hostCurrency });
-    if (balanceInHostCurrency < creditTransaction.amountInHostCurrency) {
+    const refundableAmountFromCollective = await getRefundableAmountFromCollective(creditTransaction);
+    if (balanceInHostCurrency < refundableAmountFromCollective) {
       throw new Forbidden('Not enough funds to refund this transaction');
     }
   }
