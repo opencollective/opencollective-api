@@ -6,7 +6,7 @@ import { getHostname } from './url-utils';
 
 const TRUSTED_IMAGE_PROVIDERS = [
   'gravatar.com',
-  'logo.clearbit.com',
+  'logo.dev',
   'avatars.githubusercontent.com',
   'pbs.twimg.com',
   'abs.twimg.com',
