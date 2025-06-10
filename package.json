@@ -67,7 +67,7 @@
     "cloudflare-ip": "0.0.7",
     "commander": "14.0.0",
     "config": "4.0.0",
-    "connect-redis": "8.0.2",
+    "connect-redis": "8.1.0",
     "cookie-parser": "1.4.7",
     "cors": "2.8.5",
     "crypto-js": "4.2.0",
