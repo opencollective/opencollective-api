@@ -120,7 +120,7 @@
     "pg-listen": "1.7.0",
     "plaid": "31.1.0",
     "prepend-http": "3.0.1",
-    "redis": "4.7.1",
+    "redis": "5.5.6",
     "sanitize-html": "2.17.0",
     "sequelize": "6.37.7",
     "sequelize-cli": "6.6.3",
