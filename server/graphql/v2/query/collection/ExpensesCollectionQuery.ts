@@ -270,11 +270,8 @@ const loadAllAccountsFromArgs = async (
   const [accounts, fromAccounts, host, createdByAccount] = await Promise.all([
     getAccountsPromise(),
     getFromAccountPromise(),
-    ...[args.host, args.createdByAccount].map(reference => {
-      if (reference) {
-        return fetchAccountWithReference(reference, fetchAccountParams);
-      }
-    }),
+    args.host && fetchAccountWithReference(args.host, fetchAccountParams),
+    args.createdByAccount && fetchAccountWithReference(args.createdByAccount, fetchAccountParams),
   ]);
 
   return { fromAccounts, accounts, host, createdByAccount };
@@ -486,7 +483,7 @@ export const ExpensesCollectionQueryResolver = async (
     }
   }
 
-  if (args.status) {
+  if (args.status && args.status.length > 0) {
     if (args.status.includes('ON_HOLD') && args.status.length === 1) {
       where['onHold'] = true;
     } else if (args.status.includes('READY_TO_PAY')) {
