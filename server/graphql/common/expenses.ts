@@ -2260,18 +2260,6 @@ export async function createExpense(
     data['isNewExpenseFlow'] = true;
   }
 
-  let status = ExpenseStatus.PENDING;
-
-  // Auto-approve expenses for host vendor expenses if the user is admin of both the vendor and the host
-  if (
-    remoteUser.isAdminOfCollectiveOrHost(collective) &&
-    remoteUser.isAdminOfCollective(fromCollective) &&
-    fromCollective.type === CollectiveType.VENDOR &&
-    collective.isHostAccount
-  ) {
-    status = ExpenseStatus.APPROVED;
-  }
-
   const expense = await sequelize.transaction(async t => {
     let invoiceFileId: number;
     if (expenseData.type === ExpenseType.INVOICE && expenseData.invoiceFile) {
@@ -2285,7 +2273,7 @@ export async function createExpense(
         ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
         currency: expenseCurrency,
         tags: expenseData.tags,
-        status,
+        status: ExpenseStatus.PENDING,
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,
