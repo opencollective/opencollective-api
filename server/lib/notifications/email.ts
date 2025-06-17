@@ -104,16 +104,18 @@ export const notify = {
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions,
   ): Promise<void> {
+    const cleanUsersArray = compact(users); // Remove any possible null or empty user in the array
+    if (cleanUsersArray.length === 0) {
+      return;
+    }
+
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
-      UserId: users.map(u => (typeof u === 'number' ? u : u.id)),
+      UserId: cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id)),
       attributes: ['id'],
     });
-
-    // Remove any possible null or empty user in the array
-    const cleanUsersArray = compact(users);
 
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
@@ -122,7 +124,7 @@ export const notify = {
         ...options,
         isTransactional,
       });
-    } else if (cleanUsersArray.length > 0) {
+    } else {
       const queue = new PQueue({ concurrency: 50 });
       for (const userOrUserId of cleanUsersArray) {
         const isUserId = typeof userOrUserId === 'number';
