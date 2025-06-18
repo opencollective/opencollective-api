@@ -23,7 +23,7 @@ type CreateUserOptions = {
   };
   sendSignInLink?: boolean;
   throwIfExists?: boolean;
-  redirect?: string;
+  redirect?: string | 'ORGANIZATION_DASHBOARD';
   websiteUrl?: string;
   creationRequest?: {
     ip: string;
@@ -38,6 +38,7 @@ export const createUser = (
     email: string;
     newsletterOptIn: boolean;
     location: Record<string, unknown>;
+    password?: string;
   },
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
 ): Promise<{ user: User; organization?: Collective }> => {
@@ -54,6 +55,10 @@ export const createUser = (
       // Create user
       user = await models.User.createUserWithCollective(userData, transaction);
       user = await user.update({ data: { creationRequest } }, { transaction });
+      if (userData.password) {
+        // If a password is provided, we hash it and set it on the user
+        await user.setPassword(userData.password, { transaction });
+      }
     }
 
     let organization;
@@ -71,6 +76,7 @@ export const createUser = (
           'twitterHandle',
           'githubHandle',
           'repositoryUrl',
+          'countryISO',
         ]),
       };
       organization = await models.Collective.create(organizationParams, { transaction });
@@ -99,8 +105,8 @@ export const createUser = (
         {
           type: activities.USER_NEW_TOKEN,
           UserId: user.id,
-          CollectiveId: user.CollectiveId,
-          FromCollectiveId: user.CollectiveId,
+          CollectiveId: user.collective.id,
+          FromCollectiveId: user.collective.id,
           data: { notify: false },
         },
         { transaction },

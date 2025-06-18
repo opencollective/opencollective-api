@@ -4,7 +4,7 @@ import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
-import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
@@ -145,7 +145,10 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
-  setPassword = async function (password, { userToken = null } = {}) {
+  setPassword = async function (
+    password,
+    { userToken = null, transaction }: { userToken?: any; transaction?: Transaction } = {},
+  ) {
     const passwordBuffer = Buffer.from(password);
     if (passwordBuffer.length > 72) {
       throw new Error('Password is too long, should not be more than 72 bytes.');
@@ -157,13 +160,16 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
     await this.update({ passwordHash, passwordUpdatedAt: new Date() });
 
-    await Activity.create({
-      type: activities.USER_PASSWORD_SET,
-      UserId: this.id,
-      FromCollectiveId: this.CollectiveId,
-      CollectiveId: this.CollectiveId,
-      UserTokenId: userToken?.id,
-    });
+    await Activity.create(
+      {
+        type: activities.USER_PASSWORD_SET,
+        UserId: this.id,
+        FromCollectiveId: this.CollectiveId,
+        CollectiveId: this.CollectiveId,
+        UserTokenId: userToken?.id,
+      },
+      { transaction },
+    );
 
     return this;
   };
