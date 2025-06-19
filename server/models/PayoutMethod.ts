@@ -307,6 +307,10 @@ PayoutMethod.init(
             if (!value || !value.token) {
               throw new Error('Invalid format of CREDIT_CARD payout method data');
             }
+          } else if (this.type === PayoutMethodTypes.STRIPE) {
+            if (!value || !value.stripeAccountId || !value.connectedAccountId) {
+              throw new Error('Invalid format of STRIPE payout method data');
+            }
           } else if (!value || Object.keys(value).length > 0) {
             throw new Error('Data for this payout method is not properly formatted');
           }
