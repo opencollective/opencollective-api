@@ -12,6 +12,7 @@ import {
   NonAttribute,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
+import Stripe from 'stripe';
 import validator from 'validator';
 
 import ActivityTypes from '../constants/activities';
@@ -120,6 +121,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       receiver?: string;
       purpose?: string;
     };
+    paymentIntent?: Stripe.PaymentIntent;
+    previousPaymentIntents?: Stripe.PaymentIntent[];
   };
 
   declare public currency: SupportedCurrency;
