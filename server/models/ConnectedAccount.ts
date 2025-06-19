@@ -155,7 +155,7 @@ ConnectedAccount.init(
             data: {
               connectedAccountId: connectedAccount.id,
               stripeAccountId: connectedAccount.username,
-              publishableKey: connectedAccount.data.publishableKey,
+              publishableKey: connectedAccount.data?.publishableKey,
             },
           });
         }
