@@ -843,7 +843,7 @@ export const fakeConnectedAccount = async (
       service,
       clientId: randStr('client-id-'),
       token: randStr('token-'),
-      username: randStr('username-'),
+      username: service === 'stripe' ? randStr('username-') : undefined,
       ...connectedAccountData,
       CollectiveId,
     },
