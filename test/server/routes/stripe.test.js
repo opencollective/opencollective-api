@@ -52,7 +52,11 @@ describe('server/routes/stripe', () => {
     });
 
     it('should return an error if not CollectiveId provided', done => {
-      models.ConnectedAccount.create({ service: 'stripe', CollectiveId: collective.id }).then(() =>
+      models.ConnectedAccount.create({
+        service: 'stripe',
+        CollectiveId: collective.id,
+        username: 'stripeAccount',
+      }).then(() =>
         request(expressApp)
           .get(`/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}`)
           .set('Authorization', `Bearer ${host.jwt()}`)
@@ -70,6 +74,7 @@ describe('server/routes/stripe', () => {
       models.ConnectedAccount.create({
         service: 'stripe',
         CollectiveId: collective.id,
+        username: 'stripeAccount',
       }).then(() =>
         request(expressApp)
           .get(`/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}&CollectiveId=${collective.id}`)
