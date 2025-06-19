@@ -1426,6 +1426,14 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
   return updatedExpense;
 };
 
+export const markPaidWithStripe = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (!(await canPayExpense(req, expense))) {
+    throw new Forbidden("You don't have permission to pay this expense");
+  }
+
+  return await expense.update({ lastEditedById: req.remoteUser?.id });
+};
+
 export const declineInvitedExpense = async (
   req: express.Request,
   expense: Expense,

@@ -1,5 +1,6 @@
 import assert from 'assert';
 
+import config from 'config';
 import express from 'express';
 import {
   GraphQLBoolean,
@@ -15,8 +16,11 @@ import { isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../../../constants/collectives';
+import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
+import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
+import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -26,6 +30,7 @@ import {
   approveExpense,
   canDeleteExpense,
   canEditPaidBy,
+  canPayExpense,
   canVerifyDraftExpense,
   createExpense,
   declineInvitedExpense,
@@ -36,6 +41,7 @@ import {
   markExpenseAsIncomplete,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
+  markPaidWithStripe,
   moveExpenses,
   payExpense,
   prepareAttachedFiles,
@@ -51,7 +57,7 @@ import {
   unscheduleExpensePayment,
 } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
-import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { Forbidden, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLExpenseLockableFields } from '../enum/ExpenseLockableFields';
 import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
@@ -73,6 +79,7 @@ import {
   GraphQLTransactionsImportRowReferenceInput,
 } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLExpense } from '../object/Expense';
+import GraphQLPaymentIntent from '../object/PaymentIntent';
 
 const populatePayoutMethodId = (payoutMethod: { id?: string | number; legacyId?: number }) => {
   if (payoutMethod?.legacyId) {
@@ -519,6 +526,10 @@ const expenseMutations = {
           break;
         case 'DECLINE_INVITED_EXPENSE':
           expense = await declineInvitedExpense(req, expense, args.draftKey, args.message);
+          break;
+        case 'PAID_WITH_STRIPE':
+          expense = await markPaidWithStripe(req, expense);
+          break;
       }
 
       if (args.message && args.action !== 'DECLINE_INVITED_EXPENSE') {
@@ -693,6 +704,135 @@ const expenseMutations = {
       await sendDraftExpenseInvite(req, expense, expense.collective, draftKey);
 
       return expense;
+    },
+  },
+  createExpensePaymentIntent: {
+    type: new GraphQLNonNull(GraphQLPaymentIntent),
+    description: 'Create a Stripe payment intent',
+    args: {
+      expense: {
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
+        description: 'Reference of the expense to process',
+      },
+    },
+    async resolve(_: void, args, req: express.Request) {
+      checkRemoteUserCanUseExpenses(req);
+
+      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+
+      const expense = await models.Expense.findByPk(expenseId, {
+        include: [
+          { model: models.Collective, as: 'collective', required: true },
+          { model: models.Collective, as: 'fromCollective', required: true },
+        ],
+      });
+
+      if (!expense) {
+        throw new NotFound('Expense not found');
+      }
+
+      const payee = expense.fromCollective;
+      const payer = expense.collective;
+
+      if (!req.remoteUser.isAdminOfCollective(payer)) {
+        throw new Unauthorized();
+      }
+
+      if (!(await canPayExpense(req, expense))) {
+        throw new Forbidden("You don't have permission to pay this expense");
+      }
+
+      const payeeHostStripeAccount = await payee.getHostStripeAccount();
+      if (!payeeHostStripeAccount) {
+        throw new Forbidden('Payee not setup to receive Stripe payments');
+      }
+
+      const isPlatformHost = payeeHostStripeAccount.username === config.stripe.accountId;
+
+      if (expense.data?.paymentIntent?.id) {
+        const paymentIntent = await stripe.paymentIntents.retrieve(
+          expense.data?.paymentIntent?.id,
+          !isPlatformHost
+            ? {
+                stripeAccount: payeeHostStripeAccount.username,
+              }
+            : undefined,
+        );
+
+        return {
+          id: paymentIntent.id,
+          paymentIntentClientSecret: paymentIntent.client_secret,
+          stripeAccount: payeeHostStripeAccount.username,
+          stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
+        };
+      }
+
+      let stripeCustomerAccount = await payer.getCustomerStripeAccount(payeeHostStripeAccount.username);
+      if (!stripeCustomerAccount) {
+        const customer = await stripe.customers.create(
+          {
+            email: req.remoteUser.email,
+            description: `${config.host.website}/${payee.slug}`,
+          },
+          !isPlatformHost
+            ? {
+                stripeAccount: payeeHostStripeAccount.username,
+              }
+            : undefined,
+        );
+
+        stripeCustomerAccount = await models.ConnectedAccount.create({
+          clientId: payeeHostStripeAccount.username,
+          username: customer.id,
+          CollectiveId: payer.id,
+          service: Service.STRIPE_CUSTOMER,
+        });
+      }
+
+      try {
+        const paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
+
+        const paymentIntent = await stripe.paymentIntents.create(
+          {
+            /* eslint-disable camelcase */
+            payment_method_configuration: paymentMethodConfiguration,
+            customer: stripeCustomerAccount.username,
+            description: `Expense ${expense.id}: ${expense.description}`,
+            amount: convertToStripeAmount(expense.currency, expense.amount),
+            currency: expense.currency,
+            automatic_payment_methods: { enabled: true },
+            setup_future_usage: 'off_session',
+            /* eslint-enable camelcase */
+            metadata: {
+              from: `${config.host.website}/${payer.slug}`,
+              to: `${config.host.website}/${payee.slug}`,
+              expenseId: expense.id,
+            },
+          },
+          !isPlatformHost
+            ? {
+                stripeAccount: payeeHostStripeAccount.username,
+              }
+            : undefined,
+        );
+
+        await expense.update({
+          data: {
+            ...expense.data,
+            paymentIntent: paymentIntent,
+          },
+        });
+
+        return {
+          id: paymentIntent.id,
+          paymentIntentClientSecret: paymentIntent.client_secret,
+          stripeAccount: payeeHostStripeAccount.username,
+          stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
+        };
+      } catch (e) {
+        logger.error(e);
+        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.');
+      }
     },
   },
 };
