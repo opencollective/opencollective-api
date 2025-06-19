@@ -29,6 +29,7 @@ export enum PayoutMethodTypes {
   BANK_ACCOUNT = 'BANK_ACCOUNT',
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
   CREDIT_CARD = 'CREDIT_CARD',
+  STRIPE = 'STRIPE', // Created by ConnectedAccount hooks on connected accounts of type stripe.
 }
 
 export const IDENTIFIABLE_DATA_FIELDS = [
@@ -60,6 +61,12 @@ interface PaypalPayoutMethodData {
   email: string;
 }
 
+interface StripePayoutMethodData {
+  connectedAccountId: number;
+  stripeAccountId: string;
+  publishableKey: string;
+}
+
 /** An interface for the values stored in `data` field for Custom payout methods */
 interface OtherPayoutMethodData {
   content: string;
@@ -69,6 +76,7 @@ interface OtherPayoutMethodData {
 type PayoutMethodDataType =
   | PaypalPayoutMethodData
   | OtherPayoutMethodData
+  | StripePayoutMethodData
   | BankAccountPayoutMethodData
   | Record<string, unknown>;
 
@@ -99,6 +107,11 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
         return { content: this.data['content'] } as OtherPayoutMethodData;
       case PayoutMethodTypes.BANK_ACCOUNT:
         return this.data as BankAccountPayoutMethodData;
+      case PayoutMethodTypes.STRIPE:
+        return {
+          stripeAccountId: this.data['stripeAccountId'],
+          publishableKey: this.data['publishableKey'],
+        } as StripePayoutMethodData;
       default:
         return {};
     }
@@ -215,6 +228,10 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   }
 
   async canBeEdited(): Promise<boolean> {
+    if (this.type === PayoutMethodTypes.STRIPE) {
+      return false;
+    }
+
     const expenses = await (sequelize.models.Expense as typeof Expense).findOne({
       where: {
         PayoutMethodId: this.id,
@@ -233,6 +250,9 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   }
 
   async canBeDeleted(): Promise<boolean> {
+    if (this.type === PayoutMethodTypes.STRIPE) {
+      return false;
+    }
     const expenses = await (sequelize.models.Expense as typeof Expense).findOne({
       where: {
         PayoutMethodId: this.id,
@@ -286,6 +306,10 @@ PayoutMethod.init(
           } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
             if (!value || !value.token) {
               throw new Error('Invalid format of CREDIT_CARD payout method data');
+            }
+          } else if (this.type === PayoutMethodTypes.STRIPE) {
+            if (!value || !value.stripeAccountId || !value.connectedAccountId) {
+              throw new Error('Invalid format of STRIPE payout method data');
             }
           } else if (!value || Object.keys(value).length > 0) {
             throw new Error('Data for this payout method is not properly formatted');
