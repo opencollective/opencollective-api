@@ -2,11 +2,11 @@ Subject: Action required: Your tax form has been marked as invalid
 
 {{> header}}
 
-<p>{{> greeting}}</p>
+<p>{{> greeting collective=collective}}</p>
 
 <p>
-  {{host.name}}, the Fiscal Host that collected your tax form on Open Collective, has marked it as invalid. In
-  order to receive payments from them, you will need to submit a new tax form. You can do so
+  {{host.name}}, the Fiscal Host that collected {{#ifCond collective.type '===' 'USER'}}your{{else if collective.name}}{{collective.name}}'s{{else if collective.legalName}}{{collective.legalName}}'s{{else}}your{{/ifCond}} tax form on Open Collective,
+  has marked it as invalid. In order to receive payments from them, you will need to submit a new tax form. You can do so
   by clicking the button below.
 </p>
 

@@ -140,7 +140,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     this.collective = this.collective || (await Collective.findByPk(this.CollectiveId));
     this.fromCollective = this.fromCollective || (await Collective.findByPk(this.FromCollectiveId));
 
-    Activity.create({
+    await Activity.create({
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,
       CollectiveId: this.CollectiveId,
@@ -153,6 +153,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
         url: `${config.host.website}/${this.collective.slug}/updates/${this.slug}`,
       },
     });
+
     return await this.save();
   };
 

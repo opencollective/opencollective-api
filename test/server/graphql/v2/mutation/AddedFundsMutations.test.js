@@ -136,6 +136,8 @@ const editAddedFundsMutation = gql`
         id
         kind
         type
+        isRefund
+        isRefunded
         amount {
           valueInCents
           currency
@@ -174,6 +176,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
 
     await collective.addUserWithRole(collectiveAdmin, roles.ADMIN);
     await collective.host.addUserWithRole(hostAdmin, roles.ADMIN);
+    await collective.host.update({ data: { isTrustedHost: true } });
     await collectiveAdmin.populateRoles();
     await hostAdmin.populateRoles();
 
@@ -248,6 +251,27 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(result.errors[0].message).to.match(/Adding funds is not allowed for frozen accounts/);
     });
 
+    it('cannot add funds from an external account if not a trusted host', async () => {
+      const host = await fakeActiveHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const hostAdmin = await fakeUser();
+      await host.addUserWithRole(hostAdmin, roles.ADMIN);
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+      );
+    });
+
     it('can add funds as host admin', async () => {
       const accountingCategory = await fakeAccountingCategory({ CollectiveId: collective.host.id });
       const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
@@ -269,7 +293,11 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     });
 
     it('can add funds as host admin even if RECEIVE_FINANCIAL_CONTRIBUTIONS is false', async () => {
-      const collective = await fakeCollective({ settings: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } } });
+      const host = await fakeActiveHost({ data: { isTrustedHost: true } });
+      const collective = await fakeCollective({
+        HostCollectiveId: host.id,
+        settings: { features: { RECEIVE_FINANCIAL_CONTRIBUTIONS: false } },
+      });
       const hostAdmin = await fakeUser();
       await collective.host.addUserWithRole(hostAdmin, roles.ADMIN);
       const result = await graphqlQueryV2(
@@ -364,7 +392,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     it('adds funds from the host (USD) to the collective (EUR) on behalf of a new organization', async () => {
       const hostAdmin = await fakeUser();
       const org = await fakeOrganization();
-      const host = await fakeActiveHost({ currency: 'USD', admin: hostAdmin });
+      const host = await fakeActiveHost({ currency: 'USD', admin: hostAdmin, data: { isTrustedHost: true } });
       const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'EUR' });
       const result = await graphqlQueryV2(
         addFundsMutation,
@@ -680,10 +708,9 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       });
     });
 
-    it('soft deletes the original set of transactions', async () => {
+    it('revertes the original set of transactions', async () => {
       const transactions = await models.Transaction.findAll({
-        where: { OrderId, deletedAt: { [Op.ne]: null } },
-        paranoid: false,
+        where: { OrderId, RefundTransactionId: { [Op.ne]: null }, isRefund: false },
       });
 
       expect(transactions).to.have.length(4);
@@ -693,6 +720,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
             CollectiveId: collective.id,
             type: 'CREDIT',
             kind: 'ADDED_FUNDS',
+            refundKind: 'EDIT',
             amount: 2000,
           },
         },
@@ -701,6 +729,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
             CollectiveId: collective.id,
             type: 'DEBIT',
             kind: 'HOST_FEE',
+            refundKind: 'EDIT',
             amount: -200,
           },
         },
@@ -709,7 +738,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
 
     it('create the necessary transactions to reflect the updated values', async () => {
       const transactions = await models.Transaction.findAll({
-        where: { OrderId },
+        where: { OrderId, RefundTransactionId: null },
       });
 
       expect(transactions).to.have.length(2);
@@ -770,15 +799,23 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       const groupedTransactions = groupBy(transactions, 'kind');
 
       // Taxes should be added on CONTRIBUTION transactions
-      const addFundsCredit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'CREDIT');
-      const addFundsDebit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'DEBIT');
+      const addFundsCredit = groupedTransactions['ADDED_FUNDS'].find(
+        t => t.type === 'CREDIT' && !t.isRefund && !t.isRefunded,
+      );
+      const addFundsDebit = groupedTransactions['ADDED_FUNDS'].find(
+        t => t.type === 'DEBIT' && !t.isRefund && !t.isRefunded,
+      );
       expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
       expect(addFundsCredit.taxAmount.valueInCents).to.equal(-521);
       expect(addFundsDebit.taxAmount.valueInCents).to.equal(-521);
 
       // Taxes should not be added on HOST_FEE transactions
-      const hostFeeCredit = groupedTransactions['HOST_FEE'].find(t => t.type === 'CREDIT');
-      const hostFeeDebit = groupedTransactions['HOST_FEE'].find(t => t.type === 'DEBIT');
+      const hostFeeCredit = groupedTransactions['HOST_FEE'].find(
+        t => t.type === 'CREDIT' && !t.isRefund && !t.isRefunded,
+      );
+      const hostFeeDebit = groupedTransactions['HOST_FEE'].find(
+        t => t.type === 'DEBIT' && !t.isRefund && !t.isRefunded,
+      );
       expect(hostFeeCredit.taxAmount.valueInCents).to.be.null;
       expect(hostFeeDebit.taxAmount.valueInCents).to.be.null;
     });

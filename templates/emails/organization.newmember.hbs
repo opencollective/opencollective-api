@@ -24,8 +24,12 @@ Subject: {{{remoteUser.collective.name}}} added you as {{role}} to {{{collective
   {{/if}}
   <tr><th>Name:</th><td>{{recipient.collective.name}}</td></tr>
   <tr><th>Short description:</th><td>{{recipient.collective.description}}</td></tr>
+  {{#if recipient.collective.website}}
   <tr><th>Website:</th><td>{{recipient.collective.website}}</td></tr>
+  {{/if}}
+  {{#if recipient.collective.twitterHandle}}
   <tr><th>Twitter:</th><td>{{recipient.collective.twitterHandle}}</td></tr>
+  {{/if}}
 </table>
 
 <p>If you have questions, feel free to reply to this email.</p>

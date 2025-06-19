@@ -1,18 +1,13 @@
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 import { URL } from 'url';
 
 import config from 'config';
 import fastRedact from 'fast-redact';
-import pdf from 'html-pdf';
 import { filter, get, isObject, omit, padStart, sumBy } from 'lodash';
 import moment from 'moment';
 import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
-
-import handlebars from './handlebars';
 
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);
@@ -204,65 +199,6 @@ export function exportToCSV(data, attributes, getColumnName = attr => attr, proc
     lines.push(getLine(row));
   });
   return lines.join('\n');
-}
-
-/**
- * export transactions to PDF
- */
-export function exportToPDF(template, data, options) {
-  options = options || {};
-  options.paper = options.paper || 'Letter'; // Letter for US or A4 for Europe
-
-  let paperSize;
-
-  switch (options.paper) {
-    case 'A4':
-      paperSize = {
-        width: '210mm',
-        height: '297mm',
-        margin: {
-          top: '10mm',
-          left: '10mm',
-        },
-      };
-      break;
-    case 'Letter':
-    default:
-      paperSize = {
-        width: '8.5in',
-        height: '11in',
-        margin: {
-          top: '0.4in',
-          left: '0.4in',
-        },
-      };
-      break;
-  }
-
-  data.paperSize = paperSize;
-  options.paperSize = paperSize;
-
-  const templateFilepath = path.resolve(__dirname, `../../templates/pdf/${template}.hbs`);
-  const source = fs.readFileSync(templateFilepath, 'utf8');
-  const render = handlebars.compile(source);
-
-  const html = render(data);
-
-  if (options.format === 'html') {
-    return Promise.resolve(html);
-  }
-  options.format = options.paper;
-
-  options.timeout = 60000;
-
-  return new Promise((resolve, reject) => {
-    pdf.create(html, options).toBuffer((err, buffer) => {
-      if (err) {
-        return reject(err);
-      }
-      return resolve(buffer);
-    });
-  });
 }
 
 export const isValidEmail = email => {
@@ -548,6 +484,8 @@ export const redactSensitiveFields = fastRedact({
     'token',
     'accessToken',
     'access_token',
+    '["X-XSRF-TOKEN"]',
+    '["PLAID-SECRET"]',
     'accessTokenPayload',
     'accessTokenSignature',
     'refreshToken',

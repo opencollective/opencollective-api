@@ -151,7 +151,7 @@ describe('server/lib/sanitize-html', () => {
         '<a href="https://opencollective.com/toto">Test</a>',
         '<a href="https://docs.opencollective.com/toto">Test</a>',
         '<a href="http://github.com/toto">Test</a>',
-        '<a href="https://opencollective-test.s3.us-west-1.amazonaws.com/a83d7d30-f8e6-11ea-b187-e31017293ab6.jpg">Test</a>',
+        `<a href="${config.aws.s3.endpoint}/a-bucket/a83d7d30-f8e6-11ea-b187-e31017293ab6.jpg">Test</a>`,
       ];
 
       const sanitizerOptions = buildSanitizerOptions({ links: true });

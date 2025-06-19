@@ -182,6 +182,7 @@ const accountMutations = {
             FromCollectiveId: account.id,
             HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
             data: {
+              collective: updatedAccount.minimal,
               previousData,
               newData: { settings: { [args.key]: args.value } },
             },
@@ -266,6 +267,7 @@ const accountMutations = {
             FromCollectiveId: account.id,
             HostCollectiveId: account.HostCollectiveId,
             data: {
+              collective: account.minimal,
               previousData,
               newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
             },
@@ -608,11 +610,14 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request) {
+      checkRemoteUserCanUseAccount(req);
+
       const userTwoFactorMethod = await fetchUserTwoFactorMethodWithReference(args.userTwoFactorMethod, {
         throwIfMissing: true,
+        include: [{ association: 'User', required: true }],
       });
-      const account = await req.remoteUser.getCollective({ loaders: req.loaders });
 
+      const account = await userTwoFactorMethod.User.getCollective({ loaders: req.loaders });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
       }
@@ -633,7 +638,7 @@ const accountMutations = {
         description: 'Account to edit.',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
       const id = idDecode(args.account.id, 'account');
@@ -661,7 +666,11 @@ const accountMutations = {
               CollectiveId: account.id,
               FromCollectiveId: account.id,
               HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-              data: { previousData, newData: { currency: args.account[key] } },
+              data: {
+                collective: account.minimal,
+                previousData,
+                newData: { currency: args.account[key] },
+              },
             });
           }
         }
@@ -684,7 +693,7 @@ const accountMutations = {
       },
     },
 
-    async resolve(_: void, args, req: express.Request): Promise<void> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
       const id = args.account.legacyId || idDecode(args.account.id, 'account');
@@ -722,7 +731,11 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData: { policies: previousPolicies }, newData: { policies: updatedPolicies } },
+        data: {
+          collective: account.minimal,
+          previousData: { policies: previousPolicies },
+          newData: { policies: updatedPolicies },
+        },
       });
 
       return account;

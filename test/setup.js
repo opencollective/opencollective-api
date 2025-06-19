@@ -8,6 +8,8 @@ import markdownTable from 'markdown-table';
 import Sequelize from 'sequelize';
 import sinonChai from 'sinon-chai';
 
+import { dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
+
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'test';
@@ -25,6 +27,18 @@ before(() => {
 
 beforeEach(function () {
   chaiJestSnapshot.configureUsingMochaContext(this);
+});
+
+before(async () => {
+  try {
+    await dangerouslyInitNonProductionBuckets();
+  } catch {
+    if (process.env.OC_ENV !== 'ci') {
+      console.warn(
+        'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start minio (see docs/s3.md).',
+      );
+    }
+  }
 });
 
 // Chai plugins

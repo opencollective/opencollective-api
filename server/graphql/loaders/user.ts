@@ -14,7 +14,7 @@ export const generateUserByCollectiveIdLoader = (): DataLoader<number, User> => 
 
 export const generateUserHasTwoFactorAuthEnabled = (): DataLoader<number, boolean> =>
   new DataLoader(async (userIds: number[]) => {
-    const results: { id: number; hasTwoFactorAuthEnabled: boolean }[] = await sequelize.query(
+    const results: { UserId: number; hasTwoFactorAuthEnabled: boolean }[] = await sequelize.query(
       `
     SELECT u.id "UserId", (count(utfm.id) > 0) "hasTwoFactorAuthEnabled"
     FROM "Users" u

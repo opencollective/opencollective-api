@@ -182,8 +182,8 @@ AccountingCategory.init(
     },
     appliesTo: {
       type: DataTypes.ENUM(...Object.values(AccountingCategoryAppliesTo)),
-      allowNull: false,
-      defaultValue: AccountingCategoryAppliesTo.HOSTED_COLLECTIVES,
+      allowNull: true,
+      defaultValue: null,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

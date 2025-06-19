@@ -15,8 +15,14 @@ env:
   CI: true
   OC_ENV: ci
   NODE_ENV: test
-  AWS_KEY: ${{ secrets.AWS_KEY }}
-  AWS_SECRET: ${{ secrets.AWS_SECRET }}
+  AWS_KEY: user
+  AWS_SECRET: password
+  AWS_S3_BUCKET: opencollective-e2e
+  AWS_S3_REGION: us-east-1
+  AWS_S3_API_VERSION: latest
+  AWS_S3_ENDPOINT: http://localhost:9000
+  AWS_S3_SSL_ENABLED: false
+  AWS_S3_FORCE_PATH_STYLE: true
 
 jobs:
   lint:
@@ -217,6 +223,14 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      minio:
+        image: minio/minio:edge-cicd
+        ports:
+          - 9000:9000
+        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
+        env:
+          MINIO_ROOT_USER: user
+          MINIO_ROOT_PASSWORD: password
 
     steps:
       - name: Checkout
@@ -242,12 +256,10 @@ jobs:
       - run: npm run db:restore
       - run: npm run db:migrate
 
-      # We have to specify OPENSSL_CONF=/dev/null for html-pdf to work
-      # We can remove it once we tackle https://github.com/opencollective/opencollective/issues/7622
-      - run: OPENSSL_CONF=/dev/null npm run test -- --ignore "test/server/graphql/**"
+      - run: npm run test -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
@@ -271,18 +283,27 @@ jobs:
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-      elastic:
-        image: elasticsearch:8.17.0
+      opensearch:
+        image: opensearchproject/opensearch:3
         ports:
           - 9200:9200
         env:
           discovery.type: single-node
-          xpack.security.enabled: false
+          DISABLE_INSTALL_DEMO_CONFIG: 'true'
+          DISABLE_SECURITY_PLUGIN: 'true'
         options: >-
           --health-cmd="curl --silent --fail http://localhost:9200/_cluster/health || exit 1"
           --health-interval=10s
           --health-timeout=15s
           --health-retries=30
+      minio:
+        image: minio/minio:edge-cicd
+        ports:
+          - 9000:9000
+        options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
+        env:
+          MINIO_ROOT_USER: user
+          MINIO_ROOT_PASSWORD: password
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -310,7 +331,7 @@ jobs:
       - run: npm run test:graphql
 
       - name: Report coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: GraphQL

@@ -14,7 +14,7 @@ function usage() {
 async function hasData(client) {
   try {
     return (await client.query('SELECT 1 FROM "Collectives"')).rowCount > 0;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

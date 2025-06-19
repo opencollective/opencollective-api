@@ -1,9 +1,9 @@
 import config from 'config';
 import type { Request } from 'express';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
-import { omit, pick } from 'lodash';
+import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
@@ -18,18 +18,30 @@ import {
 } from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import {
+  GraphQLTransactionsImportRowAction,
+  TransactionsImportRowActionTypes,
+} from '../enum/TransactionsImportRowAction';
+import { TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
+import { GraphQLTransactionsImportAssignmentInput } from '../input/TransactionsImportAssignmentInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
 import {
   GraphQLTransactionsImportRowUpdateInput,
   TransactionImportRowGraphQLType,
 } from '../input/TransactionsImportRowUpdateInput';
+import { GraphQLHost } from '../object/Host';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
+import { GraphQLTransactionsImportRow } from '../object/TransactionsImportRow';
 
 const transactionImportsMutations = {
   createTransactionsImport: {
@@ -93,6 +105,10 @@ const transactionImportsMutations = {
         type: GraphQLNonEmptyString,
         description: 'Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")',
       },
+      assignments: {
+        type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportAssignmentInput)),
+        description: 'Assignments for the import',
+      },
     },
     resolve: async (_: void, args, req: Request) => {
       checkRemoteUserCanUseTransactions(req);
@@ -104,7 +120,39 @@ const transactionImportsMutations = {
         throw new Unauthorized('You need to be an admin of the account to edit an import');
       }
 
-      return importInstance.update(pick(args, ['source', 'name']));
+      const newValues = pick(args, ['source', 'name']);
+      if (args.assignments) {
+        const loadedAssignments = await Promise.all(
+          args.assignments.map(async assignment => ({
+            ...assignment,
+            accounts: await fetchAccountsWithReferences(assignment.accounts, {
+              throwIfMissing: true,
+              attributes: ['id', 'HostCollectiveId'],
+            }),
+          })),
+        );
+
+        if (
+          loadedAssignments.some(assignment =>
+            assignment.accounts.some(account => account.HostCollectiveId !== importInstance.collective.id),
+          )
+        ) {
+          throw new ValidationFailed('You can only assign accounts from the same host');
+        }
+
+        newValues['settings'] = {
+          ...importInstance.settings,
+          assignments: mapValues(keyBy(loadedAssignments, 'importedAccountId'), assignments =>
+            assignments.accounts.map(account => account.id),
+          ),
+        };
+      }
+
+      if (!isEmpty(newValues)) {
+        await importInstance.update(newValues);
+      }
+
+      return importInstance;
     },
   },
   importTransactions: {
@@ -184,6 +232,8 @@ const transactionImportsMutations = {
         await importInstance.addRows(
           args.data.map(row => ({
             ...row,
+            sourceId: truncate(row.sourceId, { length: 255 }),
+            description: truncate(row.description, { length: 255 }),
             amount: getValueInCentsFromAmountInput(row.amount),
             currency: row.amount.currency,
           })),
@@ -195,58 +245,105 @@ const transactionImportsMutations = {
     },
   },
   updateTransactionsImportRows: {
-    type: new GraphQLNonNull(GraphQLTransactionsImport),
-    description: 'Update transactions import rows to set new values or mark them as dismissed',
+    type: new GraphQLNonNull(
+      new GraphQLObjectType({
+        name: 'TransactionsImportEditResponse',
+        fields: {
+          host: {
+            type: GraphQLHost,
+            description: 'The host account that owns the off-platform transactions',
+          },
+          rows: {
+            type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRow))),
+            description: 'The rows updated by the mutation',
+          },
+        },
+      }),
+    ),
+    description: 'Update transactions import rows to set new values or perform actions on them',
     args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLNonEmptyString),
-        description: 'ID of the import to add transactions to',
-      },
       rows: {
-        type: new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput)),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportRowUpdateInput))),
         description: 'Rows to update',
       },
-      dismissAll: {
-        type: GraphQLBoolean,
-        description: 'Whether to ignore all non-processed rows',
-      },
-      restoreAll: {
-        type: GraphQLBoolean,
-        description: 'Whether to restore all dismissed rows',
+      action: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportRowAction),
+        description: 'Action to perform on all non-processed rows',
       },
     },
     resolve: async (
       _: void,
       args: {
-        id: string;
         rows?: TransactionImportRowGraphQLType[];
-        dismissAll?: boolean;
-        restoreAll?: boolean;
+        action: (typeof TransactionsImportRowActionTypes)[number];
       },
       req: Request,
     ) => {
       checkRemoteUserCanUseTransactions(req);
-      const importId = idDecode(args.id, 'transactions-import');
-      const transactionsImport = await TransactionsImport.findByPk(importId, {
-        include: [{ association: 'collective' }],
-      });
-      if (!transactionsImport) {
-        throw new NotFound('Import not found');
-      } else if (!req.remoteUser.isAdminOfCollective(transactionsImport.collective)) {
-        throw new Unauthorized('You need to be an admin of the account to update a row');
+
+      if (!args.rows) {
+        throw new ValidationFailed('You must provide a list of rows');
+      } else if (!args.rows.length) {
+        return { host: null, rows: [] };
       }
 
-      // Preload orders
-      return sequelize.transaction(async transaction => {
+      const inputRowIds = args.rows.map(row => idDecode(row.id, 'transactions-import-row'));
+      const importMetadata = (await TransactionsImportRow.findAll({
+        raw: true,
+        attributes: [
+          [sequelize.fn('ARRAY_AGG', sequelize.col('TransactionsImportRow.id')), 'rowsIds'],
+          [sequelize.fn('ARRAY_AGG', sequelize.col('import.id')), 'importsIds'],
+          [sequelize.col('import.CollectiveId'), 'CollectiveId'],
+          [sequelize.col('import.type'), 'type'],
+        ],
+        where: {
+          id: inputRowIds,
+        },
+        include: [
+          {
+            association: 'import',
+            required: false,
+            attributes: [],
+          },
+        ],
+        group: ['import.CollectiveId', 'import.type'],
+      })) as unknown as Array<{
+        rowsIds: number[];
+        importsIds: number[];
+        CollectiveId: number;
+        type: TransactionsImport['type'];
+      }>;
+
+      // Infer the host from provided rows
+      if (!importMetadata.length) {
+        return { rows: [] };
+      } else if (importMetadata.length > 1) {
+        throw new ValidationFailed('All rows must belong to the same host and have the same import type');
+      } else if (!req.remoteUser.isAdmin(importMetadata[0].CollectiveId)) {
+        throw new Unauthorized('You need to be an admin of the host to update transactions imports');
+      }
+
+      const importType = importMetadata[0].type;
+      const selectedRowIds = importMetadata[0].rowsIds;
+      const hostId = importMetadata[0].CollectiveId;
+      await sequelize.transaction(async transaction => {
         // Update rows
-        if (args.rows?.length) {
+        if (args.action === 'UPDATE_ROWS') {
+          if (!selectedRowIds.length) {
+            throw new ValidationFailed('You must provide at least one row to update');
+          }
+
           await Promise.all(
-            args.rows.map(async row => {
-              const rowId = idDecode(row.id, 'transactions-import-row');
+            args.rows.map(async (row, index) => {
+              const rowId = inputRowIds[index];
+              const where: Parameters<typeof TransactionsImportRow.update>[1]['where'] = {
+                id: { [Op.in]: selectedRowIds, [Op.eq]: rowId },
+              };
               let values: Parameters<typeof TransactionsImportRow.update>[0] = pick(row, [
                 'sourceId',
                 'description',
                 'date',
+                'note',
               ]);
               if (row.amount) {
                 values.amount = getValueInCentsFromAmountInput(row.amount);
@@ -257,7 +354,7 @@ const transactionImportsMutations = {
                 const orderId = getDatabaseIdFromOrderReference(row.order);
                 const order = await req.loaders.Order.byId.load(orderId);
                 const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
-                if (!order || !collective || collective.HostCollectiveId !== transactionsImport.CollectiveId) {
+                if (!order || !collective || collective.HostCollectiveId !== hostId) {
                   throw new Unauthorized(`Order not found or not associated with the import: ${orderId}`);
                 }
 
@@ -269,62 +366,76 @@ const transactionImportsMutations = {
                   throwIfMissing: true,
                 });
                 const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-                if (collective.HostCollectiveId !== transactionsImport.CollectiveId) {
+                if (collective.HostCollectiveId !== hostId) {
                   throw new Unauthorized(`Expense not associated with the import: ${expense.id}`);
                 }
 
                 values['ExpenseId'] = expense.id;
                 values['status'] = 'LINKED';
-              } else if (row.isDismissed) {
-                values['status'] = 'IGNORED';
+              } else if (row.status) {
+                values['status'] = row.status;
+                where['status'] = { [Op.not]: TransactionsImportRowStatus.LINKED }; // Cannot change the status of a LINKED row
               }
 
-              // For plaid imports, users can't change amount, date or sourceId
-              if (transactionsImport.type === 'PLAID') {
-                values = omit(values, ['amount', 'date', 'sourceId']);
+              // For plaid imports, users can't change imported data
+              if (importType === 'PLAID') {
+                values = omit(values, ['amount', 'date', 'sourceId', 'description']);
               }
 
-              const [updatedCount] = await TransactionsImportRow.update(values, {
-                where: { id: rowId, TransactionsImportId: importId },
-                transaction,
-              });
-
+              const [updatedCount] = await TransactionsImportRow.update(values, { where, transaction });
               if (!updatedCount) {
                 throw new NotFound(`Row not found: ${row.id}`);
               }
             }),
           );
-        } else if (args.dismissAll) {
+        } else if (args.action === 'DISMISS_ALL') {
           await TransactionsImportRow.update(
             { status: 'IGNORED' },
             {
+              transaction,
               where: {
-                TransactionsImportId: importId,
-                status: { [Op.not]: 'IGNORED' },
+                id: { [Op.in]: selectedRowIds },
+                status: { [Op.not]: ['LINKED', 'ON_HOLD'] },
                 ExpenseId: null,
                 OrderId: null,
               },
-              transaction,
             },
           );
-        } else if (args.restoreAll) {
+        } else if (args.action === 'RESTORE_ALL') {
           await TransactionsImportRow.update(
             { status: 'PENDING' },
             {
-              where: {
-                TransactionsImportId: importId,
-                status: 'IGNORED',
-              },
               transaction,
+              where: {
+                id: { [Op.in]: selectedRowIds },
+                status: ['IGNORED', 'ON_HOLD'],
+              },
             },
           );
-        } else {
-          throw new ValidationFailed('You must provide at least one row to update or dismiss/restore all rows');
+        } else if (args.action === 'PUT_ON_HOLD_ALL') {
+          await TransactionsImportRow.update(
+            { status: 'ON_HOLD' },
+            {
+              transaction,
+              where: {
+                id: { [Op.in]: selectedRowIds },
+                status: { [Op.not]: ['LINKED', 'ON_HOLD'] },
+              },
+            },
+          );
         }
 
-        // Update import
-        return transactionsImport.update({ updatedAt: new Date() }, { transaction });
+        // Update matching imports
+        await TransactionsImport.update(
+          { updatedAt: new Date() },
+          { where: { id: { [Op.in]: importMetadata[0].importsIds }, CollectiveId: hostId }, transaction },
+        );
       });
+
+      return {
+        host: () => req.loaders.Collective.byId.load(hostId),
+        rows: () => TransactionsImportRow.findAll({ where: { id: { [Op.in]: selectedRowIds } } }),
+      };
     },
   },
   deleteTransactionsImport: {
@@ -338,6 +449,7 @@ const transactionImportsMutations = {
     },
     resolve: async (_: void, args, req: Request) => {
       checkRemoteUserCanUseTransactions(req);
+
       const importId = idDecode(args.id, 'transactions-import');
       const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
       if (!importInstance) {
@@ -348,7 +460,9 @@ const transactionImportsMutations = {
 
       let connectedAccount;
       if (importInstance.type === 'PLAID' && importInstance.ConnectedAccountId) {
-        connectedAccount = await importInstance.getConnectedAccount();
+        connectedAccount = await importInstance.getConnectedAccount({
+          include: [{ association: 'collective', required: true }],
+        });
         if (!connectedAccount) {
           throw new Error('Connected account not found');
         }
@@ -369,7 +483,7 @@ const transactionImportsMutations = {
 
         // Delete associated connected accounts
         if (connectedAccount) {
-          await connectedAccount.destroy({ transaction, force: true });
+          await connectedAccount.destroy({ transaction });
           await ConnectedAccount.destroy({
             transaction,
             where: { data: { MirrorConnectedAccountId: connectedAccount.id } },

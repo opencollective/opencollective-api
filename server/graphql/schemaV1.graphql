@@ -42,6 +42,9 @@ interface CollectiveInterface {
   slug: String
   path: String
   isHost: Boolean
+  isTrustedHost: Boolean!
+  isFirstPartyHost: Boolean!
+  isVerified: Boolean!
   isIncognito: Boolean
 
   """
@@ -288,6 +291,11 @@ type Member {
   tier: Tier
   stats: StatsMemberType
   since: DateString
+
+  """
+  Whether the membership is active. Warning: this definition is subject to change.
+  """
+  isActive: Boolean!
 }
 
 scalar DateString
@@ -582,6 +590,7 @@ enum ContributorRole {
   HOST
   ADMIN
   MEMBER
+  COMMUNITY_MANAGER
   CONTRIBUTOR
   BACKER
   ATTENDEE
@@ -1045,9 +1054,15 @@ type ConnectedAccountType {
   id: Int
   service: String
   username: String
+  hash: String
   settings: JSON
   createdAt: DateString
   updatedAt: DateString
+
+  """
+  The account who connected this account
+  """
+  createdByUser: UserDetails
 }
 
 """
@@ -1146,12 +1161,18 @@ type Policies {
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
+
+  """
+  Contribution threshold to enforce contributor info. This resolver can be called from the collective or the host, when resolved through the collective the thresholds are returned in the collective currency
+  """
+  CONTRIBUTOR_INFO_THRESHOLDS: CONTRIBUTOR_INFO_THRESHOLDS
 }
 
 type EXPENSE_POLICIES {
   invoicePolicy: String
   receiptPolicy: String
   titlePolicy: String
+  grantPolicy: String
 }
 
 type EXPENSE_AUTHOR_CANNOT_APPROVE {
@@ -1930,6 +1951,11 @@ type EXPENSE_CATEGORIZATION {
   requiredForCollectiveAdmins: Boolean
 }
 
+type CONTRIBUTOR_INFO_THRESHOLDS {
+  legalName: Int
+  address: Int
+}
+
 """
 The results from searching for collectives with pagination info
 """
@@ -2170,6 +2196,16 @@ type Collective implements CollectiveInterface {
   Returns whether this host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Returns whether this user has two factor authentication enabled
@@ -2442,6 +2478,16 @@ type Event implements CollectiveInterface {
   isTrustedHost: Boolean!
 
   """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Returns whether this user has two factor authentication enabled
   """
   isTwoFactorAuthEnabled: Boolean
@@ -2710,6 +2756,16 @@ type Fund implements CollectiveInterface {
   Returns whether this host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Returns whether this user has two factor authentication enabled
@@ -2982,6 +3038,16 @@ type Organization implements CollectiveInterface {
   isTrustedHost: Boolean!
 
   """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Returns whether this user has two factor authentication enabled
   """
   isTwoFactorAuthEnabled: Boolean
@@ -3250,6 +3316,16 @@ type Project implements CollectiveInterface {
   Returns whether this host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Returns whether this user has two factor authentication enabled
@@ -3817,6 +3893,16 @@ type User implements CollectiveInterface {
   isTrustedHost: Boolean!
 
   """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Returns whether this user has two factor authentication enabled
   """
   isTwoFactorAuthEnabled: Boolean
@@ -4087,6 +4173,16 @@ type Vendor implements CollectiveInterface {
   Returns whether this host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether this host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Returns whether this user has two factor authentication enabled
@@ -4562,6 +4658,11 @@ type Mutation {
     If true, a signIn link will be sent to the user
     """
     sendSignInLink: Boolean = true
+
+    """
+    Captcha verification data
+    """
+    captcha: CaptchaInputType
   ): CreateUserResult
 
   """
@@ -4659,7 +4760,7 @@ type Mutation {
     customMessage: String
     expiryDate: String
   ): [PaymentMethodType]
-  claimPaymentMethod(code: String!, user: UserInputType): PaymentMethodType
+  claimPaymentMethod(code: String!, user: UserInputType): PaymentMethodType!
 
   """
   Removes the payment method
@@ -4911,6 +5012,21 @@ input UserInputType {
 }
 
 scalar Email
+
+"""
+Input type for captcha verification
+"""
+input CaptchaInputType {
+  """
+  The captcha token to verify
+  """
+  token: String!
+
+  """
+  The captcha provider (HCAPTCHA, RECAPTCHA, or TURNSTILE)
+  """
+  provider: String!
+}
 
 """
 Input type for ConnectedAccountInputType

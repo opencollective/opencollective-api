@@ -1,14 +1,13 @@
-import config from 'config';
 import { pick } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
-import isURL from 'validator/lib/isURL';
 
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
+import { isValidURL } from '../lib/url-utils';
 
 import { FX_RATE_SOURCE } from './CurrencyExchangeRate';
 import Expense from './Expense';
@@ -35,6 +34,7 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
   declare public deletedAt: CreationOptional<Date>;
   declare public incurredAt: Date;
   declare public description: CreationOptional<string>;
+  declare public order: number;
 
   declare public Expense: NonAttribute<Expense>;
 
@@ -46,6 +46,7 @@ class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttri
     'url',
     'description',
     'incurredAt',
+    'order',
   ];
 
   /**
@@ -151,14 +152,7 @@ ExpenseItem.init(
             return;
           }
 
-          if (
-            !isURL(url, {
-              // eslint-disable-next-line camelcase
-              require_host: config.env !== 'development' && config.env !== 'test',
-              // eslint-disable-next-line camelcase
-              require_tld: config.env !== 'development' && config.env !== 'test',
-            })
-          ) {
+          if (!isValidURL(url)) {
             throw new Error('File URL is not a valid URL');
           }
         },
@@ -201,6 +195,11 @@ ExpenseItem.init(
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
       allowNull: false,
+    },
+    order: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
     ExpenseId: {
       type: DataTypes.INTEGER,

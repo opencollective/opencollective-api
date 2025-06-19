@@ -1,17 +1,19 @@
 import { SupportedCurrency } from '../constants/currencies';
+import { RefundKind } from '../constants/refund-kind';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
 import Transaction from '../models/Transaction';
 import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
 
-interface BasePaymentProviderService {
+export interface BasePaymentProviderService {
   /**
    * Describes the features implemented by this payment method
    */
   features: {
     recurring: boolean;
-    isRecurringManagedExternally: boolean;
+    isRecurringManagedExternally?: boolean;
+    waitToCharge?: boolean;
   };
 
   /**
@@ -25,14 +27,29 @@ interface BasePaymentProviderService {
   /**
    * Refunds a transaction processed with this payment provider service
    */
-  refundTransaction(transaction: Transaction, user?: User, reason?: string): Promise<Transaction>;
+  refundTransaction(
+    transaction: Transaction,
+    user?: User,
+    reason?: string,
+    refundKind?: RefundKind,
+    options?: { ignoreBalanceCheck?: boolean },
+  ): Promise<Transaction>;
 
   /**
    * Refunds a transaction processed with this payment provider service without calling the payment provider
    */
-  refundTransactionOnlyInDatabase?(transaction: Transaction, user?: User, reason?: string): Promise<Transaction>;
+  refundTransactionOnlyInDatabase?(
+    transaction: Transaction,
+    user?: User,
+    reason?: string,
+    refundKind?: RefundKind,
+    options?: { ignoreBalanceCheck?: boolean },
+  ): Promise<Transaction>;
 
-  getBalance?: (paymentMethod: PaymentMethod) => Promise<number | { amount: number; currency: SupportedCurrency }>;
+  getBalance?: (
+    paymentMethod: PaymentMethod,
+    params?: { currency?: SupportedCurrency },
+  ) => Promise<number | { amount: number; currency: SupportedCurrency }>;
 
   updateBalance?: (paymentMethod: PaymentMethod) => Promise<number>;
 }

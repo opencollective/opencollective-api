@@ -1,3 +1,4 @@
+import type Express from 'express';
 import { get } from 'lodash';
 import { QueryOptions } from 'sequelize';
 
@@ -134,7 +135,7 @@ export const checkCanUsePaymentMethods = async collective => {
   }
 };
 
-const checkCanRequestVirtualCards = async (req, collective) => {
+const checkCanRequestVirtualCards = async (req: Express.Request, collective) => {
   if (!collective.HostCollectiveId || !collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   }
@@ -175,7 +176,7 @@ export const checkCanEmitGiftCards = async collective => {
   }
 };
 
-const checkMultiCurrencyExpense = async (collective, req): Promise<FEATURE_STATUS> => {
+const checkMultiCurrencyExpense = async (collective, req: Express.Request): Promise<FEATURE_STATUS> => {
   if (!collective.HostCollectiveId || !collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   }

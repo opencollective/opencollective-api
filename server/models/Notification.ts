@@ -19,7 +19,6 @@ const debug = debugLib('models:Notification');
 const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
   [channels.EMAIL]: true,
   [channels.SLACK]: false,
-  [channels.TWITTER]: false,
   [channels.WEBHOOK]: false,
 };
 

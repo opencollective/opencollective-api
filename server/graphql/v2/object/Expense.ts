@@ -1,4 +1,4 @@
-import express from 'express';
+import type Express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -45,6 +45,7 @@ import {
 } from '../input/ChronologicalOrderInput';
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
+import { GraphQLFileInfo } from '../interface/FileInfo';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
 import { GraphQLActivity } from './Activity';
@@ -77,6 +78,7 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
 const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'recipientNote',
   'attachedFiles',
+  'invoiceFile',
   'payoutMethod',
   'payeeLocation',
   'payee.email',
@@ -100,7 +102,7 @@ const loadHostForExpense = async (expense, req) => {
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
-export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
+export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Request>({
   name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
@@ -171,7 +173,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         },
       },
       taxes: {
-        type: new GraphQLNonNull(new GraphQLList(GraphQLTaxInfo)),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTaxInfo))),
         description: 'Taxes applied to this expense',
         resolve(expense, _, req) {
           if (!expense.data?.taxes) {
@@ -224,6 +226,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
       createdAt: {
         type: new GraphQLNonNull(GraphQLDateTime),
         description: 'The time of creation',
+      },
+      incurredAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'Date of the expense',
       },
       currency: {
         type: new GraphQLNonNull(GraphQLCurrency),
@@ -408,14 +414,30 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
           }
         },
       },
+      invoiceFile: {
+        type: GraphQLFileInfo,
+        description: '(Optional - applicable to invoice expense only) The invoice file for this expense',
+        async resolve(expense, _, req) {
+          if (expense.type !== ExpenseTypes.INVOICE) {
+            return null;
+          }
+
+          if (!(await ExpenseLib.canSeeExpenseAttachments(req, expense))) {
+            return null;
+          }
+
+          return expense.invoiceFile || (await UploadedFile.findByPk(expense.InvoiceFileId));
+        },
+      },
       items: {
-        type: new GraphQLList(GraphQLExpenseItem),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseItem))),
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return req.loaders.Expense.items.load(expense.id);
+          const items = await req.loaders.Expense.items.load(expense.id);
+          return items.sort((a, b) => a.order - b.order);
         },
       },
       privateMessage: {
@@ -590,6 +612,18 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
               draftData.attachedFiles = attachedFiles;
             }
 
+            if (draftData.invoiceFile) {
+              const uploadedFile = await req.loaders.UploadedFile.byUrl.load(draftData.invoiceFile['url']);
+              draftData.invoiceFile['url'] = uploadedFile
+                ? UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
+                    expenseId: expense.id,
+                    draftKey: req.remoteUser ? null : expense.data.draftKey,
+                  })
+                : draftData.invoiceFile['url'];
+
+              draftData.invoiceFile = pick(draftData.invoiceFile, ['url']);
+            }
+
             return draftData;
           }
         },
@@ -599,7 +633,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         description: 'The account that requested this expense to be submitted',
         async resolve(expense, _, req) {
           if (expense.data?.invitedByCollectiveId) {
-            return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId);
+            return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId as number);
           }
         },
       },
@@ -741,7 +775,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Reques
         type: GraphQLTransactionsImportRow,
         description:
           '[Host admins only] If the expense associated with a transactions import row, this field will reference it',
-        async resolve(expense, _, req) {
+        async resolve(expense, _, req: Express.Request) {
           if (await ExpenseLib.canSeeExpenseTransactionImportRow(req, expense)) {
             return req.loaders.TransactionsImportRow.byExpenseId.load(expense.id);
           }

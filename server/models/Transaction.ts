@@ -17,6 +17,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import PlatformConstants from '../constants/platform';
+import { RefundKind } from '../constants/refund-kind';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
@@ -127,6 +128,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   declare isDisputed: boolean;
   declare isInReview: boolean;
   declare isInternal: boolean;
+  declare refundKind: RefundKind | null;
 
   // Timestamps
   declare createdAt: Date;
@@ -172,6 +174,11 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   declare getOrder: (options?: { paranoid?: boolean }) => Promise<Order | null>;
   declare hasPlatformTip: () => boolean;
   declare getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<Transaction>;
+  declare getRelatedTransactions: (options: {
+    type?: string;
+    kind?: string;
+    isDebt?: boolean;
+  }) => Promise<Transaction[]>;
   declare getOppositeTransaction: () => Promise<Transaction | null>;
   declare getPaymentProcessorFeeTransaction: () => Promise<Transaction | null>;
   declare getTaxTransaction: () => Promise<Transaction | null>;
@@ -1537,6 +1544,11 @@ Transaction.init(
       references: { model: 'Transactions', key: 'id' },
     },
 
+    refundKind: {
+      type: DataTypes.ENUM(...Object.values(RefundKind)),
+      allowNull: true,
+    },
+
     PaymentMethodId: {
       type: DataTypes.INTEGER,
       references: { model: 'PaymentMethods', key: 'id' },
@@ -1735,6 +1747,19 @@ Transaction.prototype.getRelatedTransaction = function (
   options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
 ): Promise<Transaction | null> {
   return Transaction.findOne({
+    where: {
+      TransactionGroup: this.TransactionGroup,
+      type: options.type || this.type,
+      kind: options.kind || this.kind,
+      isDebt: options.isDebt || { [Op.not]: true },
+    },
+  });
+};
+
+Transaction.prototype.getRelatedTransactions = function (
+  options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
+): Promise<Transaction[] | null> {
+  return Transaction.findAll({
     where: {
       TransactionGroup: this.TransactionGroup,
       type: options.type || this.type,

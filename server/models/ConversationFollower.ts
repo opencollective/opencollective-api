@@ -1,38 +1,88 @@
-import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, Model, NonAttribute } from 'sequelize';
 
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Conversation from './Conversation';
 import User from './User';
 
-interface ConversationFollowerModelStaticInterface {
-  isFollowing(UserId: number, ConversationId: number): Promise<boolean>;
-  follow(UserId: number, ConversationId: number): Promise<ConversationFollowerModelInterface>;
-  unfollow(UserId: number, ConversationId: number): Promise<ConversationFollowerModelInterface>;
-}
-
-interface ConversationFollowerModelInterface
-  extends Model<
-    InferAttributes<ConversationFollowerModelInterface>,
-    InferCreationAttributes<ConversationFollowerModelInterface>
-  > {
-  id: number;
-  UserId: number;
-  ConversationId: number;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+class ConversationFollower extends Model<
+  InferAttributes<ConversationFollower>,
+  InferCreationAttributes<ConversationFollower>
+> {
+  declare public readonly id: CreationOptional<number>;
+  declare public UserId: ForeignKey<User['id']>;
+  declare public ConversationId: ForeignKey<Conversation['id']>;
+  declare public isActive: boolean;
+  declare public createdAt: Date;
+  declare public updatedAt: Date;
 
   // Associations
-  user?: User;
-  conversation?: Conversation;
+  declare public user?: NonAttribute<User>;
+  declare public conversation?: NonAttribute<Conversation>;
+
+  /**
+   * @returns true if user follows the conversation
+   */
+  static isFollowing = async function (UserId: number, ConversationId: number) {
+    const following = await ConversationFollower.findOne({
+      where: { UserId, ConversationId, isActive: true },
+      attributes: ['id'],
+      mapToModel: false,
+    });
+
+    return Boolean(following);
+  };
+
+  /**
+   * Creates or update the follower entry in the DB to follow the conversation
+   */
+  static follow = async function (UserId: number, ConversationId: number): Promise<ConversationFollower> {
+    return sequelize.transaction(async transaction => {
+      const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
+      if (!following) {
+        return ConversationFollower.create({ UserId, ConversationId, isActive: true }, { transaction });
+      } else if (!following.isActive) {
+        return following.update({ isActive: true }, { transaction });
+      } else {
+        return following;
+      }
+    });
+  };
+
+  /**
+   * Unfollow the conversation for user if it exists
+   */
+  static unfollow = async function (UserId: number, ConversationId: number): Promise<ConversationFollower> {
+    return sequelize.transaction(async transaction => {
+      const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
+      if (!following) {
+        return ConversationFollower.create({ UserId, ConversationId, isActive: false }, { transaction });
+      } else if (following.isActive) {
+        return following.update({ isActive: false }, { transaction });
+      } else {
+        return following;
+      }
+    });
+  };
+
+  /**
+   * Unfollow the conversation for user if it exists
+   */
+  static ConversationFollower = async function (UserId: number, ConversationId: number): Promise<ConversationFollower> {
+    return sequelize.transaction(async transaction => {
+      const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
+      if (!following) {
+        return ConversationFollower.create({ UserId, ConversationId, isActive: false }, { transaction });
+      } else if (following.isActive) {
+        return following.update({ isActive: false }, { transaction });
+      } else {
+        return following;
+      }
+    });
+  };
 }
 
-type ConversationFollowerType = ModelStatic<ConversationFollowerModelInterface> &
-  ConversationFollowerModelStaticInterface;
-
-const ConversationFollower: ConversationFollowerType = sequelize.define(
-  'ConversationFollower',
+ConversationFollower.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -72,6 +122,8 @@ const ConversationFollower: ConversationFollowerType = sequelize.define(
     },
   },
   {
+    sequelize,
+    modelName: 'ConversationFollower',
     indexes: [
       {
         fields: ['UserId', 'ConversationId'],
@@ -80,56 +132,5 @@ const ConversationFollower: ConversationFollowerType = sequelize.define(
     ],
   },
 );
-
-// ---- Static methods ----
-
-/**
- * @returns true if user follows the conversation
- */
-ConversationFollower.isFollowing = async (UserId, ConversationId) => {
-  const following = await ConversationFollower.findOne({
-    where: { UserId, ConversationId, isActive: true },
-    attributes: ['id'],
-    mapToModel: false,
-  });
-
-  return Boolean(following);
-};
-
-/**
- * Creates or update the follower entry in the DB to follow the conversation
- *
- * @returns the `ConversationFollower` object.
- */
-ConversationFollower.follow = async (UserId, ConversationId) => {
-  return sequelize.transaction(async transaction => {
-    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
-    if (!following) {
-      return ConversationFollower.create({ UserId, ConversationId, isActive: true }, { transaction });
-    } else if (!following.isActive) {
-      return following.update({ isActive: true }, { transaction });
-    } else {
-      return following;
-    }
-  });
-};
-
-/**
- * Unfollow the conversation for user if it exists
- *
- * @returns the `ConversationFollower` object.
- */
-ConversationFollower.unfollow = async (UserId, ConversationId) => {
-  return sequelize.transaction(async transaction => {
-    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
-    if (!following) {
-      return ConversationFollower.create({ UserId, ConversationId, isActive: false }, { transaction });
-    } else if (following.isActive) {
-      return following.update({ isActive: false }, { transaction });
-    } else {
-      return following;
-    }
-  });
-};
 
 export default ConversationFollower;

@@ -16,6 +16,7 @@ export const SUPPORTED_FILE_KINDS = [
   'TIER_LONG_DESCRIPTION',
   'ACCOUNT_CUSTOM_EMAIL',
   'AGREEMENT_ATTACHMENT',
+  'EXPENSE_INVOICE',
 ] as const;
 
 export type FileKind = (typeof SUPPORTED_FILE_KINDS)[number];

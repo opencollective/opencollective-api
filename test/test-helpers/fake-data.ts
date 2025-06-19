@@ -52,7 +52,7 @@ import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
-import { MemberModelInterface } from '../../server/models/Member';
+import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
 import PaymentMethod from '../../server/models/PaymentMethod';
@@ -179,6 +179,36 @@ export const fakeUser = async (
   await user.update({ CollectiveId: userCollective.id });
   user.collective = userCollective;
   return user;
+};
+
+export const fakeUserTwoFactorMethod = async (
+  data: Partial<
+    | InferCreationAttributes<UserTwoFactorMethod<TwoFactorMethod.TOTP>>
+    | InferCreationAttributes<UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN>>
+    | InferCreationAttributes<UserTwoFactorMethod<TwoFactorMethod.YUBIKEY_OTP>>
+  > = {},
+) => {
+  const user = data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser();
+  return models.UserTwoFactorMethod.create({
+    ...data,
+    UserId: user.id,
+    method: data.method || TwoFactorMethod.TOTP,
+    name: data.name || 'Generic TOTP',
+    data: data.data || { secret: 'secret' },
+  });
+};
+
+export const fakeIncognitoProfile = async user => {
+  const incognitoCollective = await fakeCollective({
+    type: CollectiveType.USER,
+    name: 'Incognito',
+    slug: randStr('incognito-'),
+    HostCollectiveId: null,
+    CreatedByUserId: user.id,
+    isIncognito: true,
+  });
+  await fakeMember({ CollectiveId: incognitoCollective.id, MemberCollectiveId: user.CollectiveId, role: roles.ADMIN });
+  return incognitoCollective;
 };
 
 /** @deprecated: use fakeActiveHost */
@@ -900,7 +930,7 @@ export const fakeTransactionsImportRow = async (data: Partial<InferCreationAttri
 /**
  * Creates a fake member. All params are optionals.
  */
-export const fakeMember = async (data: Partial<InferCreationAttributes<MemberModelInterface>> = {}) => {
+export const fakeMember = async (data: Partial<InferCreationAttributes<Member>> = {}) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
     ? await models.Collective.findByPk(data.MemberCollectiveId)

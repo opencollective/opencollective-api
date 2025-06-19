@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { buildSearchConditions } from '../../../lib/sql-search';
@@ -13,6 +13,9 @@ import { getCollectionArgs } from '../interface/Collection';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
 import { GraphQLConnectedAccount } from './ConnectedAccount';
+import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
+import { GraphQLPlaidAccount } from './PlaidAccount';
+import { GraphQLTransactionsImportAssignment } from './TransactionsImportAssignment';
 
 export const GraphQLTransactionsImport = new GraphQLObjectType({
   name: 'TransactionsImport',
@@ -77,6 +80,23 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       description: 'Cursor that defines where the last sync left off. Useful to know if there is new data to sync',
       resolve: (importInstance: TransactionsImport) => importInstance.data?.plaid?.lastSyncCursor,
     },
+    plaidAccounts: {
+      type: new GraphQLList(GraphQLPlaidAccount),
+      description: 'List of available accounts for the import',
+      resolve: (importInstance: TransactionsImport) => importInstance.data?.plaid?.availableAccounts || null,
+    },
+    assignments: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportAssignment))),
+      description:
+        'Assignments for the import, as a map of account id to legacy collective IDs. The `__default__` key can be use to set the default assignment.',
+      resolve: (importInstance: TransactionsImport, _, req) => {
+        const assignments = importInstance.settings?.assignments || {};
+        return Object.entries(assignments).map(([importedAccountId, accountIds]) => ({
+          importedAccountId,
+          accounts: () => req.loaders.Collective.byId.loadMany(accountIds),
+        }));
+      },
+    },
     connectedAccount: {
       type: GraphQLConnectedAccount,
       description: 'Connected account linked to the import',
@@ -89,6 +109,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     rows: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
       description: 'List of rows in the import',
+      deprecationReason: '2025-04-29: Please use `host.offPlatformTransactions` instead.',
       args: {
         ...getCollectionArgs({ limit: 100 }),
         status: {
@@ -99,10 +120,20 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
           type: GraphQLString,
           description: 'Search by text',
         },
+        accountId: {
+          type: new GraphQLList(GraphQLNonEmptyString),
+          description: 'Filter rows by plaid account id',
+        },
       },
       resolve: async (
         importInstance,
-        args: { limit: number; offset: number; status: TransactionsImportRowStatus; searchTerm: string },
+        args: {
+          limit: number;
+          offset: number;
+          status: TransactionsImportRowStatus;
+          searchTerm: string;
+          accountId: string[];
+        },
       ) => {
         const where: Parameters<typeof TransactionsImportRow.findAll>[0]['where'] = {
           [Op.and]: [{ TransactionsImportId: importInstance.id }],
@@ -120,6 +151,12 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
               textFields: ['description', 'sourceId'],
             }),
           });
+        }
+
+        // Filter by plaid account id
+        if (args.accountId?.length) {
+          // eslint-disable-next-line camelcase
+          where[Op.and].push({ rawValue: { account_id: { [Op.in]: args.accountId } } });
         }
 
         return {
@@ -141,41 +178,8 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       },
     },
     stats: {
-      type: new GraphQLObjectType({
-        name: 'TransactionsImportStats',
-        fields: {
-          total: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Total number of rows in the import',
-          },
-          ignored: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that have been ignored',
-          },
-          expenses: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that have been converted to expenses',
-          },
-          orders: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that have been converted to orders',
-          },
-          processed: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description:
-              'Number of rows that have been processed (either dismissed or converted to expenses or orders)',
-          },
-          onHold: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that are on hold',
-          },
-          invalid: {
-            type: new GraphQLNonNull(GraphQLInt),
-            description: 'Number of rows that are invalid (e.g. linked but without an expense or order)',
-          },
-        },
-      }),
-      resolve: async (importInstance, _, req) => {
+      type: new GraphQLNonNull(GraphQLTransactionsImportStats),
+      resolve: async (importInstance, _, req: Express.Request) => {
         return req.loaders.TransactionsImport.stats.load(importInstance.id);
       },
     },

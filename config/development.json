@@ -1,6 +1,6 @@
 {
   "env": "development",
-  "elasticSearch": {
+  "opensearch": {
     "url": "http://localhost:9200"
   },
   "mailpit": {

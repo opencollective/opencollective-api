@@ -1,6 +1,7 @@
 export default {
   host1: {
     name: 'WWCode',
+    slug: 'wwcode',
     hostFeePercent: 10,
     email: 'finance+wwcode@opencollective.com',
     description: 'engineer',

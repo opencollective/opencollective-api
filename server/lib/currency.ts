@@ -21,7 +21,7 @@ export function getDate(date: string | Date = 'latest'): string {
   if (typeof date === 'string') {
     return date;
   } else if (date.getFullYear) {
-    return moment(date).format('YYYY-MM-DD');
+    return moment(date).utc().format('YYYY-MM-DD');
   }
 }
 
@@ -124,7 +124,7 @@ export async function fetchFxRates(
   date = getDate(date);
 
   const isFutureDate = date !== 'latest' && moment(date).isAfter(moment(), 'day'); // Fixer API is not able to fetch future rates. Ideally, this function should return null when requesting a future date.
-  const useFixerApi = Boolean(get(config, 'fixer.accessKey')) && !isFutureDate;
+  const useFixerApi = Boolean(get(config, 'fixer.accessKey')) && !isFutureDate && !process.env.E2E_TEST;
   const isLiveEnv = ['staging', 'production'].includes(config.env);
   const useMockRate = !isLiveEnv && !parseToBoolean(get(config, 'fixer.disableMock'));
 

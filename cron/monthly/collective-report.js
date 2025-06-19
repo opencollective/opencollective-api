@@ -171,11 +171,6 @@ const processCollective = async collective => {
         data.collective.transactions = await enrichTransactionsWithHostFee(results[10]);
         const nextGoal = results[9];
         if (nextGoal) {
-          nextGoal.tweet = `🚀 ${collective.twitterHandle ? `@${collective.twitterHandle}` : collective.name} is at ${
-            nextGoal.percentage
-          } of their next goal: ${nextGoal.title}.\nHelp us get there! 🙌\nhttps://opencollective.com/${
-            collective.slug
-          }`;
           data.collective.nextGoal = nextGoal;
         }
 

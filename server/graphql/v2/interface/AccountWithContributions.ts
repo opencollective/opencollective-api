@@ -82,6 +82,10 @@ export const AccountWithContributionsFields = {
       roles: { type: new GraphQLList(GraphQLMemberRole) },
     },
     async resolve(collective: Collective, args, req): Promise<Record<string, unknown>> {
+      if (collective.isIncognito || collective.type === 'USER') {
+        return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
+      }
+
       const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
       const contributors = contributorsCache.all || [];
       const filteredContributors = filterContributors(contributors, omit(args, ['offset', 'limit']));

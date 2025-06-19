@@ -71,6 +71,10 @@ export const GraphQLExpenseUpdateInput = new GraphQLInputObjectType({
       type: new GraphQLList(new GraphQLNonNull(GraphQLExpenseAttachedFileInput)),
       description: '(Optional) A list of files that you want to attach to this expense',
     },
+    invoiceFile: {
+      type: GraphQLExpenseAttachedFileInput,
+      description: '(Optional - applicable to invoice expense only) The invoice file for this expense',
+    },
     payee: {
       type: GraphQLNewAccountOrReferenceInput,
       description: 'Account to reimburse',

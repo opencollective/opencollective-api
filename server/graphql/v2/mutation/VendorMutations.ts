@@ -2,19 +2,23 @@ import assert from 'assert';
 
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import slugify from 'limax';
-import { differenceBy, isEmpty, isUndefined, pick } from 'lodash';
+import { differenceBy, isEmpty, isUndefined, pick, uniq } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
-import models, { Activity, LegalDocument, Op } from '../../../models';
+import models, { Activity, Collective, LegalDocument, Op } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import { GraphQLVendorCreateInput, GraphQLVendorEditInput } from '../input/VendorInput';
 import { GraphQLVendor } from '../object/Vendor';
 
@@ -42,7 +46,17 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to create a vendor for this host");
       }
 
-      const { vendorInfo } = args.vendor;
+      const { vendorInfo, visibleToAccounts: visibleToAccountsArg } = args.vendor;
+
+      let visibleToAccounts: Collective[] = [];
+      if (visibleToAccountsArg) {
+        visibleToAccounts = await fetchAccountsWithReferences(visibleToAccountsArg, { throwIfMissing: true });
+      }
+
+      if (!visibleToAccounts.every(acc => acc.HostCollectiveId === host.id)) {
+        throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
+      }
+
       const vendorData = {
         type: CollectiveType.VENDOR,
         slug: `${host.id}-${slugify(args.vendor.name)}-${uuid().substr(0, 8)}`,
@@ -53,6 +67,7 @@ const vendorMutations = {
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),
+          visibleToAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
         },
         settings: {},
       };
@@ -135,7 +150,17 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to edit a vendor for this host");
       }
 
-      const { vendorInfo } = args.vendor;
+      const { vendorInfo, visibleToAccounts: visibleToAccountsArg } = args.vendor;
+
+      let visibleToAccounts: Collective[] = [];
+      if (visibleToAccountsArg) {
+        visibleToAccounts = await fetchAccountsWithReferences(visibleToAccountsArg, { throwIfMissing: true });
+      }
+
+      if (!visibleToAccounts.every(acc => acc.HostCollectiveId === host.id)) {
+        throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
+      }
+
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
       const image = !isUndefined(args.vendor.imageUrl)
         ? args.vendor.imageUrl
@@ -151,6 +176,7 @@ const vendorMutations = {
         settings: vendor.settings,
         data: {
           ...vendor.data,
+          visibleToAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
         },
       };

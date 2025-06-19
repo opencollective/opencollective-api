@@ -8,10 +8,10 @@
   "mailpit": {
     "client": "MAILPIT_CLIENT"
   },
-  "elasticSearch": {
-    "url": "ELASTICSEARCH_URL",
-    "maxSyncDelay": "ELASTICSEARCH_MAX_SYNC_DELAY",
-    "indexesPrefix": "ELASTICSEARCH_INDEXES_PREFIX"
+  "opensearch": {
+    "url": "OPENSEARCH_URL",
+    "maxSyncDelay": "OPENSEARCH_MAX_SYNC_DELAY",
+    "indexesPrefix": "OPENSEARCH_INDEXES_PREFIX"
   },
   "database": {
     "url": "PG_URL",
@@ -61,7 +61,8 @@
       "sessionSecret": "SESSION_SECRET",
       "jwtSecret": "JWT_SECRET",
       "emailUnsubscribeSecret": "EMAIL_UNSUBSCRIBE_SECRET",
-      "hashidSalt": "HASHID_SALT"
+      "hashidSalt": "HASHID_SALT",
+      "pdfApiKey": "PDF_SERVICE_API_KEY"
     }
   },
   "log": {
@@ -128,8 +129,9 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "pdf": "PDF_SERVICE_URL",
-    "rest": "REST_URL"
+    "pdfV2": "PDF_SERVICE_V2_URL",
+    "rest": "REST_URL",
+    "ml": "ML_SERVICE_URL"
   },
   "limits": {
     "ordersPerHour": {
@@ -142,7 +144,8 @@
       "forCollective": "ORDERS_LIMIT_COLLECTIVE"
     },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
-    "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS"
+    "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
+    "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR"
   },
   "slack": {
     "webhooks": {
@@ -152,11 +155,6 @@
   "github": {
     "clientID": "GITHUB_CLIENT_ID",
     "clientSecret": "GITHUB_CLIENT_SECRET"
-  },
-  "twitter": {
-    "consumerKey": "TWITTER_CONSUMER_KEY",
-    "consumerSecret": "TWITTER_CONSUMER_SECRET",
-    "disable": "TWITTER_DISABLE"
   },
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY",
@@ -223,8 +221,7 @@
     "dsn": "SENTRY_DSN",
     "tracesSampleRate": "SENTRY_TRACES_SAMPLE_RATE",
     "profilesSampleRate": "SENTRY_PROFILES_SAMPLE_RATE",
-    "minExecutionTimeToSample": "SENTRY_MIN_EXECUTION_TIME_TO_SAMPLE",
-    "logToConsole": "SENTRY_LOG_TO_CONSOLE"
+    "minExecutionTimeToSample": "SENTRY_MIN_EXECUTION_TIME_TO_SAMPLE"
   },
   "ledger": {
     "fastBalance": "LEDGER_FAST_BALANCE",
@@ -253,7 +250,9 @@
     "enforceSuspendedAsset": "FRAUD_PROTECTION_SUSPEND_ASSET"
   },
   "gitbook": {
-    "apiKey": "GITBOOK_API_KEY"
+    "apiKey": "GITBOOK_API_KEY",
+    "apiUrl": "GITBOOK_API_URL",
+    "spaceId": "GITBOOK_SPACE_ID"
   },
   "opentelemetry": {
     "enabled": "OPENTELEMETRY_ENABLED"

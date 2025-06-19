@@ -14,7 +14,6 @@ import {
 } from 'sequelize';
 import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
-import isURL from 'validator/lib/isURL';
 
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
@@ -25,6 +24,7 @@ import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import streamToBuffer from '../lib/stream-to-buffer';
+import { isValidURL } from '../lib/url-utils';
 
 import User from './User';
 
@@ -83,6 +83,7 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
   ACCOUNT_BANNER: SUPPORTED_FILE_TYPES_IMAGES,
   EXPENSE_ATTACHED_FILE: SUPPORTED_FILE_TYPES,
   EXPENSE_ITEM: SUPPORTED_FILE_TYPES,
+  EXPENSE_INVOICE: SUPPORTED_FILE_TYPES,
   TRANSACTIONS_IMPORT: ['text/csv'],
   ACCOUNT_LONG_DESCRIPTION: SUPPORTED_FILE_TYPES_IMAGES,
   UPDATE: SUPPORTED_FILE_TYPES_IMAGES,
@@ -442,7 +443,10 @@ UploadedFile.init(
       get() {
         const url = this.getDataValue('url');
         const kind = this.getDataValue('kind');
-        if (['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE'].includes(kind) && UploadedFile.isOpenCollectiveS3BucketURL(url)) {
+        if (
+          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE'].includes(kind) &&
+          UploadedFile.isOpenCollectiveS3BucketURL(url)
+        ) {
           return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(this);
         } else {
           return url;
@@ -456,14 +460,7 @@ UploadedFile.init(
           msg: 'The uploaded file URL is too long',
         },
         isValidURL(url: string): void {
-          if (
-            !isURL(url, {
-              // eslint-disable-next-line camelcase
-              require_host: config.env !== 'development' && config.env !== 'test',
-              // eslint-disable-next-line camelcase
-              require_tld: config.env !== 'development' && config.env !== 'test',
-            })
-          ) {
+          if (!isValidURL(url)) {
             throw new Error('File URL is not a valid URL');
           }
 

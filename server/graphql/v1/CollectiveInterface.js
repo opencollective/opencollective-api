@@ -616,6 +616,9 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       slug: { type: GraphQLString },
       path: { type: GraphQLString },
       isHost: { type: GraphQLBoolean },
+      isTrustedHost: { type: new GraphQLNonNull(GraphQLBoolean) },
+      isFirstPartyHost: { type: new GraphQLNonNull(GraphQLBoolean) },
+      isVerified: { type: new GraphQLNonNull(GraphQLBoolean) },
       isIncognito: { type: GraphQLBoolean },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isGuest: { type: GraphQLBoolean },
@@ -1139,6 +1142,18 @@ const CollectiveFields = () => {
       description: 'Returns whether this host is trusted or not',
       resolve: collective => Boolean(get(collective, 'data.isTrustedHost')),
     },
+    isFirstPartyHost: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Returns whether this host is trusted or not',
+      resolve: collective => Boolean(get(collective, 'data.isFirstPartyHost')),
+    },
+    isVerified: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the account is verified',
+      resolve(collective) {
+        return get(collective, 'data.isVerified') || false;
+      },
+    },
     isTwoFactorAuthEnabled: {
       type: GraphQLBoolean,
       description: 'Returns whether this user has two factor authentication enabled',
@@ -1372,6 +1387,10 @@ const CollectiveFields = () => {
         roles: { type: new GraphQLList(ContributorRoleEnum) },
       },
       async resolve(collective, args, req) {
+        if (collective.isIncognito || collective.type === 'USER') {
+          return [];
+        }
+
         const contributors = await req.loaders.Contributors.forCollectiveId.load(collective.id);
         return filterContributors(contributors.all, args);
       },
@@ -2034,6 +2053,20 @@ export const VendorCollectiveType = new GraphQLObjectType({
       async resolve(collective, _, req) {
         const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
         return payoutMethods.length > 0;
+      },
+    },
+    visibleToAccounts: {
+      type: new GraphQLList(CollectiveInterfaceType),
+      description:
+        'The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host',
+      async resolve(vendor, _, req) {
+        const visibleToAccountIds = vendor.data?.visibleToAccountIds || [];
+
+        if (visibleToAccountIds.length === 0) {
+          return [];
+        }
+
+        return req.loaders.Collective.byId.loadMany(visibleToAccountIds);
       },
     },
   }),

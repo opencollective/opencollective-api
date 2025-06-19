@@ -5,10 +5,12 @@ import { checkCaptcha } from '../../lib/check-captcha';
 import emailLib from '../../lib/email';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models from '../../models';
 
 export const unsubscribe = async (req, res, next) => {
-  const { type, email, slug, token } = req.params;
+  const { email, slug, token } = req.params;
+  let type = req.params.type;
 
   if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));
@@ -19,6 +21,11 @@ export const unsubscribe = async (req, res, next) => {
     const user = await models.User.findOne({ where: { email } });
     if (!user) {
       throw new errors.NotFound(`Cannot find a user with email "${email}"`);
+    }
+
+    // Convert legacy types to new types. This must be done after `isValidUnsubscribeToken` because the template name influences the token.
+    if (type === 'order.thankyou') {
+      type = 'order.processed';
     }
 
     await models.Notification.unsubscribe(type, 'email', user.id, collective?.id);
@@ -86,7 +93,27 @@ export const messageSupport = async (req, res) => {
     },
   });
 
-  await emailLib.sendMessage(recipient, topic, html, options);
+  try {
+    await emailLib.sendMessage(recipient, topic, html, options);
+  } catch (e) {
+    reportErrorToSentry(e, {
+      user: remoteUser,
+      extra: {
+        body,
+        recipient,
+        topic,
+        html,
+        options,
+        ip,
+      },
+    });
+
+    res.status(500).send({
+      message: 'Error while opening the support ticket, please reach out directly to support@opencollective.com',
+    });
+
+    return;
+  }
 
   res.status(200).send({ sent: true });
 };

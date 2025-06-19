@@ -45,30 +45,11 @@ const mustUpdateNames = (fromAccount, fromAccountInfo) => {
  * Checks that the profile has all requirements for this contribution (name, address, etc) and updates
  * it if necessary. Must be called **after** checking permissions and authentication!
  */
-const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) => {
-  const { totalAmount, fromAccountInfo, guestInfo } = order;
+const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest) => {
+  const { fromAccountInfo, guestInfo } = order;
   const accountUpdatePayload = {};
   const existingLocation = await fromAccount.getLocation();
   const location = fromAccountInfo?.location || guestInfo?.location || existingLocation;
-  const isContributingFromSameHost = fromAccount.HostCollectiveId === order.collective.HostCollectiveId;
-
-  // Only enforce profile checks for guests and USD contributions at the moment
-  if (isGuest && currency === 'USD' && !isContributingFromSameHost) {
-    // Contributions that are more than $5000 must have an address attached
-    if (totalAmount > 5000e2) {
-      if (!location?.structured && (!location?.address || !location?.country)) {
-        throw new BadRequest('Contributions that are more than $5000 must have an address attached');
-      }
-    }
-
-    // Contributions that are more than $250 must have a name attached
-    if (totalAmount > 250e2) {
-      const name = fromAccountInfo?.name || fromAccountInfo?.legalName || fromAccount.name || fromAccount.legalName;
-      if (!name) {
-        throw new BadRequest('Contributions that are more than $250 must have a name attached');
-      }
-    }
-  }
 
   // Update account with new info, unless we're making a guest contribution for an existing account
   // (we don't want to let guests update the profile of an existing account that they may not own)
@@ -245,7 +226,8 @@ export async function createOrder(order, req) {
   }
 
   const receiveOrdersStatus = await checkReceiveFinancialContributions(collective, req, { ignoreActive: true });
-  if (!['ACTIVE', 'AVAILABLE'].includes(receiveOrdersStatus)) {
+
+  if (!['ACTIVE', 'AVAILABLE'].includes(receiveOrdersStatus) && !order.isBalanceTransfer) {
     throw new Forbidden('This collective cannot receive financial contributions');
   }
 

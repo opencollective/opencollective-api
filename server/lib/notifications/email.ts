@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
 import Channels from '../../constants/channels';
 import { CollectiveType } from '../../constants/collectives';
+import PlatformConstants from '../../constants/platform';
 import MemberRoles from '../../constants/roles';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
@@ -19,14 +20,13 @@ import emailLib from '../email';
 import logger from '../logger';
 import { getTransactionPdf } from '../pdf';
 import { reportMessageToSentry } from '../sentry';
-import twitter from '../twitter';
 import { toIsoDateStr } from '../utils';
 
 import { replaceVideosByImagePreviews } from './utils';
 
 const debug = debugLib('notifications');
 
-const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_THANKYOU];
+const VENDOR_SUBSCRIBED_ACTIVITIES = [ActivityTypes.ORDER_PROCESSED];
 
 type NotifySubscribersOptions = {
   attachments?: any[];
@@ -104,15 +104,18 @@ export const notify = {
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions,
   ): Promise<void> {
+    const cleanUsersArray = compact(users); // Remove any possible null or empty user in the array
+    if (cleanUsersArray.length === 0) {
+      return;
+    }
+
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
+      UserId: cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id)),
       attributes: ['id'],
     });
-
-    // Remove any possible null or empty user in the array
-    const cleanUsersArray = compact(users);
 
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
@@ -121,7 +124,7 @@ export const notify = {
         ...options,
         isTransactional,
       });
-    } else if (cleanUsersArray.length > 0) {
+    } else {
       const queue = new PQueue({ concurrency: 50 });
       for (const userOrUserId of cleanUsersArray) {
         const isUserId = typeof userOrUserId === 'number';
@@ -196,6 +199,7 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.COLLECTIVE_UNFROZEN:
     case ActivityTypes.PAYMENT_CREDITCARD_EXPIRING:
     case ActivityTypes.ORDER_PENDING_CREATED:
+    case ActivityTypes.CONNECTED_ACCOUNT_REMOVED:
       await notify.collective(activity);
       break;
 
@@ -254,7 +258,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_MEMBER_CREATED:
-      twitter.tweetActivity(activity);
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
       break;
 
@@ -319,8 +322,6 @@ export const notifyByEmail = async (activity: Activity) => {
     }
 
     case ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED: {
-      twitter.tweetActivity(activity);
-
       // Never notify for certain updates (changelog, coming from OC Inc, etc)
       const update = await models.Update.findByPk(activity.data.update.id);
       if (!update?.shouldNotify()) {
@@ -580,20 +581,16 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_CREATED:
-      // Disable for the-social-change-nest
-      if (get(activity, 'data.host.slug') === 'the-social-change-nest') {
+      // Disable for OSC and the-social-change-nest, as they're sending `collective.approved.{host}`
+      // templates instead of `collective.created`.
+      if (
+        get(activity, 'data.host.slug') === 'the-social-change-nest' ||
+        get(activity, 'data.host.id') === PlatformConstants.FiscalHostOSCCollectiveId
+      ) {
         break;
       }
       // Normal case
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
-      break;
-
-    case ActivityTypes.COLLECTIVE_CREATED_GITHUB:
-      await notify.collective(activity, {
-        collectiveId: activity.data.collective.id,
-        template: 'collective.created.opensource',
-      });
-      notify.user(activity, { template: 'github.signup' });
       break;
 
     case ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST:
@@ -625,14 +622,22 @@ export const notifyByEmail = async (activity: Activity) => {
         await emailLib.send(activity.type, activity.data.payee.email, activity.data, {
           replyTo: sender?.email,
         });
-      } else if (activity.data.payee.id) {
-        await notify.collective(activity, {
-          collectiveId: activity.data.payee.id,
-        });
-      } else if (activity.data.payee.slug) {
-        const collective = await models.Collective.findBySlug(activity.data.payee.slug);
-        await notify.collective(activity, { collective });
+      } else if (activity.data.payee.id || activity.data.payee.slug) {
+        const payee = activity.data.payee.id
+          ? await models.Collective.findByPk(activity.data.payee.id)
+          : await models.Collective.findBySlug(activity.data.payee.slug);
+
+        // If the payee is hosted by a different host, we need to notify the host admins as they're the ones setting the payout method
+        if (payee.HostCollectiveId && payee.approvedAt && payee.HostCollectiveId !== activity.HostCollectiveId) {
+          activity.data.isCrossHostExpense = true;
+          activity.data.payee = payee.info;
+          const payeeHost = await models.Collective.findByPk(payee.HostCollectiveId);
+          await notify.collective(activity, { collective: payeeHost });
+        } else {
+          await notify.collective(activity, { collective: payee });
+        }
       }
+
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED:

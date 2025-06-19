@@ -48,10 +48,6 @@ export default {
       options = {};
     }
 
-    if (options.linkTwitterMentions) {
-      msg = msg.replace(/@([a-z\d_]+)/gi, '<http://twitter.com/$1|@$1>');
-    }
-
     const slackOptions = {
       text: msg,
       username: 'OpenCollective',

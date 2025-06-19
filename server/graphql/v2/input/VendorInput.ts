@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, Gr
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { AccountImagesInputFields } from './AccountCreateInputImageFields';
-import { AccountReferenceInputFields } from './AccountReferenceInput';
+import { AccountReferenceInputFields, GraphQLAccountReferenceInput } from './AccountReferenceInput';
 import { GraphQLLocationInput } from './LocationInput';
 import { GraphQLPayoutMethodInput } from './PayoutMethodInput';
 
@@ -40,6 +40,7 @@ const VendorInputFields = {
   imageUrl: { type: GraphQLString, deprecationReason: '2024-11-26: Please use image + backgroundImage fields' },
   vendorInfo: { type: GraphQLVendorInfoInput },
   payoutMethod: { type: GraphQLPayoutMethodInput },
+  visibleToAccounts: { type: new GraphQLList(GraphQLAccountReferenceInput) },
   ...AccountImagesInputFields,
 };
 

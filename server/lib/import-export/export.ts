@@ -1,4 +1,5 @@
 import debugLib from 'debug';
+import type Express from 'express';
 import { compact, concat, keys, pick, set, uniqBy, values } from 'lodash';
 import { DataType } from 'sequelize';
 
@@ -8,7 +9,7 @@ import { crypto } from '../encryption';
 import logger from '../logger';
 
 import { getSanitizers } from './sanitize';
-import { PartialRequest, RecipeItem } from './types';
+import { RecipeItem } from './types';
 
 const debug = debugLib('export');
 
@@ -56,7 +57,7 @@ export const buildForeignKeyTree = (models: Models) => {
 
 const sanitizers = getSanitizers();
 
-const serialize = async (model: ModelNames, req: PartialRequest, document: InstanceType<Models[ModelNames]>) => {
+const serialize = async (model: ModelNames, req: Express.Request, document: InstanceType<Models[ModelNames]>) => {
   const baseValues = { ...document.dataValues, model };
   if (!sanitizers[model]) {
     logger.warn(`No sanitizer found for model ${model}`);
@@ -125,7 +126,7 @@ const compactQueries = (queries, maxBatchSize = 500) => {
 
 export const traverse = async (
   { model, where, order, dependencies, limit, defaultDependencies = {}, parsed = {}, depth = 1 }: RecipeItem,
-  req: PartialRequest,
+  req: Express.Request,
   callback: (ei: ExportedItem) => Promise<any>,
 ): Promise<void> => {
   if (model && where) {

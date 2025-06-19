@@ -171,6 +171,7 @@ Comment.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
 // ConnectedAccount
 ConnectedAccount.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+ConnectedAccount.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
 // Conversations
 Conversation.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
@@ -197,6 +198,7 @@ Expense.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' 
 Expense.hasMany(Activity, { as: 'activities' });
 Expense.hasMany(Comment, { as: 'comments' });
 Expense.hasMany(ExpenseAttachedFile, { as: 'attachedFiles' });
+Expense.belongsTo(UploadedFile, { foreignKey: 'InvoiceFileId', as: 'invoiceFile' });
 Expense.hasMany(ExpenseItem, { as: 'items' });
 Expense.hasMany(Transaction);
 

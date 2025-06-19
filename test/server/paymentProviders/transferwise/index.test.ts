@@ -11,6 +11,7 @@ import {
   fakeConnectedAccount,
   fakeExpense,
   fakePayoutMethod,
+  fakeUser,
   multiple,
   randStr,
 } from '../../../test-helpers/fake-data';
@@ -63,7 +64,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     getExchangeRates,
     createBatchGroupTransfer,
     listBalancesAccount;
-  let connectedAccount, collective, host, payoutMethod, expense;
+  let connectedAccount, userConnectedAccount, collective, host, payoutMethod, expense, hostAdmin;
 
   before(async () => {
     await utils.resetTestDB();
@@ -131,7 +132,8 @@ describe('server/paymentProviders/transferwise/index', () => {
   });
 
   before(async () => {
-    host = await fakeCollective({ isHostAccount: true });
+    hostAdmin = await fakeUser();
+    host = await fakeCollective({ isHostAccount: true, admin: hostAdmin });
     connectedAccount = await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
@@ -144,6 +146,17 @@ describe('server/paymentProviders/transferwise/index', () => {
         },
         blockedCurrencies: ['BTC'],
       },
+      hash: 'owner-account',
+    });
+    userConnectedAccount = await fakeConnectedAccount({
+      CollectiveId: host.id,
+      service: 'transferwise',
+      token: 'user-fake-token',
+      CreatedByUserId: hostAdmin.id,
+      data: {
+        type: 'business',
+      },
+      hash: 'user-account',
     });
     collective = await fakeCollective({ isHostAccount: false, HostCollectiveId: host.id });
     payoutMethod = await fakePayoutMethod({
@@ -180,10 +193,6 @@ describe('server/paymentProviders/transferwise/index', () => {
     before(async () => {
       getExchangeRates.resolves([{ source: host.currency, target: 'EUR', rate: 0.9044 }]);
       quote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense, 123);
-    });
-
-    it('should assign profileId to connectedAccount', () => {
-      expect(connectedAccount.toJSON()).to.have.nested.property('data.id', 220192);
     });
 
     it('should calculate targetAmount based on expense amount and rate', () => {
@@ -424,11 +433,11 @@ describe('server/paymentProviders/transferwise/index', () => {
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
       createBatchGroupTransfer.resolves({ id: 800 });
       completeBatchGroup.resolves({ id: batchGroupId, version: 2, status: 'COMPLETED' });
-      response = await transferwise.payExpensesBatchGroup(host, [expense]);
+      response = await transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
     });
 
     it('should complete and fund batch group', () => {
-      assert.calledOnceWithMatch(completeBatchGroup, { id: connectedAccount.id }, batchGroupId, 1);
+      assert.calledOnceWithMatch(completeBatchGroup, { id: userConnectedAccount.id }, batchGroupId, 1);
 
       expect(fundBatchGroup.callCount).to.be.equal(1);
       expect(fundBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
@@ -448,7 +457,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('should retry funding if batchGroup is completed but not paid for', async () => {
-      response = await transferwise.payExpensesBatchGroup(host, [expense]);
+      response = await transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
 
       expect(fundBatchGroup.callCount).to.be.equal(2);
       expect(fundBatchGroup.secondCall).to.have.nested.property('args[2]', batchGroupId);
@@ -456,8 +465,8 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('should retry batchGroup if OTT token is provided', async () => {
-      fundBatchGroup.resolves();
-      await transferwise.payExpensesBatchGroup(host, undefined, ottToken);
+      fundBatchGroup.resolves({ id: randStr() });
+      await transferwise.approveExpenseBatchGroupPayment({ host, x2faApproval: ottToken, remoteUser: hostAdmin });
 
       expect(fundBatchGroup.getCall(2)).to.have.nested.property('args[2]', batchGroupId);
       expect(fundBatchGroup.getCall(2)).to.have.nested.property('args[3]', ottToken);
@@ -465,7 +474,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should fail if batchGroup status === COMPLETED and alreadyPaid is true', async () => {
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'COMPLETED', alreadyPaid: true });
-      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      const call = transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
       await expect(call).to.be.eventually.rejectedWith(
         Error,
         `Can not pay batch group, existing batch group was already paid`,
@@ -474,7 +483,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should fail if batchGroup was already cancelled', async () => {
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'CANCELLED' });
-      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      const call = transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
       await expect(call).to.be.eventually.rejectedWith(
         Error,
         `Can not pay batch group, existing batch group was cancelled`,
@@ -483,7 +492,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should fail if batchGroup does not contain every expense', async () => {
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'NEW' });
-      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      const call = transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
       await expect(call).to.be.eventually.rejectedWith(
         Error,
         `Batch group ${batchGroupId} does not include expense ${expense.id}`,
@@ -509,7 +518,7 @@ describe('server/paymentProviders/transferwise/index', () => {
         },
       });
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
-      const call = transferwise.payExpensesBatchGroup(host, [expiredExpense]);
+      const call = transferwise.payExpensesBatchGroup({ host, expenses: [expiredExpense], remoteUser: hostAdmin });
       await expect(call).to.be.eventually.rejectedWith(
         Error,
         `Expense ${expiredExpense.id} quote expired. Unschedule expense and try again`,
@@ -535,7 +544,7 @@ describe('server/paymentProviders/transferwise/index', () => {
         },
       });
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800, 546], status: 'NEW' });
-      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      const call = transferwise.payExpensesBatchGroup({ host, expenses: [expense], remoteUser: hostAdmin });
       await expect(call).to.be.eventually.rejectedWith(
         Error,
         `Expenses requested do not match the transfers added to batch group ${batchGroupId}`,

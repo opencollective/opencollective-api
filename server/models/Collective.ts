@@ -44,6 +44,7 @@ import {
   InferCreationAttributes,
   Model,
   NonAttribute,
+  WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
@@ -85,7 +86,6 @@ import {
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
-import { elasticSearchFullAccountReIndex } from '../lib/elastic-search/sync-postgres';
 import emailLib from '../lib/email';
 import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
@@ -99,6 +99,7 @@ import {
 import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
+import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
@@ -106,6 +107,7 @@ import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
+import { isValidURL } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
@@ -119,7 +121,7 @@ import Expense from './Expense';
 import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
-import Member, { MemberModelInterface } from './Member';
+import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
@@ -174,6 +176,8 @@ type Settings = {
   };
   customEmailMessage?: string;
   earlyAccess?: Record<string, boolean>;
+  disableCustomContributions?: boolean;
+  autoAssignExpenseCategoryPredictions?: boolean;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -204,6 +208,7 @@ type Data = Partial<{
     taxId: string;
     notes: string;
   }>;
+  visibleToAccountIds: number[];
 }> &
   Record<string, unknown>;
 
@@ -328,10 +333,10 @@ class Collective extends Model<
   declare public tiers?: NonAttribute<Array<Tier>>;
   declare public getTiers: HasManyGetAssociationsMixin<Tier>;
 
-  declare public members?: NonAttribute<Array<MemberModelInterface>>;
-  declare public getMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
-  declare public adminMembers?: NonAttribute<Array<MemberModelInterface>>;
-  declare public getAdminMembers: HasManyGetAssociationsMixin<MemberModelInterface>;
+  declare public members?: NonAttribute<Array<Member>>;
+  declare public getMembers: HasManyGetAssociationsMixin<Member>;
+  declare public adminMembers?: NonAttribute<Array<Member>>;
+  declare public getAdminMembers: HasManyGetAssociationsMixin<Member>;
 
   declare public socialLinks?: NonAttribute<Array<SocialLink>>;
   declare public getSocialLinks: HasManyGetAssociationsMixin<SocialLink>;
@@ -1021,6 +1026,30 @@ class Collective extends Model<
     return this;
   };
 
+  getOrCreateInternalPaymentMethod = async function () {
+    const paymentMethod = await PaymentMethod.findOne({
+      where: {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        CollectiveId: this.id,
+        currency: this.currency,
+      },
+    });
+
+    if (paymentMethod) {
+      return paymentMethod;
+    }
+
+    return PaymentMethod.create({
+      CollectiveId: this.id,
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+      name: `${this.name} (${capitalize(this.type.toLowerCase())})`,
+      primary: true,
+      currency: this.currency,
+    });
+  };
+
   getOrCreateHostPaymentMethod = async function () {
     const hostPaymentMethod = await PaymentMethod.findOne({
       where: {
@@ -1397,7 +1426,7 @@ class Collective extends Model<
     collectiveAttributes?: any;
     paranoid?: boolean;
     transaction?: SequelizeTransaction;
-  } = {}) {
+  } = {}): Promise<User[]> {
     if (this.type === 'USER' && !this.isIncognito) {
       // Incognito profiles rely on the `Members` entry to know which user it belongs to
       return [
@@ -1431,7 +1460,7 @@ class Collective extends Model<
     collectiveAttributes = [], // Don't include the member collective by default. Pass `null` to fetch all attributes.
     paranoid = true,
     transaction = undefined,
-  } = {}) {
+  } = {}): Promise<User[]> {
     return User.findAll({
       group: ['User.id', 'collective.id'],
       order: [['id', 'ASC']], // Not needed, but it's always nice to have a consistent order (e.g. for tests)
@@ -1943,27 +1972,33 @@ class Collective extends Model<
     // We only send the notification for new member for role MEMBER and ADMIN
     const lowercaseType = this.type.toLowerCase();
     const template = lowercaseType === 'organization' ? 'organization.newmember' : 'collective.newmember';
-    return emailLib.send(
-      template,
-      memberUser.email,
-      {
-        remoteUser: {
-          email: remoteUser.email,
-          collective: pick(remoteUser.collective, ['slug', 'name', 'image']),
+
+    try {
+      return await emailLib.send(
+        template,
+        memberUser.email,
+        {
+          remoteUser: {
+            email: remoteUser.email,
+            collective: pick(remoteUser.collective, ['slug', 'name', 'image']),
+          },
+          role: MemberRoleLabels[role] || role.toLowerCase(),
+          isAdmin: role === roles.ADMIN,
+          collective: {
+            slug: this.slug,
+            name: this.name,
+            type: lowercaseType,
+          },
+          recipient: {
+            collective: memberUser.collective.activity,
+          },
         },
-        role: MemberRoleLabels[role] || role.toLowerCase(),
-        isAdmin: role === roles.ADMIN,
-        collective: {
-          slug: this.slug,
-          name: this.name,
-          type: lowercaseType,
-        },
-        recipient: {
-          collective: memberUser.collective.activity,
-        },
-      },
-      { bcc: remoteUser.email },
-    );
+        { bcc: remoteUser.email },
+      );
+    } catch (e) {
+      reportErrorToSentry(e, { user: remoteUser });
+      throw new Error(`The member was invited, but we couldn't send the email`);
+    }
   };
 
   /**
@@ -2619,7 +2654,7 @@ class Collective extends Model<
     }
 
     // Update search
-    elasticSearchFullAccountReIndex(this.id);
+    openSearchFullAccountReIndex(this.id);
 
     return this;
   };
@@ -3236,10 +3271,26 @@ class Collective extends Model<
       });
   };
 
-  getAccountForPaymentProvider = async function (provider: Service, options = { throwIfMissing: true }) {
+  getAccountForPaymentProvider = async function (
+    provider: Service,
+    options: { throwIfMissing?: boolean; CreatedByUserId?: number; fallbackToNonUserAccount?: boolean } = {
+      throwIfMissing: true,
+    },
+  ) {
+    const where: WhereOptions<ConnectedAccount> = { service: provider, CollectiveId: this.id };
+    if (options.CreatedByUserId) {
+      where.CreatedByUserId = options.CreatedByUserId;
+    }
+
     let connectedAccount = await ConnectedAccount.findOne({
-      where: { service: provider, CollectiveId: this.id },
+      where,
     });
+
+    if (!connectedAccount && options.fallbackToNonUserAccount) {
+      connectedAccount = await ConnectedAccount.findOne({
+        where: omit(where, ['CreatedByUserId']),
+      });
+    }
 
     // If the account is connected to another account, we follow the chain
     if (connectedAccount?.data?.MirrorConnectedAccountId) {
@@ -3744,9 +3795,10 @@ Collective.init(
               ...currentPolicy,
               invoicePolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
               receiptPolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
+              grantPolicy: sanitizeHTML(expensePolicy, optsSanitizeHtmlForSimplified),
             },
           };
-          this.setDataValue('data', { data: { ...data, policies: newPolicies } });
+          this.setDataValue('data', { ...data, policies: newPolicies });
         } else {
           const data = this.getDataValue('data');
           const newPolicies = {
@@ -3755,9 +3807,10 @@ Collective.init(
               ...currentPolicy,
               invoicePolicy: '',
               receiptPolicy: '',
+              grantPolicy: '',
             },
           };
-          this.setDataValue('data', { data: { ...data, policies: newPolicies } });
+          this.setDataValue('data', { ...data, policies: newPolicies });
         }
       },
     },
@@ -3781,8 +3834,10 @@ Collective.init(
     image: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: {
-          msg: 'The image URL is not valid',
+        isValidUrl(url) {
+          if (url && !isValidURL(url)) {
+            throw new Error('The image URL is not valid');
+          }
         },
         len: {
           args: [0, MAX_UPLOADED_FILE_URL_LENGTH],
@@ -3827,8 +3882,10 @@ Collective.init(
     backgroundImage: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: {
-          msg: 'The background image URL is not valid',
+        isValidUrl(url) {
+          if (url && !isValidURL(url)) {
+            throw new Error('The background image URL is not valid');
+          }
         },
         len: {
           args: [0, MAX_UPLOADED_FILE_URL_LENGTH],

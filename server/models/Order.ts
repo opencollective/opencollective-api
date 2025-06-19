@@ -27,6 +27,7 @@ import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
+import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
@@ -42,7 +43,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
-import { MemberModelInterface } from './Member';
+import Member from './Member';
 import PaymentMethod from './PaymentMethod';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -84,6 +85,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare data: {
     hostFeePercent?: number;
     paymentProcessorFee?: number;
+    paymentProcessorFeeInHostCurrency?: number;
     memo?: string;
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
@@ -205,7 +207,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare createCreatedByUser: BelongsToCreateAssociationMixin<User>;
 
   // Class methods
-  declare getOrCreateMembers: () => Promise<[MemberModelInterface, MemberModelInterface]>;
+  declare getOrCreateMembers: () => Promise<[Member, Member]>;
   declare getUser: () => Promise<User | undefined>;
   declare getSubscriptionForUser: (user: User) => Promise<Subscription | null>;
   declare markAsPaid: (user: User) => Promise<Order>;
@@ -230,6 +232,16 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    */
   declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<T>;
   declare isLocked: () => boolean;
+  declare createProcessedActivity: ({
+    user,
+    data,
+    UserTokenId,
+  }: {
+    user?: User | null;
+    data?: Record<string, unknown>;
+    UserTokenId?: number | undefined;
+  }) => Promise<Activity>;
+
   declare createResumeActivity: (user: User, params: { UserTokenId?: number }) => Promise<void>;
   declare markSimilarPausedOrdersAsCancelled: () => Promise<void>;
 
@@ -341,6 +353,15 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
         replacements: [collectiveId],
       },
     );
+  }
+
+  static countActiveRecurringForPaymentService(
+    paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
+  ) {
+    return models.Order.count({
+      where: { status: { [Op.or]: [OrderStatuses.ACTIVE, OrderStatuses.ERROR] } },
+      include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
+    });
   }
 
   /**
@@ -853,6 +874,28 @@ Order.prototype.getUserForActivity = async function () {
   }
 
   return this.createdByUser;
+};
+
+Order.prototype.createProcessedActivity = async function ({
+  user = null,
+  data = undefined,
+  UserTokenId = undefined,
+} = {}) {
+  const collective = this.collective || (await this.getCollective());
+  const HostCollectiveId = collective.HostCollectiveId;
+  return Activity.create({
+    type: ActivityTypes.ORDER_PROCESSED,
+    UserId: user?.id,
+    UserTokenId,
+    FromCollectiveId: this.FromCollectiveId,
+    OrderId: this.id,
+    CollectiveId: this.CollectiveId,
+    HostCollectiveId,
+    data: {
+      order: this.info,
+      ...data,
+    },
+  });
 };
 
 /**

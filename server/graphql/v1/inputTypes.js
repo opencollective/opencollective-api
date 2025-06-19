@@ -207,3 +207,18 @@ const LocationInputType = new GraphQLInputObjectType({
     },
   }),
 });
+
+export const CaptchaInputType = new GraphQLInputObjectType({
+  name: 'CaptchaInputType',
+  description: 'Input type for captcha verification',
+  fields: {
+    token: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'The captcha token to verify',
+    },
+    provider: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'The captcha provider (HCAPTCHA, RECAPTCHA, or TURNSTILE)',
+    },
+  },
+});

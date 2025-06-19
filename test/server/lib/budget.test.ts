@@ -111,7 +111,7 @@ describe('server/lib/budget', () => {
         kind: null,
       });
       const sum = txs[collective.id];
-      expect(sum.value).to.eq(50e2);
+      expect(sum['value']).to.eq(50e2);
     });
 
     describe('when blocked funds are excluded', () => {
@@ -141,7 +141,7 @@ describe('server/lib/budget', () => {
             excludeRefunds: false,
           });
           const sum = txs[collective.id];
-          expect(sum.value).to.eq(50e2);
+          expect(sum['value']).to.eq(50e2);
         });
       });
     });

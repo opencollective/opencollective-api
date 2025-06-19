@@ -8,8 +8,7 @@
 import '../../env';
 
 import { ApolloServerPlugin } from '@apollo/server';
-import * as Sentry from '@sentry/node';
-import { SeverityLevel } from '@sentry/node';
+import Sentry, { SeverityLevel } from '@sentry/node';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { get, isEmpty, isEqual, pick } from 'lodash';
@@ -172,28 +171,30 @@ const simplifyReq = req =>
  * Helper to capture an error on Sentry
  */
 export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {}): void => {
-  withScopeFromCaptureErrorParams(params, (scope: Sentry.Scope) => {
-    // Add some more data if the error is an Axios error
-    if (axios.isAxiosError(err)) {
-      enhanceScopeWithAxiosError(scope, err, params);
+  if (checkIfSentryConfigured()) {
+    withScopeFromCaptureErrorParams(params, (scope: Sentry.Scope) => {
+      // Add some more data if the error is an Axios error
+      if (axios.isAxiosError(err)) {
+        enhanceScopeWithAxiosError(scope, err, params);
+      }
+
+      Sentry.captureException(err);
+    });
+  } else {
+    let details = err.stack ? err.stack : err.message;
+    if (axios.isAxiosError(err) && err.response?.data) {
+      details += '\nAxios response:';
+      details += safeJsonStringify(err.response.data);
     }
 
-    if (checkIfSentryConfigured()) {
-      Sentry.captureException(err);
-    } else if (config.sentry?.logToConsole) {
-      logger.error(
-        `[Sentry disabled] The following error would be reported: ${err.message} (${safeJsonStringify(
-          {
-            err,
-            params: { ...params, req: redactSensitiveDataFromRequest(simplifyReq(params.req)) },
-            stacktrace: err.stack,
-          },
-          null,
-          2,
-        )})`,
-      );
-    }
-  });
+    logger.error(
+      details,
+      sanitizeObjectForJSON({
+        ...params,
+        req: redactSensitiveDataFromRequest(simplifyReq(params.req)),
+      }),
+    );
+  }
 };
 
 /**

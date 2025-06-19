@@ -12,7 +12,8 @@ import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-import Collective from './Collective';
+import type Collective from './Collective';
+import type User from './User';
 
 class ConnectedAccount extends Model<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
@@ -32,8 +33,10 @@ class ConnectedAccount extends Model<
   declare public CreatedByUserId: CreationOptional<number>;
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
+  declare public deletedAt: CreationOptional<Date>;
 
   declare public collective?: NonAttribute<Collective>;
+  declare public user?: NonAttribute<User>;
   declare public getCollective: BelongsToGetAssociationMixin<Collective>;
 
   get info() {
@@ -82,7 +85,7 @@ ConnectedAccount.init(
         },
       },
     },
-    username: DataTypes.STRING, // paypal email / Stripe UserId / Twitter username / ...
+    username: DataTypes.STRING, // paypal email / Stripe UserId username / ...
     clientId: DataTypes.STRING, // paypal app id
     // either paypal secret OR an accessToken to do requests to the provider on behalf of the user
     token: {
@@ -106,10 +109,13 @@ ConnectedAccount.init(
       },
     },
     data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
-    settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
+    settings: DataTypes.JSONB, // configuration settings
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
+    },
+    deletedAt: {
+      type: DataTypes.DATE,
     },
     updatedAt: {
       type: DataTypes.DATE,

@@ -126,6 +126,7 @@ describe('server/graphql/loaders/expense', () => {
           requestStatus: 'RECEIVED',
           CollectiveId: user.CollectiveId,
         });
+        await models.LegalDocument.expireOldDocuments();
         const result = await loader.load(expenseWithUserTaxForm.id);
         expect(result).to.be.true;
       });

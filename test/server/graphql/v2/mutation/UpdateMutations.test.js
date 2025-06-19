@@ -3,16 +3,16 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
+import ActivityTypes from '../../../../../server/constants/activities';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
-import twitterLib from '../../../../../server/lib/twitter';
 import models from '../../../../../server/models';
-import { randStr } from '../../../../test-helpers/fake-data';
+import { fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let host, user1, user2, collective1, event1, update1;
-let sandbox, sendEmailSpy, sendTweetSpy;
+let sandbox, sendEmailSpy;
 
 describe('server/graphql/v2/mutation/UpdateMutations', () => {
   /* SETUP
@@ -24,7 +24,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
   before(() => {
     sandbox = createSandbox();
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
-    sendTweetSpy = sandbox.spy(twitterLib, 'tweetStatus');
   });
 
   after(() => sandbox.restore());
@@ -215,7 +214,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     });
 
     describe('publishes an update', async () => {
-      let result, noOneAudienceResult, update2, user4;
+      let result, noOneAudienceResult, update2, user4, unsubscribedUser;
 
       before(async () => {
         sendEmailSpy.resetHistory();
@@ -229,18 +228,23 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
           name: 'facebook',
           type: 'ORGANIZATION',
         });
-        org.addUserWithRole(user4, roles.ADMIN);
+        await org.addUserWithRole(user4, roles.ADMIN);
         await models.Member.create({
           CollectiveId: collective1.id,
           MemberCollectiveId: org.id,
           role: roles.BACKER,
           CreatedByUserId: user1.id,
         });
-        await models.ConnectedAccount.create({
-          CollectiveId: collective1.id,
-          service: 'twitter',
-          settings: { updatePublished: { active: true } },
-        });
+
+        unsubscribedUser = await fakeUser();
+        await org.addUserWithRole(unsubscribedUser, roles.BACKER, {}, { skipActivity: true });
+        await models.Notification.unsubscribe(
+          ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+          'email',
+          unsubscribedUser.id,
+          org.id,
+        );
+
         result = await utils.graphqlQueryV2(
           publishUpdateMutation,
           { id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE), notificationAudience: update1.notificationAudience },
@@ -255,19 +259,16 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       });
 
       it('sends the update to all users including admins of sponsor org', async () => {
-        await utils.waitForCondition(() => sendEmailSpy.callCount === 3, {
+        await utils.waitForCondition(() => sendEmailSpy.callCount >= 3, {
           tag: 'first update & "love"',
         });
-        expect(sendEmailSpy.callCount).to.equal(3);
+
         assert.calledWithMatch(sendEmailSpy, user1.email, 'first update & "love"');
         assert.calledWithMatch(sendEmailSpy, user2.email, 'first update & "love"');
         assert.calledWithMatch(sendEmailSpy, user4.email, 'first update & "love"');
-      });
+        assert.neverCalledWithMatch(sendEmailSpy, unsubscribedUser.email);
 
-      it('sends a tweet', async () => {
-        expect(sendTweetSpy.callCount).to.equal(1);
-        expect(sendTweetSpy.firstCall.args[1]).to.equal('Latest update from the collective: first update & "love"');
-        expect(sendTweetSpy.firstCall.args[2]).to.contain('/scouts/updates/first-update-and-love');
+        expect(sendEmailSpy.callCount).to.eq(3);
       });
 
       it('should publish update without notifying anyone', async () => {

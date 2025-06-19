@@ -7,7 +7,7 @@
   "database": {
     "url": "postgres://opencollective@127.0.0.1:5432/opencollective_test"
   },
-  "elasticSearch": {
+  "opensearch": {
     "url": "http://localhost:9200",
     "indexesPrefix": "test"
   },
@@ -25,7 +25,12 @@
   },
   "aws": {
     "s3": {
-      "bucket": "opencollective-test"
+      "bucket": "opencollective-test",
+      "endpoint": "http://localhost:9000",
+      "key": "user",
+      "secret": "password",
+      "region": "us-east-1",
+      "forcePathStyle": true
     }
   },
   "taxForms": {

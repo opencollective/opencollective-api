@@ -13,7 +13,7 @@ import Collective from './Collective';
 import Member from './Member';
 import User from './User';
 
-export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
+export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER];
 
 class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCreationAttributes<MemberInvitation>> {
   declare id: number;
@@ -21,7 +21,7 @@ class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCre
   declare MemberCollectiveId: number;
   declare CollectiveId: number;
   declare TierId: number;
-  declare role: roles.ACCOUNTANT | roles.ADMIN | roles.MEMBER;
+  declare role: roles.ACCOUNTANT | roles.ADMIN | roles.MEMBER | roles.COMMUNITY_MANAGER;
   declare description: string;
 
   declare createdAt: Date;
@@ -190,7 +190,7 @@ MemberInvitation.init(
       validate: {
         isIn: {
           args: [MEMBER_INVITATION_SUPPORTED_ROLES],
-          msg: 'Must be ACCOUNTANT, ADMIN or MEMBER',
+          msg: 'Must be ACCOUNTANT, ADMIN, MEMBER or COMMUNITY_MANAGER',
         },
       },
     },

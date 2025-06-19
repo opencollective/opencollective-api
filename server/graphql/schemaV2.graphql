@@ -207,6 +207,11 @@ interface Account {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -382,6 +387,11 @@ interface Account {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -501,6 +511,16 @@ interface Account {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -531,7 +551,7 @@ interface Account {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -567,6 +587,11 @@ interface Account {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -612,7 +637,7 @@ interface Account {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -630,6 +655,11 @@ interface Account {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -650,9 +680,19 @@ interface Account {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -689,6 +729,11 @@ interface Account {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -749,6 +794,11 @@ interface Account {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -780,7 +830,12 @@ interface Account {
   """
   The list of payout methods that this account can use to get paid
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this account can use to pay for Orders
@@ -813,9 +868,14 @@ interface Account {
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, PayPal, etc ...)
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -909,6 +969,11 @@ interface Account {
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -1800,6 +1865,7 @@ enum MemberRole {
   HOST
   ATTENDEE
   MEMBER
+  COMMUNITY_MANAGER
   FUNDRAISER @deprecated(reason: "2022-09-12: This role does not exist anymore")
   FOLLOWER
   ACCOUNTANT
@@ -2129,6 +2195,7 @@ interface Transaction {
   group: String!
   type: TransactionType!
   kind: TransactionKind
+  refundKind: RefundKind
   description(
     """
     Wether to generate the description dynamically.
@@ -2282,6 +2349,33 @@ enum TransactionKind {
   TAX
 }
 
+enum RefundKind {
+  """
+  Refund issued by the host
+  """
+  REFUND
+
+  """
+  Rejection issued by the host or collective admin
+  """
+  REJECT
+
+  """
+  Transaction reversed due to an edit
+  """
+  EDIT
+
+  """
+  Transaction was refunded by the platform to fix a duplicated transaction
+  """
+  DUPLICATE
+
+  """
+  Transaction was refunded due to a dispute
+  """
+  DISPUTE
+}
+
 """
 Information about a tax
 """
@@ -2371,7 +2465,7 @@ type Expense {
   """
   Taxes applied to this expense
   """
-  taxes: [TaxInfo]!
+  taxes: [TaxInfo!]!
 
   """
   The exchange rate between the expense currency and the account currency
@@ -2392,6 +2486,11 @@ type Expense {
   The time of creation
   """
   createdAt: DateTime!
+
+  """
+  Date of the expense
+  """
+  incurredAt: DateTime!
 
   """
   Currency that should be used for the payout
@@ -2479,7 +2578,12 @@ type Expense {
   (Optional) files attached to the expense
   """
   attachedFiles: [ExpenseAttachedFile!]
-  items: [ExpenseItem]
+
+  """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: FileInfo
+  items: [ExpenseItem!]!
 
   """
   Additional information about the payment as HTML. Only visible to user and admins.
@@ -2675,7 +2779,7 @@ type AccountingCategory {
   """
   If the category is applicable to the Host or Hosted Collectives
   """
-  appliesTo: AccountingCategoryAppliesTo!
+  appliesTo: AccountingCategoryAppliesTo
 }
 
 """
@@ -2714,6 +2818,11 @@ type Host implements Account & AccountWithContributions {
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -2918,6 +3027,11 @@ type Host implements Account & AccountWithContributions {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -3037,6 +3151,16 @@ type Host implements Account & AccountWithContributions {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -3067,7 +3191,7 @@ type Host implements Account & AccountWithContributions {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -3103,6 +3227,11 @@ type Host implements Account & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -3148,7 +3277,7 @@ type Host implements Account & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -3166,6 +3295,11 @@ type Host implements Account & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -3186,9 +3320,19 @@ type Host implements Account & AccountWithContributions {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -3225,6 +3369,11 @@ type Host implements Account & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -3285,6 +3434,11 @@ type Host implements Account & AccountWithContributions {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -3316,7 +3470,12 @@ type Host implements Account & AccountWithContributions {
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -3338,9 +3497,14 @@ type Host implements Account & AccountWithContributions {
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -3430,6 +3594,11 @@ type Host implements Account & AccountWithContributions {
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -3869,6 +4038,11 @@ type Host implements Account & AccountWithContributions {
   isTrustedHost: Boolean!
 
   """
+  Returns whether the host is trusted or not
+  """
+  isFirstPartyHost: Boolean!
+
+  """
   Returns whether the host has any Stripe disputed orders
   """
   hasDisputedOrders: Boolean
@@ -4074,15 +4248,76 @@ type Host implements Account & AccountWithContributions {
     offset: Int! = 0
 
     """
+    Filter by status of transactions import
+    """
+    status: TransactionsImportStatus
+
+    """
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Filter by type of transactions import
+    """
+    type: [TransactionsImportType]
   ): TransactionsImportsCollection!
 
   """
   Returns a list of transactions imports sources for this host
   """
-  transactionsImportsSources: [NonEmptyString]!
+  transactionsImportsSources(
+    """
+    Filter by type of transactions import
+    """
+    type: [TransactionsImportType]
+  ): [NonEmptyString]!
+  offPlatformTransactions(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 100
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Filter rows by status
+    """
+    status: TransactionsImportRowStatus
+
+    """
+    Search by text
+    """
+    searchTerm: String
+
+    """
+    Filter rows by plaid account id
+    """
+    accountId: [NonEmptyString]
+
+    """
+    The transactions import id(s)
+    """
+    importId: [NonEmptyString!]
+
+    """
+    Filter rows by import type
+    """
+    importType: [TransactionsImportType!]
+
+    """
+    The order of results
+    """
+    orderBy: TransactionsImportRowOrderInput! = { field: DATE, direction: DESC }
+  ): TransactionsImportRowCollection!
+
+  """
+  Returns stats for off platform transactions
+  """
+  offPlatformTransactionsStats: TransactionsImportStats!
 }
 
 """
@@ -4349,6 +4584,7 @@ enum LegalDocumentRequestStatus {
   RECEIVED
   ERROR
   INVALID
+  EXPIRED
 }
 
 """
@@ -4431,6 +4667,21 @@ enum OrderByFieldType {
   MEMBER_COUNT
   TOTAL_CONTRIBUTED
   NAME
+
+  """
+  Order by start date
+  """
+  STARTS_AT
+
+  """
+  Order by end date
+  """
+  ENDS_AT
+
+  """
+  Order by the date the collective was unhosted
+  """
+  UNHOSTED_AT
 }
 
 """
@@ -4504,6 +4755,93 @@ enum PaymentMethodService {
   WISE
 }
 
+"""
+Input type for an amount range with the value and currency
+"""
+input AmountRangeInput {
+  """
+  The minimum amount (inclusive)
+  """
+  gte: AmountInput
+
+  """
+  The maximum amount (inclusive)
+  """
+  lte: AmountInput
+}
+
+"""
+Input type for an amount with the value and currency
+"""
+input AmountInput {
+  """
+  The value in plain
+  """
+  value: Float
+
+  """
+  The currency string
+  """
+  currency: Currency
+
+  """
+  The value in cents
+  """
+  valueInCents: Int
+
+  """
+  If the amount was generated from a currency conversion, this field can be used to provide details about the conversion
+  """
+  exchangeRate: CurrencyExchangeRateInput
+}
+
+"""
+Fields for a currency exchange rate
+"""
+input CurrencyExchangeRateInput {
+  """
+  Where does the FX rate comes from
+  """
+  source: CurrencyExchangeRateSourceType!
+  fromCurrency: Currency!
+  toCurrency: Currency!
+
+  """
+  Date of the FX rate
+  """
+  date: DateTime!
+
+  """
+  Exchange rate value as a float (e.g 1.15 or 0.86)
+  """
+  value: Float!
+}
+
+"""
+Where does the FX rate come from
+"""
+enum CurrencyExchangeRateSourceType {
+  """
+  Open Collective internal system, relying on caching and 3rd party APIs
+  """
+  OPENCOLLECTIVE
+
+  """
+  PayPal API
+  """
+  PAYPAL
+
+  """
+  Wise API
+  """
+  WISE
+
+  """
+  User-provided exchange rate
+  """
+  USER
+}
+
 input ExpenseReferenceInput {
   """
   The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
@@ -4572,6 +4910,20 @@ input VirtualCardReferenceInput {
   id: String
 }
 
+input PaymentMethodReferenceInput {
+  """
+  The id assigned to the payment method
+  """
+  id: String
+}
+
+input PayoutMethodReferenceInput {
+  """
+  The id assigned to the payout method
+  """
+  id: String
+}
+
 """
 The user or system that paused the order
 """
@@ -4595,13 +4947,6 @@ enum OrderPausedBy {
   The collective
   """
   COLLECTIVE
-}
-
-input PaymentMethodReferenceInput {
-  """
-  The id assigned to the payment method
-  """
-  id: String
 }
 
 """
@@ -5040,6 +5385,16 @@ type PayoutMethod {
   The actual data for this payout method. Content depends on the type.
   """
   data: JSON
+
+  """
+  Whether this payout method can be edited
+  """
+  canBeEdited: Boolean
+
+  """
+  Whether this payout method can be deleted or only archived
+  """
+  canBeDeleted: Boolean
 }
 
 """
@@ -5142,6 +5497,11 @@ type PaymentMethod {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return orders where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int
@@ -5185,7 +5545,7 @@ type PaymentMethod {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -5203,6 +5563,11 @@ type PaymentMethod {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection
 }
 
@@ -5248,6 +5613,17 @@ type ConnectedAccount {
   updatedAt: DateTime!
   settings: JSON
   service: ConnectedAccountService!
+
+  """
+  The accounts that are mirroring this connected account
+  """
+  accountsMirrored: [Account]!
+  hash: String
+
+  """
+  The account who connected this account
+  """
+  createdByAccount: Account
 }
 
 """
@@ -5258,9 +5634,9 @@ enum ConnectedAccountService {
   stripe
   stripe_customer
   github
-  twitter
   transferwise
   plaid
+  twitter
   privacy @deprecated(reason: "Not using this service anymore")
   thegivingblock
   meetup @deprecated(reason: "Not using this service anymore")
@@ -6040,12 +6416,18 @@ type Policies {
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
+
+  """
+  Contribution threshold to enforce contributor info. This resolver can be called from the collective or the host, when resolved through the collective the thresholds are returned in the collective currency
+  """
+  CONTRIBUTOR_INFO_THRESHOLDS: CONTRIBUTOR_INFO_THRESHOLDS
 }
 
 type EXPENSE_POLICIES {
   invoicePolicy: String
   receiptPolicy: String
   titlePolicy: String
+  grantPolicy: String
 }
 
 type EXPENSE_AUTHOR_CANNOT_APPROVE {
@@ -6081,6 +6463,11 @@ type MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL {
 type EXPENSE_CATEGORIZATION {
   requiredForExpenseSubmitters: Boolean
   requiredForCollectiveAdmins: Boolean
+}
+
+type CONTRIBUTOR_INFO_THRESHOLDS {
+  legalName: Int
+  address: Int
 }
 
 type ActivitySubscription {
@@ -6126,9 +6513,9 @@ All supported Activity channels we can broadcast to
 """
 enum ActivityChannel {
   slack
-  twitter
   webhook
   email
+  twitter
 }
 
 """
@@ -6249,6 +6636,7 @@ enum ActivityType {
   ACCOUNTING_CATEGORIES_EDITED
   CONNECTED_ACCOUNT_CREATED
   CONNECTED_ACCOUNT_ERROR
+  CONNECTED_ACCOUNT_REMOVED
   COLLECTIVE_CREATED_GITHUB
   COLLECTIVE_APPLY
   COLLECTIVE_APPROVED
@@ -6310,6 +6698,7 @@ enum ActivityType {
   COLLECTIVE_CORE_MEMBER_EDITED
   COLLECTIVE_TRANSACTION_CREATED
   TRANSACTIONS_IMPORT_CREATED
+  TRANSACTIONS_IMPORT_ROW_UPDATED
   COLLECTIVE_UPDATE_CREATED
   COLLECTIVE_UPDATE_PUBLISHED
   COLLECTIVE_CONTACT
@@ -6327,12 +6716,12 @@ enum ActivityType {
   ORDER_PENDING_CONTRIBUTION_NEW
   ORDER_PENDING_CONTRIBUTION_REMINDER
   ORDER_PROCESSING
+  ORDER_PROCESSED
   ORDER_PAYMENT_FAILED
   ORDER_REVIEW_OPENED
   ORDER_REVIEW_CLOSED
   ORDER_DISPUTE_CREATED
   ORDER_DISPUTE_CLOSED
-  ORDER_THANKYOU
   ORDER_UPDATED
   ADDED_FUNDS_EDITED
   VENDOR_CREATED
@@ -6832,78 +7221,6 @@ type StripeConnectedAccount {
 }
 
 """
-Input type for an amount with the value and currency
-"""
-input AmountInput {
-  """
-  The value in plain
-  """
-  value: Float
-
-  """
-  The currency string
-  """
-  currency: Currency
-
-  """
-  The value in cents
-  """
-  valueInCents: Int
-
-  """
-  If the amount was generated from a currency conversion, this field can be used to provide details about the conversion
-  """
-  exchangeRate: CurrencyExchangeRateInput
-}
-
-"""
-Fields for a currency exchange rate
-"""
-input CurrencyExchangeRateInput {
-  """
-  Where does the FX rate comes from
-  """
-  source: CurrencyExchangeRateSourceType!
-  fromCurrency: Currency!
-  toCurrency: Currency!
-
-  """
-  Date of the FX rate
-  """
-  date: DateTime!
-
-  """
-  Exchange rate value as a float (e.g 1.15 or 0.86)
-  """
-  value: Float!
-}
-
-"""
-Where does the FX rate come from
-"""
-enum CurrencyExchangeRateSourceType {
-  """
-  Open Collective internal system, relying on caching and 3rd party APIs
-  """
-  OPENCOLLECTIVE
-
-  """
-  PayPal API
-  """
-  PAYPAL
-
-  """
-  Wise API
-  """
-  WISE
-
-  """
-  User-provided exchange rate
-  """
-  USER
-}
-
-"""
 Contribution statistics related to the given accounts
 """
 type ContributionStats {
@@ -7013,21 +7330,6 @@ type HostedAccountCollection implements Collection {
 }
 
 """
-Input type for an amount range with the value and currency
-"""
-input AmountRangeInput {
-  """
-  The minimum amount (inclusive)
-  """
-  gte: AmountInput
-
-  """
-  The maximum amount (inclusive)
-  """
-  lte: AmountInput
-}
-
-"""
 A collection of "LegalDocument"
 """
 type LegalDocumentCollection implements Collection {
@@ -7109,6 +7411,16 @@ type TransactionsImport {
   lastSyncCursor: String
 
   """
+  List of available accounts for the import
+  """
+  plaidAccounts: [PlaidAccount]
+
+  """
+  Assignments for the import, as a map of account id to legacy collective IDs. The `__default__` key can be use to set the default assignment.
+  """
+  assignments: [TransactionsImportAssignment!]!
+
+  """
   Connected account linked to the import
   """
   connectedAccount: ConnectedAccount
@@ -7136,8 +7448,14 @@ type TransactionsImport {
     Search by text
     """
     searchTerm: String
+
+    """
+    Filter rows by plaid account id
+    """
+    accountId: [NonEmptyString]
   ): TransactionsImportRowCollection!
-  stats: TransactionsImportStats
+    @deprecated(reason: "2025-04-29: Please use `host.offPlatformTransactions` instead.")
+  stats: TransactionsImportStats!
 }
 
 """
@@ -7152,6 +7470,52 @@ enum TransactionsImportType {
   CSV
   MANUAL
   PLAID
+}
+
+type PlaidAccount {
+  accountId: String!
+  mask: String!
+  name: String!
+  officialName: String!
+  subtype: String!
+  type: PlaidAccountType!
+}
+
+enum PlaidAccountType {
+  """
+  Investment
+  """
+  investment
+
+  """
+  Credit
+  """
+  credit
+
+  """
+  Depository
+  """
+  depository
+
+  """
+  Loan
+  """
+  loan
+
+  """
+  Brokerage
+  """
+  brokerage
+
+  """
+  Other
+  """
+  other
+}
+
+type TransactionsImportAssignment {
+  importedAccountId: NonEmptyString!
+  accounts: [Account!]!
 }
 
 """
@@ -7179,11 +7543,6 @@ type TransactionsImportRow {
   sourceId: NonEmptyString!
 
   """
-  Whether the row has been dismissed
-  """
-  isDismissed: Boolean! @deprecated(reason: "2025-01-17: isDismissed is deprecated, use status instead")
-
-  """
   The status of the row
   """
   status: TransactionsImportRowStatus!
@@ -7204,9 +7563,29 @@ type TransactionsImportRow {
   amount: Amount!
 
   """
+  Optional note for the row
+  """
+  note: String
+
+  """
   The expense associated with the row
   """
   expense: Expense
+
+  """
+  If an account ID is available in the imported row, it will be stored here. Returns the default account ID otherwise.
+  """
+  accountId: String
+
+  """
+  If the row was imported from plaid, this is the account it was imported from
+  """
+  plaidAccount: PlaidAccount
+
+  """
+  The accounts assigned to the row, based on its account ID
+  """
+  assignedAccounts: [Account]!
 
   """
   The raw data of the row
@@ -7217,6 +7596,11 @@ type TransactionsImportRow {
   The order associated with the row
   """
   order: Order
+
+  """
+  The transactions import associated with the row
+  """
+  transactionsImport: TransactionsImport!
 }
 
 """
@@ -7276,14 +7660,58 @@ type TransactionsImportStats {
   processed: Int!
 
   """
+  Number of rows that have been imported (converted to expenses or orders)
+  """
+  imported: Int!
+
+  """
   Number of rows that are on hold
   """
   onHold: Int!
 
   """
+  Number of rows that are pending
+  """
+  pending: Int!
+
+  """
   Number of rows that are invalid (e.g. linked but without an expense or order)
   """
   invalid: Int!
+}
+
+"""
+Status of the import
+"""
+enum TransactionsImportStatus {
+  """
+  The import is connected and ready to sync
+  """
+  ACTIVE
+
+  """
+  The import is disconnected / archived
+  """
+  DISCONNECTED
+}
+
+"""
+Input to order off platform transactions chronologically
+"""
+input TransactionsImportRowOrderInput {
+  """
+  Field to order by
+  """
+  field: TransactionsImportRowOrderInputField! = DATE
+
+  """
+  Ordering direction.
+  """
+  direction: OrderDirection! = DESC
+}
+
+enum TransactionsImportRowOrderInputField {
+  DATE
 }
 
 enum AccountingCategoryAppliesTo {
@@ -7456,6 +7884,46 @@ type ExpensePermissions {
   canEdit: Boolean!
 
   """
+  Whether the current user can edit the expense title
+  """
+  canEditTitle: Boolean!
+
+  """
+  Whether the current user can edit the expense type
+  """
+  canEditType: Boolean!
+
+  """
+  Whether the current user can edit the paid by account
+  """
+  canEditPaidBy: Boolean!
+
+  """
+  Whether the current user can edit the payee
+  """
+  canEditPayee: Boolean!
+
+  """
+  Whether the current user can edit the payout method
+  """
+  canEditPayoutMethod: Boolean!
+
+  """
+  Whether the current user can edit the expense items and attachments
+  """
+  canEditItems: Boolean!
+
+  """
+  Whether the current user can attach receipts
+  """
+  canAttachReceipts: Boolean!
+
+  """
+  Whether the current user can edit the expense item descriptions
+  """
+  canEditItemDescription: Boolean!
+
+  """
   Whether the current user can edit the expense accounting category
   """
   canEditAccountingCategory: Boolean!
@@ -7544,6 +8012,14 @@ type ExpensePermissions {
   """
   canSeePayoutMethodPrivateDetails: Boolean!
   edit: Permission!
+  editTitle: Permission!
+  editType: Permission!
+  editPaidBy: Permission!
+  editPayee: Permission!
+  editPayoutMethod: Permission!
+  editItems: Permission!
+  attachReceipts: Permission!
+  editItemDescription: Permission!
 
   """
   Whether the current user can edit the expense accounting category
@@ -7926,6 +8402,11 @@ type Bot implements Account {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -8128,6 +8609,11 @@ type Bot implements Account {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -8247,6 +8733,16 @@ type Bot implements Account {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -8277,7 +8773,7 @@ type Bot implements Account {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -8313,6 +8809,11 @@ type Bot implements Account {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -8358,7 +8859,7 @@ type Bot implements Account {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -8376,6 +8877,11 @@ type Bot implements Account {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -8396,9 +8902,19 @@ type Bot implements Account {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -8435,6 +8951,11 @@ type Bot implements Account {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -8495,6 +9016,11 @@ type Bot implements Account {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -8526,7 +9052,12 @@ type Bot implements Account {
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -8548,9 +9079,14 @@ type Bot implements Account {
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -8640,6 +9176,11 @@ type Bot implements Account {
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -8797,6 +9338,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -9001,6 +9547,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -9120,6 +9671,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -9150,7 +9711,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -9186,6 +9747,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -9231,7 +9797,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -9249,6 +9815,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -9269,9 +9840,19 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -9308,6 +9889,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -9368,6 +9954,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -9399,7 +9990,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -9421,9 +10017,14 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -9513,6 +10114,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -9903,6 +10509,7 @@ type Credit implements Transaction {
   group: String!
   type: TransactionType!
   kind: TransactionKind
+  refundKind: RefundKind
   description(
     """
     Wether to generate the description dynamically.
@@ -10048,6 +10655,7 @@ type Debit implements Transaction {
   group: String!
   type: TransactionType!
   kind: TransactionKind
+  refundKind: RefundKind
   description(
     """
     Wether to generate the description dynamically.
@@ -10219,6 +10827,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -10423,6 +11036,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -10542,6 +11160,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -10572,7 +11200,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -10608,6 +11236,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -10653,7 +11286,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -10671,6 +11304,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -10691,9 +11329,19 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -10730,6 +11378,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -10790,6 +11443,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -10821,7 +11479,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -10843,9 +11506,14 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -10935,6 +11603,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -11363,6 +12036,11 @@ type Individual implements Account {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -11565,6 +12243,11 @@ type Individual implements Account {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -11684,6 +12367,16 @@ type Individual implements Account {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -11714,7 +12407,7 @@ type Individual implements Account {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -11750,6 +12443,11 @@ type Individual implements Account {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -11795,7 +12493,7 @@ type Individual implements Account {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -11813,6 +12511,11 @@ type Individual implements Account {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -11833,9 +12536,19 @@ type Individual implements Account {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -11872,6 +12585,11 @@ type Individual implements Account {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -11932,6 +12650,11 @@ type Individual implements Account {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -11963,7 +12686,12 @@ type Individual implements Account {
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -11985,9 +12713,14 @@ type Individual implements Account {
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -12075,6 +12808,11 @@ type Individual implements Account {
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -12245,6 +12983,7 @@ type Individual implements Account {
   User two factor methods
   """
   twoFactorMethods: [UserTwoFactorMethod]
+  contributorProfiles(forAccount: AccountReferenceInput!): [ContributorProfile]!
 }
 
 """
@@ -12339,15 +13078,45 @@ enum TwoFactorMethod {
 }
 
 """
+This represents a profile that can be use to create a contribution
+"""
+type ContributorProfile {
+  """
+  The account that will be used to create the contribution
+  """
+  account: Account
+
+  """
+  The account that will receive the contribution
+  """
+  forAccount: Account
+
+  """
+  The total amount contributed to the host by this contributor
+  """
+  totalContributedToHost(
+    """
+    When true, the amount is converted to the currency of the collective
+    """
+    inCollectiveCurrency: Boolean = false
+
+    """
+    The date since when to calculate the total. Defaults to the start of the current year.
+    """
+    since: DateTime
+  ): Amount
+}
+
+"""
 This represents a Member relationship (ie: Organization backing a Collective)
 """
 type Member {
-  id: String
-  role: MemberRole
+  id: String!
+  role: MemberRole!
   tier: Tier
-  createdAt: DateTime
-  updatedAt: DateTime
-  since: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  since: DateTime!
 
   """
   Total amount donated
@@ -12367,7 +13136,12 @@ type Member {
   """
   If membership is inherited from parent collective
   """
-  inherited: Boolean
+  inherited: Boolean!
+
+  """
+  Whether the membership is active. Warning: this definition is subject to change.
+  """
+  isActive: Boolean!
   account: Account
 }
 
@@ -12375,12 +13149,12 @@ type Member {
 This represents a MemberOf relationship (ie: Collective backed by an Organization)
 """
 type MemberOf {
-  id: String
-  role: MemberRole
+  id: String!
+  role: MemberRole!
   tier: Tier
-  createdAt: DateTime
-  updatedAt: DateTime
-  since: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  since: DateTime!
 
   """
   Total amount donated
@@ -12400,7 +13174,12 @@ type MemberOf {
   """
   If membership is inherited from parent collective
   """
-  inherited: Boolean
+  inherited: Boolean!
+
+  """
+  Whether the membership is active. Warning: this definition is subject to change.
+  """
+  isActive: Boolean!
   account: Account
 }
 
@@ -12440,6 +13219,11 @@ type Organization implements Account & AccountWithContributions {
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -12644,6 +13428,11 @@ type Organization implements Account & AccountWithContributions {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -12763,6 +13552,16 @@ type Organization implements Account & AccountWithContributions {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -12793,7 +13592,7 @@ type Organization implements Account & AccountWithContributions {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -12829,6 +13628,11 @@ type Organization implements Account & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -12874,7 +13678,7 @@ type Organization implements Account & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -12892,6 +13696,11 @@ type Organization implements Account & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -12912,9 +13721,19 @@ type Organization implements Account & AccountWithContributions {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -12951,6 +13770,11 @@ type Organization implements Account & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -13011,6 +13835,11 @@ type Organization implements Account & AccountWithContributions {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -13042,7 +13871,12 @@ type Organization implements Account & AccountWithContributions {
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -13064,9 +13898,14 @@ type Organization implements Account & AccountWithContributions {
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -13154,6 +13993,11 @@ type Organization implements Account & AccountWithContributions {
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -13428,6 +14272,11 @@ type Vendor implements Account & AccountWithContributions {
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -13630,6 +14479,11 @@ type Vendor implements Account & AccountWithContributions {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -13749,6 +14603,16 @@ type Vendor implements Account & AccountWithContributions {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -13779,7 +14643,7 @@ type Vendor implements Account & AccountWithContributions {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -13815,6 +14679,11 @@ type Vendor implements Account & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -13860,7 +14729,7 @@ type Vendor implements Account & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -13878,6 +14747,11 @@ type Vendor implements Account & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -13898,9 +14772,19 @@ type Vendor implements Account & AccountWithContributions {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -13937,6 +14821,11 @@ type Vendor implements Account & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -13997,6 +14886,11 @@ type Vendor implements Account & AccountWithContributions {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -14028,7 +14922,12 @@ type Vendor implements Account & AccountWithContributions {
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -14050,9 +14949,14 @@ type Vendor implements Account & AccountWithContributions {
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -14142,6 +15046,11 @@ type Vendor implements Account & AccountWithContributions {
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -14528,6 +15437,11 @@ type Query {
     isHost: Boolean
 
     """
+    Must be used with `isHost` to filter hosts that can accept applications
+    """
+    onlyOpenToApplications: Boolean
+
+    """
     Only accounts with custom contribution (/donate) enabled
     """
     hasCustomContributionsEnabled: Boolean
@@ -14705,9 +15619,19 @@ type Query {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -14744,6 +15668,11 @@ type Query {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -14804,6 +15733,11 @@ type Query {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   expenseTagStats(
     """
@@ -15003,7 +15937,7 @@ type Query {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -15039,6 +15973,11 @@ type Query {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -15084,7 +16023,7 @@ type Query {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -15102,6 +16041,11 @@ type Query {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   organization(
     """
@@ -15276,6 +16220,11 @@ type Query {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -15395,6 +16344,16 @@ type Query {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
 
   """
@@ -15459,7 +16418,7 @@ type Query {
     """
     The public id identifying the import (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)
     """
-    id: String!
+    id: NonEmptyString!
   ): TransactionsImport
   update(
     """
@@ -16854,6 +17813,7 @@ enum ActivityAndClassesType {
   ACCOUNTING_CATEGORIES_EDITED
   CONNECTED_ACCOUNT_CREATED
   CONNECTED_ACCOUNT_ERROR
+  CONNECTED_ACCOUNT_REMOVED
   COLLECTIVE_CREATED_GITHUB
   COLLECTIVE_APPLY
   COLLECTIVE_APPROVED
@@ -16915,6 +17875,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_CORE_MEMBER_EDITED
   COLLECTIVE_TRANSACTION_CREATED
   TRANSACTIONS_IMPORT_CREATED
+  TRANSACTIONS_IMPORT_ROW_UPDATED
   COLLECTIVE_UPDATE_CREATED
   COLLECTIVE_UPDATE_PUBLISHED
   COLLECTIVE_CONTACT
@@ -16932,12 +17893,12 @@ enum ActivityAndClassesType {
   ORDER_PENDING_CONTRIBUTION_NEW
   ORDER_PENDING_CONTRIBUTION_REMINDER
   ORDER_PROCESSING
+  ORDER_PROCESSED
   ORDER_PAYMENT_FAILED
   ORDER_REVIEW_OPENED
   ORDER_REVIEW_CLOSED
   ORDER_DISPUTE_CREATED
   ORDER_DISPUTE_CLOSED
-  ORDER_THANKYOU
   ORDER_UPDATED
   ADDED_FUNDS_EDITED
   VENDOR_CREATED
@@ -17057,6 +18018,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   currency: Currency!
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
+
+  """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
 
   """
   Defines if the contributors wants to be incognito (name not displayed)
@@ -17261,6 +18227,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -17380,6 +18351,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -17410,7 +18391,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -17446,6 +18427,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -17491,7 +18477,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -17509,6 +18495,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -17529,9 +18520,19 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -17568,6 +18569,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -17628,6 +18634,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -17659,7 +18670,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -17681,9 +18697,14 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -17773,6 +18794,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -18079,6 +19105,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   expensePolicy: String @deprecated(reason: "2024-11-04: Please use policies.EXPENSE_POLICIES")
 
   """
+  Whether the account is verified
+  """
+  isVerified: Boolean!
+
+  """
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
@@ -18281,6 +19312,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
 
     """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
+
+    """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
     minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
@@ -18400,6 +19436,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Only return transactions that are associated with these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payment method
+    """
+    paymentMethod: [PaymentMethodReferenceInput]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): TransactionCollection!
   orders(
     """
@@ -18430,7 +19476,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.
     """
-    paymentMethod: PaymentMethodReferenceInput
+    paymentMethod: [PaymentMethodReferenceInput]
 
     """
     Only return orders that match these payment method services
@@ -18466,6 +19512,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return orders where the amount is greater than or equal to this value (in cents)
@@ -18511,7 +19562,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The term to search
     """
     searchTerm: String
-    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference. Not existing yet.")
+    tierSlug: String @deprecated(reason: "2022-02-25: Should be replaced by a tier reference.")
     tier: [TierReferenceInput]
 
     """
@@ -18529,6 +19580,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)
     """
     oppositeAccount: AccountReferenceInput
+
+    """
+    Return only orders made from/to these hosted accounts
+    """
+    hostedAccounts: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -18549,9 +19605,19 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     fromAccount: AccountReferenceInput
 
     """
+    An alternative to filter by fromAccount (singular), both cannot be used together
+    """
+    fromAccounts: [AccountReferenceInput]
+
+    """
     Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
+
+    """
+    An alternative to filter by accounts, both cannot be used together
+    """
+    accounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -18588,6 +19654,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The order of results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
+
+    """
+    Only return expenses that match this amount range
+    """
+    amount: AmountRangeInput
 
     """
     Only return expenses where the amount is greater than or equal to this value (in cents)
@@ -18648,6 +19719,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Only return expenses that match these accounting categories
     """
     accountingCategory: [String]
+
+    """
+    Only return transactions that are associated with this payout method
+    """
+    payoutMethod: PayoutMethodReferenceInput
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -18679,7 +19755,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
-  payoutMethods: [PayoutMethod]
+  payoutMethods(
+    """
+    Whether to include archived payout methods
+    """
+    includeArchived: Boolean = false
+  ): [PayoutMethod]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -18701,9 +19782,14 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
+  The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".
   """
-  connectedAccounts: [ConnectedAccount]
+  connectedAccounts(
+    """
+    Filter connected accounts by service
+    """
+    service: ConnectedAccountService
+  ): [ConnectedAccount]
 
   """
   The list of applications created by this account. Admin only. Scope: "applications".
@@ -18793,6 +19879,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     isActive: Boolean
     accountType: [AccountType]
     searchTerm: String
+
+    """
+    Order of the results. Defaults to createdAt DESC.
+    """
+    orderBy: OrderByInput! = { field: CREATED_AT, direction: DESC }
   ): AccountCollection!
 
   """
@@ -19935,6 +21026,21 @@ type Mutation {
   ): Expense!
 
   """
+  Moves an expense from one account within a Collective to another
+  """
+  moveExpense(
+    """
+    Reference of the expense to move
+    """
+    expense: ExpenseReferenceInput!
+
+    """
+    Reference of the account to move the expense to
+    """
+    destinationAccount: AccountReferenceInput!
+  ): Expense!
+
+  """
   Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".
   """
   deleteExpense(
@@ -20571,6 +21677,18 @@ type Mutation {
   addStripePaymentMethodFromSetupIntent(setupIntent: SetupIntentInput!, account: AccountReferenceInput!): PaymentMethod!
 
   """
+  Remove a payment method
+  """
+  removePaymentMethod(
+    paymentMethod: PaymentMethodReferenceInput!
+
+    """
+    Whether to cancel active subscriptions using this payment method
+    """
+    cancelActiveSubscriptions: Boolean
+  ): PaymentMethod!
+
+  """
   Create a new Payout Method to get paid through the platform. Scope: "expenses".
   """
   createPayoutMethod(
@@ -20591,9 +21709,50 @@ type Mutation {
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
 
   """
+  Restore the given payout method. Scope: "expenses".
+  """
+  restorePayoutMethod(
+    """
+    Payout Method reference
+    """
+    payoutMethod: PayoutMethodReferenceInput!
+  ): PayoutMethod!
+  editPayoutMethod(
+    """
+    Payout Method reference
+    """
+    payoutMethod: PayoutMethodInput!
+  ): PayoutMethod!
+
+  """
   Generate a Plaid Link token
   """
-  generatePlaidLinkToken: PlaidLinkTokenCreateResponse!
+  generatePlaidLinkToken(
+    """
+    The account to which the Plaid account should be connected
+    """
+    host: AccountReferenceInput!
+
+    """
+    Use this parameter to specify the import to update (when using the Plaid update flow)
+    """
+    transactionImport: TransactionsImportReferenceInput
+
+    """
+    The countries to enable in the accounts selection. Defaults to the host country.
+    """
+    countries: [CountryISO!]
+
+    """
+    The language to use in the Plaid Link flow. Defaults to "en".
+    """
+    locale: Locale
+
+    """
+    If true, the account selection flow will be enabled. Requires a `transactionImport`.
+    """
+    accountSelectionEnabled: Boolean
+  ): PlaidLinkTokenCreateResponse!
 
   """
   Connect a Plaid account
@@ -20629,6 +21788,21 @@ type Mutation {
     """
     connectedAccount: ConnectedAccountReferenceInput!
   ): TransactionsImport!
+
+  """
+  Refresh the list of sub-accounts & other metadata by re-fetching the account info
+  """
+  refreshPlaidAccount(
+    """
+    The Plaid connected account to refresh
+    """
+    connectedAccount: ConnectedAccountReferenceInput
+
+    """
+    The transactions import to refresh
+    """
+    transactionImport: TransactionsImportReferenceInput
+  ): PlaidConnectAccountResponse!
 
   """
   [Root only] Edits account flags (deleted, banned, archived, trusted host)
@@ -20818,6 +21992,11 @@ type Mutation {
     Name of the import (e.g. "Contributions May 2021", "Tickets for Mautic Conference 2024")
     """
     name: NonEmptyString
+
+    """
+    Assignments for the import
+    """
+    assignments: [TransactionsImportAssignmentInput!]
   ): TransactionsImport!
 
   """
@@ -20846,29 +22025,19 @@ type Mutation {
   ): TransactionsImport!
 
   """
-  Update transactions import rows to set new values or mark them as dismissed
+  Update transactions import rows to set new values or perform actions on them
   """
   updateTransactionsImportRows(
     """
-    ID of the import to add transactions to
-    """
-    id: NonEmptyString!
-
-    """
     Rows to update
     """
-    rows: [TransactionsImportRowUpdateInput!]
+    rows: [TransactionsImportRowUpdateInput!]!
 
     """
-    Whether to ignore all non-processed rows
+    Action to perform on all non-processed rows
     """
-    dismissAll: Boolean
-
-    """
-    Whether to restore all dismissed rows
-    """
-    restoreAll: Boolean
-  ): TransactionsImport!
+    action: TransactionsImportRowAction!
+  ): TransactionsImportEditResponse!
 
   """
   Delete an import and all its associated rows
@@ -21523,12 +22692,14 @@ input PoliciesInput {
   EXPENSE_CATEGORIZATION: PoliciesExpenseCategorizationInput
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
+  CONTRIBUTOR_INFO_THRESHOLDS: PoliciesContributorInfoThresholdsInput
 }
 
 input PoliciesExpensePolicies {
   invoicePolicy: String
   receiptPolicy: String
   titlePolicy: String
+  grantPolicy: String
 }
 
 input PoliciesCollectiveExpenseAuthorCannotApprove {
@@ -21547,6 +22718,11 @@ input PoliciesCollectiveMinimumAdminsInput {
 input PoliciesExpenseCategorizationInput {
   requiredForExpenseSubmitters: Boolean
   requiredForCollectiveAdmins: Boolean
+}
+
+input PoliciesContributorInfoThresholdsInput {
+  legalName: Int
+  address: Int
 }
 
 type SendMessageResult {
@@ -21590,9 +22766,9 @@ input AccountingCategoryInput {
   expensesTypes: [ExpenseType]
 
   """
-  If the category is applicable to the Host or Hosted Collectives
+  If the category is applicable to the Host or Hosted Collectives, or both if null
   """
-  appliesTo: AccountingCategoryAppliesTo! = HOSTED_COLLECTIVES
+  appliesTo: AccountingCategoryAppliesTo
 }
 
 """
@@ -21867,6 +23043,11 @@ input ExpenseCreateInput {
   attachedFiles: [ExpenseAttachedFileInput!]
 
   """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: ExpenseAttachedFileInput
+
+  """
   Account to reimburse
   """
   payee: AccountReferenceInput!
@@ -21898,11 +23079,34 @@ input ExpenseCreateInput {
 }
 
 input PayoutMethodInput {
+  """
+  The unique identifier of the payout method
+  """
   id: String
+
+  """
+  The legacy identifier used in older systems
+  """
   legacyId: Int
+
+  """
+  Additional data specific to the payout method type. For custom payout methods (type=OTHER), must contain only `content` (string) and `currency` fields. For other types, may contain type-specific details (e.g., bank account details, PayPal email)
+  """
   data: JSON
+
+  """
+  A human-readable name for the payout method
+  """
   name: String
+
+  """
+  Whether this payout method should be saved for future use
+  """
   isSaved: Boolean
+
+  """
+  The type of payout method (e.g., PayPal, bank transfer)
+  """
   type: PayoutMethodType
 }
 
@@ -22047,6 +23251,11 @@ input ExpenseUpdateInput {
   (Optional) A list of files that you want to attach to this expense
   """
   attachedFiles: [ExpenseAttachedFileInput!]
+
+  """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: ExpenseAttachedFileInput
 
   """
   Account to reimburse
@@ -22326,6 +23535,11 @@ input ExpenseInviteDraftInput {
   (Optional) A list of files that you want to attach to this expense
   """
   attachedFiles: [JSON]
+
+  """
+  (Optional - applicable to invoice expense only) The invoice file for this expense
+  """
+  invoiceFile: JSON
 
   """
   Account to reimburse
@@ -23038,6 +24252,18 @@ type PlaidLinkTokenCreateResponse {
   hostedLinkUrl: String
 }
 
+input TransactionsImportReferenceInput {
+  """
+  The id of the row
+  """
+  id: NonEmptyString!
+}
+
+"""
+The locale in the format of a BCP 47 (RFC 5646) standard string
+"""
+scalar Locale
+
 type PlaidConnectAccountResponse {
   """
   The connected account that was created
@@ -23085,6 +24311,18 @@ type BanAccountResponse {
   accounts: [Account!]!
 }
 
+input TransactionsImportAssignmentInput {
+  """
+  The ID of the account to assign the transactions to
+  """
+  importedAccountId: NonEmptyString!
+
+  """
+  The accounts to assign the transactions to
+  """
+  accounts: [AccountReferenceInput!]!
+}
+
 input TransactionsImportRowCreateInput {
   """
   The source id of the row
@@ -23110,11 +24348,18 @@ input TransactionsImportRowCreateInput {
   The raw value of the row
   """
   rawValue: JSONObject
+}
+
+type TransactionsImportEditResponse {
+  """
+  The host account that owns the off-platform transactions
+  """
+  host: Host
 
   """
-  Whether the row is dismissed
+  The rows updated by the mutation
   """
-  isDismissed: Boolean! = false
+  rows: [TransactionsImportRow!]!
 }
 
 input TransactionsImportRowUpdateInput {
@@ -23144,9 +24389,9 @@ input TransactionsImportRowUpdateInput {
   amount: AmountInput
 
   """
-  Whether the row is dismissed
+  To update the status of the row. Will be ignored if the status is not applicable (e.g. trying to ignore a row that is already linked)
   """
-  isDismissed: Boolean = false
+  status: TransactionsImportRowStatus
 
   """
   The order associated with the row
@@ -23157,6 +24402,21 @@ input TransactionsImportRowUpdateInput {
   The expense associated with the row
   """
   expense: ExpenseReferenceInput
+
+  """
+  Optional note for the row
+  """
+  note: String
+}
+
+"""
+Action to perform on transactions import rows
+"""
+enum TransactionsImportRowAction {
+  DISMISS_ALL
+  RESTORE_ALL
+  PUT_ON_HOLD_ALL
+  UPDATE_ROWS
 }
 
 """
@@ -23272,6 +24532,7 @@ enum UploadedFileKind {
   TIER_LONG_DESCRIPTION
   ACCOUNT_CUSTOM_EMAIL
   AGREEMENT_ATTACHMENT
+  EXPENSE_INVOICE
 }
 
 """

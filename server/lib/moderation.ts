@@ -104,8 +104,16 @@ const getUndeletableTransactionsCount = async collectiveIds => {
     LEFT JOIN "PaymentMethods" pm ON pm.id = t."PaymentMethodId"
     LEFT JOIN "Expenses" e ON e.id = t."ExpenseId"
     LEFT JOIN "PayoutMethods" payout ON payout.id = e."PayoutMethodId"
+    LEFT JOIN "Transactions" expense_transactions
+      ON t."ExpenseId" IS NOT NULL
+      AND expense_transactions."ExpenseId" = t."ExpenseId"
+      AND expense_transactions."kind" = 'EXPENSE'
+      AND expense_transactions."deletedAt" IS NULL
+      AND expense_transactions."isRefund" IS FALSE
+      AND expense_transactions.type = 'DEBIT'
     WHERE t."TransactionGroup" IN (SELECT "TransactionGroup" FROM transaction_groups)
     AND t."deletedAt" IS NULL
+    AND (expense_transactions.data ->> 'isManual')::boolean IS NOT TRUE
     AND
       CASE WHEN t."PaymentMethodId" IS NOT NULL THEN (
         -- If there is a payment method, filter to only include cases where money actually moved in the real world

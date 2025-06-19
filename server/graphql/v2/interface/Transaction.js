@@ -22,6 +22,7 @@ import PaymentMethod from '../../../models/PaymentMethod';
 import Transaction from '../../../models/Transaction';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as TransactionLib from '../../common/transactions';
+import { GraphQLRefundKind } from '../enum/RefundKind';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -99,6 +100,9 @@ const transactionFieldsDefinition = () => ({
   },
   kind: {
     type: GraphQLTransactionKind,
+  },
+  refundKind: {
+    type: GraphQLRefundKind,
   },
   description: {
     type: GraphQLString,

@@ -1,4 +1,4 @@
-import { Request } from 'express';
+import type Express from 'express';
 
 import { Collective, Expense, ExpenseAttachedFile, ExpenseItem, UploadedFile } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -6,7 +6,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { canSeeExpenseAttachments, canSeeExpenseDraftPrivateDetails } from './expenses';
 
-export async function hasProtectedUrlPermission(req: Request, url: string) {
+export async function hasProtectedUrlPermission(req: Express.Request, url: string) {
   const requestedUrl = new URL(url);
   const encodedExpenseId = requestedUrl.searchParams.get('expenseId');
   const draftKey = requestedUrl.searchParams.get('draftKey');
@@ -33,7 +33,7 @@ export async function hasProtectedUrlPermission(req: Request, url: string) {
 }
 
 export async function hasUploadedFilePermission(
-  req: Request,
+  req: Express.Request,
   uploadedFile: UploadedFile,
   options?: { expenseId: number; draftKey?: string },
 ): Promise<boolean> {
@@ -48,8 +48,9 @@ export async function hasUploadedFilePermission(
     const attachedFileMatches = ((expense.data?.attachedFiles as { url?: string }[]) || []).some(
       item => item.url && item.url === actualUrl,
     );
+    const invoiceFileMatches = (expense.data?.invoiceFile as { url: string })?.url === actualUrl;
 
-    const fileIsInDraft = itemMatches || attachedFileMatches;
+    const fileIsInDraft = itemMatches || attachedFileMatches || invoiceFileMatches;
 
     if (fileIsInDraft && (await canSeeExpenseDraftPrivateDetails(req, expense))) {
       return true;
@@ -74,6 +75,23 @@ export async function hasUploadedFilePermission(
       });
 
       const expense = expenseItem?.Expense;
+
+      if (!expense) {
+        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
+      }
+
+      if (await canSeeExpenseAttachments(req, expense)) {
+        return true;
+      }
+      break;
+    }
+    case 'EXPENSE_INVOICE': {
+      const expense = await Expense.findOne({
+        where: {
+          InvoiceFileId: uploadedFile.id,
+        },
+        include: [{ association: 'fromCollective' }],
+      });
 
       if (!expense) {
         return req.remoteUser?.id === uploadedFile.CreatedByUserId;

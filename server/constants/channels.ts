@@ -1,8 +1,9 @@
 enum Channels {
   SLACK = 'slack',
-  TWITTER = 'twitter',
   WEBHOOK = 'webhook',
   EMAIL = 'email',
+  /** @deprecated */
+  TWITTER = 'twitter',
 }
 
 export default Channels;

@@ -6,6 +6,7 @@ import { activities } from '../../../constants';
 import ORDER_STATUS from '../../../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import logger from '../../../lib/logger';
+import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op } from '../../../models';
 import GiftCard from '../../../paymentProviders/opencollective/giftcard';
@@ -125,8 +126,14 @@ async function createStripeCreditCard(args, remoteUser) {
  * @param {String} args.email The email of the user claiming the gift card
  * @returns {models.PaymentMethod} return the gift card payment method.
  */
-export async function claimPaymentMethod(args, remoteUser) {
-  const paymentMethod = await GiftCard.claim(args, remoteUser);
+export async function claimPaymentMethod(args, req) {
+  const rateLimitKey = req.remoteUser ? `claim-giftcard-user-${req.remoteUser.id}` : `claim-giftcard-ip-${req.ip}`;
+  const rateLimit = new RateLimit(rateLimitKey, 5, 60 * 60 * 24); // Can claim 5 gift cards per day
+  if (!(await rateLimit.registerCall())) {
+    throw new Error('Rate limit exceeded. Please try again later.');
+  }
+
+  const paymentMethod = await GiftCard.claim(args, req.remoteUser);
   const user = await models.User.findOne({
     where: { CollectiveId: paymentMethod.CollectiveId },
   });
@@ -141,7 +148,7 @@ export async function claimPaymentMethod(args, remoteUser) {
   // If the User is already authenticated it doesn't need this email
   // It will be redirected to the /redeemed page
   // See: https://github.com/opencollective/opencollective-frontend/blob/08323de06714c20ce33e93bfebcbbeb0af587413/src/pages/redeem.js#L143
-  if (!remoteUser) {
+  if (!req.remoteUser) {
     await models.Activity.create({
       type: activities.USER_CARD_CLAIMED,
       UserId: user.id,

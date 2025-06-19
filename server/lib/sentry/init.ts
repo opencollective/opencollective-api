@@ -1,6 +1,6 @@
 import querystring from 'querystring';
 
-import * as Sentry from '@sentry/node';
+import Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import config from 'config';
 import { cloneDeep, compact } from 'lodash';
@@ -18,7 +18,7 @@ export enum HandlerType {
   CRON = 'CRON',
   FALLBACK = 'FALLBACK',
   WEBHOOK = 'WEBHOOK',
-  ELASTICSEARCH_SYNC_JOB = 'ELASTICSEARCH_SYNC_JOB',
+  OPENSEARCH_SYNC_JOB = 'OPENSEARCH_SYNC_JOB',
 }
 
 export const redactSensitiveDataFromRequest = rawRequest => {
@@ -76,8 +76,8 @@ Sentry.init({
       return 0;
     } else if (samplingContext.parentSampled !== undefined) {
       return samplingContext.parentSampled;
-    } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
-      return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
+    } else if (samplingContext.normalizedRequest?.headers?.['x-sentry-force-sample']) {
+      return 1;
     } else {
       return TRACES_SAMPLE_RATE;
     }

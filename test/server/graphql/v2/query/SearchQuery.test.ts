@@ -1,4 +1,4 @@
-import { Client } from '@elastic/elasticsearch';
+import { Client } from '@opensearch-project/opensearch';
 import { expect } from 'chai';
 import config from 'config';
 import gql from 'fake-tag';
@@ -9,15 +9,15 @@ import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import * as ElasticSearchClientSingletonLib from '../../../../../server/lib/elastic-search/client';
-import { formatIndexNameForElasticSearch } from '../../../../../server/lib/elastic-search/common';
-import { ElasticSearchIndexName } from '../../../../../server/lib/elastic-search/constants';
+import * as OpenSearchClientSingletonLib from '../../../../../server/lib/open-search/client';
+import { formatIndexNameForOpenSearch } from '../../../../../server/lib/open-search/common';
+import { OpenSearchIndexName } from '../../../../../server/lib/open-search/constants';
 import {
-  createElasticSearchIndex,
-  deleteElasticSearchIndex,
-  syncElasticSearchIndex,
+  createOpenSearchIndex,
+  removeOpenSearchIndex,
+  syncOpenSearchIndex,
   waitForAllIndexesRefresh,
-} from '../../../../../server/lib/elastic-search/sync';
+} from '../../../../../server/lib/open-search/sync';
 import { Collective, User } from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
 import {
@@ -175,7 +175,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
   };
 
   let sandbox: sinon.SinonSandbox,
-    elasticSearchClient: Client,
+    openSearchClient: Client,
     host: Collective,
     collective: Collective,
     project: Collective,
@@ -350,22 +350,22 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     // Populate roles for all test users
     await Promise.all(Object.values(testUsers).map(user => user.populateRoles()));
 
-    // Reset Elastic search
-    for (const indexName of Object.values(ElasticSearchIndexName)) {
-      await deleteElasticSearchIndex(indexName, { throwIfMissing: false });
-      await createElasticSearchIndex(indexName);
-      await syncElasticSearchIndex(indexName);
+    // Reset OpenSearch
+    for (const indexName of Object.values(OpenSearchIndexName)) {
+      await removeOpenSearchIndex(indexName, { throwIfMissing: false });
+      await createOpenSearchIndex(indexName);
+      await syncOpenSearchIndex(indexName);
     }
 
     await waitForAllIndexesRefresh();
 
-    // Stub Elastic search client
-    elasticSearchClient = new Client({ node: config.elasticSearch.url });
+    // Stub OpenSearch client
+    openSearchClient = new Client({ node: config.opensearch.url });
   });
 
   beforeEach(() => {
     sandbox = sinon.createSandbox();
-    sandbox.stub(ElasticSearchClientSingletonLib, 'getElasticSearchClient').returns(elasticSearchClient);
+    sandbox.stub(OpenSearchClientSingletonLib, 'getOpenSearchClient').returns(openSearchClient);
   });
 
   afterEach(() => {
@@ -374,7 +374,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
 
   describe('base', () => {
     it('should search only in requested indexes', async () => {
-      const searchSpy = sandbox.spy(elasticSearchClient, 'search');
+      const searchSpy = sandbox.spy(openSearchClient, 'search');
 
       const queryResult = await callSearchQuery('iNcReDiBlE', { includeAccounts: true, includeExpenses: true });
       queryResult.errors && console.error(queryResult.errors);
@@ -387,19 +387,19 @@ describe('server/graphql/v2/query/SearchQuery', () => {
 
       expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
       const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
-      expect(hostMatch.score).to.be.within(1, 100);
+      expect(hostMatch.score).to.be.within(0.5, 2);
       expect(hostMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Host']);
       const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
-      expect(collectiveMatch.score).to.be.within(1, 100);
+      expect(collectiveMatch.score).to.be.within(0.5, 2);
       expect(collectiveMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Collective with AUniqueCollectiveName']);
       const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
-      expect(projectMatch.score).to.be.within(1, 100);
+      expect(projectMatch.score).to.be.within(0.5, 2);
       expect(projectMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Project']);
 
       expect(results.comments).to.be.undefined;
       expect(searchSpy.callCount).to.eq(1);
       expect(searchSpy.firstCall.args[0].index).to.eq(
-        `${formatIndexNameForElasticSearch(ElasticSearchIndexName.COLLECTIVES)},${formatIndexNameForElasticSearch(ElasticSearchIndexName.EXPENSES)}`,
+        `${formatIndexNameForOpenSearch(OpenSearchIndexName.COLLECTIVES)},${formatIndexNameForOpenSearch(OpenSearchIndexName.EXPENSES)}`,
       );
     });
 

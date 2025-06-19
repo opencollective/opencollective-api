@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import { capitalize, compact, filter, find, first, isEqual, isNil, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
 import moment from 'moment';
 
+import { CollectiveType } from '../../constants/collectives';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
@@ -293,21 +294,21 @@ const getDisplayCurrency = async expenses => {
 };
 
 const getCollectiveBalances = async (
-  req: Request,
+  req: Express.Request,
   expenses: Expense[],
   displayCurrency: SupportedCurrency,
 ): Promise<Record<string, { currency: SupportedCurrency; value: number }>> => {
   const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
   const balanceLoader = req.loaders.Collective.balance.buildLoader({ withBlockedFunds: true }); // Use the same loader as https://github.com/opencollective/opencollective-api/blob/main/server/graphql/v2/object/AccountStats.js#L70 to make sure we don't hit the DB twice
-  const collectiveBalances = await balanceLoader.loadMany(collectiveIds);
+  const collectiveBalances = (await balanceLoader.loadMany(collectiveIds)).filter(balance => 'currency' in balance);
   const balancesInHostCurrency = await Promise.all(
     collectiveBalances.map(async balance => {
       if (balance.currency === displayCurrency) {
-        return balance;
+        return balance as { currency: SupportedCurrency; value: number };
       } else {
         const convertParams: ConvertToCurrencyArgs = {
           amount: balance.value,
-          fromCurrency: balance.currency,
+          fromCurrency: balance.currency as SupportedCurrency,
           toCurrency: displayCurrency,
         };
         return {
@@ -322,7 +323,7 @@ const getCollectiveBalances = async (
 };
 
 export const checkExpensesBatch = async (
-  req: Request,
+  req: Express.Request,
   expenses: Array<Expense>,
 ): Promise<Array<Array<SecurityCheck>>> => {
   const displayCurrency = await getDisplayCurrency(expenses);
@@ -396,7 +397,7 @@ export const checkExpensesBatch = async (
       // Author Security Check: Checks if the author of the expense has 2FA enabled or not.
       addBooleanCheck(
         checks,
-        await req.loaders.userHasTwoFactorAuthEnabled.load(expense.User.id),
+        await req.loaders.User.hasTwoFactorAuthEnabled.load(expense.User.id),
         {
           scope: Scope.USER,
           level: Level.PASS,
@@ -459,8 +460,15 @@ export const checkExpensesBatch = async (
 
         // Check if this Payout Method is being used by someone other user or collective
         const similarPayoutMethods = await expense.PayoutMethod.findSimilar({
-          include: [{ model: models.Collective, attributes: ['slug'] }],
-          where: { CollectiveId: { [Op.ne]: expense.User.collective.id } },
+          include: [
+            {
+              model: models.Collective,
+              where: { type: { [Op.ne]: CollectiveType.VENDOR } },
+              attributes: ['slug'],
+              required: true,
+            },
+          ],
+          where: { CollectiveId: { [Op.ne]: expense.FromCollectiveId } },
         });
         if (similarPayoutMethods) {
           addBooleanCheck(checks, similarPayoutMethods.length > 0, {

@@ -1,5 +1,7 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
+
+import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 
 import { AmountInputType, GraphQLAmountInput } from './AmountInput';
 import { ExpenseReferenceInputFields, GraphQLExpenseReferenceInput } from './ExpenseReferenceInput';
@@ -11,9 +13,10 @@ export type TransactionImportRowGraphQLType = {
   description?: string | null;
   date?: string | null;
   amount?: AmountInputType | null;
-  isDismissed?: boolean | null;
+  status?: TransactionsImportRowStatus | null;
   order?: OrderReferenceInputGraphQLType | null;
   expense: ExpenseReferenceInputFields | null;
+  note?: string | null;
 };
 
 export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectType({
@@ -39,10 +42,10 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
       type: GraphQLAmountInput,
       description: 'The amount of the row',
     },
-    isDismissed: {
-      type: GraphQLBoolean,
-      description: 'Whether the row is dismissed',
-      defaultValue: false,
+    status: {
+      type: GraphQLTransactionsImportRowStatus,
+      description:
+        'To update the status of the row. Will be ignored if the status is not applicable (e.g. trying to ignore a row that is already linked)',
     },
     order: {
       type: GraphQLOrderReferenceInput,
@@ -51,6 +54,10 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
     expense: {
       type: GraphQLExpenseReferenceInput,
       description: 'The expense associated with the row',
+    },
+    note: {
+      type: GraphQLString,
+      description: 'Optional note for the row',
     },
   }),
 });

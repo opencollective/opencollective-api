@@ -4,9 +4,10 @@ import { omit, pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
 import FEATURE_STATUS from '../../../constants/feature-status';
+import OrderStatuses from '../../../constants/order-status';
 import stripe, { sanitizeStripeError } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
+import models, { Op } from '../../../models';
 import { createOrRetrievePaymentMethodFromSetupIntent } from '../../../paymentProviders/stripe/common';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
@@ -281,6 +282,61 @@ const paymentMethodMutations = {
       }
 
       return await createOrRetrievePaymentMethodFromSetupIntent(setupIntentResponse);
+    },
+  },
+  removePaymentMethod: {
+    type: new GraphQLNonNull(GraphQLPaymentMethod),
+    description: 'Remove a payment method',
+    args: {
+      paymentMethod: {
+        type: new GraphQLNonNull(GraphQLPaymentMethodReferenceInput),
+      },
+      cancelActiveSubscriptions: {
+        type: GraphQLBoolean,
+        description: 'Whether to cancel active subscriptions using this payment method',
+      },
+    },
+    async resolve(_, args, req) {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
+      if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+        throw new Forbidden("This payment method does not exist or you don't have the permission to edit it.");
+      }
+
+      const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+      await twoFactorAuthLib.enforceForAccount(req, collective);
+
+      const recurringOrders = await paymentMethod.getOrders({
+        where: {
+          status: { [Op.or]: [OrderStatuses.ACTIVE, OrderStatuses.ERROR, OrderStatuses.REQUIRE_CLIENT_CONFIRMATION] },
+        },
+        include: [
+          {
+            model: models.Subscription,
+            where: { isActive: true },
+            required: true,
+          },
+        ],
+      });
+
+      if (recurringOrders.length > 0) {
+        if (args.cancelActiveSubscriptions) {
+          await Promise.all(
+            recurringOrders.map(async order => {
+              await order.Subscription.deactivate();
+              return order.update({ status: OrderStatuses.CANCELLED });
+            }),
+          );
+        } else {
+          throw new Unauthorized('The payment method has active subscriptions', 'PM.Remove.HasActiveSubscriptions');
+        }
+      }
+
+      await paymentMethod.destroy();
+      return paymentMethod;
     },
   },
 };

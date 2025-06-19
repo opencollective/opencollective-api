@@ -1,5 +1,4 @@
-Subject: {{{collective.name}}} wants to pay you
-
+Subject: {{#ifCond payee.type "===" "USER"}}{{{collective.name}}} wants to pay you{{else if isCrossHostExpense}}{{{collective.name}}} wants to send funds to one of your hosted collectives{{else}}{{{payee.name}}} wants to send funds to {{{collective.name}}}{{/ifCond}} on Open Collective
 
 {{> header}}
 
@@ -9,7 +8,14 @@ Subject: {{{collective.name}}} wants to pay you
   </h1>
 </center>
 <p>
-  This means {{> linkCollective collective=collective}} wants to pay you. You need to confirm some details so your payment can be processed.
+  {{#ifCond payee.type "===" "USER"}}  
+  {{> linkCollective collective=fromCollective}} is inviting you to get paid by {{> linkCollective collective=collective}} on Open Collective.
+  {{else if isCrossHostExpense}}
+  {{> linkCollective collective=collective}} wants to send funds to one of your hosted collectives, {{> linkCollective collective=payee}}, on Open Collective.
+  {{else}}
+  {{> linkCollective collective=fromCollective}} is inviting {{> linkCollective collective=payee}} to get paid by {{> linkCollective collective=collective}} on Open Collective.
+  {{/ifCond}}
+  You need to confirm some details before your payment can be processed.
 </p>
 
 

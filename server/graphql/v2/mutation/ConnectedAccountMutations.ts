@@ -117,9 +117,19 @@ const connectedAccountMutations = {
 
       if (connectedAccount.service === Service.PLAID) {
         await disconnectPlaidAccount(connectedAccount);
+      } else if (([Service.STRIPE, Service.PAYPAL] as string[]).includes(connectedAccount.service)) {
+        const nbActiveOrders = await models.Order.countActiveRecurringForPaymentService(
+          connectedAccount.service as Service.STRIPE | Service.PAYPAL,
+        );
+
+        if (nbActiveOrders > 0) {
+          throw new ValidationFailed(
+            'There are active contributions based on this payment provider. Please contact support to disconnect it.',
+          );
+        }
       }
 
-      await connectedAccount.destroy({ force: true });
+      await connectedAccount.destroy();
       await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: connectedAccount.id } } });
 
       return connectedAccount;

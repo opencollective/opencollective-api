@@ -1,14 +1,16 @@
+import assert from 'assert';
+
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact } from 'lodash';
-import { Includeable, Order } from 'sequelize';
+import { compact, uniq } from 'lodash';
+import { Includeable, Order, Utils as SequelizeUtils } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/sql-search';
-import models, { Op, sequelize } from '../../../../models';
+import models, { Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { NotFound, Unauthorized } from '../../../errors';
+import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
@@ -16,13 +18,19 @@ import { GraphQLOrderPausedBy } from '../../enum/OrderPausedBy';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
 import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput } from '../../input/AmountInput';
+import { GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
 import {
-  fetchPaymentMethodWithReference,
+  fetchPaymentMethodWithReferences,
   GraphQLPaymentMethodReferenceInput,
 } from '../../input/PaymentMethodReferenceInput';
 import { getDatabaseIdFromTierReference, GraphQLTierReferenceInput } from '../../input/TierReferenceInput';
@@ -31,15 +39,22 @@ import { CollectionArgs, CollectionReturnType } from '../../interface/Collection
 type OrderAssociation = 'fromCollective' | 'collective';
 
 // Returns the join condition for association
-const getJoinCondition = (
+const getCollectivesJoinCondition = (
   account,
   association: OrderAssociation,
   includeHostedAccounts = false,
   includeChildrenAccounts = false,
+  limitToHostedAccounts?: Collective[],
 ): Record<string, unknown> => {
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
-  const field = associationFields[association] || `$${association}.id$`;
-  let conditions = [{ [field]: account.id }];
+  const field =
+    // Foreign Key columns should only be used in isolation. When querying for associated data, it is more performant to also query for the associated id
+    associationFields[association] && !includeChildrenAccounts && !(includeHostedAccounts && account.isHostAccount)
+      ? associationFields[association]
+      : `$${association}.id$`;
+  const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id) || [];
+  const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
+  let conditions = [{ [field]: allTopAccountIds }];
 
   // Hosted accounts
   if (includeHostedAccounts && account.isHostAccount) {
@@ -48,13 +63,18 @@ const getJoinCondition = (
       {
         [`$${association}.HostCollectiveId$`]: account.id,
         [`$${association}.approvedAt$`]: { [Op.not]: null },
+        ...(limitToHostedAccountsIds.length ? { [`$${association}.id$`]: { [Op.in]: limitToHostedAccountsIds } } : {}),
       },
     ];
   }
 
   // Children collectives
   if (includeChildrenAccounts) {
-    conditions.push({ [`$${association}.ParentCollectiveId$`]: account.id });
+    if (limitToHostedAccountsIds.length) {
+      conditions.push({ [`$${association}.ParentCollectiveId$`]: limitToHostedAccountsIds });
+    } else {
+      conditions.push({ [`$${association}.ParentCollectiveId$`]: allTopAccountIds });
+    }
   }
 
   return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
@@ -77,7 +97,7 @@ export const OrdersCollectionArgs = {
     description: 'Only return orders that were paused by these roles. status must be set to PAUSED.',
   },
   paymentMethod: {
-    type: GraphQLPaymentMethodReferenceInput,
+    type: new GraphQLList(GraphQLPaymentMethodReferenceInput),
     description:
       'Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.',
   },
@@ -111,13 +131,19 @@ export const OrdersCollectionArgs = {
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
+  amount: {
+    type: GraphQLAmountRangeInput,
+    description: 'Only return expenses that match this amount range',
+  },
   minAmount: {
     type: GraphQLInt,
     description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   maxAmount: {
     type: GraphQLInt,
     description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   dateFrom: {
     type: GraphQLDateTime,
@@ -149,7 +175,7 @@ export const OrdersCollectionArgs = {
   },
   tierSlug: {
     type: GraphQLString,
-    deprecationReason: '2022-02-25: Should be replaced by a tier reference. Not existing yet.',
+    deprecationReason: '2022-02-25: Should be replaced by a tier reference.',
   },
   tier: {
     type: new GraphQLList(GraphQLTierReferenceInput),
@@ -178,6 +204,10 @@ export const OrdersCollectionArgs = {
     description:
       'Return only orders made from/to that opposite account (only works when orders are already filtered with a main account)',
   },
+  hostedAccounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'Return only orders made from/to these hosted accounts',
+  },
 };
 
 export const OrdersCollectionResolver = async (args, req: express.Request) => {
@@ -199,7 +229,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }
 
-  let account, oppositeAccount;
+  let account, oppositeAccount, hostedAccounts;
 
   // Load accounts
   if (args.account) {
@@ -211,16 +241,32 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       oppositeAccount = await fetchAccountWithReference(args.oppositeAccount, fetchAccountParams);
     }
 
-    const accountConditions = [];
-    const oppositeAccountConditions = [];
+    // Load hosted accounts
+    if (args.hostedAccounts) {
+      hostedAccounts = await fetchAccountsWithReferences(args.hostedAccounts, fetchAccountParams);
+      hostedAccounts.forEach(hostedAccount => {
+        if (hostedAccount.HostCollectiveId !== account.id || !account.isActive) {
+          throw new Forbidden('You can only fetch orders from hosted accounts of the specified account');
+        }
+      });
+    }
+
+    const accountOrConditions = [];
+    const oppositeAccountOrConditions = [];
 
     // Filter on fromCollective
     if (!args.filter || args.filter === 'OUTGOING') {
-      accountConditions.push(
-        getJoinCondition(account, 'fromCollective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      accountOrConditions.push(
+        getCollectivesJoinCondition(
+          account,
+          'fromCollective',
+          args.includeHostedAccounts,
+          args.includeChildrenAccounts,
+          hostedAccounts,
+        ),
       );
       if (oppositeAccount) {
-        oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'collective'));
+        oppositeAccountOrConditions.push(getCollectivesJoinCondition(oppositeAccount, 'collective'));
       }
       if (args.includeIncognito) {
         // Needs to be root or admin of the profile to see incognito orders
@@ -230,7 +276,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
         ) {
           const incognitoProfile = await account.getIncognitoProfile();
           if (incognitoProfile) {
-            accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));
+            accountOrConditions.push(getCollectivesJoinCondition(incognitoProfile, 'fromCollective'));
           }
         } else {
           // Is this desirable? Some current tests don't like it.
@@ -241,32 +287,40 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     // Filter on collective
     if (!args.filter || args.filter === 'INCOMING') {
-      accountConditions.push(
-        getJoinCondition(account, 'collective', args.includeHostedAccounts, args.includeChildrenAccounts),
+      accountOrConditions.push(
+        getCollectivesJoinCondition(
+          account,
+          'collective',
+          args.includeHostedAccounts,
+          args.includeChildrenAccounts,
+          hostedAccounts,
+        ),
       );
       if (oppositeAccount) {
-        oppositeAccountConditions.push(getJoinCondition(oppositeAccount, 'fromCollective'));
+        oppositeAccountOrConditions.push(getCollectivesJoinCondition(oppositeAccount, 'fromCollective'));
       }
     }
 
     // Bind account conditions to the query
-    where[Op.and].push(accountConditions.length === 1 ? accountConditions : { [Op.or]: accountConditions });
-    if (oppositeAccountConditions.length > 0) {
+    where[Op.and].push(accountOrConditions.length === 1 ? accountOrConditions : { [Op.or]: accountOrConditions });
+    if (oppositeAccountOrConditions.length > 0) {
       where[Op.and].push(
-        oppositeAccountConditions.length === 1 ? oppositeAccountConditions : { [Op.or]: oppositeAccountConditions },
+        oppositeAccountOrConditions.length === 1
+          ? oppositeAccountOrConditions
+          : { [Op.or]: oppositeAccountOrConditions },
       );
     }
   }
 
   // Load payment method
   if (args.paymentMethod) {
-    const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod, {
+    const paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod, {
       sequelizeOpts: { attributes: ['id'], include: [{ model: models.Collective }] },
     });
-    if (!req.remoteUser?.isAdminOfCollective(paymentMethod.Collective)) {
+    if (!paymentMethods.every(paymentMethod => req.remoteUser?.isAdminOfCollective(paymentMethod.Collective))) {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
-    where['PaymentMethodId'] = paymentMethod.id;
+    where['PaymentMethodId'] = { [Op.in]: paymentMethods.map(pm => pm.id) };
   }
 
   // Filter on payment method service/type
@@ -315,12 +369,51 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
 
   // Add filters
-  if (args.minAmount) {
-    where['totalAmount'] = { [Op.gte]: args.minAmount };
+  if (args.amount?.gte || args.amount?.lte) {
+    if (args.amount.gte && args.amount.lte) {
+      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
+    }
+    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
+    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
+    const operator =
+      args.amount.gte && args.amount.lte
+        ? gte === lte
+          ? { [Op.eq]: gte }
+          : { [Op.between]: [gte, lte] }
+        : args.amount.gte
+          ? { [Op.gte]: gte }
+          : { [Op.lte]: lte };
+
+    where[Op.and].push(
+      sequelize.where(
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
+            CASE
+              WHEN "Order"."currency" = :currency THEN "Order"."totalAmount"
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Order"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Order"."processedAt", "Order"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Order"."totalAmount",
+                "Order"."totalAmount"
+              )
+            END
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
+        operator,
+      ),
+    );
+  } else {
+    if (args.minAmount) {
+      where['totalAmount'] = { [Op.gte]: args.minAmount };
+    }
+    if (args.maxAmount) {
+      where['totalAmount'] = { ...where['totalAmount'], [Op.lte]: args.maxAmount };
+    }
   }
-  if (args.maxAmount) {
-    where['totalAmount'] = { ...where['totalAmount'], [Op.lte]: args.maxAmount };
-  }
+
   if (args.dateFrom) {
     where['createdAt'] = { [Op.gte]: args.dateFrom };
   }

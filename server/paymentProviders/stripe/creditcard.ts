@@ -46,13 +46,15 @@ const createChargeAndTransactions = async (
   /* eslint-disable camelcase */
 
   let paymentIntent: Stripe.PaymentIntent | undefined = order.data.paymentIntent;
+  let shouldConfirmOnCreate = false;
   if (!paymentIntent || paymentIntent.status === 'succeeded') {
+    shouldConfirmOnCreate = Boolean(order.processedAt && order.interval);
     const createPayload: Stripe.PaymentIntentCreateParams = {
       amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
       customer: stripePaymentMethod.customer,
       description: order.description,
-      confirm: false,
+      confirm: shouldConfirmOnCreate,
       confirmation_method: 'manual',
       metadata: {
         from: `${config.host.website}/${order.fromCollective.slug}`,
@@ -69,7 +71,11 @@ const createChargeAndTransactions = async (
       createPayload.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
     }
     if (order.interval) {
-      createPayload.setup_future_usage = 'off_session';
+      if (shouldConfirmOnCreate) {
+        createPayload.off_session = true;
+      } else {
+        createPayload.setup_future_usage = 'off_session';
+      }
     } else if (!order.processedAt && order.data.savePaymentMethod) {
       createPayload.setup_future_usage = 'on_session';
     }
@@ -86,11 +92,13 @@ const createChargeAndTransactions = async (
     });
   }
 
-  paymentIntent = await stripe.paymentIntents.confirm(
-    paymentIntent.id,
-    { payment_method: stripePaymentMethod.id, expand: ['latest_charge'] },
-    { stripeAccount: hostStripeAccount.username },
-  );
+  if (!shouldConfirmOnCreate) {
+    paymentIntent = await stripe.paymentIntents.confirm(
+      paymentIntent.id,
+      { payment_method: stripePaymentMethod.id, expand: ['latest_charge'] },
+      { stripeAccount: hostStripeAccount.username },
+    );
+  }
 
   /* eslint-enable camelcase */
 
@@ -116,7 +124,7 @@ const createChargeAndTransactions = async (
     },
   });
 
-  const charge = paymentIntent.latest_charge || (paymentIntent as any).charges.data[0];
+  const charge = (paymentIntent as any).charges.data[0];
   const transaction = await createChargeTransactions(charge as Stripe.Charge, { order });
   if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
@@ -194,9 +202,14 @@ export default {
         'Invalid amount.',
         'Payment Intent require action',
         'Invalid account.',
+        /^Amount must convert to at least 50 cents\./,
       ];
 
-      if (knownErrors.includes(error.message)) {
+      if (
+        knownErrors.some(knownError =>
+          typeof knownError === 'string' ? knownError === error.message : knownError.test(error.message),
+        )
+      ) {
         logger.error(
           `Stripe Error (handled): ${error.type}, Message: ${error.message}, Decline Code: ${error.decline_code}, Code: ${error.code}`,
         );

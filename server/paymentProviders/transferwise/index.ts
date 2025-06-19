@@ -1,6 +1,5 @@
 /* eslint-disable camelcase */
 import assert from 'assert';
-import crypto from 'crypto';
 
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
@@ -51,12 +50,12 @@ import {
   Transfer,
   Webhook,
 } from '../../types/transferwise';
+import { hashObject } from '../utils';
 
 import { handleTransferStateChange } from './webhook';
 
 const PROVIDER_NAME = Service.TRANSFERWISE;
 
-const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
 
 const blockedCountries = splitCSV(config.transferwise.blockedCountries);
@@ -64,15 +63,23 @@ const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
 const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
 const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 
-async function populateProfileId(connectedAccount: ConnectedAccount, profileId?: number): Promise<void> {
+async function populateProfileId(connectedAccount: ConnectedAccount, profileId: number): Promise<void> {
   if (!connectedAccount.data?.id) {
     const profiles = await transferwise.getProfiles(connectedAccount);
-    const profile = profileId
-      ? profiles.find(p => p.id === profileId)
-      : profiles.find(p => p.type === connectedAccount.data?.type);
-    if (profile) {
-      const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME });
-      await connectedAccount.update({ data: { ...connectedAccount.data, ...profile }, hash });
+    const personalProfile = profiles.find(p => p.type === 'PERSONAL');
+    const businessProfile = profiles.find(p => p.id === profileId);
+    if (businessProfile) {
+      const hash = hashObject({
+        profileId: businessProfile.id,
+        service: PROVIDER_NAME,
+        userId: personalProfile.userId,
+      });
+      const isOwner = businessProfile.type === 'BUSINESS' && businessProfile.companyRole === 'OWNER';
+      await connectedAccount.update({
+        data: { ...connectedAccount.data, ...businessProfile, personalProfile },
+        hash,
+        settings: { isOwner, userId: personalProfile.userId },
+      });
     } else {
       throw new Error(`Could not find a Wise profile for connected account ${connectedAccount.id}`);
     }
@@ -112,8 +119,6 @@ async function quoteExpense(
   targetAccount?: number,
   transferNature?: string,
 ): Promise<ExpenseDataQuoteV3 | ExpenseDataQuoteV2> {
-  await populateProfileId(connectedAccount);
-
   const existingQuote = expense.data?.quote;
   const isExistingQuoteValid =
     expense.feesPayer !== 'PAYEE' &&
@@ -362,6 +367,7 @@ const getOrCreateActiveBatch = async (
 async function scheduleExpenseForPayment(
   expense: Expense,
   transferDetails?: transferwise.CreateTransfer['details'],
+  remoteUser?: User,
 ): Promise<Expense> {
   const collective = await expense.getCollective();
   const host = await collective.getHostCollective();
@@ -377,7 +383,10 @@ async function scheduleExpenseForPayment(
   }
 
   const transferNature = transferDetails?.transferNature;
-  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+  const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME, {
+    CreatedByUserId: remoteUser?.id,
+    fallbackToNonUserAccount: true,
+  });
   const token = await transferwise.getToken(connectedAccount);
   const [wiseBalances, quote] = await Promise.all([
     getAccountBalances(host, { connectedAccount }),
@@ -386,7 +395,8 @@ async function scheduleExpenseForPayment(
   const balanceInSourceCurrency = wiseBalances.find(b => b.currency === quote.sourceCurrency);
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
-  const batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
+  let batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
+  assert(batchGroup?.id, 'Failed to create new batch group');
   let totalAmountToPay = quote.paymentOption.sourceAmount;
   if (batchGroup.transferIds.length > 0) {
     const batchedExpenses = await Expense.findAll({
@@ -401,13 +411,17 @@ async function scheduleExpenseForPayment(
     `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${roundedTotalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
   );
 
-  await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
+  const { transfer } = await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
     batchGroupId: batchGroup.id,
     token,
     details: transferDetails,
   });
+
+  batchGroup = await transferwise.getBatchGroup(connectedAccount, batchGroup.id);
+  assert(batchGroup.transferIds.includes(transfer.id), new Error('Failed to add transfer to existing batch group'));
   await expense.reload();
   await expense.update({ data: { ...expense.data, batchGroup } });
+  await updateBatchGroup(batchGroup);
   return expense;
 }
 
@@ -441,86 +455,117 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
   );
 }
 
-async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remoteUser?) {
-  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
-  assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser?.id}`);
+const updateBatchGroup = async (batchGroup: BatchGroup): Promise<void> => {
+  assert(batchGroup.id, 'Batch group id is required');
+  return await sequelize.query(
+    `
+        UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE
+        "data"#>>'{batchGroup, id}' = :batchGroupId;
+      `,
+    {
+      replacements: {
+        newBatchGroup: JSON.stringify(batchGroup),
+        batchGroupId: batchGroup.id,
+      },
+    },
+  );
+};
+
+async function payExpensesBatchGroup({
+  host,
+  expenses,
+  remoteUser,
+}: {
+  host: Collective;
+  expenses: Expense[];
+  remoteUser: User;
+}) {
+  assert(expenses.length > 0, 'No expenses provided to pay');
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+    CreatedByUserId: remoteUser.id,
+    fallbackToNonUserAccount: true,
+  });
+  assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser.id}`);
 
   const profileId = connectedAccount.data.id;
   const token = await transferwise.getToken(connectedAccount);
 
   try {
-    if (!x2faApproval && expenses) {
-      let batchGroup = await transferwise.getBatchGroup(connectedAccount, expenses[0].data.batchGroup.id);
-      // Throw if batch group was already paid
-      if (batchGroup.status === 'COMPLETED' && batchGroup.alreadyPaid === true) {
-        throw new Error('Can not pay batch group, existing batch group was already paid');
-      }
-      // Throw if batch group is cancelled
-      else if (['MARKED_FOR_CANCELLATION', 'PROCESSING_CANCEL', 'CANCELLED'].includes(batchGroup.status)) {
-        throw new Error(`Can not pay batch group, existing batch group was cancelled`);
-      }
-      // If it is new, check if the expenses match the batch group and mark it as completed
-      else if (batchGroup.status === 'NEW') {
-        const expenseTransferIds = expenses.map(e => e.data.transfer.id);
-        if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
-          throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
-        }
-        expenses.forEach(expense => {
-          if (expense.data.batchGroup.id !== batchGroup.id) {
-            throw new Error(
-              `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
-            );
-          }
-          if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
-            throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
-          }
-          if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
-            throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
-          }
-        });
-
-        batchGroup = await transferwise.completeBatchGroup(connectedAccount, batchGroup.id, batchGroup.version);
-
-        // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
-        await sequelize.query(
-          `
-        UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE "id" IN (:expenseIds) AND "data"#>>'{batchGroup, id}' = :batchGroupId;
-      `,
-          {
-            replacements: {
-              expenseIds: expenses.map(e => e.id),
-              newBatchGroup: JSON.stringify(batchGroup),
-              batchGroupId: batchGroup.id,
-            },
-          },
-        );
-      }
-      // If it is completed, fund it and forward the OTT
-      const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
-      if ('status' in fundResponse && 'headers' in fundResponse) {
-        const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
-        await sessionCache.set(cacheKey, batchGroup.id, 30 * 60);
-      }
-      return fundResponse;
-    } else if (x2faApproval) {
-      const cacheKey = `transferwise_ott_${x2faApproval}`;
-      const batchGroupId = await sessionCache.get(cacheKey);
-      if (!batchGroupId) {
-        throw new Error('Invalid or expired OTT approval code');
-      }
-      const batchGroup = (await transferwise.fundBatchGroup(
-        token,
-        profileId,
-        batchGroupId,
-        x2faApproval,
-      )) as BatchGroup;
-      await sessionCache.delete(cacheKey);
-      return batchGroup;
-    } else {
-      throw new Error('payExpensesBatchGroup: you need to pass either expenses or x2faApproval');
+    let batchGroup = await transferwise.getBatchGroup(connectedAccount, expenses[0].data.batchGroup.id);
+    // Throw if batch group was already paid
+    if (batchGroup.status === 'COMPLETED' && batchGroup.alreadyPaid === true) {
+      throw new Error('Can not pay batch group, existing batch group was already paid');
     }
+    // Throw if batch group is cancelled
+    else if (['MARKED_FOR_CANCELLATION', 'PROCESSING_CANCEL', 'CANCELLED'].includes(batchGroup.status)) {
+      throw new Error(`Can not pay batch group, existing batch group was cancelled`);
+    }
+    // If it is new, check if the expenses match the batch group and mark it as completed
+    else if (batchGroup.status === 'NEW') {
+      const expenseTransferIds = expenses.map(e => e.data.transfer.id);
+      if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
+        throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
+      }
+      expenses.forEach(expense => {
+        if (expense.data.batchGroup.id !== batchGroup.id) {
+          throw new Error(
+            `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
+          );
+        }
+        if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
+          throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
+        }
+        if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
+          throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
+        }
+      });
+
+      batchGroup = await transferwise.completeBatchGroup(connectedAccount, batchGroup.id, batchGroup.version);
+      // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
+      await updateBatchGroup(batchGroup);
+    }
+    // If it is completed, fund it and forward the OTT
+    const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
+    if ('status' in fundResponse && 'headers' in fundResponse) {
+      const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
+      await sessionCache.set(cacheKey, batchGroup.id, 30 * 60);
+    }
+    return fundResponse;
   } catch (e) {
     logger.error('Error paying Wise batch group', e);
+    throw e;
+  }
+}
+
+async function approveExpenseBatchGroupPayment({
+  host,
+  x2faApproval,
+  remoteUser,
+}: {
+  host: Collective;
+  x2faApproval: string;
+  remoteUser: User;
+}) {
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+    CreatedByUserId: remoteUser.id,
+    fallbackToNonUserAccount: true,
+  });
+  assert(connectedAccount, `No connected account found for host ${host.id} and user ${remoteUser.id}`);
+
+  const profileId = connectedAccount.data.id;
+  const token = await transferwise.getToken(connectedAccount);
+  try {
+    const cacheKey = `transferwise_ott_${x2faApproval}`;
+    const batchGroupId = await sessionCache.get(cacheKey);
+    if (!batchGroupId) {
+      throw new Error('Invalid or expired OTT approval code');
+    }
+    const batchGroup = (await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval)) as BatchGroup;
+    await sessionCache.delete(cacheKey);
+    await updateBatchGroup(batchGroup);
+    return batchGroup;
+  } catch (e) {
+    logger.error('Error approving Wise batch group payment', e);
     throw e;
   }
 }
@@ -550,8 +595,6 @@ async function getAvailableCurrencies(
   if (fromCache) {
     return fromCache.filter(c => !currencyBlockList.includes(c.code));
   }
-
-  await populateProfileId(connectedAccount);
 
   const pairs = await transferwise.getCurrencyPairs(connectedAccount);
   const source = pairs.sourceCurrencies.find(sc => sc.currencyCode === host.currency);
@@ -592,8 +635,6 @@ async function getRequiredBankInformation(
   }
 
   const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
-
-  await populateProfileId(connectedAccount);
 
   const currencyInfo = find(await getAvailableCurrencies(host), { code: currency });
   if (!currencyInfo) {
@@ -641,7 +682,6 @@ async function getAccountBalances(
 ): Promise<BalanceV4[]> {
   const connectedAccount = options?.connectedAccount ?? (await host.getAccountForPaymentProvider(PROVIDER_NAME));
   assert(connectedAccount, `No connected account found for host ${host.id}`);
-  await populateProfileId(connectedAccount);
   return transferwise.listBalancesAccount(connectedAccount);
 }
 
@@ -680,84 +720,118 @@ const oauth = {
       return;
     }
 
-    const { redirect, CollectiveId, UserId } = originalRequest;
+    const { redirect, CollectiveId, UserId: CreatedByUserId } = originalRequest;
     const redirectUrl = new URL(redirect);
     try {
       const { code, profileId } = req.query;
-      const hash = hashObject({ profileId: toNumber(profileId), service: 'transferwise' });
-      const collective = await Collective.findByPk(CollectiveId);
-      assert(collective, `Could not find Collective #${CollectiveId}`);
-
-      const existingConnectedAccount = await ConnectedAccount.findOne({
-        where: { service: PROVIDER_NAME, CollectiveId },
-      });
-      const conflictingConnectedAccount = await ConnectedAccount.findOne({
-        where: { hash, CollectiveId: { [Op.ne]: collective.id } },
-      });
-
       const accessToken = await transferwise.getOrRefreshToken({ code: code?.toString() });
       const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
+      const connectedAccount = ConnectedAccount.build({
+        CollectiveId,
+        CreatedByUserId,
+        service: PROVIDER_NAME,
+        token,
+        refreshToken,
+        data,
+      });
+      const profiles = await transferwise.getProfiles(connectedAccount);
+      const personalProfile = profiles.find(p => p.type === 'PERSONAL');
+      const profile = profiles.find(p => p.id === toNumber(profileId));
+      assert(profile, `Could not find Wise profile with id ${profileId}`);
+      const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME, userId: personalProfile.userId });
+
+      const collective = await Collective.findByPk(CollectiveId);
+      assert(collective, `Could not find Collective #${CollectiveId}`);
+      const existingConflicts = await ConnectedAccount.findOne({
+        where: { service: PROVIDER_NAME, data: { id: { [Op.ne]: profile.id } }, CollectiveId },
+      });
+      assert(
+        !existingConflicts,
+        `This Collective is already connected to a different Wise account. Please disconnect it first.`,
+      );
+
+      // Check if this account was already connected to another collective, if so, we'll mirror it to that Account so we avoid invalidating tokens.
+      const mirroredAccounts = await ConnectedAccount.findAll({
+        where: { service: PROVIDER_NAME, data: { id: profile.id }, CollectiveId: { [Op.ne]: collective.id } },
+        include: [{ model: Collective, as: 'collective' }],
+      });
 
       // Link to existing connected account if the profileId is already connected to another collective
-      if (conflictingConnectedAccount) {
-        logger.warn(
-          `${collective.slug} connected a Wise account that is already connected to another collective, linking to existing account ${conflictingConnectedAccount.id}`,
+      if (mirroredAccounts.length > 0) {
+        const mirroredAccount = mirroredAccounts.find(
+          mirroredAccount => mirroredAccount.CreatedByUserId === CreatedByUserId,
         );
-        const user = await User.findByPk(UserId);
+        assert(mirroredAccount, 'You can only mirror accounts that were previously connected by your user');
+        logger.warn(
+          `${collective.slug} connected a Wise account that is already connected to another collective, linking to existing account ${mirroredAccount.id}`,
+        );
+        const user = await User.findByPk(CreatedByUserId);
         await user.populateRoles();
         assert(
-          user.isAdmin(conflictingConnectedAccount.CollectiveId),
-          'This account is already connected to another Collective, make sure you have the right permissions on the other Collective.',
+          user.isAdmin(mirroredAccount.CollectiveId),
+          'This account is already connected to another Collective, make sure you have the right permissions on the other Collective',
         );
 
-        // Remove any existing connected account for this collective
-        if (existingConnectedAccount) {
-          await existingConnectedAccount.destroy();
-        }
-        // Create a new empty connected account pointing to the existing one that ports the same credentials
-        await ConnectedAccount.create({
-          CollectiveId,
-          CreatedByUserId: UserId,
-          service: PROVIDER_NAME,
-          token: null,
-          refreshToken: null,
-          hash: hashObject({
-            profileId: toNumber(profileId),
-            service: 'transferwise',
-            MirrorConnectedAccountId: conflictingConnectedAccount.id,
-          }),
-          data: {
-            MirrorConnectedAccountId: conflictingConnectedAccount.id,
-          },
+        const mirrorHash = hashObject({
+          profileId: profile.id,
+          service: 'transferwise',
+          userId: profile.userId,
+          MirrorConnectedAccountId: mirroredAccount.id,
         });
-        // Update the existing connected account where pointing to
-        await conflictingConnectedAccount.update({
+        const existingConnectedAccount = await ConnectedAccount.findOne({
+          where: { service: PROVIDER_NAME, CollectiveId, hash: mirrorHash },
+        });
+        // If mirror account already exists, update it with new tokens
+        if (existingConnectedAccount) {
+          await existingConnectedAccount.update({ token, refreshToken });
+        } else {
+          // Create a new empty connected account pointing to the existing one that ports the same credentials
+          await ConnectedAccount.create({
+            CollectiveId,
+            CreatedByUserId: CreatedByUserId,
+            service: PROVIDER_NAME,
+            token: null,
+            refreshToken: null,
+            hash: mirrorHash,
+            data: {
+              MirrorConnectedAccountId: mirroredAccount.id,
+            },
+            settings: { isMirror: true, mirroredCollective: mirroredAccount.collective.minimal },
+          });
+        }
+
+        // Update the original connected account with the new tokens
+        await mirroredAccount.update({
           token,
           refreshToken,
-          data: { ...conflictingConnectedAccount.data, ...data },
+          data: { ...mirroredAccount.data, ...data },
         });
+        await populateProfileId(mirroredAccount, profile.id);
       }
       // Otherwise update the existing connected account or create a new one
       else {
-        if (existingConnectedAccount) {
-          await existingConnectedAccount.update({
+        let connectedAccount = await ConnectedAccount.findOne({
+          where: { service: PROVIDER_NAME, CollectiveId, hash },
+        });
+        if (connectedAccount) {
+          await connectedAccount.update({
             token,
             refreshToken,
-            data: { ...existingConnectedAccount.data, ...data },
+            data: { ...connectedAccount.data, ...data },
             hash,
           });
         } else {
-          const connectedAccount = await ConnectedAccount.create({
+          connectedAccount = await ConnectedAccount.create({
             CollectiveId,
-            CreatedByUserId: UserId,
+            CreatedByUserId: CreatedByUserId,
             service: PROVIDER_NAME,
             token,
             refreshToken,
             data,
             hash,
           });
-          await populateProfileId(connectedAccount, toNumber(profileId));
         }
+        await populateProfileId(connectedAccount, profile.id);
       }
 
       // Automatically set OTT flag on for European contries and Australia.
@@ -777,19 +851,18 @@ const oauth = {
 
       res.redirect(redirectUrl.href);
     } catch (e) {
-      logger.error(`Error with TransferWise OAuth callback: ${e.message}`, { ...e, state });
+      logger.error(`Error with Wise OAuth callback: ${e.message}`, { ...e, state });
       reportErrorToSentry(e);
       redirectUrl.searchParams.append(
         'error',
-        `Could not OAuth with TransferWise, please contact support@opencollective.com. State: ${state}`,
+        `Could not OAuth with Wise: ${e.message}. Please contact support@opencollective.com. State: ${state}`,
       );
       res.redirect(redirectUrl.href);
     }
   },
 };
 
-async function createWebhooksForHost(): Promise<Webhook[]> {
-  const url = `${config.host.api}/webhooks/transferwise`;
+async function createWebhooksForHost(url = `${config.host.api}/webhooks/transferwise`): Promise<Webhook[]> {
   const existingWebhooks = await transferwise.listApplicationWebhooks();
 
   const requiredHooks = [
@@ -852,6 +925,7 @@ export default {
   quoteExpense,
   payExpense,
   payExpensesBatchGroup,
+  approveExpenseBatchGroupPayment,
   createWebhooksForHost,
   validatePayoutMethod,
   scheduleExpenseForPayment,

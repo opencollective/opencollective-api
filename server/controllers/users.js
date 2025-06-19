@@ -9,6 +9,7 @@ import errors from '../lib/errors';
 import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
+import { reportErrorToSentry } from '../lib/sentry';
 import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
 import * as webauthn from '../lib/two-factor-authentication/webauthn';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
@@ -131,12 +132,19 @@ export const signin = async (req, res, next) => {
       if (config.env === 'development') {
         logger.info(`Reset Password Link: ${resetPasswordLink}`);
       }
-      await emailLib.send(
-        activities.USER_RESET_PASSWORD,
-        user.email,
-        { resetPasswordLink, clientIP: req.ip },
-        { sendEvenIfNotProduction: true },
-      );
+      try {
+        await emailLib.send(
+          activities.USER_RESET_PASSWORD,
+          user.email,
+          { resetPasswordLink, clientIP: req.ip },
+          { sendEvenIfNotProduction: true },
+        );
+      } catch (e) {
+        reportErrorToSentry(e, { user });
+        return res.status(500).send({
+          error: { message: 'Error sending reset password email' },
+        });
+      }
     } else {
       const collective = await user.getCollective();
       const loginLink = user.generateLoginLink(redirect || '/', websiteUrl);
@@ -145,12 +153,19 @@ export const signin = async (req, res, next) => {
       if (config.env === 'development') {
         logger.info(`Login Link: ${loginLink}`);
       }
-      await emailLib.send(
-        activities.USER_NEW_TOKEN,
-        user.email,
-        { loginLink, clientIP: req.ip, noPassword: !user.passwordHash, securitySettingsLink },
-        { sendEvenIfNotProduction: true },
-      );
+      try {
+        await emailLib.send(
+          activities.USER_NEW_TOKEN,
+          user.email,
+          { loginLink, clientIP: req.ip, noPassword: !user.passwordHash, securitySettingsLink },
+          { sendEvenIfNotProduction: true },
+        );
+      } catch (e) {
+        reportErrorToSentry(e, { user });
+        return res.status(500).send({
+          error: { message: 'Error sending login email' },
+        });
+      }
 
       // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
       if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
@@ -326,7 +341,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
       },
       req,
     );
-  } catch (e) {
+  } catch {
     return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
   }
 

@@ -201,7 +201,15 @@ const orderMutations = {
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
-      const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+
+      let paymentMethod;
+      if (order.isBalanceTransfer && !order.paymentMethod) {
+        const internalTransferPaymentMethod = await fromCollective.getOrCreateInternalPaymentMethod();
+        paymentMethod = internalTransferPaymentMethod;
+      } else {
+        paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      }
+
       if (order.paymentMethod?.paymentIntentId) {
         paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
       }
@@ -240,7 +248,12 @@ const orderMutations = {
 
       // Check 2FA for non-guest contributions
       if (req.remoteUser) {
-        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
+        const isUsingBalance = paymentMethod?.service === 'opencollective' && paymentMethod?.type === 'collective';
+        // This covers the case where the user is transfering balance between their own collectives
+        const isCollectiveRelated =
+          fromCollective?.id === collective.ParentCollectiveId || fromCollective?.ParentCollectiveId === collective.id;
+        const onlyAskOnLogin = isUsingBalance && !isCollectiveRelated ? false : true;
+        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin });
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
@@ -1055,20 +1068,22 @@ const orderMutations = {
       try {
         let paymentMethodConfiguration = config.stripe.oneTimePaymentMethodConfiguration;
 
-        if (paymentIntentInput.frequency && paymentIntentInput.frequency !== TierFrequencyKey.ONETIME) {
+        const isRecurring = paymentIntentInput.frequency && paymentIntentInput.frequency !== TierFrequencyKey.ONETIME;
+        if (isRecurring) {
           paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
         }
 
         const paymentIntent = await stripe.paymentIntents.create(
           {
-            // eslint-disable-next-line camelcase
+            /* eslint-disable camelcase */
             payment_method_configuration: paymentMethodConfiguration,
             customer: stripeCustomerId,
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
             currency: paymentIntentInput.amount.currency.toLowerCase(),
-            // eslint-disable-next-line camelcase
+            setup_future_usage: isRecurring ? 'off_session' : undefined,
             automatic_payment_methods: { enabled: true },
+            /* eslint-enable camelcase */
             metadata: {
               from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
               to: `${config.host.website}/${toAccount.slug}`,
@@ -1113,6 +1128,15 @@ const orderMutations = {
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
+      } else if (
+        fromAccount.HostCollectiveId !== host.id &&
+        !req.remoteUser.isRoot() &&
+        !host.data?.allowAddFundsFromAllAccounts &&
+        !host.data?.isTrustedHost
+      ) {
+        throw new Error(
+          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        );
       }
 
       // Check accounting category

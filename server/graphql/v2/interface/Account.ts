@@ -13,9 +13,8 @@ import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-r
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Collective, Op, sequelize } from '../../../models';
 import Application from '../../../models/Application';
-import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
-import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -43,6 +42,7 @@ import {
 } from '../enum';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
+import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
@@ -181,6 +181,13 @@ const accountFieldsDefinition = () => ({
   expensePolicy: {
     type: GraphQLString,
     deprecationReason: '2024-11-04: Please use policies.EXPENSE_POLICIES',
+  },
+  isVerified: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether the account is verified',
+    resolve(collective) {
+      return get(collective, 'data.isVerified') || false;
+    },
   },
   isIncognito: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -441,6 +448,13 @@ const accountFieldsDefinition = () => ({
   payoutMethods: {
     type: new GraphQLList(GraphQLPayoutMethod),
     description: 'The list of payout methods that this account can use to get paid',
+    args: {
+      includeArchived: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Whether to include archived payout methods',
+      },
+    },
   },
   paymentMethods: {
     type: new GraphQLList(GraphQLPaymentMethod),
@@ -473,7 +487,13 @@ const accountFieldsDefinition = () => ({
   },
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
-    description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
+    description: 'The list of connected accounts (Stripe, PayPal, etc ...)',
+    args: {
+      service: {
+        type: GraphQLConnectedAccountService,
+        description: 'Filter connected accounts by service',
+      },
+    },
   },
   oAuthApplications: {
     type: GraphQLOAuthApplicationCollection,
@@ -552,7 +572,12 @@ const accountFieldsDefinition = () => ({
         CollectiveId: collective.id,
         [Op.and]: [],
       };
-      if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'updates')) {
+
+      const canSeeDraftUpdates =
+        checkScope(req, 'updates') &&
+        (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.isCommunityManager(collective));
+
+      if (onlyPublishedUpdates || !canSeeDraftUpdates) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       } else if (isDraft) {
         where = assign(where, { publishedAt: null });
@@ -740,6 +765,11 @@ const accountFieldsDefinition = () => ({
       searchTerm: {
         type: GraphQLString,
       },
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLOrderByInput),
+        defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
+        description: 'Order of the results. Defaults to createdAt DESC.',
+      },
     },
     async resolve(account, args) {
       if (args.limit > 100) {
@@ -768,10 +798,31 @@ const accountFieldsDefinition = () => ({
         };
       }
 
-      const order = [
-        ['createdAt', 'DESC'],
+      let order: Order = [
+        ['createdAt', args.orderBy.direction],
         ['id', 'DESC'],
-      ] as Order;
+      ];
+
+      if (args.orderBy.field) {
+        switch (args.orderBy.field) {
+          case ORDER_BY_PSEUDO_FIELDS.CREATED_AT:
+            break; // Nothing to do, already the default
+          case ORDER_BY_PSEUDO_FIELDS.STARTS_AT:
+            order = [
+              ['startsAt', args.orderBy.direction],
+              ['id', 'DESC'],
+            ];
+            break;
+          case ORDER_BY_PSEUDO_FIELDS.ENDS_AT:
+            order = [
+              ['endsAt', args.orderBy.direction],
+              ['id', 'DESC'],
+            ];
+            break;
+          default:
+            throw new Error(`Ordering by ${args.orderBy.field} is not supported for children accounts`);
+        }
+      }
 
       return {
         nodes: () => models.Collective.findAll({ where, limit: args.limit, offset: args.offset, order }),
@@ -1228,32 +1279,23 @@ export const AccountFields = {
     type: new GraphQLList(GraphQLPayoutMethod),
     description:
       'The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".',
-    async resolve(collective, _, req) {
-      // Scope check is a a bit more complex because we have to accomodate the case where payoutMethods are public
-      if (
-        req.remoteUser?.isAdminOfCollective(collective) &&
-        !collective.isHostAccount &&
-        !checkScope(req, 'expenses')
-      ) {
+    args: {
+      includeArchived: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Whether to include archived payout methods',
+      },
+    },
+    async resolve(collective, args, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'expenses')) {
         return null;
       }
 
-      if (req.remoteUser?.isAdminOfCollective(collective)) {
-        return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-      }
+      const loader = args.includeArchived
+        ? req.loaders.PayoutMethod.allByCollectiveId
+        : req.loaders.PayoutMethod.byCollectiveId;
 
-      // Exception for Fiscal Hosts so people can post Expense accross hosts
-      if (collective.isHostAccount) {
-        const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-        for (const payoutMethod of payoutMethods) {
-          allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
-        }
-        return payoutMethods.filter(
-          pm => pm.isSaved && [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(pm.type),
-        );
-      }
-
-      return null;
+      return loader.load(collective.id);
     },
   },
   paymentMethods: {
@@ -1336,14 +1378,23 @@ export const AccountFields = {
   },
   connectedAccounts: {
     type: new GraphQLList(GraphQLConnectedAccount),
-    description: 'The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".',
+    description: 'The list of connected accounts (Stripe, PayPal, etc ...). Admin only. Scope: "connectedAccounts".',
     // Only for admins, no pagination
-    async resolve(collective, _, req) {
+    args: {
+      service: {
+        type: GraphQLConnectedAccountService,
+        description: 'Filter connected accounts by service',
+      },
+    },
+    async resolve(collective: Collective, args, req: Express.Request) {
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'connectedAccounts')) {
         return null;
       }
 
       const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+      if (args.service) {
+        return connectedAccounts.filter(ca => ca.service === args.service);
+      }
       return connectedAccounts;
     },
   },

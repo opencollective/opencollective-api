@@ -24,6 +24,74 @@ const printAndExit = (message, method = 'log') => {
   sequelize.close();
 };
 
+program.command('check-batch <batchId> [env]').action(async batchId => {
+  console.log(`Checking batch ${batchId}`);
+  const expenses = await models.Expense.findAll({
+    where: {
+      data: { batchGroup: { id: batchId } },
+    },
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'host', required: true },
+    ],
+  });
+  if (!expenses.length) {
+    return printAndExit(`Batch ${batchId} not found or not paid through the paltform.`, 'warn');
+  }
+
+  const host = expenses[0].host;
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
+    throwIfMissing: false,
+  });
+  if (!connectedAccount) {
+    return printAndExit(`${host.slug} not connected to Wise`, 'error');
+  }
+
+  const batch = await transferwiseLib.getBatchGroup(connectedAccount, batchId);
+  if (!batch) {
+    return printAndExit(`Batch ${batchId} not found`, 'error');
+  }
+  console.log(`Batch ${batchId} found:`);
+  console.dir(batch);
+
+  console.log('\n');
+  const allExpensesWerePaid = expenses.every(expense => batch.transferIds.includes(expense.data.transfer.id));
+  if (allExpensesWerePaid) {
+    console.log(`✅ All expenses tracked on the platform were included in the batch`);
+  } else {
+    expenses
+      .filter(expense => !batch.transferIds.includes(expense.data.transfer.id))
+      .forEach(expense => {
+        console.warn(`❌ Expense ${expense.id} for ${expense.collective.slug} was not included in the batch`);
+      });
+  }
+
+  sequelize.close();
+});
+
+program.command('delete-stuck-batchs <hostSlug> <commaSeparatedBatchIds> [env]').action(async (hostSlug, ids) => {
+  console.log(`Deleting stuck batchs ${ids} for host ${hostSlug}`);
+  const host = await models.Collective.findOne({ where: { slug: hostSlug } });
+  assert(host, `Host ${hostSlug} not found`);
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
+  assert(connectedAccount, `${host.slug} not connected to Wise`);
+  ids = ids.split(',');
+  for (const id of ids) {
+    const batch = await transferwiseLib.getBatchGroup(connectedAccount, id);
+    if (!batch) {
+      console.warn(`Batch ${id} not found`);
+      continue;
+    } else if (batch.status === 'NEW') {
+      console.log(`Deleting stuck batch ${id}...`);
+      await transferwiseLib.cancelBatchGroup(connectedAccount, batch.id, batch.version);
+      console.log(`Batch ${id} deleted`);
+    } else {
+      console.log(`Batch ${id} was already processed or cancelled with status ${batch.status}`);
+    }
+  }
+  sequelize.close();
+});
+
 program.command('check-expense <expenseId>').action(async expenseId => {
   console.log(`Checking expense ${expenseId}`);
   const expense = await models.Expense.findOne({
@@ -126,12 +194,38 @@ program.command('check-host <hostSlug> [since] [until]').action(async (hostSlug,
   sequelize.close();
 });
 
+program.command('check-tokens <hostSlug> [env]').action(async hostSlug => {
+  console.log(`Checking tokens for host ${hostSlug}...\n`);
+  const host = await models.Collective.findOne({ where: { slug: hostSlug } });
+  const connectedAccounts = await models.ConnectedAccount.findAll({
+    where: {
+      CollectiveId: host.id,
+      service: Service.TRANSFERWISE,
+    },
+    include: [{ model: models.User, as: 'user', include: [{ model: models.Collective, as: 'collective' }] }],
+  });
+  for (const connectedAccount of connectedAccounts) {
+    console.log(
+      `Checking token #${connectedAccount.id} created by user ${connectedAccount.user.email} #${connectedAccount.user.id}`,
+    );
+    try {
+      const profiles = await transferwiseLib.getProfiles(connectedAccount);
+      console.log(`Found ${profiles.length} profiles`);
+      console.dir(profiles, { depth: null });
+    } catch (e) {
+      console.error(`Error while checking token #${connectedAccount.id}: ${e.message}`);
+    }
+    console.log('\n');
+  }
+});
+
 program.addHelpText(
   'after',
   `
 
 Example call:
   $ npm run script scripts/wise.ts check-expense expenseId
+  $ npm run script scripts/wise.ts delete-stuck-batchs europe '242db7eb-466b-49fd-9233-d6ec51671910,041d0772-26e4-4913-be56-adf725096fb9' prod
 `,
 );
 

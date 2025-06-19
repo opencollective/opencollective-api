@@ -1,5 +1,5 @@
 import config from 'config';
-import { Request, Response } from 'express';
+import type Express from 'express';
 
 import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
@@ -34,8 +34,8 @@ const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async e
 };
 
 export async function payBatch(
-  req: Request<any, any, { expenseIds: Array<string>; hostId: string }>,
-  res: Response,
+  req: Express.Request<any, any, { expenseIds: Array<string>; hostId: string }>,
+  res: Express.Response,
 ): Promise<void> {
   try {
     const { remoteUser, headers, body } = req;
@@ -78,13 +78,13 @@ export async function payBatch(
       reportMessageToSentry('Wise Batch Pay: Could not find all requested expenses', { extra: errorInfo });
       throw new errors.NotFound('Could not find requested expenses');
     }
-    const ottHeader = headers['x-2fa-approval'] as string;
+    const x2faApproval = headers['x-2fa-approval'] as string;
 
-    const fundResponse = ottHeader
+    const fundResponse = x2faApproval
       ? // Forward OTT response if included
-        await transferwise.payExpensesBatchGroup(host, undefined, ottHeader, remoteUser)
+        await transferwise.approveExpenseBatchGroupPayment({ host, x2faApproval, remoteUser })
       : // Otherwise, send the list of Expenses to pay the batch
-        await transferwise.payExpensesBatchGroup(host, expenses, undefined, remoteUser);
+        await transferwise.payExpensesBatchGroup({ host, expenses, remoteUser });
 
     // If OTT response, proxy it to the frontend and return early
     if ('status' in fundResponse && 'headers' in fundResponse) {

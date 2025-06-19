@@ -1,9 +1,11 @@
+import assert from 'assert';
+
 import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
-import type { Order as SequelizeOrder } from 'sequelize';
+import { type Order as SequelizeOrder, Utils as SequelizeUtils } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
 import { TransactionKind } from '../../../../constants/transaction-kind';
@@ -14,6 +16,7 @@ import { AccountingCategory, Expense, Op, PaymentMethod, sequelize } from '../..
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
+import { Forbidden, NotFound } from '../../../errors';
 import {
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
@@ -28,12 +31,22 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput } from '../../input/AmountInput';
+import { GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
 import { getDatabaseIdFromExpenseReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
 import { getDatabaseIdFromOrderReference, GraphQLOrderReferenceInput } from '../../input/OrderReferenceInput';
+import {
+  fetchPaymentMethodWithReferences,
+  GraphQLPaymentMethodReferenceInput,
+} from '../../input/PaymentMethodReferenceInput';
+import {
+  fetchPayoutMethodWithReference,
+  GraphQLPayoutMethodReferenceInput,
+} from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs } from '../../interface/Collection';
 
@@ -99,6 +112,10 @@ export const TransactionsCollectionArgs = {
     type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  },
+  amount: {
+    type: GraphQLAmountRangeInput,
+    description: 'Only return expenses that match this amount range',
   },
   minAmount: {
     type: GraphQLInt,
@@ -209,6 +226,14 @@ export const TransactionsCollectionArgs = {
   accountingCategory: {
     type: new GraphQLList(GraphQLString),
     description: 'Only return transactions that are associated with these accounting categories',
+  },
+  paymentMethod: {
+    type: new GraphQLList(GraphQLPaymentMethodReferenceInput),
+    description: 'Only return transactions that are associated with this payment method',
+  },
+  payoutMethod: {
+    type: GraphQLPayoutMethodReferenceInput,
+    description: 'Only return transactions that are associated with this payout method',
   },
 };
 
@@ -395,16 +420,57 @@ export const TransactionsCollectionResolver = async (
   if (!isEmpty(args.group)) {
     where.push({ TransactionGroup: { [Op.in]: args.group } });
   }
-  if (args.minAmount) {
-    where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
-  }
-  if (args.maxAmount) {
-    let amount = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
-    if (where['amount']) {
-      amount = { [Op.and]: [where['amount'], amount] };
+
+  if (args.amount?.gte || args.amount?.lte) {
+    if (args.amount.gte && args.amount.lte) {
+      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
     }
-    where.push({ amount });
+    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
+    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
+    const operator =
+      args.amount.gte && args.amount.lte
+        ? gte === lte
+          ? { [Op.eq]: gte }
+          : { [Op.between]: [gte, lte] }
+        : args.amount.gte
+          ? { [Op.gte]: gte }
+          : { [Op.lte]: lte };
+
+    where.push(
+      sequelize.where(
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
+            CASE
+              WHEN "Transaction"."currency" = :currency THEN "Transaction"."amount"
+              WHEN "Transaction"."hostCurrency" = :currency THEN "Transaction"."amountInHostCurrency"
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
+                "Transaction"."amount"
+              )
+            END
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
+        operator,
+      ),
+    );
+  } else {
+    if (args.minAmount) {
+      where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
+    }
+    if (args.maxAmount) {
+      let amount = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
+      if (where['amount']) {
+        amount = { [Op.and]: [where['amount'], amount] };
+      }
+      where.push({ amount });
+    }
   }
+
   if (args.dateFrom) {
     where.push({ createdAt: { [Op.gte]: args.dateFrom } });
   }
@@ -445,7 +511,15 @@ export const TransactionsCollectionResolver = async (
   if (args.kind) {
     where.push({ kind: args.kind });
   }
-  if (args.paymentMethodService || args.paymentMethodType) {
+
+  if (args.paymentMethod) {
+    const paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod);
+    assert(
+      paymentMethods.every(pm => req.remoteUser?.isAdmin(pm.CollectiveId)),
+      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
+    );
+    where.push({ PaymentMethodId: { [Op.in]: paymentMethods.map(pm => pm.id) } });
+  } else if (args.paymentMethodService || args.paymentMethodType) {
     const paymentMethodTypeConditions = [];
     const paymentMethodServiceConditions = [];
     uniq(args.paymentMethodType).forEach(type => {
@@ -465,6 +539,16 @@ export const TransactionsCollectionResolver = async (
     if (paymentMethodServiceConditions.length) {
       where.push({ [Op.or]: paymentMethodServiceConditions });
     }
+  }
+
+  if (args.payoutMethod) {
+    const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
+    assert(payoutMethod, new NotFound('Requested payment method not found'));
+    assert(
+      req.remoteUser?.isAdmin(payoutMethod.CollectiveId),
+      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
+    );
+    where.push({ PayoutMethodId: payoutMethod.id });
   }
 
   if (!isEmpty(args.virtualCard)) {

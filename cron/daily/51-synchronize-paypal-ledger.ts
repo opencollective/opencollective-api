@@ -12,10 +12,10 @@ import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
 import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
-import { sendThankYouEmail } from '../../server/lib/recurring-contributions';
+import { recordOrderProcessed } from '../../server/lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { Collective, sequelize } from '../../server/models';
+import models, { Collective, Order, sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
@@ -46,16 +46,14 @@ const IGNORED_HOSTS = [
   'access2perspectives',
   'foundation',
   // Transactions search API is not enabled
-  'blackqueerlife',
-  'bruijnlogistics',
-  'cct',
-  'kragelund-developments',
-  'lucy-parsons-labs',
-  'madeinjlm',
-  'osgeo-foundation',
-  'ppy',
-  'proofing-future',
-  'secdsm',
+  'bruijnlogistics', // Checked again on 2025-06-11, still not enabled
+  'kragelund-developments', // Checked again on 2025-06-11, still not enabled
+  'lucy-parsons-labs', // Checked again on 2025-06-11, still not enabled
+  'madeinjlm', // Checked again on 2025-06-11, still not enabled
+  'osgeo-foundation', // Checked again on 2025-06-11, still not enabled
+  'ppy', // Checked again on 2025-06-11, still not enabled
+  'proofing-future', // Checked again on 2025-06-11, still not enabled
+  'secdsm', // Checked again on 2025-06-11, still not enabled
 ];
 
 /**
@@ -169,7 +167,7 @@ const handleSubscriptionTransaction = async (
   transaction: PaypalTransactionSearchResult['transaction_details'][0],
   captureDetails: PaypalCapture,
 ) => {
-  let order, subscription;
+  let order: Order, subscription;
   const paypalSubscriptionId = transaction.transaction_info.paypal_reference_id;
   try {
     ({ order, subscription } = await loadDataForSubscription(paypalSubscriptionId, host));
@@ -183,7 +181,7 @@ const handleSubscriptionTransaction = async (
   logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
   if (!DRY_RUN) {
     const captureDate = new Date(captureDetails.create_time);
-    const isFirstCharge = subscription?.chargeNumber === 0;
+    const isFirstPayment = subscription?.chargeNumber === 0;
     const dbTransaction = await recordPaypalCapture(order, captureDetails, {
       data: { recordedFrom: 'cron/daily/51-synchronize-paypal-ledger' },
       createdAt: captureDate,
@@ -194,9 +192,10 @@ const handleSubscriptionTransaction = async (
     }
 
     // If the capture is less than 48 hours old, send the thank you email
-    if (moment().diff(captureDate, 'hours') < 48) {
-      await sendThankYouEmail(order, dbTransaction, isFirstCharge);
-    }
+    await recordOrderProcessed(order, dbTransaction, {
+      skipEmail: moment().diff(captureDate, 'hours') > 48,
+      isFirstPayment,
+    });
   }
 };
 
@@ -240,9 +239,9 @@ const handleCheckoutTransaction = async (
       await order.update({ status: OrderStatuses.PAID, processedAt: captureDate });
 
       // If the capture is less than 48 hours old, send the thank you email
-      if (moment().diff(captureDate, 'hours') < 48) {
-        await sendThankYouEmail(order, dbTransaction);
-      }
+      await recordOrderProcessed(order, dbTransaction, {
+        skipEmail: moment().diff(captureDate, 'hours') > 48,
+      });
     }
   }
 };

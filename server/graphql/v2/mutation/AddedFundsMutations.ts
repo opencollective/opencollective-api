@@ -8,13 +8,15 @@ import { InferAttributes } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import OrderStatuses from '../../../constants/order-status';
+import { RefundKind } from '../../../constants/refund-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { executeOrder } from '../../../lib/payments';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Order } from '../../../models';
-import { addFunds, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
+import { addFunds, canAddFundsFromAccount, checkCanUseAccountingCategoryForOrder } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
+import { refundTransaction } from '../../common/transactions';
 import { ValidationFailed } from '../../errors';
 import { getOrderTaxInfoFromTaxInput } from '../../v1/mutations/orders';
 import {
@@ -336,28 +338,19 @@ export default {
         req,
       });
 
-      if (fromAccount.hasBudget()) {
-        // Make sure logged in user is admin of the source profile, unless it doesn't have a budget (user
-        // or host organization without budget activated). It's not an ideal solution though, as spammy
-        // hosts could still use this to pollute user's ledgers.
-        const isAdminOfFromCollective = req.remoteUser.isRoot() || req.remoteUser.isAdmin(fromAccount.id);
-        if (!isAdminOfFromCollective && fromAccount.HostCollectiveId !== host.id) {
-          const fromCollectiveHostId = await fromAccount.getHostCollectiveId();
-          if (!req.remoteUser.isAdmin(fromCollectiveHostId) && !host.data?.allowAddFundsFromAllAccounts) {
-            throw new Error(
-              "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
-            );
-          }
-        }
+      if (!canAddFundsFromAccount(fromAccount, host, req.remoteUser)) {
+        throw new Error(
+          "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+        );
       }
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       // Refund Existing Order
       const transactions = await order.getTransactions({ order: [['id', 'desc']] });
       assert(transactions.length > 0, 'No ADDED FUNDS transaction found for this order');
-
-      await twoFactorAuthLib.enforceForAccount(req, host);
-      const editedTransactions = transactions.map(t => t.id);
-      await Promise.all(transactions.map(transaction => transaction.destroy()));
+      const creditTransction = transactions.find(t => t.type === 'CREDIT');
+      assert(creditTransction, 'No CREDIT transaction found for this order');
+      await refundTransaction(creditTransction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
 
       const previousData = order.toJSON();
       // Update existing Order
@@ -393,6 +386,7 @@ export default {
       });
 
       // Create Activity
+      const editedTransactions = transactions.map(t => t.id);
       await models.Activity.create({
         type: ActivityTypes.ADDED_FUNDS_EDITED,
         UserId: req.remoteUser.id,

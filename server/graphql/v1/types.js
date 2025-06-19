@@ -30,6 +30,7 @@ import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethodPrivateDetails } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
+import { Unauthorized } from '../errors';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, CollectiveSearchResultsType } from './CollectiveInterface';
@@ -418,6 +419,13 @@ export const MemberType = new GraphQLObjectType({
         type: DateString,
         resolve(member) {
           return member.since;
+        },
+      },
+      isActive: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether the membership is active. Warning: this definition is subject to change.',
+        async resolve(member, _, req) {
+          return req.loaders.Member.isActive.load(member.id);
         },
       },
     };
@@ -1529,7 +1537,7 @@ export const ConnectedAccountType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(ca, args, req) {
           // Services which we consider the username to be public
-          const publicServices = ['github', 'twitter'];
+          const publicServices = ['github'];
           if (req.remoteUser && req.remoteUser.isAdmin(ca.CollectiveId)) {
             return ca.username;
           } else if (publicServices.includes(ca.service)) {
@@ -1538,6 +1546,9 @@ export const ConnectedAccountType = new GraphQLObjectType({
             return null;
           }
         },
+      },
+      hash: {
+        type: GraphQLString,
       },
       settings: {
         type: GraphQLJSON,
@@ -1555,6 +1566,16 @@ export const ConnectedAccountType = new GraphQLObjectType({
         type: DateString,
         resolve(ca) {
           return ca.updatedAt;
+        },
+      },
+      createdByUser: {
+        type: UserType,
+        description: 'The account who connected this account',
+        async resolve(connectedAccount, _, req) {
+          if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
+            throw new Unauthorized('You need to be logged in as an admin of the account');
+          }
+          return connectedAccount.CreatedByUserId && req.loaders.User.byId.load(connectedAccount.CreatedByUserId);
         },
       },
     };

@@ -62,6 +62,29 @@ export const checkCanUseAccountingCategoryForOrder = (
   }
 };
 
+export const canAddFundsFromAccount = (fromCollective: Collective, host: Collective, remoteUser: User) => {
+  if (!remoteUser) {
+    return false;
+  } else if (remoteUser.isRoot()) {
+    return true;
+  } else if (!remoteUser.isAdmin(host.id)) {
+    return false;
+  } else {
+    return (
+      // Allowed if admin of fromCollective
+      remoteUser.isAdminOfCollective(fromCollective) ||
+      // Allowed from vendors under the same host
+      (fromCollective.type === CollectiveType.VENDOR && fromCollective.ParentCollectiveId === host.id) ||
+      // Allowed from profiles under the same host
+      fromCollective.HostCollectiveId === host.id ||
+      // Allowed with special flags
+      host.data?.allowAddFundsFromAllAccounts ||
+      host.data?.isFirstPartyHost ||
+      host.data?.isTrustedHost
+    );
+  }
+};
+
 export async function addFunds(order: AddFundsInput, remoteUser: User) {
   if (!remoteUser) {
     throw new Error('You need to be logged in to add fund to collective');
@@ -73,19 +96,14 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
 
   const { collective, fromCollective, host } = order;
 
-  if (fromCollective.hasBudget()) {
-    // Make sure logged in user is admin of the source profile, unless it doesn't have a budget (user
-    // or host organization without budget activated). It's not an ideal solution though, as spammy
-    // hosts could still use this to pollute user's ledgers.
-    const isAdminOfFromCollective = remoteUser.isRoot() || remoteUser.isAdmin(fromCollective.id);
-    if (!isAdminOfFromCollective && fromCollective.HostCollectiveId !== host.id) {
-      const fromCollectiveHostId = await fromCollective.getHostCollectiveId();
-      if (!remoteUser.isAdmin(fromCollectiveHostId) && !host.data?.allowAddFundsFromAllAccounts) {
-        throw new Error(
-          "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
-        );
-      }
-    }
+  if (!host) {
+    throw new Error('Host not found');
+  } else if (!remoteUser.isAdmin(host.id)) {
+    throw new Error("You don't have the permission to add funds to this host");
+  } else if (!canAddFundsFromAccount(fromCollective, host, remoteUser)) {
+    throw new Error(
+      "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+    );
   }
 
   if (order.tier && order.tier.CollectiveId !== order.collective.id) {

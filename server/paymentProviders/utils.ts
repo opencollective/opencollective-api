@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 import slugify from 'limax';
 
 import activities from '../constants/activities';
@@ -8,7 +10,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
-import { crypto } from '../lib/encryption';
+import { crypto as cryptoLib } from '../lib/encryption';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { createRefundTransaction } from '../lib/payments';
@@ -236,6 +238,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
       CreatedByUserId: UserId,
       amount,
       currency,
+      description: vendor.name,
     });
 
     await models.Transaction.createDoubleEntry({
@@ -273,7 +276,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
 
 export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
   const slug = vendorProviderId.toString().toLowerCase();
-  const hash = crypto.hash(`${slug}${vendorName}`);
+  const hash = cryptoLib.hash(`${slug}${vendorName}`);
   const uniqueSlug = slugify(`${vendorName}-${hash.slice(0, 6)}`);
 
   const [vendor] = await models.Collective.findOrCreate({
@@ -291,3 +294,6 @@ export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
 
   return vendor;
 };
+
+export const hashObject = (obj: object) =>
+  crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);

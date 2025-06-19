@@ -7,11 +7,21 @@
     {
       "assignees": ["betree"],
       "matchPackageNames": [
-        "@elastic/elasticsearch",
+        "@opensearch-project/opensearch",
         "@escape.tech/graphql-armor",
         "@node-oauth/oauth2-server",
         "@opencollective/taxes",
-        "@sentry/**"
+        "@sentry/**",
+        "@types/**",
+        "commander",
+        "exif-reader",
+        "handlebars",
+        "markdown-table",
+        "plaid",
+        "prettier",
+        "sanitize-html",
+        "typescript",
+        "uuid"
       ]
     },
     {
@@ -20,7 +30,7 @@
     },
     {
       "assignees": ["kewitz"],
-      "matchPackageNames": ["@paypal/payouts-sdk"]
+      "matchPackageNames": ["@paypal/payouts-sdk", "@shopify/address"]
     }
   ]
 }

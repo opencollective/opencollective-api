@@ -44,7 +44,7 @@ describe('export', () => {
           dependencies: [{ model: 'User', on: 'CollectiveId' }],
           parsed,
         },
-        makeRequest(user),
+        makeRequest(user) as any,
         async ei => {
           results.push(ei);
         },
@@ -64,7 +64,7 @@ describe('export', () => {
           dependencies: [{ model: 'Collective', from: 'CollectiveId' }],
           parsed,
         },
-        makeRequest(user),
+        makeRequest(user) as any,
         async ei => {
           results.push(ei);
         },
@@ -84,7 +84,7 @@ describe('export', () => {
           dependencies: [{ model: 'Collective', where: userRow => ({ id: userRow.CollectiveId }) }],
           parsed,
         },
-        makeRequest(user),
+        makeRequest(user) as any,
         async ei => {
           results.push(ei);
         },
@@ -112,7 +112,7 @@ describe('export', () => {
               model: 'PayoutMethod',
               where: { id: expense.PayoutMethodId },
             },
-            makeRequest(hostAdmin),
+            makeRequest(hostAdmin) as any,
             async ei => results.push(ei),
           );
 
@@ -140,7 +140,7 @@ describe('export', () => {
               where: { id: expense.id },
               dependencies: [{ model: 'PayoutMethod', where: expenseRow => ({ id: expenseRow.PayoutMethodId }) }],
             },
-            makeRequest(hostAdmin),
+            makeRequest(hostAdmin) as any,
             async ei => results.push(ei),
           );
 

@@ -78,7 +78,7 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
         if (isValidUploadedImage(attribs.src, { ignoreInNonProductionEnv: false })) {
           return { tagName, attribs };
         } else {
-          return { tagName: 'INVALID_TAG', text: 'Invalid image' }; // Will be stripped by other rules (invalid tag name)
+          return {};
         }
       };
     }
@@ -238,9 +238,9 @@ const isTrustedLinkUrl = (url: string): boolean => {
     new RegExp(`^(.+\\.)?${config.host.website.replace(/^https?:\/\//, '')}$`),
     /^(.+\.)?opencollective.com$/,
     /^(.+\.)?oscollective.org$/,
+    /^(.+\.)?oceurope.org$/,
     /^(.+\.)?github.com$/,
     /^(.+\.)?meetup.com$/,
-    /^(.+\.)?twitter.com$/,
     /^(.+\.)?wikipedia.com$/,
   ];
 

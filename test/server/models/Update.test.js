@@ -131,7 +131,7 @@ describe('server/models/Update', () => {
     it('deletes related comments and record the user who deleted it', async () => {
       const user = await fakeUser();
       const update = await fakeUpdate({ id: 4242 });
-      const comment = await fakeComment({ UpdateId: update.id });
+      await fakeComment({ UpdateId: update.id });
 
       await update.delete(user);
       await update.reload({ paranoid: false });

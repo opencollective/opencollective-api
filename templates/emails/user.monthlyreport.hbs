@@ -230,11 +230,9 @@ Subject: {{capitalize month}} Open Collective Report
               {{#if order.Subscription}}
               You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
               (<a href="{{../config.host.website}}/recurring-contributions">increase your contribution</a>)
-              (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
               {{else}}
               You have contributed {{order.totalAmount}}.
               (<a href="{{../config.host.website}}/{{slug}}/donate">increase your contribution</a>)
-              (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
               {{/if}}
               </li>
             {{/if}}
@@ -258,11 +256,11 @@ Subject: {{capitalize month}} Open Collective Report
 
         <p>
         {{#if notificationTypeLabel}}
-        To unsubscribe from {{notificationTypeLabel}}, <a href="{{unsubscribeUrl}}">click here</a>.<br /><br />
+        To unsubscribe from "{{notificationTypeLabel}}", <a href="{{unsubscribeUrl}}">click here</a>.<br /><br />
         {{/if}}
         </p>
 
-        <p>You can also follow us on <a href="https://twitter.com/opencollect">Twitter</a> or come chat with us on our <a href="https://discord.opencollective.com">Discord</a>.</p>
+        <p>Come chat with us on our <a href="https://discord.opencollective.com">Discord</a>.</p>
       </div>
       {{> mr-footer}}
     </div>

@@ -1,12 +1,13 @@
 import assert from 'assert';
 
-import express from 'express';
+import type Express from 'express';
 import { isNull } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../constants';
 import orderStatus from '../../constants/order-status';
 import POLICIES from '../../constants/policies';
+import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { refundTransaction as refundTransactionPayment } from '../../lib/payments';
@@ -47,7 +48,7 @@ const getPayer = async (req, transaction) => {
   return req.loaders.Collective.byId.load(transaction[column]);
 };
 
-const isRoot = async (req: express.Request): Promise<boolean> => {
+const isRoot = async (req: Express.Request): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -128,7 +129,7 @@ const remoteUserMeetsOneCondition = async (req, transaction, conditions): Promis
 };
 
 /** Checks if the user can refund this transaction */
-export const canRefund = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
+export const canRefund = async (transaction: Transaction, _: void, req: Express.Request): Promise<boolean> => {
   if (
     transaction.type !== TransactionTypes.CREDIT ||
     transaction.OrderId === null ||
@@ -146,11 +147,6 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
     }
   }
 
-  // Root users can always refund
-  if (await isRoot(req)) {
-    return true;
-  }
-
   // Only certain transaction kinds can be refunded
   if (
     ![
@@ -161,6 +157,11 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
     ].includes(transaction.kind)
   ) {
     return false;
+  }
+
+  // Root users can always refund
+  if (await isRoot(req)) {
+    return true;
   }
 
   // Host admins can refund transactions without time limit
@@ -192,7 +193,7 @@ export const canRefund = async (transaction: Transaction, _: void, req: express.
   return false;
 };
 
-export const canDownloadInvoice = async (transaction: Transaction, _: void, req: express.Request): Promise<boolean> => {
+export const canDownloadInvoice = async (transaction: Transaction, _: void, req: Express.Request): Promise<boolean> => {
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
     if (order.status === orderStatus.REJECTED) {
@@ -211,9 +212,22 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
 /** Checks if the user can reject this transaction */
 export const canReject = canRefund;
 
+const getRefundableAmountFromCollective = async (transaction: Transaction) => {
+  const relatedTransactions = await transaction.getRelatedTransactions({ type: TransactionTypes.CREDIT });
+  const contribution = relatedTransactions.find(t => t.kind === TransactionKind.CONTRIBUTION);
+  assert(contribution, 'No contributions found for this transaction');
+  const hostFee = relatedTransactions.find(t => t.kind === TransactionKind.HOST_FEE);
+  const paymentFee = relatedTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
+
+  return (
+    contribution.amountInHostCurrency - (hostFee?.amountInHostCurrency || 0) - (paymentFee?.amountInHostCurrency || 0)
+  );
+};
+
 export async function refundTransaction(
   passedTransaction: Transaction,
-  req: express.Request,
+  req: Express.Request,
+  refundKind: RefundKind,
   args: { message?: string; ignoreBalanceCheck?: boolean } = {},
 ) {
   // 0. Retrieve transaction from database
@@ -266,14 +280,17 @@ export async function refundTransaction(
   // Check if the hosted collective has enough funds to refund the transaction
   else {
     const balanceInHostCurrency = await collective.getBalance({ currency: creditTransaction.hostCurrency });
-    if (balanceInHostCurrency < creditTransaction.amountInHostCurrency) {
+    const refundableAmountFromCollective = await getRefundableAmountFromCollective(creditTransaction);
+    if (balanceInHostCurrency < refundableAmountFromCollective) {
       throw new Forbidden('Not enough funds to refund this transaction');
     }
   }
 
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
-  const result = await refundTransactionPayment(transaction, req.remoteUser, args.message);
+  const result = await refundTransactionPayment(transaction, req.remoteUser, args.message, refundKind, {
+    ignoreBalanceCheck: args.ignoreBalanceCheck,
+  });
 
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.

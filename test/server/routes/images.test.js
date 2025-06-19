@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 
 import { expect } from 'chai';
-import config from 'config';
 import exif from 'exif-reader';
 import { omit, pick } from 'lodash';
 import fetch from 'node-fetch';
@@ -18,12 +17,7 @@ const application = utils.data('application');
 describe('server/routes/images', () => {
   let user, expressApp;
 
-  before(async function () {
-    if (!config.aws.s3.key) {
-      console.warn('Skipping images tests because AWS credentials are not set');
-      this.skip();
-    }
-
+  before(async () => {
     expressApp = await startTestServer();
     await utils.resetTestDB();
     user = await fakeUser();
@@ -249,9 +243,9 @@ describe('server/routes/images', () => {
       code: 400,
       type: 'INVALID_FILE_KIND',
       message:
-        'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, TRANSACTIONS_IMPORT, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT',
+        'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, TRANSACTIONS_IMPORT, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT, EXPENSE_INVOICE',
       fields: {
-        kind: 'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, TRANSACTIONS_IMPORT, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT',
+        kind: 'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, TRANSACTIONS_IMPORT, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL, AGREEMENT_ATTACHMENT, EXPENSE_INVOICE',
       },
     });
   });

@@ -1,13 +1,16 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { TransactionsImportRow } from '../../../models';
 import { GraphQLTransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { getIdEncodeResolver } from '../identifiers';
+import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLAmount } from './Amount';
 import { GraphQLExpense } from './Expense';
 import { GraphQLOrder } from './Order';
+import { GraphQLPlaidAccount } from './PlaidAccount';
+import { GraphQLTransactionsImport } from './TransactionsImport';
 
 export const GraphQLTransactionsImportRow = new GraphQLObjectType({
   name: 'TransactionsImportRow',
@@ -21,12 +24,6 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
     sourceId: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The source id of the row',
-    },
-    isDismissed: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Whether the row has been dismissed',
-      deprecationReason: '2025-01-17: isDismissed is deprecated, use status instead',
-      resolve: (row: TransactionsImportRow) => row.status === 'IGNORED',
     },
     status: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowStatus),
@@ -45,6 +42,10 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
       description: 'The amount of the row',
       resolve: (row: TransactionsImportRow) => ({ value: row.amount, currency: row.currency }),
     },
+    note: {
+      type: GraphQLString,
+      description: 'Optional note for the row',
+    },
     expense: {
       type: GraphQLExpense,
       description: 'The expense associated with the row',
@@ -52,6 +53,57 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         if (row.ExpenseId) {
           return req.loaders.Expense.byId.load(row.ExpenseId);
         }
+      },
+    },
+    accountId: {
+      type: GraphQLString,
+      description:
+        'If an account ID is available in the imported row, it will be stored here. Returns the default account ID otherwise.',
+      // "__default__" must match `components/dashboard/sections/transactions-imports/lib/types.ts`
+      resolve: (row: TransactionsImportRow) => row.rawValue?.['account_id'] || '__default__',
+    },
+    plaidAccount: {
+      type: GraphQLPlaidAccount,
+      description: 'If the row was imported from plaid, this is the account it was imported from',
+      resolve: async (row: TransactionsImportRow, _, req) => {
+        const accountId = row.rawValue?.['account_id'] as string;
+        if (accountId) {
+          const transactionsImport =
+            row.import || (await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId));
+          if (transactionsImport) {
+            const matchingPlaidAccount = transactionsImport.data?.plaid?.availableAccounts?.find(
+              plaidAccount => plaidAccount.accountId === accountId,
+            );
+
+            if (matchingPlaidAccount) {
+              return matchingPlaidAccount;
+            }
+          }
+
+          // Fallback
+          return {
+            accountId: accountId,
+            mask: '',
+            name: '',
+            officialName: '',
+            subtype: '',
+            type: '',
+          };
+        }
+      },
+    },
+    assignedAccounts: {
+      type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+      description: 'The accounts assigned to the row, based on its account ID',
+      resolve: async (row: TransactionsImportRow, _, req) => {
+        const transactionsImport = await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
+        const assignments = transactionsImport.settings?.assignments || {};
+        const accountId = (row.rawValue?.['account_id'] as string) || '__default__';
+        if (!assignments[accountId]?.length) {
+          return [];
+        }
+
+        return req.loaders.Collective.byId.loadMany(assignments[accountId]);
       },
     },
     rawValue: {
@@ -65,6 +117,13 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         if (row.OrderId) {
           return req.loaders.Order.byId.load(row.OrderId);
         }
+      },
+    },
+    transactionsImport: {
+      type: new GraphQLNonNull(GraphQLTransactionsImport),
+      description: 'The transactions import associated with the row',
+      resolve: async (row: TransactionsImportRow, _, req) => {
+        return req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
       },
     },
   }),

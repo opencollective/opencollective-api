@@ -6,7 +6,7 @@ import { sortResultsSimple } from './helpers';
 
 export const generateTotalAccountHostAgreementsLoader = () =>
   new DataLoader<number, number>(async (collectiveIds: number[]) => {
-    const results: { CollectiveId?: number; totalCount: number }[] = await sequelize.query(
+    const results: { id?: number; totalCount: number }[] = await sequelize.query(
       `
     SELECT c."id", count(a.id) as "totalCount"
     FROM "Collectives" c

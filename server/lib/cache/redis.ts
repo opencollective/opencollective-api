@@ -11,7 +11,7 @@ const makeRedisProvider = async (instanceType = RedisInstanceType.DEFAULT) => {
     clear: async () => redisClient?.flushAll(),
     delete: async (key: string | string[]) => redisClient?.del(key),
     get: async (key, { unserialize = JSON.parse } = {}) => {
-      const value = await redisClient?.get(key);
+      const value = (await redisClient?.get(key)) as string;
       if (value) {
         try {
           return unserialize(value);

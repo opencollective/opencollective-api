@@ -2,7 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface) {
     await queryInterface.sequelize.query(`
       CREATE INDEX "orders_paused_by"
       ON "Orders" ((data #>> '{pausedBy}'::text[]))
@@ -10,7 +10,7 @@ module.exports = {
     `);
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface) {
     await queryInterface.sequelize.query(`
       DROP INDEX IF EXISTS "orders_paused_by";
     `);

@@ -25,6 +25,7 @@ import { createComment } from '../../common/comment';
 import {
   approveExpense,
   canDeleteExpense,
+  canEditPaidBy,
   canVerifyDraftExpense,
   createExpense,
   declineInvitedExpense,
@@ -35,9 +36,11 @@ import {
   markExpenseAsIncomplete,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
+  moveExpenses,
   payExpense,
   prepareAttachedFiles,
   prepareExpenseItemInputs,
+  prepareInvoiceFile,
   rejectExpense,
   releaseExpense,
   requestExpenseReApproval,
@@ -117,37 +120,44 @@ const expenseMutations = {
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
-      const expense = await createExpense(req, {
-        ...pick(args.expense, [
-          'description',
-          'longDescription',
-          'tags',
-          'type',
-          'privateMessage',
-          'attachedFiles',
-          'invoiceInfo',
-          'payeeLocation',
-          'currency',
-          'items',
-          'tax',
-          'customData',
-          'reference',
-        ]),
-        payoutMethod,
-        collective: await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }),
-        fromCollective,
-        accountingCategory:
-          args.expense.accountingCategory &&
-          (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
-            throwIfMissing: true,
-            loaders: req.loaders,
-          })),
-        transactionsImportRow:
-          args.transactionsImportRow &&
-          (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
-            throwIfMissing: true,
-          })),
-      });
+      const expense = await createExpense(
+        req,
+        {
+          ...pick(args.expense, [
+            'description',
+            'longDescription',
+            'tags',
+            'type',
+            'privateMessage',
+            'attachedFiles',
+            'invoiceFile',
+            'invoiceInfo',
+            'payeeLocation',
+            'currency',
+            'items',
+            'tax',
+            'customData',
+            'reference',
+          ]),
+          payoutMethod,
+          collective: await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }),
+          fromCollective,
+          accountingCategory:
+            args.expense.accountingCategory &&
+            (await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
+              throwIfMissing: true,
+              loaders: req.loaders,
+            })),
+          transactionsImportRow:
+            args.transactionsImportRow &&
+            (await fetchTransactionsImportRowWithReference(args.transactionsImportRow, {
+              throwIfMissing: true,
+            })),
+        },
+        {
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        },
+      );
 
       if (args.recurring) {
         await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endsAt);
@@ -219,6 +229,7 @@ const expenseMutations = {
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
           url: attachedFile.url,
         })),
+        invoiceFile: expense.invoiceFile,
         fromCollective: requestedPayee,
         accountingCategory: isNil(args.expense.accountingCategory)
           ? args.expense.accountingCategory // This will make sure we pass either `null` (to remove the category) or `undefined` (to keep the existing one)
@@ -230,19 +241,83 @@ const expenseMutations = {
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
       if (existingExpense.status === expenseStatus.DRAFT && !userIsOriginalPayee && userIsAuthor && !isRecurring) {
-        return editExpenseDraft(req, expenseData, args);
+        return editExpenseDraft(req, expenseData, args, {
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        });
       }
       // Draft can be submitted by: new user with draft-key, payee of the original expense or author of the original expense (in the case of Recurring Expense draft)
       else if (
         existingExpense.status === expenseStatus.DRAFT &&
         (args.draftKey || userIsOriginalPayee || (userIsAuthor && isRecurring))
       ) {
-        return submitExpenseDraft(req, expenseData, { args, requestedPayee, originalPayee });
+        return submitExpenseDraft(req, expenseData, {
+          args,
+          requestedPayee,
+          originalPayee,
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        });
       } else {
-        return editExpense(req, expenseData);
+        return editExpense(req, expenseData, {
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
+        });
       }
     },
   },
+  moveExpense: {
+    type: new GraphQLNonNull(GraphQLExpense),
+    description: `Moves an expense from one account within a Collective to another`,
+    args: {
+      expense: {
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
+        description: 'Reference of the expense to move',
+      },
+      destinationAccount: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Reference of the account to move the expense to',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
+      checkRemoteUserCanUseExpenses(req);
+
+      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expense = await models.Expense.findByPk(expenseId, {
+        // Need to load the collective/fromCollective because canEditPaidBy checks these
+        include: [
+          { model: models.Collective, as: 'collective', required: true },
+          { model: models.Collective, as: 'fromCollective' },
+        ],
+      });
+
+      if (!expense) {
+        throw new NotFound('Expense not found');
+
+        // Check if user has permissions to move expense and that expense can be moved
+      } else if (!(await canEditPaidBy(req, expense))) {
+        throw new Unauthorized('You do not have permission to move this expense');
+      }
+
+      const destinationAccount = await fetchAccountWithReference(args.destinationAccount, {
+        loaders: req.loaders,
+        throwIfMissing: true,
+      });
+
+      if (expense.collective.id === destinationAccount.id) {
+        throw new Unauthorized('The expense is already on this account');
+      }
+
+      const currentAccountParentId = expense.collective.ParentCollectiveId ?? expense.collective.id;
+      const destinationAccountParentId = destinationAccount.ParentCollectiveId ?? destinationAccount.id;
+
+      // Check that destination account is within the same Collective
+      if (currentAccountParentId !== destinationAccountParentId) {
+        throw new Unauthorized('You can only move expenses within the same collective');
+      }
+
+      const [movedExpense] = await moveExpenses(req, [expense], destinationAccount);
+      return movedExpense;
+    },
+  },
+
   deleteExpense: {
     type: new GraphQLNonNull(GraphQLExpense),
     description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".`,
@@ -276,7 +351,7 @@ const expenseMutations = {
       const accountsFor2FA = [expense.fromCollective, expense.collective, expense.collective.host].filter(Boolean);
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
-      // Cancel recurring expense
+      // Associations are deleted/updated in `afterDestroy`
       await expense.destroy();
       return expense;
     },
@@ -524,6 +599,7 @@ const expenseMutations = {
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
+      const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
       const payee = payeeLegacyId
         ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
@@ -557,6 +633,11 @@ const expenseMutations = {
         data: {
           items,
           attachedFiles,
+          invoiceFile: invoiceFile
+            ? {
+                url: invoiceFile.getDataValue('url'),
+              }
+            : null,
           payee,
           invitedByCollectiveId: fromCollective.id,
           draftKey,
@@ -568,6 +649,7 @@ const expenseMutations = {
           reference: expenseData.reference,
           notify: !args.skipInvite,
           lockedFields: args.lockedFields,
+          isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true' ? true : undefined,
         },
       });
 

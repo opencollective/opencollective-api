@@ -10,6 +10,9 @@ export enum ORDER_BY_PSEUDO_FIELDS {
   HOSTED_COLLECTIVES_COUNT = 'HOSTED_COLLECTIVES_COUNT',
   MEMBER_COUNT = 'MEMBER_COUNT',
   TOTAL_CONTRIBUTED = 'TOTAL_CONTRIBUTED',
+  STARTS_AT = 'STARTS_AT',
+  ENDS_AT = 'ENDS_AT',
+  UNHOSTED_AT = 'UNHOSTED_AT',
 }
 
 export const GraphQLOrderByFieldType = new GraphQLEnumType({
@@ -27,6 +30,15 @@ export const GraphQLOrderByFieldType = new GraphQLEnumType({
     TOTAL_CONTRIBUTED: {},
     NAME: {
       value: 'name',
+    },
+    STARTS_AT: {
+      description: 'Order by start date',
+    },
+    ENDS_AT: {
+      description: 'Order by end date',
+    },
+    UNHOSTED_AT: {
+      description: 'Order by the date the collective was unhosted',
     },
   },
 });

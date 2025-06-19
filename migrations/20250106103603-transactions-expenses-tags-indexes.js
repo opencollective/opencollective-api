@@ -2,7 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface) {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions_expenses_tags_index"
       ON "Transactions" ("CollectiveId")
@@ -14,7 +14,7 @@ module.exports = {
     `);
   },
 
-  async down(queryInterface, Sequelize) {
+  async down(queryInterface) {
     await queryInterface.sequelize.query(`
       DROP INDEX CONCURRENTLY IF EXISTS "transactions_expenses_tags_index"
     `);

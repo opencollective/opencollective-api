@@ -1,4 +1,5 @@
-import { omit } from 'lodash';
+import { mapValues, omit, uniq } from 'lodash';
+import { AccountSubtype, AccountType } from 'plaid';
 import type {
   BelongsToGetAssociationMixin,
   ForeignKey,
@@ -8,8 +9,10 @@ import type {
   InferCreationAttributes,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
+import { z } from 'zod';
 
 import ActivityTypes from '../constants/activities';
+import { formatZodError } from '../lib/errors';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Activity from './Activity';
@@ -38,18 +41,41 @@ type CreationAttributes = InferCreationAttributes<
 
 export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID'] as const;
 
-type TransactionsImportSettings = {
-  csvConfig?: Record<string, unknown>;
-};
+const settingsSchema = z
+  .object({
+    assignments: z.record(z.string(), z.array(z.number())).optional(),
+    csvConfig: z.record(z.string(), z.unknown()).optional(),
+  })
+  .optional();
 
-type TransactionsImportData = {
-  lockedAt?: string;
-  plaid?: {
-    lastSyncCursor?: string;
-    syncAttempt?: number;
-    lastSyncErrorMessage?: string;
-  };
-};
+type TransactionsImportSettings = z.infer<typeof settingsSchema>;
+
+const dataSchema = z
+  .object({
+    lockedAt: z.string().optional(),
+    plaid: z
+      .object({
+        lastSyncCursor: z.string().optional(),
+        syncAttempt: z.number().optional(),
+        lastSyncErrorMessage: z.string().optional(),
+        availableAccounts: z
+          .array(
+            z.object({
+              accountId: z.string(),
+              mask: z.string(),
+              name: z.string(),
+              officialName: z.string(),
+              subtype: z.nativeEnum(AccountSubtype),
+              type: z.nativeEnum(AccountType),
+            }),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .optional();
+
+type TransactionsImportData = z.infer<typeof dataSchema>;
 
 // A custom error type for when a transaction import is locked
 export class TransactionsImportLockedError extends Error {
@@ -214,10 +240,35 @@ TransactionsImport.init(
     settings: {
       type: DataTypes.JSONB,
       allowNull: true,
+      defaultValue: {},
+      set(value: TransactionsImportSettings) {
+        if (value?.assignments) {
+          this.setDataValue('settings', { ...value, assignments: mapValues(value.assignments, uniq) });
+        } else {
+          this.setDataValue('settings', value);
+        }
+      },
+      validate: {
+        isValid(value) {
+          const result = settingsSchema.safeParse(value);
+          if (!result.success) {
+            throw new Error(`Invalid transactions import settings:\n${formatZodError(result.error)}`);
+          }
+        },
+      },
     },
     data: {
       type: DataTypes.JSONB,
       allowNull: true,
+      defaultValue: {},
+      validate: {
+        isValid(value) {
+          const result = dataSchema.safeParse(value);
+          if (!result.success) {
+            throw new Error(`Invalid transactions import data:\n${formatZodError(result.error)}`);
+          }
+        },
+      },
     },
     lastSyncAt: {
       type: DataTypes.DATE,

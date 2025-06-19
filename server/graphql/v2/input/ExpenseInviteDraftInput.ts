@@ -68,5 +68,9 @@ export const GraphQLExpenseInviteDraftInput = new GraphQLInputObjectType({
       type: new GraphQLList(GraphQLJSON),
       description: '(Optional) A list of files that you want to attach to this expense',
     },
+    invoiceFile: {
+      type: GraphQLJSON,
+      description: '(Optional - applicable to invoice expense only) The invoice file for this expense',
+    },
   }),
 });

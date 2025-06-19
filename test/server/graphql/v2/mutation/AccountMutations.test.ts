@@ -24,6 +24,7 @@ import {
   fakeProject,
   fakeTier,
   fakeUser,
+  fakeUserTwoFactorMethod,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
@@ -209,7 +210,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         previousData: { settings: {} },
         newData: { settings: { tos: 'https://opencollective.com/tos' } },
       });
@@ -587,7 +588,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
+      expect(activity.data).to.containSubset({
         previousData: { hostFeePercent: 10 },
         newData: { hostFeePercent: 9.99, useCustomHostFee: true },
       });
@@ -1007,7 +1008,16 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
 
       await collective.reload();
-      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } });
+      expect(collective.data.policies).to.deep.equal({
+        [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
+        // Expense policies from `expensePolicy` field set at account creation
+        [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
+      });
 
       // Check activity
       const activity = await models.Activity.findOne({
@@ -1017,9 +1027,28 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
-        previousData: { policies: {} },
-        newData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } } },
+      expect(activity.data).to.containSubset({
+        previousData: {
+          policies: {
+            [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
+        newData: {
+          policies: {
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
+            [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
       });
     });
 
@@ -1035,6 +1064,12 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(collective.data.policies).to.deep.eq({
         [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
         [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+        [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
       });
 
       // Check activity
@@ -1045,12 +1080,28 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
-        previousData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } } },
+      expect(activity.data).to.containSubset({
+        previousData: {
+          policies: {
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
+            [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
         newData: {
           policies: {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+            [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
           },
         },
       });
@@ -1065,7 +1116,14 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
 
       await collective.reload();
-      expect(collective.data.policies).to.be.empty;
+      expect(collective.data.policies).to.deep.equal({
+        [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
+      });
 
       // Check activity
       const activity = await models.Activity.findOne({
@@ -1075,12 +1133,27 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({
-        newData: { policies: {} },
+      expect(activity.data).to.containSubset({
+        newData: {
+          policies: {
+            [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
+          },
+        },
         previousData: {
           policies: {
             [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+            [POLICIES.EXPENSE_POLICIES]: {
+              grantPolicy: 'Be reasonable',
+              invoicePolicy: 'Be reasonable',
+              receiptPolicy: 'Be reasonable',
+              titlePolicy: '',
+            },
           },
         },
       });
@@ -1095,7 +1168,14 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.have.lengthOf(1);
 
       await collective.reload();
-      expect(collective.data.policies).to.be.empty;
+      expect(collective.data.policies).to.deep.equal({
+        [POLICIES.EXPENSE_POLICIES]: {
+          grantPolicy: 'Be reasonable',
+          invoicePolicy: 'Be reasonable',
+          receiptPolicy: 'Be reasonable',
+          titlePolicy: '',
+        },
+      });
     });
   });
 
@@ -1205,7 +1285,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       <td>
 
 <p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 17px; padding: 1em;">
-  Hi Admin Name,
+  Hi Test Collective,
   <br><br>
   <a href="http://localhost:3000/tester" style="text-decoration: none; color: #297EFF;">Tester</a> just sent a message to <a href="http://localhost:3000/test-collective-with-contact" style="text-decoration: none; color: #297EFF;">Test Collective</a> on Open
   Collective. Simply reply to this email to reply to the sender.
@@ -1252,7 +1332,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   <td colspan="3" align="center" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
     We can do great things together<br><br>
 
-    You can also follow us on <a href="https://twitter.com/OpenCollect" style="text-decoration: none; color: #297EFF;">Twitter</a> or come chat with us on our public
+    Come chat with us on our public
     <a href="https://discord.opencollective.com" style="text-decoration: none; color: #297EFF;">Discord</a>.
     <br><br>
     Made with ❤️ from <a href="https://docs.opencollective.com/help/about/team" style="text-decoration: none; color: #297EFF;">all over the world</a>
@@ -1559,6 +1639,84 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(duplicatedEvent.slug).to.not.equal(originalEvent.slug);
       const getSlugWithoutRandom = (slug: string) => slug.split('-').slice(0, -1).join('-');
       expect(getSlugWithoutRandom(duplicatedEvent.slug)).to.equal(getSlugWithoutRandom(originalEvent.slug));
+    });
+  });
+
+  describe('editTwoFactorAuthenticationMethod', () => {
+    const editTwoFactorAuthenticationMethodMutation = gql`
+      mutation EditTwoFactorAuthenticationMethod(
+        $userTwoFactorMethod: UserTwoFactorMethodReferenceInput!
+        $name: String!
+      ) {
+        editTwoFactorAuthenticationMethod(userTwoFactorMethod: $userTwoFactorMethod, name: $name) {
+          id
+          hasTwoFactorAuth
+          twoFactorMethods {
+            id
+            method
+            name
+            createdAt
+            description
+            icon
+          }
+        }
+      }
+    `;
+
+    it('needs to be a valid ID', async () => {
+      const result = await graphqlQueryV2(
+        editTwoFactorAuthenticationMethodMutation,
+        {
+          userTwoFactorMethod: { id: 'invalid' },
+          name: 'New name',
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Invalid user-two-factor-method id: invalid');
+    });
+
+    it('must be authenticated', async () => {
+      const twoFactorMethod = await fakeUserTwoFactorMethod();
+      const result = await graphqlQueryV2(editTwoFactorAuthenticationMethodMutation, {
+        userTwoFactorMethod: { id: idEncode(twoFactorMethod.id, 'user-two-factor-method') },
+        name: 'New name',
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('must be an admin of the account', async () => {
+      const twoFactorMethod = await fakeUserTwoFactorMethod();
+      const result = await graphqlQueryV2(
+        editTwoFactorAuthenticationMethodMutation,
+        {
+          userTwoFactorMethod: { id: idEncode(twoFactorMethod.id, 'user-two-factor-method') },
+          name: 'New name',
+        },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
+    });
+
+    it('edits the name of the method', async () => {
+      const user = await fakeUser();
+      const method = await fakeUserTwoFactorMethod({ UserId: user.id });
+      const result = await graphqlQueryV2(
+        editTwoFactorAuthenticationMethodMutation,
+        {
+          userTwoFactorMethod: { id: idEncode(method.id, 'user-two-factor-method') },
+          name: 'New name',
+        },
+        user,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editTwoFactorAuthenticationMethod.hasTwoFactorAuth).to.eq(true);
+      expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods).to.have.lengthOf(1);
+      expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods[0].name).to.equal('New name');
     });
   });
 });

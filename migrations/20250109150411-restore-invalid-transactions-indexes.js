@@ -2,7 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up(queryInterface) {
     // transactions__collective_id_createdAt
     await queryInterface.sequelize.query(`
       DROP INDEX CONCURRENTLY IF EXISTS "transactions__collective_id_createdAt"
@@ -26,7 +26,7 @@ module.exports = {
     `);
   },
 
-  async down(queryInterface, Sequelize) {
+  async down() {
     console.log('This migration cannot be reverted');
   },
 };

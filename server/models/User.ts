@@ -269,7 +269,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   // Adding some sugars
-  isAdmin = function (CollectiveId) {
+  isAdmin = function (CollectiveId: number | string) {
     const result =
       this.CollectiveId === Number(CollectiveId) || this.hasRole([MemberRoles.HOST, MemberRoles.ADMIN], CollectiveId);
     debug('isAdmin of CollectiveId', CollectiveId, '?', result);
@@ -299,6 +299,19 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       return this.isAdmin(collective.HostCollectiveId);
     } else {
       return false;
+    }
+  };
+
+  isCommunityManager = function (collective: Collective) {
+    if (!collective) {
+      return false;
+    } else if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return (
+        this.hasRole(MemberRoles.COMMUNITY_MANAGER, collective.id) ||
+        this.hasRole([MemberRoles.COMMUNITY_MANAGER], collective.ParentCollectiveId)
+      );
+    } else {
+      return this.hasRole(MemberRoles.COMMUNITY_MANAGER, collective.id);
     }
   };
 
@@ -416,7 +429,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     const connectedAccounts = await ConnectedAccount.findAll({
       where: {
         CollectiveId: this.CollectiveId,
-        service: { [Op.in]: [Service.GITHUB, Service.TWITTER, Service.PAYPAL] },
+        service: { [Op.in]: [Service.GITHUB, Service.PAYPAL] },
         username: { [Op.ne]: null },
       },
     });

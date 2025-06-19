@@ -9,8 +9,9 @@ enum ActivityTypes {
   // Connected accounts
   CONNECTED_ACCOUNT_CREATED = 'connected_account.created', // Not used yet
   CONNECTED_ACCOUNT_ERROR = 'connected_account.error', // Not used yet
+  CONNECTED_ACCOUNT_REMOVED = 'connected_account.removed',
   // Collective creation & applications
-  COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17
+  COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17 (`createCollectiveFromGithub` is only used in e2e tests)
   COLLECTIVE_APPLY = 'collective.apply',
   COLLECTIVE_APPROVED = 'collective.approved',
   COLLECTIVE_REJECTED = 'collective.rejected',
@@ -78,6 +79,7 @@ enum ActivityTypes {
   COLLECTIVE_TRANSACTION_CREATED = 'collective.transaction.created',
   // Transactions imports
   TRANSACTIONS_IMPORT_CREATED = 'transactions.import.created',
+  TRANSACTIONS_IMPORT_ROW_UPDATED = 'transactions.import.updated',
   // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',
@@ -98,12 +100,12 @@ enum ActivityTypes {
   ORDER_PENDING_CONTRIBUTION_NEW = 'order.new.pendingFinancialContribution',
   ORDER_PENDING_CONTRIBUTION_REMINDER = 'order.reminder.pendingFinancialContribution',
   ORDER_PROCESSING = 'order.processing',
+  ORDER_PROCESSED = 'order.processed',
   ORDER_PAYMENT_FAILED = 'order.payment.failed',
   ORDER_REVIEW_OPENED = 'order.review.opened',
   ORDER_REVIEW_CLOSED = 'order.review.closed',
   ORDER_DISPUTE_CREATED = 'order.dispute.created',
   ORDER_DISPUTE_CLOSED = 'order.dispute.closed',
-  ORDER_THANKYOU = 'order.thankyou',
   ORDER_UPDATED = 'order.updated',
   ADDED_FUNDS_EDITED = 'added.funds.edited',
   // Vendors
@@ -171,7 +173,7 @@ export const TransactionalActivities = [
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PENDING,
   ActivityTypes.ORDER_PENDING_CRYPTO,
-  ActivityTypes.ORDER_THANKYOU,
+  ActivityTypes.ORDER_PROCESSED,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
   ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
   ActivityTypes.PAYMENT_FAILED,
@@ -251,7 +253,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.ORDER_PENDING_CRYPTO,
     ActivityTypes.ORDER_PENDING,
     ActivityTypes.ORDER_PROCESSING,
-    ActivityTypes.ORDER_THANKYOU,
+    ActivityTypes.ORDER_PROCESSED,
     ActivityTypes.ORDERS_SUSPICIOUS,
     ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
     ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,

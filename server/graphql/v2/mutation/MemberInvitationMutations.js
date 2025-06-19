@@ -106,8 +106,12 @@ const memberInvitationMutations = {
         throw new Unauthorized('Only admins can edit members.');
       }
 
-      if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
-        throw new Forbidden('You can only edit accountants, admins, or members.');
+      if (
+        ![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER, MemberRoles.COMMUNITY_MANAGER].includes(
+          args.role,
+        )
+      ) {
+        throw new Forbidden('You can only edit accountants, admins, members, or community managers.');
       }
 
       await twoFactorAuthLib.enforceForAccount(req, account);

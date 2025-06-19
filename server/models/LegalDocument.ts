@@ -21,6 +21,7 @@ import { notify } from '../lib/notifications/email';
 import SQLQueries from '../lib/queries';
 import sequelize from '../lib/sequelize';
 import { getTaxFormsS3Bucket } from '../lib/tax-forms';
+import { isValidURL } from '../lib/url-utils';
 
 import Activity from './Activity';
 import Collective from './Collective';
@@ -36,6 +37,7 @@ export enum LEGAL_DOCUMENT_REQUEST_STATUS {
   RECEIVED = 'RECEIVED',
   ERROR = 'ERROR',
   INVALID = 'INVALID',
+  EXPIRED = 'EXPIRED',
 }
 
 export const US_TAX_FORM_TYPES = ['W9', 'W8_BEN', 'W8_BEN_E'] as const;
@@ -112,7 +114,6 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
         where: {
           documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
           CollectiveId: payee.id,
-          year: { [Op.gte]: new Date().getFullYear() - US_TAX_FORM_VALIDITY_IN_YEARS },
           requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
         },
         defaults: {
@@ -253,6 +254,39 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
     }
   };
 
+  /**
+   * Update the status for expired tax forms.
+   *
+   * TODO: Updates the status of legal documents should be based on expiry rules:
+   * - W9s don't expire unless a new PDF is released by the IRS
+   * - W8* expire after 3 years, or before that if a new PDF is released by the IRS
+   *
+   * Since we don't store this type in clear data (it's encrypted), we use a simplified approach
+   * that just considers US_TAX_FORM_VALIDITY_IN_YEARS for now.
+   *
+   * @returns The number of updated documents
+   */
+  static expireOldDocuments = async (): Promise<number> => {
+    const currentYear = new Date().getFullYear();
+
+    const [nbUpdated] = await LegalDocument.update(
+      {
+        requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED,
+      },
+      {
+        where: {
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          requestStatus: [LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED, LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED],
+          year: {
+            [Op.lte]: currentYear - US_TAX_FORM_VALIDITY_IN_YEARS,
+          },
+        },
+      },
+    );
+
+    return nbUpdated;
+  };
+
   shouldBeRequested = function () {
     return (
       this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED ||
@@ -261,11 +295,7 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
   };
 
   isExpired = function () {
-    if (this.documentType !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
-      return false;
-    } else {
-      return new Date().getFullYear() > this.year + US_TAX_FORM_VALIDITY_IN_YEARS;
-    }
+    return this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED;
   };
 
   /**
@@ -403,8 +433,14 @@ LegalDocument.init(
     documentLink: {
       type: DataTypes.STRING,
       validate: {
-        isUrl: {
-          msg: 'The document link is invalid',
+        isValidURL(url: string): void {
+          if (!url) {
+            return;
+          }
+
+          if (!isValidURL(url)) {
+            throw new Error('The document link is invalid');
+          }
         },
       },
       set(url: string) {

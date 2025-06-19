@@ -139,7 +139,6 @@ export default async app => {
       if (cacheKey) {
         const fromCache = await cache.get(cacheKey);
         if (fromCache) {
-          // Track all slow queries on Sentry performance
           res.servedFromGraphqlCache = true;
           req.endAt = req.endAt || new Date();
           const executionTime = req.endAt - req.startAt;
@@ -172,7 +171,11 @@ export default async app => {
     }
 
     if (req.personalToken) {
-      logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
+      if (req.personalToken.data?.allowGraphQLV1) {
+        logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
+      } else {
+        return next(new errors.Unauthorized('Personal Tokens are not accepted on GraphQL v1'));
+      }
     }
     next();
   });
@@ -184,7 +187,7 @@ export default async app => {
    */
   const logGraphQLComplexityRejection = (ctx, err) => {
     let queryName = 'Query';
-    const document = ctx.getDocument();
+    const document = ctx?.getDocument();
     const operation = document?.definitions?.find(d => d.kind === 'OperationDefinition');
     queryName = get(operation, 'name.value') || queryName;
     reportMessageToSentry('Query complexity is too high', {
@@ -217,7 +220,7 @@ export default async app => {
     maxTokens: {
       onReject: [logGraphQLComplexityRejection],
       propagateOnRejection: false,
-      n: 1250, // Currently identified max: 1009 in the host admin expenses
+      n: 1500, // ExpensePage query
     },
     maxAliases: { enabled: false }, // Not clear what value this adds
     maxDirectives: { enabled: false }, // Not clear what value this adds
@@ -349,7 +352,7 @@ export default async app => {
    */
   app.get('/connected-accounts/:service(github|transferwise)', noCache, authentication.authenticateService); // backward compatibility
   app.get(
-    '/connected-accounts/:service(github|twitter|stripe|paypal|transferwise)/oauthUrl',
+    '/connected-accounts/:service(github|stripe|paypal|transferwise)/oauthUrl',
     noCache,
     authentication.authenticateService,
   );

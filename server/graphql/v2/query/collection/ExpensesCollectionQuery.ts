@@ -4,30 +4,41 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
-import { OrderItem, Sequelize } from 'sequelize';
+import { OrderItem, Sequelize, Utils as SequelizeUtils } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import { CollectiveType } from '../../../../constants/collectives';
+import { SupportedCurrency } from '../../../../constants/currencies';
 import MemberRoles from '../../../../constants/roles';
 import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import { AccountingCategory, Op, sequelize } from '../../../../models';
+import { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
-import { Unauthorized } from '../../../errors';
+import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
 import { GraphQLLastCommentBy } from '../../enum/LastCommentByType';
 import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import {
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput } from '../../input/AmountInput';
+import { AmountRangeInputType, GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
+import {
+  fetchPayoutMethodWithReference,
+  GraphQLPayoutMethodReferenceInput,
+} from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 import { UncategorizedValue } from '../../object/AccountingCategory';
@@ -90,7 +101,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
       uniq(
         expensesWithoutPendingTaxForm.map(expense => {
           const collectiveBalance = balances[expense.CollectiveId];
-          return { fromCurrency: expense.currency, toCurrency: collectiveBalance.currency };
+          return { fromCurrency: expense.currency, toCurrency: collectiveBalance.currency as SupportedCurrency };
         }),
       ),
     );
@@ -115,9 +126,17 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Reference of an account that is the payee of an expense',
   },
+  fromAccounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'An alternative to filter by fromAccount (singular), both cannot be used together',
+  },
   account: {
     type: GraphQLAccountReferenceInput,
     description: 'Reference of an account that is the payer of an expense',
+  },
+  accounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'An alternative to filter by accounts, both cannot be used together',
   },
   host: {
     type: GraphQLAccountReferenceInput,
@@ -152,13 +171,19 @@ export const ExpensesCollectionQueryArgs = {
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
+  amount: {
+    type: GraphQLAmountRangeInput,
+    description: 'Only return expenses that match this amount range',
+  },
   minAmount: {
     type: GraphQLInt,
     description: 'Only return expenses where the amount is greater than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   maxAmount: {
     type: GraphQLInt,
     description: 'Only return expenses where the amount is lower than or equal to this value (in cents)',
+    deprecate: '2025-05-26: Please use amount instead',
   },
   payoutMethodType: {
     type: GraphQLPayoutMethodType,
@@ -202,11 +227,59 @@ export const ExpensesCollectionQueryArgs = {
     type: new GraphQLList(GraphQLString),
     description: 'Only return expenses that match these accounting categories',
   },
+  payoutMethod: {
+    type: GraphQLPayoutMethodReferenceInput,
+    description: 'Only return transactions that are associated with this payout method',
+  },
+};
+
+const loadAllAccountsFromArgs = async (
+  args,
+  req,
+): Promise<{
+  fromAccounts: Collective[];
+  accounts: Collective[];
+  host: Collective;
+  createdByAccount: Collective;
+}> => {
+  if (args.accounts && args.account) {
+    throw new Error('accounts and account cannot be used together');
+  }
+
+  const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
+  const getAccountsPromise = async (): Promise<Collective[]> => {
+    if (args.account) {
+      return [await fetchAccountWithReference(args.account, fetchAccountParams)];
+    } else if (args.accounts && args.accounts.length > 0) {
+      return fetchAccountsWithReferences(args.accounts, fetchAccountParams);
+    } else {
+      return [];
+    }
+  };
+
+  const getFromAccountPromise = async (): Promise<Collective[]> => {
+    if (args.fromAccount) {
+      return [await fetchAccountWithReference(args.fromAccount, fetchAccountParams)];
+    } else if (args.fromAccounts && args.fromAccounts.length > 0) {
+      return fetchAccountsWithReferences(args.fromAccounts, fetchAccountParams);
+    } else {
+      return [];
+    }
+  };
+
+  const [accounts, fromAccounts, host, createdByAccount] = await Promise.all([
+    getAccountsPromise(),
+    getFromAccountPromise(),
+    args.host && fetchAccountWithReference(args.host, fetchAccountParams),
+    args.createdByAccount && fetchAccountWithReference(args.createdByAccount, fetchAccountParams),
+  ]);
+
+  return { fromAccounts, accounts, host, createdByAccount };
 };
 
 export const ExpensesCollectionQueryResolver = async (
   _: void,
-  args,
+  args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
 ): Promise<CollectionReturnType & { totalAmount?: any }> => {
   const where = { [Op.and]: [] };
@@ -218,27 +291,29 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // Load accounts
-  const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-  const [fromAccount, account, host, createdByAccount] = await Promise.all(
-    [args.fromAccount, args.account, args.host, args.createdByAccount].map(
-      reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
-    ),
-  );
-  if (fromAccount) {
-    const fromAccounts = [fromAccount.id];
+  const { fromAccounts, accounts, host, createdByAccount } = await loadAllAccountsFromArgs(args, req);
+
+  if (fromAccounts.length > 0) {
+    const fromAccountIds = fromAccounts.map(account => account.id);
     if (args.includeChildrenExpenses) {
-      const childIds = await fromAccount.getChildren().then(children => children.map(child => child.id));
-      fromAccounts.push(...childIds);
+      const childIds = await req.loaders.Collective.childrenIds.loadMany(fromAccountIds);
+      fromAccountIds.push(...childIds.filter(result => typeof result === 'number'));
     }
-    where['FromCollectiveId'] = fromAccounts;
+    where['FromCollectiveId'] = fromAccountIds;
   }
-  if (account) {
-    const accounts = [account.id];
-    if (args.includeChildrenExpenses) {
-      const childIds = await account.getChildren().then(children => children.map(child => child.id));
-      accounts.push(...childIds);
+  if (accounts.length > 0) {
+    if (host && accounts.some(account => account.HostCollectiveId !== host.id || !account.isActive)) {
+      throw new Error('When filtering by both host and accounts, all accounts must be hosted by the same host');
     }
-    where['CollectiveId'] = accounts;
+
+    const accountIds = accounts.map(account => account.id);
+    if (args.includeChildrenExpenses) {
+      const childIds = (await req.loaders.Collective.childrenIds.loadMany(accountIds)).filter(
+        id => id instanceof Array,
+      );
+      accountIds.push(...childIds.flat());
+    }
+    where['CollectiveId'] = uniq(accountIds);
   }
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
@@ -326,12 +401,57 @@ export const ExpensesCollectionQueryResolver = async (
   } else if (args.tag === null || args.tags === null) {
     where['tags'] = { [Op.is]: null };
   }
-  if (args.minAmount) {
-    where['amount'] = { [Op.gte]: args.minAmount };
+
+  if (args.amount?.gte || args.amount?.lte) {
+    if (args.amount.gte && args.amount.lte) {
+      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
+    }
+    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
+    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
+    const operator =
+      args.amount.gte && args.amount.lte
+        ? gte === lte
+          ? { [Op.eq]: gte }
+          : { [Op.between]: [gte, lte] }
+        : args.amount.gte
+          ? { [Op.gte]: gte }
+          : { [Op.lte]: lte };
+
+    where[Op.and].push(
+      sequelize.where(
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
+            CASE
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = :currency
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = "Expense"."currency"
+                THEN 1.0 / ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = :currency
+                THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Expense"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Expense"."incurredAt", "Expense"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1),
+                1
+              )
+            END * "Expense"."amount" 
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
+        operator,
+      ),
+    );
+  } else {
+    if (args.minAmount) {
+      where['amount'] = { [Op.gte]: args.minAmount };
+    }
+    if (args.maxAmount) {
+      where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
+    }
   }
-  if (args.maxAmount) {
-    where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
-  }
+
   if (args.dateFrom) {
     where['createdAt'] = { [Op.gte]: args.dateFrom };
   }
@@ -340,7 +460,15 @@ export const ExpensesCollectionQueryResolver = async (
     where['createdAt'][Op.lte] = args.dateTo;
   }
 
-  if (args.payoutMethodType === 'CREDIT_CARD') {
+  if (args.payoutMethod) {
+    const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
+    assert(payoutMethod, new NotFound('Requested payment method not found'));
+    assert(
+      req.remoteUser?.isAdmin(payoutMethod.CollectiveId),
+      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
+    );
+    where['PayoutMethodId'] = payoutMethod.id;
+  } else if (args.payoutMethodType === 'CREDIT_CARD') {
     where[Op.and].push({ VirtualCardId: { [Op.not]: null } });
   } else if (args.payoutMethodType) {
     include.push({
@@ -355,7 +483,7 @@ export const ExpensesCollectionQueryResolver = async (
     }
   }
 
-  if (args.status) {
+  if (args.status && args.status.length > 0) {
     if (args.status.includes('ON_HOLD') && args.status.length === 1) {
       where['onHold'] = true;
     } else if (args.status.includes('READY_TO_PAY')) {
@@ -371,7 +499,7 @@ export const ExpensesCollectionQueryResolver = async (
     if (req.remoteUser) {
       const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
 
-      if (req.remoteUser.isAdminOfCollectiveOrHost(account)) {
+      if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
         userClause.push({ status: expenseStatus.DRAFT });
       } else {
         userClause.push({ status: expenseStatus.DRAFT, UserId: req.remoteUser.id });
@@ -436,14 +564,14 @@ export const ExpensesCollectionQueryResolver = async (
     // Check permissions
     if (!req.remoteUser) {
       throw new Unauthorized('You need to be logged in to filter by customData');
-    } else if (!fromAccount && !account && !host) {
+    } else if (!fromAccounts.length && !accounts.length && !host) {
       throw new Unauthorized(
         'You need to filter by at least one of fromAccount, account or host to filter by customData',
       );
     } else if (
-      !(fromAccount && req.remoteUser.isAdminOfCollective(fromAccount)) &&
-      !(account && req.remoteUser.isAdminOfCollective(account)) &&
-      !(host && req.remoteUser.isAdmin(host))
+      (host && !req.remoteUser.isAdminOfCollectiveOrHost(host)) ||
+      (fromAccounts.length && !fromAccounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) ||
+      (accounts.length && !accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account)))
     ) {
       throw new Unauthorized('You need to be an admin of the fromAccount, account or host to filter by customData');
     }
@@ -493,7 +621,11 @@ export const ExpensesCollectionQueryResolver = async (
         amountsByCurrency,
         amount: async ({ currency = 'USD' }) => {
           const values = await req.loaders.CurrencyExchangeRate.convert.loadMany(
-            amountsByCurrency.map(v => ({ amount: v.value, fromCurrency: v.currency, toCurrency: currency })),
+            amountsByCurrency.map(v => ({
+              amount: v.value,
+              fromCurrency: v.currency as SupportedCurrency,
+              toCurrency: currency as SupportedCurrency,
+            })),
           );
           return {
             value: sum(values),
