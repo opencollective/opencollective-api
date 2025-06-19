@@ -2,9 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    // We can
-
+  async up(queryInterface) {
     for (const indexName of [
       // The 2 below will be taken care of in https://github.com/opencollective/opencollective/issues/7162
       // 'activities__from_collective_id', // Table: Activities. Size: 100 MB. Replaced by activities__from_collective_id_simple, which skips the transactions activities.
@@ -27,7 +25,7 @@ module.exports = {
     }
   },
 
-  async down(queryInterface, Sequelize) {
+  async down() {
     console.warn(
       'This migration has no rollback. If you want to restore the legacy indexes, look at the old migrations.',
     );
