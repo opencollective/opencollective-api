@@ -58,6 +58,10 @@ export async function downloadFidoMetadata(): Promise<Metadata> {
   const fidoAlianceMetadataUrl = 'https://mds3.fidoalliance.org';
 
   const response = await fetch(fidoAlianceMetadataUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to download FIDO metadata: ${response.statusText}`);
+  }
+
   const text = await response.text();
   const decodedMetadataJwt = jwt.decode(text, { complete: true });
   const certs = (
