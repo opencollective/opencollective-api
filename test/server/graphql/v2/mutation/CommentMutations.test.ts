@@ -79,6 +79,9 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       });
       expect(activity).to.exist;
       expect(activity.data.CommentId).to.equal(idDecode(createdComment.id, 'comment'));
+      expect(activity.data.expense.description).to.equal(expense.description);
+      expect(activity.data.collective.name).to.equal(collective.name);
+      expect(activity.data.fromCollective.name).to.equal(expenseSubmitter.collective.name);
 
       // Sends an email
       await utils.waitForCondition(() => sendEmailSpy.callCount === 2);
