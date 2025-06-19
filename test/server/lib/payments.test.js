@@ -159,6 +159,7 @@ describe('server/lib/payments', () => {
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.id,
+      username: 'stripeAccount',
     });
   });
 

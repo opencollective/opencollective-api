@@ -374,6 +374,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           service: PAYMENT_METHOD_SERVICE.STRIPE,
           token: 'abc',
           CollectiveId: host.id,
+          username: 'stripeAccount',
         });
 
         // Add OC Inc (for platform tips)
@@ -881,6 +882,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             service: PAYMENT_METHOD_SERVICE.STRIPE,
             token: 'abc',
             CollectiveId: hostWithVAT.id,
+            username: 'stripeAccount',
           });
 
           tierProduct = await fakeTier({

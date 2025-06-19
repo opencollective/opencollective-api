@@ -58,6 +58,7 @@ describe('server/graphql/v1/mutation', () => {
     await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
+      username: 'stripeAccount',
       CollectiveId: host.collective.id,
     });
   });

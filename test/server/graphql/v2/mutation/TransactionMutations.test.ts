@@ -105,6 +105,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
       service: 'stripe',
       token: 'abc',
       CollectiveId: collective.host.id,
+      username: 'stripeAccount',
     });
     await executeOrder(randomUser, order1);
     transaction1 = await models.Transaction.findOne({

@@ -99,6 +99,7 @@ describe('server/graphql/v1/user', () => {
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.id,
+      username: 'stripeAccount',
     }),
   );
 
