@@ -219,6 +219,7 @@ export async function refundTransaction(
   user?: User,
   message?: string,
   refundKind?: RefundKind,
+  { ignoreBalanceCheck = false } = {},
 ): Promise<Transaction> {
   // Make sure to fetch PaymentMethod
   // Fetch PaymentMethod even if it's deleted
@@ -241,14 +242,18 @@ export async function refundTransaction(
   let result;
 
   try {
-    result = await paymentMethodProvider.refundTransaction(transaction, user, message, refundKind);
+    result = await paymentMethodProvider.refundTransaction(transaction, user, message, refundKind, {
+      ignoreBalanceCheck,
+    });
   } catch (e) {
     if (
       (e.message.includes('has already been refunded') || e.message.includes('has been charged back')) &&
       paymentMethodProvider &&
       paymentMethodProvider.refundTransactionOnlyInDatabase
     ) {
-      result = await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction, null, null, refundKind);
+      result = await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction, null, null, refundKind, {
+        ignoreBalanceCheck,
+      });
     } else {
       throw e;
     }

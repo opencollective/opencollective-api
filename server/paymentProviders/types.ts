@@ -12,7 +12,7 @@ export interface BasePaymentProviderService {
    */
   features: {
     recurring: boolean;
-    isRecurringManagedExternally: boolean;
+    isRecurringManagedExternally?: boolean;
     waitToCharge?: boolean;
   };
 
@@ -32,6 +32,7 @@ export interface BasePaymentProviderService {
     user?: User,
     reason?: string,
     refundKind?: RefundKind,
+    options?: { ignoreBalanceCheck?: boolean },
   ): Promise<Transaction>;
 
   /**
@@ -42,6 +43,7 @@ export interface BasePaymentProviderService {
     user?: User,
     reason?: string,
     refundKind?: RefundKind,
+    options?: { ignoreBalanceCheck?: boolean },
   ): Promise<Transaction>;
 
   getBalance?: (

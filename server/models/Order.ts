@@ -85,6 +85,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare data: {
     hostFeePercent?: number;
     paymentProcessorFee?: number;
+    paymentProcessorFeeInHostCurrency?: number;
     memo?: string;
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
