@@ -35,7 +35,11 @@ const loadCommentedEntity = async (
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
     entity = (await loaders.Expense.byId.load(commentValues.ExpenseId)) as Expense;
     if (entity) {
+      entity.fromCollective = await loaders.Collective.byId.load(entity.FromCollectiveId);
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      activityData.fromCollective = entity.fromCollective.activity;
+      activityData.collective = entity.collective.activity;
+      activityData.expense = entity.info;
       if (!entity.collective) {
         return [null, activityType, activityData];
       }
