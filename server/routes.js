@@ -27,6 +27,7 @@ import cache from './lib/cache';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
+import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
@@ -54,9 +55,9 @@ export default async app => {
     next();
   });
 
-  app.use('*', authentication.checkPersonalToken);
+  app.use('*', withTiming('checkPersonalToken', authentication.checkPersonalToken));
 
-  app.use('*', authentication.authorizeClient);
+  app.use('*', withTiming('authorizeClient', authentication.authorizeClient));
 
   // Setup rate limiter
   // TODO: move to RedisInstanceType.SESSION ?
@@ -117,7 +118,7 @@ export default async app => {
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
    * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
    */
-  app.use('*', authentication.authenticateUser); // populate req.remoteUser if JWT token provided in the request
+  app.use('*', withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
 
   // OAuth server (after authentication/JWT handling, at least for authorize)
   app.oauth = oauth;
@@ -133,52 +134,58 @@ export default async app => {
    * GraphQL caching
    */
   if (parseToBoolean(config.graphql.cache.enabled)) {
-    app.use('/graphql', async (req, res, next) => {
-      req.startAt = req.startAt || new Date();
-      const { cacheKey, cacheSlug } = getGraphqlCacheProperties(req) || {}; // Returns null if not cacheable (e.g. if logged in)
-      if (cacheKey) {
-        const fromCache = await cache.get(cacheKey);
-        if (fromCache) {
-          res.servedFromGraphqlCache = true;
-          req.endAt = req.endAt || new Date();
-          const executionTime = req.endAt - req.startAt;
-          res.set('Execution-Time', executionTime);
-          res.set('GraphQL-Cache', 'HIT');
-          res.send(fromCache);
-          return;
+    app.use(
+      '/graphql',
+      withTiming('graphqlCache', async (req, res, next) => {
+        req.startAt = req.startAt || new Date();
+        const { cacheKey, cacheSlug } = getGraphqlCacheProperties(req) || {}; // Returns null if not cacheable (e.g. if logged in)
+        if (cacheKey) {
+          const fromCache = await cache.get(cacheKey);
+          if (fromCache) {
+            res.servedFromGraphqlCache = true;
+            req.endAt = req.endAt || new Date();
+            const executionTime = req.endAt - req.startAt;
+            res.set('Execution-Time', executionTime);
+            res.set('GraphQL-Cache', 'HIT');
+            res.send(fromCache);
+            return;
+          }
+          res.set('GraphQL-Cache', 'MISS');
+          req.cacheKey = cacheKey;
+          req.cacheSlug = cacheSlug;
         }
-        res.set('GraphQL-Cache', 'MISS');
-        req.cacheKey = cacheKey;
-        req.cacheSlug = cacheSlug;
-      }
-      next();
-    });
+        next();
+      }),
+    );
   }
 
   /**
    * GraphQL scope
    */
-  app.use('/graphql/v1', async (req, res, next) => {
-    // 1) We don't have proper "scope" handling in GraphQL v1, easy call is to restrict for OAuth
-    // 2) GraphQL v1 is not officially supported and should not be used by third party developers
-    if (req.userToken && req.userToken.type === 'OAUTH') {
-      // We need exceptions for prototype and internal tools
-      if (!req.userToken.client?.data?.enableGraphqlV1) {
-        const errorMessage = 'OAuth access tokens are not accepted on GraphQL v1';
-        logger.warn(errorMessage);
-        return next(new errors.Unauthorized(errorMessage));
+  app.use(
+    '/graphql/v1',
+    withTiming('graphqlScope', async (req, res, next) => {
+      // 1) We don't have proper "scope" handling in GraphQL v1, easy call is to restrict for OAuth
+      // 2) GraphQL v1 is not officially supported and should not be used by third party developers
+      if (req.userToken && req.userToken.type === 'OAUTH') {
+        // We need exceptions for prototype and internal tools
+        if (!req.userToken.client?.data?.enableGraphqlV1) {
+          const errorMessage = 'OAuth access tokens are not accepted on GraphQL v1';
+          logger.warn(errorMessage);
+          return next(new errors.Unauthorized(errorMessage));
+        }
       }
-    }
 
-    if (req.personalToken) {
-      if (req.personalToken.data?.allowGraphQLV1) {
-        logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
-      } else {
-        return next(new errors.Unauthorized('Personal Tokens are not accepted on GraphQL v1'));
+      if (req.personalToken) {
+        if (req.personalToken.data?.allowGraphQLV1) {
+          logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
+        } else {
+          return next(new errors.Unauthorized('Personal Tokens are not accepted on GraphQL v1'));
+        }
       }
-    }
-    next();
-  });
+      next();
+    }),
+  );
 
   /*
    * GraphQL server protection rules
@@ -335,7 +342,7 @@ export default async app => {
 
   // TODO: This sanitizer only applies to the routes below. It uses sanitize-html & some custom logic to remove all HTML tags.
   // It's not a good idea to use it globally, as it can break some routes that expect HTML content. We should aim at removing it.
-  app.use(sanitizer()); // note: this break /webhooks/mailgun /graphiql
+  app.use(withTiming('sanitizer', sanitizer())); // note: this break /webhooks/mailgun /graphiql
 
   /**
    * Users.
@@ -399,6 +406,16 @@ export default async app => {
    * Override default 404 handler to make sure to obfuscate api_key visible in URL
    */
   app.use((req, res) => res.sendStatus(404));
+
+  /**
+   * Cleanup middleware timing tracking
+   */
+  app.use((req, res, next) => {
+    if (req.middlewareTimingTracker) {
+      req.middlewareTimingTracker.clear();
+    }
+    next();
+  });
 
   /**
    * Error handler.

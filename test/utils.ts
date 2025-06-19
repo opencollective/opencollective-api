@@ -129,8 +129,16 @@ export const makeRequest = (
   res: { cookie: () => void };
   query?: string;
   variables?: Record<string, unknown>;
+  method: string;
+  baseUrl: string;
+  ip: string;
+  params: Record<string, string>;
 } => {
   return {
+    method: 'GET',
+    baseUrl: '/',
+    ip: '127.0.0.1',
+    params: {},
     remoteUser,
     jwtPayload,
     body: { query },

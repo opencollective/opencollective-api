@@ -288,7 +288,9 @@ export async function refundTransaction(
 
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
-  const result = await refundTransactionPayment(transaction, req.remoteUser, args.message, refundKind);
+  const result = await refundTransactionPayment(transaction, req.remoteUser, args.message, refundKind, {
+    ignoreBalanceCheck: args.ignoreBalanceCheck,
+  });
 
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.

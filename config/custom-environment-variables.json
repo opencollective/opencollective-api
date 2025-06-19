@@ -69,7 +69,9 @@
     "level": "LOG_LEVEL",
     "accessLogs": "ACCESS_LOGS",
     "slowRequest": "SLOW_REQUEST",
-    "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD"
+    "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD",
+    "slowMiddleware": "LOG_SLOW_MIDDLEWARE",
+    "slowMiddlewareThreshold": "LOG_SLOW_MIDDLEWARE_THRESHOLD"
   },
   "plaid": {
     "clientId": "PLAID_CLIENT_ID",

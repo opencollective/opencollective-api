@@ -42,6 +42,8 @@
 | ACCESS_LOGS                                   | .log.accessLogs                                    | Enable access logs                                                                 |
 | SLOW_REQUEST                                  | .log.slowRequest                                   | Enable slow request logging                                                        |
 | SLOW_REQUEST_THRESHOLD                        | .log.slowRequestThreshold                          | Slow request threshold                                                             |
+| LOG_SLOW_MIDDLEWARE                           | .log.slowMiddleware                                | Enable slow middleware logging                                                     |
+| LOG_SLOW_MIDDLEWARE_THRESHOLD                 | .log.slowMiddlewareThreshold                       | Slow middleware threshold (in milliseconds)                                        |
 | PLAID_CLIENT_ID                               | .plaid.clientId                                    | Plaid client ID                                                                    |
 | PLAID_SECRET                                  | .plaid.secret                                      | Plaid secret                                                                       |
 | PLAID_ENV                                     | .plaid.env                                         | Plaid environment                                                                  |

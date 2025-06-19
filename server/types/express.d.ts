@@ -1,11 +1,15 @@
+import type { Request as ExpressRequest } from 'express';
+
 import type { Loaders } from '../graphql/loaders';
+import type { MiddlewareTimingTracker } from '../lib/middleware-timing';
 import type { PersonalToken, User, UserToken } from '../models';
 
 declare global {
   namespace Express {
-    export interface Request {
+    export interface Request extends ExpressRequest {
       remoteUser?: User;
       isGraphQL?: boolean;
+      apiKey?: string;
       jwtPayload?: {
         sessionId?: string;
         scope?: string;
@@ -25,6 +29,10 @@ declare global {
       loaders: Loaders;
       rawBody?: string;
       params: Record<string, string>;
+      method: string;
+      baseUrl: string;
+      ip: string;
+      middlewareTimingTracker?: MiddlewareTimingTracker;
     }
   }
 }

@@ -758,11 +758,7 @@ describe('test/stories/ledger', () => {
       hostAdmin,
       contributorUser,
       baseOrderData,
-      {
-        feesPayer = 'COLLECTIVE',
-        paymentProcessorFeeInHostCurrency = 0,
-        refundedPaymentProcessorFeeInHostCurrency = 0,
-      } = {},
+      { feesPayer = 'COLLECTIVE', paymentProcessorFeeInHostCurrency = 0 } = {},
     ) => {
       const order = await fakeOrder(baseOrderData);
       order.paymentMethod = {
@@ -815,7 +811,7 @@ describe('test/stories/ledger', () => {
       });
 
       const paymentProvider = paymentProviders.opencollective.types.default;
-      await paymentProvider.refundTransaction(expenseTransaction, null, refundedPaymentProcessorFeeInHostCurrency);
+      await paymentProvider.refundTransaction(expenseTransaction, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
