@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/node';
 import config from 'config';
 import debugLib from 'debug';
 import gqlmin from 'gqlmin';
-import { get, isNil, omitBy, pick } from 'lodash';
+import { get, isNil, omitBy, pick, round } from 'lodash';
 import moment from 'moment';
 import passport from 'passport';
 
@@ -359,15 +359,28 @@ function getOAuthCallbackUrl(req) {
   }
 }
 
+const debugCheckPersonalToken = debugLib('check-personal-token');
+
 /**
  * Check Personal Token
  */
 export async function checkPersonalToken(req, res, next) {
+  const start = performance.now();
+  debugCheckPersonalToken(
+    `checkPersonalToken[%o][+%dms]: Starting function`,
+    req.ip,
+    round((performance.now() - start) / 1000, 5),
+  );
   const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
   const token = req.get('Personal-Token') || req.query.personalToken;
 
   if (apiKey || token) {
     const now = moment();
+    debugCheckPersonalToken(
+      `checkPersonalToken[%o][+%dms]: Fetching personal token`,
+      req.ip,
+      round((performance.now() - start) / 1000, 5),
+    );
     const personalToken = await models.PersonalToken.findOne({ where: { token: apiKey || token } });
     if (personalToken) {
       if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
@@ -378,31 +391,58 @@ export async function checkPersonalToken(req, res, next) {
       // Update lastUsedAt if lastUsedAt older than 1 minute ago
       if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
         if (!parseToBoolean(config.database.readOnly)) {
+          debugCheckPersonalToken(
+            `checkPersonalToken[%o][+%dms]: Updating lastUsedAt`,
+            req.ip,
+            round((performance.now() - start) / 1000, 5),
+          );
           await personalToken.update({ lastUsedAt: new Date() });
         }
       }
       req.personalToken = personalToken;
       const collectiveId = personalToken.CollectiveId;
       if (collectiveId) {
+        debugCheckPersonalToken(
+          `checkPersonalToken[%o][+%dms]: Fetching collective`,
+          req.ip,
+          round(performance.now() - start, 3),
+        );
         req.loggedInAccount = await models.Collective.findByPk(collectiveId);
         req.remoteUser = await models.User.findOne({
           where: { CollectiveId: collectiveId },
         });
 
         if (req.remoteUser) {
+          debugCheckPersonalToken(
+            `checkPersonalToken[%o][+%dms]: Populating roles`,
+            req.ip,
+            round(performance.now() - start, 3),
+          );
           await req.remoteUser.populateRoles();
         }
       }
+
+      debugCheckPersonalToken(`checkPersonalToken[%o][+%dms]: Next`, req.ip, round(performance.now() - start, 3));
       next();
     } else {
       clearRedirectCookie(res);
       debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
+      debugCheckPersonalToken(
+        `checkPersonalToken[%o][+%dms]: Next with error`,
+        req.ip,
+        round(performance.now() - start, 3),
+      );
       next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
     }
   } else {
     clearRedirectCookie(res);
     next();
     debug('No Personal Token (Api Key)');
+    debugCheckPersonalToken(
+      `checkPersonalToken[%o][+%dms]: Next (no token)`,
+      req.ip,
+      round(performance.now() - start, 3),
+    );
   }
 }
 
