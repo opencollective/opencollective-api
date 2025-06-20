@@ -1,15 +1,12 @@
 import assert from 'assert';
 
-import debugLib from 'debug';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, pick, round, uniq } from 'lodash';
+import { compact, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
-import { getStringIdentifiersFromRequest } from '../../../../lib/request-utils';
-import { stringifySequelizeOperators } from '../../../../lib/sql';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -212,8 +209,6 @@ export const OrdersCollectionArgs = {
     description: 'Return only orders made from/to these hosted accounts',
   },
 };
-
-const debug = debugLib('ordersCollectionQuery');
 
 export const OrdersCollectionResolver = async (args, req: express.Request) => {
   const where = { [Op.and]: [] };
@@ -523,24 +518,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
   const { offset, limit } = args;
   return {
-    nodes: async () => {
-      const start = performance.now();
-      const result = await models.Order.findAll({ include, where, order, offset, limit });
-      if (debug.enabled) {
-        const end = performance.now();
-        const queryInfo = getStringIdentifiersFromRequest(req);
-        debug(
-          `ordersCollectionQuery.findAll: %dms. [%s]`,
-          round(end - start, 2),
-          Object.values(pick(queryInfo, ['user', 'graphql'])).join(', '),
-        );
-        if (end - start > 1000) {
-          debug(`ordersCollectionQuery.findAll_slow_args: %o, where: %s`, args, stringifySequelizeOperators(where));
-        }
-      }
-
-      return result;
-    },
+    nodes: () => models.Order.findAll({ include, where, order, offset, limit }),
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
