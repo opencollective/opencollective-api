@@ -36,6 +36,7 @@ import {
 } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
 
+import * as accountingCategoryLoaders from './accounting-categories';
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
 import commentsLoader from './comments';
@@ -86,6 +87,10 @@ export const generateLoaders = req => {
 
   const loaders = {
     ...context.loaders,
+    AccountingCategory: {
+      ...context.loaders.AccountingCategory,
+      fetchPredictionForExpense: accountingCategoryLoaders.fetchPredictionForExpense(req),
+    },
     CurrencyExchangeRate: {
       ...context.loaders.CurrencyExchangeRate,
       convert: generateConvertToCurrencyLoader(),
