@@ -20,7 +20,6 @@
  *       :myValue
  *     )
  *  )
- * )
  */
 export const deepJSONBSet = (field: string, path: string[], value: string) => {
   return deepJSONBSetRecursive(field, path, value, 0);
@@ -37,4 +36,39 @@ const deepJSONBSetRecursive = (field: string, path: string[], value: string, lev
 
   // It's then re-encoded as JSONB with the `::JSONB`.
   return `JSONB_SET(COALESCE(${currentPathStr}, '{}')::JSONB, '{${path[level]}}', ${subQuery})`;
+};
+
+type WhereOperation = Record<string, any> & { deletedAt?: never };
+
+/**
+ * Recursively replaces Sequelize operators with their string representation
+ */
+export const stringifySequelizeOperators = (value: WhereOperation): string => {
+  return JSON.stringify(_stringifySequelizeOperators(value));
+};
+
+const _stringifySequelizeOperators = (value: WhereOperation): any => {
+  const result: Record<string, any> = {};
+
+  if (typeof value === 'object') {
+    for (const symbol of Object.getOwnPropertySymbols(value)) {
+      const newKey = symbol.toString();
+      const rawValue = value[symbol as unknown as string];
+      if (rawValue && typeof rawValue === 'object') {
+        result[newKey] = _stringifySequelizeOperators(rawValue);
+      } else {
+        result[newKey] = rawValue;
+      }
+    }
+
+    for (const [key, val] of Object.entries(value)) {
+      if (val && typeof val === 'object') {
+        result[key] = _stringifySequelizeOperators(val);
+      } else {
+        result[key] = val;
+      }
+    }
+  }
+
+  return result;
 };
