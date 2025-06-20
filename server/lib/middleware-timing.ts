@@ -1,8 +1,8 @@
 import config from 'config';
 import { NextFunction, Request, Response } from 'express';
+import { truncate } from 'lodash';
 
 import logger from './logger';
-import { getStringIdentifiersFromRequest } from './request-utils';
 import { timing } from './statsd';
 import { parseToBoolean } from './utils';
 
@@ -51,11 +51,17 @@ export class MiddlewareTimingTracker {
    * @param duration - Execution time in milliseconds
    */
   private logSlowMiddleware(middlewareName: string, duration: number): void {
-    const queryInfo = getStringIdentifiersFromRequest(this.req);
+    const userInfo = this.req.remoteUser ? `user:${this.req.remoteUser.id}` : '';
+    const userTokenInfo = this.req.userToken ? `userToken:${this.req.userToken.id}` : '';
+    const personalTokenInfo = this.req.personalToken ? `token:${this.req.personalToken.id}` : '';
+    const apiKeyInfo = this.req.apiKey ? `apiKey:${this.req.apiKey}` : '';
+    const ipInfo = this.req.ip ? `ip:${this.req.ip}` : '';
+    const identifiers = [userInfo, personalTokenInfo, apiKeyInfo, userTokenInfo, ipInfo].filter(Boolean).join(', ');
+    const graphqlOperationName =
+      typeof this.req['body']?.operationName === 'string' ? this.req['body'].operationName : '';
+
     logger.warn(
-      `Slow middleware detected: ${middlewareName} took ${duration.toFixed(2)}ms - ${this.req.method} ${this.req.baseUrl} (${Object.values(
-        queryInfo,
-      ).join(', ')})`,
+      `Slow middleware detected: ${middlewareName} took ${duration.toFixed(2)}ms - ${this.req.method} ${this.req.baseUrl}${graphqlOperationName ? ` (GQL ${truncate(graphqlOperationName, { length: 50 })})` : ''} - ${identifiers}`,
     );
   }
 

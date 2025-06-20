@@ -3,7 +3,6 @@ import '../../server/env';
 import { ModelStatic } from 'sequelize';
 
 import logger from '../../server/lib/logger';
-import { stringifySequelizeOperators } from '../../server/lib/sql';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
@@ -22,6 +21,29 @@ enum RetentionPeriod {
 type AdditionalConditions = Record<string, any> & { deletedAt?: never };
 
 type ModelRetentionPeriodSettings = [ModelStatic<any>, RetentionPeriod, AdditionalConditions?];
+
+/**
+ * Recursively replaces Sequelize operators with their string representation
+ */
+const stringifySequelizeOperators = (value: AdditionalConditions): any => {
+  const result: Record<string, any> = {};
+
+  if (typeof value === 'object') {
+    for (const symbol of Object.getOwnPropertySymbols(value)) {
+      result[symbol.toString()] = value[symbol as unknown as string];
+    }
+
+    for (const [key, val] of Object.entries(value)) {
+      if (typeof val === 'object') {
+        result[key] = stringifySequelizeOperators(val);
+      } else {
+        result[key] = val.toString();
+      }
+    }
+  }
+
+  return JSON.stringify(result);
+};
 
 const MODEL_RETENTION_PERIODS: ModelRetentionPeriodSettings[] = [
   [models.Comment, RetentionPeriod.FINANCIAL, { ExpenseId: { [Op.not]: null } }],
