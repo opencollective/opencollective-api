@@ -51,6 +51,18 @@ See the [dev docs](docs/dev.md) for querying basics.
 - If you're running into `node-gyp` issues related to Python 3 vs Python 2, you can run: `npm rebuild`
 - If you have issues with PostgreSQL, check our [dedicated documentation](docs/postgres.md)
 
+### Running tests
+
+If your setup requires some specific values (e.g. custom database URL), create a `.env.test` file in the root of the project and set the values there.
+
+To setup the test database, run `npm run db:restore:test`.
+
+Tests can then be run with `npm run test` or `npm run test:watch` (watch mode). Since the full test suite can be quite heavy, we recommend passing the files you want to test as arguments to the command:
+
+```bash
+npm run test test/server/models/SocialLink.test.ts
+```
+
 ## Deployment
 
 **Summary**: This project is currently deployed to staging and production with [Heroku](https://www.heroku.com/). To deploy, you need to be a core member of the Open Collective team.
