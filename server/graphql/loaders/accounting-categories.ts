@@ -3,7 +3,9 @@ import { groupBy } from 'lodash';
 
 import { FEATURE, hasFeature } from '../../lib/allowed-features';
 import { fetchExpenseCategoryPredictionsWithLLM } from '../../lib/ml-service';
-import models, { AccountingCategory, Collective, Expense } from '../../models';
+import { reportErrorToSentry } from '../../lib/sentry';
+import { deepJSONBSet } from '../../lib/sql';
+import models, { AccountingCategory, Collective, Expense, sequelize } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 
 /**
@@ -34,12 +36,13 @@ async function* getExpensesBatch(
   );
 
   // Filter out expenses that can't be predicted
+  console.log('expenses', expenses[0].host.data.features);
   expenses = expenses.filter(
     expense => expense.host && hasFeature(expense.host, FEATURE.ACCOUNTING_CATEGORY_PREDICTIONS),
   );
 
   const expensesByHost = groupBy(expenses, 'host.id');
-  for (const hostId in Object.values(expensesByHost)) {
+  for (const hostId of Object.keys(expensesByHost)) {
     const hostExpenses = expensesByHost[hostId];
     const accountingCategories = await models.AccountingCategory.findAll({
       where: { CollectiveId: hostId, kind: 'EXPENSE' },
@@ -48,11 +51,14 @@ async function* getExpensesBatch(
     // Group by appliesTo within this host
     const hostExpensesByAppliesTo: Partial<Record<AccountingCategoryAppliesTo, Expense[]>> = groupBy(
       hostExpenses,
-      expense => (expense.CollectiveId === Number(hostId) ? 'HOST' : 'HOSTED_COLLECTIVES'),
+      expense =>
+        [expense.collective.id, expense.collective.ParentCollectiveId].includes(Number(hostId))
+          ? 'HOST'
+          : 'HOSTED_COLLECTIVES',
     );
 
     // Process each appliesTo group
-    for (const appliesTo in Object.keys(hostExpensesByAppliesTo)) {
+    for (const appliesTo of Object.keys(hostExpensesByAppliesTo)) {
       const appliesToExpenses = hostExpensesByAppliesTo[appliesTo];
 
       // Yield in batches of max 10
@@ -120,20 +126,38 @@ export const fetchPredictionForExpense = (req: Express.Request): DataLoader<Expe
         appliesTo: batch.appliesTo,
       }));
 
-      const fetchedPredictions = await fetchExpenseCategoryPredictionsWithLLM(
-        batch.host.slug,
-        preparedExpenses,
-        batch.accountingCategories,
-      );
+      try {
+        const fetchedPredictions = await fetchExpenseCategoryPredictionsWithLLM(
+          batch.host.slug,
+          preparedExpenses,
+          batch.accountingCategories,
+        );
 
-      for (const prediction of fetchedPredictions.expenses) {
-        const expense = batch.expenses.find(expense => expense.id === prediction.id);
-        if (expense) {
-          const validPrediction = getFirstValidPrediction(expense, batch.accountingCategories, prediction);
-          if (validPrediction) {
-            predictions[expense.id] = validPrediction;
+        for (const prediction of fetchedPredictions.expenses) {
+          const expense = batch.expenses.find(expense => expense.id === prediction.id);
+          if (expense) {
+            const validPrediction = getFirstValidPrediction(expense, batch.accountingCategories, prediction);
+            if (validPrediction) {
+              predictions[expense.id] = validPrediction;
+              await sequelize.query(
+                `
+                UPDATE "Expenses"
+                SET "data" = ${deepJSONBSet('data', ['valuesByRole', 'prediction', 'accountingCategory'], ':categoryInfo')}
+                WHERE "id" = :expenseId
+              `,
+                {
+                  replacements: {
+                    categoryInfo: JSON.stringify(validPrediction.publicInfo),
+                    expenseId: expense.id,
+                  },
+                },
+              );
+            }
           }
         }
+      } catch (error) {
+        // Report error, but continue with the next batch
+        reportErrorToSentry(error);
       }
     }
 

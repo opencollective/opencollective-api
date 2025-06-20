@@ -96,7 +96,7 @@ const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = [
 ];
 const EXPENSE_DRAFT_ITEMS_PRIVATE_FIELDS = ['url'];
 
-const loadHostForExpense = async (expense, req) => {
+const loadHostForExpense = async (expense: ExpenseModel, req: Express.Request) => {
   return expense.HostCollectiveId
     ? req.loaders.Collective.byId.load(expense.HostCollectiveId)
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);

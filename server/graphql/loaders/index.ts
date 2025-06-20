@@ -89,7 +89,7 @@ export const generateLoaders = req => {
     ...context.loaders,
     AccountingCategory: {
       ...context.loaders.AccountingCategory,
-      fetchPredictionForExpense: accountingCategoryLoaders.fetchPredictionForExpense(),
+      fetchPredictionForExpense: accountingCategoryLoaders.fetchPredictionForExpense(req),
     },
     CurrencyExchangeRate: {
       ...context.loaders.CurrencyExchangeRate,
