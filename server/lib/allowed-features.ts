@@ -84,6 +84,7 @@ const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
   [FEATURE.EMAIL_NOTIFICATIONS_PANEL]: 'settings.features.emailNotificationsPanel',
   [FEATURE.STRIPE_PAYMENT_INTENT]: 'settings.features.stripePaymentIntent',
+  [FEATURE.ACCOUNTING_CATEGORY_PREDICTIONS]: 'data.features.accountingCategoryPredictions',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([

@@ -217,6 +217,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           }
         },
       },
+      accountingCategoryPrediction: {
+        type: GraphQLAccountingCategory,
+        description: 'The accounting category predictions for this expense',
+        async resolve(expense, _, req) {
+          const host = await loadHostForExpense(expense, req);
+          if (req.remoteUser.isAdminOfCollective(host)) {
+            return req.loaders.AccountingCategory.fetchPredictionForExpense.load(expense);
+          }
+        },
+      },
       valuesByRole: {
         type: GraphQLExpenseValuesByRole,
         description:

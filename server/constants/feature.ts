@@ -1,6 +1,8 @@
 enum FEATURE {
   /** Wildcard feature used to freeze and unfreeze collectives */
   ALL = 'ALL',
+  /** Whether this profile can use accounting category predictions */
+  ACCOUNTING_CATEGORY_PREDICTIONS = 'ACCOUNTING_CATEGORY_PREDICTIONS',
   /** Whether people can financially contribute to this initiative */
   RECEIVE_FINANCIAL_CONTRIBUTIONS = 'RECEIVE_FINANCIAL_CONTRIBUTIONS',
   /** Whether this profile can make recurring contributions */

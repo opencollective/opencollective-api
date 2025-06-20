@@ -15,7 +15,7 @@ export type ExpenseCategoryPrediction = {
   confidence: number;
 };
 
-export type ExpensePredictions = { id: string; predictions: ExpenseCategoryPrediction[] };
+export type ExpensePredictions = { id: number | string; predictions: ExpenseCategoryPrediction[] };
 export type FetchPredictionsResult = { expenses: ExpensePredictions[] };
 
 /**
