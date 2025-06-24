@@ -342,6 +342,8 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       transaction.kind === EXPENSE &&
       transaction.type === CREDIT &&
       !transaction.isRefund &&
+      // Expense paid with stripe are accounted by the receiving end, so its allowed to be initiated here as
+      // a credit to the host receiving the expense payment.
       transaction.PaymentMethod?.service !== PAYMENT_METHOD_SERVICE.STRIPE
     ) {
       throw new Error('Transaction kind=EXPENSE should be initiated as a DEBIT transaction.');
@@ -481,7 +483,11 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
 
       // Handle Host Fee when paying an Expense between Hosts
       // TODO: This should not be part of `createDoubleEntry`, maybe `createTransactionsFromPaidExpense`?
-      if (oppositeTransaction.kind === 'EXPENSE' && !oppositeTransaction.isRefund) {
+      if (
+        transaction.PaymentMethod?.service !== PAYMENT_METHOD_SERVICE.STRIPE && // stripe case handled at in contribution flow
+        oppositeTransaction.kind === 'EXPENSE' &&
+        !oppositeTransaction.isRefund
+      ) {
         const collective = await Collective.findByPk(transaction.CollectiveId);
         const collectiveHost = await collective.getHostCollective();
         if (collectiveHost.id !== fromCollectiveHost.id) {
