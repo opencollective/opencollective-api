@@ -193,6 +193,14 @@ const isCollectiveOrHostAccountant = async (req: express.Request, expense: Expen
   }
 };
 
+const isPlatformAdmin = async (req: express.Request): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  return req.remoteUser.isAdminOfPlatform();
+};
+
 const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -948,6 +956,10 @@ export const canReject: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
+    if (expense.type === ExpenseType.SETTLEMENT) {
+      return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
+    }
+
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
@@ -1121,6 +1133,14 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
       );
     }
     return false;
+  } else if (expense.type === ExpenseType.SETTLEMENT) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not mark settlement expense as incomplete`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
   }
 
   return true;
@@ -1218,14 +1238,11 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else if (
-    expense.type === ExpenseType.SETTLEMENT &&
-    expense.FromCollectiveId === PlatformConstants.PlatformCollectiveId &&
-    req.remoteUser.isRoot()
-  ) {
-    // Allow platform admins to mark settlements as unpaid
-    return true;
   } else {
+    if (expense.type === ExpenseType.SETTLEMENT) {
+      return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
+    }
+
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
 };
@@ -1325,6 +1342,11 @@ export const canPutOnHold: ExpensePermissionEvaluator = async (
         'Only approved expenses that are not on hold can be put on hold',
         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
       );
+    }
+    return false;
+  } else if (expense.type === ExpenseType.SETTLEMENT) {
+    if (options?.throw) {
+      throw new Forbidden(`Can not put settlement expense on hold`, EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
     return false;
   }
@@ -3470,7 +3492,7 @@ export const checkHasBalanceToPayExpense = async (
     assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
     const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
     const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
-    if (balanceInHostCurrency < totalAmountPaidInHostCurrency) {
+    if (expense.type !== ExpenseType.SETTLEMENT && balanceInHostCurrency < totalAmountPaidInHostCurrency) {
       throw new Error(
         `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
           balanceInHostCurrency,
@@ -3533,8 +3555,10 @@ export const checkHasBalanceToPayExpense = async (
     }
   };
 
-  // Check base balance before fees
-  assertMinExpectedBalance(expense.amount);
+  if (expense.type !== ExpenseType.SETTLEMENT) {
+    // Check base balance before fees
+    assertMinExpectedBalance(expense.amount);
+  }
 
   const { feesInHostCurrency, feesInCollectiveCurrency, feesInExpenseCurrency } = await getExpenseFees(expense, host, {
     fees: manualFees,
@@ -3552,9 +3576,11 @@ export const checkHasBalanceToPayExpense = async (
     throw new Error(`Expense fee payer "${expense.feesPayer}" not supported yet`);
   }
 
-  // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
-  // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
-  assertMinExpectedBalance(totalAmountToPay, feesInExpenseCurrency.paymentProcessorFee);
+  if (expense.type !== ExpenseType.SETTLEMENT) {
+    // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
+    // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
+    assertMinExpectedBalance(totalAmountToPay, feesInExpenseCurrency.paymentProcessorFee);
+  }
 
   return { feesInCollectiveCurrency, feesInExpenseCurrency, feesInHostCurrency, totalAmountToPay };
 };

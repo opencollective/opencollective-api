@@ -24,7 +24,7 @@ import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
-import ExpenseModel, { ExpenseLockableFields } from '../../../models/Expense';
+import ExpenseModel, { ExpenseLockableFields, ExpenseType } from '../../../models/Expense';
 import { createComment } from '../../common/comment';
 import {
   approveExpense,
@@ -734,8 +734,8 @@ const expenseMutations = {
       const payee = expense.fromCollective;
       const payer = expense.collective;
 
-      if (!req.remoteUser.isAdminOfCollective(payer)) {
-        throw new Unauthorized();
+      if (expense.type !== ExpenseType.SETTLEMENT) {
+        throw new Forbidden('Cannot use STRIPE expense payment for this expense');
       }
 
       if (!(await canPayExpense(req, expense))) {
