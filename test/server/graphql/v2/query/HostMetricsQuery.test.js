@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import moment from 'moment';
 import { useFakeTimers } from 'sinon';
 
 import PlatformConstants, { getPlatformConstantsForDate } from '../../../../../server/constants/platform';
 import { processOrder } from '../../../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
-import moment from 'moment';
 
 describe('server/graphql/v2/query/HostMetricsQuery', () => {
   before(resetTestDB);
