@@ -211,7 +211,7 @@ describe('server/lib/transactions', () => {
         },
       };
 
-      Object.entries(scenarios).map(([name, scenario]) => {
+      Object.entries(scenarios).forEach(([name, scenario]) => {
         const fn = scenario.only ? it.only : it;
         fn(name, async () => {
           const host = await fakeActiveHost({
