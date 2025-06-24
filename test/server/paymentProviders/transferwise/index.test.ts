@@ -141,6 +141,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       data: {
         type: 'business',
         id: 0,
+        firstLevelCategory: 'CHARITY_NON_PROFIT',
         details: {
           companyType: 'NON_PROFIT_CORPORATION',
         },
