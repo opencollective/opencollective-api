@@ -19,6 +19,7 @@ import {
   round,
   set,
   split,
+  toLower,
   toNumber,
 } from 'lodash';
 import moment from 'moment';
@@ -579,10 +580,10 @@ async function getAvailableCurrencies(
   let currencyBlockList = [];
   if (ignoreBlockedCurrencies) {
     currencyBlockList = blockedCurrencies;
-    if (connectedAccount.data?.type === 'business') {
+    if (toLower(connectedAccount.data?.type) === 'business') {
       currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForBusinessProfiles];
     }
-    if (connectedAccount.data?.details?.companyType === 'NON_PROFIT_CORPORATION') {
+    if (connectedAccount.data?.firstLevelCategory === 'CHARITY_NON_PROFIT') {
       currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForNonProfits];
     }
     if (connectedAccount.data?.blockedCurrencies) {
@@ -609,7 +610,7 @@ function validatePayoutMethod(connectedAccount: ConnectedAccount, payoutMethod: 
     throw new Error(`Sorry, this host's business profile can not create a transaction to ${currency}`);
   }
   if (
-    connectedAccount.data?.details?.companyType === 'NON_PROFIT_CORPORATION' &&
+    connectedAccount.data?.firstLevelCategory === 'CHARITY_NON_PROFIT' &&
     blockedCurrenciesForNonProfits.includes(currency)
   ) {
     throw new Error(`Sorry, this host's non profit corporation can not create a transaction to ${currency}`);
