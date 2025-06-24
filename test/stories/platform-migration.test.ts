@@ -4,7 +4,7 @@ import { createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
 import { PAYMENT_METHOD_SERVICE } from '../../server/constants/paymentMethods';
-import PlatformConstants, { __setIsTestingMigration } from '../../server/constants/platform';
+import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../server/constants/transactions';
 import stripe from '../../server/lib/stripe';
@@ -17,12 +17,10 @@ import { graphqlQueryV2, resetTestDB } from '../utils';
 describe('platform constants', () => {
   let sandbox;
   beforeEach(() => {
-    __setIsTestingMigration(true);
     sandbox = createSandbox();
   });
   afterEach(() => {
     sandbox.restore();
-    __setIsTestingMigration(false);
   });
 
   it('platform collective id is same before migration cutoff', () => {
@@ -39,7 +37,6 @@ describe('platform constants', () => {
 describe('platform transactions', () => {
   let sandbox;
   beforeEach(async () => {
-    __setIsTestingMigration(true);
     sandbox = createSandbox();
     stubStripePayments(sandbox);
     stubPaypalPayments(sandbox);
@@ -58,7 +55,6 @@ describe('platform transactions', () => {
 
   afterEach(() => {
     sandbox.restore();
-    __setIsTestingMigration(false);
   });
 
   const StripeOrderData = {
