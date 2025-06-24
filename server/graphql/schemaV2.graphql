@@ -3820,6 +3820,7 @@ type Host implements Account & AccountWithContributions {
   EXPERIMENTAL (this may change or be removed)
   """
   hostTransactionsReports(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): HostTransactionReports
+  hostStats(hostContext: HostContext = ALL): HostStats!
   hostMetrics(
     """
     A collection of accounts for which the metrics should be returned.
@@ -3835,7 +3836,7 @@ type Host implements Account & AccountWithContributions {
     The end date of the time series
     """
     dateTo: DateTime
-  ): HostMetrics!
+  ): HostMetrics! @deprecated(reason: "2025-06-24: Low performance query, see if `hostStats` is sufficient")
   hostMetricsTimeSeries(
     """
     A collection of accounts for which the metrics should be returned.
@@ -4090,6 +4091,11 @@ type Host implements Account & AccountWithContributions {
     Rank vendors based on their relationship with this account
     """
     forAccount: AccountReferenceInput
+
+    """
+    Only returns vendors that are visible to the given accounts
+    """
+    visibleToAccounts: [AccountReferenceInput]
 
     """
     Filter on archived vendors
@@ -4542,7 +4548,7 @@ type LegalDocument {
   """
   Whether this legal document is expired
   """
-  isExpired: Boolean!
+  isExpired: Boolean! @deprecated(reason: "2025-05-27: Use \"status\" = \"EXPIRED\" instead")
 
   """
   The date and time the request for this legal document was created
@@ -7010,6 +7016,69 @@ type HostTransactionReportNode {
   operationalFunds: TransactionReport!
 }
 
+type HostStats {
+  balance(
+    """
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+  ): Amount
+  totalAmountSpent(
+    """
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Calculate amount after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+
+    """
+    Include transactions using Gift Cards
+    """
+    includeGiftCards: Boolean = false
+  ): Amount
+  totalAmountReceived(
+    """
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Calculate amount after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+  ): Amount
+}
+
+enum HostContext {
+  """
+  Both the Host Organizations internal accounts and Hosted Collectives
+  """
+  ALL
+
+  """
+  Only the Host Organization (including its projects/events)
+  """
+  INTERNAL
+
+  """
+  Only Hosted Collectives (including their projects/events)
+  """
+  HOSTED
+}
+
 """
 Host metrics related to collected and pending fees/tips.
 """
@@ -7736,6 +7805,11 @@ type ExpenseValuesByRole {
   The values provided by the host admin(s)
   """
   hostAdmin: ExpenseValuesRoleDetails
+
+  """
+  The values provided by the prediction service
+  """
+  prediction: ExpenseValuesRoleDetails
 }
 
 type ExpenseValuesRoleDetails {
@@ -15257,6 +15331,11 @@ type Vendor implements Account & AccountWithContributions {
   The account who created this order
   """
   createdByAccount: Account
+
+  """
+  The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host
+  """
+  visibleToAccounts: [Account]!
 }
 
 """
@@ -24719,6 +24798,7 @@ input VendorCreateInput {
   imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
+  visibleToAccounts: [AccountReferenceInput]
 
   """
   The profile avatar image
@@ -24773,6 +24853,7 @@ input VendorEditInput {
   imageUrl: String @deprecated(reason: "2024-11-26: Please use image + backgroundImage fields")
   vendorInfo: VendorInfoInput
   payoutMethod: PayoutMethodInput
+  visibleToAccounts: [AccountReferenceInput]
 
   """
   The profile avatar image

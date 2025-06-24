@@ -16,7 +16,7 @@ const DEFAULT_BUDGET_VERSION = 'v2';
 
 const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
 
-async function sumTransactionsInCurrency(results, currency) {
+export async function sumTransactionsInCurrency(results, currency) {
   let total = 0;
 
   for (const result of Object.values(results)) {
