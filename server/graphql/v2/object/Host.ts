@@ -58,6 +58,7 @@ import {
 } from '../enum';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
+import GraphQLHostContext from '../enum/HostContext';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
@@ -99,6 +100,7 @@ import { GraphQLHostExpensesReports } from './HostExpensesReport';
 import { GraphQLHostMetrics } from './HostMetrics';
 import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
+import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPaymentMethod } from './PaymentMethod';
@@ -425,8 +427,40 @@ export const GraphQLHost = new GraphQLObjectType({
           };
         },
       },
+      hostStats: {
+        type: new GraphQLNonNull(GraphQLHostStats),
+        args: {
+          hostContext: {
+            type: GraphQLHostContext,
+            defaultValue: 'ALL',
+          },
+        },
+        async resolve(host, args) {
+          let collectiveIds: number[];
+
+          const allHostedCollectiveIds = (await host.getHostedCollectives({ attributes: ['id'], raw: true })).map(
+            ({ id }) => id,
+          );
+
+          if (args.hostContext === 'ALL') {
+            collectiveIds = allHostedCollectiveIds;
+          } else {
+            const hostInternalChildren = (await host.getChildren({ attributes: ['id'], raw: true })).map(
+              ({ id }) => id,
+            );
+            const hostInternalIds = [host.id, ...hostInternalChildren];
+            if (args.hostContext === 'INTERNAL') {
+              collectiveIds = hostInternalIds;
+            } else if (args.hostContext === 'HOSTED') {
+              collectiveIds = allHostedCollectiveIds.filter(collectiveId => !hostInternalIds.includes(collectiveId));
+            }
+          }
+          return { host, collectiveIds };
+        },
+      },
       hostMetrics: {
         type: new GraphQLNonNull(GraphQLHostMetrics),
+        deprecationReason: '2025-06-24: Low performance query, see if `hostStats` is sufficient',
         args: {
           account: {
             type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
