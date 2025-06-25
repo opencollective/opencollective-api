@@ -7,9 +7,9 @@ module.exports = {
 
     await queryInterface.sequelize.query(`
       INSERT INTO "PayoutMethods"
-        ("CollectiveId", "CreatedByUserId", "isSaved", "createdAt", "updatedAt", "name", "type", 
+        ("CollectiveId", "CreatedByUserId", "isSaved", "createdAt", "updatedAt", "type", 
           "data")
-      SELECT "CollectiveId", "CreatedByUserId", true, NOW(), NOW(), username, 'STRIPE', 
+      SELECT "CollectiveId", "CreatedByUserId", true, NOW(), NOW(), 'STRIPE', 
           jsonb_build_object(
             'connectedAccountId', id, 
             'stripeAccountId', username,

@@ -150,7 +150,6 @@ ConnectedAccount.init(
             CollectiveId: connectedAccount.CollectiveId,
             CreatedByUserId: connectedAccount.CreatedByUserId,
             isSaved: true,
-            name: connectedAccount.username,
             type: PayoutMethodTypes.STRIPE,
             data: {
               connectedAccountId: connectedAccount.id,

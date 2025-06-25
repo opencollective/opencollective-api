@@ -200,7 +200,9 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   }
 
   static typeSupportsFeesPayer = (payoutMethodType: PayoutMethodTypes): boolean => {
-    return [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.OTHER].includes(payoutMethodType);
+    return [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.OTHER, PayoutMethodTypes.STRIPE].includes(
+      payoutMethodType,
+    );
   };
 
   /** Filters out all the fields that cannot be edited by user */

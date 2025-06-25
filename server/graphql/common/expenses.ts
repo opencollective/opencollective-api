@@ -2236,6 +2236,10 @@ export async function createExpense(
       ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
       : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
+  if (payoutMethod.type === PayoutMethodTypes.STRIPE && expenseData.type !== ExpenseType.SETTLEMENT) {
+    throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
+  }
+
   // Create and validate TransferWise recipient
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
@@ -2940,6 +2944,10 @@ export async function editExpense(
           ? await fromCollective.getPayoutMethods().then(first)
           : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
+      if (payoutMethod.type === PayoutMethodTypes.STRIPE && expenseType !== ExpenseType.SETTLEMENT) {
+        throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
+      }
+
       // Reset fees payer when changing the payout method and the new one doesn't support it
       if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
         feesPayer = ExpenseFeesPayer.COLLECTIVE;
@@ -3480,12 +3488,15 @@ export const checkHasBalanceToPayExpense = async (
   if (expense.feesPayer === 'PAYEE') {
     assert(
       models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
-      'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
+      'Putting the payment processor fees on the payee is only supported for bank accounts, manual payouts and stripe at the moment',
     );
-    assert(
-      expense.currency === expense.collective.currency,
-      'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
-    );
+
+    if (payoutMethodType !== PayoutMethodTypes.STRIPE) {
+      assert(
+        expense.currency === expense.collective.currency,
+        'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
+      );
+    }
   }
 
   if (forceManual) {
