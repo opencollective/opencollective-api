@@ -53,7 +53,7 @@ describe('server/graphql/v1/invoices', () => {
 
   describe('return transactions', () => {
     it('fails to return list of invoices for a given user if not logged in as that user', async () => {
-      const query = gqlV1/* GraphQL */ `
+      const query = gqlV1 /* GraphQL */ `
         query AllInvoices($fromCollectiveSlug: String!) {
           allInvoices(fromCollectiveSlug: $fromCollectiveSlug) {
             year
@@ -73,7 +73,7 @@ describe('server/graphql/v1/invoices', () => {
     });
 
     it('returns list of invoices for a given user', async () => {
-      const query = gqlV1/* GraphQL */ `
+      const query = gqlV1 /* GraphQL */ `
         query AllInvoices($fromCollectiveSlug: String!) {
           allInvoices(fromCollectiveSlug: $fromCollectiveSlug) {
             year

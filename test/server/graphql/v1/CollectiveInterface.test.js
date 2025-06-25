@@ -5,7 +5,7 @@ import { executeOrder } from '../../../../server/lib/payments';
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
-const collectiveQuery = gqlV1/* GraphQL */ `
+const collectiveQuery = gqlV1 /* GraphQL */ `
   query Collective($slug: String) {
     Collective(slug: $slug) {
       members {

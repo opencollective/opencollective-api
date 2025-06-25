@@ -44,7 +44,7 @@ describe('server/graphql/v1/notifications', () => {
   });
 
   describe('create webhook notifications', () => {
-    const createWebhookMutation = gqlV1/* GraphQL */ `
+    const createWebhookMutation = gqlV1 /* GraphQL */ `
       mutation CreateWebhook($collectiveSlug: String!, $notification: NotificationInputType!) {
         createWebhook(collectiveSlug: $collectiveSlug, notification: $notification) {
           id
@@ -143,7 +143,7 @@ describe('server/graphql/v1/notifications', () => {
   });
 
   describe('delete webhook notifications', () => {
-    const deleteWebhookMutation = gqlV1/* GraphQL */ `
+    const deleteWebhookMutation = gqlV1 /* GraphQL */ `
       mutation DeleteWebhook($id: Int!) {
         deleteNotification(id: $id) {
           id
