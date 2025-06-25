@@ -140,7 +140,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       await createAddedFunds(google);
 
       // We fetch all the fromCollectives using the host paymentMethod
-      const paymentMethodQuery = gqlV1/* GraphQL */ `
+      const paymentMethodQuery = gqlV1 /* GraphQL */ `
         query PaymentMethod($id: Int!) {
           PaymentMethod(id: $id) {
             id
@@ -184,7 +184,7 @@ describe('server/graphql/v1/paymentMethods', () => {
     });
 
     it('returns the balance', async () => {
-      const collectiveQuery = gqlV1/* GraphQL */ `
+      const collectiveQuery = gqlV1 /* GraphQL */ `
         query Collective($slug: String) {
           Collective(slug: $slug) {
             id

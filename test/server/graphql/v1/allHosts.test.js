@@ -60,7 +60,7 @@ describe('server/graphql/v1/allHosts', () => {
   });
 
   describe('hosts', () => {
-    const allHostsQuery = gqlV1/* GraphQL */ `
+    const allHostsQuery = gqlV1 /* GraphQL */ `
       query AllHosts($tags: [String], $currency: String) {
         allHosts(tags: $tags, currency: $currency) {
           total

@@ -7,7 +7,7 @@ import * as utils from '../../../utils';
 
 describe('server/graphql/v1/connectedAccounts', () => {
   let user, admin, backer, collective, connectedAccount, connectedAccountData;
-  const editConnectedAccountMutation = gqlV1/* GraphQL */ `
+  const editConnectedAccountMutation = gqlV1 /* GraphQL */ `
     mutation EditConnectedAccount($connectedAccount: ConnectedAccountInputType!) {
       editConnectedAccount(connectedAccount: $connectedAccount) {
         id

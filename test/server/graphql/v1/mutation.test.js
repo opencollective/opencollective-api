@@ -85,7 +85,7 @@ describe('server/graphql/v1/mutation', () => {
   });
 
   describe('createCollective tests', () => {
-    const createCollectiveMutation = gqlV1/* GraphQL */ `
+    const createCollectiveMutation = gqlV1 /* GraphQL */ `
       mutation CreateCollective($collective: CollectiveInputType!) {
         createCollective(collective: $collective) {
           id
@@ -175,7 +175,7 @@ describe('server/graphql/v1/mutation', () => {
         expect(members).to.have.length(1);
         expect(members[0].role).to.equal(roles.HOST);
         expect(members[0].MemberCollectiveId).to.equal(collective1.HostCollectiveId);
-        const updateQuery = gqlV1/* GraphQL */ `
+        const updateQuery = gqlV1 /* GraphQL */ `
           mutation EditCollective($collective: CollectiveInputType!) {
             editCollective(collective: $collective) {
               id
@@ -199,7 +199,7 @@ describe('server/graphql/v1/mutation', () => {
 
   describe('editCollective tests', () => {
     describe('change the hostFeePercent of the host', () => {
-      const updateHostFeePercentMutation = gqlV1/* GraphQL */ `
+      const updateHostFeePercentMutation = gqlV1 /* GraphQL */ `
         mutation UpdateHostFeePercent($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -250,7 +250,7 @@ describe('server/graphql/v1/mutation', () => {
     });
 
     describe('archives a collective', () => {
-      const archiveCollectiveMutation = gqlV1/* GraphQL */ `
+      const archiveCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation ArchiveCollective($id: Int!) {
           archiveCollective(id: $id) {
             id
@@ -258,7 +258,7 @@ describe('server/graphql/v1/mutation', () => {
           }
         }
       `;
-      const unarchiveCollectiveMutation = gqlV1/* GraphQL */ `
+      const unarchiveCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation UnarchiveCollective($id: Int!) {
           unarchiveCollective(id: $id) {
             id

@@ -40,7 +40,7 @@ export const GraphQLContributorProfile = new GraphQLObjectType({
         args,
         req: Express.Request,
       ) => {
-        if (!req.remoteUser || !req.remoteUser?.isAdminOfCollective(account)) {
+        if (!req.remoteUser || !req.remoteUser?.isAdminOfCollective(account) || !forAccount.HostCollectiveId) {
           return null;
         }
 

@@ -222,7 +222,7 @@ const doFormatMessage = (activity, format) => {
       return `New comment on update by ${userString} on ${collective}`;
 
     case activities.EXPENSE_COMMENT_CREATED:
-      return `New comment on expense by ${userString} on ${collective}`;
+      return `New comment on expense ${description} (${collective}) by ${userString}`;
 
     case activities.CONVERSATION_COMMENT_CREATED:
       return `New comment in conversation by ${userString} on ${collective}`;
