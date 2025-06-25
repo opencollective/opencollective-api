@@ -2236,7 +2236,7 @@ export async function createExpense(
       ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
       : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
-  if (payoutMethod.type === PayoutMethodTypes.STRIPE && expenseData.type !== ExpenseType.SETTLEMENT) {
+  if (payoutMethod?.type === PayoutMethodTypes.STRIPE && expenseData.type !== ExpenseType.SETTLEMENT) {
     throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
   }
 
@@ -2944,7 +2944,7 @@ export async function editExpense(
           ? await fromCollective.getPayoutMethods().then(first)
           : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
-      if (payoutMethod.type === PayoutMethodTypes.STRIPE && expenseType !== ExpenseType.SETTLEMENT) {
+      if (payoutMethod?.type === PayoutMethodTypes.STRIPE && expenseType !== ExpenseType.SETTLEMENT) {
         throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
       }
 
