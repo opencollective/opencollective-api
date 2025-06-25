@@ -123,6 +123,13 @@ describe('server/lib/transactions', () => {
   });
 
   describe('createTransactionsFromPaidStripeExpense', () => {
+    const sandbox = createSandbox();
+    beforeEach(async () => {
+      sandbox.stub(config.ledger, 'separatePaymentProcessorFees').value(true);
+      await utils.seedDefaultVendors();
+    });
+    afterEach(() => sandbox.restore());
+
     describe('creates transactions for paid expense', () => {
       const scenarios = {
         'same currencies': {
