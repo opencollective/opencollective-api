@@ -104,7 +104,7 @@ describe('server/graphql/v1/user', () => {
 
   describe('graphql.user.test.js', () => {
     describe('logged in user', () => {
-      const loggedInUserQuery = gqlV1/* GraphQL */ `
+      const loggedInUserQuery = gqlV1 /* GraphQL */ `
         query LoggedInUser {
           LoggedInUser {
             id
