@@ -1,9 +1,6 @@
-import config from 'config';
 import moment from 'moment';
 
 import { SupportedCurrency } from './currencies';
-
-const isProdOrStaging = config.env === 'production' || config.env === 'staging';
 
 /**
  * Defines the transition date and time from OCI to Ofico.
@@ -93,13 +90,8 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 });
 
-let __testingMigration = false;
-export function __setIsTestingMigration(v: boolean) {
-  __testingMigration = v;
-}
-
 function isMigrated(date: moment.Moment) {
-  return (isProdOrStaging || __testingMigration) && date.isAfter(PLATFORM_MIGRATION_DATE);
+  return date.isAfter(PLATFORM_MIGRATION_DATE);
 }
 
 export const getPlatformConstantsForDate = (date: Date | moment.Moment) => {
