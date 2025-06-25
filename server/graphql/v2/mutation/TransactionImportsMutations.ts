@@ -372,7 +372,7 @@ const transactionImportsMutations = {
                   collective.HostCollectiveId !== hostId &&
                   !(
                     expense.type === ExpenseType.SETTLEMENT &&
-                    collective.HostCollectiveId === PlatformConstants.OfitechCollectiveId
+                    expense.FromCollectiveId === PlatformConstants.OfitechCollectiveId
                   )
                 ) {
                   throw new Unauthorized(`This expense cannot be associated with the import: ${expense.id}`);
