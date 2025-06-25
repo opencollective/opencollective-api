@@ -95,7 +95,7 @@ export const signin = async (req, res, next) => {
         // Would be great to be consistent in the way we send errors
         // This is what works best with Frontend today
         return res.status(401).send({
-          error: { message: 'Invalid password' },
+          error: { errorCode: 'PASSWORD_INVALID', message: 'Invalid password' },
         });
       }
 

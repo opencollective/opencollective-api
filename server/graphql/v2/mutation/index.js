@@ -10,7 +10,6 @@ import conversationMutations from './ConversationMutations';
 import createCollectiveMutation from './CreateCollectiveMutation';
 import createEventMutation from './CreateEventMutation';
 import createFundMutation from './CreateFundMutation';
-import createOrganizationMutation from './CreateOrganizationMutation';
 import createProjectMutation from './CreateProjectMutation';
 import emojiReactionMutations from './EmojiReactionMutations';
 import expenseMutations from './ExpenseMutations';
@@ -22,6 +21,7 @@ import memberInvitationMutations from './MemberInvitationMutations';
 import memberMutations from './MemberMutations';
 import oAuthAuthorizationMutations from './OAuthAuthorizationMutations';
 import orderMutations from './OrderMutations';
+import organizationMutations from './OrganizationMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import personalTokenMutations from './PersonalTokenMutations';
@@ -43,7 +43,6 @@ const mutation = {
   createCollective: createCollectiveMutation,
   createEvent: createEventMutation,
   createFund: createFundMutation,
-  createOrganization: createOrganizationMutation,
   createProject: createProjectMutation,
   ...accountMutations,
   ...accountingCategoriesMutations,
@@ -62,6 +61,7 @@ const mutation = {
   ...memberMutations,
   ...oAuthAuthorizationMutations,
   ...orderMutations,
+  ...organizationMutations,
   ...paymentMethodMutations,
   ...payoutMethodMutations,
   ...plaidMutations,
