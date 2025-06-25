@@ -1,6 +1,7 @@
 import config from 'config';
 import { pick } from 'lodash';
 import assert from 'node:assert';
+import type Sequelize from 'sequelize';
 
 import { activities } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
@@ -79,35 +80,47 @@ export const createUser = (
 
     // Sent signIn link
     if (sendSignInLink) {
-      const loginLink = user.generateLoginLink(redirect, websiteUrl);
-      if (config.env === 'development') {
-        logger.info(`Login Link: ${loginLink}`);
-      }
-
       try {
-        await emailLib.send(activities.USER_NEW_TOKEN, user.email, { loginLink }, { sendEvenIfNotProduction: true });
+        await sendLoginEmail(user, {
+          organizationData,
+          throwIfExists,
+          redirect,
+          websiteUrl,
+          creationRequest,
+          transaction,
+        });
       } catch (e) {
         reportErrorToSentry(e, {
           user,
-          extra: { userData, organizationData, throwIfExists, redirect, websiteUrl, creationRequest },
+          extra: { userData: user.minimal, organizationData, throwIfExists, redirect, websiteUrl, creationRequest },
         });
 
         throw new Error('Failed to send the confirmation email, please try again later');
       }
-
-      await models.Activity.create(
-        {
-          type: activities.USER_NEW_TOKEN,
-          UserId: user.id,
-          CollectiveId: user.CollectiveId,
-          FromCollectiveId: user.CollectiveId,
-          data: { notify: false },
-        },
-        { transaction },
-      );
     }
     return { user, organization };
   });
+};
+
+export const sendLoginEmail = async (
+  user: User,
+  { redirect, websiteUrl, transaction }: CreateUserOptions & { transaction?: Sequelize.Transaction },
+) => {
+  const loginLink = user.generateLoginLink(redirect, websiteUrl);
+  if (config.env === 'development') {
+    logger.info(`Login Link: ${loginLink}`);
+  }
+  await emailLib.send(activities.USER_NEW_TOKEN, user.email, { loginLink }, { sendEvenIfNotProduction: true });
+  await models.Activity.create(
+    {
+      type: activities.USER_NEW_TOKEN,
+      UserId: user.id,
+      CollectiveId: user.CollectiveId,
+      FromCollectiveId: user.CollectiveId,
+      data: { notify: false },
+    },
+    { transaction },
+  );
 };
 
 export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> => {
