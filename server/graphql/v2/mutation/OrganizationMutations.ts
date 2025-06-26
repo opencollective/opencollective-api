@@ -66,6 +66,10 @@ export default {
         });
       }
 
+      if (args.inviteMembers) {
+        assert(args.inviteMembers.length <= 5, new ValidationFailed('You can only invite up to 5 members'));
+      }
+
       const rateLimitKey = req.remoteUser ? `user_create_${req.remoteUser.id}` : `user_create_ip_${req.ip}`;
       const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
       if (!(await rateLimit.registerCall())) {
@@ -142,7 +146,7 @@ export default {
       if (args.inviteMembers && args.inviteMembers.length) {
         await processInviteMembersInput(organization, args.inviteMembers, {
           supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
-          user: req.remoteUser,
+          user,
         });
       }
       return organization;
