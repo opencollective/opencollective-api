@@ -11,6 +11,7 @@ import { GraphQLGenericFileInfo } from './object/GenericFileInfo';
 import { GraphQLImageFileInfo } from './object/ImageFileInfo';
 import { GraphQLIndividual } from './object/Individual';
 import { GraphQLMember, GraphQLMemberOf } from './object/Member';
+import { GraphQLOffPlatformTransactionsInstitution } from './object/OffPlatformTransactionsInstitution';
 import { GraphQLOrganization } from './object/Organization';
 import { GraphQLTransferWise } from './object/TransferWise';
 import { GraphQLVendor } from './object/Vendor';
@@ -35,6 +36,7 @@ const types = [
   GraphQLTransferWise,
   GraphQLVendor,
   GraphQLVirtualCard,
+  GraphQLOffPlatformTransactionsInstitution,
 ];
 
 export default types;
