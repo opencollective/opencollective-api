@@ -112,6 +112,10 @@ const makeTimelineQuery = async (
   }
 
   const types = [];
+  const orConditons: WhereOptions<InferAttributes<Activity, { omit: never }>>[] = [
+    { CollectiveId: collective.id },
+    { FromCollectiveId: collective.id },
+  ];
   if (classes.includes(ActivityClasses.EXPENSES)) {
     types.push(
       ...[
@@ -176,9 +180,38 @@ const makeTimelineQuery = async (
       ],
     );
   }
+
+  if (collective.isHost && collective.type !== CollectiveType.COLLECTIVE) {
+    orConditons.push({ HostCollectiveId: collective.id });
+
+    if (classes.includes(ActivityClasses.COLLECTIVE)) {
+      types.push(
+        ...[
+          ActivityTypes.COLLECTIVE_APPLY,
+          ActivityTypes.COLLECTIVE_APPROVED,
+          ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
+          ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+          ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
+          ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+          ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
+          ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
+          ActivityTypes.COLLECTIVE_MEMBER_INVITED,
+          ActivityTypes.COLLECTIVE_CREATED_GITHUB,
+          ActivityTypes.COLLECTIVE_CREATED,
+          ActivityTypes.COLLECTIVE_REJECTED,
+          ActivityTypes.COLLECTIVE_FROZEN,
+          ActivityTypes.COLLECTIVE_UNFROZEN,
+          ActivityTypes.COLLECTIVE_UNHOSTED,
+          ActivityTypes.COLLECTIVE_EDITED,
+          ActivityTypes.COLLECTIVE_DELETED,
+        ],
+      );
+    }
+  }
+
   return {
     type: { [Op.in]: types },
-    [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+    [Op.or]: orConditons,
   };
 };
 
