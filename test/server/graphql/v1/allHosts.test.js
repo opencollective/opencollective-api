@@ -51,9 +51,11 @@ describe('server/graphql/v1/allHosts', () => {
     await collective2.addHost(privateHost, user1, { shouldAutomaticallyApprove: true });
     await publicHost.createConnectedAccount({
       service: 'stripe',
+      username: 'stripeAccount',
     });
     await privateHost.createConnectedAccount({
       service: 'stripe',
+      username: 'stripeAccount',
     });
   });
 

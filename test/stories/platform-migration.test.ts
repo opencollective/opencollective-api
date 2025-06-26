@@ -381,6 +381,7 @@ async function makeContribution(
     service: PAYMENT_METHOD_SERVICE.STRIPE,
     token: 'abc',
     CollectiveId: host.id,
+    username: 'stripeAccount',
   });
 
   const collective = await fakeCollective({

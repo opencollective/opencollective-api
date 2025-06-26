@@ -32,7 +32,7 @@ import sequelize from '../../../lib/sequelize';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
-import models, { Collective, Op, TransactionsImportRow } from '../../../models';
+import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
@@ -660,8 +660,12 @@ export const GraphQLHost = new GraphQLObjectType({
         type: new GraphQLList(GraphQLPayoutMethodType),
         description: 'The list of payout methods this Host accepts for its expenses',
         async resolve(host, _, req) {
-          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(host.id);
-          const supportedPayoutMethods = [PayoutMethodTypes.ACCOUNT_BALANCE, PayoutMethodTypes.BANK_ACCOUNT];
+          const connectedAccounts: ConnectedAccount[] = await req.loaders.Collective.connectedAccounts.load(host.id);
+          const supportedPayoutMethods = [
+            PayoutMethodTypes.ACCOUNT_BALANCE,
+            PayoutMethodTypes.BANK_ACCOUNT,
+            PayoutMethodTypes.STRIPE,
+          ];
 
           // Check for PayPal
           if (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) {

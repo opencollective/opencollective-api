@@ -4,6 +4,7 @@ import moment from 'moment';
 
 import { expenseStatus } from '../../../../server/constants';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
+import PlatformConstants from '../../../../server/constants/platform';
 import POLICIES from '../../../../server/constants/policies';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import {
@@ -37,7 +38,7 @@ import {
   isAccountHolderNameAndLegalNameMatch,
 } from '../../../../server/graphql/common/expenses';
 import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
-import models from '../../../../server/models';
+import models, { Collective } from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
@@ -76,10 +77,15 @@ describe('server/graphql/common/expenses', () => {
     normal: cloneDeep(contextShape),
     selfHosted: cloneDeep(contextShape),
     virtualCard: cloneDeep(contextShape),
+    settlement: cloneDeep(contextShape),
     collectiveWithSpecialPayoutPolicy: cloneDeep(contextShape),
   };
 
   const prepareContext = async ({ host = undefined, collective = undefined, name } = {}) => {
+    const platformAdmin = await fakeUser();
+    const platformCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+    await platformCollective.addUserWithRole(platformAdmin, 'ADMIN');
+
     const randomUser = await fakeUser();
     const collectiveAdmin = await fakeUser();
     const collectiveAccountant = await fakeUser();
@@ -93,6 +99,7 @@ describe('server/graphql/common/expenses', () => {
       CollectiveId: collective.id,
       FromCollectiveId: expenseOwner.CollectiveId,
       PayoutMethodId: payoutMethod.id,
+      UserId: expenseOwner.id,
     });
     await collective.addUserWithRole(collectiveAdmin, 'ADMIN');
     await collective.addUserWithRole(collectiveAccountant, 'ACCOUNTANT');
@@ -108,6 +115,7 @@ describe('server/graphql/common/expenses', () => {
         hostAccountant,
         limitedHostAdmin,
         expenseOwner,
+        platformAdmin,
       ].map(u => u.populateRoles()),
     );
 
@@ -129,6 +137,7 @@ describe('server/graphql/common/expenses', () => {
         expenseOwner: makeRequest(expenseOwner),
         collectiveAccountant: makeRequest(collectiveAccountant),
         hostAccountant: makeRequest(hostAccountant),
+        platformAdmin: makeRequest(platformAdmin),
       },
     };
   };
@@ -157,6 +166,22 @@ describe('server/graphql/common/expenses', () => {
       data: { policies: { [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: true } },
     });
     contexts.collectiveWithSpecialPayoutPolicy.expense.collective = updatedCollective;
+
+    contexts.settlement = await prepareContext({
+      name: 'settlement',
+    });
+    await contexts.settlement.expense.update({
+      type: 'SETTLEMENT',
+      FromCollectiveId: PlatformConstants.PlatformCollectiveId,
+    });
+    contexts.settlement.expense.fromCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+  });
+
+  beforeEach(async () => {
+    await contexts.settlement.expense.update({
+      type: 'SETTLEMENT',
+    });
+    await contexts.virtualCard.expense.update({ type: 'CHARGE' });
   });
 
   /** A helper to run the same test on all contexts, to make sure they behave the same way */
@@ -174,6 +199,15 @@ describe('server/graphql/common/expenses', () => {
     }
   };
 
+  /** A helper to run the same test on all contexts, to make sure they behave the same way */
+  const runEachForAllContexts = (fn, options = {}) => {
+    for (const key in contexts) {
+      if (contexts[key] !== options.except) {
+        fn(key);
+      }
+    }
+  };
+
   const checkAllPermissions = async (fn, context) => {
     const { req, expense } = context;
     const promises = {};
@@ -184,34 +218,42 @@ describe('server/graphql/common/expenses', () => {
   };
 
   describe('canSeeExpenseAttachments', () => {
-    it('can see only with the allowed roles or host admin', async () => {
-      await runForAllContexts(async context => {
-        expect(await checkAllPermissions(canSeeExpenseAttachments, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: true,
-          collectiveAccountant: true,
-          hostAdmin: true,
-          hostAccountant: true,
-          limitedHostAdmin: false,
-          expenseOwner: true,
+    describe('can see only with the allowed roles or host admin', () => {
+      runEachForAllContexts(key => {
+        it(key, async () => {
+          const context = contexts[key];
+          expect(await checkAllPermissions(canSeeExpenseAttachments, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: true,
+            collectiveAccountant: true,
+            hostAdmin: true,
+            hostAccountant: true,
+            limitedHostAdmin: false,
+            expenseOwner: true,
+            platformAdmin: context.name === 'settlement',
+          });
         });
       });
     });
   });
 
   describe('canSeeExpensePayoutMethodPrivateDetails', () => {
-    it('can see only with the allowed roles', async () => {
-      await runForAllContexts(async context => {
-        expect(await checkAllPermissions(canSeeExpensePayoutMethodPrivateDetails, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: ['collectiveWithSpecialPayoutPolicy', 'selfHosted', 'virtualCard'].includes(context.name),
-          collectiveAccountant: context.name === 'selfHosted',
-          hostAdmin: true,
-          hostAccountant: true,
-          expenseOwner: true,
-          limitedHostAdmin: false,
+    describe('can see only with the allowed roles', () => {
+      runEachForAllContexts(key => {
+        it(key, async () => {
+          const context = contexts[key];
+          expect(await checkAllPermissions(canSeeExpensePayoutMethodPrivateDetails, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: ['collectiveWithSpecialPayoutPolicy', 'selfHosted', 'virtualCard'].includes(context.name),
+            collectiveAccountant: context.name === 'selfHosted',
+            hostAdmin: true,
+            hostAccountant: true,
+            expenseOwner: true,
+            limitedHostAdmin: false,
+            platformAdmin: context.name === 'settlement',
+          });
         });
       });
     });
@@ -229,6 +271,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: true,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -246,6 +289,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: true,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -263,6 +307,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: true,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -320,6 +365,7 @@ describe('server/graphql/common/expenses', () => {
         hostAccountant: false,
         expenseOwner: true,
         limitedHostAdmin: false,
+        platformAdmin: false,
       });
     });
 
@@ -345,6 +391,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: false,
         });
       });
     });
@@ -380,6 +427,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -421,6 +469,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -438,6 +487,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: false,
           limitedHostAdmin: false,
+          platformAdmin: false,
         });
       });
     });
@@ -455,6 +505,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -477,6 +528,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
         } else {
           await expense.update({ status: 'PENDING', type: 'RECEIPT' });
@@ -489,6 +541,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
+            platformAdmin: context.name === 'settlement',
           });
 
           await expense.update({ status: 'PENDING', type: 'INVOICE' });
@@ -501,6 +554,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
+            platformAdmin: context.name === 'settlement',
           });
 
           await expense.update({ status: 'PENDING', type: 'UNCLASSIFIED' });
@@ -513,6 +567,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
         }
       });
@@ -534,6 +589,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
         } else {
           await expense.update({ status: 'APPROVED', type: 'RECEIPT' });
@@ -546,6 +602,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
 
           await expense.update({ status: 'APPROVED', type: 'INVOICE' });
@@ -558,6 +615,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
 
           await expense.update({ status: 'APPROVED', type: 'UNCLASSIFIED' });
@@ -570,6 +628,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
         }
       });
@@ -592,6 +651,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
         } else {
           await expense.update({ status: 'INCOMPLETE', type: 'RECEIPT' });
@@ -604,6 +664,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
+            platformAdmin: context.name === 'settlement',
           });
 
           await expense.update({ status: 'INCOMPLETE', type: 'INVOICE' });
@@ -616,6 +677,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
+            platformAdmin: context.name === 'settlement',
           });
 
           await expense.update({ status: 'INCOMPLETE', type: 'UNCLASSIFIED' });
@@ -628,6 +690,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: false,
             limitedHostAdmin: false,
+            platformAdmin: false,
           });
         }
       });
@@ -671,6 +734,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -689,6 +753,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: false,
           limitedHostAdmin: false,
+          platformAdmin: false,
         });
       });
     });
@@ -707,6 +772,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -751,6 +817,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -795,6 +862,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -844,6 +912,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -873,6 +942,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: false,
           limitedHostAdmin: false,
+          platformAdmin: false,
         });
       });
     });
@@ -902,6 +972,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -957,6 +1028,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: isVirtualCard,
           limitedHostAdmin: false,
+          platformAdmin: false,
         });
       });
     });
@@ -1012,6 +1084,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: isVirtualCard,
           limitedHostAdmin: false,
+          platformAdmin: false,
         });
       });
     });
@@ -1049,6 +1122,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -1066,6 +1140,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
 
@@ -1081,6 +1156,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -1118,6 +1194,7 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           collectiveAccountant: false,
           hostAccountant: false,
+          platformAdmin: false,
         });
       });
     });
@@ -1152,6 +1229,7 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           collectiveAccountant: false,
           hostAccountant: false,
+          platformAdmin: false,
         });
       });
     });
@@ -1297,12 +1375,13 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canReject, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
-          hostAdmin: true,
+          collectiveAdmin: context.name !== 'settlement',
+          hostAdmin: context.name !== 'settlement',
           expenseOwner: false,
           limitedHostAdmin: false,
           collectiveAccountant: false,
           hostAccountant: false,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -1338,6 +1417,7 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           collectiveAccountant: false,
           hostAccountant: false,
+          platformAdmin: false,
         });
       });
     });
@@ -1360,29 +1440,39 @@ describe('server/graphql/common/expenses', () => {
       expect(await canMarkAsUnpaid(req.hostAdmin, expense)).to.be.false;
     });
 
-    it('only with the allowed roles', async () => {
-      await runForAllContexts(async context => {
-        const { expense } = context;
-        await expense.update({ status: 'PAID' });
-        const isVirtualCard = expense.type === 'CHARGE';
-        expect(await checkAllPermissions(canMarkAsUnpaid, context)).to.deep.equal({
-          public: false,
-          randomUser: false,
-          collectiveAdmin: isVirtualCard ? false : context.isSelfHosted,
-          hostAdmin: isVirtualCard ? false : true,
-          expenseOwner: false,
-          limitedHostAdmin: false,
-          collectiveAccountant: false,
-          hostAccountant: false,
+    describe('only with the allowed roles', () => {
+      runEachForAllContexts(key => {
+        it(key, async () => {
+          const context = contexts[key];
+          const { expense } = context;
+          await expense.update({ status: 'PAID' });
+          const isVirtualCard = expense.type === 'CHARGE';
+          expect(await checkAllPermissions(canMarkAsUnpaid, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: isVirtualCard ? false : context.isSelfHosted,
+            hostAdmin: isVirtualCard ? false : context.name !== 'settlement',
+            expenseOwner: false,
+            limitedHostAdmin: false,
+            collectiveAccountant: false,
+            hostAccountant: false,
+            platformAdmin: context.name === 'settlement',
+          });
         });
       });
     });
 
-    it('not if the expense is a virtual card', async () => {
-      const { expense, req } = contexts.virtualCard;
-      await expense.update({ status: 'PAID' });
-      for (const userReq of Object.values(req)) {
-        expect(await canMarkAsUnpaid(userReq, expense)).to.be.false;
+    describe('not if the expense is a virtual card', () => {
+      let expense;
+      before(async () => {
+        expense = contexts.virtualCard.expense;
+        await expense.update({ status: 'PAID', type: 'CHARGE' });
+      });
+      for (const [c] of Object.entries(contexts.virtualCard.req)) {
+        it(c, async () => {
+          const userReq = contexts.virtualCard.req[c];
+          expect(await canMarkAsUnpaid(userReq, expense)).to.be.false;
+        });
       }
     });
   });
@@ -1401,6 +1491,7 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           collectiveAccountant: true,
           hostAccountant: true,
+          platformAdmin: context.name === 'settlement',
         });
       });
     });
@@ -1438,6 +1529,7 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           collectiveAccountant: false,
           hostAccountant: false,
+          platformAdmin: false,
         });
       });
     });
@@ -1493,6 +1585,7 @@ describe('server/graphql/common/expenses', () => {
             limitedHostAdmin: false,
             collectiveAccountant: false,
             hostAccountant: false,
+            platformAdmin: context.name === 'settlement',
           });
         },
         {
@@ -1515,6 +1608,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: false,
           limitedHostAdmin: false,
+          platformAdmin: false,
         });
       });
     });
@@ -1531,6 +1625,7 @@ describe('server/graphql/common/expenses', () => {
         hostAccountant: false,
         expenseOwner: false,
         limitedHostAdmin: false,
+        platformAdmin: false,
       });
 
       context = contexts.selfHosted;
@@ -1544,6 +1639,7 @@ describe('server/graphql/common/expenses', () => {
         hostAccountant: false,
         expenseOwner: false,
         limitedHostAdmin: false,
+        platformAdmin: false,
       });
     });
   });
@@ -1766,6 +1862,20 @@ describe('server/graphql/common/expenses', () => {
       );
     });
 
+    it('resolves if the collective has not enough balance to cover for the expense - but its a settlement', async () => {
+      const expense = await fakeExpense({
+        currency: 'USD',
+        type: 'SETTLEMENT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        PayoutMethodId: payoutMethod.id,
+        FromCollectiveId: payoutMethod.CollectiveId,
+        amount: 100001,
+      });
+
+      await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.fulfilled;
+    });
+
     it('throws if the collective has not enough balance to cover for the exchange rate variance', async () => {
       let expense = await fakeExpense({
         currency: 'BRL',
@@ -1792,6 +1902,32 @@ describe('server/graphql/common/expenses', () => {
       await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.rejectedWith(
         'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: €5,000.00. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is €920.90',
       );
+    });
+
+    it('resolves if the collective has not enough balance to cover for the exchange rate variance - but its a settlement', async () => {
+      let expense = await fakeExpense({
+        currency: 'BRL',
+        type: 'SETTLEMENT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        PayoutMethodId: payoutMethod.id,
+        FromCollectiveId: payoutMethod.CollectiveId,
+        amount: 500000,
+      });
+
+      await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.fulfilled;
+
+      expense = await fakeExpense({
+        currency: 'EUR',
+        type: 'SETTLEMENT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        PayoutMethodId: payoutMethod.id,
+        FromCollectiveId: payoutMethod.CollectiveId,
+        amount: 500000,
+      });
+
+      await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.fulfilled;
     });
   });
 });

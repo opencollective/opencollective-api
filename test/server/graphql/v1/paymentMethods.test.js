@@ -45,6 +45,7 @@ describe('server/graphql/v1/paymentMethods', () => {
     models.ConnectedAccount.create({
       CollectiveId: host.id,
       service: 'stripe',
+      username: 'stripeAccount',
     }),
   );
 
