@@ -73,6 +73,10 @@
     "slowMiddleware": "LOG_SLOW_MIDDLEWARE",
     "slowMiddlewareThreshold": "LOG_SLOW_MIDDLEWARE_THRESHOLD"
   },
+  "gocardless": {
+    "secretId": "GOCARDLESS_SECRET_ID",
+    "secretKey": "GOCARDLESS_SECRET_KEY"
+  },
   "plaid": {
     "clientId": "PLAID_CLIENT_ID",
     "secret": "PLAID_SECRET",

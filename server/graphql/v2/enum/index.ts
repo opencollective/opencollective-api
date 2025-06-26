@@ -15,3 +15,4 @@ export { GraphQLTierInterval } from './TierInterval';
 export { GraphQLTierType } from './TierType';
 export { GraphQLUpdateAudienceType } from './UpdateAudienceType';
 export { GraphQLUploadedFileKind } from './UploadedFileKind';
+export { GraphQLOffPlatformTransactionsProvider } from './OffPlatformTransactionsProvider';

@@ -108,6 +108,7 @@
     "node-fetch": "2.7.0",
     "node-statsd": "0.1.1",
     "nodemailer": "7.0.5",
+    "nordigen-node": "1.4.1",
     "p-filter": "2.1.0",
     "p-map": "4.0.0",
     "p-queue": "6.6.2",

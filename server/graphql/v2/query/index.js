@@ -23,6 +23,7 @@ import HostApplicationQuery from './HostApplicationQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
 import MemberInvitationsQuery from './MemberInvitationsQuery';
+import OffPlatformTransactionsInstitutionsQuery from './OffPlatformTransactionsInstitutionsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
@@ -74,6 +75,7 @@ const query = {
   virtualCardRequest: VirtualCardRequestQuery,
   virtualCardRequests: VirtualCardRequestsCollectionQuery,
   hostApplication: HostApplicationQuery,
+  offPlatformTransactionsInstitutions: OffPlatformTransactionsInstitutionsQuery,
   loggedInAccount: {
     type: GraphQLIndividual,
     resolve(_, args, req) {

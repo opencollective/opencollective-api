@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import { Service } from '../../../../../server/constants/connected-account';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models, { ConnectedAccount } from '../../../../../server/models';
@@ -199,6 +200,75 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         name: 'New Name',
         source: 'New Source',
       });
+    });
+  });
+
+  describe('generateGoCardlessLink', () => {
+    const GENERATE_GOCARDLESS_LINK_MUTATION = gql`
+      mutation GenerateGoCardlessLink($input: GoCardlessLinkInput!) {
+        generateGoCardlessLink(input: $input) {
+          id
+          institutionId
+          link
+          redirect
+          status
+        }
+      }
+    `;
+
+    it('should generate a GoCardless link successfully', async () => {
+      // Stub the GoCardless connect function
+      const mockLink = {
+        id: 'test-requisition-id',
+        institutionId: 'test-institution-id',
+        link: 'https://ob.gocardless.com/psd2/start/test-id/test-institution',
+        redirect: 'https://opencollective.com/services/gocardless/callback',
+        status: 'CR',
+      };
+      sandbox.stub(GoCardlessConnect, 'createGoCardlessLink').resolves(mockLink);
+
+      const remoteUser = await fakeUser({ data: { isRoot: true } });
+      const result = await graphqlQueryV2(
+        GENERATE_GOCARDLESS_LINK_MUTATION,
+        {
+          input: {
+            institutionId: 'test-institution-id',
+            maxHistoricalDays: 90,
+            accessValidForDays: 90,
+            userLanguage: 'en',
+          },
+        },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.generateGoCardlessLink).to.containSubset({
+        id: 'test-requisition-id',
+        institutionId: 'test-institution-id',
+        link: 'https://ob.gocardless.com/psd2/start/test-id/test-institution',
+        redirect: 'https://opencollective.com/services/gocardless/callback',
+        status: 'CR',
+      });
+    });
+
+    it('should handle GoCardless API errors', async () => {
+      // Stub the GoCardless connect function to throw an error
+      sandbox.stub(GoCardlessConnect, 'createGoCardlessLink').rejects(new Error('GoCardless API error'));
+
+      const remoteUser = await fakeUser({ data: { isRoot: true } });
+      const result = await graphqlQueryV2(
+        GENERATE_GOCARDLESS_LINK_MUTATION,
+        {
+          input: {
+            institutionId: 'test-institution-id',
+          },
+        },
+        remoteUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('GoCardless API error');
     });
   });
 });
