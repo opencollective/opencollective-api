@@ -621,6 +621,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isVerified: { type: new GraphQLNonNull(GraphQLBoolean) },
       isIncognito: { type: GraphQLBoolean },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
+      isSuspended: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is suspended' },
       isGuest: { type: GraphQLBoolean },
       canApply: { type: GraphQLBoolean },
       canContact: { type: GraphQLBoolean },
@@ -1204,6 +1205,13 @@ const CollectiveFields = () => {
       description: 'Whether this account is frozen',
       resolve(collective) {
         return get(collective, `data.features.${FEATURE.ALL}`) === false;
+      },
+    },
+    isSuspended: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this account is suspended',
+      resolve(collective) {
+        return get(collective, `data.isSuspended`) === true;
       },
     },
     isArchived: {
