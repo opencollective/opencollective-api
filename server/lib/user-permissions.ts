@@ -16,11 +16,18 @@ export const canUseFeature = (account: User | Collective, feature: FEATURE): boo
     return false;
   }
 
-  // Check if user is limited, globally or for this specific feature
-  const userFeaturesFlags = account.data && account.data.features;
-  if (userFeaturesFlags) {
-    if (userFeaturesFlags.ALL === false || userFeaturesFlags[feature] === false) {
+  if (account.data) {
+    // Check if the account is suspended
+    if (account.data.isSuspended) {
       return false;
+    }
+
+    // Check if user is limited, globally or for this specific feature
+    const userFeaturesFlags = account.data.features;
+    if (userFeaturesFlags) {
+      if (userFeaturesFlags.ALL === false || userFeaturesFlags[feature] === false) {
+        return false;
+      }
     }
   }
 

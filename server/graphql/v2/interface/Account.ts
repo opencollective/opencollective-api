@@ -249,6 +249,10 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is frozen',
   },
+  isSuspended: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account is suspended',
+  },
   isActive: {
     type: GraphQLBoolean,
     description: 'Returns whether the account accepts financial contributions.',
@@ -1178,6 +1182,13 @@ export const AccountFields = {
     description: 'Whether this account is frozen',
     resolve(collective) {
       return get(collective, `data.features.${FEATURE.ALL}`) === false;
+    },
+  },
+  isSuspended: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account is suspended',
+    resolve(collective) {
+      return get(collective, `data.isSuspended`) === true;
     },
   },
   isHost: {
