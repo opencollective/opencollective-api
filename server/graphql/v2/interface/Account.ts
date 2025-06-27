@@ -782,6 +782,7 @@ const accountFieldsDefinition = () => ({
 
       const where = {
         ParentCollectiveId: account.id,
+        data: { isSuspended: { [Op.not]: true } },
       };
       if (!isNil(args.isActive)) {
         where['isActive'] = args.isActive;
