@@ -188,7 +188,7 @@
     "nyc": "^17.0.0",
     "opentelemetry-instrumentation-sequelize": "^0.41.0",
     "prettier": "3.6.1",
-    "sinon": "^20.0.0",
+    "sinon": "^21.0.0",
     "sinon-chai": "^3.7.0",
     "supertest": "^7.0.0",
     "ts-unused-exports": "^11.0.0",
