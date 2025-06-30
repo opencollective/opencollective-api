@@ -1175,7 +1175,7 @@ export const AccountFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether this account is archived',
     resolve(collective) {
-      return Boolean(collective.deactivatedAt);
+      return Boolean(collective.deactivatedAt && !collective.isActive);
     },
   },
   isFrozen: {
