@@ -4,9 +4,11 @@ import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-serve
 import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
 import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
 import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
+import BearerTokenType from '@node-oauth/oauth2-server/lib/token-types/bearer-token-type';
 import { assign } from 'lodash';
 
 import * as auth from '../../lib/auth';
+import logger from '../logger';
 
 import model from './model';
 
@@ -19,20 +21,16 @@ class CustomTokenHandler extends TokenHandler {
   }
 
   getTokenType = function (model) {
-    return {
-      valueOf: () => {
-        const accessToken = model.user.jwt(
-          {
-            scope: 'oauth',
-            // eslint-disable-next-line camelcase
-            access_token: model.accessToken,
-          },
-          auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days,
-        );
+    const accessToken = model.user.jwt(
+      {
+        scope: 'oauth',
         // eslint-disable-next-line camelcase
-        return { access_token: accessToken };
+        access_token: model.accessToken,
       },
-    };
+      auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days,
+    );
+
+    return new BearerTokenType(accessToken, auth.TOKEN_EXPIRATION_SESSION_OAUTH, null, model.scope);
   };
 }
 
@@ -221,6 +219,7 @@ const handleResponse = function (req, res, response) {
  */
 
 const handleError = function (e, req, res, response, next) {
+  logger.error(e);
   if (this.useErrorHandler === true) {
     next(e);
   } else {

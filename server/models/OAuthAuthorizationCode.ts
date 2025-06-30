@@ -21,6 +21,8 @@ class OAuthAuthorizationCode extends Model<
   declare public ApplicationId: number;
   declare public UserId: ForeignKey<User['id']>;
   declare public scope: string[];
+  declare public codeChallenge: CreationOptional<string>;
+  declare public codeChallengeMethod: CreationOptional<string>;
 
   declare public application?: NonAttribute<Application>;
   declare public user?: NonAttribute<User>;
@@ -78,6 +80,14 @@ OAuthAuthorizationCode.init(
     },
     scope: {
       type: DataTypes.ARRAY(DataTypes.ENUM(...Object.values(oAuthScopes))),
+      allowNull: true,
+    },
+    codeChallenge: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    codeChallengeMethod: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
   },
