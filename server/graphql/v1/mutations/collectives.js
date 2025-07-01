@@ -551,7 +551,7 @@ export async function archiveCollective(_, args, req) {
   }
 
   if (collective.isActive) {
-    const balance = await collective.getBalance();
+    const balance = await collective.getBalance({ includeChildren: true });
     if (balance > 0) {
       throw new Error('Cannot archive collective with balance > 0');
     }
