@@ -15,6 +15,14 @@ export const GraphQLGoCardlessLink = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The date & time at which the requisition was created',
     },
+    reference: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'The reference for the requisition',
+    },
+    requisitionId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'The requisition ID for the link',
+    },
     redirect: {
       type: new GraphQLNonNull(GraphQLURL),
       description: 'Redirect URL to your application after end-user authorization with ASPSP',

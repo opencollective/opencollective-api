@@ -13,6 +13,7 @@ import createFundMutation from './CreateFundMutation';
 import createProjectMutation from './CreateProjectMutation';
 import emojiReactionMutations from './EmojiReactionMutations';
 import expenseMutations from './ExpenseMutations';
+import goCardlessMutations from './GoCardlessMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
 import individualMutations from './IndividualMutations';
@@ -65,6 +66,7 @@ const mutation = {
   ...paymentMethodMutations,
   ...payoutMethodMutations,
   ...plaidMutations,
+  ...goCardlessMutations,
   ...rootMutations,
   ...transactionMutations,
   ...transactionImportsMutations,

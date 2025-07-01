@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import { AxiosError } from 'axios';
 import config from 'config';
 
+import { Service } from '../../constants/connected-account';
+import { Collective, ConnectedAccount, sequelize, TransactionsImport, User } from '../../models';
 import cache from '../cache';
 import { reportErrorToSentry } from '../sentry';
 
@@ -138,4 +140,54 @@ export const createGoCardlessLink = async (
 
     throw new Error('Failed to create open banking link');
   }
+};
+
+export const connectGoCardlessAccount = async (remoteUser: User, host: Collective, requisitionId: string) => {
+  const client = getGoCardlessClient();
+  await getOrRefreshGoCardlessToken(client);
+
+  const requisition = await client.requisition.getRequisitionById(requisitionId);
+  if (!requisition.accounts) {
+    throw new Error('We did not receive any accounts from GoCardless');
+  }
+
+  console.log('requisition', requisition);
+
+  return sequelize.transaction(async transaction => {
+    const connectedAccount = await ConnectedAccount.create(
+      {
+        CollectiveId: host.id,
+        CreatedByUserId: remoteUser.id,
+        service: Service.GOCARDLESS,
+        clientId: requisition.id,
+      },
+      {
+        transaction,
+      },
+    );
+
+    const transactionsImport = await TransactionsImport.createWithActivity(
+      remoteUser,
+      host,
+      {
+        CollectiveId: host.id,
+        type: 'GOCARDLESS',
+        ConnectedAccountId: connectedAccount.id,
+        name: `GoCardless account`, // TODO generate better name
+      },
+      { transaction },
+    );
+
+    await connectedAccount.update(
+      {
+        data: {
+          ...connectedAccount.data,
+          transactionsImportId: transactionsImport.id,
+        },
+      },
+      { transaction },
+    );
+
+    return { connectedAccount, transactionsImport };
+  });
 };
