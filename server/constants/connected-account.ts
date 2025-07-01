@@ -5,6 +5,7 @@ export enum Service {
   GITHUB = 'github',
   TRANSFERWISE = 'transferwise',
   PLAID = 'plaid',
+  GOCARDLESS = 'gocardless',
   /** @deprecated */
   TWITTER = 'twitter',
   /** @deprecated */

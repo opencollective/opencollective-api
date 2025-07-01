@@ -535,6 +535,7 @@ const transactionImportsMutations = {
         redirect: link.redirect,
         institutionId: link.institution_id,
         link: link.link,
+        reference: link.reference,
       };
     },
   },

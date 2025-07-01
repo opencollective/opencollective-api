@@ -39,7 +39,7 @@ type CreationAttributes = InferCreationAttributes<
   }
 >;
 
-export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID'] as const;
+export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID', 'GOCARDLESS'] as const;
 
 const settingsSchema = z
   .object({
