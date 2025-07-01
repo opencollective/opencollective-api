@@ -70,12 +70,6 @@ export default {
         assert(args.inviteMembers.length <= 5, new ValidationFailed('You can only invite up to 5 members'));
       }
 
-      const rateLimitKey = req.remoteUser ? `user_create_${req.remoteUser.id}` : `user_create_ip_${req.ip}`;
-      const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
-      if (!(await rateLimit.registerCall())) {
-        throw new RateLimitExceeded();
-      }
-
       const organizationData = {
         type: CollectiveType.ORGANIZATION,
         slug: args.organization.slug.toLowerCase(),
@@ -84,6 +78,23 @@ export default {
         CreatedByUserId: req.remoteUser?.id,
         settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
       };
+
+      if (!canUseSlug(organizationData.slug, req.remoteUser)) {
+        throw new ValidationFailed(`The slug '${organizationData.slug}' is not allowed.`, 'SLUG_NOT_ALLOWED');
+      }
+      const collectiveWithSlug = await models.Collective.findOne({ where: { slug: organizationData.slug } });
+      if (collectiveWithSlug) {
+        throw new ValidationFailed(
+          `The slug ${organizationData.slug} is already taken. Please use another slug for your collective.`,
+          'SLUG_USED',
+        );
+      }
+
+      const rateLimitKey = req.remoteUser ? `user_create_${req.remoteUser.id}` : `user_create_ip_${req.ip}`;
+      const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
 
       if (req.remoteUser) {
         checkRemoteUserCanUseAccount(req);
@@ -103,16 +114,6 @@ export default {
             return organization;
           }
         }
-      }
-
-      if (!canUseSlug(organizationData.slug, req.remoteUser)) {
-        throw new Error(`The slug '${organizationData.slug}' is not allowed.`);
-      }
-      const collectiveWithSlug = await models.Collective.findOne({ where: { slug: organizationData.slug } });
-      if (collectiveWithSlug) {
-        throw new Error(
-          `The slug ${organizationData.slug} is already taken. Please use another slug for your collective.`,
-        );
       }
 
       // Validate now to avoid uploading images if the collective is invalid
