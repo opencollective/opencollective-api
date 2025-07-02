@@ -1689,6 +1689,7 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
 
 const checkExpenseType = (
   newType: ExpenseType,
+  fromAccount: Collective,
   account: Collective,
   parent: Collective | null,
   host: Collective | null,
@@ -1701,6 +1702,17 @@ const checkExpenseType = (
       throw new ValidationFailed('Cannot change the type for this expense');
     } else if (newType === ExpenseType.CHARGE) {
       throw new ValidationFailed('Cannot manually change the type of an expense to "Charge"');
+    } else if (newType === ExpenseType.SETTLEMENT) {
+      throw new ValidationFailed('Cannot manually change the type of an expense to "Settlement"');
+    }
+  }
+
+  // Settlements are only allowed for platform admins
+  if (!existingExpense && newType === ExpenseType.SETTLEMENT) {
+    if (!remoteUser?.isAdminOfPlatform()) {
+      throw new ValidationFailed('Only platform admins can create settlements');
+    } else if (fromAccount.id !== PlatformConstants.PlatformCollectiveId) {
+      throw new ValidationFailed('Settlements can only be created for the platform account');
     }
   }
 
@@ -2131,6 +2143,12 @@ export async function createExpense(
     throw new ValidationFailed('Collective not found');
   }
 
+  // Load the payee profile
+  const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
+  if (!fromCollective) {
+    throw new ValidationFailed('Payee not found');
+  }
+
   // If the collective has public expense submission disabled, only members can create expenses
   const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
   if (
@@ -2157,7 +2175,7 @@ export async function createExpense(
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
-  checkExpenseType(expenseData.type, collective, collective.parent, collective.host, null, remoteUser);
+  checkExpenseType(expenseData.type, fromCollective, collective, collective.parent, collective.host, null, remoteUser);
 
   let accountingCategorySource: 'submitter' | 'prediction' = 'submitter';
   if (expenseData.accountingCategory) {
@@ -2190,9 +2208,7 @@ export async function createExpense(
     );
   }
 
-  // Load the payee profile
-  const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
-
+  // Check payee
   if (fromCollective.type === CollectiveType.VENDOR) {
     const host = await collective.getHostCollective();
     assert(
@@ -2820,13 +2836,24 @@ export async function editExpense(
   // Check if 2FA is enforced on any of the account remote user is admin of, unless it's a paid credit card charge
   // since we strictly limit the fields that can be updated in that case
   if (req.remoteUser && !isPaidCreditCardCharge) {
-    const accountsFor2FA = [expense.fromCollective, collective, host].filter(Boolean);
+    const accountsFor2FA = [expenseData.fromCollective, expense.fromCollective, collective, host].filter(Boolean);
     await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
   }
 
+  // Load the payee profile
+  const fromCollective = expenseData.fromCollective || expense.fromCollective;
+
   // When changing the type, we must make sure that the new type is allowed
   if (expenseData.type && expenseData.type !== expense.type) {
-    checkExpenseType(expenseData.type, collective, collective.parent, collective.host, expense, remoteUser);
+    checkExpenseType(
+      expenseData.type,
+      fromCollective,
+      collective,
+      collective.parent,
+      collective.host,
+      expense,
+      remoteUser,
+    );
   }
 
   // Let submitter customize the currency
@@ -2856,8 +2883,7 @@ export async function editExpense(
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
-  // Load the payee profile
-  const fromCollective = expenseData.fromCollective || expense.fromCollective;
+  // Check payee
   if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
     if (!options?.skipPermissionCheck && !remoteUser.isAdminOfCollective(fromCollective)) {
       throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');

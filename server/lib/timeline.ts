@@ -109,9 +109,30 @@ const makeTimelineQuery = async (
     return {
       [Op.or]: conditionals,
     };
+  } else if (collective.isHost && collective.type !== CollectiveType.COLLECTIVE) {
+    return {
+      type: {
+        [Op.in]: [
+          ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+          ActivityTypes.COLLECTIVE_APPROVED,
+          ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+          ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
+          ActivityTypes.COLLECTIVE_FROZEN,
+          ActivityTypes.COLLECTIVE_UNFROZEN,
+          ActivityTypes.COLLECTIVE_UNHOSTED,
+          ActivityTypes.COLLECTIVE_APPLY,
+        ],
+      },
+      [Op.or]: [
+        { CollectiveId: collective.id },
+        { FromCollectiveId: collective.id },
+        { HostCollectiveId: collective.id },
+      ],
+    };
   }
 
   const types = [];
+
   if (classes.includes(ActivityClasses.EXPENSES)) {
     types.push(
       ...[
@@ -176,6 +197,7 @@ const makeTimelineQuery = async (
       ],
     );
   }
+
   return {
     type: { [Op.in]: types },
     [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],

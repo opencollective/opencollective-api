@@ -156,7 +156,9 @@ const hasOptedInForFeature = (collective: Collective, feature: FEATURE): boolean
  */
 export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE): boolean => {
   return (
-    get(collective, `data.features.${FEATURE.ALL}`) === false || get(collective, `data.features.${feature}`) === false
+    get(collective, `data.features.${FEATURE.ALL}`) === false ||
+    get(collective, `data.features.${feature}`) === false ||
+    get(collective, `data.isSuspended`) === true
   );
 };
 
@@ -181,6 +183,11 @@ export const hasFeature = (collective: Collective, feature: FEATURE): boolean =>
     return false;
   }
 
+  // Check if the feature is blocked for the account
+  if (isFeatureBlockedForAccount(collective, feature)) {
+    return false;
+  }
+
   // Check opt-out flags
   if (feature in OPT_OUT_FEATURE_FLAGS) {
     return !hasOptedOutOfFeature(collective, feature);
@@ -191,7 +198,7 @@ export const hasFeature = (collective: Collective, feature: FEATURE): boolean =>
     return hasOptedInForFeature(collective, feature);
   }
 
-  return !isFeatureBlockedForAccount(collective, feature);
+  return true;
 };
 
 export { FEATURE };

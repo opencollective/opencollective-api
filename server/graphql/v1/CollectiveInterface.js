@@ -623,6 +623,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isVerified: { type: new GraphQLNonNull(GraphQLBoolean) },
       isIncognito: { type: GraphQLBoolean },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
+      isSuspended: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is suspended' },
       isGuest: { type: GraphQLBoolean },
       canApply: { type: GraphQLBoolean },
       canContact: { type: GraphQLBoolean },
@@ -907,7 +908,12 @@ const CollectiveFields = () => {
     children: {
       type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)),
       resolve(collective) {
-        return collective.getChildren({ where: { type: { [Op.ne]: CollectiveTypeEnum.VENDOR } } });
+        return collective.getChildren({
+          where: {
+            data: { isSuspended: { [Op.not]: true } },
+            type: { [Op.ne]: CollectiveTypeEnum.VENDOR },
+          },
+        });
       },
     },
     type: {
@@ -1206,6 +1212,13 @@ const CollectiveFields = () => {
       description: 'Whether this account is frozen',
       resolve(collective) {
         return get(collective, `data.features.${FEATURE.ALL}`) === false;
+      },
+    },
+    isSuspended: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this account is suspended',
+      resolve(collective) {
+        return get(collective, `data.isSuspended`) === true;
       },
     },
     isArchived: {
@@ -1699,7 +1712,7 @@ const CollectiveFields = () => {
         },
       },
       resolve(collective, args) {
-        const query = { where: {} };
+        const query = { where: { data: { isSuspended: { [Op.not]: true } } } };
 
         if (args.limit) {
           query.limit = args.limit;
@@ -1731,7 +1744,7 @@ const CollectiveFields = () => {
           };
         }
 
-        return collective.getEvents(args);
+        return collective.getEvents(query);
       },
     },
     projects: {
@@ -1741,7 +1754,10 @@ const CollectiveFields = () => {
         offset: { type: GraphQLInt },
       },
       resolve(collective, args) {
-        return collective.getProjects(args);
+        return collective.getProjects({
+          ...args,
+          where: { data: { isSuspended: { [Op.not]: true } } },
+        });
       },
     },
     paymentMethods: {

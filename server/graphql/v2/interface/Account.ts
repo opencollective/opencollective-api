@@ -251,6 +251,10 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is frozen',
   },
+  isSuspended: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account is suspended',
+  },
   isActive: {
     type: GraphQLBoolean,
     description: 'Returns whether the account accepts financial contributions.',
@@ -780,6 +784,7 @@ const accountFieldsDefinition = () => ({
 
       const where = {
         ParentCollectiveId: account.id,
+        data: { isSuspended: { [Op.not]: true } },
       };
       if (!isNil(args.isActive)) {
         where['isActive'] = args.isActive;
@@ -1172,7 +1177,7 @@ export const AccountFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether this account is archived',
     resolve(collective) {
-      return Boolean(collective.deactivatedAt);
+      return Boolean(collective.deactivatedAt && !collective.isActive);
     },
   },
   isFrozen: {
@@ -1180,6 +1185,13 @@ export const AccountFields = {
     description: 'Whether this account is frozen',
     resolve(collective) {
       return get(collective, `data.features.${FEATURE.ALL}`) === false;
+    },
+  },
+  isSuspended: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account is suspended',
+    resolve(collective) {
+      return get(collective, `data.isSuspended`) === true;
     },
   },
   isHost: {
