@@ -37,6 +37,12 @@ fi
 echo "- running migration if any"
 PG_DATABASE=opencollective_dvl npm run db:migrate
 
+UNAME=$(uname -a)
+if [[ $UNAME =~ "Darwin" && $UNAME =~ "arm64" ]]; then
+  echo "✓ Running on Apple Silicon (arm64), installing sharp for arm64"
+  npm install --os=darwin --cpu=arm64 --ignore-scripts --no-save sharp
+fi
+
 echo ""
 echo "You can now start the Open Collective API server by running:"
 echo "$> npm run dev"
