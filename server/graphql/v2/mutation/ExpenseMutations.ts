@@ -38,10 +38,10 @@ import {
   editExpense,
   editExpenseDraft,
   holdExpense,
+  markAsPaidWithStripe,
   markExpenseAsIncomplete,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
-  markPaidWithStripe,
   moveExpenses,
   payExpense,
   prepareAttachedFiles,
@@ -527,8 +527,8 @@ const expenseMutations = {
         case 'DECLINE_INVITED_EXPENSE':
           expense = await declineInvitedExpense(req, expense, args.draftKey, args.message);
           break;
-        case 'PAID_WITH_STRIPE':
-          expense = await markPaidWithStripe(req, expense);
+        case 'MARK_AS_PAID_WITH_STRIPE':
+          expense = await markAsPaidWithStripe(req, expense);
           break;
       }
 
@@ -706,7 +706,7 @@ const expenseMutations = {
       return expense;
     },
   },
-  createExpensePaymentIntent: {
+  createExpenseStripePaymentIntent: {
     type: new GraphQLNonNull(GraphQLPaymentIntent),
     description: 'Create a Stripe payment intent',
     args: {

@@ -342,7 +342,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       transaction.kind === EXPENSE &&
       transaction.type === CREDIT &&
       !transaction.isRefund &&
-      // Expense paid with stripe are accounted by the receiving end, so its allowed to be initiated here as
+      // Expenses paid with stripe are accounted by the receiving end, so it's allowed to be initiated here as
       // a credit to the host receiving the expense payment.
       transaction.PaymentMethod?.service !== PAYMENT_METHOD_SERVICE.STRIPE
     ) {

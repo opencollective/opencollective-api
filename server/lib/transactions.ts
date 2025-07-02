@@ -193,9 +193,10 @@ export async function createTransactionsFromPaidStripeExpense(
   // host in this context is the host of the collective getting paid for the expense.
   // expense.HostCollectiveId -> host of the collective paying the expense.
   // expense.fromCollectiveId.HostCollectiveId -> host of the payee (receiving the expense money).
-  const host = payee.host || (await Collective.findByPk(payee.HostCollectiveId, { transaction: sequelizeTransaction }));
+  const payeeHost =
+    payee.host || (await Collective.findByPk(payee.HostCollectiveId, { transaction: sequelizeTransaction }));
 
-  const balanceTransactionToCollectiveCurrencyRate = await getFxRate(
+  const balanceTransactionToPayeeCurrencyRate = await getFxRate(
     balanceTransaction.currency as SupportedCurrency,
     payee.currency,
     new Date(),
@@ -203,7 +204,7 @@ export async function createTransactionsFromPaidStripeExpense(
 
   const balanceTransactionToHostCurrencyRate = await getFxRate(
     balanceTransaction.currency.toUpperCase() as SupportedCurrency,
-    host.currency,
+    payeeHost.currency,
   );
 
   const hostFeeInHostCurrency =
@@ -216,23 +217,23 @@ export async function createTransactionsFromPaidStripeExpense(
 
   const transaction = {
     netAmountInCollectiveCurrency:
-      (balanceTransaction.amount - balanceTransaction.fee) * balanceTransactionToCollectiveCurrencyRate,
+      (balanceTransaction.amount - balanceTransaction.fee) * balanceTransactionToPayeeCurrencyRate,
     amountInHostCurrency: balanceTransaction.amount * balanceTransactionToHostCurrencyRate,
-    hostCurrency: host.currency,
-    hostCurrencyFxRate: balanceTransactionToHostCurrencyRate / balanceTransactionToCollectiveCurrencyRate,
+    hostCurrency: payeeHost.currency,
+    hostCurrencyFxRate: balanceTransactionToHostCurrencyRate / balanceTransactionToPayeeCurrencyRate,
     paymentProcessorFeeInHostCurrency: toNegative(balanceTransaction.fee),
     hostFeeInHostCurrency,
     platformFeeInHostCurrency: 0,
     ExpenseId: expense.id,
     type: CREDIT,
     kind: EXPENSE,
-    amount: balanceTransactionToCollectiveCurrencyRate * balanceTransaction.amount,
+    amount: balanceTransactionToPayeeCurrencyRate * balanceTransaction.amount,
     currency: payee.currency,
     description: expense.description,
     CreatedByUserId: expense.UserId,
     CollectiveId: expense.FromCollectiveId,
     FromCollectiveId: expense.CollectiveId,
-    HostCollectiveId: host.id,
+    HostCollectiveId: payeeHost.id,
     PaymentMethodId: paymentMethod?.id,
     PaymentMethod: paymentMethod,
     PayoutMethodId: expense.PayoutMethodId,

@@ -344,7 +344,7 @@ async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise
     (
       SELECT 'EXPENSE' as "target"
       FROM "Expenses" where "data"#>>'{paymentIntent,id}' = :paymentIntentId
-      LIMIT 1
+      AND "deletedAt" IS NULL LIMIT 1
     )
   `,
     {
@@ -472,7 +472,9 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!expense) {
-      logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`);
+      reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`, {
+        extra: { event },
+      });
       return;
     }
 
@@ -585,7 +587,9 @@ async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
   });
 
   if (!expense) {
-    logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`);
+    reportMessageToSentry(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`, {
+      extra: { event },
+    });
     return;
   }
 
