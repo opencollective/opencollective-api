@@ -1,28 +1,24 @@
-/* eslint-disable */
-/* tslint:disable */
-// @ts-nocheck
-/*
- * ---------------------------------------------------------------------
- * ## THIS FILE WAS GENERATED VIA SWAGGER-TYPESCRIPT-API              ##
- * ##                                                                 ##
- * ## AUTHOR: acacode                                                 ##
- * ## SOURCE: https://github.com/acacode/swagger-typescript-api       ##
- * ## API: https://bankaccountdata.gocardless.com/api/v2/swagger.json ##
- * ---------------------------------------------------------------------
- */
-
-export enum StatusEnum {
+export enum GoCardlessRequisitionStatus {
+  /** Requisition has been successfully created (Stage 1) */
   CR = 'CR',
-  ID = 'ID',
-  LN = 'LN',
+  /** End-user is giving consent at GoCardless's consent screen (Stage 2) */
+  GC = 'GC',
+  /** End-user is redirected to the financial institution for authentication (Stage 3) */
+  UA = 'UA',
+  /** Either SSN verification has failed or end-user has entered incorrect credentials (Stage 4) */
   RJ = 'RJ',
+  /** End-user is selecting accounts (Stage 5) */
+  SA = 'SA',
+  /** End-user is granting access to their account information (Stage 6) */
+  GA = 'GA',
+  /**  */
+  LN = 'LN',
+  /** Access to accounts has expired as set in End User Agreement (Stage 8) */
+  EX = 'EX',
+  // Below are statuses not found in the documentation (https://developer.gocardless.com/bank-account-data/statuses) but still part of https://bankaccountdata.gocardless.com/api/v2/swagger.json
+  ID = 'ID',
   ER = 'ER',
   SU = 'SU',
-  EX = 'EX',
-  GC = 'GC',
-  UA = 'UA',
-  GA = 'GA',
-  SA = 'SA',
 }
 
 /** AccountSerializer. */
@@ -475,7 +471,7 @@ export interface Requisition {
    * Requisition status
    * status of this requisition
    */
-  status?: StatusEnum;
+  status?: GoCardlessRequisitionStatus;
   /** an Institution ID for this Requisition */
   institution_id: string;
   /**
@@ -615,7 +611,7 @@ export interface SpectacularRequisition {
    * Requisition status
    * status of this requisition
    */
-  status?: StatusEnum;
+  status?: GoCardlessRequisitionStatus;
   /** an Institution ID for this Requisition */
   institution_id: string;
   /**
@@ -764,12 +760,12 @@ export interface ApiConfig<SecurityDataType = unknown> {
   customFetch?: typeof fetch;
 }
 
-export interface HttpResponse<D extends unknown, E extends unknown = unknown> extends Response {
+export interface HttpResponse<D, E = unknown> extends Response {
   data: D;
   error: E;
 }
 
-type CancelToken = Symbol | string | number;
+type CancelToken = symbol | string | number;
 
 export enum ContentType {
   Json = 'application/json',
@@ -940,7 +936,9 @@ export class HttpClient<SecurityDataType = unknown> {
         this.abortControllers.delete(cancelToken);
       }
 
-      if (!response.ok) throw data;
+      if (!response.ok) {
+        throw data;
+      }
       return data;
     });
   };
@@ -951,7 +949,7 @@ export class HttpClient<SecurityDataType = unknown> {
  * @version 2.0 (v2)
  * @baseUrl https://bankaccountdata.gocardless.com
  */
-export class GoCardlessBankAccountDataApi<SecurityDataType extends unknown> extends HttpClient<SecurityDataType> {
+export class GoCardlessBankAccountDataApi<SecurityDataType> extends HttpClient<SecurityDataType> {
   api = {
     /**
      * @description Access account metadata. Information about the account record, such as the processing status and IBAN. Account status is recalculated based on the error count in the latest req.

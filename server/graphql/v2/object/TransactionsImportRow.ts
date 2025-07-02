@@ -11,6 +11,7 @@ import { GraphQLExpense } from './Expense';
 import { GraphQLOrder } from './Order';
 import { GraphQLPlaidAccount } from './PlaidAccount';
 import { GraphQLTransactionsImport } from './TransactionsImport';
+import { GraphQLTransactionsImportAccount } from './TransactionsImportAccount';
 
 export const GraphQLTransactionsImportRow = new GraphQLObjectType({
   name: 'TransactionsImportRow',
@@ -60,18 +61,19 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
       description:
         'If an account ID is available in the imported row, it will be stored here. Returns the default account ID otherwise.',
       // "__default__" must match `components/dashboard/sections/transactions-imports/lib/types.ts`
-      resolve: (row: TransactionsImportRow) => row.rawValue?.['account_id'] || '__default__',
+      resolve: (row: TransactionsImportRow) => row.accountId || '__default__',
     },
     plaidAccount: {
       type: GraphQLPlaidAccount,
       description: 'If the row was imported from plaid, this is the account it was imported from',
+      deprecationReason: '2025-07-02: Please use the generic institutionAccount field instead.',
       resolve: async (row: TransactionsImportRow, _, req) => {
-        const accountId = row.rawValue?.['account_id'] as string;
+        const accountId = row.accountId;
         if (accountId) {
           const transactionsImport =
             row.import || (await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId));
-          if (transactionsImport) {
-            const matchingPlaidAccount = transactionsImport.data?.plaid?.availableAccounts?.find(
+          if (transactionsImport && transactionsImport.data?.plaid) {
+            const matchingPlaidAccount = transactionsImport.data.plaid.availableAccounts?.find(
               plaidAccount => plaidAccount.accountId === accountId,
             );
 
@@ -92,13 +94,52 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
         }
       },
     },
+    institutionAccount: {
+      type: GraphQLTransactionsImportAccount,
+      description: 'Corresponding account for the row, based on its account ID',
+      resolve: async (row: TransactionsImportRow, _, req) => {
+        const accountId = row.accountId;
+        if (!accountId) {
+          return null;
+        }
+
+        const importInstance = await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
+        if (importInstance.type === 'PLAID') {
+          // For Plaid imports, return the available accounts from data
+          const matchingPlaidAccount = importInstance.data?.plaid?.availableAccounts?.find(
+            plaidAccount => plaidAccount.accountId === accountId,
+          );
+          if (matchingPlaidAccount) {
+            return {
+              id: matchingPlaidAccount.accountId,
+              name: matchingPlaidAccount.name,
+              subtype: matchingPlaidAccount.subtype,
+              type: matchingPlaidAccount.type,
+              mask: matchingPlaidAccount.mask,
+            };
+          }
+        } else if (importInstance.type === 'GOCARDLESS') {
+          const matchingGoCardlessAccount = importInstance.data?.gocardless?.accountsMetadata?.find(
+            account => account.id === accountId,
+          );
+          if (matchingGoCardlessAccount) {
+            return {
+              id: matchingGoCardlessAccount.id,
+              name: matchingGoCardlessAccount.name || 'Account',
+            };
+          }
+        }
+
+        return [];
+      },
+    },
     assignedAccounts: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
       description: 'The accounts assigned to the row, based on its account ID',
       resolve: async (row: TransactionsImportRow, _, req) => {
         const transactionsImport = await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
         const assignments = transactionsImport.settings?.assignments || {};
-        const accountId = (row.rawValue?.['account_id'] as string) || '__default__';
+        const accountId = row.accountId || '__default__';
         if (!assignments[accountId]?.length) {
           return [];
         }

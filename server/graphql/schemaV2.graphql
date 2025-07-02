@@ -7496,6 +7496,11 @@ type TransactionsImport {
   plaidAccounts: [PlaidAccount]
 
   """
+  List of available accounts for the import (generic version that works for both Plaid and GoCardless)
+  """
+  subAccounts: [TransactionsImportAccount]
+
+  """
   Assignments for the import, as a map of account id to legacy collective IDs. The `__default__` key can be use to set the default assignment.
   """
   assignments: [TransactionsImportAssignment!]!
@@ -7550,6 +7555,7 @@ enum TransactionsImportType {
   CSV
   MANUAL
   PLAID
+  GOCARDLESS
 }
 
 type PlaidAccount {
@@ -7559,6 +7565,63 @@ type PlaidAccount {
   officialName: String!
   subtype: String!
   type: PlaidAccountType!
+}
+
+type TransactionsImportAccount {
+  """
+  The unique identifier for the account
+  """
+  accountId: NonEmptyString!
+
+  """
+  The name of the account
+  """
+  name: NonEmptyString!
+
+  """
+  The last 4 digits of the account (Plaid only)
+  """
+  mask: String
+
+  """
+  The official name of the account (Plaid only)
+  """
+  officialName: String
+
+  """
+  The subtype of the account (Plaid only)
+  """
+  subtype: String
+
+  """
+  The type of the account (Plaid only)
+  """
+  type: String
+
+  """
+  The IBAN of the account (GoCardless only)
+  """
+  iban: String
+
+  """
+  The BBAN of the account (GoCardless only)
+  """
+  bban: String
+
+  """
+  The status of the account (GoCardless only)
+  """
+  status: String
+
+  """
+  The institution ID associated with the account (GoCardless only)
+  """
+  institutionId: String
+
+  """
+  The name of the account owner (GoCardless only)
+  """
+  ownerName: String
 }
 
 enum PlaidAccountType {

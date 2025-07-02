@@ -22,6 +22,10 @@ export const GraphQLTransactionsImportRowCreateInput = new GraphQLInputObjectTyp
       type: new GraphQLNonNull(GraphQLAmountInput),
       description: 'The amount of the row',
     },
+    accountId: {
+      type: GraphQLString,
+      description: 'The account ID associated with the row',
+    },
     rawValue: {
       type: GraphQLJSONObject,
       description: 'The raw value of the row',

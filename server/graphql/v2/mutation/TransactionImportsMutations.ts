@@ -5,7 +5,7 @@ import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
-import { createGoCardlessLink } from '../../../lib/gocardless/connect';
+import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -34,7 +34,6 @@ import {
 } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
-import { GraphQLGoCardlessLinkInput } from '../input/GoCardlessLinkInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportAssignmentInput } from '../input/TransactionsImportAssignmentInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
@@ -42,7 +41,6 @@ import {
   GraphQLTransactionsImportRowUpdateInput,
   TransactionImportRowGraphQLType,
 } from '../input/TransactionsImportRowUpdateInput';
-import { GraphQLGoCardlessLink } from '../object/GoCardlessLink';
 import { GraphQLHost } from '../object/Host';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 import { GraphQLTransactionsImportRow } from '../object/TransactionsImportRow';
@@ -348,6 +346,7 @@ const transactionImportsMutations = {
                 'description',
                 'date',
                 'note',
+                'accountId',
               ]);
               if (row.amount) {
                 values.amount = getValueInCentsFromAmountInput(row.amount);
@@ -390,8 +389,8 @@ const transactionImportsMutations = {
               }
 
               // For plaid imports, users can't change imported data
-              if (importType === 'PLAID') {
-                values = omit(values, ['amount', 'date', 'sourceId', 'description']);
+              if (importType === 'PLAID' || importType === 'GOCARDLESS') {
+                values = omit(values, ['amount', 'date', 'sourceId', 'description', 'accountId']);
               }
 
               const [updatedCount] = await TransactionsImportRow.update(values, { where, transaction });
@@ -464,6 +463,7 @@ const transactionImportsMutations = {
 
       const importId = idDecode(args.id, 'transactions-import');
       const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+
       if (!importInstance) {
         throw new NotFound('Import not found');
       } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
@@ -471,7 +471,7 @@ const transactionImportsMutations = {
       }
 
       let connectedAccount;
-      if (importInstance.type === 'PLAID' && importInstance.ConnectedAccountId) {
+      if (importInstance.ConnectedAccountId) {
         connectedAccount = await importInstance.getConnectedAccount({
           include: [{ association: 'collective', required: true }],
         });
@@ -480,7 +480,11 @@ const transactionImportsMutations = {
         }
 
         await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
-        await disconnectPlaidAccount(connectedAccount);
+        if (importInstance.type === 'PLAID') {
+          await disconnectPlaidAccount(connectedAccount);
+        } else if (importInstance.type === 'GOCARDLESS') {
+          await disconnectGoCardlessAccount(connectedAccount);
+        }
       }
 
       return sequelize.transaction(async transaction => {
@@ -504,40 +508,6 @@ const transactionImportsMutations = {
 
         return true;
       });
-    },
-  },
-  generateGoCardlessLink: {
-    type: new GraphQLNonNull(GraphQLGoCardlessLink),
-    description: 'Generate a GoCardless link for bank account data access',
-    args: {
-      input: {
-        type: new GraphQLNonNull(GraphQLGoCardlessLinkInput),
-        description: 'Input for creating the GoCardless link',
-      },
-    },
-    resolve: async (_: void, args, req: Request) => {
-      checkRemoteUserCanUseTransactions(req);
-
-      // TODO: Rate limit + make sure the user has feature access
-
-      const { input } = args;
-
-      // Create the GoCardless link
-      const link = await createGoCardlessLink(input.institutionId, {
-        maxHistoricalDays: input.maxHistoricalDays,
-        accessValidForDays: input.accessValidForDays,
-        userLanguage: input.userLanguage,
-        accountSelection: input.accountSelection,
-      });
-
-      return {
-        id: link.id,
-        createdAt: new Date(link.created),
-        redirect: link.redirect,
-        institutionId: link.institution_id,
-        link: link.link,
-        reference: link.reference,
-      };
     },
   },
 };
