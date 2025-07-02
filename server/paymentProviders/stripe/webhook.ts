@@ -317,7 +317,14 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
     const balanceTransaction = charge.balance_transaction as Stripe.BalanceTransaction;
     await expense.update(
-      { data: { ...expense.data, paymentIntent }, PaymentMethodId: pm.id, feesPayer: 'PAYEE' },
+      {
+        data: {
+          ...omit(expense.data, 'paymentIntent'),
+          previousPaymentIntents: [...(expense.data.previousPaymentIntents ?? []), paymentIntent],
+        },
+        PaymentMethodId: pm.id,
+        feesPayer: 'PAYEE',
+      },
       { transaction },
     );
     await createTransactionsFromPaidStripeExpense(expense, balanceTransaction, charge, {
