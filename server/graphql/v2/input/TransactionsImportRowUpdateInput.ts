@@ -17,6 +17,7 @@ export type TransactionImportRowGraphQLType = {
   order?: OrderReferenceInputGraphQLType | null;
   expense: ExpenseReferenceInputFields | null;
   note?: string | null;
+  accountId?: string | null;
 };
 
 export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectType({
@@ -58,6 +59,10 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
     note: {
       type: GraphQLString,
       description: 'Optional note for the row',
+    },
+    accountId: {
+      type: GraphQLString,
+      description: 'The account ID associated with the row',
     },
   }),
 });

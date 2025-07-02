@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 
-import { AxiosError } from 'axios';
 import config from 'config';
+import { truncate } from 'lodash';
 
 import { Service } from '../../constants/connected-account';
 import { Collective, ConnectedAccount, sequelize, TransactionsImport, User } from '../../models';
@@ -9,7 +9,7 @@ import cache from '../cache';
 import { reportErrorToSentry } from '../sentry';
 
 import { getGoCardlessClient, getOrRefreshGoCardlessToken } from './client';
-import { EndUserAgreement, Integration, Requisition } from './types';
+import { EndUserAgreement, GoCardlessRequisitionStatus, Integration, IntegrationRetrieve, Requisition } from './types';
 
 // See https://developer.gocardless.com/bank-account-data/endpoints.
 // Keep this in sync with `opencollective-frontend/components/dashboard/sections/transactions-imports/NewOffPlatformTransactionsConnection.tsx`.
@@ -142,16 +142,30 @@ export const createGoCardlessLink = async (
   }
 };
 
-export const connectGoCardlessAccount = async (remoteUser: User, host: Collective, requisitionId: string) => {
+export const connectGoCardlessAccount = async (
+  remoteUser: User,
+  host: Collective,
+  requisitionId: string,
+  { sourceName, name }: { sourceName?: string; name?: string } = {},
+) => {
   const client = getGoCardlessClient();
   await getOrRefreshGoCardlessToken(client);
 
-  const requisition = await client.requisition.getRequisitionById(requisitionId);
-  if (!requisition.accounts) {
-    throw new Error('We did not receive any accounts from GoCardless');
+  const requisition = (await client.requisition.getRequisitionById(requisitionId)) as Requisition;
+  if (requisition.status !== GoCardlessRequisitionStatus.LN) {
+    throw new Error(`The connection for ${requisitionId} is not linked`);
+  } else if (!requisition.accounts?.length) {
+    throw new Error('We did not receive any accounts for this connection');
   }
 
-  console.log('requisition', requisition);
+  const institution = (await client.institution.getInstitutionById(requisition.institution_id)) as IntegrationRetrieve;
+  if (!institution) {
+    throw new Error(`The institution ${requisition.institution_id} was not found`);
+  }
+
+  const accountsMetadata = await Promise.all(
+    requisition.accounts.map(accountId => client.account(accountId).getMetadata()),
+  );
 
   return sequelize.transaction(async transaction => {
     const connectedAccount = await ConnectedAccount.create(
@@ -160,6 +174,13 @@ export const connectGoCardlessAccount = async (remoteUser: User, host: Collectiv
         CreatedByUserId: remoteUser.id,
         service: Service.GOCARDLESS,
         clientId: requisition.id,
+        data: {
+          gocardless: {
+            requisition,
+            institution,
+            accountsMetadata,
+          },
+        },
       },
       {
         transaction,
@@ -173,7 +194,10 @@ export const connectGoCardlessAccount = async (remoteUser: User, host: Collectiv
         CollectiveId: host.id,
         type: 'GOCARDLESS',
         ConnectedAccountId: connectedAccount.id,
-        name: `GoCardless account`, // TODO generate better name
+        source: truncate(sourceName || institution.name, { length: 255 }) || 'Bank',
+        name:
+          truncate(name || accountsMetadata.map(account => account.name).join(', '), { length: 255 }) || `Bank account`,
+        data: { ...connectedAccount.data },
       },
       { transaction },
     );
@@ -190,4 +214,23 @@ export const connectGoCardlessAccount = async (remoteUser: User, host: Collectiv
 
     return { connectedAccount, transactionsImport };
   });
+};
+
+export const disconnectGoCardlessAccount = async (connectedAccount: ConnectedAccount): Promise<void> => {
+  if (connectedAccount.service !== Service.GOCARDLESS) {
+    throw new Error('Only GoCardless accounts can be disconnected');
+  }
+
+  const client = getGoCardlessClient();
+  await getOrRefreshGoCardlessToken(client);
+  try {
+    await client.requisition.deleteRequisition(connectedAccount.clientId);
+  } catch (error) {
+    // Ignore 404 errors, they are expected when the requisition is already deleted from somewhere else
+    if (error.response?.status === 404) {
+      return;
+    } else {
+      throw error;
+    }
+  }
 };
