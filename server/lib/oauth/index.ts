@@ -1,6 +1,6 @@
 import url from 'url';
 
-import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-server';
+import OAuth2Server, { AccessDeniedError, UnauthorizedRequestError } from '@node-oauth/oauth2-server';
 import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
 import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
 import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
@@ -219,6 +219,25 @@ const handleResponse = function (req, res, response) {
  */
 
 const handleError = function (e, req, res, response, next) {
+  // https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.2.1
+  //
+  // This implementation is both correct and technically incorrect, in theory
+  // other error types should be redirected back, but untangling which error
+  // types are safe to redirect on is a bit complicated due to the internals of
+  // @node-oauth/oauth-server
+  //
+  // Theoretically we could always redirect unless the error is an instanceof
+  // InvalidRequestError or InvalidClientError, but I'm not certain that these
+  // are the only two error types that are non-redirectable.
+  //
+  // Therefore, we're only returning the redirect for the frontend if the error
+  // is explicitly the AccessDeniedError (i.e., user clicked "cancel")
+  if (e instanceof AccessDeniedError) {
+    res.set(response.headers);
+    res.status(response.status).send(response.body);
+    return;
+  }
+
   logger.error(e);
   if (this.useErrorHandler === true) {
     next(e);
