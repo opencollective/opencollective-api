@@ -4,6 +4,7 @@ import { pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
 import { crypto } from '../../../lib/encryption';
+import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import * as paypal from '../../../lib/paypal';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import * as transferwise from '../../../lib/transferwise';
@@ -117,6 +118,8 @@ const connectedAccountMutations = {
 
       if (connectedAccount.service === Service.PLAID) {
         await disconnectPlaidAccount(connectedAccount);
+      } else if (connectedAccount.service === Service.GOCARDLESS) {
+        await disconnectGoCardlessAccount(connectedAccount);
       } else if (([Service.STRIPE, Service.PAYPAL] as string[]).includes(connectedAccount.service)) {
         const nbActiveOrders = await models.Order.countActiveRecurringForPaymentService(
           connectedAccount.service as Service.STRIPE | Service.PAYPAL,

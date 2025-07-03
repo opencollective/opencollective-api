@@ -147,6 +147,7 @@ const syncTransactionsImport = async (
             amount: -floatAmountToCents(transaction.amount),
             currency: transaction.iso_currency_code,
             rawValue: transaction as unknown as Record<string, unknown>,
+            accountId: transaction.account_id,
           });
 
           await Activity.create({
@@ -180,6 +181,7 @@ const syncTransactionsImport = async (
               amount: -floatAmountToCents(plaidTransaction.amount),
               currency: plaidTransaction.iso_currency_code,
               rawValue: plaidTransaction,
+              accountId: plaidTransaction.account_id,
             })),
           );
         } catch (e) {
