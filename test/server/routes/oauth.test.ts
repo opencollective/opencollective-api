@@ -82,7 +82,8 @@ describe('server/routes/oauth', () => {
     expect(oauthToken.access_token).to.be.a('string');
     expect(oauthToken.token_type).to.eq('Bearer');
     expect(oauthToken.expires_in).to.eq(7776000);
-    expect(oauthToken.scope).to.have.members(['email', 'account']);
+    // scope should be a string of scopes:
+    expect(oauthToken.scope).to.eq('email account');
 
     const decodedToken = jwt.verify(oauthToken.access_token, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
     expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());

@@ -30,7 +30,7 @@ class CustomTokenHandler extends TokenHandler {
       auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days,
     );
 
-    return new BearerTokenType(accessToken, auth.TOKEN_EXPIRATION_SESSION_OAUTH, null, model.scope);
+    return new BearerTokenType(accessToken, auth.TOKEN_EXPIRATION_SESSION_OAUTH, null, model.scope.join(' '));
   };
 }
 
