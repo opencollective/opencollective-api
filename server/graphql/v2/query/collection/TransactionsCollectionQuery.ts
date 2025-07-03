@@ -443,11 +443,13 @@ export const TransactionsCollectionResolver = async (
           SequelizeUtils.formatNamedParameters(
             `
             CASE
-              WHEN "Transaction"."currency" = :currency THEN "Transaction"."amount"
-              WHEN "Transaction"."hostCurrency" = :currency THEN "Transaction"."amountInHostCurrency"
-              ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
-                "Transaction"."amount"
+              WHEN "Transaction"."currency" = :currency THEN ABS("Transaction"."amount")
+              WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
+              ELSE ABS(
+                COALESCE(
+                  (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
+                  "Transaction"."amount"
+                )
               )
             END
           `,
