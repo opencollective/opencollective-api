@@ -62,6 +62,7 @@ describe('server/graphql/v1/tiers', () => {
       service: 'stripe',
       CollectiveId: host.collective.id,
       token: 'abc',
+      username: 'stripeAccount',
     });
   });
 

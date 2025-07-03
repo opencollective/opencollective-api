@@ -143,6 +143,7 @@ describe('server/lib/payments-legacy', () => {
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.collective.id,
+      username: 'stripeAccount',
     });
   });
 

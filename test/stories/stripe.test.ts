@@ -31,6 +31,7 @@ describe('stripe', () => {
         service: PAYMENT_METHOD_SERVICE.STRIPE,
         token: 'abc',
         CollectiveId: host.id,
+        username: 'stripeAccount',
       });
       const collective = await fakeCollective({
         HostCollectiveId: host.id,

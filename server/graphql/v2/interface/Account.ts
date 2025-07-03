@@ -7,12 +7,14 @@ import { Order, Sequelize } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import PlatformConstants from '../../../constants/platform';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { canSeeLegalName } from '../../../lib/user-permissions';
-import models, { Collective, Op, sequelize } from '../../../models';
+import models, { Collective, Op, PayoutMethod, sequelize } from '../../../models';
 import Application from '../../../models/Application';
+import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
@@ -1307,7 +1309,15 @@ export const AccountFields = {
         ? req.loaders.PayoutMethod.allByCollectiveId
         : req.loaders.PayoutMethod.byCollectiveId;
 
-      return loader.load(collective.id);
+      const payoutMethods: PayoutMethod[] = await loader.load(collective.id);
+
+      return payoutMethods.filter(pm => {
+        if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
+          return false;
+        }
+
+        return true;
+      });
     },
   },
   paymentMethods: {

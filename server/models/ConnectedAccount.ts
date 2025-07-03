@@ -13,6 +13,7 @@ import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import type Collective from './Collective';
+import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import type User from './User';
 
 class ConnectedAccount extends Model<
@@ -142,6 +143,36 @@ ConnectedAccount.init(
   {
     sequelize,
     paranoid: true,
+    hooks: {
+      async afterCreate(connectedAccount) {
+        if (connectedAccount.service === 'stripe') {
+          await PayoutMethod.create({
+            CollectiveId: connectedAccount.CollectiveId,
+            CreatedByUserId: connectedAccount.CreatedByUserId,
+            isSaved: true,
+            type: PayoutMethodTypes.STRIPE,
+            data: {
+              connectedAccountId: connectedAccount.id,
+              stripeAccountId: connectedAccount.username,
+              publishableKey: connectedAccount.data?.publishableKey,
+            },
+          });
+        }
+      },
+      async afterDestroy(connectedAccount) {
+        if (connectedAccount.service === 'stripe') {
+          await PayoutMethod.destroy({
+            where: {
+              type: PayoutMethodTypes.STRIPE,
+              CollectiveId: connectedAccount.CollectiveId,
+              data: {
+                connectedAccountId: connectedAccount.id,
+              },
+            },
+          });
+        }
+      },
+    },
   },
 );
 

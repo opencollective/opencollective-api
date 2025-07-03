@@ -836,13 +836,14 @@ export const fakeConnectedAccount = async (
   sequelizeParams: Record<string, unknown> = {},
 ) => {
   const CollectiveId = connectedAccountData.CollectiveId || (await fakeCollective({}, sequelizeParams)).id;
-  const service = sample(['github', 'twitter', 'stripe', 'transferwise']);
+  const service = connectedAccountData.service || sample(['github', 'twitter', 'stripe', 'transferwise']);
 
   const connectedAccount = await models.ConnectedAccount.create(
     {
       service,
       clientId: randStr('client-id-'),
       token: randStr('token-'),
+      username: service === 'stripe' ? randStr('username-') : undefined,
       ...connectedAccountData,
       CollectiveId,
     },

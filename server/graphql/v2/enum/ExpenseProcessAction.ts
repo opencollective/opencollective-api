@@ -28,6 +28,9 @@ export const GraphQLExpenseProcessAction = new GraphQLEnumType({
     PAY: {
       description: 'To trigger the payment',
     },
+    MARK_AS_PAID_WITH_STRIPE: {
+      description: 'To mark expense as paid with stripe, can still be processing',
+    },
     MARK_AS_SPAM: {
       description: 'To mark the expense as spam',
     },

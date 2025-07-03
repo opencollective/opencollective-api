@@ -18,6 +18,7 @@ import SqlString from 'sequelize/lib/sql-string';
 import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import PlatformConstants from '../../constants/platform';
 import roles from '../../constants/roles';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
@@ -25,6 +26,7 @@ import logger from '../../lib/logger';
 import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
+import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
@@ -1834,7 +1836,14 @@ const CollectiveFields = () => {
         if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
           return null;
         } else {
-          return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+          const payoutMethods = req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+          return payoutMethods.filter(pm => {
+            if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
+              return false;
+            }
+
+            return true;
+          });
         }
       },
     },
