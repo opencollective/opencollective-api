@@ -96,7 +96,7 @@ const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = [
 ];
 const EXPENSE_DRAFT_ITEMS_PRIVATE_FIELDS = ['url'];
 
-const loadHostForExpense = async (expense, req) => {
+const loadHostForExpense = async (expense: ExpenseModel, req: Express.Request) => {
   return expense.HostCollectiveId
     ? req.loaders.Collective.byId.load(expense.HostCollectiveId)
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
@@ -214,6 +214,16 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         async resolve(expense, _, req) {
           if (expense.AccountingCategoryId) {
             return req.loaders.AccountingCategory.byId.load(expense.AccountingCategoryId);
+          }
+        },
+      },
+      accountingCategoryPrediction: {
+        type: GraphQLAccountingCategory,
+        description: 'The accounting category predictions for this expense',
+        async resolve(expense, _, req) {
+          const host = await loadHostForExpense(expense, req);
+          if (req.remoteUser.isAdminOfCollective(host)) {
+            return req.loaders.AccountingCategory.fetchPredictionForExpense.load(expense);
           }
         },
       },
