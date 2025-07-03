@@ -438,10 +438,12 @@ export const TransactionsCollectionResolver = async (
           : { [Op.lte]: lte };
 
     where.push(
-      sequelize.where(
-        sequelize.literal(
-          SequelizeUtils.formatNamedParameters(
-            `
+      host && host.currency === currency
+        ? sequelize.where(sequelize.fn('abs', sequelize.col('amountInHostCurrency')), operator) // If host currency matches, use amountInHostCurrency
+        : sequelize.where(
+            sequelize.literal(
+              SequelizeUtils.formatNamedParameters(
+                `
             CASE
               WHEN "Transaction"."currency" = :currency THEN ABS("Transaction"."amount")
               WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
@@ -453,12 +455,12 @@ export const TransactionsCollectionResolver = async (
               )
             END
           `,
-            { currency },
-            'postgres',
+                { currency },
+                'postgres',
+              ),
+            ),
+            operator,
           ),
-        ),
-        operator,
-      ),
     );
   } else {
     if (args.minAmount) {
