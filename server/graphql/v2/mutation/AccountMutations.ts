@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, isEqual, isNull, omitBy, pick, set } from 'lodash';
+import { cloneDeep, defaultsDeep, isEqual, isNull, keys, omitBy, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -40,7 +40,6 @@ import {
   GraphQLUserTwoFactorMethodReferenceInput,
 } from '../input/UserTwoFactorMethodReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
-import { GraphQLHost } from '../object/Host';
 import { GraphQLIndividual } from '../object/Individual';
 import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey';
 
@@ -630,7 +629,7 @@ const accountMutations = {
     },
   },
   editAccount: {
-    type: new GraphQLNonNull(GraphQLHost),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Edit key properties of an account. Scope: "account".',
     args: {
       account: {
@@ -653,30 +652,49 @@ const accountMutations = {
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
+      const previousData: Partial<Collective> = {};
+      const newData: Partial<Collective> = {};
       for (const key of Object.keys(args.account)) {
         switch (key) {
-          // If ever implementing name/slug change here, make sure to protect them with `canUseSlug`/`containsProtectedBrandName`!
           case 'currency': {
-            const previousData = { currency: account.currency };
-            await account.setCurrency(args.account[key]);
-            await models.Activity.create({
-              type: activities.COLLECTIVE_EDITED,
-              UserId: req.remoteUser.id,
-              UserTokenId: req.userToken?.id,
-              CollectiveId: account.id,
-              FromCollectiveId: account.id,
-              HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-              data: {
-                collective: account.minimal,
-                previousData,
-                newData: { currency: args.account[key] },
-              },
-            });
+            previousData['currency'] = account.currency;
+            newData['currency'] = args.account.currency;
+            await account.setCurrency(args.account.currency);
+            break;
+          }
+          case 'hostFeePercent': {
+            if (args.account.hostFeePercent !== undefined && args.account.hostFeePercent !== account.hostFeePercent) {
+              previousData['hostFeePercent'] = account.hostFeePercent;
+              newData['hostFeePercent'] = args.account.hostFeePercent;
+              await account.updateHostFee(args.account.hostFeePercent, req.remoteUser);
+            }
+            break;
+          }
+          case 'settings': {
+            previousData['settings'] = pick(account.settings, keys(args.account.settings));
+            newData['settings'] = args.account.settings;
+            const settings = defaultsDeep(cloneDeep(args.account.settings), cloneDeep(account.settings));
+            await account.update({ settings });
+            break;
           }
         }
       }
 
-      return account;
+      await models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: {
+          collective: account.minimal,
+          previousData,
+          newData,
+        },
+      });
+
+      return account.reload();
     },
   },
   setPolicies: {

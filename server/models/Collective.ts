@@ -178,6 +178,9 @@ type Settings = {
   earlyAccess?: Record<string, boolean>;
   disableCustomContributions?: boolean;
   autoAssignExpenseCategoryPredictions?: boolean;
+  apply?: boolean;
+  applyMessage?: string;
+  tos?: string;
 } & TaxSettings;
 
 type Data = Partial<{
