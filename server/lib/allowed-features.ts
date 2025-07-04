@@ -1,154 +1,148 @@
-import { get } from 'lodash';
+import { get, omit } from 'lodash';
 
 import { CollectiveType } from '../constants/collectives';
 import FEATURE from '../constants/feature';
+import PlatformConstants from '../constants/platform';
 import { Collective } from '../models';
 
-const HOST_TYPES = [CollectiveType.USER, CollectiveType.ORGANIZATION];
+type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
+type FEATURE_ACCESS_PARTY = 'EVERYONE' | 'HOSTS' | 'ACTIVE_ACCOUNTS' | 'ACTIVE_HOSTS' | 'PLATFORM_ACCOUNTS';
 
-// Please refer to and update https://docs.google.com/spreadsheets/d/15ppKaZJCXBjvY7-AjjCj3w5D-4ebLQdEowynJksgDXE/edit#gid=0
-const FeatureAllowedForTypes = {
-  [FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]: [
-    CollectiveType.ORGANIZATION,
-    CollectiveType.COLLECTIVE,
-    CollectiveType.EVENT,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-  ],
-  [FEATURE.RECURRING_CONTRIBUTIONS]: [
-    CollectiveType.USER,
-    CollectiveType.ORGANIZATION,
-    CollectiveType.COLLECTIVE,
-    CollectiveType.FUND,
-  ],
-  [FEATURE.RECEIVE_HOST_APPLICATIONS]: HOST_TYPES,
-  [FEATURE.HOST_DASHBOARD]: HOST_TYPES,
-  [FEATURE.EVENTS]: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
-  [FEATURE.PROJECTS]: [CollectiveType.FUND, CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
-  [FEATURE.USE_EXPENSES]: [
-    CollectiveType.ORGANIZATION,
-    CollectiveType.COLLECTIVE,
-    CollectiveType.EVENT,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-    CollectiveType.USER,
-  ],
-  [FEATURE.RECEIVE_EXPENSES]: [
-    CollectiveType.ORGANIZATION,
-    CollectiveType.COLLECTIVE,
-    CollectiveType.EVENT,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-  ],
-  [FEATURE.COLLECTIVE_GOALS]: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.PROJECT],
-  [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.FUND],
-  [FEATURE.CONVERSATIONS]: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
-  [FEATURE.UPDATES]: [
-    CollectiveType.COLLECTIVE,
-    CollectiveType.ORGANIZATION,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-    CollectiveType.EVENT,
-  ],
-  [FEATURE.TEAM]: [
-    CollectiveType.ORGANIZATION,
-    CollectiveType.COLLECTIVE,
-    CollectiveType.EVENT,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-  ],
-  [FEATURE.CONTACT_FORM]: [
-    CollectiveType.COLLECTIVE,
-    CollectiveType.EVENT,
-    CollectiveType.ORGANIZATION,
-    CollectiveType.FUND,
-    CollectiveType.PROJECT,
-  ],
-  [FEATURE.TRANSFERWISE]: [CollectiveType.ORGANIZATION],
-  [FEATURE.PAYPAL_PAYOUTS]: [CollectiveType.ORGANIZATION],
-  [FEATURE.PAYPAL_DONATIONS]: [CollectiveType.ORGANIZATION],
-  [FEATURE.ALIPAY]: [CollectiveType.ORGANIZATION],
-};
+/** Account types that are meant to be administrated by multiple admins */
+const MULTI_ADMIN_ACCOUNT_TYPES = [
+  CollectiveType.ORGANIZATION,
+  CollectiveType.COLLECTIVE,
+  CollectiveType.EVENT,
+  CollectiveType.FUND,
+  CollectiveType.PROJECT,
+] as const;
 
 /**
- * A map of paths to retrieve the value of a feature flag from a collective
+ * A new way to define feature access
  */
-const OPT_OUT_FEATURE_FLAGS = {
-  [FEATURE.CONTACT_FORM]: 'settings.features.contactForm',
-};
-
-const OPT_IN_FEATURE_FLAGS = {
-  [FEATURE.COLLECTIVE_GOALS]: 'settings.collectivePage.showGoals',
-  [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
-  [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
-  [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
-  [FEATURE.EMAIL_NOTIFICATIONS_PANEL]: 'settings.features.emailNotificationsPanel',
-  [FEATURE.STRIPE_PAYMENT_INTENT]: 'settings.features.stripePaymentIntent',
-};
-
-const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
-  FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
-  FEATURE.USE_EXPENSES,
-  FEATURE.RECEIVE_EXPENSES,
-  FEATURE.RECEIVE_HOST_APPLICATIONS,
-  FEATURE.TOP_FINANCIAL_CONTRIBUTORS,
-  FEATURE.COLLECTIVE_GOALS,
-  FEATURE.TRANSFERWISE,
-  FEATURE.PAYPAL_PAYOUTS,
-  FEATURE.PAYPAL_DONATIONS,
-  FEATURE.PROJECTS,
-  FEATURE.ALIPAY,
-  FEATURE.CONTACT_FORM,
-  FEATURE.HOST_DASHBOARD,
-  FEATURE.EVENTS,
-  FEATURE.UPDATES,
-  FEATURE.CONVERSATIONS,
-]);
-
-const FEATURES_ONLY_FOR_HOST_USERS = new Set([FEATURE.RECEIVE_HOST_APPLICATIONS, FEATURE.HOST_DASHBOARD]);
-
-const FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS = new Set([FEATURE.CONTACT_FORM]);
-
-const FEATURES_ONLY_FOR_ACTIVE_HOSTS = new Set([
-  FEATURE.RECEIVE_EXPENSES,
-  FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
-  FEATURE.EVENTS,
-]);
-
-/**
- * Returns true if feature is allowed for this collective type, false otherwise.
- */
-export const isFeatureAllowedForCollectiveType = (
-  collectiveType: CollectiveType,
-  feature: FEATURE,
-  isHost?: boolean,
-): boolean => {
-  const allowedTypes = FeatureAllowedForTypes[feature];
-  const allowedForType = allowedTypes ? allowedTypes.includes(collectiveType) : true;
-
-  if (!allowedForType) {
-    return false;
-  }
-
-  // Check if allowed for host orgs but not normal orgs
-  if (collectiveType === CollectiveType.ORGANIZATION && FEATURES_ONLY_FOR_HOST_ORGS.has(feature) && !isHost) {
-    return false;
-  } else if (collectiveType === CollectiveType.USER && FEATURES_ONLY_FOR_HOST_USERS.has(feature) && !isHost) {
-    return false;
-  }
-
-  return true;
-};
-
-export const hasOptedOutOfFeature = (collective: Collective, feature: FEATURE): boolean => {
-  const optOutFlag = OPT_OUT_FEATURE_FLAGS[feature];
-  return optOutFlag ? get(collective, optOutFlag) === false : false;
-};
-
-const hasOptedInForFeature = (collective: Collective, feature: FEATURE): boolean => {
-  const optInFlag = OPT_IN_FEATURE_FLAGS[feature];
-  return get(collective, optInFlag) === true;
-};
+const FeaturesAccess: Partial<
+  Record<
+    FEATURE,
+    {
+      accountTypes?: readonly CollectiveType[];
+      onlyAllowedFor?: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[];
+      enabledByDefaultFor?: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[];
+      isOptIn?: boolean;
+      /** @deprecated To override the default data.features.${feature} flag. For retro-compatibility. */
+      flagOverride?: string;
+    }
+  >
+> = {
+  [FEATURE.ALIPAY]: {
+    onlyAllowedFor: 'ACTIVE_HOSTS',
+  },
+  [FEATURE.COLLECTIVE_GOALS]: {
+    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.PROJECT],
+    isOptIn: true,
+    flagOverride: 'settings.collectivePage.showGoals',
+  },
+  [FEATURE.CONTACT_FORM]: {
+    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    flagOverride: 'settings.features.contactForm',
+    accountTypes: [
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.ORGANIZATION,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
+  },
+  [FEATURE.CONVERSATIONS]: {
+    accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
+  },
+  [FEATURE.EVENTS]: {
+    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
+  },
+  [FEATURE.HOST_DASHBOARD]: {
+    onlyAllowedFor: 'HOSTS',
+  },
+  [FEATURE.OFF_PLATFORM_TRANSACTIONS]: {
+    isOptIn: true,
+    enabledByDefaultFor: 'PLATFORM_ACCOUNTS',
+    onlyAllowedFor: ['ACTIVE_HOSTS', 'PLATFORM_ACCOUNTS'],
+    accountTypes: [CollectiveType.ORGANIZATION],
+  },
+  [FEATURE.PAYPAL_DONATIONS]: {
+    onlyAllowedFor: 'ACTIVE_HOSTS',
+    isOptIn: true,
+    flagOverride: 'settings.features.paypalDonations',
+  },
+  [FEATURE.PAYPAL_PAYOUTS]: {
+    onlyAllowedFor: 'ACTIVE_HOSTS',
+    isOptIn: true,
+    flagOverride: 'settings.features.paypalPayouts',
+  },
+  [FEATURE.PROJECTS]: {
+    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    accountTypes: [CollectiveType.FUND, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
+  },
+  [FEATURE.RECEIVE_EXPENSES]: {
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
+  },
+  [FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]: {
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
+  },
+  [FEATURE.RECEIVE_HOST_APPLICATIONS]: {
+    onlyAllowedFor: 'HOSTS',
+    isOptIn: true,
+    flagOverride: 'settings.apply',
+  },
+  [FEATURE.RECURRING_CONTRIBUTIONS]: {
+    accountTypes: [CollectiveType.USER, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE, CollectiveType.FUND],
+  },
+  [FEATURE.STRIPE_PAYMENT_INTENT]: {
+    isOptIn: true,
+    flagOverride: 'settings.features.stripePaymentIntent',
+  },
+  [FEATURE.TEAM]: {
+    accountTypes: MULTI_ADMIN_ACCOUNT_TYPES,
+  },
+  [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: {
+    accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.FUND],
+  },
+  [FEATURE.TRANSFERWISE]: {
+    onlyAllowedFor: 'ACTIVE_HOSTS',
+  },
+  [FEATURE.UPDATES]: {
+    accountTypes: [
+      CollectiveType.COLLECTIVE,
+      CollectiveType.ORGANIZATION,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+      CollectiveType.EVENT,
+    ],
+  },
+  [FEATURE.USE_EXPENSES]: {
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+      CollectiveType.USER,
+      CollectiveType.VENDOR,
+    ],
+  },
+} as const;
 
 /**
  * Returns true if the feature is disabled for the account. This function only checks `collective.data`,
@@ -162,43 +156,103 @@ export const isFeatureBlockedForAccount = (collective: Collective, feature: FEAT
   );
 };
 
+const checkFeatureAccessParty = (
+  collective: Collective,
+  parties: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[] | undefined,
+): boolean | undefined => {
+  if (!parties) {
+    return undefined;
+  }
+
+  const allParties = Array.isArray(parties) ? parties : [parties];
+  return allParties.some(party => {
+    switch (party) {
+      case 'EVERYONE':
+        return true;
+      case 'ACTIVE_ACCOUNTS':
+        return collective.isActive;
+      case 'ACTIVE_HOSTS':
+        return (
+          collective.isHostAccount &&
+          (collective.isActive || (collective.type === CollectiveType.USER && !collective.deactivatedAt)) // `isActive` is not used for host users
+        );
+      case 'PLATFORM_ACCOUNTS':
+        return PlatformConstants.CurrentPlatformCollectiveIds.includes(collective.id);
+      case 'HOSTS':
+        return collective.isHostAccount;
+    }
+  });
+};
+
 /**
- * If a given feature is allowed for the collective type, check if it is activated for collective.
+ * Returns the access level for a feature.
+ *
+ * @param collective - The collective to check the feature access for.
+ * @param feature - The feature to check the access for.
+ * @returns The access level for the feature.
+ */
+export const getFeatureAccess = (collective: Collective, feature: FEATURE): FEATURE_ACCESS => {
+  if (!collective) {
+    return 'UNSUPPORTED';
+  } else if (isFeatureBlockedForAccount(collective, feature)) {
+    return 'DISABLED';
+  }
+
+  // No config => feature is allowed by default
+  const featureAccess = FeaturesAccess[feature];
+  if (!featureAccess) {
+    return 'AVAILABLE';
+  }
+
+  // Account types
+  if (featureAccess.accountTypes && !featureAccess.accountTypes.includes(collective.type)) {
+    return 'UNSUPPORTED';
+  }
+
+  // Check opt-out flag
+  if (
+    get(collective, `data.features.${feature}`) === false ||
+    (featureAccess.flagOverride && get(collective, featureAccess.flagOverride) === false)
+  ) {
+    return 'DISABLED';
+  }
+
+  // Check if only allowed for a specific party
+  if (featureAccess.onlyAllowedFor && !checkFeatureAccessParty(collective, featureAccess.onlyAllowedFor)) {
+    return 'UNSUPPORTED';
+  }
+
+  // Check if enabled by default
+  if (featureAccess.enabledByDefaultFor && checkFeatureAccessParty(collective, featureAccess.enabledByDefaultFor)) {
+    return 'AVAILABLE';
+  }
+
+  // Check opt-in flag
+  if (
+    featureAccess.isOptIn &&
+    !get(collective, `data.features.${feature}`) &&
+    !(featureAccess.flagOverride && get(collective, featureAccess.flagOverride))
+  ) {
+    return 'DISABLED';
+  }
+
+  return 'AVAILABLE';
+};
+
+/**
+ * A small wrapper around `getFeatureAccess` to check if a feature is available for a collective.
  */
 export const hasFeature = (collective: Collective, feature: FEATURE): boolean => {
-  if (!collective) {
-    return false;
-  } else if (get(collective, `data.features.${FEATURE.ALL}`) === false) {
-    return false;
-  }
+  return getFeatureAccess(collective, feature) === 'AVAILABLE';
+};
 
-  if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
-    return false;
-  }
-
-  // Features only for active accounts
-  if (!collective.isActive && FEATURES_ONLY_FOR_ACTIVE_ACCOUNTS.has(feature)) {
-    return false;
-  } else if (!collective.isActive && collective.isHostAccount && FEATURES_ONLY_FOR_ACTIVE_HOSTS.has(feature)) {
-    return false;
-  }
-
-  // Check if the feature is blocked for the account
-  if (isFeatureBlockedForAccount(collective, feature)) {
-    return false;
-  }
-
-  // Check opt-out flags
-  if (feature in OPT_OUT_FEATURE_FLAGS) {
-    return !hasOptedOutOfFeature(collective, feature);
-  }
-
-  // Check opt-in flags
-  if (feature in OPT_IN_FEATURE_FLAGS) {
-    return hasOptedInForFeature(collective, feature);
-  }
-
-  return true;
+export const getCollectiveFeaturesMap = (collective: Collective) => {
+  return Object.fromEntries(
+    Object.entries(omit(FEATURE, FEATURE.ALL)).map(([feature]) => [
+      feature,
+      getFeatureAccess(collective, feature as FEATURE),
+    ]),
+  ) as Record<Exclude<FEATURE, FEATURE.ALL>, FEATURE_ACCESS>;
 };
 
 export { FEATURE };
