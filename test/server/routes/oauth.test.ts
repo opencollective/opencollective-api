@@ -46,7 +46,6 @@ describe('server/routes/oauth', () => {
     const authorizeParams = new URLSearchParams({
       response_type: 'code',
       client_id: application.clientId,
-      client_secret: application.clientSecret,
       redirect_uri: application.callbackUrl,
       scope: 'email account',
     });
@@ -82,7 +81,8 @@ describe('server/routes/oauth', () => {
     expect(oauthToken.access_token).to.be.a('string');
     expect(oauthToken.token_type).to.eq('Bearer');
     expect(oauthToken.expires_in).to.eq(7776000);
-    expect(oauthToken.scope).to.have.members(['email', 'account']);
+    // scope should be a string of scopes:
+    expect(oauthToken.scope).to.eq('email account');
 
     const decodedToken = jwt.verify(oauthToken.access_token, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
     expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());
@@ -110,6 +110,7 @@ describe('server/routes/oauth', () => {
     it('must provide a client_id', async () => {
       const response = await request(expressApp).post('/oauth/authorize?response_type=code').expect(400);
       const body = response.body;
+      expect(body).to.be.an('object');
       expect(body.error).to.eq('invalid_request');
       expect(body.error_description).to.eq('Missing parameter: `client_id`');
     });
@@ -122,6 +123,7 @@ describe('server/routes/oauth', () => {
         .expect(400);
 
       const body = response.body;
+      expect(body).to.be.an('object');
       expect(body.error).to.eq('invalid_client');
       expect(body.error_description).to.eq('Invalid client');
     });
@@ -155,6 +157,55 @@ describe('server/routes/oauth', () => {
       // include an error code or other error information.""
       expect(response.body).to.be.empty;
       expect(response.get('www-authenticate')).to.eq('Bearer realm="service"');
+    });
+
+    it('correctly handles invalid response type', async () => {
+      const application = await fakeApplication({ type: 'oAuth' });
+      // Get authorization code
+      const authorizeParams = new URLSearchParams({
+        response_type: 'invalid',
+        client_id: application.clientId,
+      });
+
+      const authorizeResponse = await request(expressApp)
+        .post(`/oauth/authorize?${authorizeParams.toString()}`)
+        .set('Content-Type', `application/x-www-form-urlencoded`)
+        .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
+        .expect(400);
+
+      const body = authorizeResponse.body;
+      expect(body).to.be.an('object');
+      expect(body.error).to.eq('unsupported_response_type');
+    });
+
+    it('correctly handles denial of the authorization request', async () => {
+      const application = await fakeApplication({ type: 'oAuth' });
+      // Get authorization code
+      const authorizeParams = new URLSearchParams({
+        response_type: 'code',
+        client_id: application.clientId,
+        redirect_uri: application.callbackUrl,
+        scope: 'email account',
+        allowed: 'false',
+      });
+
+      const expectedRedirect = new URL(application.callbackUrl);
+      expectedRedirect.searchParams.set('error', 'access_denied');
+      expectedRedirect.searchParams.set('error_description', 'Access denied: user denied access to application');
+
+      // For some reason the error_description is encoded differently by URL
+      // SearchParams, but the result is effectively the same:
+      const expectedRedirectUrl = expectedRedirect.href.replaceAll('+', '%20');
+
+      const authorizeResponse = await request(expressApp)
+        .post(`/oauth/authorize?${authorizeParams.toString()}`)
+        .set('Content-Type', `application/x-www-form-urlencoded`)
+        .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
+        .expect(200);
+
+      const authorizeBody = authorizeResponse.body;
+      expect(authorizeBody).to.be.an('object');
+      expect(authorizeBody.redirect_uri).to.eq(expectedRedirectUrl);
     });
   });
 

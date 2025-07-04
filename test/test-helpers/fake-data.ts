@@ -1081,7 +1081,7 @@ export const fakePaypalPlan = async (data: Record<string, unknown> = {}) => {
   });
 };
 
-export const fakeApplication = async (data: Record<string, unknown> = {}): Promise<any> => {
+export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   let CollectiveId;
   let CreatedByUserId;
   if (data.user) {
