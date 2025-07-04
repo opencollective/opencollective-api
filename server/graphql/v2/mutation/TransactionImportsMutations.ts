@@ -5,11 +5,11 @@ import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
-import PlatformConstants from '../../../constants/platform';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import {
+  Collective,
   ConnectedAccount,
   Op,
   sequelize,
@@ -17,7 +17,6 @@ import {
   TransactionsImportRow,
   UploadedFile,
 } from '../../../models';
-import { ExpenseType } from '../../../models/Expense';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import {
@@ -367,13 +366,15 @@ const transactionImportsMutations = {
                   loaders: req.loaders,
                   throwIfMissing: true,
                 });
-                const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+                const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
+                  expense.CollectiveId,
+                  expense.FromCollectiveId,
+                ]);
+
+                const isValidCollective = (c: Collective | Error): c is Collective => c && !(c instanceof Error);
                 if (
-                  collective.HostCollectiveId !== hostId &&
-                  !(
-                    expense.type === ExpenseType.SETTLEMENT &&
-                    expense.FromCollectiveId === PlatformConstants.OfitechCollectiveId
-                  )
+                  !(isValidCollective(collective) && collective.HostCollectiveId === hostId) &&
+                  !(isValidCollective(fromCollective) && fromCollective.HostCollectiveId === hostId)
                 ) {
                   throw new Unauthorized(`This expense cannot be associated with the import: ${expense.id}`);
                 }
