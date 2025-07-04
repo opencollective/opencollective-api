@@ -270,6 +270,7 @@ MemberInvitation.prototype.accept = async function () {
     const memberCollective = await Collective.findByPk(this.MemberCollectiveId);
     await Activity.create({
       type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+      UserId: this.CreatedByUserId,
       CollectiveId: this.CollectiveId,
       FromCollectiveId: this.MemberCollectiveId,
       HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
