@@ -62,7 +62,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import plans, { HostPlan } from '../constants/plans';
 import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
-import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
+import { hasFeature } from '../lib/allowed-features';
 import {
   getBalanceAmount,
   getBalanceTimeSeries,
@@ -152,10 +152,17 @@ type TaxSettings = {
 
 type Settings = {
   goals?: Array<Goal>;
+  collectivePage?: {
+    showGoals?: boolean;
+  };
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
+  // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
+    paypalDonations?: boolean;
+    paypalPayouts?: boolean;
+    stripePaymentIntent?: boolean;
   };
   transferwise?: {
     ignorePaymentProcessorFees?: boolean;
@@ -1342,13 +1349,7 @@ class Collective extends Model<
    *  Checks if the collective can be contacted.
    */
   canContact = function () {
-    if (!this.isActive) {
-      return false;
-    } else if (hasOptedOutOfFeature(this, FEATURE.CONTACT_FORM)) {
-      return false;
-    } else {
-      return isFeatureAllowedForCollectiveType(this.type, FEATURE.CONTACT_FORM) || this.isHostAccount;
-    }
+    return hasFeature(this, FEATURE.CONTACT_FORM);
   };
 
   /**
