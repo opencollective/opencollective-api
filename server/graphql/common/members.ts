@@ -57,7 +57,7 @@ export async function editPublicMessage(
 export async function processInviteMembersInput(
   collective: Collective,
   inviteMemberInputs: [{ memberAccount?; memberInfo?; role; description?; since? }],
-  options: { skipDefaultAdmin?; transaction?; supportedRoles?: [string]; user? },
+  options: { skipDefaultAdmin?; transaction?; supportedRoles?: string[]; user? },
 ) {
   if (inviteMemberInputs.length > 30) {
     throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');

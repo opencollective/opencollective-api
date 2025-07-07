@@ -12,6 +12,7 @@ export const GraphQLOrganizationCreateInput = new GraphQLInputObjectType({
     description: { type: new GraphQLNonNull(GraphQLString) },
     website: { type: GraphQLString, deprecationReason: '2024-11-12: Please use socialLinks' },
     settings: { type: GraphQLJSON },
+    countryISO: { type: GraphQLString, description: 'Two-letters country code following ISO31661' },
     ...AccountImagesInputFields,
   }),
 });
