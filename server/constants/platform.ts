@@ -74,6 +74,10 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
     return [this.OCICollectiveId, this.OfitechCollectiveId, this.OficoCollectiveId];
   },
 
+  get CurrentPlatformCollectiveIds() {
+    return [this.OfitechCollectiveId, this.OficoCollectiveId];
+  },
+
   get FiscalHostOSCCollectiveId() {
     return 11004;
   },

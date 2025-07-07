@@ -72,7 +72,7 @@ enum FEATURE {
   /** Whether an account can emit gift cards */
   EMIT_GIFT_CARDS = 'EMIT_GIFT_CARDS',
 
-  /** Whether an account tweak email notifications or not */
+  /** @deprecated Whether an account tweak email notifications or not */
   EMAIL_NOTIFICATIONS_PANEL = 'EMAIL_NOTIFICATIONS_PANEL',
 
   /** Virtual Cards */
@@ -80,6 +80,9 @@ enum FEATURE {
   VIRTUAL_CARDS = 'VIRTUAL_CARDS',
   // Whether this profile can request a virtual card
   REQUEST_VIRTUAL_CARDS = 'REQUEST_VIRTUAL_CARDS',
+
+  /** Whether an account can use Plaid/GoCardless */
+  OFF_PLATFORM_TRANSACTIONS = 'OFF_PLATFORM_TRANSACTIONS',
 }
 
 export const FeaturesList = Object.values(FEATURE);
