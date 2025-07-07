@@ -6,7 +6,13 @@ import PlatformConstants from '../constants/platform';
 import { Collective } from '../models';
 
 type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
-type FEATURE_ACCESS_PARTY = 'EVERYONE' | 'HOSTS' | 'ACTIVE_ACCOUNTS' | 'ACTIVE_HOSTS' | 'PLATFORM_ACCOUNTS';
+enum FEATURE_ACCESS_PARTY {
+  EVERYONE = 'EVERYONE',
+  HOSTS = 'HOSTS',
+  ACTIVE_ACCOUNTS = 'ACTIVE_ACCOUNTS',
+  ACTIVE_HOSTS = 'ACTIVE_HOSTS',
+  PLATFORM_ACCOUNTS = 'PLATFORM_ACCOUNTS',
+}
 
 /** Account types that are meant to be administrated by multiple admins */
 const MULTI_ADMIN_ACCOUNT_TYPES = [
@@ -34,16 +40,16 @@ const FeaturesAccess: Partial<
   >
 > = {
   [FEATURE.ALIPAY]: {
-    onlyAllowedFor: 'ACTIVE_HOSTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
   },
   [FEATURE.COLLECTIVE_GOALS]: {
-    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.PROJECT],
     isOptIn: true,
     flagOverride: 'settings.collectivePage.showGoals',
   },
   [FEATURE.CONTACT_FORM]: {
-    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     flagOverride: 'settings.features.contactForm',
     accountTypes: [
       CollectiveType.COLLECTIVE,
@@ -57,30 +63,30 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
   },
   [FEATURE.EVENTS]: {
-    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
   },
   [FEATURE.HOST_DASHBOARD]: {
-    onlyAllowedFor: 'HOSTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
   },
   [FEATURE.OFF_PLATFORM_TRANSACTIONS]: {
     isOptIn: true,
-    enabledByDefaultFor: 'PLATFORM_ACCOUNTS',
-    onlyAllowedFor: ['ACTIVE_HOSTS', 'PLATFORM_ACCOUNTS'],
+    enabledByDefaultFor: FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS,
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
     accountTypes: [CollectiveType.ORGANIZATION],
   },
   [FEATURE.PAYPAL_DONATIONS]: {
-    onlyAllowedFor: 'ACTIVE_HOSTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
     isOptIn: true,
     flagOverride: 'settings.features.paypalDonations',
   },
   [FEATURE.PAYPAL_PAYOUTS]: {
-    onlyAllowedFor: 'ACTIVE_HOSTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
     isOptIn: true,
     flagOverride: 'settings.features.paypalPayouts',
   },
   [FEATURE.PROJECTS]: {
-    onlyAllowedFor: 'ACTIVE_ACCOUNTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.FUND, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
   },
   [FEATURE.RECEIVE_EXPENSES]: {
@@ -102,7 +108,7 @@ const FeaturesAccess: Partial<
     ],
   },
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: {
-    onlyAllowedFor: 'HOSTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
     isOptIn: true,
     flagOverride: 'settings.apply',
   },
@@ -120,7 +126,7 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.FUND],
   },
   [FEATURE.TRANSFERWISE]: {
-    onlyAllowedFor: 'ACTIVE_HOSTS',
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
   },
   [FEATURE.UPDATES]: {
     accountTypes: [
