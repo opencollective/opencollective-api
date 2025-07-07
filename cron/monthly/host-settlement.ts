@@ -8,15 +8,17 @@ import moment from 'moment';
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
+import { PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import { getPlatformConstantsForDate, PLATFORM_MIGRATION_DATE } from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
+import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
 import { CommentType } from '../../server/models/Comment';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
+import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
@@ -43,6 +45,76 @@ if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
 
 if (DRY) {
   console.info('Running dry, changes are not going to be persisted to the DB.');
+}
+
+// return last payout method used for the last paid settlement if its was not manual or other.
+async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMethod> {
+  const res = await Expense.findOne({
+    where: {
+      HostCollectiveId: host.id,
+      type: ExpenseType.SETTLEMENT,
+      status: ExpenseStatus.PAID,
+    },
+    attributes: [],
+    include: [
+      {
+        model: PayoutMethod,
+        attributes: ['type'],
+        paranoid: false, // even if it was deleted at some point, we just want to know the type used
+      },
+      {
+        model: PaymentMethod,
+        as: 'paymentMethod',
+        attributes: ['type'],
+        paranoid: false, // even if it was deleted at some point, we just want to know the type used
+      },
+    ],
+    order: [['createdAt', 'desc']],
+  });
+
+  if (!res) {
+    return null;
+  }
+
+  if (
+    !res['paymentMethod'] || // manual
+    res['paymentMethod'].type === PAYMENT_METHOD_TYPE.MANUAL || // manual
+    res.PayoutMethod?.type === PayoutMethodTypes.OTHER
+  ) {
+    // ignore other payout method here to try automated payout methods again
+    // specially now that we support Stripe
+    return null;
+  }
+
+  return res.PayoutMethod;
+}
+
+function isValidHostPayoutMethodType(
+  host: Collective,
+  hostConnectedAccounts: ConnectedAccount[],
+  payoutMethodType: PayoutMethodTypes,
+): boolean {
+  switch (payoutMethodType) {
+    case PayoutMethodTypes.PAYPAL: {
+      if (hostConnectedAccounts?.find(c => c.service === 'paypal') && !host.settings?.['disablePaypalPayouts']) {
+        return true;
+      }
+      break;
+    }
+    case PayoutMethodTypes.BANK_ACCOUNT: {
+      if (hostConnectedAccounts?.find(c => c.service === 'transferwise')) {
+        return true;
+      }
+      break;
+    }
+
+    case PayoutMethodTypes.OTHER:
+    case PayoutMethodTypes.STRIPE: {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
@@ -190,16 +262,27 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       where: { deletedAt: null },
     });
 
-    let payoutMethod = payoutMethods[PayoutMethodTypes.OTHER]?.[0] || settlementBankAccountPayoutMethod;
-    if (connectedAccounts?.find(c => c.service === 'transferwise') && settlementBankAccountPayoutMethod) {
-      payoutMethod = settlementBankAccountPayoutMethod;
-    } else if (
-      connectedAccounts?.find(c => c.service === 'paypal') &&
-      !host.settings?.disablePaypalPayouts &&
-      payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
-    ) {
-      payoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
-    }
+    const lastPayoutMethod = await getLastPaidSettlementManagedPayoutMethod(host);
+    const payoutMethod = [
+      lastPayoutMethod?.type,
+      PayoutMethodTypes.STRIPE,
+      PayoutMethodTypes.BANK_ACCOUNT,
+      PayoutMethodTypes.PAYPAL,
+      PayoutMethodTypes.OTHER,
+    ]
+      .filter(Boolean)
+      .filter(type => isValidHostPayoutMethodType(host, connectedAccounts, type))
+      .map(type => {
+        if (type === lastPayoutMethod?.type && payoutMethods[type]?.some(pm => pm.id === lastPayoutMethod.id)) {
+          return lastPayoutMethod;
+        }
+
+        if (type === PayoutMethodTypes.BANK_ACCOUNT) {
+          return settlementBankAccountPayoutMethod;
+        }
+        return payoutMethods[type]?.[0];
+      })
+      .find(Boolean);
 
     if (!payoutMethod) {
       throw new Error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
