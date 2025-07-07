@@ -51,7 +51,7 @@ if (DRY) {
 async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMethod> {
   const res = await Expense.findOne({
     where: {
-      HostCollectiveId: host.id,
+      CollectiveId: host.id,
       type: ExpenseType.SETTLEMENT,
       status: ExpenseStatus.PAID,
     },
