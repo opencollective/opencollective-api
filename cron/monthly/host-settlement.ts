@@ -321,6 +321,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     };
     if (DRY) {
       console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
+      console.debug(`PayoutMethod: ${payoutMethod.id} - ${payoutMethod.type}`);
       console.debug(`Items:\n${json2csv(items)}\n`);
     } else {
       // Create the Expense
