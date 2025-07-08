@@ -1,3 +1,4 @@
+// ts-unused-exports:disable-next-line
 export enum GoCardlessRequisitionStatus {
   /** Requisition has been successfully created (Stage 1) */
   CR = 'CR',
@@ -22,6 +23,7 @@ export enum GoCardlessRequisitionStatus {
 }
 
 /** AccountSerializer. */
+// ts-unused-exports:disable-next-line
 export interface Account {
   /**
    * The ID of this Account, used to refer to this account in other API calls.
@@ -53,17 +55,20 @@ export interface Account {
 }
 
 /** AccountBalanceSerializer. */
+// ts-unused-exports:disable-next-line
 export interface AccountBalance {
   balances?: BalanceSchema[];
 }
 
 /** AccountDetailSerializer. */
+// ts-unused-exports:disable-next-line
 export interface AccountDetail {
   /** account */
   account: DetailSchema;
 }
 
 /** AccountSchema. */
+// ts-unused-exports:disable-next-line
 export interface AccountSchema {
   /** iban */
   iban?: string;
@@ -80,6 +85,7 @@ export interface AccountSchema {
 }
 
 /** AccountTransactionsSerializer. */
+// ts-unused-exports:disable-next-line
 export interface AccountTransactions {
   /** transactions */
   transactions: BankTransaction;
@@ -91,12 +97,14 @@ export interface AccountTransactions {
 }
 
 /** AdditionalAccountDataSchema. */
+// ts-unused-exports:disable-next-line
 export interface AdditionalAccountDataSchema {
   /** secondaryIdentification */
   secondaryIdentification?: string;
 }
 
 /** BalanceAfterTransactionSchema. */
+// ts-unused-exports:disable-next-line
 export interface BalanceAfterTransactionSchema {
   /** amount */
   amount: string;
@@ -105,6 +113,7 @@ export interface BalanceAfterTransactionSchema {
 }
 
 /** BalanceAmountSchema. */
+// ts-unused-exports:disable-next-line
 export interface BalanceAmountSchema {
   /** amount */
   amount: string;
@@ -113,6 +122,7 @@ export interface BalanceAmountSchema {
 }
 
 /** BalanceSchema. */
+// ts-unused-exports:disable-next-line
 export interface BalanceSchema {
   /** balanceAmount */
   balanceAmount: BalanceAmountSchema;
@@ -129,12 +139,14 @@ export interface BalanceSchema {
 }
 
 /** BankTransactionSerializer. */
+// ts-unused-exports:disable-next-line
 export interface BankTransaction {
   booked: TransactionSchema[];
   pending?: TransactionSchema[];
 }
 
 /** CurrencyExchangeSchema. */
+// ts-unused-exports:disable-next-line
 export interface CurrencyExchangeSchema {
   /** sourceCurrency */
   sourceCurrency?: string;
@@ -151,6 +163,7 @@ export interface CurrencyExchangeSchema {
 }
 
 /** DetailSchema. */
+// ts-unused-exports:disable-next-line
 export interface DetailSchema {
   /** resourceId */
   resourceId?: string;
@@ -195,6 +208,7 @@ export interface DetailSchema {
 }
 
 /** Represents an end-user agreement. */
+// ts-unused-exports:disable-next-line
 export interface EndUserAgreement {
   /**
    * End User Agreement ID
@@ -246,6 +260,7 @@ export interface EndUserAgreement {
 }
 
 /** Represents an end-user agreement. */
+// ts-unused-exports:disable-next-line
 export interface EndUserAgreementRequest {
   /**
    * an Institution ID for this EUA
@@ -282,6 +297,7 @@ export interface EndUserAgreementRequest {
 }
 
 /** Represents end-user details. */
+// ts-unused-exports:disable-next-line
 export interface EnduserAcceptanceDetailsRequest {
   /**
    * user agent string for the end user
@@ -295,6 +311,7 @@ export interface EnduserAcceptanceDetailsRequest {
   ip_address: string;
 }
 
+// ts-unused-exports:disable-next-line
 export interface ErrorResponse {
   summary: string;
   detail: string;
@@ -303,6 +320,7 @@ export interface ErrorResponse {
 }
 
 /** Represents an Integration. */
+// ts-unused-exports:disable-next-line
 export interface Integration {
   id: string;
   name: string;
@@ -315,6 +333,7 @@ export interface Integration {
 }
 
 /** IntegrationSerializer for Retrieve endpoint. */
+// ts-unused-exports:disable-next-line
 export interface IntegrationRetrieve {
   id: string;
   name: string;
@@ -329,6 +348,7 @@ export interface IntegrationRetrieve {
 }
 
 /** Obtain JWT pair. */
+// ts-unused-exports:disable-next-line
 export interface JWTObtainPairRequest {
   /**
    * Secret id from /user-secrets/
@@ -343,12 +363,14 @@ export interface JWTObtainPairRequest {
 }
 
 /** Refresh access token. */
+// ts-unused-exports:disable-next-line
 export interface JWTRefreshRequest {
   /** @minLength 1 */
   refresh: string;
 }
 
 /** OwnerAddressStructuredSchema. */
+// ts-unused-exports:disable-next-line
 export interface OwnerAddressStructuredSchema {
   /** streetName */
   streetName?: string;
@@ -362,6 +384,7 @@ export interface OwnerAddressStructuredSchema {
   country?: string;
 }
 
+// ts-unused-exports:disable-next-line
 export interface PaginatedEndUserAgreementList {
   /** @example 123 */
   count: number;
@@ -378,6 +401,7 @@ export interface PaginatedEndUserAgreementList {
   results: EndUserAgreement[];
 }
 
+// ts-unused-exports:disable-next-line
 export interface PaginatedRequisitionList {
   /** @example 123 */
   count: number;
@@ -395,6 +419,7 @@ export interface PaginatedRequisitionList {
 }
 
 /** EUA reconfirmation. */
+// ts-unused-exports:disable-next-line
 export interface ReconfirmationRetrieve {
   /**
    * Reconfirmation URL to be provided to PSU.
@@ -441,6 +466,7 @@ export interface ReconfirmationRetrieve {
 }
 
 /** EUA reconfirmation. */
+// ts-unused-exports:disable-next-line
 export interface ReconfirmationRetrieveRequest {
   /**
    * redirect_url
@@ -452,6 +478,7 @@ export interface ReconfirmationRetrieveRequest {
 }
 
 /** RequisitionSerializer. */
+// ts-unused-exports:disable-next-line
 export interface Requisition {
   /** @format uuid */
   id?: string;
@@ -515,6 +542,7 @@ export interface Requisition {
 }
 
 /** RequisitionSerializer. */
+// ts-unused-exports:disable-next-line
 export interface RequisitionRequest {
   /**
    * redirect URL to your application after end-user authorization with ASPSP
@@ -563,6 +591,7 @@ export interface RequisitionRequest {
 }
 
 /** Obtain new JWT pair. */
+// ts-unused-exports:disable-next-line
 export interface SpectacularJWTObtain {
   /** Your access token */
   access?: string;
@@ -581,6 +610,7 @@ export interface SpectacularJWTObtain {
 }
 
 /** Refresh Access token. */
+// ts-unused-exports:disable-next-line
 export interface SpectacularJWTRefresh {
   /** Your access token */
   access?: string;
@@ -592,6 +622,7 @@ export interface SpectacularJWTRefresh {
 }
 
 /** Create requisition. */
+// ts-unused-exports:disable-next-line
 export interface SpectacularRequisition {
   /** @format uuid */
   id?: string;
@@ -657,12 +688,14 @@ export interface SpectacularRequisition {
   redirect_immediate?: boolean;
 }
 
+// ts-unused-exports:disable-next-line
 export interface SuccessfulDeleteResponse {
   summary: string;
   detail: string;
 }
 
 /** TransactionAmountSchema. */
+// ts-unused-exports:disable-next-line
 export interface TransactionAmountSchema {
   /** amount */
   amount: string;
@@ -671,6 +704,7 @@ export interface TransactionAmountSchema {
 }
 
 /** TransactionSchema. */
+// ts-unused-exports:disable-next-line
 export interface TransactionSchema {
   /** transactionId */
   transactionId?: string;
@@ -729,9 +763,13 @@ export interface TransactionSchema {
   balanceAfterTransaction?: BalanceAfterTransactionSchema;
 }
 
+// ts-unused-exports:disable-next-line
 export type QueryParamsType = Record<string | number, any>;
+
+// ts-unused-exports:disable-next-line
 export type ResponseFormat = keyof Omit<Body, 'body' | 'bodyUsed'>;
 
+// ts-unused-exports:disable-next-line
 export interface FullRequestParams extends Omit<RequestInit, 'body'> {
   /** set parameter to `true` for call `securityWorker` for this request */
   secure?: boolean;
@@ -751,8 +789,10 @@ export interface FullRequestParams extends Omit<RequestInit, 'body'> {
   cancelToken?: CancelToken;
 }
 
+// ts-unused-exports:disable-next-line
 export type RequestParams = Omit<FullRequestParams, 'body' | 'method' | 'query' | 'path'>;
 
+// ts-unused-exports:disable-next-line
 export interface ApiConfig<SecurityDataType = unknown> {
   baseUrl?: string;
   baseApiParams?: Omit<RequestParams, 'baseUrl' | 'cancelToken' | 'signal'>;
@@ -760,603 +800,20 @@ export interface ApiConfig<SecurityDataType = unknown> {
   customFetch?: typeof fetch;
 }
 
+// ts-unused-exports:disable-next-line
 export interface HttpResponse<D, E = unknown> extends Response {
   data: D;
   error: E;
 }
 
+// ts-unused-exports:disable-next-line
 type CancelToken = symbol | string | number;
 
+// ts-unused-exports:disable-next-line
 export enum ContentType {
   Json = 'application/json',
   JsonApi = 'application/vnd.api+json',
   FormData = 'multipart/form-data',
   UrlEncoded = 'application/x-www-form-urlencoded',
   Text = 'text/plain',
-}
-
-export class HttpClient<SecurityDataType = unknown> {
-  public baseUrl: string = 'https://bankaccountdata.gocardless.com';
-  private securityData: SecurityDataType | null = null;
-  private securityWorker?: ApiConfig<SecurityDataType>['securityWorker'];
-  private abortControllers = new Map<CancelToken, AbortController>();
-  private customFetch = (...fetchParams: Parameters<typeof fetch>) => fetch(...fetchParams);
-
-  private baseApiParams: RequestParams = {
-    credentials: 'same-origin',
-    headers: {},
-    redirect: 'follow',
-    referrerPolicy: 'no-referrer',
-  };
-
-  constructor(apiConfig: ApiConfig<SecurityDataType> = {}) {
-    Object.assign(this, apiConfig);
-  }
-
-  public setSecurityData = (data: SecurityDataType | null) => {
-    this.securityData = data;
-  };
-
-  protected encodeQueryParam(key: string, value: any) {
-    const encodedKey = encodeURIComponent(key);
-    return `${encodedKey}=${encodeURIComponent(typeof value === 'number' ? value : `${value}`)}`;
-  }
-
-  protected addQueryParam(query: QueryParamsType, key: string) {
-    return this.encodeQueryParam(key, query[key]);
-  }
-
-  protected addArrayQueryParam(query: QueryParamsType, key: string) {
-    const value = query[key];
-    return value.map((v: any) => this.encodeQueryParam(key, v)).join('&');
-  }
-
-  protected toQueryString(rawQuery?: QueryParamsType): string {
-    const query = rawQuery || {};
-    const keys = Object.keys(query).filter(key => 'undefined' !== typeof query[key]);
-    return keys
-      .map(key => (Array.isArray(query[key]) ? this.addArrayQueryParam(query, key) : this.addQueryParam(query, key)))
-      .join('&');
-  }
-
-  protected addQueryParams(rawQuery?: QueryParamsType): string {
-    const queryString = this.toQueryString(rawQuery);
-    return queryString ? `?${queryString}` : '';
-  }
-
-  private contentFormatters: Record<ContentType, (input: any) => any> = {
-    [ContentType.Json]: (input: any) =>
-      input !== null && (typeof input === 'object' || typeof input === 'string') ? JSON.stringify(input) : input,
-    [ContentType.JsonApi]: (input: any) =>
-      input !== null && (typeof input === 'object' || typeof input === 'string') ? JSON.stringify(input) : input,
-    [ContentType.Text]: (input: any) => (input !== null && typeof input !== 'string' ? JSON.stringify(input) : input),
-    [ContentType.FormData]: (input: any) =>
-      Object.keys(input || {}).reduce((formData, key) => {
-        const property = input[key];
-        formData.append(
-          key,
-          property instanceof Blob
-            ? property
-            : typeof property === 'object' && property !== null
-              ? JSON.stringify(property)
-              : `${property}`,
-        );
-        return formData;
-      }, new FormData()),
-    [ContentType.UrlEncoded]: (input: any) => this.toQueryString(input),
-  };
-
-  protected mergeRequestParams(params1: RequestParams, params2?: RequestParams): RequestParams {
-    return {
-      ...this.baseApiParams,
-      ...params1,
-      ...(params2 || {}),
-      headers: {
-        ...(this.baseApiParams.headers || {}),
-        ...(params1.headers || {}),
-        ...((params2 && params2.headers) || {}),
-      },
-    };
-  }
-
-  protected createAbortSignal = (cancelToken: CancelToken): AbortSignal | undefined => {
-    if (this.abortControllers.has(cancelToken)) {
-      const abortController = this.abortControllers.get(cancelToken);
-      if (abortController) {
-        return abortController.signal;
-      }
-      return void 0;
-    }
-
-    const abortController = new AbortController();
-    this.abortControllers.set(cancelToken, abortController);
-    return abortController.signal;
-  };
-
-  public abortRequest = (cancelToken: CancelToken) => {
-    const abortController = this.abortControllers.get(cancelToken);
-
-    if (abortController) {
-      abortController.abort();
-      this.abortControllers.delete(cancelToken);
-    }
-  };
-
-  public request = async <T = any, E = any>({
-    body,
-    secure,
-    path,
-    type,
-    query,
-    format,
-    baseUrl,
-    cancelToken,
-    ...params
-  }: FullRequestParams): Promise<HttpResponse<T, E>> => {
-    const secureParams =
-      ((typeof secure === 'boolean' ? secure : this.baseApiParams.secure) &&
-        this.securityWorker &&
-        (await this.securityWorker(this.securityData))) ||
-      {};
-    const requestParams = this.mergeRequestParams(params, secureParams);
-    const queryString = query && this.toQueryString(query);
-    const payloadFormatter = this.contentFormatters[type || ContentType.Json];
-    const responseFormat = format || requestParams.format;
-
-    return this.customFetch(`${baseUrl || this.baseUrl || ''}${path}${queryString ? `?${queryString}` : ''}`, {
-      ...requestParams,
-      headers: {
-        ...(requestParams.headers || {}),
-        ...(type && type !== ContentType.FormData ? { 'Content-Type': type } : {}),
-      },
-      signal: (cancelToken ? this.createAbortSignal(cancelToken) : requestParams.signal) || null,
-      body: typeof body === 'undefined' || body === null ? null : payloadFormatter(body),
-    }).then(async response => {
-      const r = response.clone() as HttpResponse<T, E>;
-      r.data = null as unknown as T;
-      r.error = null as unknown as E;
-
-      const data = !responseFormat
-        ? r
-        : await response[responseFormat]()
-            .then(data => {
-              if (r.ok) {
-                r.data = data;
-              } else {
-                r.error = data;
-              }
-              return r;
-            })
-            .catch(e => {
-              r.error = e;
-              return r;
-            });
-
-      if (cancelToken) {
-        this.abortControllers.delete(cancelToken);
-      }
-
-      if (!response.ok) {
-        throw data;
-      }
-      return data;
-    });
-  };
-}
-
-/**
- * @title GoCardless Bank Account Data API
- * @version 2.0 (v2)
- * @baseUrl https://bankaccountdata.gocardless.com
- */
-export class GoCardlessBankAccountDataApi<SecurityDataType> extends HttpClient<SecurityDataType> {
-  api = {
-    /**
-     * @description Access account metadata. Information about the account record, such as the processing status and IBAN. Account status is recalculated based on the error count in the latest req.
-     *
-     * @tags accounts
-     * @name RetrieveAccountMetadata
-     * @request GET:/api/v2/accounts/{id}/
-     * @secure
-     */
-    retrieveAccountMetadata: (id: string, params: RequestParams = {}) =>
-      this.request<Account, ErrorResponse>({
-        path: `/api/v2/accounts/${id}/`,
-        method: 'GET',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Access account balances. Balances will be returned in Berlin Group PSD2 format.
-     *
-     * @tags accounts
-     * @name RetrieveAccountBalances
-     * @request GET:/api/v2/accounts/{id}/balances/
-     * @secure
-     */
-    retrieveAccountBalances: (id: string, params: RequestParams = {}) =>
-      this.request<AccountBalance, ErrorResponse>({
-        path: `/api/v2/accounts/${id}/balances/`,
-        method: 'GET',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Access account details. Account details will be returned in Berlin Group PSD2 format.
-     *
-     * @tags accounts
-     * @name RetrieveAccountDetails
-     * @request GET:/api/v2/accounts/{id}/details/
-     * @secure
-     */
-    retrieveAccountDetails: (id: string, params: RequestParams = {}) =>
-      this.request<AccountDetail, ErrorResponse>({
-        path: `/api/v2/accounts/${id}/details/`,
-        method: 'GET',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Access account transactions. Transactions will be returned in Berlin Group PSD2 format.
-     *
-     * @tags accounts
-     * @name RetrieveAccountTransactions
-     * @request GET:/api/v2/accounts/{id}/transactions/
-     * @secure
-     */
-    retrieveAccountTransactions: (
-      id: string,
-      query?: {
-        /** @format date */
-        date_from?: string;
-        /** @format date */
-        date_to?: string;
-      },
-      params: RequestParams = {},
-    ) =>
-      this.request<AccountTransactions, ErrorResponse>({
-        path: `/api/v2/accounts/${id}/transactions/`,
-        method: 'GET',
-        query: query,
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Retrieve all End User Agreements belonging to the company
-     *
-     * @tags agreements
-     * @name RetrieveAllAgreements
-     * @request GET:/api/v2/agreements/enduser/
-     * @secure
-     */
-    retrieveAllAgreements: (
-      query?: {
-        /**
-         * Number of results to return per page.
-         * @min 1
-         * @default 100
-         */
-        limit?: number;
-        /**
-         * The initial zero-based index from which to return the results.
-         * @min 0
-         * @default 0
-         */
-        offset?: number;
-      },
-      params: RequestParams = {},
-    ) =>
-      this.request<PaginatedEndUserAgreementList, ErrorResponse>({
-        path: `/api/v2/agreements/enduser/`,
-        method: 'GET',
-        query: query,
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description API endpoints related to end-user agreements.
-     *
-     * @tags agreements
-     * @name CreateEua
-     * @request POST:/api/v2/agreements/enduser/
-     * @secure
-     */
-    createEua: (data: EndUserAgreementRequest, params: RequestParams = {}) =>
-      this.request<EndUserAgreement, ErrorResponse>({
-        path: `/api/v2/agreements/enduser/`,
-        method: 'POST',
-        body: data,
-        secure: true,
-        type: ContentType.Json,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Retrieve end user agreement by ID
-     *
-     * @tags agreements
-     * @name RetrieveEuaById
-     * @request GET:/api/v2/agreements/enduser/{id}/
-     * @secure
-     */
-    retrieveEuaById: (id: string, params: RequestParams = {}) =>
-      this.request<EndUserAgreement, ErrorResponse>({
-        path: `/api/v2/agreements/enduser/${id}/`,
-        method: 'GET',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Delete an end user agreement
-     *
-     * @tags agreements
-     * @name DeleteEuaById
-     * @request DELETE:/api/v2/agreements/enduser/{id}/
-     * @secure
-     */
-    deleteEuaById: (id: string, params: RequestParams = {}) =>
-      this.request<SuccessfulDeleteResponse, ErrorResponse>({
-        path: `/api/v2/agreements/enduser/${id}/`,
-        method: 'DELETE',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Accept an end-user agreement via the API
-     *
-     * @tags agreements
-     * @name AcceptEua
-     * @request PUT:/api/v2/agreements/enduser/{id}/accept/
-     * @secure
-     */
-    acceptEua: (id: string, data: EnduserAcceptanceDetailsRequest, params: RequestParams = {}) =>
-      this.request<EndUserAgreement, ErrorResponse>({
-        path: `/api/v2/agreements/enduser/${id}/accept/`,
-        method: 'PUT',
-        body: data,
-        secure: true,
-        type: ContentType.Json,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Retrieve EUA reconfirmation
-     *
-     * @tags agreements
-     * @name RetrieveEuaReconfirmation
-     * @request GET:/api/v2/agreements/enduser/{id}/reconfirm/
-     * @secure
-     */
-    retrieveEuaReconfirmation: (id: string, params: RequestParams = {}) =>
-      this.request<ReconfirmationRetrieve, ErrorResponse>({
-        path: `/api/v2/agreements/enduser/${id}/reconfirm/`,
-        method: 'GET',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Create EUA reconfirmation
-     *
-     * @tags agreements
-     * @name CreateEuaReconfirmation
-     * @request POST:/api/v2/agreements/enduser/{id}/reconfirm/
-     * @secure
-     */
-    createEuaReconfirmation: (id: string, data: ReconfirmationRetrieveRequest, params: RequestParams = {}) =>
-      this.request<ReconfirmationRetrieve, ErrorResponse>({
-        path: `/api/v2/agreements/enduser/${id}/reconfirm/`,
-        method: 'POST',
-        body: data,
-        secure: true,
-        type: ContentType.Json,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description List all available institutions
-     *
-     * @tags institutions
-     * @name RetrieveAllSupportedInstitutionsInAGivenCountry
-     * @request GET:/api/v2/institutions/
-     * @secure
-     */
-    retrieveAllSupportedInstitutionsInAGivenCountry: (
-      query?: {
-        /** Boolean value, indicating if access scopes are supported */
-        access_scopes_supported?: string;
-        /** Boolean value, indicating if account selection is supported */
-        account_selection_supported?: string;
-        /** Boolean value, indicating if business accounts are supported */
-        business_accounts_supported?: string;
-        /** Boolean value, indicating if card accounts are supported */
-        card_accounts_supported?: string;
-        /** Boolean value, indicating if corporate accounts are supported */
-        corporate_accounts_supported?: string;
-        /** ISO 3166 two-character country code */
-        country?: string;
-        /** Boolean value, indicating if pending transactions are supported */
-        pending_transactions_supported?: string;
-        /** Boolean value, indicating if private accounts are supported */
-        private_accounts_supported?: string;
-        /** Boolean value, indicating if debtor account can be read before submitting payment */
-        read_debtor_account_supported?: string;
-        /** Boolean value, indicating if read refund account is supported */
-        read_refund_account_supported?: string;
-        /** Boolean value, indicating if separate consent for continuous history is supported */
-        separate_continuous_history_consent_supported?: string;
-        /** Boolean value, indicating if ssn verification is supported */
-        ssn_verification_supported?: string;
-      },
-      params: RequestParams = {},
-    ) =>
-      this.request<Integration[], ErrorResponse>({
-        path: `/api/v2/institutions/`,
-        method: 'GET',
-        query: query,
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Get details about a specific Institution and its supported features
-     *
-     * @tags institutions
-     * @name RetrieveInstitution
-     * @request GET:/api/v2/institutions/{id}/
-     * @secure
-     */
-    retrieveInstitution: (id: string, params: RequestParams = {}) =>
-      this.request<IntegrationRetrieve, ErrorResponse>({
-        path: `/api/v2/institutions/${id}/`,
-        method: 'GET',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Retrieve all requisitions belonging to the company
-     *
-     * @tags requisitions
-     * @name RetrieveAllRequisitions
-     * @request GET:/api/v2/requisitions/
-     * @secure
-     */
-    retrieveAllRequisitions: (
-      query?: {
-        /**
-         * Number of results to return per page.
-         * @min 1
-         * @default 100
-         */
-        limit?: number;
-        /**
-         * The initial zero-based index from which to return the results.
-         * @min 0
-         * @default 0
-         */
-        offset?: number;
-      },
-      params: RequestParams = {},
-    ) =>
-      this.request<PaginatedRequisitionList, ErrorResponse>({
-        path: `/api/v2/requisitions/`,
-        method: 'GET',
-        query: query,
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Create a new requisition
-     *
-     * @tags requisitions
-     * @name CreateRequisition
-     * @request POST:/api/v2/requisitions/
-     * @secure
-     */
-    createRequisition: (data: RequisitionRequest, params: RequestParams = {}) =>
-      this.request<SpectacularRequisition, ErrorResponse>({
-        path: `/api/v2/requisitions/`,
-        method: 'POST',
-        body: data,
-        secure: true,
-        type: ContentType.Json,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Retrieve a requisition by ID
-     *
-     * @tags requisitions
-     * @name RequisitionById
-     * @request GET:/api/v2/requisitions/{id}/
-     * @secure
-     */
-    requisitionById: (id: string, params: RequestParams = {}) =>
-      this.request<Requisition, ErrorResponse>({
-        path: `/api/v2/requisitions/${id}/`,
-        method: 'GET',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Delete requisition and its end user agreement
-     *
-     * @tags requisitions
-     * @name DeleteRequisitionById
-     * @request DELETE:/api/v2/requisitions/{id}/
-     * @secure
-     */
-    deleteRequisitionById: (id: string, params: RequestParams = {}) =>
-      this.request<SuccessfulDeleteResponse, ErrorResponse>({
-        path: `/api/v2/requisitions/${id}/`,
-        method: 'DELETE',
-        secure: true,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Obtain JWT pair
-     *
-     * @tags token
-     * @name ObtainNewAccessRefreshTokenPair
-     * @request POST:/api/v2/token/new/
-     * @secure
-     */
-    obtainNewAccessRefreshTokenPair: (data: JWTObtainPairRequest, params: RequestParams = {}) =>
-      this.request<SpectacularJWTObtain, ErrorResponse>({
-        path: `/api/v2/token/new/`,
-        method: 'POST',
-        body: data,
-        secure: true,
-        type: ContentType.Json,
-        format: 'json',
-        ...params,
-      }),
-
-    /**
-     * @description Refresh access token
-     *
-     * @tags token
-     * @name GetANewAccessToken
-     * @request POST:/api/v2/token/refresh/
-     * @secure
-     */
-    getANewAccessToken: (data: JWTRefreshRequest, params: RequestParams = {}) =>
-      this.request<SpectacularJWTRefresh, ErrorResponse>({
-        path: `/api/v2/token/refresh/`,
-        method: 'POST',
-        body: data,
-        secure: true,
-        type: ContentType.Json,
-        format: 'json',
-        ...params,
-      }),
-  };
 }

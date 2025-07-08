@@ -92,7 +92,6 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       description: 'List of available accounts for the import',
       resolve: async (importInstance: TransactionsImport) => {
         if (importInstance.type === 'PLAID') {
-          // For Plaid imports, return the available accounts from data
           return (
             importInstance.data?.plaid?.availableAccounts?.map(account => ({
               id: account.accountId,

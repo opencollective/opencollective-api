@@ -1,10 +1,5 @@
 import { GraphQLEnumType } from 'graphql';
 
-export enum OffPlatformTransactionsProvider {
-  GOCARDLESS = 'GOCARDLESS',
-  PLAID = 'PLAID',
-}
-
 export const GraphQLOffPlatformTransactionsProvider = new GraphQLEnumType({
   name: 'OffPlatformTransactionsProvider',
   description: 'Provider for off-platform transactions',

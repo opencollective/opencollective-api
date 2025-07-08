@@ -471,19 +471,18 @@ const transactionImportsMutations = {
       }
 
       let connectedAccount;
+
       if (importInstance.ConnectedAccountId) {
         connectedAccount = await importInstance.getConnectedAccount({
           include: [{ association: 'collective', required: true }],
         });
-        if (!connectedAccount) {
-          throw new Error('Connected account not found');
-        }
-
-        await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
-        if (importInstance.type === 'PLAID') {
-          await disconnectPlaidAccount(connectedAccount);
-        } else if (importInstance.type === 'GOCARDLESS') {
-          await disconnectGoCardlessAccount(connectedAccount);
+        if (connectedAccount) {
+          await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
+          if (importInstance.type === 'PLAID') {
+            await disconnectPlaidAccount(connectedAccount);
+          } else if (importInstance.type === 'GOCARDLESS') {
+            await disconnectGoCardlessAccount(connectedAccount);
+          }
         }
       }
 

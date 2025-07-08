@@ -105,7 +105,6 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
 
         const importInstance = await req.loaders.TransactionsImport.byId.load(row.TransactionsImportId);
         if (importInstance.type === 'PLAID') {
-          // For Plaid imports, return the available accounts from data
           const matchingPlaidAccount = importInstance.data?.plaid?.availableAccounts?.find(
             plaidAccount => plaidAccount.accountId === accountId,
           );
