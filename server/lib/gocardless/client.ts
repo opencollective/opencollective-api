@@ -7,6 +7,10 @@ let gocardlessClient: NordigenClient | undefined;
 let lastRefreshAt: number | null = null;
 
 export const getGoCardlessClient = () => {
+  if (!config.gocardless || !config.gocardless.secretId || !config.gocardless.secretKey) {
+    throw new Error('GoCardless is not available at this time');
+  }
+
   if (!gocardlessClient) {
     // @ts-expect-error Property 'baseUrl' is missing in type [...] - see https://github.com/nordigen/nordigen-node/pull/64
     gocardlessClient = new NordigenClient({

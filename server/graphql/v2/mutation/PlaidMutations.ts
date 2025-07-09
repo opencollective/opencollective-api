@@ -119,7 +119,7 @@ export const plaidMutations = {
 
       const params: Parameters<typeof generatePlaidLinkToken>[1] = {
         products: ['auth', 'transactions'],
-        countries: isEmpty(args.countries) ? [host.countryISO || 'US'] : args.countries,
+        countries: isEmpty(args.countries) ? ['US'] : args.countries,
         locale: args.locale || 'en',
         accountSelectionEnabled: args.accountSelectionEnabled,
       };
