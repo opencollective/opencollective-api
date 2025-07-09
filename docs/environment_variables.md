@@ -44,6 +44,8 @@
 | SLOW_REQUEST_THRESHOLD                        | .log.slowRequestThreshold                          | Slow request threshold                                                             |
 | LOG_SLOW_MIDDLEWARE                           | .log.slowMiddleware                                | Enable slow middleware logging                                                     |
 | LOG_SLOW_MIDDLEWARE_THRESHOLD                 | .log.slowMiddlewareThreshold                       | Slow middleware threshold (in milliseconds)                                        |
+| GOCARDLESS_SECRET_ID                          | .gocardless.secretId                               | GoCardless secret ID                                                               |
+| GOCARDLESS_SECRET_KEY                         | .gocardless.secretKey                              | GoCardless secret key                                                              |
 | PLAID_CLIENT_ID                               | .plaid.clientId                                    | Plaid client ID                                                                    |
 | PLAID_SECRET                                  | .plaid.secret                                      | Plaid secret                                                                       |
 | PLAID_ENV                                     | .plaid.env                                         | Plaid environment                                                                  |
