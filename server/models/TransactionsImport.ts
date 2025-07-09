@@ -8,6 +8,7 @@ import type {
   InferAttributes,
   InferCreationAttributes,
   Transaction as SequelizeTransaction,
+  WhereOptions,
 } from 'sequelize';
 import { z } from 'zod';
 
@@ -39,7 +40,7 @@ type CreationAttributes = InferCreationAttributes<
   }
 >;
 
-export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID'] as const;
+export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID', 'GOCARDLESS'] as const;
 
 const settingsSchema = z
   .object({
@@ -70,6 +71,21 @@ const dataSchema = z
             }),
           )
           .optional(),
+      })
+      .optional(),
+    gocardless: z
+      .object({
+        requisition: z.object({ id: z.string(), accounts: z.array(z.string()) }),
+        institution: z.object({
+          id: z.string(),
+          name: z.string(),
+        }),
+        accountsMetadata: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+          }),
+        ),
       })
       .optional(),
   })
@@ -105,6 +121,7 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
   declare public importRows?: TransactionsImportRow[];
   declare public getImportRows: HasManyGetAssociationsMixin<TransactionsImportRow>;
   declare public createImportRow: HasManyCreateAssociationMixin<TransactionsImportRow>;
+  declare public connectedAccount?: ConnectedAccount;
   declare public getConnectedAccount: BelongsToGetAssociationMixin<ConnectedAccount>;
 
   static async createWithActivity(
@@ -178,8 +195,8 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
     }
   }
 
-  async getAllSourceIds(): Promise<Set<string>> {
-    const rows = await this.getImportRows({ attributes: ['sourceId'], raw: true });
+  async getAllSourceIds({ where }: { where?: WhereOptions<TransactionsImportRow> } = {}): Promise<Set<string>> {
+    const rows = await this.getImportRows({ where, attributes: ['sourceId'], raw: true });
     return new Set(rows.map(row => row.sourceId));
   }
 }

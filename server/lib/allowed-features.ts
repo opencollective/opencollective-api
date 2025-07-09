@@ -9,6 +9,7 @@ type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
 enum FEATURE_ACCESS_PARTY {
   EVERYONE = 'EVERYONE',
   HOSTS = 'HOSTS',
+  FIRST_PARTY_HOSTS = 'FIRST_PARTY_HOSTS',
   ACTIVE_ACCOUNTS = 'ACTIVE_ACCOUNTS',
   ACTIVE_HOSTS = 'ACTIVE_HOSTS',
   PLATFORM_ACCOUNTS = 'PLATFORM_ACCOUNTS',
@@ -71,7 +72,7 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.OFF_PLATFORM_TRANSACTIONS]: {
     isOptIn: true,
-    enabledByDefaultFor: FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS,
+    enabledByDefaultFor: [FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS, FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS],
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
     accountTypes: [CollectiveType.ORGANIZATION],
   },
@@ -154,7 +155,7 @@ const FeaturesAccess: Partial<
  * Returns true if the feature is disabled for the account. This function only checks `collective.data`,
  * use `hasFeature` to properly check a feature activation.
  */
-export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE): boolean => {
+export const isFeatureBlockedForAccount = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
   return (
     get(collective, `data.features.${FEATURE.ALL}`) === false ||
     get(collective, `data.features.${feature}`) === false ||
@@ -182,6 +183,8 @@ const checkFeatureAccessParty = (
           collective.isHostAccount &&
           (collective.isActive || (collective.type === CollectiveType.USER && !collective.deactivatedAt)) // `isActive` is not used for host users
         );
+      case 'FIRST_PARTY_HOSTS':
+        return collective.isHostAccount && collective.data?.isFirstPartyHost;
       case 'PLATFORM_ACCOUNTS':
         return PlatformConstants.CurrentPlatformCollectiveIds.includes(collective.id);
       case 'HOSTS':
@@ -197,7 +200,7 @@ const checkFeatureAccessParty = (
  * @param feature - The feature to check the access for.
  * @returns The access level for the feature.
  */
-export const getFeatureAccess = (collective: Collective, feature: FEATURE): FEATURE_ACCESS => {
+export const getFeatureAccess = (collective: Collective, feature: FEATURE | `${FEATURE}`): FEATURE_ACCESS => {
   if (!collective) {
     return 'UNSUPPORTED';
   } else if (isFeatureBlockedForAccount(collective, feature)) {
@@ -248,7 +251,7 @@ export const getFeatureAccess = (collective: Collective, feature: FEATURE): FEAT
 /**
  * A small wrapper around `getFeatureAccess` to check if a feature is available for a collective.
  */
-export const hasFeature = (collective: Collective, feature: FEATURE): boolean => {
+export const hasFeature = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
   return getFeatureAccess(collective, feature) === 'AVAILABLE';
 };
 

@@ -30,6 +30,7 @@ class TransactionsImportRow extends Model<
   declare public amount: number;
   declare public isUnique: boolean;
   declare public currency: string;
+  declare public accountId: string | null;
   declare public rawValue: Record<string, unknown>;
   declare public note: string | null;
   declare public createdAt: Date;
@@ -106,6 +107,10 @@ TransactionsImportRow.init(
           this.setDataValue('currency', val.toUpperCase());
         }
       },
+    },
+    accountId: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     isUnique: {
       type: DataTypes.BOOLEAN,

@@ -5,6 +5,7 @@ import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
+import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -345,6 +346,7 @@ const transactionImportsMutations = {
                 'description',
                 'date',
                 'note',
+                'accountId',
               ]);
               if (row.amount) {
                 values.amount = getValueInCentsFromAmountInput(row.amount);
@@ -387,8 +389,8 @@ const transactionImportsMutations = {
               }
 
               // For plaid imports, users can't change imported data
-              if (importType === 'PLAID') {
-                values = omit(values, ['amount', 'date', 'sourceId', 'description']);
+              if (importType === 'PLAID' || importType === 'GOCARDLESS') {
+                values = omit(values, ['amount', 'date', 'sourceId', 'description', 'accountId']);
               }
 
               const [updatedCount] = await TransactionsImportRow.update(values, { where, transaction });
@@ -461,6 +463,7 @@ const transactionImportsMutations = {
 
       const importId = idDecode(args.id, 'transactions-import');
       const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+
       if (!importInstance) {
         throw new NotFound('Import not found');
       } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
@@ -468,16 +471,19 @@ const transactionImportsMutations = {
       }
 
       let connectedAccount;
-      if (importInstance.type === 'PLAID' && importInstance.ConnectedAccountId) {
+
+      if (importInstance.ConnectedAccountId) {
         connectedAccount = await importInstance.getConnectedAccount({
           include: [{ association: 'collective', required: true }],
         });
-        if (!connectedAccount) {
-          throw new Error('Connected account not found');
+        if (connectedAccount) {
+          await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
+          if (importInstance.type === 'PLAID') {
+            await disconnectPlaidAccount(connectedAccount);
+          } else if (importInstance.type === 'GOCARDLESS') {
+            await disconnectGoCardlessAccount(connectedAccount);
+          }
         }
-
-        await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
-        await disconnectPlaidAccount(connectedAccount);
       }
 
       return sequelize.transaction(async transaction => {

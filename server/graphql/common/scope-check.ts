@@ -138,6 +138,11 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
     return req.personalToken.hasScope(scope);
   }
 
+  // Make sure the user is not limited
+  if (req.remoteUser?.data?.features?.ALL === false) {
+    return false;
+  }
+
   // No userToken or personalToken, no checkScope
   return true;
 };
