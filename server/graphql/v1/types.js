@@ -1473,24 +1473,6 @@ export const OrderType = new GraphQLObjectType({
           return order.updatedAt;
         },
       },
-      // TODO: two fields below (isPastDue & isSubscriptionActive) an possibly be combined as one
-      // Leaving them separate for now to make it easy for logged in vs logged out data
-      isPastDue: {
-        description: 'Whether this subscription is past due or not',
-        type: GraphQLBoolean,
-        deprecationReason: '2024-12-13: Not used, so we stop returning it.',
-        resolve() {
-          return null;
-        },
-      },
-      // Note this field is public
-      isSubscriptionActive: {
-        description: 'If there is a subscription, is it active?',
-        type: GraphQLBoolean,
-        resolve(order) {
-          return order.getSubscription().then(s => (s ? s.isActive : null));
-        },
-      },
       status: {
         description: 'Current status for an order',
         type: OrderStatusType,
