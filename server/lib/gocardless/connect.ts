@@ -4,7 +4,7 @@ import config from 'config';
 import { truncate } from 'lodash';
 
 import { Service } from '../../constants/connected-account';
-import { Collective, ConnectedAccount, sequelize, TransactionsImport, User } from '../../models';
+import { Collective, ConnectedAccount, sequelize, TransactionsImport, TransactionsImportRow, User } from '../../models';
 import cache from '../cache';
 import { reportErrorToSentry } from '../sentry';
 
@@ -82,7 +82,7 @@ export const createGoCardlessLink = async (
   institutionId: string,
   {
     maxHistoricalDays = 90,
-    accessValidForDays = 90,
+    accessValidForDays = 180,
     userLanguage = 'en',
     ssn = null,
     redirectImmediate = false,
@@ -151,6 +151,10 @@ export const connectGoCardlessAccount = async (
   const client = getGoCardlessClient();
   await getOrRefreshGoCardlessToken(client);
 
+  if (await ConnectedAccount.count({ where: { service: Service.GOCARDLESS, clientId: requisitionId } })) {
+    throw new Error('This connection already exists');
+  }
+
   const requisition = (await client.requisition.getRequisitionById(requisitionId)) as Requisition;
   if (requisition.status !== GoCardlessRequisitionStatus.LN) {
     throw new Error(`The connection for ${requisitionId} is not linked`);
@@ -207,6 +211,88 @@ export const connectGoCardlessAccount = async (
         data: {
           ...connectedAccount.data,
           transactionsImportId: transactionsImport.id,
+        },
+      },
+      { transaction },
+    );
+
+    return { connectedAccount, transactionsImport };
+  });
+};
+
+/**
+ * Reconnect a GoCardless account by creating a new link and updating the existing connection.
+ * This is a placeholder function - the actual implementation will be handled separately.
+ */
+export const reconnectGoCardlessAccount = async (
+  remoteUser: User,
+  connectedAccount: ConnectedAccount,
+  transactionsImport: TransactionsImport,
+  requisitionId: string,
+) => {
+  if (connectedAccount.service !== Service.GOCARDLESS) {
+    throw new Error('Connected account is not a GoCardless account');
+  }
+
+  const client = getGoCardlessClient();
+  await getOrRefreshGoCardlessToken(client);
+
+  // Fetch & check the new requisition
+  const requisition = (await client.requisition.getRequisitionById(requisitionId)) as Requisition;
+  if (requisition.status !== GoCardlessRequisitionStatus.LN) {
+    throw new Error(`The connection for ${connectedAccount.clientId} is not linked`);
+  } else if (!requisition.accounts?.length) {
+    throw new Error('We did not receive any accounts for this connection');
+  } else if (requisition.institution_id !== connectedAccount.data?.gocardless?.institution?.id) {
+    throw new Error('The selected institution is different from the one associated with this connection');
+  }
+
+  // Fetch & check account details - make sure we've connected to the same accounts (at least 1 must match)
+  const accountsMetadata = await Promise.all(
+    requisition.accounts.map(accountId => client.account(accountId).getMetadata()),
+  );
+
+  if (
+    !accountsMetadata.some(accountMetadata =>
+      connectedAccount.data?.gocardless?.accountsMetadata.some(
+        connectedAccountMetadata => connectedAccountMetadata.iban === accountMetadata.iban,
+      ),
+    )
+  ) {
+    throw new Error('The selected accounts are different from the ones associated with this connection');
+  }
+
+  const lastSyncedTransactionDate = await TransactionsImportRow.max('date', {
+    where: {
+      TransactionsImportId: transactionsImport.id,
+    },
+  });
+
+  // Update the connected account with the new requisition data
+  return sequelize.transaction(async transaction => {
+    await connectedAccount.update(
+      {
+        data: {
+          ...connectedAccount.data,
+          gocardless: {
+            ...connectedAccount.data?.gocardless,
+            requisition,
+            accountsMetadata,
+          },
+        },
+      },
+      { transaction },
+    );
+
+    await transactionsImport.update(
+      {
+        data: {
+          ...transactionsImport.data,
+          gocardless: {
+            ...transactionsImport.data?.gocardless,
+            ...connectedAccount.data?.gocardless,
+            ignoreSyncBefore: lastSyncedTransactionDate,
+          },
         },
       },
       { transaction },

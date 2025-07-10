@@ -1,3 +1,4 @@
+import { truncate } from 'lodash';
 import moment from 'moment';
 import NordigenClient from 'nordigen-node';
 
@@ -17,6 +18,8 @@ const getDescriptionForTransaction = (transaction: AccountTransactions['transact
   // Generally (but not always) available
   if (transaction.remittanceInformationUnstructured) {
     return transaction.remittanceInformationUnstructured;
+  } else if (transaction.remittanceInformationUnstructuredArray) {
+    return transaction.remittanceInformationUnstructuredArray.join(', ');
   }
 
   // Fallback: generate a generic description
@@ -116,7 +119,7 @@ const syncIndividualAccount = async (
         newTransactions.map(transaction => ({
           sourceId: transaction.internalTransactionId,
           isUnique: true,
-          description: getDescriptionForTransaction(transaction),
+          description: truncate(getDescriptionForTransaction(transaction), { length: 255 }),
           date: new Date(transaction.bookingDate),
           amount: floatAmountToCents(parseFloat(transaction.transactionAmount.amount)),
           currency: transaction.transactionAmount.currency,
