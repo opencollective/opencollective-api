@@ -87,6 +87,11 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       deprecationReason: '2025-07-02: Please use the generic accounts field instead.',
       resolve: (importInstance: TransactionsImport) => importInstance.data?.plaid?.availableAccounts || null,
     },
+    institutionId: {
+      type: GraphQLString,
+      description: 'Institution ID (for Gocardless only)',
+      resolve: (importInstance: TransactionsImport) => importInstance.data?.gocardless?.institution?.id,
+    },
     institutionAccounts: {
       type: new GraphQLList(GraphQLTransactionsImportAccount),
       description: 'List of available accounts for the import',
