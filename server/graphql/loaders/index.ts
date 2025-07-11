@@ -21,7 +21,6 @@ import { ifStr } from '../../lib/utils';
 import {
   Collective,
   ConnectedAccount,
-  Expense,
   Member,
   Models,
   Op,
@@ -34,7 +33,6 @@ import {
   TransactionsImportRow,
   UploadedFile,
 } from '../../models';
-import { ExpenseStatus } from '../../models/Expense';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
@@ -528,34 +526,6 @@ export const generateLoaders = req => {
 
             return sortResults(ids, results, 'CollectiveId') as Array<
               Partial<Record<CollectiveType, number>> & Record<'all' | 'id', number>
-            >;
-          },
-        ),
-        expenses: new DataLoader<number, Partial<Record<ExpenseStatus, number>> & { CollectiveId: number }>(
-          async ids => {
-            const rows = (await Expense.findAll({
-              attributes: [
-                'CollectiveId',
-                'status',
-                [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count'],
-              ],
-              where: { CollectiveId: { [Op.in]: ids } },
-              group: ['CollectiveId', 'status'],
-              raw: true,
-            })) as unknown as { CollectiveId: number; status: ExpenseStatus; count: number }[];
-            const rowsGroupedByCollective = groupBy(rows, 'CollectiveId');
-            const results = Object.keys(rowsGroupedByCollective).map(CollectiveId => {
-              const stats: Partial<Record<ExpenseStatus, number>> = {};
-              rowsGroupedByCollective[CollectiveId].map(stat => {
-                stats[stat.status] = stat.count;
-              });
-              return {
-                CollectiveId: Number(CollectiveId),
-                ...stats,
-              };
-            });
-            return sortResults(ids, results, 'CollectiveId') as Array<
-              Partial<Record<ExpenseStatus, number>> & { CollectiveId: number }
             >;
           },
         ),

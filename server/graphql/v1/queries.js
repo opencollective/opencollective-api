@@ -23,8 +23,10 @@ import { TransactionInterfaceType } from './TransactionInterface';
 import { InvoiceType, MemberType, OrderDirectionType, PaymentMethodType, TierType, UserType } from './types';
 
 const queries = {
+  // Still used by the collective page
   Collective: {
     type: CollectiveInterfaceType,
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       slug: { type: GraphQLString },
       id: { type: GraphQLInt },
@@ -50,6 +52,7 @@ const queries = {
     },
   },
 
+  // Still used by the tier page
   Tier: {
     type: TierType,
     deprecationReason: '2023-05-04: Please use GraphQL V2',
@@ -61,15 +64,19 @@ const queries = {
     },
   },
 
+  // The user menu & main LoggedInUser query in the frontend is still based on this
   LoggedInUser: {
     type: UserType,
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     resolve(_, args, req) {
       return req.remoteUser;
     },
   },
 
+  // Still used by Dashboard > "Payment Receipts"
   allInvoices: {
     type: new GraphQLList(InvoiceType),
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       fromCollectiveSlug: { type: new GraphQLNonNull(GraphQLString) },
     },
@@ -96,9 +103,11 @@ const queries = {
 
   /*
    * Given a collective slug or id, returns all its transactions
+   * Still used by the REST API v1 endpoints.
    */
   allTransactions: {
     type: new GraphQLList(TransactionInterfaceType),
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     description: `
     Given a collective, returns all its transactions:
     - Debit transactions made by collective without using a gift card
@@ -151,9 +160,11 @@ const queries = {
 
   /*
    * Given a Transaction id, returns a transaction details
+   * Still used by the REST API v1 endpoints.
    */
   Transaction: {
     type: TransactionInterfaceType,
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       id: {
         type: GraphQLInt,
@@ -168,10 +179,12 @@ const queries = {
   },
 
   /*
+   * Still used by "Create Gift Cards" form
    * Returns all hosts
    */
   allHosts: {
     type: CollectiveSearchResultsType,
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     description: 'Returns all public hosts that are open for applications',
     args: {
       tags: {
@@ -220,9 +233,11 @@ const queries = {
 
   /*
    * Given a collective slug, returns all members/memberships
+   * Still used by the images service + frontend widgets.
    */
   allMembers: {
     type: new GraphQLList(MemberType),
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       CollectiveId: { type: GraphQLInt },
       collectiveSlug: { type: GraphQLString },
@@ -390,9 +405,11 @@ const queries = {
 
   /*
    * Given a prepaid code, return validity and amount
+   * Still used by the "Update Payment Method" page + redeemed gift card page.
    */
   PaymentMethod: {
     type: PaymentMethodType,
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     args: {
       id: { type: GraphQLInt },
       code: { type: GraphQLString },
@@ -431,9 +448,11 @@ const queries = {
 
   /*
    * Given a search term, return a list of related Collectives
+   * Still used by the collective picker.
    */
   search: {
     type: CollectiveSearchResultsType,
+    deprecationReason: '2025-07-10: Please use GraphQL V2',
     description: `Search for collectives. Results are returned with best matches first.`,
     args: {
       term: {

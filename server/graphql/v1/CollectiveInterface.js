@@ -173,69 +173,6 @@ const BackersStatsType = new GraphQLObjectType({
   },
 });
 
-const CollectivesStatsType = new GraphQLObjectType({
-  name: 'CollectivesStatsType',
-  description: 'Breakdown of collectives under this collective by role (all/hosted/memberOf/events)',
-  fields: () => {
-    return {
-      // We always have to return an id for apollo's caching
-      id: {
-        type: GraphQLInt,
-        resolve(collective) {
-          return collective.id;
-        },
-      },
-      all: {
-        type: GraphQLInt,
-        async resolve(collective) {
-          return models.Collective.count({
-            where: {
-              [Op.or]: {
-                ParentCollectiveId: collective.id,
-                HostCollectiveId: collective.id,
-              },
-              isActive: true,
-            },
-          });
-        },
-      },
-      hosted: {
-        type: GraphQLInt,
-        description: 'Returns the collectives hosted by this collective',
-        async resolve(host, _, req) {
-          return req.loaders.Collective.hostedCollectivesCount.load(host.id);
-        },
-      },
-      memberOf: {
-        type: GraphQLInt,
-        description: 'Returns the number of collectives that have this collective has parent',
-        async resolve(collective) {
-          return models.Collective.count({
-            where: {
-              ParentCollectiveId: collective.id,
-              type: [CollectiveTypeEnum.COLLECTIVE, CollectiveTypeEnum.ORGANIZATION],
-              isActive: true,
-            },
-          });
-        },
-      },
-      events: {
-        type: GraphQLInt,
-        description: 'Returns the number of events that have this collective has parent',
-        async resolve(collective) {
-          return models.Collective.count({
-            where: {
-              ParentCollectiveId: collective.id,
-              type: CollectiveTypeEnum.EVENT,
-              isActive: true,
-            },
-          });
-        },
-      },
-    };
-  },
-});
-
 const PlanType = new GraphQLObjectType({
   name: 'PlanType',
   description: 'The name of the current plan and its characteristics.',
@@ -292,105 +229,6 @@ const PlanType = new GraphQLObjectType({
   }),
 });
 
-const ExpensesStatsType = new GraphQLObjectType({
-  name: 'ExpensesStatsType',
-  description: 'Breakdown of expenses per status (ALL/PENDING/APPROVED/PAID/REJECTED)',
-  fields: () => {
-    return {
-      // We always have to return an id for apollo's caching
-      id: {
-        type: GraphQLInt,
-        resolve(collective) {
-          return collective.id;
-        },
-      },
-      all: {
-        type: GraphQLInt,
-        async resolve(collective, args, req) {
-          const expenses = (await req.loaders.Collective.stats.expenses.load(collective.id)) || {};
-          let count = 0;
-          Object.keys(expenses).forEach(status => (count += (status !== 'CollectiveId' && expenses[status]) || 0));
-          return count;
-        },
-      },
-      pending: {
-        type: GraphQLInt,
-        description: 'Returns the number of expenses that are pending',
-        async resolve(collective, args, req) {
-          const expenses = (await req.loaders.Collective.stats.expenses.load(collective.id)) || {};
-          return expenses.PENDING || 0;
-        },
-      },
-      approved: {
-        type: GraphQLInt,
-        description: 'Returns the number of expenses that are approved',
-        async resolve(collective, args, req) {
-          const expenses = (await req.loaders.Collective.stats.expenses.load(collective.id)) || {};
-          return expenses.APPROVED || 0;
-        },
-      },
-      rejected: {
-        type: GraphQLInt,
-        description: 'Returns the number of expenses that are rejected',
-        async resolve(collective, args, req) {
-          const expenses = (await req.loaders.Collective.stats.expenses.load(collective.id)) || {};
-          return expenses.REJECTED || 0;
-        },
-      },
-      paid: {
-        type: GraphQLInt,
-        description: 'Returns the number of expenses that are paid',
-        async resolve(collective, args, req) {
-          const expenses = (await req.loaders.Collective.stats.expenses.load(collective.id)) || {};
-          return expenses.PAID || 0;
-        },
-      },
-    };
-  },
-});
-
-const TransactionsStatsType = new GraphQLObjectType({
-  name: 'TransactionsStatsType',
-  description: 'Breakdown of transactions per type (ALL/CREDIT/DEBIT)',
-  fields: () => {
-    return {
-      // We always have to return an id for apollo's caching
-      id: {
-        type: GraphQLInt,
-        resolve(collective) {
-          return collective.id;
-        },
-      },
-      all: {
-        type: GraphQLInt,
-        resolve(collective) {
-          return models.Transaction.count({
-            where: { CollectiveId: collective.id },
-          });
-        },
-      },
-      credit: {
-        type: GraphQLInt,
-        description: 'Returns the number of CREDIT transactions',
-        resolve(collective) {
-          return models.Transaction.count({
-            where: { CollectiveId: collective.id, type: 'CREDIT' },
-          });
-        },
-      },
-      debit: {
-        type: GraphQLInt,
-        description: 'Returns the number of DEBIT transactions',
-        async resolve(collective) {
-          return models.Transaction.count({
-            where: { CollectiveId: collective.id, type: 'DEBIT' },
-          });
-        },
-      },
-    };
-  },
-});
-
 export const CollectiveStatsType = new GraphQLObjectType({
   name: 'CollectiveStatsType',
   description: 'Stats for the collective',
@@ -417,6 +255,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return collective.getBalance({ loaders: req.loaders });
         },
       },
+      // Used by `fetchMembersStats` in REST service
       backers: {
         description: 'Breakdown of all backers of this collective',
         type: BackersStatsType,
@@ -424,61 +263,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
           return req.loaders.Collective.stats.backers.load(collective.id);
         },
       },
-      collectives: {
-        description: 'Number of collectives under this collective',
-        type: CollectivesStatsType,
-        resolve(collective) {
-          return collective;
-        },
-      },
-      updates: {
-        description: 'Number of updates published by this collective',
-        type: GraphQLInt,
-        resolve(collective) {
-          return models.Update.count({
-            where: {
-              CollectiveId: collective.id,
-              publishedAt: { [Op.ne]: null },
-            },
-          });
-        },
-      },
-      events: {
-        description: 'Number of events under this collective',
-        type: GraphQLInt,
-        resolve(collective) {
-          return models.Collective.count({
-            where: { ParentCollectiveId: collective.id, type: CollectiveTypeEnum.EVENT },
-          });
-        },
-      },
-      expenses: {
-        description: 'Breakdown of expenses submitted to this collective by type (ALL/PENDING/APPROVED/PAID/REJECTED)',
-        deprecationReason: '2024-12-13: Please move to GraphQL v2',
-        type: ExpensesStatsType,
-        resolve(collective) {
-          return collective;
-        },
-      },
-      transactions: {
-        description: 'Number of transactions',
-        type: TransactionsStatsType,
-        resolve(collective) {
-          return collective;
-        },
-      },
-      monthlySpending: {
-        description: 'Average amount spent per month based on the last 90 days',
-        type: GraphQLFloat,
-        resolve(collective) {
-          // if we fetched the collective with the raw query to sort them by their monthly spending we don't need to recompute it
-          if (has(collective, 'dataValues.monthlySpending')) {
-            return get(collective, 'dataValues.monthlySpending');
-          } else {
-            return collective.getMonthlySpending();
-          }
-        },
-      },
+      // Used by the Hero of the collective page
       totalAmountSpent: {
         description: 'Total amount spent',
         type: GraphQLFloat,
@@ -1937,6 +1722,7 @@ const CollectiveFields = () => {
     },
     stats: {
       type: CollectiveStatsType,
+      deprecationReason: '2025-07-10: Please use GraphQL V2',
       resolve(collective) {
         return collective;
       },
