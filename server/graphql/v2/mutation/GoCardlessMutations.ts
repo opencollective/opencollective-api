@@ -1,15 +1,24 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { hasFeature } from '../../../lib/allowed-features';
-import { connectGoCardlessAccount, createGoCardlessLink } from '../../../lib/gocardless/connect';
+import {
+  connectGoCardlessAccount,
+  createGoCardlessLink,
+  reconnectGoCardlessAccount,
+} from '../../../lib/gocardless/connect';
 import { syncGoCardlessAccount } from '../../../lib/gocardless/sync';
 import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
-import { TransactionsImportLockedError } from '../../../models/TransactionsImport';
+import { ConnectedAccount } from '../../../models';
+import TransactionsImport, { TransactionsImportLockedError } from '../../../models/TransactionsImport';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLGoCardlessLinkInput } from '../input/GoCardlessLinkInput';
+import {
+  fetchTransactionsImportWithReference,
+  GraphQLTransactionsImportReferenceInput,
+} from '../input/TransactionsImportReferenceInput';
 import { GraphQLGoCardlessConnectAccountResponse } from '../object/GoCardlessConnectAccountResponse';
 import { GraphQLGoCardlessLink } from '../object/GoCardlessLink';
 
@@ -86,6 +95,10 @@ const goCardlessMutations = {
         type: GraphQLString,
         description: 'The name of the account. Will be inferred if not provided.',
       },
+      transactionImport: {
+        type: GraphQLTransactionsImportReferenceInput,
+        description: 'If re-connecting an existing account, the transactions import to reconnect',
+      },
     },
     resolve: async (
       _,
@@ -94,6 +107,7 @@ const goCardlessMutations = {
         requisitionId: string;
         name?: string;
         sourceName?: string;
+        transactionImport?: { id: string };
       },
       req,
     ) => {
@@ -112,10 +126,31 @@ const goCardlessMutations = {
         );
       }
 
-      const result = await connectGoCardlessAccount(req.remoteUser, host, args.requisitionId, {
-        sourceName: args.sourceName,
-        name: args.name,
-      });
+      let result: { connectedAccount: ConnectedAccount; transactionsImport: TransactionsImport };
+      if (!args.transactionImport) {
+        result = await connectGoCardlessAccount(req.remoteUser, host, args.requisitionId, {
+          sourceName: args.sourceName,
+          name: args.name,
+        });
+      } else {
+        const transactionsImport = await fetchTransactionsImportWithReference(args.transactionImport, {
+          throwIfMissing: true,
+        });
+
+        const connectedAccount = await transactionsImport.getConnectedAccount();
+        if (!connectedAccount) {
+          throw new Error('Connected account not found for this transactions import');
+        } else if (transactionsImport.CollectiveId !== host.id || connectedAccount.CollectiveId !== host.id) {
+          throw new Forbidden('You do not have permission to reconnect this GoCardless account');
+        }
+
+        result = await reconnectGoCardlessAccount(
+          req.remoteUser,
+          connectedAccount,
+          transactionsImport,
+          args.requisitionId,
+        );
+      }
 
       // Asynchronously trigger a sync
       syncGoCardlessAccount(result.connectedAccount, result.transactionsImport, { full: true, retryFor: 30_000 }).catch(
