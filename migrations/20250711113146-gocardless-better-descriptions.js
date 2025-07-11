@@ -25,7 +25,7 @@ module.exports = {
       const description =
         row.rawValue.remittanceInformationStructured ||
         row.rawValue.remittanceInformationUnstructured ||
-        row.rawValue.remittanceInformationUnstructuredArray.join(', ') ||
+        row.rawValue.remittanceInformationUnstructuredArray?.join(', ') ||
         row.description;
 
       await queryInterface.sequelize.query(
