@@ -1621,7 +1621,7 @@ const CollectiveFields = () => {
         if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
           return null;
         } else {
-          const payoutMethods = req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
           return payoutMethods.filter(pm => {
             if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
               return false;
