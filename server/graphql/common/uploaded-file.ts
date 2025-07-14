@@ -1,6 +1,6 @@
 import type Express from 'express';
 
-import { Collective, Expense, ExpenseAttachedFile, ExpenseItem, UploadedFile } from '../../models';
+import { Expense, sequelize, UploadedFile } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
@@ -39,7 +39,7 @@ export async function hasUploadedFilePermission(
 ): Promise<boolean> {
   const actualUrl = uploadedFile.getDataValue('url');
 
-  const expense = options.expenseId && (await Expense.findByPk(options.expenseId));
+  let expense = options.expenseId && (await Expense.findByPk(options.expenseId));
 
   if (expense && expense.status === ExpenseStatus.DRAFT) {
     const itemMatches = ((expense.data?.items as { url?: string }[]) || []).some(
@@ -65,64 +65,45 @@ export async function hasUploadedFilePermission(
     return false;
   }
 
-  switch (uploadedFile.kind) {
-    case 'EXPENSE_ITEM': {
-      const expenseItem = await ExpenseItem.findOne({
-        where: {
-          url: actualUrl,
-        },
-        include: { model: Expense, include: [{ association: 'fromCollective' }] },
-      });
+  const result = await sequelize.query(
+    `
+    SELECT * FROM (
+      (
+        SELECT "ExpenseId"
+        FROM "ExpenseItems" where url = :url
+        AND "deletedAt" IS NULL LIMIT 1
+      )
+      UNION ALL
+      (
+        SELECT id as "ExpenseId"
+        FROM "Expenses" where "InvoiceFileId" = :invoiceFileId
+        AND "deletedAt" IS NULL LIMIT 1
+      )
+      UNION ALL
+      (
+        SELECT "ExpenseId"
+        FROM "ExpenseAttachedFiles" where url = :url
+      )
+    ) LIMIT 1
+  `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+      replacements: {
+        url: actualUrl,
+        invoiceFileId: uploadedFile.id,
+      },
+    },
+  );
 
-      const expense = expenseItem?.Expense;
-
-      if (!expense) {
-        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
-      }
-
-      if (await canSeeExpenseAttachments(req, expense)) {
-        return true;
-      }
-      break;
-    }
-    case 'EXPENSE_INVOICE': {
-      const expense = await Expense.findOne({
-        where: {
-          InvoiceFileId: uploadedFile.id,
-        },
-        include: [{ association: 'fromCollective' }],
-      });
-
-      if (!expense) {
-        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
-      }
-
-      if (await canSeeExpenseAttachments(req, expense)) {
-        return true;
-      }
-      break;
-    }
-    case 'EXPENSE_ATTACHED_FILE': {
-      const expenseAttachedFile = await ExpenseAttachedFile.findOne({
-        where: {
-          url: actualUrl,
-        },
-        include: { model: Expense, include: [{ model: Collective, as: 'fromCollective' }] },
-      });
-
-      const expense = expenseAttachedFile?.Expense;
-
-      if (!expense) {
-        return req.remoteUser?.id === uploadedFile.CreatedByUserId;
-      }
-
-      if (await canSeeExpenseAttachments(req, expense)) {
-        return true;
-      }
-
-      break;
-    }
+  const expenseId = result?.[0]?.ExpenseId;
+  if (!expenseId) {
+    return req.remoteUser?.id === uploadedFile.CreatedByUserId;
   }
 
-  return false;
+  expense = await Expense.findByPk(expenseId, {
+    include: { association: 'fromCollective' },
+  });
+
+  return canSeeExpenseAttachments(req, expense);
 }
