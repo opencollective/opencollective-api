@@ -88,6 +88,15 @@ export const GraphQLContributor = new GraphQLObjectType({
         return req.loaders.Collective.byId.load(contributor.id);
       },
     },
+    accountsContributedTo: {
+      type: new GraphQLList(GraphQLAccount),
+      description: 'List of accounts the contributor has contributed to',
+      resolve(contributor, _, req): Promise<Collective[]> {
+        return contributor.ContributedCollectiveIds
+          ? req.loaders.Collective.byId.loadMany(contributor.ContributedCollectiveIds)
+          : [];
+      },
+    },
     image: {
       type: GraphQLString,
       description: 'Contributor avatar or logo',
