@@ -129,7 +129,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
           }
         }
 
-        return [];
+        return null;
       },
     },
     assignedAccounts: {

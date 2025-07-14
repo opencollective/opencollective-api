@@ -82,7 +82,7 @@ export const createGoCardlessLink = async (
   institutionId: string,
   {
     maxHistoricalDays = 90,
-    accessValidForDays = 90,
+    accessValidForDays = 180,
     userLanguage = 'en',
     ssn = null,
     redirectImmediate = false,

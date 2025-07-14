@@ -212,12 +212,15 @@ export const canDownloadInvoice = async (transaction: Transaction, _: void, req:
 /** Checks if the user can reject this transaction */
 export const canReject = canRefund;
 
+/** Returns the total amount, in cents, that should be refunded from the Collective balance. */
 const getRefundableAmountFromCollective = async (transaction: Transaction) => {
-  const relatedTransactions = await transaction.getRelatedTransactions({ type: TransactionTypes.CREDIT });
-  const contribution = relatedTransactions.find(t => t.kind === TransactionKind.CONTRIBUTION);
+  const relatedCreditTransactions = await transaction.getRelatedTransactions({ type: TransactionTypes.CREDIT });
+  const contribution = relatedCreditTransactions.find(t =>
+    [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS, TransactionKind.BALANCE_TRANSFER].includes(t.kind),
+  );
   assert(contribution, 'No contributions found for this transaction');
-  const hostFee = relatedTransactions.find(t => t.kind === TransactionKind.HOST_FEE);
-  const paymentFee = relatedTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
+  const hostFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.HOST_FEE);
+  const paymentFee = relatedCreditTransactions.find(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
 
   return (
     contribution.amountInHostCurrency - (hostFee?.amountInHostCurrency || 0) - (paymentFee?.amountInHostCurrency || 0)

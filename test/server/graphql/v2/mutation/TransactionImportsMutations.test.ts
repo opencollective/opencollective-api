@@ -238,7 +238,7 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
           input: {
             institutionId: 'test-institution-id',
             maxHistoricalDays: 90,
-            accessValidForDays: 90,
+            accessValidForDays: 180,
             userLanguage: 'en',
           },
         },

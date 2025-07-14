@@ -1,3 +1,4 @@
+import { trim, truncate } from 'lodash';
 import moment from 'moment';
 import NordigenClient from 'nordigen-node';
 
@@ -15,8 +16,12 @@ import { AccountTransactions } from './types';
  */
 const getDescriptionForTransaction = (transaction: AccountTransactions['transactions']['booked'][number]) => {
   // Generally (but not always) available
-  if (transaction.remittanceInformationUnstructured) {
+  if (transaction.remittanceInformationStructured) {
+    return transaction.remittanceInformationStructured;
+  } else if (transaction.remittanceInformationUnstructured) {
     return transaction.remittanceInformationUnstructured;
+  } else if (transaction.remittanceInformationUnstructuredArray) {
+    return transaction.remittanceInformationUnstructuredArray.join(', ');
   }
 
   // Fallback: generate a generic description
@@ -35,6 +40,13 @@ const getDescriptionForTransaction = (transaction: AccountTransactions['transact
   }
 
   return description.join(' ');
+};
+
+/**
+ * "   A   description very long" -> "A description very..."
+ */
+const formatDescription = (description: string) => {
+  return truncate(trim(description.replace(/\s+/g, ' ')), { length: 255 });
 };
 
 const syncIndividualAccount = async (
@@ -116,7 +128,7 @@ const syncIndividualAccount = async (
         newTransactions.map(transaction => ({
           sourceId: transaction.internalTransactionId,
           isUnique: true,
-          description: getDescriptionForTransaction(transaction),
+          description: formatDescription(getDescriptionForTransaction(transaction)),
           date: new Date(transaction.bookingDate),
           amount: floatAmountToCents(parseFloat(transaction.transactionAmount.amount)),
           currency: transaction.transactionAmount.currency,
