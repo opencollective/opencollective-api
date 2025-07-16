@@ -19,6 +19,7 @@ import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
 import { crypto } from '../../../lib/encryption';
 import { canEditPolicy } from '../../../lib/policies';
+import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
@@ -678,9 +679,7 @@ const accountMutations = {
             updateParams.settings = settings;
             break;
           }
-          case 'name':
           case 'legalName':
-          case 'slug':
           case 'description':
           case 'longDescription':
           case 'company':
@@ -695,6 +694,26 @@ const accountMutations = {
             }
             break;
           }
+          case 'name':
+            if (args.account[key] !== account[key]) {
+              if (!req.remoteUser.isAdminOfAnyPlatformAccount() && containsProtectedBrandName(args.account.name)) {
+                throw new Error(`The name '${args.account.name}' is not allowed.`);
+              }
+              previousData[key] = account[key];
+              newData[key] = args.account[key];
+              updateParams[key] = args.account[key];
+            }
+            break;
+          case 'slug':
+            if (args.account[key] !== account[key]) {
+              if (!collectivelib.canUseSlug(args.account.slug, req.remoteUser)) {
+                throw new Error(`The slug '${args.account.slug}' is not allowed.`);
+              }
+              previousData[key] = account[key];
+              newData[key] = args.account[key];
+              updateParams[key] = args.account[key];
+            }
+            break;
           case 'tags': {
             if (!isEqual(args.account.tags, account.tags)) {
               previousData['tags'] = account.tags;
@@ -723,6 +742,7 @@ const accountMutations = {
           }
           case 'socialLinks': {
             await account.updateSocialLinks(args.account.socialLinks);
+            break;
           }
         }
       }
