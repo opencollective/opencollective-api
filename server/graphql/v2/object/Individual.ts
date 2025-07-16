@@ -29,6 +29,10 @@ export const GraphQLIndividual = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
+      company: {
+        type: GraphQLString,
+        description: 'Company slugs the user is part of.',
+      },
       email: {
         type: GraphQLString,
         description: 'Email for the account. For authenticated user: scope: "email".',
