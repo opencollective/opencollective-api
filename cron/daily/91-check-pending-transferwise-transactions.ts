@@ -3,25 +3,24 @@ import '../../server/env';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
+import { Service } from '../../server/constants/connected-account';
 import status from '../../server/constants/expense-status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import * as transferwiseLib from '../../server/lib/transferwise';
-import models from '../../server/models';
+import models, { Expense } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook';
 import { TransferStateChangeEvent } from '../../server/types/transferwise';
 import { runCronJob } from '../utils';
 
-async function processExpense(expense) {
+async function processExpense(expense: Expense) {
   logger.info(`Processing expense #${expense.id}...`);
   const host = expense.host || (await expense.collective.getHostCollective());
   if (!host) {
     throw new Error(`Could not find the host embursing the expense #${expense.id}.`);
   }
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'transferwise', deletedAt: null },
-  });
+  const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE);
   if (!connectedAccount) {
     throw new Error(`Host #${host.id} is not connected to Transferwise.`);
   }

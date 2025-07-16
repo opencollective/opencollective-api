@@ -92,7 +92,7 @@ program.command('delete-stuck-batchs <hostSlug> <commaSeparatedBatchIds> [env]')
   sequelize.close();
 });
 
-program.command('check-expense <expenseId>').action(async expenseId => {
+program.command('check-expense <expenseId> [env]').action(async expenseId => {
   console.log(`Checking expense ${expenseId}`);
   const expense = await models.Expense.findOne({
     where: {
