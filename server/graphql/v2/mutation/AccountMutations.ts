@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, defaultsDeep, isEqual, isNull, keys, omitBy, pick, set } from 'lodash';
+import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -654,6 +654,7 @@ const accountMutations = {
 
       const previousData: Partial<Collective> = {};
       const newData: Partial<Collective> = {};
+      const updateParams: Parameters<typeof account.update>[0] = {};
       for (const key of Object.keys(args.account)) {
         switch (key) {
           case 'currency': {
@@ -674,10 +675,60 @@ const accountMutations = {
             previousData['settings'] = pick(account.settings, keys(args.account.settings));
             newData['settings'] = args.account.settings;
             const settings = defaultsDeep(cloneDeep(args.account.settings), cloneDeep(account.settings));
-            await account.update({ settings });
+            updateParams.settings = settings;
             break;
           }
+          case 'name':
+          case 'legalName':
+          case 'slug':
+          case 'description':
+          case 'longDescription':
+          case 'company':
+          case 'address':
+          case 'timezone':
+          case 'startsAt':
+          case 'endsAt': {
+            if (args.account[key] !== account[key]) {
+              previousData[key] = account[key];
+              newData[key] = args.account[key];
+              updateParams[key] = args.account[key];
+            }
+            break;
+          }
+          case 'tags': {
+            if (!isEqual(args.account.tags, account.tags)) {
+              previousData['tags'] = account.tags;
+              newData['tags'] = args.account.tags;
+              updateParams.tags = args.account.tags;
+            }
+            break;
+          }
+          case 'location': {
+            const location = await account.getLocation();
+            if (!isEqual(args.account.location, location)) {
+              previousData['location'] = location;
+              newData['location'] = args.account.location;
+              await account.setLocation(args.account.location);
+            }
+            break;
+          }
+          case 'privateInstructions': {
+            if (args.account.privateInstructions !== account.data?.privateInstructions) {
+              previousData['data.privateInstructions'] = account.data?.privateInstructions;
+              newData['data.privateInstructions'] = args.account.privateInstructions;
+              account.data = { ...account.data, privateInstructions: args.account.privateInstructions };
+              await account.save();
+            }
+            break;
+          }
+          case 'socialLinks': {
+            await account.updateSocialLinks(args.account.socialLinks);
+          }
         }
+      }
+
+      if (!isEmpty(updateParams)) {
+        await account.update(updateParams);
       }
 
       await models.Activity.create({
