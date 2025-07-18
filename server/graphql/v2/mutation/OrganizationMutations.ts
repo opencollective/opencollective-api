@@ -2,10 +2,11 @@ import assert from 'assert';
 
 import config from 'config';
 import type express from 'express';
-import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { checkCaptcha, isCaptchaSetup } from '../../../lib/check-captcha';
 import { canUseSlug } from '../../../lib/collectivelib';
@@ -52,6 +53,12 @@ export default {
       },
       captcha: {
         type: CaptchaInputType,
+      },
+      activateBudget: {
+        type: GraphQLBoolean,
+        description:
+          'If true, the budget will be activated upon creation, allowing the organization to receive contributions and pay for expenses. Defaults to false.',
+        defaultValue: false,
       },
     },
     resolve: async (_, args, req: express.Request) => {
@@ -137,6 +144,11 @@ export default {
           },
         }));
         await organization.update({ CreatedByUserId: user.id });
+      }
+
+      if (args.activateBudget) {
+        await organization.becomeHost(user);
+        await organization.disableFeature(FEATURE.HOST_ACCOUNTS);
       }
 
       await organization.addUserWithRole(user, roles.ADMIN, {

@@ -59,6 +59,8 @@ enum FEATURE {
   PAYPAL_DONATIONS = 'PAYPAL_DONATIONS',
   /** Whether this profile has its host dashboard enabled */
   HOST_DASHBOARD = 'HOST_DASHBOARD',
+  /** Opt-out: Whether this profile can host collectives or if it opted-out */
+  HOST_ACCOUNTS = 'HOST_ACCOUNTS',
   /** Whether this profile has connected accounts */
   CONNECTED_ACCOUNTS = 'CONNECTED_ACCOUNTS',
   /** Whether this profile can receive donations using AliPay */
