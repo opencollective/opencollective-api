@@ -70,6 +70,10 @@ const FeaturesAccess: Partial<
   [FEATURE.HOST_DASHBOARD]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
   },
+  [FEATURE.HOST_ACCOUNTS]: {
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
+    isOptIn: false,
+  },
   [FEATURE.OFF_PLATFORM_TRANSACTIONS]: {
     isOptIn: true,
     enabledByDefaultFor: [FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS, FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS],

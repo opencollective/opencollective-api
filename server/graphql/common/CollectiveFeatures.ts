@@ -6,7 +6,7 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { getFeatureStatusResolver } from './features';
 
-const GraphQLCollectiveFeatureStatus = new GraphQLEnumType({
+export const GraphQLCollectiveFeatureStatus = new GraphQLEnumType({
   name: 'CollectiveFeatureStatus',
   values: {
     [FEATURE_STATUS.ACTIVE]: {

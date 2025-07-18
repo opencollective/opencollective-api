@@ -14,6 +14,7 @@ import { cloneDeep, defaultsDeep, isEqual, isNull, keys, omitBy, pick, set } fro
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import FEATURE_STATUS from '../../../constants/feature-status';
 import POLICIES from '../../../constants/policies';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
@@ -34,6 +35,7 @@ import { idDecode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
 import { GraphQLDuplicateAccountDataTypeInput } from '../input/DuplicateAccountDataTypeInput';
+import { GraphQLFeatureToggleInput } from '../input/FeatureToggleInput';
 import { GraphQLPoliciesInput } from '../input/PoliciesInput';
 import {
   fetchUserTwoFactorMethodWithReference,
@@ -845,6 +847,39 @@ const accountMutations = {
       await req.remoteUser.update({ twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
 
       return recoveryCodesArray;
+    },
+  },
+  toggleFeature: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Toggle a feature for an account. Scope: "account".',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Account where the feature will be toggled',
+      },
+      feature: {
+        type: new GraphQLNonNull(GraphQLFeatureToggleInput),
+        description: 'Feature and status to toggle',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
+        throw new Forbidden();
+      }
+      await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+
+      if (args.feature.status === FEATURE_STATUS.ACTIVE) {
+        await account.enableFeature(args.feature.key);
+      } else if (args.feature.status === FEATURE_STATUS.DISABLED) {
+        await account.disableFeature(args.feature.key);
+      } else {
+        throw new BadRequest('Invalid feature status, you can only set it to ACTIVE or DISABLED');
+      }
+
+      return account.reload();
     },
   },
 };

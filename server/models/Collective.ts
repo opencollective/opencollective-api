@@ -1032,6 +1032,7 @@ class Collective extends Model<
     }
 
     await this.activateBudget();
+    await this.enableFeature(FEATURE.HOST_ACCOUNTS);
 
     return this;
   };
@@ -1135,6 +1136,8 @@ class Collective extends Model<
       FromCollectiveId: this.id,
       data: { collective: this.info },
     });
+
+    await this.disableFeature(FEATURE.HOST_ACCOUNTS);
 
     return this;
   };
