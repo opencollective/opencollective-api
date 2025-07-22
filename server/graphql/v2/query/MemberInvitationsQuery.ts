@@ -40,12 +40,12 @@ const MemberInvitationsQuery = {
       args.memberAccount && (await fetchAccountWithReference(args.memberAccount, { throwIfMissing: true }));
 
     // Must be an admin to see pending invitations
-    const isAdminOfAccount = account && remoteUser.isAdminOfCollective(account);
-    const isAdminOfMemberAccount = memberAccount && remoteUser.isAdminOfCollective(memberAccount);
+    const isAdminOfAccount = account && remoteUser.isAdminOfCollectiveOrHost(account);
+    const isAdminOfMemberAccount = memberAccount && remoteUser.isAdminOfCollectiveOrHost(memberAccount);
 
     // If not admin of account or member account throw forbidden
     if (!(isAdminOfAccount || isAdminOfMemberAccount)) {
-      new Forbidden('Only collective admins can see pending invitations');
+      throw new Forbidden('Only collective admins can see pending invitations');
     }
 
     const where = {};

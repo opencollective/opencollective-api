@@ -93,6 +93,7 @@ const parseError = (
     code = `transferwise.error.validation`;
   }
 
+  // eslint-disable-next-line custom-errors/no-unthrown-errors
   return new TransferwiseError(message, code, {
     tracing: pick(error.response?.headers, ['x-trace-id', 'cf-ray']),
   });

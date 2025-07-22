@@ -142,6 +142,7 @@ export const validateStat = async (
   try {
     await Promise.all(limitParams.map(assertLimit));
   } catch (e) {
+    // eslint-disable-next-line custom-errors/no-unthrown-errors -- We throw the error conditionally
     const error = new ValidationFailed(`${errorMessage}: ${e.message}`, null, { args, limitParams });
     logger.warn(error.message);
     const onFail =

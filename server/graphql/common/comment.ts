@@ -87,6 +87,7 @@ const loadCommentedEntity = async (
   return [entity, activityType, activityData];
 };
 
+/* eslint-disable custom-errors/no-unthrown-errors */
 const getCommentPermissionsError = async (req, commentedEntity, commentType) => {
   if (commentedEntity instanceof Expense) {
     if (!(await canCommentExpense(req, commentedEntity))) {
@@ -115,6 +116,7 @@ const getCommentPermissionsError = async (req, commentedEntity, commentType) => 
     }
   }
 };
+/* eslint-enable custom-errors/no-unthrown-errors */
 
 export async function canSeeComment(req, comment: Comment): Promise<boolean> {
   const [entity] = await loadCommentedEntity(comment, req.loaders);
