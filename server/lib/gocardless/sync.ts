@@ -20,7 +20,9 @@ const getDescriptionForTransaction = (transaction: AccountTransactions['transact
     return transaction.remittanceInformationStructured;
   } else if (transaction.remittanceInformationUnstructured) {
     return transaction.remittanceInformationUnstructured;
-  } else if (transaction.remittanceInformationUnstructuredArray) {
+  } else if (transaction.remittanceInformationStructuredArray?.length) {
+    return transaction.remittanceInformationStructuredArray.join(', ');
+  } else if (transaction.remittanceInformationUnstructuredArray?.length) {
     return transaction.remittanceInformationUnstructuredArray.join(', ');
   }
 
