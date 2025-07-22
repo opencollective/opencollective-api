@@ -69,9 +69,52 @@ export default [
   // New TS rules
   {
     files: ['**/*.ts'],
+    plugins: {
+      'custom-errors': {
+        rules: {
+          'no-unthrown-errors': {
+            create(context) {
+              return {
+                NewExpression(node) {
+                  if (
+                    node.callee.name &&
+                    /^(Forbidden|ValidationFailed|NotFound|BadRequest|Unauthorized|SpamDetected|ServerError|Timeout|ConflictError|TooManyRequests|NotImplemented|CustomError|RateLimitExceeded|InvalidToken|FeatureNotSupportedForCollective|FeatureNotAllowedForUser|PlanLimit|TransferwiseError|ContentNotReady|UnexpectedError)$/.test(
+                      node.callee.name,
+                    )
+                  ) {
+                    const parent = node.parent;
+
+                    // Allow if it's inside a ThrowStatement
+                    if (parent.type === 'ThrowStatement') {
+                      return;
+                    }
+
+                    // Allow if it's the second argument of an assert() call
+                    if (
+                      parent.type === 'CallExpression' &&
+                      parent.callee.name === 'assert' &&
+                      parent.arguments.length >= 2 &&
+                      parent.arguments[1] === node
+                    ) {
+                      return;
+                    }
+
+                    context.report({
+                      node,
+                      message: `Error '${node.callee.name}' is created but not thrown. Add 'throw' before this statement.`,
+                    });
+                  }
+                },
+              };
+            },
+          },
+        },
+      },
+    },
     rules: {
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': 'error',
+      'custom-errors/no-unthrown-errors': 'error',
     },
   },
   // Tests
