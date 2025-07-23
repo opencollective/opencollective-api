@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
-import { intersection, isNil } from 'lodash';
+import { intersection, isNil, isUndefined } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
@@ -10,6 +10,7 @@ import { GraphQLMemberCollection } from '../collection/MemberCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
 import EmailAddress from '../scalar/EmailAddress';
 
@@ -34,6 +35,10 @@ export const HasMembersFields = {
       includeInherited: {
         type: GraphQLBoolean,
         defaultValue: true,
+      },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier. Pass null to filter for members without any tier.',
       },
     },
     async resolve(collective, args, req) {
@@ -64,6 +69,19 @@ export const HasMembersFields = {
         collectiveConditions.type = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
         };
+      }
+
+      // Filter by tier using TierReferenceInput
+      if (!isUndefined(args.tier)) {
+        if (args.tier) {
+          const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
+          if (tier.CollectiveId !== collective.id) {
+            throw new BadRequest('Tier does not belong to this collective');
+          }
+          where.TierId = tier.id;
+        } else {
+          where.TierId = { [Op.is]: null };
+        }
       }
 
       // Inherit Accountants and Admin from parent collective for Events and Projects
