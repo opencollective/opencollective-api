@@ -1,4 +1,4 @@
-import { cloneDeep, set, update } from 'lodash';
+import { cloneDeep, get, set, update } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { Activity, TransactionsImport, TransactionsImportRow } from '../../models';
@@ -27,8 +27,12 @@ export const requestPlaidAccountSync = async (connectedAccount: ConnectedAccount
       /* eslint-enable camelcase */
     });
   } catch (e) {
-    reportErrorToSentry(e, { extra: { connectedAccountId: connectedAccount.id } });
-    throw new Error(`Failed to request a bank account sync: ${e.message}`);
+    if (get(e, 'response.data.error_code') === 'ITEM_LOGIN_REQUIRED') {
+      throw new Error('The login details of this item have changed. Please reconnect the account.');
+    } else {
+      reportErrorToSentry(e, { extra: { connectedAccountId: connectedAccount.id } });
+      throw new Error(`Failed to request a bank account sync: ${e.message}`);
+    }
   }
 };
 
