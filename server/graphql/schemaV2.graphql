@@ -22109,6 +22109,21 @@ type Mutation {
   ): GoCardlessConnectAccountResponse!
 
   """
+  Reconnect a GoCardless account by creating a new link and updating the existing connection
+  """
+  reconnectGoCardlessAccount(
+    """
+    The transactions import to reconnect
+    """
+    transactionImport: TransactionsImportReferenceInput!
+
+    """
+    Whether to enable account selection in the reconnect flow
+    """
+    accountSelectionEnabled: Boolean
+  ): GoCardlessConnectAccountResponse!
+
+  """
   [Root only] Edits account flags (deleted, banned, archived, trusted host)
   """
   editAccountFlags(

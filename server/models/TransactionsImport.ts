@@ -199,6 +199,14 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
     const rows = await this.getImportRows({ where, attributes: ['sourceId'], raw: true });
     return new Set(rows.map(row => row.sourceId));
   }
+
+  async getLastSyncedTransactionDate(): Promise<Date | null> {
+    const lastSyncedTransaction = (await TransactionsImportRow.max('date', {
+      where: { TransactionsImportId: this.id },
+    })) as string;
+
+    return lastSyncedTransaction ? new Date(lastSyncedTransaction) : null;
+  }
 }
 
 TransactionsImport.init(
