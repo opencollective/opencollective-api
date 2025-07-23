@@ -204,6 +204,7 @@ export const plaidMutations = {
   syncPlaidAccount: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
     description: 'Manually request a sync for Plaid account',
+    deprecationReason: '2025-07-23: Use `syncTransactionsImport` instead',
     args: {
       connectedAccount: {
         type: new GraphQLNonNull(GraphQLConnectedAccountReferenceInput),

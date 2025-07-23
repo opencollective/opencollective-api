@@ -7498,6 +7498,11 @@ type TransactionsImport {
   plaidAccounts: [PlaidAccount] @deprecated(reason: "2025-07-02: Please use the generic accounts field instead.")
 
   """
+  Institution ID (for Gocardless only)
+  """
+  institutionId: String
+
+  """
   List of available accounts for the import
   """
   institutionAccounts: [TransactionsImportAccount]
@@ -22106,21 +22111,11 @@ type Mutation {
     The name of the account. Will be inferred if not provided.
     """
     name: String
-  ): GoCardlessConnectAccountResponse!
-
-  """
-  Reconnect a GoCardless account by creating a new link and updating the existing connection
-  """
-  reconnectGoCardlessAccount(
-    """
-    The transactions import to reconnect
-    """
-    transactionImport: TransactionsImportReferenceInput!
 
     """
-    Whether to enable account selection in the reconnect flow
+    If re-connecting an existing account, the transactions import to reconnect
     """
-    accountSelectionEnabled: Boolean
+    transactionImport: TransactionsImportReferenceInput
   ): GoCardlessConnectAccountResponse!
 
   """
@@ -22267,6 +22262,16 @@ type Mutation {
     """
     message: String
   ): Transaction!
+
+  """
+  Manually request a sync for a transactions import (works for both Plaid and GoCardless)
+  """
+  syncTransactionsImport(
+    """
+    The transactions import to sync
+    """
+    transactionImport: TransactionsImportReferenceInput!
+  ): TransactionsImport!
 
   """
   Create a new import. To manually add transactions to it, use `importTransactions`.

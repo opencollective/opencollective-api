@@ -6,7 +6,9 @@ import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
+import { syncGoCardlessAccount } from '../../../lib/gocardless/sync';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
+import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import {
@@ -36,6 +38,10 @@ import { getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportAssignmentInput } from '../input/TransactionsImportAssignmentInput';
+import {
+  fetchTransactionsImportWithReference,
+  GraphQLTransactionsImportReferenceInput,
+} from '../input/TransactionsImportReferenceInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
 import {
   GraphQLTransactionsImportRowUpdateInput,
@@ -46,6 +52,51 @@ import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 import { GraphQLTransactionsImportRow } from '../object/TransactionsImportRow';
 
 const transactionImportsMutations = {
+  syncTransactionsImport: {
+    type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description: 'Manually request a sync for a transactions import (works for both Plaid and GoCardless)',
+    args: {
+      transactionImport: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportReferenceInput),
+        description: 'The transactions import to sync',
+      },
+    },
+    resolve: async (_, args, req) => {
+      checkRemoteUserCanUseTransactions(req);
+      const transactionsImport = await fetchTransactionsImportWithReference(args.transactionImport, {
+        throwIfMissing: true,
+      });
+
+      if (!req.remoteUser.isAdmin(transactionsImport.CollectiveId)) {
+        throw new Unauthorized('You do not have permission to sync this import');
+      }
+
+      const connectedAccount = await transactionsImport.getConnectedAccount();
+      if (!connectedAccount) {
+        throw new Error('Connected account not found');
+      }
+
+      // Rate limiting based on the connected account ID
+      const rateLimiter = new RateLimit(`syncTransactionsImport:${connectedAccount.id}`, 2, 5 * 60);
+      if (!(await rateLimiter.registerCall())) {
+        throw new RateLimitExceeded(
+          'A sync was already requested for this account recently. Please wait a few minutes before trying again.',
+        );
+      }
+
+      if (transactionsImport.type === 'PLAID') {
+        // For Plaid, we request a sync which will trigger the webhook later
+        await requestPlaidAccountSync(connectedAccount);
+      } else if (transactionsImport.type === 'GOCARDLESS') {
+        // For GoCardless, we sync immediately
+        await syncGoCardlessAccount(connectedAccount, transactionsImport);
+      } else {
+        throw new Error(`Sync not supported for import type: ${transactionsImport.type}`);
+      }
+
+      return transactionsImport;
+    },
+  },
   createTransactionsImport: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
     description: 'Create a new import. To manually add transactions to it, use `importTransactions`.',
