@@ -60,6 +60,7 @@ import {
   GraphQLChronologicalOrderInput,
 } from '../input/ChronologicalOrderInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import {
   GraphQLUpdateChronologicalOrderInput,
   UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
@@ -300,6 +301,10 @@ const accountFieldsDefinition = () => ({
       includeInherited: {
         type: GraphQLBoolean,
         defaultValue: true,
+      },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
       },
     },
   },

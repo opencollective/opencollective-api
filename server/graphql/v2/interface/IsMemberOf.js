@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, invert, isNil } from 'lodash';
+import { cloneDeep, invert, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { buildSearchConditions } from '../../../lib/sql-search';
@@ -12,6 +12,7 @@ import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 
 export const IsMemberOfFields = {
   memberOf: {
@@ -57,6 +58,10 @@ export const IsMemberOfFields = {
       orderByRoles: {
         type: GraphQLBoolean,
         description: 'Order the query by requested role order',
+      },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
       },
     },
     async resolve(collective, args, req) {
@@ -110,6 +115,18 @@ export const IsMemberOfFields = {
           collectiveConditions.data = { useCustomHostFee: true };
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
           throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
+        }
+      }
+
+      if (!isUndefined(args.tier)) {
+        if (args.tier) {
+          const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
+          if (tier.collectiveId !== collective.id) {
+            throw new ValidationFailed('Tier is not associated with this collective');
+          }
+          where.TierId = tier.id;
+        } else {
+          where.TierId = { [Op.is]: null };
         }
       }
 
