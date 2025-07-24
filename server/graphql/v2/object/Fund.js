@@ -14,6 +14,13 @@ export const GraphQLFund = new GraphQLObjectType({
       ...AccountFields,
       ...AccountWithHostFields,
       ...AccountWithContributionsFields,
+      location: {
+        ...AccountFields.location,
+        async resolve(fund, _, req) {
+          // Funds locations are always public
+          return req.loaders.Location.byCollectiveId.load(fund.id);
+        },
+      },
     };
   },
 });
