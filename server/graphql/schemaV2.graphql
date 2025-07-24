@@ -22151,7 +22151,7 @@ type Mutation {
     The connected account to refresh
     """
     connectedAccount: ConnectedAccountReferenceInput!
-  ): TransactionsImport!
+  ): TransactionsImport! @deprecated(reason: "2025-07-23: Use `syncTransactionsImport` instead")
 
   """
   Refresh the list of sub-accounts & other metadata by re-fetching the account info

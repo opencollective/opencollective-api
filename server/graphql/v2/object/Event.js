@@ -41,6 +41,13 @@ export const GraphQLEvent = new GraphQLObjectType({
         description: 'Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)',
         type: GraphQLString,
       },
+      location: {
+        ...AccountFields.location,
+        async resolve(event, _, req) {
+          // Events locations are always public
+          return req.loaders.Location.byCollectiveId.load(event.id);
+        },
+      },
     };
   },
 });

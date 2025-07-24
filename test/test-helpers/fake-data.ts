@@ -240,6 +240,17 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
   return host;
 };
 
+/** Create a fake vendor */
+export const fakeVendor = async (vendorData: Parameters<typeof fakeCollective>[0] = {}) => {
+  return fakeCollective({
+    type: CollectiveType.VENDOR,
+    name: randStr('Test Vendor '),
+    slug: randStr('vendor-'),
+    ParentCollectiveId: vendorData.ParentCollectiveId || (await fakeHost()).id,
+    ...vendorData,
+  });
+};
+
 /** Create a fake host application */
 export const fakeHostApplication = async (data: Partial<InferCreationAttributes<HostApplication>> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;

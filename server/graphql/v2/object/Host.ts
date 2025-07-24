@@ -149,6 +149,13 @@ export const GraphQLHost = new GraphQLObjectType({
     return {
       ...AccountFields,
       ...AccountWithContributionsFields,
+      location: {
+        ...AccountFields.location,
+        async resolve(host, _, req) {
+          // Hosts locations are always public
+          return req.loaders.Location.byCollectiveId.load(host.id);
+        },
+      },
       accountingCategories: {
         type: new GraphQLNonNull(GraphQLAccountingCategoryCollection),
         description: 'List of accounting categories for this host',

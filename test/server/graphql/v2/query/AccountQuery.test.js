@@ -6,6 +6,7 @@ import { roles } from '../../../../../server/constants';
 import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
+  fakeEvent,
   fakeHost,
   fakeOrder,
   fakeOrganization,
@@ -14,6 +15,7 @@ import {
   fakeTransaction,
   fakeUpdate,
   fakeUser,
+  fakeVendor,
   multiple,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -156,6 +158,29 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(resultUnauthenticated.data.account.location).to.be.null;
       expect(resultRandomUser.data.account.location).to.be.null;
       expect(resultAdmin.data.account.location.address).to.eq('PRIVATE!');
+    });
+
+    it('is public for events', async () => {
+      const event = await fakeEvent({ location: { address: 'PUBLIC!' } });
+      const result = await graphqlQueryV2(accountQuery, { slug: event.slug });
+      expect(result.data.account.location.address).to.eq('PUBLIC!');
+    });
+
+    it('is private for vendors (host admin only)', async () => {
+      const hostAdminUser = await fakeUser();
+      const randomUser = await fakeUser();
+      const host = await fakeHost({ admin: hostAdminUser });
+      const vendor = await fakeVendor({
+        ParentCollectiveId: host.id,
+        location: { address: 'PRIVATE!' },
+        admin: hostAdminUser,
+      });
+      const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: vendor.slug });
+      const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: vendor.slug }, randomUser);
+      const resultHostAdmin = await graphqlQueryV2(accountQuery, { slug: vendor.slug }, hostAdminUser);
+      expect(resultUnauthenticated.data.account.location).to.be.null;
+      expect(resultRandomUser.data.account.location).to.be.null;
+      expect(resultHostAdmin.data.account.location.address).to.eq('PRIVATE!');
     });
 
     describe('for incognito', () => {

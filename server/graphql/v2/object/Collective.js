@@ -15,6 +15,13 @@ export const GraphQLCollective = new GraphQLObjectType({
       ...AccountFields,
       ...AccountWithHostFields,
       ...AccountWithContributionsFields,
+      location: {
+        ...AccountFields.location,
+        async resolve(collective, _, req) {
+          // Collectives locations are always public
+          return req.loaders.Location.byCollectiveId.load(collective.id);
+        },
+      },
     };
   },
 });
