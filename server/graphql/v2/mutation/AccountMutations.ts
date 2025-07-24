@@ -765,7 +765,7 @@ const accountMutations = {
         },
       });
 
-      return account.reload();
+      return account;
     },
   },
   setPolicies: {
