@@ -3,7 +3,7 @@ import '../../../server/lib/emailTemplates'; // To make sure templates are loade
 import { expect } from 'chai';
 
 import handlebars from '../../../server/lib/handlebars';
-import { fakeCollective } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeProject } from '../../test-helpers/fake-data';
 
 const template = handlebars.compile('{{> linkCollective collective=collective}}');
 
@@ -20,5 +20,14 @@ describe('templates/partials/link-collective', () => {
     const collective = (await fakeCollective({ name: 'Test Collective' })).activity;
     const result = template({ ...DEFAULT_CONTEXT, collective, text: 'Hello World' });
     expect(result).to.eq(`<a href="https://opencollective.com/${collective.slug}">Hello World</a>`);
+  });
+
+  it('should render a link to a collective with a parent collective', async () => {
+    const parentCollective = (await fakeCollective({ name: 'Parent Collective' })).activity;
+    const project = (await fakeProject({ name: 'Test Project', ParentCollectiveId: parentCollective.id })).activity;
+    const result = template({ ...DEFAULT_CONTEXT, collective: project, _parentCollective: parentCollective });
+    expect(result).to.eq(
+      `<a href="https://opencollective.com/${parentCollective.slug}/${project.slug}">Parent Collective → Test Project</a>`,
+    );
   });
 });

@@ -3,7 +3,7 @@ Subject: {{{collective.name}}}: New comment on expense {{{escapeForSubject expen
 {{> header}}
 
 <p style="padding: 1em;">
-  {{> greeting}}
+  Hi,
   <br /><br />
   {{> linkCollective collective=fromCollective}} just posted
   a new comment on an Expense, <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:
@@ -32,8 +32,8 @@ Subject: {{{collective.name}}}: New comment on expense {{{escapeForSubject expen
   <div style="height: 100%; background: #f8f8f8; padding: 16px; border-radius: 8px;">
     <p style="margin-top: 0; margin-bottom: 8px; font-weight: 600;">Expense Info</p>
     {{#if hostCollective}}<p style="margin: 0; font-size: 13px;">Fiscal Host: {{> linkCollective collective=hostCollective}}</p>{{/if}}
-    <p style="margin: 0; font-size: 13px;">Collective: {{> linkCollective collective=collective}}</p>
-    <p style="margin: 0; font-size: 13px;">Payee: {{> linkCollective collective=fromCollective}}</p>
+    <p style="margin: 0; font-size: 13px;">Collective: {{> linkCollective collective=collective _parentCollective=parentCollective}}</p>
+    {{#if payee}}<p style="margin: 0; font-size: 13px;">Payee: {{> linkCollective collective=payee}}</p>{{/if}}
     <p style="margin: 0; font-size: 13px;">Status: {{startCase expense.status}}</p>
   </div>
 </div>

@@ -1,1 +1,12 @@
-<a href="{{config.host.website}}/{{collective.slug}}">{{#if text}}{{text}}{{else if collective.name}}{{collective.name}}{{else}}{{collective.slug}}{{/if}}</a>
+{{! Partials are not isolated properly in handlebars, they inherit the context of the parent template. We use _parentCollective to prevent it from being wrongly injected from the parent context. }}
+{{~#if _parentCollective~}}
+  <a href="{{config.host.website}}/{{_parentCollective.slug}}/{{collective.slug}}">
+    {{~#if text}}{{text}}
+    {{else}}
+      {{~#if _parentCollective}}{{#if _parentCollective.name}}{{_parentCollective.name}}{{else}}{{_parentCollective.slug}}{{/if}} → {{/if~}}
+      {{~#if collective.name}}{{collective.name}}{{else}}{{collective.slug}}{{/if~}}
+    {{~/if~}}
+  </a>
+{{~else~}}
+  <a href="{{config.host.website}}/{{collective.slug}}">{{#if text}}{{text}}{{else if collective.name}}{{collective.name}}{{else}}{{collective.slug}}{{/if}}</a>
+{{~/if}}
