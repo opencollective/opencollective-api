@@ -249,7 +249,7 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
-      - name: Install dependencies
+      - name: Install dependencies+
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
@@ -260,6 +260,13 @@ jobs:
 
       - name: Report coverage
         uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: Unit
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
@@ -331,10 +338,17 @@ jobs:
       - run: npm run test:coverage test/server/graphql
 
       - name: Report coverage
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: GraphQL
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   schema-update:
     runs-on: ubuntu-latest
