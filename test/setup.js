@@ -8,7 +8,7 @@ import markdownTable from 'markdown-table';
 import Sequelize from 'sequelize';
 import sinonChai from 'sinon-chai';
 
-import { dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
+import { checkS3Configured, dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
 
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {
@@ -31,7 +31,11 @@ beforeEach(function () {
 
 before(async () => {
   try {
-    await dangerouslyInitNonProductionBuckets();
+    if (checkS3Configured()) {
+      await dangerouslyInitNonProductionBuckets();
+    } else {
+      console.warn('S3 is not configured, skipping S3 bucket initialization');
+    }
   } catch {
     if (process.env.OC_ENV !== 'ci') {
       console.warn(
