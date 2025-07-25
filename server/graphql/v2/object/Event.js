@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { roles } from '../../../constants';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import { AccountWithHostFields, GraphQLAccountWithHost } from '../interface/AccountWithHost';
@@ -46,6 +47,15 @@ export const GraphQLEvent = new GraphQLObjectType({
         async resolve(event, _, req) {
           // Events locations are always public
           return req.loaders.Location.byCollectiveId.load(event.id);
+        },
+      },
+      privateInstructions: {
+        type: GraphQLString,
+        description: 'Private instructions for the host to be sent to participating users.',
+        async resolve(event, _, req) {
+          if (req.remoteUser?.isAdminOfCollective(event) || req.remoteUser?.hasRole(roles.PARTICIPANT, event)) {
+            return event.data?.privateInstructions;
+          }
         },
       },
     };

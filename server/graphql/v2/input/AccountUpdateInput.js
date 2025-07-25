@@ -1,6 +1,17 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { GraphQLCurrency } from '../enum/Currency';
+
+import { GraphQLLocationInput } from './LocationInput';
+import { GraphQLSocialLinkInput } from './SocialLinkInput';
 
 export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
   name: 'AccountUpdateInput',
@@ -9,6 +20,15 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
     },
+    name: { type: GraphQLString },
+    legalName: { type: GraphQLString },
+    slug: { type: GraphQLString },
+    description: { type: GraphQLString },
+    longDescription: { type: GraphQLString },
+    company: { type: GraphQLString },
+    tags: { type: new GraphQLList(GraphQLString) },
+    location: { type: GraphQLLocationInput },
+    socialLinks: { type: new GraphQLList(new GraphQLNonNull(GraphQLSocialLinkInput)) },
     currency: { type: GraphQLCurrency },
     hostFeePercent: {
       type: GraphQLInt,
@@ -27,9 +47,29 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
             description: 'Message shown to users when applying to join this account.',
           },
           tos: { type: GraphQLString, description: 'Terms of Service for this account.' },
+          VAT: { type: GraphQLJSON },
+          GST: { type: GraphQLJSON },
         }),
       }),
       description: 'Settings for the account.',
+    },
+    // Event specific fields
+    startsAt: {
+      description: 'The Event start date and time',
+      type: GraphQLDateTime,
+    },
+    endsAt: {
+      description: 'The Event end date and time',
+      type: GraphQLDateTime,
+    },
+    timezone: {
+      description: 'Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)',
+      type: GraphQLString,
+      default: 'UTC',
+    },
+    privateInstructions: {
+      type: GraphQLString,
+      description: 'Private instructions for the host to be sent to participating users.',
     },
   }),
 });
