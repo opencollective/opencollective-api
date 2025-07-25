@@ -331,10 +331,17 @@ jobs:
       - run: npm run test:coverage test/server/graphql
 
       - name: Report coverage
+        if: ${{ !cancelled() }}
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: GraphQL
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   schema-update:
     runs-on: ubuntu-latest
