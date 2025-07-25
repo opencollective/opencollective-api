@@ -256,7 +256,7 @@ jobs:
       - run: npm run db:restore
       - run: npm run db:migrate
 
-      - run: npm run test -- --ignore "test/server/graphql/**"
+      - run: npm run test:coverage -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
         uses: codecov/codecov-action@v5
@@ -328,7 +328,7 @@ jobs:
       - run: npm run db:restore
       - run: npm run db:migrate
 
-      - run: npm run test:graphql
+      - run: npm run test:coverage test/server/graphql
 
       - name: Report coverage
         uses: codecov/codecov-action@v5
