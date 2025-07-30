@@ -145,6 +145,9 @@ export default {
       }
       await organization.save();
 
+      if (args.organization.currency) {
+        await organization.setCurrency(args.organization.currency);
+      }
       if (args.activateBudget) {
         await organization.becomeHost(user);
         await organization.reload();
