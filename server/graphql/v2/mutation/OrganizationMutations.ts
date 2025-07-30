@@ -2,8 +2,8 @@ import assert from 'assert';
 
 import config from 'config';
 import type express from 'express';
-import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { cloneDeep, pick, set } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
@@ -52,6 +52,12 @@ export default {
       },
       captcha: {
         type: CaptchaInputType,
+      },
+      financiallyActive: {
+        type: GraphQLBoolean,
+        description:
+          'If true, the organization will be created as financially active, allowing the organization to receive contributions and pay for expenses. Defaults to false.',
+        defaultValue: false,
       },
     },
     resolve: async (_, args, req: express.Request) => {
@@ -124,7 +130,6 @@ export default {
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.organization);
       organization.image = avatar?.url ?? organization.image;
       organization.backgroundImage = banner?.url ?? organization.backgroundImage;
-      await organization.save();
 
       let user: User = req.remoteUser;
       if (!user && args.individual) {
@@ -136,7 +141,16 @@ export default {
             userAgent: req.header('user-agent'),
           },
         }));
-        await organization.update({ CreatedByUserId: user.id });
+        organization.set({ CreatedByUserId: user.id });
+      }
+      await organization.save();
+
+      if (args.activateBudget) {
+        await organization.becomeHost(user);
+        await organization.reload();
+        const settings = organization.settings ? cloneDeep(organization.settings) : {};
+        set(settings, 'canHostAccounts', false);
+        await organization.update({ settings });
       }
 
       await organization.addUserWithRole(user, roles.ADMIN, {
