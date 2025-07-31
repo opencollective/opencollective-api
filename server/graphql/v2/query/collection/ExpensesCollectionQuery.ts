@@ -424,6 +424,7 @@ export const ExpensesCollectionQueryResolver = async (
           SequelizeUtils.formatNamedParameters(
             `
             CASE
+              WHEN "Expense".currency = :currency THEN 1.0
               WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = :currency
                 AND "Expense"."data" #>> '{quote,targetCurrency}' = "Expense"."currency"
                 THEN 1.0 / ("Expense"."data" #> '{quote,rate}')::NUMERIC
