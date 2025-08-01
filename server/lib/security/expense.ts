@@ -233,8 +233,9 @@ const getExpensesAmountsStats = async (
                 FROM "CurrencyExchangeRates" r
                 WHERE r."from" = e.currency
                 AND r."to" = :displayCurrency
+                -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
                 AND r."createdAt" <= e."createdAt"
-                ORDER BY e."createdAt" DESC -- Most recent rate that is older than the expense
+                ORDER BY e."createdAt" DESC
                 LIMIT 1
               ), (
                 -- Fix for old expenses where we didn't have an exchange rate stored yet: just use the oldest rate available

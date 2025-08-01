@@ -816,7 +816,8 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
             FROM "CurrencyExchangeRates" er
             WHERE er."from" = all_expenses."currency"
             AND er."to" = host.currency
-            AND er."createdAt" < all_expenses."createdAt"
+            -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
+            AND er."createdAt" <= all_expenses."createdAt"
             ORDER BY "createdAt" DESC
             LIMIT 1
           )
