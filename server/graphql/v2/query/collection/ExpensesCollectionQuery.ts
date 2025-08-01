@@ -432,7 +432,13 @@ export const ExpensesCollectionQueryResolver = async (
                 AND "Expense"."data" #>> '{quote,targetCurrency}' = :currency
                 THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
               ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Expense"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Expense"."incurredAt", "Expense"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1),
+                (SELECT rate FROM "CurrencyExchangeRates"
+                  WHERE "from" = "Expense"."currency"
+                  AND "to" = :currency
+                  -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
+                  AND "createdAt" <= COALESCE("Expense"."incurredAt", "Expense"."createdAt")
+                  ORDER BY "createdAt" DESC
+                  LIMIT 1),
                 1
               )
             END * "Expense"."amount" 

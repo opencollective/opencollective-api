@@ -393,7 +393,14 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
             CASE
               WHEN "Order"."currency" = :currency THEN "Order"."totalAmount"
               ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Order"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Order"."processedAt", "Order"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Order"."totalAmount",
+                (SELECT rate FROM "CurrencyExchangeRates"
+                  WHERE "from" = "Order"."currency"
+                  AND "to" = :currency
+                  -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
+                  AND "createdAt" <= COALESCE("Order"."processedAt", "Order"."createdAt")
+                  ORDER BY "createdAt" DESC
+                  LIMIT 1
+                ) * "Order"."totalAmount",
                 "Order"."totalAmount"
               )
             END

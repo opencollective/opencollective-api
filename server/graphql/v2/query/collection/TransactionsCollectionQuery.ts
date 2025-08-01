@@ -449,7 +449,14 @@ export const TransactionsCollectionResolver = async (
               WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
               ELSE ABS(
                 COALESCE(
-                  (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
+                  (SELECT rate FROM "CurrencyExchangeRates" 
+                    WHERE "from" = "Transaction"."currency" 
+                    AND "to" = :currency 
+                    -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
+                    AND "createdAt" <= COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")
+                    ORDER BY "createdAt" DESC
+                    LIMIT 1
+                  ) * "Transaction"."amount",
                   "Transaction"."amount"
                 )
               )
