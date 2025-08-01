@@ -368,19 +368,6 @@ export const ExpensesCollectionQueryResolver = async (
     );
   }
 
-  if (!isNil(args.chargeHasReceipts)) {
-    where[Op.and].push(
-      { type: ExpenseType.CHARGE },
-      sequelize.where(
-        sequelize.literal(
-          `NOT EXISTS (SELECT id from "ExpenseItems" ei WHERE ei."ExpenseId" = "Expense".id and ei.url IS NULL AND ei."deletedAt" IS NULL)`,
-        ),
-        Op.eq,
-        args.chargeHasReceipts,
-      ),
-    );
-  }
-
   if (!isEmpty(args.virtualCards)) {
     where[Op.and].push({
       [Op.or]: [{ type: { [Op.ne]: ExpenseType.CHARGE } }, { VirtualCardId: args.virtualCards.map(vc => vc.id) }],
@@ -400,6 +387,82 @@ export const ExpensesCollectionQueryResolver = async (
     where['tags'] = { [Op.contains]: args.tag || args.tags };
   } else if (args.tag === null || args.tags === null) {
     where['tags'] = { [Op.is]: null };
+  }
+
+  if (args.dateFrom) {
+    where['createdAt'] = { [Op.gte]: args.dateFrom };
+  }
+  if (args.dateTo) {
+    where['createdAt'] = where['createdAt'] || {};
+    where['createdAt'][Op.lte] = args.dateTo;
+  }
+
+  if (args.payoutMethod) {
+    const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
+    assert(payoutMethod, new NotFound('Requested payment method not found'));
+    assert(
+      req.remoteUser?.isAdmin(payoutMethod.CollectiveId),
+      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
+    );
+    where['PayoutMethodId'] = payoutMethod.id;
+  } else if (args.payoutMethodType === 'CREDIT_CARD') {
+    where[Op.and].push({ VirtualCardId: { [Op.not]: null } });
+  } else if (args.payoutMethodType) {
+    include.push({
+      association: 'PayoutMethod',
+      attributes: [],
+      required: args.payoutMethodType !== PayoutMethodTypes.OTHER,
+      where: { type: args.payoutMethodType },
+    });
+
+    if (args.payoutMethodType === PayoutMethodTypes.OTHER) {
+      where[Op.and].push(sequelize.literal(`("PayoutMethodId" IS NULL OR "PayoutMethod".type = 'OTHER')`));
+    }
+  }
+
+  /*
+   * Please notice that updateFilterConditionsForReadyToPay will query the DB with existing conditionals,
+   * for performance reasons, we should make sure that complex conditionals are added after this function is called.
+   */
+  if (args.status && args.status.length > 0) {
+    if (args.status.includes('ON_HOLD') && args.status.length === 1) {
+      where['onHold'] = true;
+    } else if (args.status.includes('READY_TO_PAY')) {
+      assert(args.status.length === 1, 'READY_TO_PAY cannot be combined with other statuses');
+      await updateFilterConditionsForReadyToPay(where, include, host, req.loaders);
+    } else {
+      where['status'] = args.status;
+      if (!args.status.includes('ON_HOLD')) {
+        where['onHold'] = false;
+      }
+    }
+  } else {
+    if (req.remoteUser) {
+      const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
+
+      if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
+        userClause.push({ status: expenseStatus.DRAFT });
+      } else {
+        userClause.push({ status: expenseStatus.DRAFT, UserId: req.remoteUser.id });
+      }
+
+      where[Op.and].push({ [Op.or]: userClause });
+    } else {
+      where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
+    }
+  }
+
+  if (!isNil(args.chargeHasReceipts)) {
+    where[Op.and].push(
+      { type: ExpenseType.CHARGE },
+      sequelize.where(
+        sequelize.literal(
+          `NOT EXISTS (SELECT id from "ExpenseItems" ei WHERE ei."ExpenseId" = "Expense".id and ei.url IS NULL AND ei."deletedAt" IS NULL)`,
+        ),
+        Op.eq,
+        args.chargeHasReceipts,
+      ),
+    );
   }
 
   if (args.amount?.gte || args.amount?.lte) {
@@ -450,65 +513,6 @@ export const ExpensesCollectionQueryResolver = async (
     }
     if (args.maxAmount) {
       where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
-    }
-  }
-
-  if (args.dateFrom) {
-    where['createdAt'] = { [Op.gte]: args.dateFrom };
-  }
-  if (args.dateTo) {
-    where['createdAt'] = where['createdAt'] || {};
-    where['createdAt'][Op.lte] = args.dateTo;
-  }
-
-  if (args.payoutMethod) {
-    const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
-    assert(payoutMethod, new NotFound('Requested payment method not found'));
-    assert(
-      req.remoteUser?.isAdmin(payoutMethod.CollectiveId),
-      new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
-    );
-    where['PayoutMethodId'] = payoutMethod.id;
-  } else if (args.payoutMethodType === 'CREDIT_CARD') {
-    where[Op.and].push({ VirtualCardId: { [Op.not]: null } });
-  } else if (args.payoutMethodType) {
-    include.push({
-      association: 'PayoutMethod',
-      attributes: [],
-      required: args.payoutMethodType !== PayoutMethodTypes.OTHER,
-      where: { type: args.payoutMethodType },
-    });
-
-    if (args.payoutMethodType === PayoutMethodTypes.OTHER) {
-      where[Op.and].push(sequelize.literal(`("PayoutMethodId" IS NULL OR "PayoutMethod".type = 'OTHER')`));
-    }
-  }
-
-  if (args.status && args.status.length > 0) {
-    if (args.status.includes('ON_HOLD') && args.status.length === 1) {
-      where['onHold'] = true;
-    } else if (args.status.includes('READY_TO_PAY')) {
-      assert(args.status.length === 1, 'READY_TO_PAY cannot be combined with other statuses');
-      await updateFilterConditionsForReadyToPay(where, include, host, req.loaders);
-    } else {
-      where['status'] = args.status;
-      if (!args.status.includes('ON_HOLD')) {
-        where['onHold'] = false;
-      }
-    }
-  } else {
-    if (req.remoteUser) {
-      const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
-
-      if (accounts.every(account => req.remoteUser.isAdminOfCollectiveOrHost(account))) {
-        userClause.push({ status: expenseStatus.DRAFT });
-      } else {
-        userClause.push({ status: expenseStatus.DRAFT, UserId: req.remoteUser.id });
-      }
-
-      where[Op.and].push({ [Op.or]: userClause });
-    } else {
-      where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
     }
   }
 
