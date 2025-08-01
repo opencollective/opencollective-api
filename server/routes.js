@@ -2,7 +2,7 @@ import http from 'http';
 
 import { ApolloServer } from '@apollo/server';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
-import { expressMiddleware } from '@as-integrations/express4';
+import { expressMiddleware } from '@as-integrations/express5';
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import config from 'config';
 import { print as convertASTToString } from 'graphql';
