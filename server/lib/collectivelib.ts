@@ -171,6 +171,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'exportedTransactionsFieldSets',
   'exportedHostedCollectivesFieldSets',
   'showSetupGuide',
+  'canHostAccounts', // Whether this account can host other accounts
 ];
 
 /**
