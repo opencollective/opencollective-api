@@ -1046,6 +1046,40 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
   return totals;
 }
 
+export async function getCollectiveBalanceAtDate(collectiveIds, endAt, { loaders = null } = {}) {
+  const fastResults = await sequelize.query(
+    `
+    WITH "LatestTransactionBalances" AS (
+      SELECT "CollectiveId", MAX("rank") AS "rank", MAX("createdAt") as "lastCreatedAt"
+      FROM "TransactionBalances"
+      WHERE "createdAt" <= :endAt AND "CollectiveId" IN (:collectiveIds)
+      GROUP BY "CollectiveId"
+    )
+    SELECT tb."id", tb."CollectiveId", tb."balance", tb."hostCurrency",
+    ltb."lastCreatedAt" as "createdAt",
+    c."HostCollectiveId"
+    FROM "TransactionBalances" tb
+    INNER JOIN "LatestTransactionBalances" ltb
+    ON tb."rank" = ltb."rank" AND tb."CollectiveId" = ltb."CollectiveId"
+    INNER JOIN "Collectives" c ON c."id" = ltb."CollectiveId" AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2';
+    `,
+    {
+      replacements: { collectiveIds, endAt },
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+    },
+  );
+
+  const totals = {};
+  for (const result of fastResults) {
+    const CollectiveId = result['CollectiveId'];
+
+    totals[CollectiveId] = { CollectiveId, currency: result['hostCurrency'], value: result['balance'] };
+  }
+
+  return totals;
+}
+
 export async function getCurrentCollectiveTransactionStats(collectiveIds, { loaders = null, column } = {}) {
   const results = loaders
     ? await Promise.all(
