@@ -157,6 +157,7 @@ type Settings = {
   };
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
+  canHostAccounts?: boolean;
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
@@ -1033,6 +1034,10 @@ class Collective extends Model<
 
     await this.activateBudget();
 
+    const settings = this.settings ? cloneDeep(this.settings) : {};
+    set(settings, 'canHostAccounts', true);
+    await this.update({ settings });
+
     return this;
   };
 
@@ -1110,7 +1115,8 @@ class Collective extends Model<
 
     await this.deactivateBudget();
 
-    const settings = { ...this.settings };
+    const settings = this.settings ? cloneDeep(this.settings) : {};
+    set(settings, 'canHostAccounts', false);
     unset(settings, 'paymentMethods.manual');
 
     await this.update({ isHostAccount: false, plan: null, settings });
