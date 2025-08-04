@@ -85,6 +85,8 @@ if [ "$USE_POSTGIS" = "1" ]; then
   $CMD_PSQL "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
 fi
 
+$CMD_PSQL -U postgres -h localhost $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
+
 # cool trick: all stdout ignored in this block
 {
   set +e

@@ -91,6 +91,10 @@ import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInp
 import { GraphQLTransactionsImportRowOrderInput } from '../input/TransactionsImportRowOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import {
+  AccountWithPlatformSubscriptionFields,
+  GraphQLAccountWithPlatformSubscription,
+} from '../interface/AccountWithPlatformSubscription';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
@@ -142,13 +146,14 @@ const getTimeUnit = numberOfDays => {
 export const GraphQLHost = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
-  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions, GraphQLAccountWithPlatformSubscription],
   // Due to overlap between our Organization and Host types, we cannot use isTypeOf here
   // isTypeOf: account => account.isHostAccount,
   fields: () => {
     return {
       ...AccountFields,
       ...AccountWithContributionsFields,
+      ...AccountWithPlatformSubscriptionFields,
       location: {
         ...AccountFields.location,
         async resolve(host, _, req) {

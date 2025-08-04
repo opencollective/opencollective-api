@@ -66,6 +66,7 @@ const tablesWithHistory = [
   'Tiers',
   'Updates',
   'Users',
+  'PlatformSubscriptions',
 ];
 
 describe('server/models/models-histories', () => {

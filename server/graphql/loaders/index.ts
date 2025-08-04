@@ -26,6 +26,7 @@ import {
   Op,
   Order,
   PaymentMethod,
+  PlatformSubscription,
   sequelize,
   SocialLink,
   Subscription,
@@ -1188,6 +1189,10 @@ export const generateLoaders = req => {
 
         return sortResultsSimple(orderIds, rows, result => result['OrderId']);
       }),
+    },
+    PlatformSubscription: {
+      ...context.loaders.PlatformSubscription,
+      ...PlatformSubscription.loaders,
     },
 
     // Non-model loaders

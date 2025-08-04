@@ -220,7 +220,7 @@ enum PlatformSubscriptionTierTypes {
   BASIC = 'Basic',
   PRO = 'Pro',
 }
-interface PlatformSubscriptionPlan {
+export interface PlatformSubscriptionPlan {
   title: string;
   type: PlatformSubscriptionTierTypes;
   pricing: {

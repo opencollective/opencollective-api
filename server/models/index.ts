@@ -28,6 +28,7 @@ import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
 import PaypalProduct from './PaypalProduct';
 import PersonalToken from './PersonalToken';
+import PlatformSubscription from './PlatformSubscription';
 import RecurringExpense from './RecurringExpense';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import SocialLink from './SocialLink';
@@ -93,6 +94,7 @@ const models = {
   User,
   UserToken,
   UserTwoFactorMethod,
+  PlatformSubscription,
   VirtualCard,
   VirtualCardRequest,
 } as const;
@@ -348,6 +350,9 @@ VirtualCardRequest.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: '
 VirtualCardRequest.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 VirtualCardRequest.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' });
 
+// PlatformSubscription
+PlatformSubscription.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
 export default models;
 
 export { sequelize, Op };
@@ -387,6 +392,7 @@ export {
   PaypalPlan,
   PaypalProduct,
   PersonalToken,
+  PlatformSubscription,
   RecurringExpense,
   RequiredLegalDocument,
   SocialLink,
