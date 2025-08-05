@@ -214,19 +214,21 @@ export default async app => {
     maxDepth: {
       onReject: [getGraphQLComplexityRejectionLogger('maxDepth')],
       n: 20, // Currently identified max: 13 in contribution flow
+      enabled: true,
     },
     // Cost is computed by the complexity plugin, it's a mix of the number of fields and the complexity of each field
     costLimit: {
       onReject: [getGraphQLComplexityRejectionLogger('costLimit')],
       ignoreIntrospection: true,
       propagateOnRejection: false,
-      maxCost: 100_000, // Currently identified max: around 64169 on the "ExpenseFormSchema" mutation
+      maxCost: 125_000, // Currently identified max: around 103926 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
       onReject: [getGraphQLComplexityRejectionLogger('maxTokens')],
       propagateOnRejection: false,
       n: 1500, // ExpensePage query
+      enabled: true,
     },
     maxAliases: {
       onReject: [getGraphQLComplexityRejectionLogger('maxAliases')],
