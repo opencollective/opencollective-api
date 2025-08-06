@@ -50,6 +50,20 @@ const getPreapprovalDetailsAndUpdatePaymentMethod = async function (paymentMetho
   });
 };
 
+const validateRedirectUrl = redirect => {
+  let parsedRedirect;
+  if (config.env === 'production') {
+    try {
+      parsedRedirect = new URL(redirect);
+      if (parsedRedirect.hostname !== config.host.website) {
+        throw new Error();
+      }
+    } catch {
+      throw new Error(`Invalid redirect url: ${redirect}`);
+    }
+  }
+};
+
 export default {
   types: {
     default: adaptive,
@@ -65,6 +79,8 @@ export default {
       if (!redirect) {
         throw new Error('Please provide a redirect url as a query parameter (?redirect=)');
       }
+
+      validateRedirectUrl(redirect);
       const expiryDate = moment().add(10, 'months');
 
       let collective, response;
