@@ -602,7 +602,7 @@ describe('server/graphql/v2/object/Host', () => {
               startDate
               endDate
               plan {
-                name
+                title
               }
               utilization {
                 activeCollectives
@@ -700,7 +700,7 @@ describe('server/graphql/v2/object/Host', () => {
                   expensesPaid
                 }
                 plan {
-                  name
+                  title
                 }
               }
             }
@@ -894,7 +894,7 @@ describe('server/graphql/v2/object/Host', () => {
             startDate: moment.utc(startDate).add('10', 'days').toDate(),
             endDate: null,
             plan: {
-              name: 'Yet another plan in this billing period',
+              title: 'Yet another plan in this billing period',
             },
             utilization: {
               activeCollectives: 0,
