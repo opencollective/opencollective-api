@@ -119,6 +119,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   UserTwoFactorMethod: {},
   VirtualCard: {},
   VirtualCardRequest: {},
+  PlatformSubscription: {},
 };
 
 /**

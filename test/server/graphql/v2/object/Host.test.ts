@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import moment from 'moment';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
-import models from '../../../../../server/models';
+import models, { PlatformSubscription } from '../../../../../server/models';
+import { BillingMonth } from '../../../../../server/models/PlatformSubscription';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import {
   fakeActiveHost,
@@ -587,6 +589,320 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
       );
+    });
+  });
+
+  describe('platformSubscription', () => {
+    const accountQuery = gql`
+      query Host($slug: String!) {
+        host(slug: $slug) {
+          id
+          ... on AccountWithPlatformSubscription {
+            platformSubscription {
+              startDate
+              endDate
+              plan {
+                title
+              }
+              utilization {
+                activeCollectives
+                expensesPaid
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    it('resolves to null if no subscription is active', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({
+        admin: hostAdmin,
+      });
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformSubscription).to.be.null;
+    });
+
+    it('resolves to current subscription with no end date', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({
+        admin: hostAdmin,
+      });
+      const startDate = new Date();
+      await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformSubscription).to.eql({
+        startDate: startDate,
+        endDate: null,
+        plan: {
+          title: 'A plan',
+        },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
+        },
+      });
+    });
+
+    it('resolves to current subscription with end date', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({
+        admin: hostAdmin,
+      });
+      const startDate = new Date();
+      const endDate = new Date(startDate.getTime() + 10000);
+      const subscription = await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
+      await subscription.update({
+        period: [
+          subscription.start,
+          {
+            value: endDate,
+            inclusive: true,
+          },
+        ],
+      });
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformSubscription.startDate.toISOString()).to.eql(startDate.toISOString());
+      expect(result.data.host.platformSubscription).to.eql({
+        startDate: startDate,
+        endDate: endDate,
+        plan: {
+          title: 'A plan',
+        },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
+        },
+      });
+    });
+  });
+
+  describe('platformBilling', () => {
+    const accountQuery = gql`
+      query Host($slug: String!, $billingPeriod: PlatformBillingPeriodInput) {
+        host(slug: $slug) {
+          id
+          ... on AccountWithPlatformSubscription {
+            platformBilling(billingPeriod: $billingPeriod) {
+              billingPeriod {
+                year
+                month
+              }
+
+              subscriptions {
+                startDate
+                endDate
+                utilization {
+                  activeCollectives
+                  expensesPaid
+                }
+                plan {
+                  title
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    it('resolves to empty subscriptions if no subscription is active', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({
+        admin: hostAdmin,
+      });
+      let result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformBilling).to.eql({
+        billingPeriod: {
+          year: moment.utc().year(),
+          month: BillingMonth[moment.utc().month() + 1],
+        },
+        subscriptions: [],
+      });
+
+      result = await graphqlQueryV2(
+        accountQuery,
+        {
+          slug: host.slug,
+          billingPeriod: {
+            year: 2016,
+            month: 'JANUARY',
+          },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformBilling).to.eql({
+        billingPeriod: {
+          year: 2016,
+          month: 'JANUARY',
+        },
+        subscriptions: [],
+      });
+    });
+
+    it('resolves to current subscriptions', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({
+        admin: hostAdmin,
+      });
+      const startDate = new Date(Date.UTC(2016, 1, 1));
+      const billingPeriod = {
+        year: moment.utc(startDate).year(),
+        month: BillingMonth[moment.utc(startDate).month() + 1],
+      };
+      await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
+      let result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformBilling).to.eql({
+        billingPeriod: {
+          year: billingPeriod.year,
+          month: billingPeriod.month,
+        },
+        subscriptions: [
+          {
+            startDate: startDate,
+            endDate: null,
+            plan: {
+              title: 'A plan',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+        ],
+      });
+
+      const aNewSubscription = await PlatformSubscription.replaceCurrentSubscription(
+        host.id,
+        moment.utc(startDate).add('5', 'days').toDate(),
+        {
+          title: 'A new plan',
+        },
+      );
+
+      result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformBilling).to.eql({
+        billingPeriod: {
+          year: billingPeriod.year,
+          month: billingPeriod.month,
+        },
+        subscriptions: [
+          {
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            plan: {
+              title: 'A plan',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+          {
+            startDate: moment.utc(startDate).add('5', 'days').toDate(),
+            endDate: null,
+            plan: {
+              title: 'A new plan',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+        ],
+      });
+
+      await aNewSubscription.update({
+        period: [aNewSubscription.start, { value: moment.utc(startDate).add('7', 'days').toDate(), inclusive: true }],
+      });
+
+      result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformBilling).to.eql({
+        billingPeriod: {
+          year: billingPeriod.year,
+          month: billingPeriod.month,
+        },
+        subscriptions: [
+          {
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            plan: {
+              title: 'A plan',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+          {
+            startDate: moment.utc(startDate).add('5', 'days').toDate(),
+            endDate: moment.utc(startDate).add('7', 'days').toDate(),
+            plan: {
+              title: 'A new plan',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+        ],
+      });
+
+      await PlatformSubscription.createSubscription(host.id, moment.utc(startDate).add('10', 'days').toDate(), {
+        title: 'Yet another plan in this billing period',
+      });
+
+      result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.platformBilling).to.eql({
+        billingPeriod: {
+          year: billingPeriod.year,
+          month: billingPeriod.month,
+        },
+        subscriptions: [
+          {
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            plan: {
+              title: 'A plan',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+          {
+            startDate: moment.utc(startDate).add('5', 'days').toDate(),
+            endDate: moment.utc(startDate).add('7', 'days').toDate(),
+            plan: {
+              title: 'A new plan',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+          {
+            startDate: moment.utc(startDate).add('10', 'days').toDate(),
+            endDate: null,
+            plan: {
+              title: 'Yet another plan in this billing period',
+            },
+            utilization: {
+              activeCollectives: 0,
+              expensesPaid: 0,
+            },
+          },
+        ],
+      });
     });
   });
 });

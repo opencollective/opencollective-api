@@ -313,6 +313,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
     yubikeyDeviceId: null,
     twoFactorAuthRecoveryCodes: null,
   }),
+  PlatformSubscription: () => {},
 };
 
 export const getSanitizers = ({ isDev = false } = {}): Partial<Record<ModelNames, Sanitizer<ModelNames>>> => {

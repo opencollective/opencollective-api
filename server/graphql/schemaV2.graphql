@@ -2932,7 +2932,7 @@ type Host implements Account & AccountWithContributions {
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -4366,6 +4366,12 @@ type Host implements Account & AccountWithContributions {
   Returns stats for off platform transactions
   """
   offPlatformTransactionsStats: TransactionsImportStats!
+
+  """
+  Returns the current platform subscription
+  """
+  platformSubscription: PlatformSubscription
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
 }
 
 """
@@ -7857,6 +7863,59 @@ enum TransactionsImportRowOrderInputField {
   DATE
 }
 
+type PlatformSubscription {
+  """
+  Start date (inclusive)
+  """
+  startDate: DateTime!
+
+  """
+  End date (inclusive), null if not set
+  """
+  endDate: DateTime
+  plan: PlatformSubscriptionPlan!
+  utilization(billingPeriod: PlatformBillingPeriodInput): PlatformSubscriptionUtilization!
+}
+
+type PlatformSubscriptionPlan {
+  name: String!
+}
+
+type PlatformSubscriptionUtilization {
+  activeCollectives: Int!
+  expensesPaid: Int!
+}
+
+input PlatformBillingPeriodInput {
+  year: Int!
+  month: PlatformBillingMonth!
+}
+
+enum PlatformBillingMonth {
+  JANUARY
+  FEBRUARY
+  MARCH
+  APRIL
+  MAY
+  JUNE
+  JULY
+  AUGUST
+  SEPTEMBER
+  OCTOBER
+  NOVEMBER
+  DECEMBER
+}
+
+type PlatformBilling {
+  billingPeriod: PlatformBillingPeriod!
+  subscriptions: [PlatformSubscription!]!
+}
+
+type PlatformBillingPeriod {
+  year: Int!
+  month: PlatformBillingMonth!
+}
+
 enum AccountingCategoryAppliesTo {
   HOST
   HOSTED_COLLECTIVES
@@ -8635,7 +8694,7 @@ type Bot implements Account {
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -9588,7 +9647,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -11092,7 +11151,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -12077,6 +12136,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)
   """
   timezone: String
+
+  """
+  Private instructions for the host to be sent to participating users.
+  """
+  privateInstructions: String
 }
 
 """
@@ -12314,7 +12378,7 @@ type Individual implements Account {
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -13142,6 +13206,11 @@ type Individual implements Account {
   ): WebhookCollection!
 
   """
+  Company slugs the user is part of.
+  """
+  company: String
+
+  """
   Email for the account. For authenticated user: scope: "email".
   """
   email: String
@@ -13514,7 +13583,7 @@ type Organization implements Account & AccountWithContributions {
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -14580,7 +14649,7 @@ type Vendor implements Account & AccountWithContributions {
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -16162,7 +16231,7 @@ type Query {
   ): Individual
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -18403,7 +18472,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -19503,7 +19572,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): MemberCollection!
 
   """
-  [AUTHENTICATED] Returns the pending invitations
+  Returns the pending invitations, or null if not allowed.
   """
   memberInvitations(
     """
@@ -23081,6 +23150,15 @@ input AccountUpdateInput {
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String!
+  name: String
+  legalName: String
+  slug: String
+  description: String
+  longDescription: String
+  company: String
+  tags: [String]
+  location: LocationInput
+  socialLinks: [SocialLinkInput!]
   currency: Currency
 
   """
@@ -23092,6 +23170,26 @@ input AccountUpdateInput {
   Settings for the account.
   """
   settings: AccountUpdateSettingsInput
+
+  """
+  The Event start date and time
+  """
+  startsAt: DateTime
+
+  """
+  The Event end date and time
+  """
+  endsAt: DateTime
+
+  """
+  Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)
+  """
+  timezone: String
+
+  """
+  Private instructions for the host to be sent to participating users.
+  """
+  privateInstructions: String
 }
 
 input AccountUpdateSettingsInput {
@@ -23109,6 +23207,8 @@ input AccountUpdateSettingsInput {
   Terms of Service for this account.
   """
   tos: String
+  VAT: JSON
+  GST: JSON
 }
 
 input PoliciesInput {
