@@ -30,6 +30,7 @@ import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
 import SearchQuery from './SearchQuery';
+import platformSubscriptionTiers from './SubscriptionTiers';
 import TierQuery from './TierQuery';
 import TransactionGroupQuery from './TransactionGroupQuery';
 import TransactionQuery from './TransactionQuery';
@@ -96,6 +97,7 @@ const query = {
       }
     },
   },
+  platformSubscriptionTiers,
 };
 
 export default query;
