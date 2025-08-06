@@ -11,14 +11,12 @@ import { TwoFactorAuthenticationHeader } from '../../../server/lib/two-factor-au
 import TOTPLib from '../../../server/lib/two-factor-authentication/totp';
 import { Collective, LegalDocument, RequiredLegalDocument, User } from '../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeActiveHost,
   fakeCollective,
   fakeExpense,
   fakeLegalDocument,
   fakeOpenCollectiveS3URL,
-  fakePayoutMethod,
   fakeUser,
 } from '../../test-helpers/fake-data';
 import { makeRequest } from '../../utils';
@@ -147,16 +145,10 @@ describe('server/controllers/legal-documents', () => {
 
         // Add a payee an an expense subject to tax form
         payee = await fakeUser();
-        const payoutMethod = await fakePayoutMethod({
-          type: PayoutMethodTypes.OTHER,
-          CollectiveId: payee.CollectiveId,
-        });
-
         await fakeExpense({
           type: 'INVOICE',
           CollectiveId: collective.id,
           FromCollectiveId: payee.CollectiveId,
-          PayoutMethodId: payoutMethod.id, // Need to make sure we're not using PayPal, as PayPal expenses are not subject to tax form
           status: 'APPROVED',
           totalAmount: 1000e2,
           currency: 'USD',

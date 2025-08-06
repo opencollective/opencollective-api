@@ -2,13 +2,15 @@ import config from 'config';
 import { get, pick } from 'lodash';
 import moment from 'moment';
 
-import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
+import {
+  TAX_FORM_IGNORED_EXPENSE_STATUSES,
+  TAX_FORM_IGNORED_EXPENSE_TYPES,
+  US_TAX_FORM_THRESHOLD,
+} from '../constants/tax-form';
 
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
 import sequelize from './sequelize';
-import { amountsRequireTaxForm } from './tax-forms';
 import { ifStr } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
@@ -768,46 +770,15 @@ const getTotalNumberOfDonors = () => {
 };
 
 /**
- * Goes through the results of a tax form query and returns the set of IDs (defined by `idKey`)
- * that require a tax form.
- *
- * Example:
- * > getTaxFormsOverTheLimit([{ ..., expenseId: 4242, payoutMethodType: 'OTHER', total: 1000e2 }], 'expenseId')
- * Set { 4242 }
- *
- * @argument {Object[]} results - The results of a tax form query.
- */
-const getTaxFormsOverTheLimit = (results, idKey) => {
-  // Group results in a map like Map<idKey, { paypalTotal, otherTotal }>
-  const groupedResults = new Map();
-  for (const result of results) {
-    const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0 };
-    const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
-    groupResult[totalKey] += result.total;
-    groupedResults.set(result[idKey], groupResult);
-  }
-
-  // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
-  const resultSet = new Set();
-  groupedResults.forEach((groupResult, id) => {
-    if (amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal)) {
-      resultSet.add(id);
-    }
-  });
-
-  return resultSet;
-};
-
-/**
  * @returns Set<number> - expenses IDs where a tax form is required
  */
 const getTaxFormsRequiredForExpenses = async expenseIds => {
   const results = await sequelize.query(
     `
+  SELECT * FROM (
     SELECT
       analyzed_expenses."FromCollectiveId",
-      analyzed_expenses.id as "expenseId",
-      COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      analyzed_expenses.id as "ExpenseId",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -847,8 +818,6 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
         ld."CollectiveId" = from_collective.id -- Either use the payee's legal document
         OR (from_collective."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = from_collective."HostCollectiveId") -- Or the host's legal document
       )
-    LEFT JOIN "PayoutMethods" pm
-      ON all_expenses."PayoutMethodId" = pm.id
     WHERE analyzed_expenses.id IN (:expenseIds)
     AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
     AND analyzed_expenses.type NOT IN (:ignoredExpenseTypes)
@@ -861,7 +830,8 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
     AND ld.id IS NULL -- Ignore documents that have already been received
-    GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
+    GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType"
+  ) WHERE "total" >= :amountThreshold
   `,
     {
       type: sequelize.QueryTypes.SELECT,
@@ -870,11 +840,12 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
         expenseIds,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
         ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
+        amountThreshold: US_TAX_FORM_THRESHOLD,
       },
     },
   );
 
-  return getTaxFormsOverTheLimit(results, 'expenseId');
+  return new Set(results.map(result => result.ExpenseId));
 };
 
 /**
@@ -902,9 +873,9 @@ const getTaxFormsRequiredForAccounts = async ({
 
   const results = await sequelize.query(
     `
+  SELECT * FROM (
     SELECT
-      account.id as "collectiveId",
-      COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      account.id as "CollectiveId",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -942,8 +913,6 @@ const getTaxFormsRequiredForAccounts = async ({
       )
     `,
     )}
-    LEFT JOIN "PayoutMethods" pm
-      ON all_expenses."PayoutMethodId" = pm.id
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
     ${!CollectiveId ? '' : Array.isArray(CollectiveId) ? `AND account.id IN (:CollectiveId)` : `AND account.id = :CollectiveId`}
     ${!HostCollectiveId ? '' : Array.isArray(HostCollectiveId) ? `AND host.id IN (:HostCollectiveId)` : `AND host.id = :HostCollectiveId`}
@@ -954,7 +923,8 @@ const getTaxFormsRequiredForAccounts = async ({
     AND all_expenses."deletedAt" IS NULL
     ${ifStr(!allTime, `AND EXTRACT('year' FROM all_expenses."incurredAt") = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
-    GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
+    GROUP BY account.id, d."documentType"
+  ) WHERE "total" >= :amountThreshold
   `,
     {
       raw: true,
@@ -965,11 +935,12 @@ const getTaxFormsRequiredForAccounts = async ({
         year,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
         ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
+        amountThreshold: US_TAX_FORM_THRESHOLD,
       },
     },
   );
 
-  return getTaxFormsOverTheLimit(results, 'collectiveId');
+  return new Set(results.map(result => result.CollectiveId));
 };
 
 const serializeCollectivesResult = JSON.stringify;

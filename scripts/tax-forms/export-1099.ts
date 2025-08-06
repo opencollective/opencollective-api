@@ -19,6 +19,7 @@ import { Command } from 'commander';
 import { isEmpty, omitBy, truncate } from 'lodash';
 import markdownTable from 'markdown-table';
 
+import { US_TAX_FORM_THRESHOLD } from '../../server/constants/tax-form';
 import logger from '../../server/lib/logger';
 import { getFormFieldsFromHelloWorksInstance } from '../../server/lib/tax-forms/helloworks';
 import { getStandardizedDataFromOCLegalDocumentData } from '../../server/lib/tax-forms/opencollective';
@@ -82,9 +83,9 @@ const taxFormsQuery = `
     AND all_expenses.status = 'PAID'
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM t."createdAt") = :year
-    AND pm."type" != 'PAYPAL' AND pm."type" != 'ACCOUNT_BALANCE'
+    AND pm."type" != 'ACCOUNT_BALANCE'
     GROUP BY account.id, d."documentType"
-    HAVING ABS(SUM(t."amountInHostCurrency")) >= 60000
+    HAVING ABS(SUM(t."amountInHostCurrency")) >= :amountThreshold
   ) SELECT
     c.name,
     c."legalName",
@@ -280,7 +281,7 @@ const main = async () => {
     }
 
     const allRecipients = await sequelize.query(taxFormsQuery, {
-      replacements: { hostSlug, year },
+      replacements: { hostSlug, year, amountThreshold: US_TAX_FORM_THRESHOLD },
       type: sequelize.QueryTypes.SELECT,
     });
 
