@@ -392,6 +392,18 @@ describe('server/lib/allowed-features', () => {
         USE_EXPENSES: 'AVAILABLE',
         USE_PAYMENT_METHODS: 'AVAILABLE',
         VIRTUAL_CARDS: 'AVAILABLE',
+
+        ACCOUNT_MANAGEMENT: 'AVAILABLE',
+        AGREEMENTS: 'AVAILABLE',
+        CHARGE_HOSTING_FEES: 'AVAILABLE',
+        CHART_OF_ACCOUNTS: 'AVAILABLE',
+        CONNECT_BANK_ACCOUNTS: 'AVAILABLE',
+        EXPECTED_FUNDS: 'AVAILABLE',
+        EXPENSE_SECURITY_CHECKS: 'AVAILABLE',
+        FUNDS_GRANTS_MANAGEMENT: 'AVAILABLE',
+        RESTRICTED_FUNDS: 'AVAILABLE',
+        TAX_FORMS: 'AVAILABLE',
+        VENDORS: 'AVAILABLE',
       };
 
       it('for a simple user', async () => {
@@ -449,6 +461,18 @@ describe('server/lib/allowed-features', () => {
         USE_EXPENSES: 'AVAILABLE',
         USE_PAYMENT_METHODS: 'AVAILABLE',
         VIRTUAL_CARDS: 'AVAILABLE',
+
+        ACCOUNT_MANAGEMENT: 'AVAILABLE',
+        AGREEMENTS: 'AVAILABLE',
+        CHARGE_HOSTING_FEES: 'AVAILABLE',
+        CHART_OF_ACCOUNTS: 'AVAILABLE',
+        CONNECT_BANK_ACCOUNTS: 'AVAILABLE',
+        EXPECTED_FUNDS: 'AVAILABLE',
+        EXPENSE_SECURITY_CHECKS: 'AVAILABLE',
+        FUNDS_GRANTS_MANAGEMENT: 'AVAILABLE',
+        RESTRICTED_FUNDS: 'AVAILABLE',
+        TAX_FORMS: 'AVAILABLE',
+        VENDORS: 'AVAILABLE',
       };
 
       it('for a HOST organization', async () => {
@@ -503,6 +527,18 @@ describe('server/lib/allowed-features', () => {
         USE_EXPENSES: 'AVAILABLE',
         USE_PAYMENT_METHODS: 'AVAILABLE',
         VIRTUAL_CARDS: 'AVAILABLE',
+
+        ACCOUNT_MANAGEMENT: 'AVAILABLE',
+        AGREEMENTS: 'AVAILABLE',
+        CHARGE_HOSTING_FEES: 'AVAILABLE',
+        CHART_OF_ACCOUNTS: 'AVAILABLE',
+        CONNECT_BANK_ACCOUNTS: 'AVAILABLE',
+        EXPECTED_FUNDS: 'AVAILABLE',
+        EXPENSE_SECURITY_CHECKS: 'AVAILABLE',
+        FUNDS_GRANTS_MANAGEMENT: 'AVAILABLE',
+        RESTRICTED_FUNDS: 'AVAILABLE',
+        TAX_FORMS: 'AVAILABLE',
+        VENDORS: 'AVAILABLE',
       };
 
       it('for a hosted collective', async () => {
@@ -575,6 +611,18 @@ describe('server/lib/allowed-features', () => {
         USE_EXPENSES: 'AVAILABLE',
         USE_PAYMENT_METHODS: 'AVAILABLE',
         VIRTUAL_CARDS: 'AVAILABLE',
+
+        ACCOUNT_MANAGEMENT: 'AVAILABLE',
+        AGREEMENTS: 'AVAILABLE',
+        CHARGE_HOSTING_FEES: 'AVAILABLE',
+        CHART_OF_ACCOUNTS: 'AVAILABLE',
+        CONNECT_BANK_ACCOUNTS: 'AVAILABLE',
+        EXPECTED_FUNDS: 'AVAILABLE',
+        EXPENSE_SECURITY_CHECKS: 'AVAILABLE',
+        FUNDS_GRANTS_MANAGEMENT: 'AVAILABLE',
+        RESTRICTED_FUNDS: 'AVAILABLE',
+        TAX_FORMS: 'AVAILABLE',
+        VENDORS: 'AVAILABLE',
       };
 
       it('for an active fund', async () => {
@@ -618,6 +666,18 @@ describe('server/lib/allowed-features', () => {
         USE_EXPENSES: 'AVAILABLE',
         USE_PAYMENT_METHODS: 'AVAILABLE',
         VIRTUAL_CARDS: 'AVAILABLE',
+
+        ACCOUNT_MANAGEMENT: 'AVAILABLE',
+        AGREEMENTS: 'AVAILABLE',
+        CHARGE_HOSTING_FEES: 'AVAILABLE',
+        CHART_OF_ACCOUNTS: 'AVAILABLE',
+        CONNECT_BANK_ACCOUNTS: 'AVAILABLE',
+        EXPECTED_FUNDS: 'AVAILABLE',
+        EXPENSE_SECURITY_CHECKS: 'AVAILABLE',
+        FUNDS_GRANTS_MANAGEMENT: 'AVAILABLE',
+        RESTRICTED_FUNDS: 'AVAILABLE',
+        TAX_FORMS: 'AVAILABLE',
+        VENDORS: 'AVAILABLE',
       };
 
       it('for an active project', async () => {
@@ -661,6 +721,18 @@ describe('server/lib/allowed-features', () => {
         USE_EXPENSES: 'AVAILABLE',
         USE_PAYMENT_METHODS: 'AVAILABLE',
         VIRTUAL_CARDS: 'AVAILABLE',
+
+        ACCOUNT_MANAGEMENT: 'AVAILABLE',
+        AGREEMENTS: 'AVAILABLE',
+        CHARGE_HOSTING_FEES: 'AVAILABLE',
+        CHART_OF_ACCOUNTS: 'AVAILABLE',
+        CONNECT_BANK_ACCOUNTS: 'AVAILABLE',
+        EXPECTED_FUNDS: 'AVAILABLE',
+        EXPENSE_SECURITY_CHECKS: 'AVAILABLE',
+        FUNDS_GRANTS_MANAGEMENT: 'AVAILABLE',
+        RESTRICTED_FUNDS: 'AVAILABLE',
+        TAX_FORMS: 'AVAILABLE',
+        VENDORS: 'AVAILABLE',
       };
 
       it('for an active event', async () => {
