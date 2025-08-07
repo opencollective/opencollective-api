@@ -2812,7 +2812,7 @@ type AccountingCategory {
 """
 This represents an Host account
 """
-type Host implements Account & AccountWithContributions {
+type Host implements Account & AccountWithContributions & AccountWithPlatformSubscription {
   id: String!
   legacyId: Int!
 
@@ -3838,6 +3838,12 @@ type Host implements Account & AccountWithContributions {
   hasResumeContributionsProcessStarted: Boolean!
 
   """
+  Returns the current platform subscription
+  """
+  platformSubscription: PlatformSubscription
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+
+  """
   List of accounting categories for this host
   """
   accountingCategories(
@@ -4366,12 +4372,6 @@ type Host implements Account & AccountWithContributions {
   Returns stats for off platform transactions
   """
   offPlatformTransactionsStats: TransactionsImportStats!
-
-  """
-  Returns the current platform subscription
-  """
-  platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
 }
 
 """
@@ -4562,6 +4562,138 @@ type AccountCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Account]
+}
+
+"""
+An account that can be hosted by a Host
+"""
+interface AccountWithPlatformSubscription {
+  """
+  Returns the current platform subscription
+  """
+  platformSubscription: PlatformSubscription
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+}
+
+type PlatformSubscription {
+  """
+  Start date (inclusive)
+  """
+  startDate: DateTime!
+
+  """
+  End date (inclusive), null if not set
+  """
+  endDate: DateTime
+  isCurrent: Boolean!
+  plan: PlatformSubscriptionTier!
+  utilization(billingPeriod: PlatformBillingPeriodInput): PlatformSubscriptionUtilization!
+}
+
+"""
+Type for Platform Subscription Tier
+"""
+type PlatformSubscriptionTier {
+  """
+  The title of the subscription tier
+  """
+  title: String
+
+  """
+  The type of the subscription tier (e.g., "basic", "premium")
+  """
+  type: String
+  pricing: PlatformSubscriptionTierPricing
+  features: PlatformSubscriptionFeatures!
+}
+
+type PlatformSubscriptionTierPricing {
+  """
+  The price of the subscription tier per month
+  """
+  pricePerMonth: Int
+
+  """
+  Number of collectives included in this subscription tier
+  """
+  includedCollectives: Int
+
+  """
+  Price for each additional collective beyond the included limit
+  """
+  pricePerAdditionalCollective: Int
+
+  """
+  Number of expenses included in this subscription tier per month
+  """
+  includedExpensesPerMonth: Int
+
+  """
+  Price for each additional expense beyond the included limit
+  """
+  pricePerAdditionalExpense: Int
+}
+
+type PlatformSubscriptionFeatures {
+  TRANSFERWISE: Boolean!
+  PAYPAL_PAYOUTS: Boolean!
+  RECEIVE_HOST_APPLICATIONS: Boolean!
+  CHART_OF_ACCOUNTS: Boolean!
+  EXPENSE_SECURITY_CHECKS: Boolean!
+  EXPECTED_FUNDS: Boolean!
+  CHARGE_HOSTING_FEES: Boolean!
+  RESTRICTED_FUNDS: Boolean!
+  AGREEMENTS: Boolean!
+  TAX_FORMS: Boolean!
+  CONNECT_BANK_ACCOUNTS: Boolean!
+  FUNDS_GRANTS_MANAGEMENT: Boolean!
+  VENDORS: Boolean!
+  USE_EXPENSES: Boolean!
+  UPDATES: Boolean!
+  RECEIVE_FINANCIAL_CONTRIBUTIONS: Boolean!
+  RECEIVE_EXPENSES: Boolean!
+  ACCOUNT_MANAGEMENT: Boolean!
+}
+
+type PlatformSubscriptionUtilization {
+  billingPeriod: PlatformBillingPeriod!
+  startDate: DateTime!
+  endDate: DateTime!
+  activeCollectives: Int!
+  expensesPaid: Int!
+}
+
+type PlatformBillingPeriod {
+  year: Int!
+  month: PlatformBillingMonth!
+  startDate: DateTime!
+  endDate: DateTime!
+  isCurrent: Boolean!
+}
+
+enum PlatformBillingMonth {
+  JANUARY
+  FEBRUARY
+  MARCH
+  APRIL
+  MAY
+  JUNE
+  JULY
+  AUGUST
+  SEPTEMBER
+  OCTOBER
+  NOVEMBER
+  DECEMBER
+}
+
+input PlatformBillingPeriodInput {
+  year: Int!
+  month: PlatformBillingMonth!
+}
+
+type PlatformBilling {
+  billingPeriod: PlatformBillingPeriod!
+  subscriptions: [PlatformSubscription!]!
 }
 
 """
@@ -6378,7 +6510,6 @@ type CollectiveFeatures {
   USE_EXPENSES: CollectiveFeatureStatus
   RECEIVE_EXPENSES: CollectiveFeatureStatus
   MULTI_CURRENCY_EXPENSES: CollectiveFeatureStatus
-  RECEIVE_HOST_APPLICATIONS: CollectiveFeatureStatus
   COLLECTIVE_GOALS: CollectiveFeatureStatus
   TOP_FINANCIAL_CONTRIBUTORS: CollectiveFeatureStatus
   CONVERSATIONS: CollectiveFeatureStatus
@@ -6389,8 +6520,6 @@ type CollectiveFeatures {
   CONTACT_COLLECTIVE: CollectiveFeatureStatus
   CONTACT_FORM: CollectiveFeatureStatus
   CREATE_COLLECTIVE: CollectiveFeatureStatus
-  TRANSFERWISE: CollectiveFeatureStatus
-  PAYPAL_PAYOUTS: CollectiveFeatureStatus
   PAYPAL_DONATIONS: CollectiveFeatureStatus
   HOST_DASHBOARD: CollectiveFeatureStatus
   CONNECTED_ACCOUNTS: CollectiveFeatureStatus
@@ -6402,6 +6531,20 @@ type CollectiveFeatures {
   VIRTUAL_CARDS: CollectiveFeatureStatus
   REQUEST_VIRTUAL_CARDS: CollectiveFeatureStatus
   OFF_PLATFORM_TRANSACTIONS: CollectiveFeatureStatus
+  TRANSFERWISE: CollectiveFeatureStatus
+  PAYPAL_PAYOUTS: CollectiveFeatureStatus
+  RECEIVE_HOST_APPLICATIONS: CollectiveFeatureStatus
+  CHART_OF_ACCOUNTS: CollectiveFeatureStatus
+  EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
+  EXPECTED_FUNDS: CollectiveFeatureStatus
+  CHARGE_HOSTING_FEES: CollectiveFeatureStatus
+  RESTRICTED_FUNDS: CollectiveFeatureStatus
+  AGREEMENTS: CollectiveFeatureStatus
+  TAX_FORMS: CollectiveFeatureStatus
+  CONNECT_BANK_ACCOUNTS: CollectiveFeatureStatus
+  FUNDS_GRANTS_MANAGEMENT: CollectiveFeatureStatus
+  VENDORS: CollectiveFeatureStatus
+  ACCOUNT_MANAGEMENT: CollectiveFeatureStatus
 }
 
 enum CollectiveFeatureStatus {
@@ -7861,59 +8004,6 @@ input TransactionsImportRowOrderInput {
 
 enum TransactionsImportRowOrderInputField {
   DATE
-}
-
-type PlatformSubscription {
-  """
-  Start date (inclusive)
-  """
-  startDate: DateTime!
-
-  """
-  End date (inclusive), null if not set
-  """
-  endDate: DateTime
-  plan: PlatformSubscriptionPlan!
-  utilization(billingPeriod: PlatformBillingPeriodInput): PlatformSubscriptionUtilization!
-}
-
-type PlatformSubscriptionPlan {
-  name: String!
-}
-
-type PlatformSubscriptionUtilization {
-  activeCollectives: Int!
-  expensesPaid: Int!
-}
-
-input PlatformBillingPeriodInput {
-  year: Int!
-  month: PlatformBillingMonth!
-}
-
-enum PlatformBillingMonth {
-  JANUARY
-  FEBRUARY
-  MARCH
-  APRIL
-  MAY
-  JUNE
-  JULY
-  AUGUST
-  SEPTEMBER
-  OCTOBER
-  NOVEMBER
-  DECEMBER
-}
-
-type PlatformBilling {
-  billingPeriod: PlatformBillingPeriod!
-  subscriptions: [PlatformSubscription!]!
-}
-
-type PlatformBillingPeriod {
-  year: Int!
-  month: PlatformBillingMonth!
 }
 
 enum AccountingCategoryAppliesTo {
@@ -16915,6 +17005,7 @@ type Query {
   ): [OffPlatformTransactionsInstitution!]!
   loggedInAccount: Individual
   me: Individual
+  platformSubscriptionTiers: [PlatformSubscriptionTier]
 }
 
 """
@@ -22067,6 +22158,11 @@ type Mutation {
     """
     roleDescription: String
     captcha: CaptchaInputType
+
+    """
+    If true, the organization will be created as financially active, allowing the organization to receive contributions and pay for expenses. Defaults to false.
+    """
+    financiallyActive: Boolean = false
   ): Organization
 
   """
@@ -24745,6 +24841,7 @@ input OrganizationCreateInput {
   Two-letters country code following ISO31661
   """
   countryISO: String
+  currency: Currency
 
   """
   The profile avatar image

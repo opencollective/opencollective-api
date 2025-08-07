@@ -1,3 +1,5 @@
+import { CommercialFeatures, CommercialFeaturesType, default as PlatformFeature } from './feature';
+
 export type HostPlan = {
   hostedCollectivesLimit?: number;
   addedFundsLimit?: number;
@@ -241,79 +243,46 @@ export interface PlatformSubscriptionPlan {
 
     crowdfundingFeePercent?: number;
   };
-  features: {
-    [x: string]: boolean;
-  };
+  features: Partial<Record<CommercialFeaturesType, boolean>>;
 }
 
-const features = {
-  // Basic features (all tiers)
-  ACCOUNT_MANAGEMENT: 'Account management',
-  SUBMIT_REVIEW_EXPENSES: 'Submit and review expenses',
-  MANUALLY_PAY_EXPENSES: 'Manually pay expenses',
-  UPDATES: 'Updates',
-  VENDORS: 'Vendors',
-  CROWDFUNDING: 'Crowdfunding',
-
-  // Paid tier features (Basic and Pro)
-  PAY_WITH_WISE: 'Pay with Wise',
-  PAY_WITH_PAYPAL: 'Pay with PayPal',
-  ADVANCED_PERMISSIONS: 'Advanced permissions',
-  CHART_OF_ACCOUNTS: 'Chart of accounts',
-  HOSTED_COLLECTIVES: 'Hosted collectives',
-  ANTIFRAUD_SECURITY: 'Antifraud security checks',
-  EXPECTED_FUNDS: 'Expected funds',
-  CHARGE_HOSTING_FEES: 'Charge hosting fees',
-  RESTRICTED_FUNDS: 'Restricted funds',
-
-  // Pro tier features
-  AGREEMENTS: 'Agreements',
-  TAX_FORMS: 'Tax forms',
-  CONNECT_BANK_ACCOUNTS: 'Connect bank accounts',
-  FUNDS_GRANTS_MANAGEMENT: 'Funds & grants management',
-};
-
-const freeFeatures = [
-  features.ACCOUNT_MANAGEMENT,
-  features.SUBMIT_REVIEW_EXPENSES,
-  features.MANUALLY_PAY_EXPENSES,
-  features.UPDATES,
-  features.VENDORS,
-  features.CROWDFUNDING,
+const freeFeatures: CommercialFeaturesType[] = [
+  PlatformFeature.ACCOUNT_MANAGEMENT,
+  PlatformFeature.USE_EXPENSES,
+  PlatformFeature.RECEIVE_EXPENSES,
+  PlatformFeature.UPDATES,
+  PlatformFeature.VENDORS,
+  PlatformFeature.RECEIVE_FINANCIAL_CONTRIBUTIONS,
 ];
 
-const basicFeatures = [
+const basicFeatures: CommercialFeaturesType[] = [
   ...freeFeatures,
-  features.PAY_WITH_WISE,
-  features.PAY_WITH_PAYPAL,
-  features.ADVANCED_PERMISSIONS,
-  features.CHART_OF_ACCOUNTS,
-  features.HOSTED_COLLECTIVES,
-  features.ANTIFRAUD_SECURITY,
-  features.EXPECTED_FUNDS,
-  features.CHARGE_HOSTING_FEES,
-  features.RESTRICTED_FUNDS,
+  PlatformFeature.TRANSFERWISE,
+  PlatformFeature.PAYPAL_PAYOUTS,
+  PlatformFeature.CHART_OF_ACCOUNTS,
+  PlatformFeature.EXPENSE_SECURITY_CHECKS,
+  PlatformFeature.EXPECTED_FUNDS,
+  PlatformFeature.CHARGE_HOSTING_FEES,
+  PlatformFeature.RESTRICTED_FUNDS,
 ];
 
-const proFeatures = [
+const proFeatures: CommercialFeaturesType[] = [
   ...basicFeatures,
-  features.AGREEMENTS,
-  features.TAX_FORMS,
-  features.CONNECT_BANK_ACCOUNTS,
-  features.FUNDS_GRANTS_MANAGEMENT,
+  PlatformFeature.AGREEMENTS,
+  PlatformFeature.TAX_FORMS,
+  PlatformFeature.CONNECT_BANK_ACCOUNTS,
+  PlatformFeature.FUNDS_GRANTS_MANAGEMENT,
 ];
 
 const featuresForStarter = Object.fromEntries(
-  Object.values(features).map(feature => [feature, freeFeatures.includes(feature)]),
+  CommercialFeatures.map(feature => [feature, freeFeatures.includes(feature)]),
 );
 
 const featuresForBasic = Object.fromEntries(
-  Object.values(features).map(feature => [feature, basicFeatures.includes(feature)]),
+  CommercialFeatures.map(feature => [feature, basicFeatures.includes(feature)]),
 );
 
-const featuresForPro = Object.fromEntries(
-  Object.values(features).map(feature => [feature, proFeatures.includes(feature)]),
-);
+const featuresForPro = Object.fromEntries(CommercialFeatures.map(feature => [feature, proFeatures.includes(feature)]));
 
 export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
   // Free

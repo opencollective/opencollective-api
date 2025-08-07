@@ -1,4 +1,7 @@
-import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+
+import { CommercialFeatures, CommercialFeaturesType } from '../../../constants/feature';
+import { PlatformSubscription } from '../../../models';
 
 export const GraphQLPlatformSubscriptionTier = new GraphQLObjectType({
   name: 'PlatformSubscriptionTier',
@@ -39,5 +42,29 @@ export const GraphQLPlatformSubscriptionTier = new GraphQLObjectType({
         },
       }),
     },
+    features: {
+      type: new GraphQLNonNull(GraphQLPlatformSubscriptionFeatures),
+      resolve(platformSubscription: PlatformSubscription) {
+        return platformSubscription.plan?.features ?? {};
+      },
+    },
+  }),
+});
+
+const GraphQLPlatformSubscriptionFeatures = new GraphQLObjectType({
+  name: 'PlatformSubscriptionFeatures',
+  fields: () => ({
+    ...CommercialFeatures.reduce(
+      (acc, feature) => ({
+        ...acc,
+        [feature]: {
+          type: new GraphQLNonNull(GraphQLBoolean),
+          resolve(features: Partial<Record<CommercialFeaturesType, boolean>>) {
+            return features?.[feature] ?? false;
+          },
+        },
+      }),
+      {},
+    ),
   }),
 });
