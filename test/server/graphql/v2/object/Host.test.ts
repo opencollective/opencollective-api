@@ -625,7 +625,7 @@ describe('server/graphql/v2/object/Host', () => {
       const host = await fakeActiveHost({
         admin: hostAdmin,
       });
-      const startDate = new Date();
+      const startDate = new Date(2025, 7, 8);
       await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
       expect(result.errors).to.be.undefined;
@@ -643,8 +643,8 @@ describe('server/graphql/v2/object/Host', () => {
       const host = await fakeActiveHost({
         admin: hostAdmin,
       });
-      const startDate = new Date();
-      const endDate = new Date(startDate.getTime() + 10000);
+      const startDate = new Date(2025, 7, 8);
+      const endDate = moment.utc(startDate).add('10', 'days').toDate();
       const subscription = await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
       await subscription.update({
         period: [
@@ -796,17 +796,17 @@ describe('server/graphql/v2/object/Host', () => {
         },
         subscriptions: [
           {
-            startDate: startDate,
-            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
-            plan: {
-              title: 'A plan',
-            },
-          },
-          {
             startDate: moment.utc(startDate).add('5', 'days').toDate(),
             endDate: null,
             plan: {
               title: 'A new plan',
+            },
+          },
+          {
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            plan: {
+              title: 'A plan',
             },
           },
         ],
@@ -829,17 +829,17 @@ describe('server/graphql/v2/object/Host', () => {
         },
         subscriptions: [
           {
-            startDate: startDate,
-            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
-            plan: {
-              title: 'A plan',
-            },
-          },
-          {
             startDate: moment.utc(startDate).add('5', 'days').toDate(),
             endDate: moment.utc(startDate).add('7', 'days').toDate(),
             plan: {
               title: 'A new plan',
+            },
+          },
+          {
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            plan: {
+              title: 'A plan',
             },
           },
         ],
@@ -862,10 +862,10 @@ describe('server/graphql/v2/object/Host', () => {
         },
         subscriptions: [
           {
-            startDate: startDate,
-            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            startDate: moment.utc(startDate).add('10', 'days').toDate(),
+            endDate: null,
             plan: {
-              title: 'A plan',
+              title: 'Yet another plan in this billing period',
             },
           },
           {
@@ -876,10 +876,10 @@ describe('server/graphql/v2/object/Host', () => {
             },
           },
           {
-            startDate: moment.utc(startDate).add('10', 'days').toDate(),
-            endDate: null,
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
             plan: {
-              title: 'Yet another plan in this billing period',
+              title: 'A plan',
             },
           },
         ],

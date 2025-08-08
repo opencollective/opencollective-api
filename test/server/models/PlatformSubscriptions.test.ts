@@ -388,8 +388,8 @@ describe('server/models/PlatformSubscriptions', () => {
       );
 
       const collective1Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod(collective1.id, billingPeriod);
-      expect(collective1Subs[0].id).to.eql(collective1Sub1.id);
-      expect(collective1Subs[1].id).to.eql(collective1Sub2.id);
+      expect(collective1Subs[0].id).to.eql(collective1Sub2.id);
+      expect(collective1Subs[1].id).to.eql(collective1Sub1.id);
 
       const collective2 = await fakeCollective(); // no active subscription in billing period
       await expect(
