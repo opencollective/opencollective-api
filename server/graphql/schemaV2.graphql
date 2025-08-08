@@ -4596,13 +4596,13 @@ type PlatformSubscriptionTier {
   """
   The title of the subscription tier
   """
-  title: String
+  title: String!
 
   """
   The type of the subscription tier (e.g., "basic", "premium")
   """
-  type: String
-  pricing: PlatformSubscriptionTierPricing
+  type: String!
+  pricing: PlatformSubscriptionTierPricing!
   features: PlatformSubscriptionFeatures!
 }
 
@@ -4610,27 +4610,27 @@ type PlatformSubscriptionTierPricing {
   """
   The price of the subscription tier per month
   """
-  pricePerMonth: Int
-
-  """
-  Number of collectives included in this subscription tier
-  """
-  includedCollectives: Int
+  pricePerMonth: Amount!
 
   """
   Price for each additional collective beyond the included limit
   """
-  pricePerAdditionalCollective: Int
-
-  """
-  Number of expenses included in this subscription tier per month
-  """
-  includedExpensesPerMonth: Int
+  pricePerAdditionalCollective: Amount!
 
   """
   Price for each additional expense beyond the included limit
   """
-  pricePerAdditionalExpense: Int
+  pricePerAdditionalExpense: Amount!
+
+  """
+  Number of collectives included in this subscription tier
+  """
+  includedCollectives: Int!
+
+  """
+  Number of expenses included in this subscription tier per month
+  """
+  includedExpensesPerMonth: Int!
 }
 
 type PlatformSubscriptionFeatures {
@@ -4657,7 +4657,12 @@ type PlatformSubscriptionFeatures {
 type PlatformBilling {
   billingPeriod: PlatformBillingPeriod!
   subscriptions: [PlatformSubscription!]!
-  utilization: PlatformSubscriptionUtilization!
+  utilization: PlatformUtilization!
+  dueDate: DateTime!
+  baseAmount: Amount!
+  additional: PlatformBillingAdditional!
+  totalAmount: Amount!
+  expenses: [Expense!]!
 }
 
 type PlatformBillingPeriod {
@@ -4683,12 +4688,20 @@ enum PlatformBillingMonth {
   DECEMBER
 }
 
-type PlatformSubscriptionUtilization {
-  billingPeriod: PlatformBillingPeriod!
-  startDate: DateTime!
-  endDate: DateTime!
+type PlatformUtilization {
   activeCollectives: Int!
   expensesPaid: Int!
+}
+
+type PlatformBillingAdditional {
+  total: Amount!
+  amounts: PlatformBillingAdditionalUtilizationCharges
+  utilization: PlatformUtilization!
+}
+
+type PlatformBillingAdditionalUtilizationCharges {
+  activeCollectives: Amount!
+  expensesPaid: Amount!
 }
 
 input PlatformBillingPeriodInput {
