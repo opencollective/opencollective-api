@@ -33,27 +33,6 @@ export const GraphQLPlatformSubscription = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
     },
     plan: { type: new GraphQLNonNull(GraphQLPlatformSubscriptionTier) },
-    utilization: {
-      args: {
-        billingPeriod: {
-          type: GraphQLPlatformBillingPeriodInput,
-        },
-      },
-      type: new GraphQLNonNull(GraphQLPlatformSubscriptionUtilization),
-      async resolve(platformSubscription: PlatformSubscription, args) {
-        const billingPeriod = platformSubscription.getQueryBillingPeriod() ?? {
-          year: moment.utc().year(),
-          month: moment.utc().month() + 1,
-        };
-
-        if (args.billingPeriod) {
-          billingPeriod.year = args.billingPeriod.year;
-          billingPeriod.month = args.billingPeriod.month;
-        }
-
-        return platformSubscription.calculateUtilization(billingPeriod);
-      },
-    },
   }),
 });
 
@@ -65,6 +44,9 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
     },
     subscriptions: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLPlatformSubscription))),
+    },
+    utilization: {
+      type: new GraphQLNonNull(GraphQLPlatformSubscriptionUtilization),
     },
   }),
 });
