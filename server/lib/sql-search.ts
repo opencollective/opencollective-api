@@ -2,12 +2,14 @@
  * Functions related to search
  */
 
+import assert from 'assert';
+
 import config from 'config';
 import slugify from 'limax';
-import { get, isEmpty, toString, words } from 'lodash';
+import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import isEmail from 'validator/lib/isEmail';
 
-import { RateLimitExceeded } from '../graphql/errors';
+import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import {
   AmountRangeInputType,
@@ -187,6 +189,10 @@ const getSortSubQuery = (
             AND hosted."type" IN ('COLLECTIVE', 'FUND'))
           ]
     `,
+    [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: `
+      COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
+      * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
+    `,
     [ORDER_BY_PSEUDO_FIELDS.BALANCE]: CONSOLIDATED_BALANCE_SUBQUERY,
   };
 
@@ -246,6 +252,10 @@ export const searchCollectivesInDB = async (
     types?: string[];
     consolidatedBalance?: AmountRangeInputType;
     isRoot?: boolean;
+    isSubscriber?: boolean;
+    plan?: string[];
+    isVerified?: boolean;
+    isFirstPartyHost?: boolean;
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -289,6 +299,19 @@ export const searchCollectivesInDB = async (
       'AND (c."type" != \'VENDOR\' OR (c."type" = \'VENDOR\' AND c."ParentCollectiveId" = :includeVendorsForHostId)) ';
   } else if (!types) {
     dynamicConditions += 'AND c."type" != \'VENDOR\' ';
+  }
+
+  if (!isNil(args.isSubscriber)) {
+    dynamicConditions += args.isSubscriber ? `AND c."plan" IS NOT NULL ` : `AND c."plan" IS NULL `;
+  }
+
+  if (!isUndefined(args.plan)) {
+    if (args.plan.includes('LEGACY')) {
+      assert(args.plan.length === 1, new BadRequest('If plan includes LEGACY, it must be the only value'));
+      dynamicConditions += `AND c."plan" IS NOT NULL `;
+    } else {
+      dynamicConditions += args.plan === null ? `AND c."plan" IS NULL` : `AND c."plan" IN (:plan) `;
+    }
   }
 
   if (vendorVisibleToAccountIds) {
@@ -350,6 +373,21 @@ export const searchCollectivesInDB = async (
     dynamicConditions += searchTermConditions.sqlConditions;
   }
 
+  if (!isNil(args.isVerified) || !isNil(args.isFirstPartyHost)) {
+    const verifiedConditions = [];
+    if (args.isVerified) {
+      verifiedConditions.push(`(c."data" ->> 'isVerified')::boolean IS ${args.isVerified ? 'TRUE' : 'FALSE'}`);
+    }
+    if (args.isFirstPartyHost) {
+      verifiedConditions.push(
+        `(c."data" ->> 'isFirstPartyHost')::boolean IS ${args.isFirstPartyHost ? 'TRUE' : 'FALSE'}`,
+      );
+    }
+    if (verifiedConditions.length > 0) {
+      dynamicConditions += `AND (${verifiedConditions.join(' OR ')}) `;
+    }
+  }
+
   // Build the query
   const result = await sequelize.query(
     `
@@ -388,6 +426,7 @@ export const searchCollectivesInDB = async (
         isHost,
         currency: args.currency,
         includeVendorsForHostId,
+        plan: args.plan,
       },
     },
   );

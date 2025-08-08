@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
-import { OrderItem } from 'sequelize';
+import { OrderItem, Sequelize } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
@@ -477,6 +477,43 @@ export const generateLoaders = req => {
             }[],
         ),
       ),
+      moneyManaged: new DataLoader<number, { CollectiveId?: number; value: number; currency: string }>(async ids => {
+        const results = await (sequelize as Sequelize).query<{ HostCollectiveId: number; sum: number; rate: number }>(
+          `
+          SELECT
+            cbc."HostCollectiveId",
+            SUM(cbc.balance),
+            cbc."hostCurrency",
+            (
+              SELECT rate
+              FROM "CurrencyExchangeRates"
+              WHERE "from" = "hostCurrency"
+                AND "to" = 'USD'
+              ORDER BY "createdAt" DESC
+              LIMIT 1
+            ) AS "rate"
+          FROM "CollectiveBalanceCheckpoint" cbc
+          INNER JOIN "Collectives" c ON c."id" = cbc."HostCollectiveId"
+          WHERE cbc."HostCollectiveId" IN (:ids)
+            AND cbc."hostCurrency" = c."currency"
+          GROUP BY
+            cbc."HostCollectiveId", cbc."hostCurrency";
+        `,
+          {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: { ids },
+          },
+        );
+        return sortResultsSimple(ids, results, r => r.HostCollectiveId).map(result =>
+          result
+            ? {
+                CollectiveId: result.HostCollectiveId,
+                value: result.sum * result.rate,
+                currency: 'USD',
+              }
+            : { value: 0, currency: 'USD' },
+        );
+      }),
 
       // // Collective - Stats
       stats: {
