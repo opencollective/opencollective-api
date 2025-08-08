@@ -4,18 +4,23 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { checkScope } from '../../common/scope-check';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import {
+  AccountWithPlatformSubscriptionFields,
+  GraphQLAccountWithPlatformSubscription,
+} from '../interface/AccountWithPlatformSubscription';
 
 import { GraphQLHost } from './Host';
 
 export const GraphQLOrganization = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents an Organization account',
-  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions, GraphQLAccountWithPlatformSubscription],
   isTypeOf: collective => collective.type === 'ORGANIZATION',
   fields: () => {
     return {
       ...AccountFields,
       ...AccountWithContributionsFields,
+      ...AccountWithPlatformSubscriptionFields,
       email: {
         type: GraphQLString,
         deprecationReason: '2022-07-18: This field is deprecated and will return null',

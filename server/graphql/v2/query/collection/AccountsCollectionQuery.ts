@@ -94,6 +94,22 @@ const AccountsCollectionQuery = {
       type: GraphQLAmountRangeInput,
       description: 'Filter by the balance of the account and its children accounts (events and projects)',
     },
+    plan: {
+      type: new GraphQLList(GraphQLString),
+      description: 'Filter by the plan slug of the account',
+    },
+    isSubscriber: {
+      type: GraphQLBoolean,
+      description: 'Filter accounts that are subscribers to the platform',
+    },
+    isVerified: {
+      type: GraphQLBoolean,
+      description: 'Filter accounts that are verified',
+    },
+    isFirstPartyHost: {
+      type: GraphQLBoolean,
+      description: 'Filter accounts that are first party hosts',
+    },
   },
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
@@ -124,6 +140,10 @@ const AccountsCollectionQuery = {
       consolidatedBalance: args.consolidatedBalance,
       isRoot: req.remoteUser?.isRoot() || false,
       onlyOpenHosts: args.onlyOpenToApplications ? true : null,
+      plan: args.plan,
+      isSubscriber: args.isSubscriber,
+      isVerified: args.isVerified,
+      isFirstPartyHost: args.isFirstPartyHost,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
