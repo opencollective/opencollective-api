@@ -300,7 +300,6 @@ class PlatformSubscription extends Model<
         );
       }
     }
-    await currentSubscription.reload({ paranoid: false });
 
     return PlatformSubscription.createSubscription(collectiveId, newSubscriptionStart.toDate(), plan, opts);
   }
