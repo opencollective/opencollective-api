@@ -46,11 +46,7 @@ export enum UtilizationType {
   EXPENSES_PAID = 'expensesPaid',
 }
 
-type PeriodUtilization = Record<UtilizationType, number> & {
-  billingPeriod: BillingPeriod;
-  startDate: Date;
-  endDate: Date;
-};
+type PeriodUtilization = Record<UtilizationType, number>;
 
 class PlatformSubscription extends Model<
   InferAttributes<PlatformSubscription>,
@@ -98,32 +94,9 @@ class PlatformSubscription extends Model<
     return now.isSameOrBefore(this.endDate) && now.isSameOrAfter(this.startDate);
   }
 
-  private queryBillingPeriod: BillingPeriod;
-  setQueryBillingPeriod(billingPeriod: BillingPeriod) {
-    this.queryBillingPeriod = billingPeriod;
-  }
-
-  getQueryBillingPeriod(): BillingPeriod {
-    return this.queryBillingPeriod;
-  }
-
-  async calculateUtilization(billingPeriod: BillingPeriod): Promise<PeriodUtilization> {
+  static async calculateUtilization(collectiveId: number, billingPeriod: BillingPeriod): Promise<PeriodUtilization> {
     const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
     const billingRangeArg = PlatformSubscription.rangeLiteral(billingRange);
-    const rangeLiteralArg = PlatformSubscription.rangeLiteral(this.period);
-
-    // Utilization is filtered to the time period constrained by the
-    // the subscription range AND the billing period range
-    // e.g. sequelize
-    //
-    // const createdAtWhereArgs: WhereAttributeHashValue<Date> = {
-    //   [Op.and]: [
-    //     { [Op.contained]: sequelize.literal(rangeLiteralArg) },
-    //     { [Op.contained]: sequelize.literal(billingRangeArg) },
-    //   ],
-    // };
-    // e.g. in sql
-    // AND t."createdAt" <@ ${rangeLiteralArg} * ${billingRangeArg}
 
     const { activeCollectives }: { activeCollectives: number } = await sequelize.query(
       `
@@ -132,7 +105,7 @@ class PlatformSubscription extends Model<
       JOIN "Collectives" c on c.id = t."CollectiveId"
       WHERE
       t."HostCollectiveId" = :HostCollectiveId
-      AND t."createdAt" <@ ${rangeLiteralArg} * ${billingRangeArg}
+      AND t."createdAt" <@ ${billingRangeArg}
       AND t."deletedAt" IS NULL
     `,
       {
@@ -140,7 +113,7 @@ class PlatformSubscription extends Model<
         raw: true,
         plain: true,
         replacements: {
-          HostCollectiveId: this.CollectiveId,
+          HostCollectiveId: collectiveId,
         },
       },
     );
@@ -155,12 +128,12 @@ class PlatformSubscription extends Model<
           WHERE hist."HostCollectiveId" = :HostCollectiveId
           AND hist."ExpenseId" = a."ExpenseId"
           AND hist."type" = 'collective.expense.paid'
-          AND tstzrange(NULL, hist."createdAt", '[]') << ${rangeLiteralArg} * ${billingRangeArg}
+          AND tstzrange(NULL, hist."createdAt", '[]') << ${billingRangeArg}
           LIMIT 1
         ) as "hist" ON TRUE
         WHERE a."HostCollectiveId" = :HostCollectiveId
         AND a."type" = 'collective.expense.paid'
-        AND a."createdAt" <@ ${rangeLiteralArg} * ${billingRangeArg}
+        AND a."createdAt" <@ ${billingRangeArg}
         AND NOT "hist"."previouslyPaid"
     `,
       {
@@ -168,28 +141,14 @@ class PlatformSubscription extends Model<
         raw: true,
         plain: true,
         replacements: {
-          HostCollectiveId: this.CollectiveId,
+          HostCollectiveId: collectiveId,
         },
-      },
-    );
-
-    const { period } = await sequelize.query(
-      `
-      SELECT ${rangeLiteralArg} * ${billingRangeArg} "period"
-    `,
-      {
-        type: QueryTypes.SELECT,
-        raw: true,
-        plain: true,
       },
     );
 
     return {
       activeCollectives,
       expensesPaid,
-      billingPeriod,
-      startDate: PlatformSubscription.periodStartDate(period),
-      endDate: PlatformSubscription.periodEndDate(period),
     };
   }
 
@@ -263,6 +222,7 @@ class PlatformSubscription extends Model<
           [Op.overlap]: PlatformSubscription.getBillingPeriodRange(billingPeriod),
         },
       },
+      order: [[sequelize.literal('lower(period)'), 'desc']],
     });
   }
 
@@ -272,12 +232,14 @@ class PlatformSubscription extends Model<
     plan: Partial<PlatformSubscriptionPlan>,
     opts?: { transaction?: SequelizeTransaction },
   ): Promise<PlatformSubscription> {
+    const alignedStart = moment.utc(start).startOf('day').toDate();
+
     return PlatformSubscription.create(
       {
         CollectiveId: collectiveId,
         period: [
           {
-            value: start,
+            value: alignedStart,
             inclusive: true,
           },
           {
@@ -315,24 +277,31 @@ class PlatformSubscription extends Model<
     opts?: { transaction?: SequelizeTransaction },
   ): Promise<PlatformSubscription> {
     const currentSubscription = await PlatformSubscription.getCurrentSubscription(collectiveId);
+    const newSubscriptionStart = moment.utc(when).startOf('day');
+
     if (currentSubscription) {
-      await currentSubscription.update(
-        {
-          period: [
-            currentSubscription.start,
-            {
-              value: when,
-              inclusive: false,
-            },
-          ],
-        },
-        {
-          transaction: opts?.transaction,
-        },
-      );
+      const currentSubscriptionStart = moment.utc(currentSubscription.startDate);
+      if (currentSubscriptionStart.isSameOrAfter(newSubscriptionStart)) {
+        await currentSubscription.destroy();
+      } else {
+        await currentSubscription.update(
+          {
+            period: [
+              currentSubscription.start,
+              {
+                value: newSubscriptionStart.toDate(),
+                inclusive: false,
+              },
+            ],
+          },
+          {
+            transaction: opts?.transaction,
+          },
+        );
+      }
     }
 
-    return PlatformSubscription.createSubscription(collectiveId, when, plan, opts);
+    return PlatformSubscription.createSubscription(collectiveId, newSubscriptionStart.toDate(), plan, opts);
   }
 
   static get loaders() {

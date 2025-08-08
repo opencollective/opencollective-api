@@ -86,7 +86,7 @@ describe('server/models/PlatformSubscriptions', () => {
       const collective = await fakeCollective();
       const subscription = await PlatformSubscription.createSubscription(
         collective.id,
-        new Date(Date.UTC(2016, 0, 1)),
+        new Date(Date.UTC(2016, 0, 1, 22, 22, 3)),
         {
           title: 'A plan',
         },
@@ -101,7 +101,7 @@ describe('server/models/PlatformSubscriptions', () => {
 
     it('throws if subscription already exists', async () => {
       const collective = await fakeCollective();
-      await PlatformSubscription.createSubscription(collective.id, new Date(Date.UTC(2016, 0, 1)), {
+      await PlatformSubscription.createSubscription(collective.id, new Date(Date.UTC(2016, 0, 1, 22, 11, 2)), {
         title: 'A plan',
       });
 
@@ -114,11 +114,11 @@ describe('server/models/PlatformSubscriptions', () => {
   });
 
   describe('replaceCurrentSubscription', () => {
-    it('ends existing period and start new until end of month', async () => {
+    it('replaces existing period if less than a full day', async () => {
       const collective = await fakeCollective();
       const subscription = await PlatformSubscription.createSubscription(
         collective.id,
-        new Date(Date.UTC(2016, 0, 1)),
+        new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
         {
           title: 'A plan',
         },
@@ -132,7 +132,43 @@ describe('server/models/PlatformSubscriptions', () => {
 
       const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
         collective.id,
-        new Date(Date.UTC(2016, 0, 5)),
+        new Date(Date.UTC(2016, 0, 1, 10, 1, 1)),
+        {
+          title: 'A plan',
+        },
+      );
+
+      await subscription.reload({
+        paranoid: false,
+      });
+      expect(subscription.deletedAt).to.not.be.null;
+
+      expect(newSubscription.start.inclusive).to.be.true;
+      expect(moment.utc(newSubscription.start.value).toISOString()).to.equal('2016-01-01T00:00:00.000Z');
+
+      expect(newSubscription.end.inclusive).to.be.true;
+      expect(newSubscription.end.value).to.equal(Infinity);
+    });
+
+    it('ends existing period and start new until end of month', async () => {
+      const collective = await fakeCollective();
+      const subscription = await PlatformSubscription.createSubscription(
+        collective.id,
+        new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+        {
+          title: 'A plan',
+        },
+      );
+
+      expect(subscription.start.inclusive).to.be.true;
+      expect(moment.utc(subscription.start.value).toISOString()).to.equal('2016-01-01T00:00:00.000Z');
+
+      expect(subscription.end.inclusive).to.be.true;
+      expect(subscription.end.value).to.equal(Infinity);
+
+      const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
+        collective.id,
+        new Date(Date.UTC(2016, 0, 2, 22, 3)),
         {
           title: 'A plan',
         },
@@ -143,10 +179,10 @@ describe('server/models/PlatformSubscriptions', () => {
       expect(moment.utc(subscription.start.value).toISOString()).to.equal('2016-01-01T00:00:00.000Z');
 
       expect(subscription.end.inclusive).to.be.false;
-      expect(moment.utc(subscription.end.value).toISOString()).to.equal('2016-01-05T00:00:00.000Z');
+      expect(moment.utc(subscription.end.value).toISOString()).to.equal('2016-01-02T00:00:00.000Z');
 
       expect(newSubscription.start.inclusive).to.be.true;
-      expect(moment.utc(newSubscription.start.value).toISOString()).to.equal('2016-01-05T00:00:00.000Z');
+      expect(moment.utc(newSubscription.start.value).toISOString()).to.equal('2016-01-02T00:00:00.000Z');
 
       expect(newSubscription.end.inclusive).to.be.true;
       expect(newSubscription.end.value).to.equal(Infinity);
@@ -209,22 +245,16 @@ describe('server/models/PlatformSubscriptions', () => {
         HostCollectiveId: host.id,
       });
 
-      const subscription = await PlatformSubscription.createSubscription(host.id, new Date(Date.UTC(2016, 0, 1)), {
+      await PlatformSubscription.createSubscription(host.id, new Date(Date.UTC(2016, 0, 1)), {
         title: 'A plan',
       });
       const billingPeriod: BillingPeriod = {
         year: 2016,
         month: BillingMonth.JANUARY,
       };
-      await expect(subscription.calculateUtilization(billingPeriod)).to.eventually.eql({
+      await expect(PlatformSubscription.calculateUtilization(host.id, billingPeriod)).to.eventually.eql({
         [UtilizationType.ACTIVE_COLLECTIVES]: 0,
         [UtilizationType.EXPENSES_PAID]: 0,
-        billingPeriod: {
-          month: BillingMonth.JANUARY,
-          year: 2016,
-        },
-        startDate: PlatformSubscription.periodStartDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
-        endDate: PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
       });
 
       await fakeTransaction({
@@ -262,15 +292,9 @@ describe('server/models/PlatformSubscriptions', () => {
         createdAt: new Date(Date.UTC(2016, 0, 20)),
       });
 
-      await expect(subscription.calculateUtilization(billingPeriod)).to.eventually.eql({
+      await expect(PlatformSubscription.calculateUtilization(host.id, billingPeriod)).to.eventually.eql({
         [UtilizationType.ACTIVE_COLLECTIVES]: 3,
         [UtilizationType.EXPENSES_PAID]: 0,
-        billingPeriod: {
-          month: BillingMonth.JANUARY,
-          year: 2016,
-        },
-        startDate: PlatformSubscription.periodStartDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
-        endDate: PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
       });
 
       await fakeExpensePaidWithActivity({
@@ -280,15 +304,9 @@ describe('server/models/PlatformSubscriptions', () => {
         status: ExpenseStatuses.PAID,
       });
 
-      await expect(subscription.calculateUtilization(billingPeriod)).to.eventually.eql({
+      await expect(PlatformSubscription.calculateUtilization(host.id, billingPeriod)).to.eventually.eql({
         [UtilizationType.ACTIVE_COLLECTIVES]: 3,
         [UtilizationType.EXPENSES_PAID]: 1,
-        billingPeriod: {
-          month: BillingMonth.JANUARY,
-          year: 2016,
-        },
-        startDate: PlatformSubscription.periodStartDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
-        endDate: PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
       });
 
       await fakeExpensePaidWithActivity({
@@ -335,15 +353,9 @@ describe('server/models/PlatformSubscriptions', () => {
         createdAt: new Date(Date.UTC(2016, 0, 30)),
       });
 
-      await expect(subscription.calculateUtilization(billingPeriod)).to.eventually.eql({
+      await expect(PlatformSubscription.calculateUtilization(host.id, billingPeriod)).to.eventually.eql({
         [UtilizationType.ACTIVE_COLLECTIVES]: 4,
         [UtilizationType.EXPENSES_PAID]: 3,
-        billingPeriod: {
-          month: BillingMonth.JANUARY,
-          year: 2016,
-        },
-        startDate: PlatformSubscription.periodStartDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
-        endDate: PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod)),
       });
     });
   });
@@ -376,8 +388,8 @@ describe('server/models/PlatformSubscriptions', () => {
       );
 
       const collective1Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod(collective1.id, billingPeriod);
-      expect(collective1Subs[0].id).to.eql(collective1Sub1.id);
-      expect(collective1Subs[1].id).to.eql(collective1Sub2.id);
+      expect(collective1Subs[0].id).to.eql(collective1Sub2.id);
+      expect(collective1Subs[1].id).to.eql(collective1Sub1.id);
 
       const collective2 = await fakeCollective(); // no active subscription in billing period
       await expect(

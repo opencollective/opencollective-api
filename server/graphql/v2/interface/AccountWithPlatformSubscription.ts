@@ -35,13 +35,12 @@ export const AccountWithPlatformSubscriptionFields = {
       }
 
       const subscriptions = await PlatformSubscription.getSubscriptionsInBillingPeriod(host.id, billingPeriod);
-      subscriptions.forEach(sub => {
-        sub.setQueryBillingPeriod(billingPeriod);
-      });
+      const utilization = await PlatformSubscription.calculateUtilization(host.id, billingPeriod);
 
       return {
         billingPeriod,
         subscriptions,
+        utilization,
       };
     },
   },

@@ -604,10 +604,6 @@ describe('server/graphql/v2/object/Host', () => {
               plan {
                 title
               }
-              utilization {
-                activeCollectives
-                expensesPaid
-              }
             }
           }
         }
@@ -629,7 +625,7 @@ describe('server/graphql/v2/object/Host', () => {
       const host = await fakeActiveHost({
         admin: hostAdmin,
       });
-      const startDate = new Date();
+      const startDate = new Date(2025, 7, 8);
       await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
       expect(result.errors).to.be.undefined;
@@ -639,10 +635,6 @@ describe('server/graphql/v2/object/Host', () => {
         plan: {
           title: 'A plan',
         },
-        utilization: {
-          activeCollectives: 0,
-          expensesPaid: 0,
-        },
       });
     });
 
@@ -651,8 +643,8 @@ describe('server/graphql/v2/object/Host', () => {
       const host = await fakeActiveHost({
         admin: hostAdmin,
       });
-      const startDate = new Date();
-      const endDate = new Date(startDate.getTime() + 10000);
+      const startDate = new Date(2025, 7, 8);
+      const endDate = moment.utc(startDate).add('10', 'days').toDate();
       const subscription = await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
       await subscription.update({
         period: [
@@ -672,10 +664,6 @@ describe('server/graphql/v2/object/Host', () => {
         plan: {
           title: 'A plan',
         },
-        utilization: {
-          activeCollectives: 0,
-          expensesPaid: 0,
-        },
       });
     });
   });
@@ -691,14 +679,15 @@ describe('server/graphql/v2/object/Host', () => {
                 year
                 month
               }
+              utilization {
+                activeCollectives
+                expensesPaid
+              }
 
               subscriptions {
                 startDate
                 endDate
-                utilization {
-                  activeCollectives
-                  expensesPaid
-                }
+
                 plan {
                   title
                 }
@@ -721,6 +710,10 @@ describe('server/graphql/v2/object/Host', () => {
           year: moment.utc().year(),
           month: BillingMonth[moment.utc().month() + 1],
         },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
+        },
         subscriptions: [],
       });
 
@@ -740,6 +733,10 @@ describe('server/graphql/v2/object/Host', () => {
         billingPeriod: {
           year: 2016,
           month: 'JANUARY',
+        },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
         },
         subscriptions: [],
       });
@@ -763,16 +760,16 @@ describe('server/graphql/v2/object/Host', () => {
           year: billingPeriod.year,
           month: billingPeriod.month,
         },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
+        },
         subscriptions: [
           {
             startDate: startDate,
             endDate: null,
             plan: {
               title: 'A plan',
-            },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
             },
           },
         ],
@@ -793,27 +790,23 @@ describe('server/graphql/v2/object/Host', () => {
           year: billingPeriod.year,
           month: billingPeriod.month,
         },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
+        },
         subscriptions: [
-          {
-            startDate: startDate,
-            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
-            plan: {
-              title: 'A plan',
-            },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
-            },
-          },
           {
             startDate: moment.utc(startDate).add('5', 'days').toDate(),
             endDate: null,
             plan: {
               title: 'A new plan',
             },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
+          },
+          {
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            plan: {
+              title: 'A plan',
             },
           },
         ],
@@ -830,27 +823,23 @@ describe('server/graphql/v2/object/Host', () => {
           year: billingPeriod.year,
           month: billingPeriod.month,
         },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
+        },
         subscriptions: [
-          {
-            startDate: startDate,
-            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
-            plan: {
-              title: 'A plan',
-            },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
-            },
-          },
           {
             startDate: moment.utc(startDate).add('5', 'days').toDate(),
             endDate: moment.utc(startDate).add('7', 'days').toDate(),
             plan: {
               title: 'A new plan',
             },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
+          },
+          {
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            plan: {
+              title: 'A plan',
             },
           },
         ],
@@ -867,16 +856,16 @@ describe('server/graphql/v2/object/Host', () => {
           year: billingPeriod.year,
           month: billingPeriod.month,
         },
+        utilization: {
+          activeCollectives: 0,
+          expensesPaid: 0,
+        },
         subscriptions: [
           {
-            startDate: startDate,
-            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
+            startDate: moment.utc(startDate).add('10', 'days').toDate(),
+            endDate: null,
             plan: {
-              title: 'A plan',
-            },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
+              title: 'Yet another plan in this billing period',
             },
           },
           {
@@ -885,20 +874,12 @@ describe('server/graphql/v2/object/Host', () => {
             plan: {
               title: 'A new plan',
             },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
-            },
           },
           {
-            startDate: moment.utc(startDate).add('10', 'days').toDate(),
-            endDate: null,
+            startDate: startDate,
+            endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
             plan: {
-              title: 'Yet another plan in this billing period',
-            },
-            utilization: {
-              activeCollectives: 0,
-              expensesPaid: 0,
+              title: 'A plan',
             },
           },
         ],

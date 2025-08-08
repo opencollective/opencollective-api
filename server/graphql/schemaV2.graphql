@@ -4587,7 +4587,6 @@ type PlatformSubscription {
   endDate: DateTime
   isCurrent: Boolean!
   plan: PlatformSubscriptionTier!
-  utilization(billingPeriod: PlatformBillingPeriodInput): PlatformSubscriptionUtilization!
 }
 
 """
@@ -4655,12 +4654,10 @@ type PlatformSubscriptionFeatures {
   ACCOUNT_MANAGEMENT: Boolean!
 }
 
-type PlatformSubscriptionUtilization {
+type PlatformBilling {
   billingPeriod: PlatformBillingPeriod!
-  startDate: DateTime!
-  endDate: DateTime!
-  activeCollectives: Int!
-  expensesPaid: Int!
+  subscriptions: [PlatformSubscription!]!
+  utilization: PlatformSubscriptionUtilization!
 }
 
 type PlatformBillingPeriod {
@@ -4686,14 +4683,17 @@ enum PlatformBillingMonth {
   DECEMBER
 }
 
+type PlatformSubscriptionUtilization {
+  billingPeriod: PlatformBillingPeriod!
+  startDate: DateTime!
+  endDate: DateTime!
+  activeCollectives: Int!
+  expensesPaid: Int!
+}
+
 input PlatformBillingPeriodInput {
   year: Int!
   month: PlatformBillingMonth!
-}
-
-type PlatformBilling {
-  billingPeriod: PlatformBillingPeriod!
-  subscriptions: [PlatformSubscription!]!
 }
 
 """
