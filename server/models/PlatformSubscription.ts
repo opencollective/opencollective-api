@@ -277,11 +277,10 @@ class PlatformSubscription extends Model<
     opts?: { transaction?: SequelizeTransaction },
   ): Promise<PlatformSubscription> {
     const currentSubscription = await PlatformSubscription.getCurrentSubscription(collectiveId);
-    const currentSubscriptionStart = moment.utc(currentSubscription.startDate);
-
     const newSubscriptionStart = moment.utc(when).startOf('day');
 
     if (currentSubscription) {
+      const currentSubscriptionStart = moment.utc(currentSubscription.startDate);
       if (currentSubscriptionStart.isSameOrAfter(newSubscriptionStart)) {
         await currentSubscription.destroy();
       } else {
