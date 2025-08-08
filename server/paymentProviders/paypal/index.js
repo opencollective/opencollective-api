@@ -55,7 +55,7 @@ const validateRedirectUrl = redirect => {
   if (config.env === 'production') {
     try {
       parsedRedirect = new URL(redirect);
-      if (parsedRedirect.hostname !== config.host.website) {
+      if (parsedRedirect.origin !== config.host.website) {
         throw new Error();
       }
     } catch {
