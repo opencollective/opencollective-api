@@ -27,6 +27,7 @@ import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import personalTokenMutations from './PersonalTokenMutations';
 import { plaidMutations } from './PlaidMutations';
+import platformSubscriptionMutations from './PlatformSubscriptionsMutations';
 import rootMutations from './RootMutations';
 import { sendSurveyResponseMutation } from './SendSurveyResponseMutation';
 import socialLinkMutations from './SocialLinkMutations';
@@ -81,6 +82,7 @@ const mutation = {
   ...tagMutations,
   ...agreementMutations,
   ...vendorMutations,
+  ...platformSubscriptionMutations,
   sendSurveyResponse: sendSurveyResponseMutation,
 };
 
