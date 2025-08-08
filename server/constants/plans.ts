@@ -223,6 +223,7 @@ enum PlatformSubscriptionTierTypes {
   PRO = 'Pro',
 }
 export interface PlatformSubscriptionPlan {
+  id: string;
   title: string;
   type: PlatformSubscriptionTierTypes;
   pricing: {
@@ -287,6 +288,7 @@ const featuresForPro = Object.fromEntries(CommercialFeatures.map(feature => [fea
 export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
   // Free
   {
+    id: 'discover-1',
     title: 'Discover 1',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
@@ -299,6 +301,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForStarter,
   },
   {
+    id: 'discover-3',
     title: 'Discover 3',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
@@ -311,6 +314,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForStarter,
   },
   {
+    id: 'discover-5',
     title: 'Discover 5',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
@@ -323,6 +327,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForStarter,
   },
   {
+    id: 'discover-10',
     title: 'Discover 10',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
@@ -336,6 +341,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
   },
   // Basic
   {
+    id: 'basic-5',
     title: 'Basic 5',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
@@ -348,6 +354,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForBasic,
   },
   {
+    id: 'basic-10',
     title: 'Basic 10',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
@@ -360,6 +367,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForBasic,
   },
   {
+    id: 'basic-20',
     title: 'Basic 20',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
@@ -372,6 +380,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForBasic,
   },
   {
+    id: 'basic-50',
     title: 'Basic 50',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
@@ -385,6 +394,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
   },
   // Pro
   {
+    id: 'pro-20',
     title: 'Pro 20',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
@@ -397,6 +407,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForPro,
   },
   {
+    id: 'pro-50',
     title: 'Pro 50',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
@@ -409,6 +420,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForPro,
   },
   {
+    id: 'pro-100',
     title: 'Pro 100',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
@@ -421,6 +433,7 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     features: featuresForPro,
   },
   {
+    id: 'pro-200',
     title: 'Pro 200',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
