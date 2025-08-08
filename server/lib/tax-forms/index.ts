@@ -1,22 +1,13 @@
 import config from 'config';
 import { get } from 'lodash';
 
-import {
-  TAX_FORM_IGNORED_EXPENSE_STATUSES,
-  TAX_FORM_IGNORED_EXPENSE_TYPES,
-  US_TAX_FORM_THRESHOLD,
-  US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
-} from '../../constants/tax-form';
+import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../constants/tax-form';
 import { Collective, Expense } from '../../models';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 import { uploadToS3 } from '../awsS3';
 
 export const getTaxFormsS3Bucket = (): string => {
   return get(config, 'taxForms.aws.s3.bucket');
-};
-
-export const amountsRequireTaxForm = (paypalTotal: number, otherTotal: number): boolean => {
-  return otherTotal >= US_TAX_FORM_THRESHOLD || paypalTotal >= US_TAX_FORM_THRESHOLD_FOR_PAYPAL;
 };
 
 export const expenseMightBeSubjectToTaxForm = (expense: Expense): boolean => {

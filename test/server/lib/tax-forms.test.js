@@ -45,8 +45,7 @@ describe('server/lib/tax-forms', () => {
     accountWithTaxFormFromLastYear,
     accountWithTaxFormFrom4YearsAgo,
     accountWithTaxFormSubmittedByHost,
-    accountWithPaypalBelowThreshold,
-    accountWithPaypalOverThreshold,
+    accountWithPaypal,
     accountWithINRBelowThreshold,
     accountWithINROverThreshold;
 
@@ -115,8 +114,7 @@ describe('server/lib/tax-forms', () => {
     accountWithTaxFormSubmittedByHost = await fakeCollective();
     accountWithOnlyADraft = (await fakeUser()).collective;
     accountWithTaxFormFrom4YearsAgo = await fakeCollective({ type: 'ORGANIZATION' });
-    accountWithPaypalBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
-    accountWithPaypalOverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithPaypal = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithINRBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithINROverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
     collectives = await Promise.all([
@@ -346,19 +344,11 @@ describe('server/lib/tax-forms', () => {
     await fakeExpense({ ...baseParams, type: 'UNCLASSIFIED' });
     await fakeExpense({ ...baseParams, type: 'INVOICE' });
 
-    // Add some PayPal-specific expenses (PayPal has a higher tax form threshold)
+    // Add some PayPal-specific expenses
     await fakeExpense({
-      FromCollectiveId: accountWithPaypalBelowThreshold.id,
+      FromCollectiveId: accountWithPaypal.id,
       CollectiveId: collectives[0].id,
       amount: 10000e2, // Below threshold
-      PayoutMethodId: paypalPayoutMethod.id,
-      type: 'INVOICE',
-    });
-
-    await fakeExpense({
-      FromCollectiveId: accountWithPaypalOverThreshold.id,
-      CollectiveId: collectives[0].id,
-      amount: 100000e2, // Above threshold
       PayoutMethodId: paypalPayoutMethod.id,
       type: 'INVOICE',
     });
@@ -392,8 +382,7 @@ describe('server/lib/tax-forms', () => {
         expect(accounts.has(accountAlreadyNotified.id)).to.be.true;
         expect(accounts.has(hostCollective.id)).to.be.false;
         expect(accounts.has(users[4].CollectiveId)).to.be.false;
-        expect(accounts.has(accountWithPaypalOverThreshold.id)).to.be.true;
-        expect(accounts.has(accountWithPaypalBelowThreshold.id)).to.be.false;
+        expect(accounts.has(accountWithPaypal.id)).to.be.true;
         expect(accounts.has(accountWithOnlyADraft.id)).to.be.false;
         expect(accounts.has(accountWithINROverThreshold.id)).to.be.true;
         expect(accounts.has(accountWithINRBelowThreshold.id)).to.be.false;
