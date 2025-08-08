@@ -1,7 +1,12 @@
+import assert from 'assert';
+
 import { GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
+import { pick } from 'lodash';
 import moment from 'moment';
 
 import { Collective, PlatformSubscription } from '../../../models';
+import { GraphQLAmount } from '../object/Amount';
+import { GraphQLHostPlan } from '../object/HostPlan';
 import {
   GraphQLPlatformBilling,
   GraphQLPlatformBillingPeriodInput,
@@ -42,6 +47,22 @@ export const AccountWithPlatformSubscriptionFields = {
         subscriptions,
         utilization,
       };
+    },
+  },
+  managedAmount: {
+    type: GraphQLAmount,
+    description: 'The total amount managed by the account, including all its children accounts (events and projects)',
+    resolve: async (account: Collective, _args, req: Express.Request) => {
+      assert(req.remoteUser.isRoot());
+
+      const result = await req.loaders.Collective.moneyManaged.load(account.id);
+      return pick(result, ['value', 'currency']);
+    },
+  },
+  plan: {
+    type: new GraphQLNonNull(GraphQLHostPlan),
+    resolve(account) {
+      return account.getPlan();
     },
   },
 };

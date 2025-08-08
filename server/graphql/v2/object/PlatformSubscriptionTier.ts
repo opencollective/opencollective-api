@@ -9,6 +9,10 @@ export const GraphQLPlatformSubscriptionTier = new GraphQLObjectType({
   name: 'PlatformSubscriptionTier',
   description: 'Type for Platform Subscription Tier',
   fields: () => ({
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'The title of the subscription tier',
+    },
     title: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The title of the subscription tier',
