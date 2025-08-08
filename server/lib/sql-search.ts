@@ -306,7 +306,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (!isUndefined(args.plan)) {
-    if (args.plan.includes('LEGACY')) {
+    if (args.plan?.includes('LEGACY')) {
       assert(args.plan.length === 1, new BadRequest('If plan includes LEGACY, it must be the only value'));
       dynamicConditions += `AND c."plan" IS NOT NULL `;
     } else {
@@ -375,10 +375,10 @@ export const searchCollectivesInDB = async (
 
   if (!isNil(args.isVerified) || !isNil(args.isFirstPartyHost)) {
     const verifiedConditions = [];
-    if (args.isVerified) {
+    if (!isNil(args.isVerified)) {
       verifiedConditions.push(`(c."data" ->> 'isVerified')::boolean IS ${args.isVerified ? 'TRUE' : 'FALSE'}`);
     }
-    if (args.isFirstPartyHost) {
+    if (!isNil(args.isFirstPartyHost)) {
       verifiedConditions.push(
         `(c."data" ->> 'isFirstPartyHost')::boolean IS ${args.isFirstPartyHost ? 'TRUE' : 'FALSE'}`,
       );
