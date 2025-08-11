@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, has, intersection, memoize, pick, sortBy, sumBy } from 'lodash';
 import moment from 'moment';
+import assert from 'node:assert';
 
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { getCollectiveIds } from '../../../lib/budget';
@@ -837,6 +838,17 @@ export const GraphQLAccountStats = new GraphQLObjectType({
               label: result.label,
             })),
           };
+        },
+      },
+      managedAmount: {
+        type: GraphQLAmount,
+        description:
+          'The total amount managed by the account, including all its children accounts (events and projects), calculated using existing balance checkpoint. This is not a real-time value and may not reflect the current state of the account.',
+        resolve: async (account, _args, req) => {
+          assert(req.remoteUser.isRoot());
+
+          const result = await req.loaders.Collective.moneyManaged.load(account.id);
+          return pick(result, ['value', 'currency']);
         },
       },
     };
