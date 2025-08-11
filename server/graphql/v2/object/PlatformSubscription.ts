@@ -64,7 +64,6 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
     additional: {
       type: new GraphQLNonNull(GraphQLPlatformBillingAdditional),
       resolve(billing: Billing) {
-        console.log(omit(billing, 'subscriptions'));
         return {
           utilization: billing.additional.utilization,
           amounts: Object.fromEntries(
