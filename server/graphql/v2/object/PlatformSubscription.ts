@@ -8,7 +8,6 @@ import {
   GraphQLObjectType,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { omit } from 'lodash';
 import moment from 'moment';
 
 import PlatformSubscription, {
