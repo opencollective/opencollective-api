@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import { GraphQLNonNull } from 'graphql';
 
 import { PlatformSubscriptionPlan } from '../../../constants/plans';
@@ -36,6 +38,18 @@ const platformSubscriptionMutations = {
             includedExpensesPerMonth: args.subscription.plan.pricing.includedExpensesPerMonth,
           },
         };
+        assert(
+          args.subscription.plan.pricing.pricePerMonth.currency === 'USD',
+          'Only USD is supported for platform subscription pricing',
+        );
+        assert(
+          args.subscription.plan.pricing.pricePerAdditionalCollective.currency === 'USD',
+          'Only USD is supported for platform subscription pricing',
+        );
+        assert(
+          args.subscription.plan.pricing.pricePerAdditionalExpense.currency === 'USD',
+          'Only USD is supported for platform subscription pricing',
+        );
         await PlatformSubscription.replaceCurrentSubscription(account.id, new Date(), plan);
         await account.update({ plan: null });
         return account;
