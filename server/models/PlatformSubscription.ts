@@ -22,6 +22,7 @@ import sequelize from '../lib/sequelize';
 import Collective from './Collective';
 
 export type Billing = {
+  collectiveId: number;
   baseAmount: number;
   additional: {
     utilization: PeriodUtilization;
@@ -218,6 +219,7 @@ class PlatformSubscription extends Model<
 
     if (subscriptions.length === 0) {
       return {
+        collectiveId,
         baseAmount: 0,
         additional: {
           utilization: Object.fromEntries(Object.entries(utilization).map(([k]) => [k, 0])) as PeriodUtilization,
@@ -262,6 +264,7 @@ class PlatformSubscription extends Model<
     const totalAmount = baseAmount + additionalTotal;
 
     return {
+      collectiveId,
       baseAmount: baseAmount,
       additional: {
         utilization: additionalUtilization,
