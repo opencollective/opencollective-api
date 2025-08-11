@@ -2,6 +2,7 @@ import { GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import moment from 'moment';
 
 import { Collective, PlatformSubscription } from '../../../models';
+import { GraphQLHostPlan } from '../object/HostPlan';
 import {
   GraphQLPlatformBilling,
   GraphQLPlatformBillingPeriodInput,
@@ -42,6 +43,12 @@ export const AccountWithPlatformSubscriptionFields = {
         subscriptions,
         utilization,
       };
+    },
+  },
+  legacyPlan: {
+    type: new GraphQLNonNull(GraphQLHostPlan),
+    resolve(account) {
+      return account.getPlan();
     },
   },
 };
