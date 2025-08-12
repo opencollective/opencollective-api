@@ -150,6 +150,7 @@ describe('server/lib/sanitize-html', () => {
       const testUrls = [
         '<a href="https://opencollective.com/toto">Test</a>',
         '<a href="https://docs.opencollective.com/toto">Test</a>',
+        '<a href="https://documentation.opencollective.com/toto">Test</a>',
         '<a href="http://github.com/toto">Test</a>',
         `<a href="${config.aws.s3.endpoint}/a-bucket/a83d7d30-f8e6-11ea-b187-e31017293ab6.jpg">Test</a>`,
       ];

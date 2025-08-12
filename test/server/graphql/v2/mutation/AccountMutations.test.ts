@@ -1335,7 +1335,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     Come chat with us on our public
     <a href="https://discord.opencollective.com" style="text-decoration: none; color: #297EFF;">Discord</a>.
     <br><br>
-    Made with ❤️ from <a href="https://docs.opencollective.com/help/about/team" style="text-decoration: none; color: #297EFF;">all over the world</a>
+    Made with ❤️ from <a href="https://documentation.opencollective.com/our-organization/our-team" style="text-decoration: none; color: #297EFF;">all over the world</a>
   </td>
 </tr>
 <tr>
