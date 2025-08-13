@@ -57,12 +57,12 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         remoteUser,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You do not have permission to connect a Plaid account');
+      expect(result.errors[0].message).to.equal('Off-platform transactions are not enabled for this account');
     });
 
     it('should generate a Plaid Link token', async () => {
       const remoteUser = await fakeUser({ data: { isRoot: true } });
-      const host = await fakeActiveHost({ admin: remoteUser });
+      const host = await fakeActiveHost({ admin: remoteUser, data: { features: { OFF_PLATFORM_TRANSACTIONS: true } } });
       await platform.addUserWithRole(remoteUser, 'ADMIN');
       const result = await graphqlQueryV2(
         GENERATE_PLAID_LINK_TOKEN_MUTATION,

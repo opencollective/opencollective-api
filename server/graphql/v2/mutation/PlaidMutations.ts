@@ -3,7 +3,7 @@ import { GraphQLLocale } from 'graphql-scalars';
 import { isEmpty, pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
-import PlatformConstants from '../../../constants/platform';
+import { hasFeature } from '../../../lib/allowed-features';
 import { connectPlaidAccount, generatePlaidLinkToken, refreshPlaidSubAccounts } from '../../../lib/plaid/connect';
 import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
@@ -94,15 +94,11 @@ export const plaidMutations = {
     resolve: async (_, args, req: Express.Request) => {
       checkRemoteUserCanUseTransactions(req);
 
-      // Check if user is an admin of any third party host or platform
-      const allowedIds = [
-        ...PlatformConstants.FirstPartyHostCollectiveIds,
-        ...PlatformConstants.AllPlatformCollectiveIds,
-        PlatformConstants.OCICollectiveId,
-      ];
-
-      if (!req.remoteUser.isRoot() && !allowedIds.some(id => req.remoteUser.isAdmin(id))) {
-        throw new Forbidden('You do not have permission to connect a Plaid account');
+      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollective(host)) {
+        throw new Forbidden('You do not have permission to connect a Plaid account for this host');
+      } else if (!hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS')) {
+        throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 
       const rateLimiter = new RateLimit(`generatePlaidLinkToken:${req.remoteUser.id}`, 10, 60);
@@ -110,11 +106,6 @@ export const plaidMutations = {
         throw new RateLimitExceeded(
           'A sync was already requested for this account recently. Please wait a few minutes before trying again.',
         );
-      }
-
-      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
-      if (!req.remoteUser.isAdminOfCollective(host)) {
-        throw new Forbidden('You do not have permission to connect a Plaid account for this host');
       }
 
       const params: Parameters<typeof generatePlaidLinkToken>[1] = {
