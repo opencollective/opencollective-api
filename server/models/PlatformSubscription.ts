@@ -21,6 +21,21 @@ import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
 
+export type Billing = {
+  collectiveId: number;
+  baseAmount: number;
+  additional: {
+    utilization: PeriodUtilization;
+    amounts: PeriodUtilization;
+    total: number;
+  };
+  totalAmount: number;
+  billingPeriod: BillingPeriod;
+  subscriptions: PlatformSubscription[];
+  utilization: PeriodUtilization;
+  dueDate: Date;
+};
+
 export enum BillingMonth {
   JANUARY = 1,
   FEBRUARY = 2,
@@ -45,6 +60,16 @@ export enum UtilizationType {
   ACTIVE_COLLECTIVES = 'activeCollectives',
   EXPENSES_PAID = 'expensesPaid',
 }
+
+const UtilizationTypeToIncludedPlanKeyMap: Record<UtilizationType, keyof PlatformSubscriptionPlan['pricing']> = {
+  [UtilizationType.ACTIVE_COLLECTIVES]: 'includedCollectives',
+  [UtilizationType.EXPENSES_PAID]: 'includedExpensesPerMonth',
+};
+
+const UtilizationTypeToPricePlanKeyMap: Record<UtilizationType, keyof PlatformSubscriptionPlan['pricing']> = {
+  [UtilizationType.ACTIVE_COLLECTIVES]: 'pricePerAdditionalCollective',
+  [UtilizationType.EXPENSES_PAID]: 'pricePerAdditionalExpense',
+};
 
 type PeriodUtilization = Record<UtilizationType, number>;
 
@@ -92,6 +117,30 @@ class PlatformSubscription extends Model<
 
     const now = moment.utc();
     return now.isSameOrBefore(this.endDate) && now.isSameOrAfter(this.startDate);
+  }
+
+  prorateBasePrice(billingPeriod: BillingPeriod): number {
+    const billingStart = PlatformSubscription.periodStartDate(
+      PlatformSubscription.getBillingPeriodRange(billingPeriod),
+    );
+    const billingEnd = PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod));
+
+    const billingTime = moment.utc(billingEnd).diff(billingStart, 'seconds');
+
+    let subBillingStart = billingStart;
+    if (moment.utc(this.startDate).isAfter(billingStart)) {
+      subBillingStart = this.startDate;
+    }
+    let subBillingEnd = billingEnd;
+    if (moment.utc(this.endDate).isBefore(billingEnd)) {
+      subBillingEnd = this.endDate;
+    }
+
+    const subTime = moment.utc(subBillingEnd).diff(subBillingStart, 'seconds');
+
+    const basePrice = this.plan.pricing?.pricePerMonth ?? 0;
+
+    return Math.round(basePrice * (subTime / billingTime));
   }
 
   static async calculateUtilization(collectiveId: number, billingPeriod: BillingPeriod): Promise<PeriodUtilization> {
@@ -149,6 +198,84 @@ class PlatformSubscription extends Model<
     return {
       activeCollectives,
       expensesPaid,
+    };
+  }
+
+  static currentBillingPeriod(): BillingPeriod {
+    return {
+      year: moment.utc().year(),
+      month: moment.utc().month() + 1,
+    };
+  }
+
+  static async calculateBilling(collectiveId: number, billingPeriod: BillingPeriod): Promise<Billing> {
+    const utilization = await PlatformSubscription.calculateUtilization(collectiveId, billingPeriod);
+    const subscriptions = await PlatformSubscription.getSubscriptionsInBillingPeriod(collectiveId, billingPeriod);
+    const dueDate = moment
+      .utc(new Date(Date.UTC(billingPeriod.year, billingPeriod.month - 1)))
+      .add(1, 'month')
+      .startOf('month')
+      .toDate();
+
+    if (subscriptions.length === 0) {
+      return {
+        collectiveId,
+        baseAmount: 0,
+        additional: {
+          utilization: Object.fromEntries(Object.entries(utilization).map(([k]) => [k, 0])) as PeriodUtilization,
+          total: 0,
+          amounts: Object.fromEntries(Object.entries(utilization).map(([k]) => [k, 0])) as PeriodUtilization,
+        },
+        totalAmount: 0,
+        billingPeriod,
+        subscriptions,
+        utilization,
+        dueDate,
+      };
+    }
+
+    const lastActiveSubscription = subscriptions[0];
+    const plan = lastActiveSubscription.plan;
+
+    const additionalUtilization = Object.fromEntries(
+      Object.keys(utilization).map(utilizationType => [
+        utilizationType,
+        Math.max(
+          0,
+          utilization[utilizationType] - (plan.pricing?.[UtilizationTypeToIncludedPlanKeyMap[utilizationType]] ?? 0),
+        ),
+      ]),
+    ) as PeriodUtilization;
+
+    const additionalUtilizationAmounts = Object.fromEntries(
+      Object.entries(additionalUtilization).map(([utilizationType, additionalCount]) => [
+        utilizationType,
+        additionalCount * (plan.pricing?.[UtilizationTypeToPricePlanKeyMap[utilizationType]] ?? 0),
+      ]),
+    ) as PeriodUtilization;
+
+    const additionalTotal = Object.entries(additionalUtilizationAmounts).reduce((acc, [, amount]) => acc + amount, 0);
+
+    let baseAmount = lastActiveSubscription.plan.pricing?.pricePerMonth ?? 0;
+    if (subscriptions.length > 1) {
+      baseAmount = subscriptions.reduce((acc, sub) => acc + sub.prorateBasePrice(billingPeriod), 0);
+    }
+
+    const totalAmount = baseAmount + additionalTotal;
+
+    return {
+      collectiveId,
+      baseAmount: baseAmount,
+      additional: {
+        utilization: additionalUtilization,
+        amounts: additionalUtilizationAmounts,
+        total: additionalTotal,
+      },
+      totalAmount: totalAmount,
+      billingPeriod,
+      subscriptions,
+      utilization,
+      dueDate,
     };
   }
 

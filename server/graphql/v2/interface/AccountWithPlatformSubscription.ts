@@ -1,5 +1,4 @@
 import { GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
-import moment from 'moment';
 
 import { Collective, PlatformSubscription } from '../../../models';
 import { GraphQLHostPlan } from '../object/HostPlan';
@@ -25,24 +24,14 @@ export const AccountWithPlatformSubscriptionFields = {
       },
     },
     async resolve(host, args) {
-      const billingPeriod = {
-        year: moment.utc().year(),
-        month: moment.utc().month() + 1,
-      };
+      const billingPeriod = PlatformSubscription.currentBillingPeriod();
 
       if (args.billingPeriod) {
         billingPeriod.year = args.billingPeriod.year;
         billingPeriod.month = args.billingPeriod.month;
       }
 
-      const subscriptions = await PlatformSubscription.getSubscriptionsInBillingPeriod(host.id, billingPeriod);
-      const utilization = await PlatformSubscription.calculateUtilization(host.id, billingPeriod);
-
-      return {
-        billingPeriod,
-        subscriptions,
-        utilization,
-      };
+      return PlatformSubscription.calculateBilling(host.id, billingPeriod);
     },
   },
   legacyPlan: {

@@ -10,12 +10,16 @@ import {
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
+import { Expense } from '../../../models';
 import PlatformSubscription, {
+  Billing,
   BillingMonth,
   BillingPeriod,
   UtilizationType,
 } from '../../../models/PlatformSubscription';
 
+import { GraphQLAmount } from './Amount';
+import { GraphQLExpense } from './Expense';
 import { GraphQLPlatformSubscriptionTier } from './PlatformSubscriptionTier';
 
 export const GraphQLPlatformSubscription = new GraphQLObjectType({
@@ -46,7 +50,53 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLPlatformSubscription))),
     },
     utilization: {
-      type: new GraphQLNonNull(GraphQLPlatformSubscriptionUtilization),
+      type: new GraphQLNonNull(GraphQLPlatformUtilization),
+    },
+    dueDate: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+    },
+    baseAmount: {
+      type: new GraphQLNonNull(GraphQLAmount),
+      resolve(billing: Billing) {
+        return { value: billing.baseAmount ?? 0, currency: 'USD' };
+      },
+    },
+    additional: {
+      type: new GraphQLNonNull(GraphQLPlatformBillingAdditional),
+      resolve(billing: Billing) {
+        return {
+          utilization: billing.additional.utilization,
+          amounts: Object.fromEntries(
+            Object.entries(billing.additional.amounts).map(([utilizationType, value]) => [
+              utilizationType,
+              {
+                value: value ?? 0,
+                currency: 'USD',
+              },
+            ]),
+          ),
+          total: { value: billing.additional.total ?? 0, currency: 'USD' },
+        };
+      },
+    },
+    totalAmount: {
+      type: new GraphQLNonNull(GraphQLAmount),
+      resolve(billing: Billing) {
+        return { value: billing.totalAmount ?? 0, currency: 'USD' };
+      },
+    },
+    expenses: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpense))),
+      resolve(billing: Billing) {
+        return Expense.findAll({
+          where: {
+            CollectiveId: billing.collectiveId,
+            data: {
+              isPlatformBilling: true,
+            },
+          },
+        });
+      },
     },
   }),
 });
@@ -115,18 +165,9 @@ const GraphQLPlatformBillingMonth = new GraphQLEnumType({
   }),
 });
 
-const GraphQLPlatformSubscriptionUtilization = new GraphQLObjectType({
-  name: 'PlatformSubscriptionUtilization',
+const GraphQLPlatformUtilization = new GraphQLObjectType({
+  name: 'PlatformUtilization',
   fields: () => ({
-    billingPeriod: {
-      type: new GraphQLNonNull(GraphQLPlatformBillingPeriod),
-    },
-    startDate: {
-      type: new GraphQLNonNull(GraphQLDateTime),
-    },
-    endDate: {
-      type: new GraphQLNonNull(GraphQLDateTime),
-    },
     ...Object.values(UtilizationType).reduce(
       (acc, utilizationType) => ({
         ...acc,
@@ -136,5 +177,33 @@ const GraphQLPlatformSubscriptionUtilization = new GraphQLObjectType({
       }),
       {},
     ),
+  }),
+});
+
+const GraphQLPlatformBillingAdditional = new GraphQLObjectType({
+  name: 'PlatformBillingAdditional',
+  fields: () => ({
+    total: {
+      type: new GraphQLNonNull(GraphQLAmount),
+    },
+    amounts: {
+      type: new GraphQLObjectType({
+        name: 'PlatformBillingAdditionalUtilizationCharges',
+        fields: () => ({
+          ...Object.values(UtilizationType).reduce(
+            (acc, utilizationType) => ({
+              ...acc,
+              [utilizationType]: {
+                type: new GraphQLNonNull(GraphQLAmount),
+              },
+            }),
+            {},
+          ),
+        }),
+      }),
+    },
+    utilization: {
+      type: new GraphQLNonNull(GraphQLPlatformUtilization),
+    },
   }),
 });
