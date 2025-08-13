@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { CommercialFeatures, CommercialFeaturesType } from '../../../constants/feature';
-import { PlatformSubscription } from '../../../models';
+import { PlatformSubscriptionTiers } from '../../../constants/plans';
 
 import { GraphQLAmount } from './Amount';
 
@@ -10,7 +10,7 @@ export const GraphQLPlatformSubscriptionTier = new GraphQLObjectType({
   description: 'Type for Platform Subscription Tier',
   fields: () => ({
     id: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
       description: 'The title of the subscription tier',
     },
     title: {
@@ -20,6 +20,10 @@ export const GraphQLPlatformSubscriptionTier = new GraphQLObjectType({
     type: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The type of the subscription tier (e.g., "basic", "premium")',
+    },
+    basePlanId: {
+      type: GraphQLString,
+      description: 'The ID of the base plan for this subscription tier',
     },
     pricing: {
       type: new GraphQLNonNull(
@@ -61,8 +65,8 @@ export const GraphQLPlatformSubscriptionTier = new GraphQLObjectType({
     },
     features: {
       type: new GraphQLNonNull(GraphQLPlatformSubscriptionFeatures),
-      resolve(platformSubscription: PlatformSubscription) {
-        return platformSubscription.plan?.features ?? {};
+      resolve: tier => {
+        return tier.features || PlatformSubscriptionTiers.find(t => t.id === tier.basePlanId)?.features || {};
       },
     },
   }),

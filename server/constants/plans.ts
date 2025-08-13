@@ -226,6 +226,7 @@ export interface PlatformSubscriptionPlan {
   id: string;
   title: string;
   type: PlatformSubscriptionTierTypes;
+  basePlanId: string;
   pricing: {
     /** The monthly price in the smallest currency unit (e.g., cents) */
     pricePerMonth: number;
@@ -285,7 +286,7 @@ const featuresForBasic = Object.fromEntries(
 
 const featuresForPro = Object.fromEntries(CommercialFeatures.map(feature => [feature, proFeatures.includes(feature)]));
 
-export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
+export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlanId'>[] = [
   // Free
   {
     id: 'discover-1',
@@ -294,9 +295,9 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     pricing: {
       pricePerMonth: 0,
       includedCollectives: 1,
-      pricePerAdditionalCollective: 999,
+      pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 10,
-      pricePerAdditionalExpense: 99,
+      pricePerAdditionalExpense: 100,
     },
     features: featuresForStarter,
   },
@@ -305,11 +306,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Discover 3',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
-      pricePerMonth: 1900,
+      pricePerMonth: 2000,
       includedCollectives: 3,
-      pricePerAdditionalCollective: 999,
+      pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 30,
-      pricePerAdditionalExpense: 99,
+      pricePerAdditionalExpense: 100,
     },
     features: featuresForStarter,
   },
@@ -318,11 +319,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Discover 5',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
-      pricePerMonth: 3900,
+      pricePerMonth: 4000,
       includedCollectives: 5,
-      pricePerAdditionalCollective: 999,
+      pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 50,
-      pricePerAdditionalExpense: 99,
+      pricePerAdditionalExpense: 100,
     },
     features: featuresForStarter,
   },
@@ -331,11 +332,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Discover 10',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
-      pricePerMonth: 8900,
+      pricePerMonth: 9000,
       includedCollectives: 10,
-      pricePerAdditionalCollective: 999,
+      pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 100,
-      pricePerAdditionalExpense: 99,
+      pricePerAdditionalExpense: 100,
     },
     features: featuresForStarter,
   },
@@ -345,11 +346,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Basic 5',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 4900,
+      pricePerMonth: 5000,
       includedCollectives: 5,
-      pricePerAdditionalCollective: 1499,
+      pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 50,
-      pricePerAdditionalExpense: 149,
+      pricePerAdditionalExpense: 150,
     },
     features: featuresForBasic,
   },
@@ -358,11 +359,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Basic 10',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 12900,
+      pricePerMonth: 13000,
       includedCollectives: 10,
-      pricePerAdditionalCollective: 1499,
+      pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 100,
-      pricePerAdditionalExpense: 149,
+      pricePerAdditionalExpense: 150,
     },
     features: featuresForBasic,
   },
@@ -371,11 +372,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Basic 20',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 26900,
+      pricePerMonth: 27000,
       includedCollectives: 20,
-      pricePerAdditionalCollective: 1499,
+      pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 200,
-      pricePerAdditionalExpense: 149,
+      pricePerAdditionalExpense: 150,
     },
     features: featuresForBasic,
   },
@@ -384,11 +385,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Basic 50',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 64900,
+      pricePerMonth: 65000,
       includedCollectives: 50,
-      pricePerAdditionalCollective: 1499,
+      pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 500,
-      pricePerAdditionalExpense: 149,
+      pricePerAdditionalExpense: 150,
     },
     features: featuresForBasic,
   },
@@ -398,11 +399,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Pro 20',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 34900,
+      pricePerMonth: 35000,
       includedCollectives: 20,
-      pricePerAdditionalCollective: 1999,
+      pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 200,
-      pricePerAdditionalExpense: 199,
+      pricePerAdditionalExpense: 200,
     },
     features: featuresForPro,
   },
@@ -411,11 +412,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Pro 50',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 89900,
+      pricePerMonth: 90000,
       includedCollectives: 50,
-      pricePerAdditionalCollective: 1999,
+      pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 500,
-      pricePerAdditionalExpense: 199,
+      pricePerAdditionalExpense: 200,
     },
     features: featuresForPro,
   },
@@ -424,11 +425,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Pro 100',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 179900,
+      pricePerMonth: 180000,
       includedCollectives: 100,
-      pricePerAdditionalCollective: 1999,
+      pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 1000,
-      pricePerAdditionalExpense: 199,
+      pricePerAdditionalExpense: 200,
     },
     features: featuresForPro,
   },
@@ -437,11 +438,11 @@ export const PlatformSubscriptionTiers: PlatformSubscriptionPlan[] = [
     title: 'Pro 200',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 349900,
+      pricePerMonth: 350000,
       includedCollectives: 200,
-      pricePerAdditionalCollective: 1999,
+      pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 2000,
-      pricePerAdditionalExpense: 199,
+      pricePerAdditionalExpense: 200,
     },
     features: featuresForPro,
   },

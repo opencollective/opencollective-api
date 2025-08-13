@@ -98,7 +98,7 @@ const AccountsCollectionQuery = {
       type: new GraphQLList(GraphQLString),
       description: 'Filter by the plan slug of the account',
     },
-    isSubscriber: {
+    isPlatformSubscriber: {
       type: GraphQLBoolean,
       description: 'Filter accounts that are subscribers to the platform',
     },
@@ -141,7 +141,7 @@ const AccountsCollectionQuery = {
       isRoot: req.remoteUser?.isRoot() || false,
       onlyOpenHosts: args.onlyOpenToApplications ? true : null,
       plan: args.plan,
-      isSubscriber: args.isSubscriber,
+      isPlatformSubscriber: args.isPlatformSubscriber,
       isVerified: args.isVerified,
       isFirstPartyHost: args.isFirstPartyHost,
     };

@@ -30,6 +30,7 @@ const platformSubscriptionMutations = {
         const plan: Partial<PlatformSubscriptionPlan> = {
           title: args.subscription.plan.title,
           type: args.subscription.plan.type,
+          basePlanId: args.subscription.plan.basePlanId,
           pricing: {
             pricePerMonth: args.subscription.plan.pricing.pricePerMonth.valueInCents,
             pricePerAdditionalCollective: args.subscription.plan.pricing.pricePerAdditionalCollective.valueInCents,
@@ -37,6 +38,7 @@ const platformSubscriptionMutations = {
             includedCollectives: args.subscription.plan.pricing.includedCollectives,
             includedExpensesPerMonth: args.subscription.plan.pricing.includedExpensesPerMonth,
           },
+          features: args.subscription.plan.features,
         };
         assert(
           args.subscription.plan.pricing.pricePerMonth.currency === 'USD',
