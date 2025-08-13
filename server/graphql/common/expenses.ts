@@ -826,6 +826,8 @@ export const canPayExpense: ExpensePermissionEvaluator = async (
       );
     }
     return false;
+  } else if (expense.type === ExpenseType.CHARGE) {
+    return false;
   } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
@@ -856,6 +858,8 @@ export const canApprove: ExpensePermissionEvaluator = async (
         EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
       );
     }
+    return false;
+  } else if (expense.type === ExpenseType.CHARGE) {
     return false;
   } else if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
@@ -1074,6 +1078,8 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
       );
     }
     return false;
+  } else if (expense.type === ExpenseType.CHARGE) {
+    return false;
   } else if (
     ![ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED, ExpenseStatus.ERROR].includes(expense.status as ExpenseStatus)
   ) {
@@ -1222,7 +1228,7 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else if (expense.type === ExpenseType.CHARGE) {
+  } else if (expense.type === ExpenseType.CHARGE && !req.remoteUser?.isRoot()) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark this type of expense as unpaid',

@@ -1169,11 +1169,11 @@ describe('server/graphql/common/expenses', () => {
         await expense.update({ status: 'PENDING' });
         expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
         await expense.update({ status: 'APPROVED' });
-        expect(await canPayExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canPayExpense(req.hostAdmin, expense)).to.eq(context.expense.type !== 'CHARGE');
         await expense.update({ status: 'PROCESSING' });
         expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
         await expense.update({ status: 'ERROR' });
-        expect(await canPayExpense(req.hostAdmin, expense)).to.be.true;
+        expect(await canPayExpense(req.hostAdmin, expense)).to.eq(context.expense.type !== 'CHARGE');
         await expense.update({ status: 'PAID' });
         expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
         await expense.update({ status: 'REJECTED' });
@@ -1189,7 +1189,7 @@ describe('server/graphql/common/expenses', () => {
           public: false,
           randomUser: false,
           collectiveAdmin: context.isSelfHosted ? true : false,
-          hostAdmin: true,
+          hostAdmin: expense.type !== 'CHARGE',
           expenseOwner: false,
           limitedHostAdmin: false,
           collectiveAccountant: false,
@@ -1223,8 +1223,8 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canApprove, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
-          hostAdmin: true,
+          collectiveAdmin: context.expense.type !== 'CHARGE',
+          hostAdmin: context.expense.type !== 'CHARGE',
           expenseOwner: false,
           limitedHostAdmin: false,
           collectiveAccountant: false,
@@ -1411,8 +1411,8 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canUnapprove, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: true,
-          hostAdmin: true,
+          collectiveAdmin: context.expense.type !== 'CHARGE',
+          hostAdmin: context.expense.type !== 'CHARGE',
           expenseOwner: false,
           limitedHostAdmin: false,
           collectiveAccountant: false,
