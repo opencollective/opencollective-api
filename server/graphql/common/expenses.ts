@@ -960,7 +960,7 @@ export const canReject: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    if (expense.type === ExpenseType.SETTLEMENT) {
+    if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
       return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
     }
 
@@ -1139,10 +1139,10 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else if (expense.type === ExpenseType.SETTLEMENT) {
+  } else if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
     if (options?.throw) {
       throw new Forbidden(
-        `Can not mark settlement expense as incomplete`,
+        `Can not mark platform expense as incomplete`,
         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
       );
     }
@@ -1245,7 +1245,7 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    if (expense.type === ExpenseType.SETTLEMENT) {
+    if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
       return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
     }
 
@@ -1350,9 +1350,9 @@ export const canPutOnHold: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else if (expense.type === ExpenseType.SETTLEMENT) {
+  } else if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
     if (options?.throw) {
-      throw new Forbidden(`Can not put settlement expense on hold`, EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+      throw new Forbidden(`Can not put platform expense on hold`, EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
     return false;
   }
@@ -1710,15 +1710,17 @@ const checkExpenseType = (
       throw new ValidationFailed('Cannot manually change the type of an expense to "Charge"');
     } else if (newType === ExpenseType.SETTLEMENT) {
       throw new ValidationFailed('Cannot manually change the type of an expense to "Settlement"');
+    } else if (newType === ExpenseType.PLATFORM_BILLING) {
+      throw new ValidationFailed('Cannot manually change the type of an expense to "Platform billing"');
     }
   }
 
   // Settlements are only allowed for platform admins
-  if (!existingExpense && newType === ExpenseType.SETTLEMENT) {
+  if (!existingExpense && [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(newType)) {
     if (!remoteUser?.isAdminOfPlatform()) {
-      throw new ValidationFailed('Only platform admins can create settlements');
+      throw new ValidationFailed('Only platform admins can create platform expenses');
     } else if (fromAccount.id !== PlatformConstants.PlatformCollectiveId) {
-      throw new ValidationFailed('Settlements can only be created for the platform account');
+      throw new ValidationFailed('Platform expenses can only be created for the platform account');
     }
   }
 
@@ -2258,7 +2260,10 @@ export async function createExpense(
       ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
       : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
-  if (payoutMethod?.type === PayoutMethodTypes.STRIPE && expenseData.type !== ExpenseType.SETTLEMENT) {
+  if (
+    payoutMethod?.type === PayoutMethodTypes.STRIPE &&
+    ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expenseData.type)
+  ) {
     throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
   }
 
@@ -2976,7 +2981,10 @@ export async function editExpense(
           ? await fromCollective.getPayoutMethods().then(first)
           : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
-      if (payoutMethod?.type === PayoutMethodTypes.STRIPE && expenseType !== ExpenseType.SETTLEMENT) {
+      if (
+        payoutMethod?.type === PayoutMethodTypes.STRIPE &&
+        ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expenseType)
+      ) {
         throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
       }
 
@@ -3535,7 +3543,10 @@ export const checkHasBalanceToPayExpense = async (
     assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
     const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
     const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
-    if (expense.type !== ExpenseType.SETTLEMENT && balanceInHostCurrency < totalAmountPaidInHostCurrency) {
+    if (
+      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type) &&
+      balanceInHostCurrency < totalAmountPaidInHostCurrency
+    ) {
       throw new Error(
         `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
           balanceInHostCurrency,
@@ -3598,7 +3609,7 @@ export const checkHasBalanceToPayExpense = async (
     }
   };
 
-  if (expense.type !== ExpenseType.SETTLEMENT) {
+  if (![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
     // Check base balance before fees
     assertMinExpectedBalance(expense.amount);
   }
@@ -3619,7 +3630,7 @@ export const checkHasBalanceToPayExpense = async (
     throw new Error(`Expense fee payer "${expense.feesPayer}" not supported yet`);
   }
 
-  if (expense.type !== ExpenseType.SETTLEMENT) {
+  if (![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
     // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
     // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
     assertMinExpectedBalance(totalAmountToPay, feesInExpenseCurrency.paymentProcessorFee);

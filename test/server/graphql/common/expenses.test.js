@@ -78,6 +78,7 @@ describe('server/graphql/common/expenses', () => {
     selfHosted: cloneDeep(contextShape),
     virtualCard: cloneDeep(contextShape),
     settlement: cloneDeep(contextShape),
+    platformBilling: cloneDeep(contextShape),
     collectiveWithSpecialPayoutPolicy: cloneDeep(contextShape),
   };
 
@@ -175,6 +176,16 @@ describe('server/graphql/common/expenses', () => {
       FromCollectiveId: PlatformConstants.PlatformCollectiveId,
     });
     contexts.settlement.expense.fromCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+
+    contexts.platformBilling = await prepareContext({
+      name: 'platformBilling',
+    });
+
+    await contexts.platformBilling.expense.update({
+      type: 'PLATFORM_BILLING',
+      FromCollectiveId: PlatformConstants.PlatformCollectiveId,
+    });
+    contexts.platformBilling.expense.fromCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
   });
 
   beforeEach(async () => {
@@ -231,7 +242,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: true,
             limitedHostAdmin: false,
             expenseOwner: true,
-            platformAdmin: context.name === 'settlement',
+            platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
           });
         });
       });
@@ -252,7 +263,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: true,
             expenseOwner: true,
             limitedHostAdmin: false,
-            platformAdmin: context.name === 'settlement',
+            platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
           });
         });
       });
@@ -271,7 +282,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: true,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -289,7 +300,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: true,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -307,7 +318,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: true,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -427,7 +438,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -469,7 +480,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -505,7 +516,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -541,7 +552,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
-            platformAdmin: context.name === 'settlement',
+            platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
           });
 
           await expense.update({ status: 'PENDING', type: 'INVOICE' });
@@ -554,7 +565,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
-            platformAdmin: context.name === 'settlement',
+            platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
           });
 
           await expense.update({ status: 'PENDING', type: 'UNCLASSIFIED' });
@@ -664,7 +675,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
-            platformAdmin: context.name === 'settlement',
+            platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
           });
 
           await expense.update({ status: 'INCOMPLETE', type: 'INVOICE' });
@@ -677,7 +688,7 @@ describe('server/graphql/common/expenses', () => {
             hostAccountant: false,
             expenseOwner: true,
             limitedHostAdmin: false,
-            platformAdmin: context.name === 'settlement',
+            platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
           });
 
           await expense.update({ status: 'INCOMPLETE', type: 'UNCLASSIFIED' });
@@ -734,7 +745,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -772,7 +783,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -817,7 +828,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -862,7 +873,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -912,7 +923,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -972,7 +983,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -1122,7 +1133,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -1140,7 +1151,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
 
@@ -1156,7 +1167,7 @@ describe('server/graphql/common/expenses', () => {
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -1491,7 +1502,7 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
           collectiveAccountant: true,
           hostAccountant: true,
-          platformAdmin: context.name === 'settlement',
+          platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
     });
@@ -1585,7 +1596,7 @@ describe('server/graphql/common/expenses', () => {
             limitedHostAdmin: false,
             collectiveAccountant: false,
             hostAccountant: false,
-            platformAdmin: context.name === 'settlement',
+            platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
           });
         },
         {
