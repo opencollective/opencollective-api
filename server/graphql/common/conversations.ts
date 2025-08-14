@@ -32,7 +32,7 @@ export const createConversation = async (req: Request, params: CreateConversatio
   const collective = await req.loaders.Collective.byId.load(CollectiveId);
   if (!collective) {
     throw new Error("This Collective doesn't exist or has been deleted");
-  } else if (!hasFeature(collective, FEATURE.CONVERSATIONS)) {
+  } else if (!(await hasFeature(collective, FEATURE.CONVERSATIONS, { loaders: req.loaders }))) {
     throw new FeatureNotSupportedForCollective();
   }
 

@@ -118,6 +118,7 @@ export const CommercialFeatures = [
   FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
   FEATURE.RECEIVE_EXPENSES,
   FEATURE.ACCOUNT_MANAGEMENT,
+  FEATURE.OFF_PLATFORM_TRANSACTIONS,
 ] as const;
 
 export type CommercialFeaturesType = (typeof CommercialFeatures)[number];

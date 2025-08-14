@@ -20,6 +20,7 @@ import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import PlatformConstants from '../../constants/platform';
 import roles from '../../constants/roles';
+import { hasFeature } from '../../lib/allowed-features';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import logger from '../../lib/logger';
@@ -974,8 +975,8 @@ const CollectiveFields = () => {
     canContact: {
       description: 'Returns whether this collectives can be contacted',
       type: GraphQLBoolean,
-      resolve(collective) {
-        return collective.canContact();
+      async resolve(collective, _, req) {
+        return hasFeature(collective, FEATURE.CONTACT_FORM, { loaders: req.loaders });
       },
     },
     isIncognito: {
