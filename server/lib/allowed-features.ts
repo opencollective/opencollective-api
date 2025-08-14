@@ -3,6 +3,7 @@ import { get, omit } from 'lodash';
 import { CollectiveType } from '../constants/collectives';
 import FEATURE from '../constants/feature';
 import PlatformConstants from '../constants/platform';
+import { Forbidden } from '../graphql/errors';
 import { Collective } from '../models';
 
 type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
@@ -200,22 +201,28 @@ const checkFeatureAccessParty = (
  * @param feature - The feature to check the access for.
  * @returns The access level for the feature.
  */
-export const getFeatureAccess = (collective: Collective, feature: FEATURE | `${FEATURE}`): FEATURE_ACCESS => {
+export const getFeatureAccess = (
+  collective: Collective,
+  feature: FEATURE | `${FEATURE}`,
+): {
+  access: FEATURE_ACCESS;
+  reason: 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'OPT_IN' | null;
+} => {
   if (!collective) {
-    return 'UNSUPPORTED';
+    return { access: 'UNSUPPORTED', reason: null };
   } else if (isFeatureBlockedForAccount(collective, feature)) {
-    return 'DISABLED';
+    return { access: 'DISABLED', reason: 'BLOCKED' };
   }
 
   // No config => feature is allowed by default
   const featureAccess = FeaturesAccess[feature];
   if (!featureAccess) {
-    return 'AVAILABLE';
+    return { access: 'AVAILABLE', reason: null };
   }
 
   // Account types
   if (featureAccess.accountTypes && !featureAccess.accountTypes.includes(collective.type)) {
-    return 'UNSUPPORTED';
+    return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
   }
 
   // Check opt-out flag
@@ -223,17 +230,17 @@ export const getFeatureAccess = (collective: Collective, feature: FEATURE | `${F
     get(collective, `data.features.${feature}`) === false ||
     (featureAccess.flagOverride && get(collective, featureAccess.flagOverride) === false)
   ) {
-    return 'DISABLED';
+    return { access: 'DISABLED', reason: 'BLOCKED' };
   }
 
   // Check if only allowed for a specific party
   if (featureAccess.onlyAllowedFor && !checkFeatureAccessParty(collective, featureAccess.onlyAllowedFor)) {
-    return 'UNSUPPORTED';
+    return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
   }
 
   // Check if enabled by default
   if (featureAccess.enabledByDefaultFor && checkFeatureAccessParty(collective, featureAccess.enabledByDefaultFor)) {
-    return 'AVAILABLE';
+    return { access: 'AVAILABLE', reason: null };
   }
 
   // Check opt-in flag
@@ -242,17 +249,35 @@ export const getFeatureAccess = (collective: Collective, feature: FEATURE | `${F
     !get(collective, `data.features.${feature}`) &&
     !(featureAccess.flagOverride && get(collective, featureAccess.flagOverride))
   ) {
-    return 'DISABLED';
+    return { access: 'DISABLED', reason: 'OPT_IN' };
   }
 
-  return 'AVAILABLE';
+  return { access: 'AVAILABLE', reason: null };
 };
 
 /**
  * A small wrapper around `getFeatureAccess` to check if a feature is available for a collective.
  */
 export const hasFeature = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
-  return getFeatureAccess(collective, feature) === 'AVAILABLE';
+  const { access } = getFeatureAccess(collective, feature);
+  return access === 'AVAILABLE';
+};
+
+/**
+ * A wrapper around `getFeatureAccess` that throws the right error (if any) based on the access level.
+ */
+export const checkFeatureAccess = async (collective: Collective, feature: FEATURE | `${FEATURE}`): Promise<void> => {
+  const { access, reason } = getFeatureAccess(collective, feature);
+  switch (access) {
+    case 'UNSUPPORTED':
+      throw new Forbidden(
+        reason === 'PRICING'
+          ? 'This feature is not available in your current plan'
+          : 'This feature is not supported for your account type',
+      );
+    case 'DISABLED':
+      throw new Forbidden('This feature is not enabled for your account');
+  }
 };
 
 export const getCollectiveFeaturesMap = (collective: Collective) => {
@@ -261,7 +286,10 @@ export const getCollectiveFeaturesMap = (collective: Collective) => {
       feature,
       getFeatureAccess(collective, feature as FEATURE),
     ]),
-  ) as Record<Exclude<FEATURE, FEATURE.ALL>, FEATURE_ACCESS>;
+  ) as Record<
+    Exclude<FEATURE, FEATURE.ALL>,
+    { access: FEATURE_ACCESS; reason: 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'OPT_IN' | null }
+  >;
 };
 
 export { FEATURE };
