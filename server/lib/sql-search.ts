@@ -252,7 +252,7 @@ export const searchCollectivesInDB = async (
     types?: string[];
     consolidatedBalance?: AmountRangeInputType;
     isRoot?: boolean;
-    isSubscriber?: boolean;
+    isPlatformSubscriber?: boolean;
     plan?: string[];
     isVerified?: boolean;
     isFirstPartyHost?: boolean;
@@ -301,8 +301,8 @@ export const searchCollectivesInDB = async (
     dynamicConditions += 'AND c."type" != \'VENDOR\' ';
   }
 
-  if (!isNil(args.isSubscriber)) {
-    dynamicConditions += args.isSubscriber ? `AND c."plan" IS NOT NULL ` : `AND c."plan" IS NULL `;
+  if (!isNil(args.isPlatformSubscriber)) {
+    dynamicConditions += `AND EXISTS (SELECT 1 FROM "PlatformSubscriptions" WHERE "CollectiveId" = c.id AND period @> NOW() AND "deletedAt" IS NULL) `;
   }
 
   if (!isUndefined(args.plan)) {

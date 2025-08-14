@@ -1,6 +1,22 @@
-import { GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { CommercialFeatures } from '../../../constants/feature';
 import { GraphQLAmountInput } from '../input/AmountInput';
+
+const GraphQLPlatformSubscriptionFeaturesInput = new GraphQLInputObjectType({
+  name: 'PlatformSubscriptionFeaturesFeatures',
+  fields: () => ({
+    ...CommercialFeatures.reduce(
+      (acc, feature) => ({
+        ...acc,
+        [feature]: {
+          type: new GraphQLNonNull(GraphQLBoolean),
+        },
+      }),
+      {},
+    ),
+  }),
+});
 
 const GraphQLPlatformSubscriptionPlanInput = new GraphQLInputObjectType({
   name: 'PlatformSubscriptionPlanInput',
@@ -12,6 +28,14 @@ const GraphQLPlatformSubscriptionPlanInput = new GraphQLInputObjectType({
     type: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The type of the subscription plan (e.g., "basic", "premium")',
+    },
+    basePlanId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'The ID of the base plan for this subscription tier',
+    },
+    features: {
+      type: GraphQLPlatformSubscriptionFeaturesInput,
+      description: 'Features included in this subscription plan',
     },
     pricing: {
       type: new GraphQLNonNull(
