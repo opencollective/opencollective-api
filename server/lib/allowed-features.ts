@@ -45,9 +45,6 @@ const FeaturesAccess: Partial<
     }
   >
 > = {
-  [FEATURE.AGREEMENTS]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
-  },
   [FEATURE.ALIPAY]: {
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
