@@ -1,8 +1,8 @@
 import assert from 'assert';
 
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { PlatformSubscriptionPlan } from '../../../constants/plans';
+import { PlatformSubscriptionPlan, PlatformSubscriptionTiers } from '../../../constants/plans';
 import { Collective, PlatformSubscription } from '../../../models';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPlatformSubscriptionInput } from '../input/PlatformSubcriptionInput';
@@ -16,8 +16,11 @@ const platformSubscriptionMutations = {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to update the platform subscription for',
       },
+      planId: {
+        type: GraphQLString,
+      },
       subscription: {
-        type: new GraphQLNonNull(GraphQLPlatformSubscriptionInput),
+        type: GraphQLPlatformSubscriptionInput,
         description: 'The new platform subscription tier to apply to the account',
       },
     },
@@ -26,20 +29,22 @@ const platformSubscriptionMutations = {
         throw new Error('You need to be logged in to update a platform subscription');
       }
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
-      if (req.remoteUser.isRoot()) {
-        const plan: Partial<PlatformSubscriptionPlan> = {
-          title: args.subscription.plan.title,
-          type: args.subscription.plan.type,
-          basePlanId: args.subscription.plan.basePlanId,
-          pricing: {
-            pricePerMonth: args.subscription.plan.pricing.pricePerMonth.valueInCents,
-            pricePerAdditionalCollective: args.subscription.plan.pricing.pricePerAdditionalCollective.valueInCents,
-            pricePerAdditionalExpense: args.subscription.plan.pricing.pricePerAdditionalExpense.valueInCents,
-            includedCollectives: args.subscription.plan.pricing.includedCollectives,
-            includedExpensesPerMonth: args.subscription.plan.pricing.includedExpensesPerMonth,
-          },
-          features: args.subscription.plan.features,
-        };
+
+      let plan: Partial<PlatformSubscriptionPlan>;
+      if (args.planId) {
+        plan = PlatformSubscriptionTiers.find(plan => plan.id === args.planId);
+        if (!plan) {
+          throw new Error('Invalid plan ID');
+        }
+
+        if (!req.remoteUser.isRoot() && !req.remoteUser.isAdminOfCollective(account)) {
+          throw new Error('User cannot update subscription');
+        }
+      } else {
+        if (!req.remoteUser.isRoot()) {
+          throw new Error('Only root users can set custom platform plans');
+        }
+
         assert(
           args.subscription.plan.pricing.pricePerMonth.currency === 'USD',
           'Only USD is supported for platform subscription pricing',
@@ -52,12 +57,24 @@ const platformSubscriptionMutations = {
           args.subscription.plan.pricing.pricePerAdditionalExpense.currency === 'USD',
           'Only USD is supported for platform subscription pricing',
         );
-        await PlatformSubscription.replaceCurrentSubscription(account.id, new Date(), plan);
-        await account.update({ plan: null });
-        return account;
-      } else {
-        throw new Error('Not implemented: Only root users can update platform subscriptions');
+
+        plan = {
+          title: args.subscription.plan.title,
+          type: args.subscription.plan.type,
+          basePlanId: args.subscription.plan.basePlanId,
+          pricing: {
+            pricePerMonth: args.subscription.plan.pricing.pricePerMonth.valueInCents,
+            pricePerAdditionalCollective: args.subscription.plan.pricing.pricePerAdditionalCollective.valueInCents,
+            pricePerAdditionalExpense: args.subscription.plan.pricing.pricePerAdditionalExpense.valueInCents,
+            includedCollectives: args.subscription.plan.pricing.includedCollectives,
+            includedExpensesPerMonth: args.subscription.plan.pricing.includedExpensesPerMonth,
+          },
+          features: args.subscription.plan.features,
+        };
       }
+
+      await PlatformSubscription.replaceCurrentSubscription(account.id, new Date(), plan);
+      return account.update({ plan: null });
     },
   },
 };
