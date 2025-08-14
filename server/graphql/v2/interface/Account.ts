@@ -8,6 +8,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
+import { hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -440,7 +441,18 @@ const accountFieldsDefinition = () => ({
       const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
       const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
       const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
-      return Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
+      const supportedFromConfig = Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
+      if (supportedFromConfig.includes('GRANT')) {
+        const hasGrantsFeature = await hasFeature(collective, FEATURE.FUNDS_GRANTS_MANAGEMENT, {
+          loaders: req.loaders,
+        });
+
+        if (!hasGrantsFeature) {
+          return supportedFromConfig.filter(type => type !== 'GRANT');
+        }
+      }
+
+      return supportedFromConfig;
     },
   },
   transferwise: {

@@ -412,7 +412,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isSuspended: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is suspended' },
       isGuest: { type: GraphQLBoolean },
       canApply: { type: GraphQLBoolean },
-      canContact: { type: GraphQLBoolean },
+      canContact: { type: new GraphQLNonNull(GraphQLBoolean) },
       isArchived: { type: GraphQLBoolean },
       isApproved: { type: GraphQLBoolean },
       isDeletable: { type: GraphQLBoolean },
@@ -974,7 +974,7 @@ const CollectiveFields = () => {
     },
     canContact: {
       description: 'Returns whether this collectives can be contacted',
-      type: GraphQLBoolean,
+      type: new GraphQLNonNull(GraphQLBoolean),
       async resolve(collective, _, req) {
         return hasFeature(collective, FEATURE.CONTACT_FORM, { loaders: req.loaders });
       },
@@ -1443,7 +1443,17 @@ const CollectiveFields = () => {
         const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
         const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
         const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
-        return Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
+        const supportedFromConfig = Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
+        if (supportedFromConfig.includes('GRANT')) {
+          const hasGrantsFeature = await hasFeature(collective, FEATURE.FUNDS_GRANTS_MANAGEMENT, {
+            loaders: req.loaders,
+          });
+          if (!hasGrantsFeature) {
+            return supportedFromConfig.filter(type => type !== 'GRANT');
+          }
+        }
+
+        return supportedFromConfig;
       },
     },
     role: {
