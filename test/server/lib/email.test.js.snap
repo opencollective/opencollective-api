@@ -83,7 +83,7 @@ exports[`server/lib/email Sending emails sends the order.processed.fr email temp
       Come chat with us on our public
       <a href=\\"https://discord.opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">Discord</a>.
       <br><br>
-      Made with ❤️ from <a href=\\"https://docs.opencollective.com/help/about/team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
+      Made with ❤️ from <a href=\\"https://documentation.opencollective.com/our-organization/our-team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
     </td>
   </tr>
   <tr>
@@ -135,7 +135,7 @@ To unsubscribe from \\"thank you for your contribution\\", click here
 Come chat with us on our public Discord [https://discord.opencollective.com].
 
 Made with ❤️ from all over the world
-[https://docs.opencollective.com/help/about/team]"
+[https://documentation.opencollective.com/our-organization/our-team]"
 `;
 
 exports[`server/lib/email render Automatically generates text version 1`] = `
@@ -222,7 +222,7 @@ exports[`server/lib/email render Automatically generates text version 1`] = `
     Come chat with us on our public
     <a href=\\"https://discord.opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">Discord</a>.
     <br><br>
-    Made with ❤️ from <a href=\\"https://docs.opencollective.com/help/about/team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
+    Made with ❤️ from <a href=\\"https://documentation.opencollective.com/our-organization/our-team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
   </td>
 </tr>
 <tr>
@@ -281,5 +281,5 @@ We can do great things together
 Come chat with us on our public Discord [https://discord.opencollective.com].
 
 Made with ❤️ from all over the world
-[https://docs.opencollective.com/help/about/team]"
+[https://documentation.opencollective.com/our-organization/our-team]"
 `;
