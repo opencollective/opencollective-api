@@ -661,7 +661,7 @@ const accountMutations = {
           case 'currency': {
             previousData['currency'] = account.currency;
             newData['currency'] = args.account.currency;
-            await account.setCurrency(args.account.currency);
+            await account.updateCurrency(args.account.currency, req.remoteUser);
             break;
           }
           case 'hostFeePercent': {
