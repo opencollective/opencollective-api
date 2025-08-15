@@ -176,6 +176,7 @@ const expenseMutations = {
             ExpenseId: expense.id,
             html: args.privateComment,
             type: CommentType.PRIVATE_NOTE,
+            isCreateExpense: true,
           },
           req,
         );
