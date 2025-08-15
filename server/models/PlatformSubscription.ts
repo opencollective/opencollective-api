@@ -39,18 +39,18 @@ export type Billing = {
 };
 
 export enum BillingMonth {
-  JANUARY = 1,
-  FEBRUARY = 2,
-  MARCH = 3,
-  APRIL = 4,
-  MAY = 5,
-  JUNE = 6,
-  JULY = 7,
-  AUGUST = 8,
-  SEPTEMBER = 9,
-  OCTOBER = 10,
-  NOVEMBER = 11,
-  DECEMBER = 12,
+  JANUARY = 0,
+  FEBRUARY = 1,
+  MARCH = 2,
+  APRIL = 3,
+  MAY = 4,
+  JUNE = 5,
+  JULY = 6,
+  AUGUST = 7,
+  SEPTEMBER = 8,
+  OCTOBER = 9,
+  NOVEMBER = 10,
+  DECEMBER = 11,
 }
 
 export type BillingPeriod = {
@@ -206,7 +206,7 @@ class PlatformSubscription extends Model<
   static currentBillingPeriod(): BillingPeriod {
     return {
       year: moment.utc().year(),
-      month: moment.utc().month() + 1,
+      month: moment.utc().month(),
     };
   }
 
@@ -217,7 +217,7 @@ class PlatformSubscription extends Model<
       billingPeriod,
     });
     const dueDate = moment
-      .utc(new Date(Date.UTC(billingPeriod.year, billingPeriod.month - 1)))
+      .utc(new Date(Date.UTC(billingPeriod.year, billingPeriod.month)))
       .add(1, 'month')
       .startOf('month')
       .toDate();
@@ -292,18 +292,12 @@ class PlatformSubscription extends Model<
   static getBillingPeriodRange(billingPeriod: BillingPeriod): Range<Date> {
     const start = {
       inclusive: true,
-      value: moment
-        .utc(Date.UTC(billingPeriod.year, billingPeriod.month - 1))
-        .startOf('month')
-        .toDate(),
+      value: moment.utc(Date.UTC(billingPeriod.year, billingPeriod.month)).startOf('month').toDate(),
     };
 
     const end = {
       inclusive: true,
-      value: moment
-        .utc(Date.UTC(billingPeriod.year, billingPeriod.month - 1))
-        .endOf('month')
-        .toDate(),
+      value: moment.utc(Date.UTC(billingPeriod.year, billingPeriod.month)).endOf('month').toDate(),
     };
 
     return [start, end];
