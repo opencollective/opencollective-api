@@ -11,6 +11,7 @@ enum ExpenseTypes {
   UNCLASSIFIED = 'UNCLASSIFIED',
   CHARGE = 'CHARGE',
   SETTLEMENT = 'SETTLEMENT',
+  PLATFORM_BILLING = 'PLATFORM_BILLING',
 }
 
 export default ExpenseTypes;

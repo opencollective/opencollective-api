@@ -3,6 +3,7 @@ import moment from 'moment';
 
 import { activities } from '../../../server/constants';
 import ExpenseStatuses from '../../../server/constants/expense-status';
+import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
 import { PlatformSubscription } from '../../../server/models';
 import { BillingMonth, BillingPeriod, UtilizationType } from '../../../server/models/PlatformSubscription';
 import {
@@ -406,6 +407,89 @@ describe('server/models/PlatformSubscriptions', () => {
       );
       const collective3Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod(collective3.id, billingPeriod);
       expect(collective3Subs[0].id).to.eql(collective3Sub1.id);
+    });
+
+    it('calculates utilization and charges for billing period with two subs', async () => {
+      const billingPeriod = {
+        year: 2016,
+        month: BillingMonth.JANUARY,
+      };
+
+      const host = await fakeActiveHost();
+      await PlatformSubscription.createSubscription(
+        host.id,
+        new Date(Date.UTC(2016, 0, 1)),
+        PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5'),
+      );
+
+      // create 10 active collectives
+      for (let i = 0; i < 10; i++) {
+        const col = await fakeCollective({ HostCollectiveId: host.id });
+        await fakeTransaction({
+          HostCollectiveId: host.id,
+          CollectiveId: col.id,
+          createdAt: new Date(Date.UTC(2016, 0, 20)),
+        });
+      }
+
+      const col = await fakeCollective({ HostCollectiveId: host.id });
+      // 60 paid expenses
+      for (let i = 0; i < 60; i++) {
+        await fakeExpensePaidWithActivity({
+          HostCollectiveId: host.id,
+          CollectiveId: col.id,
+          createdAt: new Date(Date.UTC(2016, 0, 2)),
+          status: ExpenseStatuses.PAID,
+        });
+      }
+
+      let billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+      expect(billing).to.containSubset({
+        additional: {
+          amounts: {
+            activeCollectives: 7500,
+            expensesPaid: 1500,
+          },
+          utilization: {
+            activeCollectives: 5,
+            expensesPaid: 10,
+          },
+          total: 9000,
+        },
+        utilization: {
+          activeCollectives: 10,
+          expensesPaid: 60,
+        },
+        baseAmount: 5000,
+        totalAmount: 14000,
+      });
+
+      await PlatformSubscription.replaceCurrentSubscription(
+        host.id,
+        new Date(Date.UTC(2016, 0, 15)),
+        PlatformSubscriptionTiers.find(plan => plan.id === 'pro-20'),
+      );
+
+      billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+      expect(billing).to.containSubset({
+        additional: {
+          amounts: {
+            activeCollectives: 0,
+            expensesPaid: 0,
+          },
+          utilization: {
+            activeCollectives: 0,
+            expensesPaid: 0,
+          },
+          total: 0,
+        },
+        utilization: {
+          activeCollectives: 10,
+          expensesPaid: 60,
+        },
+        baseAmount: 21452,
+        totalAmount: 21452,
+      });
     });
   });
 });

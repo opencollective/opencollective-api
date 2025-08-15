@@ -75,7 +75,7 @@ const taxFormsQuery = `
       AND t."deletedAt" IS NULL
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
-    WHERE all_expenses.type NOT IN ('RECEIPT', 'CHARGE', 'SETTLEMENT', 'FUNDING_REQUEST', 'GRANT')
+    WHERE all_expenses.type NOT IN ('RECEIPT', 'CHARGE', 'SETTLEMENT', 'FUNDING_REQUEST', 'GRANT', 'PLATFORM_BILLING')
     AND host.slug = :hostSlug
     AND account.id != d."HostCollectiveId"
     AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId")

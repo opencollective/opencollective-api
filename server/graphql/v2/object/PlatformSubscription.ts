@@ -11,6 +11,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
 import { Expense } from '../../../models';
+import { ExpenseType } from '../../../models/Expense';
 import PlatformSubscription, {
   Billing,
   BillingMonth,
@@ -91,9 +92,7 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
         return Expense.findAll({
           where: {
             CollectiveId: billing.collectiveId,
-            data: {
-              isPlatformBilling: true,
-            },
+            type: ExpenseType.PLATFORM_BILLING,
           },
         });
       },
