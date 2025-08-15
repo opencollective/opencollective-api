@@ -1,8 +1,10 @@
 import DataLoader from 'dataloader';
+import { isUndefined, omitBy } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
   DataTypes,
+  FindOptions,
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
@@ -210,7 +212,10 @@ class PlatformSubscription extends Model<
 
   static async calculateBilling(collectiveId: number, billingPeriod: BillingPeriod): Promise<Billing> {
     const utilization = await PlatformSubscription.calculateUtilization(collectiveId, billingPeriod);
-    const subscriptions = await PlatformSubscription.getSubscriptionsInBillingPeriod(collectiveId, billingPeriod);
+    const subscriptions = await PlatformSubscription.getSubscriptionsInBillingPeriod({
+      CollectiveId: collectiveId,
+      billingPeriod,
+    });
     const dueDate = moment
       .utc(new Date(Date.UTC(billingPeriod.year, billingPeriod.month - 1)))
       .add(1, 'month')
@@ -338,23 +343,29 @@ class PlatformSubscription extends Model<
     return new Date(end.value.getTime() - 1);
   }
 
-  static getSubscriptionsInBillingPeriod(
-    collectiveId: number,
-    billingPeriod: BillingPeriod,
-  ): Promise<PlatformSubscription[]> {
-    return PlatformSubscription.findAll({
-      where: {
-        CollectiveId: collectiveId,
+  static getSubscriptionsInBillingPeriod({
+    CollectiveId,
+    billingPeriod,
+    ...options
+  }: {
+    CollectiveId?: number;
+    billingPeriod: BillingPeriod;
+  } & FindOptions<InferAttributes<PlatformSubscription>>): Promise<PlatformSubscription[]> {
+    const where = omitBy(
+      {
+        CollectiveId,
         period: {
           [Op.overlap]: PlatformSubscription.getBillingPeriodRange(billingPeriod),
         },
       },
-      order: [[sequelize.literal('lower(period)'), 'desc']],
-    });
+      isUndefined,
+    );
+
+    return PlatformSubscription.findAll({ ...options, where, order: [[sequelize.literal('lower(period)'), 'desc']] });
   }
 
   static createSubscription(
-    collectiveId: number,
+    CollectiveId: number,
     start: Date,
     plan: Partial<PlatformSubscriptionPlan>,
     opts?: { transaction?: SequelizeTransaction },
@@ -363,7 +374,7 @@ class PlatformSubscription extends Model<
 
     return PlatformSubscription.create(
       {
-        CollectiveId: collectiveId,
+        CollectiveId,
         period: [
           {
             value: alignedStart,
@@ -383,13 +394,13 @@ class PlatformSubscription extends Model<
   }
 
   static getCurrentSubscription(
-    collectiveId: number,
+    CollectiveId: number,
     opts?: { now?: () => Date },
   ): Promise<PlatformSubscription | null> {
     const newDate = opts?.now ?? (() => new Date());
     return PlatformSubscription.findOne({
       where: {
-        CollectiveId: collectiveId,
+        CollectiveId,
         period: {
           [Op.contains]: newDate(),
         },
@@ -398,12 +409,12 @@ class PlatformSubscription extends Model<
   }
 
   static async replaceCurrentSubscription(
-    collectiveId: number,
+    CollectiveId: number,
     when: Date,
     plan: Partial<PlatformSubscriptionPlan>,
     opts?: { transaction?: SequelizeTransaction },
   ): Promise<PlatformSubscription> {
-    const currentSubscription = await PlatformSubscription.getCurrentSubscription(collectiveId);
+    const currentSubscription = await PlatformSubscription.getCurrentSubscription(CollectiveId);
     const newSubscriptionStart = moment.utc(when).startOf('day');
 
     if (currentSubscription) {
@@ -428,7 +439,7 @@ class PlatformSubscription extends Model<
       }
     }
 
-    return PlatformSubscription.createSubscription(collectiveId, newSubscriptionStart.toDate(), plan, opts);
+    return PlatformSubscription.createSubscription(CollectiveId, newSubscriptionStart.toDate(), plan, opts);
   }
 
   static get loaders() {

@@ -13,6 +13,7 @@ import {
   fakeExpense,
   fakeProject,
   fakeTransaction,
+  multiple,
 } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -387,13 +388,16 @@ describe('server/models/PlatformSubscriptions', () => {
         },
       );
 
-      const collective1Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod(collective1.id, billingPeriod);
+      const collective1Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod({
+        CollectiveId: collective1.id,
+        billingPeriod,
+      });
       expect(collective1Subs[0].id).to.eql(collective1Sub2.id);
       expect(collective1Subs[1].id).to.eql(collective1Sub1.id);
 
       const collective2 = await fakeCollective(); // no active subscription in billing period
       await expect(
-        PlatformSubscription.getSubscriptionsInBillingPeriod(collective2.id, billingPeriod),
+        PlatformSubscription.getSubscriptionsInBillingPeriod({ CollectiveId: collective2.id, billingPeriod }),
       ).to.eventually.have.length(0);
 
       const collective3 = await fakeCollective(); // one active subscription in billing period
@@ -404,8 +408,39 @@ describe('server/models/PlatformSubscriptions', () => {
           title: 'A plan',
         },
       );
-      const collective3Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod(collective3.id, billingPeriod);
+      const collective3Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod({
+        CollectiveId: collective3.id,
+        billingPeriod,
+      });
       expect(collective3Subs[0].id).to.eql(collective3Sub1.id);
+    });
+
+    it('returns all active subscriptions for giving billing period', async () => {
+      const billingPeriod = {
+        year: 2016,
+        month: BillingMonth.JANUARY,
+      };
+
+      const collectives = await multiple(fakeCollective, 3);
+      for (const collective of collectives) {
+        await PlatformSubscription.createSubscription(collective.id, new Date(Date.UTC(2016, 0, 1)), {
+          title: 'A plan',
+        });
+      }
+
+      const subscriptions = await PlatformSubscription.getSubscriptionsInBillingPeriod({ billingPeriod });
+      expect(subscriptions).to.have.length(3);
+      expect(subscriptions).to.containSubset([
+        {
+          CollectiveId: collectives[0].id,
+        },
+        {
+          CollectiveId: collectives[1].id,
+        },
+        {
+          CollectiveId: collectives[2].id,
+        },
+      ]);
     });
   });
 });
