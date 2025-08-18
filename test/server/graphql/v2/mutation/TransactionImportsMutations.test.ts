@@ -14,6 +14,8 @@ import {
   fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
+  fakeExpense,
+  fakeOrder,
   fakeTransactionsImport,
   fakeTransactionsImportRow,
   fakeUploadedFile,
@@ -201,6 +203,167 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         name: 'New Name',
         source: 'New Source',
       });
+    });
+
+    it('can associate an expense to multiple import rows', async () => {
+      const remoteUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+
+      // Create multiple import rows
+      const row1 = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+      const row2 = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+      const row3 = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+      // Create an expense
+      const expense = await fakeExpense({ CollectiveId: transactionsImport.CollectiveId });
+
+      // Update the rows to associate them with the expense
+      const UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION = gql`
+        mutation UpdateTransactionsImportRows(
+          $rows: [TransactionsImportRowUpdateInput!]!
+          $action: TransactionsImportRowAction!
+        ) {
+          updateTransactionsImportRows(rows: $rows, action: $action) {
+            rows {
+              id
+              status
+              expense {
+                id
+                legacyId
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await graphqlQueryV2(
+        UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION,
+        {
+          action: 'UPDATE_ROWS',
+          rows: [
+            { id: idEncode(row1.id, 'transactions-import-row'), expense: { legacyId: expense.id } },
+            { id: idEncode(row2.id, 'transactions-import-row'), expense: { legacyId: expense.id } },
+          ],
+        },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateTransactionsImportRows.rows).to.have.length(2);
+
+      // Verify all rows are now linked to the expense
+      result.data.updateTransactionsImportRows.rows.forEach(row => {
+        expect(row.status).to.equal('LINKED');
+        expect(row.expense.legacyId).to.equal(expense.id);
+      });
+
+      // Verify the database state
+      await Promise.all([row1.reload(), row2.reload()]);
+
+      expect(row1.ExpenseId).to.equal(expense.id);
+      expect(row2.ExpenseId).to.equal(expense.id);
+      expect(row1.status).to.equal('LINKED');
+      expect(row2.status).to.equal('LINKED');
+
+      // Let's associate a new one with a separate mutation
+      const result2 = await graphqlQueryV2(
+        UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION,
+        {
+          action: 'UPDATE_ROWS',
+          rows: [{ id: idEncode(row3.id, 'transactions-import-row'), expense: { legacyId: expense.id } }],
+        },
+        remoteUser,
+      );
+
+      result2.errors && console.error(result2.errors);
+      expect(result2.errors).to.not.exist;
+
+      await row3.reload();
+      expect(row3.status).to.equal('LINKED');
+      expect(row3.ExpenseId).to.equal(expense.id);
+    });
+
+    it('can associate an order to multiple import rows', async () => {
+      const remoteUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+
+      // Create multiple import rows
+      const row1 = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+      const row2 = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+      const row3 = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+
+      // Create an order
+      const order = await fakeOrder({ CollectiveId: transactionsImport.CollectiveId });
+
+      // Update the rows to associate them with the order
+      const UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION = gql`
+        mutation UpdateTransactionsImportRows(
+          $rows: [TransactionsImportRowUpdateInput!]!
+          $action: TransactionsImportRowAction!
+        ) {
+          updateTransactionsImportRows(rows: $rows, action: $action) {
+            rows {
+              id
+              status
+              order {
+                id
+                legacyId
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await graphqlQueryV2(
+        UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION,
+        {
+          action: 'UPDATE_ROWS',
+          rows: [
+            { id: idEncode(row1.id, 'transactions-import-row'), order: { legacyId: order.id } },
+            { id: idEncode(row2.id, 'transactions-import-row'), order: { legacyId: order.id } },
+          ],
+        },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateTransactionsImportRows.rows).to.have.length(2);
+
+      // Verify all rows are now linked to the order
+      result.data.updateTransactionsImportRows.rows.forEach(row => {
+        expect(row.status).to.equal('LINKED');
+        expect(row.order.legacyId).to.equal(order.id);
+      });
+
+      // Verify the database state
+      await row1.reload();
+      await row2.reload();
+
+      expect(row1.OrderId).to.equal(order.id);
+      expect(row2.OrderId).to.equal(order.id);
+      expect(row1.status).to.equal('LINKED');
+      expect(row2.status).to.equal('LINKED');
+
+      // Let's associate a new one with a separate mutation
+      const result2 = await graphqlQueryV2(
+        UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION,
+        {
+          action: 'UPDATE_ROWS',
+          rows: [{ id: idEncode(row3.id, 'transactions-import-row'), order: { legacyId: order.id } }],
+        },
+        remoteUser,
+      );
+
+      result2.errors && console.error(result2.errors);
+      expect(result2.errors).to.not.exist;
+
+      await row3.reload();
+      expect(row3.OrderId).to.equal(order.id);
+      expect(row3.status).to.equal('LINKED');
     });
   });
 
