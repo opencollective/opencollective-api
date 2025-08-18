@@ -643,7 +643,7 @@ describe('server/graphql/v2/object/Host', () => {
       const host = await fakeActiveHost({
         admin: hostAdmin,
       });
-      const startDate = new Date(2025, 7, 8);
+      const startDate = moment.utc().startOf('day').toDate();
       const endDate = moment.utc(startDate).add('10', 'days').toDate();
       const subscription = await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
       await subscription.update({
