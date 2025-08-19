@@ -255,11 +255,7 @@ class PlatformSubscription extends Model<
     ) as PeriodUtilization;
 
     const additionalTotal = Object.entries(additionalUtilizationAmounts).reduce((acc, [, amount]) => acc + amount, 0);
-
-    let baseAmount = lastActiveSubscription.plan.pricing?.pricePerMonth ?? 0;
-    if (subscriptions.length > 1) {
-      baseAmount = subscriptions.reduce((acc, sub) => acc + sub.prorateBasePrice(billingPeriod), 0);
-    }
+    const baseAmount = subscriptions.reduce((acc, sub) => acc + sub.prorateBasePrice(billingPeriod), 0);
 
     const totalAmount = baseAmount + additionalTotal;
 
