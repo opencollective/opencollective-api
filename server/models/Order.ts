@@ -115,6 +115,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     };
     platformTip?: number;
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
+    reqIp?: string;
   };
 
   declare taxAmount?: number;

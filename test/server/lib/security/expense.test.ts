@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 
 import { CollectiveType } from '../../../../server/constants/collectives';
 import { Service } from '../../../../server/constants/connected-account';
+import OrderStatuses from '../../../../server/constants/order-status';
 import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
@@ -58,8 +59,8 @@ describe('lib/security/expense', () => {
       expense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
 
       // Order Error rate
-      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: 'ERROR' });
-      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: 'PAID' });
+      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: OrderStatuses.ERROR });
+      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: OrderStatuses.PAID });
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
     });
 
