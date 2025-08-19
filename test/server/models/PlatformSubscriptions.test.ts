@@ -491,5 +491,127 @@ describe('server/models/PlatformSubscriptions', () => {
         totalAmount: 21452,
       });
     });
+
+    it('calculates utilization and charges for billing period with partial sub', async () => {
+      const billingPeriod = {
+        year: 2016,
+        month: BillingMonth.JANUARY,
+      };
+
+      const host = await fakeActiveHost();
+      await PlatformSubscription.createSubscription(
+        host.id,
+        new Date(Date.UTC(2016, 0, 15)),
+        PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5'),
+      );
+
+      // create 10 active collectives
+      for (let i = 0; i < 10; i++) {
+        const col = await fakeCollective({ HostCollectiveId: host.id });
+        await fakeTransaction({
+          HostCollectiveId: host.id,
+          CollectiveId: col.id,
+          createdAt: new Date(Date.UTC(2016, 0, 20)),
+        });
+      }
+
+      const col = await fakeCollective({ HostCollectiveId: host.id });
+      // 60 paid expenses
+      for (let i = 0; i < 60; i++) {
+        await fakeExpensePaidWithActivity({
+          HostCollectiveId: host.id,
+          CollectiveId: col.id,
+          createdAt: new Date(Date.UTC(2016, 0, 2)),
+          status: ExpenseStatuses.PAID,
+        });
+      }
+
+      const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+      expect(billing).to.containSubset({
+        additional: {
+          amounts: {
+            activeCollectives: 7500,
+            expensesPaid: 1500,
+          },
+          utilization: {
+            activeCollectives: 5,
+            expensesPaid: 10,
+          },
+          total: 9000,
+        },
+        utilization: {
+          activeCollectives: 10,
+          expensesPaid: 60,
+        },
+        baseAmount: 2742,
+        totalAmount: 11742,
+      });
+    });
+
+    it('calculates utilization and charges for billing period with ended sub', async () => {
+      const billingPeriod = {
+        year: 2016,
+        month: BillingMonth.JANUARY,
+      };
+
+      const host = await fakeActiveHost();
+      const sub = await PlatformSubscription.createSubscription(
+        host.id,
+        new Date(Date.UTC(2016, 0, 1)),
+        PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5'),
+      );
+
+      // create 10 active collectives
+      for (let i = 0; i < 10; i++) {
+        const col = await fakeCollective({ HostCollectiveId: host.id });
+        await fakeTransaction({
+          HostCollectiveId: host.id,
+          CollectiveId: col.id,
+          createdAt: new Date(Date.UTC(2016, 0, 20)),
+        });
+      }
+
+      const col = await fakeCollective({ HostCollectiveId: host.id });
+      // 60 paid expenses
+      for (let i = 0; i < 60; i++) {
+        await fakeExpensePaidWithActivity({
+          HostCollectiveId: host.id,
+          CollectiveId: col.id,
+          createdAt: new Date(Date.UTC(2016, 0, 2)),
+          status: ExpenseStatuses.PAID,
+        });
+      }
+
+      await sub.update({
+        period: [
+          sub.start,
+          {
+            value: new Date(Date.UTC(2016, 0, 15)),
+            inclusive: false,
+          },
+        ],
+      });
+
+      const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+      expect(billing).to.containSubset({
+        additional: {
+          amounts: {
+            activeCollectives: 7500,
+            expensesPaid: 1500,
+          },
+          utilization: {
+            activeCollectives: 5,
+            expensesPaid: 10,
+          },
+          total: 9000,
+        },
+        utilization: {
+          activeCollectives: 10,
+          expensesPaid: 60,
+        },
+        baseAmount: 2258,
+        totalAmount: 11258,
+      });
+    });
   });
 });
