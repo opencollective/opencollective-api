@@ -1,0 +1,27 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`submit-platform-subscription-bills should submit Expenses for active subscriptions 1`] = `
+"
+| id | type             | CollectiveId | description                                       | amount | currency |
+| -- | ---------------- | ------------ | ------------------------------------------------- | ------ | -------- |
+| 4  | PLATFORM_BILLING | 22           | Platform subscription payment for September, 2023 | 69500  | USD      |
+| 3  | PLATFORM_BILLING | 18           | Platform subscription payment for September, 2023 | 21000  | USD      |
+| 2  | PLATFORM_BILLING | 14           | Platform subscription payment for September, 2023 | 4500   | USD      |
+| 1  | PLATFORM_BILLING | 10           | Platform subscription payment for September, 2023 | 4000   | USD      |"
+`;
+
+exports[`submit-platform-subscription-bills should submit Expenses for active subscriptions 2`] = `
+"
+| ExpenseId | description                                  | amount | currency |
+| --------- | -------------------------------------------- | ------ | -------- |
+| 4         | Additional Paid Expenses Utilization: 180    | 27000  | USD      |
+| 4         | Additional Active Collective Utilization: 25 | 37500  | USD      |
+| 4         | Base Subscription Amount                     | 5000   | USD      |
+| 3         | Additional Paid Expenses Utilization: 20     | 2000   | USD      |
+| 3         | Additional Active Collective Utilization: 10 | 10000  | USD      |
+| 3         | Base Subscription Amount                     | 9000   | USD      |
+| 2         | Additional Paid Expenses Utilization: 5      | 500    | USD      |
+| 2         | Base Subscription Amount                     | 4000   | USD      |
+| 1         | Additional Active Collective Utilization: 2  | 2000   | USD      |
+| 1         | Base Subscription Amount                     | 2000   | USD      |"
+`;

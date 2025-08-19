@@ -708,7 +708,7 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.platformBilling).to.eql({
         billingPeriod: {
           year: moment.utc().year(),
-          month: BillingMonth[moment.utc().month() + 1],
+          month: BillingMonth[moment.utc().month()],
         },
         utilization: {
           activeCollectives: 0,
@@ -750,7 +750,7 @@ describe('server/graphql/v2/object/Host', () => {
       const startDate = new Date(Date.UTC(2016, 1, 1));
       const billingPeriod = {
         year: moment.utc(startDate).year(),
-        month: BillingMonth[moment.utc(startDate).month() + 1],
+        month: BillingMonth[moment.utc(startDate).month()],
       };
       await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
       let result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
