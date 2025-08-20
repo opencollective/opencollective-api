@@ -639,6 +639,7 @@ const expenseMutations = {
       }
 
       if (
+        existingPayee &&
         existingPayee.id &&
         existingPayee.HostCollectiveId &&
         expenseData.payoutMethod.id &&
