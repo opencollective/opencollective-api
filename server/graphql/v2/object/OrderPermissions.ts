@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import ORDER_STATUS from '../../../constants/order-status';
+import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -60,6 +61,16 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can update the accounting category of this order',
       async resolve(order, _, req: express.Request): Promise<boolean> {
+        const collective = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+        if (!collective) {
+          return false;
+        }
+
+        const host = collective.host || (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
+        if (!(await hasFeature(host, FEATURE.CHART_OF_ACCOUNTS))) {
+          return false;
+        }
+
         return OrdersLib.isOrderHostAdmin(req, order);
       },
     },

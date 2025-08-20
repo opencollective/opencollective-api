@@ -14,5 +14,6 @@
     "test/utils.js"
   ],
   "recursive": true,
-  "exit": true
+  "exit": true,
+  "slow": 500
 }

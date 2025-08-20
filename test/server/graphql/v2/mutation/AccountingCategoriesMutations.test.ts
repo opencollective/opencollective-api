@@ -89,7 +89,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
     it('fails if categories contains an invalid id', async () => {
       const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
       const result = await graphqlQueryV2(
         editAccountingCategoriesMutation,
         {
@@ -104,7 +104,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
     it("fails if trying to edit/remove something that doesn't exist", async () => {
       const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
       const result = await graphqlQueryV2(
         editAccountingCategoriesMutation,
         {
@@ -124,7 +124,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
     it('fails if trying to edit something on another account', async () => {
       const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
       const anotherCategory = await fakeAccountingCategory();
       const result = await graphqlQueryV2(
         editAccountingCategoriesMutation,
@@ -145,7 +145,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
     it('fails if trying to create a duplicate code', async () => {
       const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
       const existingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
       const result = await graphqlQueryV2(
         editAccountingCategoriesMutation,
@@ -164,7 +164,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
     it('fails if trying to remove a category that has expenses attached', async () => {
       const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
       const category = await fakeAccountingCategory({ CollectiveId: host.id });
       await fakeExpense({ CollectiveId: host.id, AccountingCategoryId: category.id, status: 'PAID' });
       const result = await graphqlQueryV2(
@@ -180,7 +180,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
     it('fails if the expenses types are not valid', async () => {
       const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
       const result = await graphqlQueryV2(
         editAccountingCategoriesMutation,
         {
@@ -195,7 +195,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
     it('edits accounting categories successfully', async () => {
       const admin = await fakeUser();
-      const host = await fakeActiveHost({ admin });
+      const host = await fakeActiveHost({ plan: 'start-plan-2021', admin });
       const getNodesFromResult = result => get(result, 'data.editAccountingCategories.host.accountingCategories.nodes');
 
       // Host starts with no accounting categories
@@ -258,7 +258,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
         order: [['createdAt', 'ASC']],
       });
 
-      await sleep(50); // For the async activity creation
+      await sleep(100); // For the async activity creation
       expect(activities).to.have.length(3);
       activities.forEach(activity => {
         expect(activity.HostCollectiveId).to.equal(host.id);

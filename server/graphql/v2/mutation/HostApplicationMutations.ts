@@ -8,6 +8,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
@@ -215,6 +216,9 @@ const HostApplicationMutations = {
       } else if (account.approvedAt) {
         throw new ValidationFailed('This collective application has already been approved');
       }
+
+      // Check feature access for RECEIVE_HOST_APPLICATIONS
+      await checkFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS, { loaders: req.loaders });
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });

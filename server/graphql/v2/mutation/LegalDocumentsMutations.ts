@@ -8,6 +8,8 @@ import { FileUpload } from 'graphql-upload/Upload';
 import { encodeBase64 } from 'tweetnacl-util';
 
 import ActivityTypes from '../../../constants/activities';
+import FEATURE from '../../../constants/feature';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { notify } from '../../../lib/notifications/email';
 import { getUSTaxFormPdf } from '../../../lib/pdf';
 import { reportErrorToSentry } from '../../../lib/sentry';
@@ -206,6 +208,7 @@ export const legalDocumentsMutations = {
       } else if (legalDocument.isExpired()) {
         throw new ValidationFailed('Legal document is expired');
       } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED) {
+        await checkFeatureAccess(host, FEATURE.TAX_FORMS, { loaders: req.loaders });
         const supportedDocumentTypes = [LEGAL_DOCUMENT_REQUEST_STATUS.ERROR, LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED];
         if (!(supportedDocumentTypes as string[]).includes(legalDocument.requestStatus)) {
           throw new ValidationFailed('Legal document must be in error or requested status to be marked as received');

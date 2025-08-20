@@ -37,7 +37,10 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
     beforeEach(async () => {
       user = await fakeUser();
       collective = await fakeCollective({
+        plan: 'start-plan-2021',
         admin: user.collective,
+        isHostAccount: true,
+        isActive: true,
       });
     });
 
