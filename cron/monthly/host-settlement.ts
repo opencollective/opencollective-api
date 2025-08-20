@@ -32,6 +32,7 @@ const DRY = process.env.DRY;
 const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 const KIND = process.env.KIND;
+const VERBOSE = parseToBoolean(process.env.VERBOSE) || false;
 const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
 
 // Only run on the 1th of the month
@@ -247,9 +248,11 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     const totalAmountChargedInUsd = totalAmountCharged * hostToPlatformFxRate;
 
     if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
-      console.warn(
-        `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}.\n`,
-      );
+      if (VERBOSE) {
+        console.warn(
+          `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}.\n`,
+        );
+      }
       continue;
     }
     console.info(
@@ -320,8 +323,11 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       status: expenseStatus.PENDING,
     };
     if (DRY) {
-      console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
-      console.debug(`PayoutMethod: ${payoutMethod.id} - ${payoutMethod.type}`);
+      if (VERBOSE) {
+        console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
+        console.debug(`PayoutMethod: ${payoutMethod.id} - ${payoutMethod.type}`);
+      }
+
       console.debug(`Items:\n${json2csv(items)}\n`);
     } else {
       // Create the Expense
