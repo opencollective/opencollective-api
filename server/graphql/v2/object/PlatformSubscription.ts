@@ -6,6 +6,7 @@ import {
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
+  GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
@@ -56,10 +57,18 @@ export const GraphQLPlatformBilling = new GraphQLObjectType({
     dueDate: {
       type: new GraphQLNonNull(GraphQLDateTime),
     },
-    baseAmount: {
-      type: new GraphQLNonNull(GraphQLAmount),
+    base: {
+      type: new GraphQLNonNull(GraphQLPlatformBillingBase),
       resolve(billing: Billing) {
-        return { value: billing.baseAmount ?? 0, currency: 'USD' };
+        return {
+          total: { value: billing.base.total ?? 0, currency: 'USD' },
+          subscriptions: billing.base.subscriptions.map(sub => ({
+            title: sub.title,
+            amount: { value: sub.amount ?? 0, currency: 'USD' },
+            startDate: sub.startDate,
+            endDate: sub.endDate,
+          })),
+        };
       },
     },
     additional: {
@@ -203,6 +212,40 @@ const GraphQLPlatformBillingAdditional = new GraphQLObjectType({
     },
     utilization: {
       type: new GraphQLNonNull(GraphQLPlatformUtilization),
+    },
+  }),
+});
+
+const GraphQLPlatformBillingBase = new GraphQLObjectType({
+  name: 'PlatformBillingBase',
+  fields: () => ({
+    total: {
+      type: new GraphQLNonNull(GraphQLAmount),
+    },
+    subscriptions: {
+      type: new GraphQLNonNull(
+        new GraphQLList(
+          new GraphQLObjectType({
+            name: 'PlatformBillingBaseCharges',
+            fields: () => ({
+              title: {
+                type: new GraphQLNonNull(GraphQLString),
+              },
+              amount: {
+                type: new GraphQLNonNull(GraphQLAmount),
+              },
+              startDate: {
+                type: new GraphQLNonNull(GraphQLDateTime),
+                description: 'Start date (inclusive)',
+              },
+              endDate: {
+                type: new GraphQLNonNull(GraphQLDateTime),
+                description: 'End date (inclusive)',
+              },
+            }),
+          }),
+        ),
+      ),
     },
   }),
 });

@@ -23,10 +23,13 @@ import Collective from './Collective';
 
 export type Billing = {
   collectiveId: number;
-  baseAmount: number;
   additional: {
     utilization: PeriodUtilization;
     amounts: PeriodUtilization;
+    total: number;
+  };
+  base: {
+    subscriptions: { title: string; amount: number; startDate: Date; endDate: Date }[];
     total: number;
   };
   totalAmount: number;
@@ -119,13 +122,11 @@ class PlatformSubscription extends Model<
     return now.isSameOrBefore(this.endDate) && now.isSameOrAfter(this.startDate);
   }
 
-  prorateBasePrice(billingPeriod: BillingPeriod): number {
+  overlapWith(billingPeriod: BillingPeriod): [Date, Date] {
     const billingStart = PlatformSubscription.periodStartDate(
       PlatformSubscription.getBillingPeriodRange(billingPeriod),
     );
     const billingEnd = PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod));
-
-    const billingTime = moment.utc(billingEnd).diff(billingStart, 'seconds');
 
     let subBillingStart = billingStart;
     if (moment.utc(this.startDate).isAfter(billingStart)) {
@@ -135,6 +136,18 @@ class PlatformSubscription extends Model<
     if (moment.utc(this.endDate).isBefore(billingEnd)) {
       subBillingEnd = this.endDate;
     }
+
+    return [subBillingStart, subBillingEnd];
+  }
+
+  prorateBasePrice(billingPeriod: BillingPeriod): number {
+    const billingStart = PlatformSubscription.periodStartDate(
+      PlatformSubscription.getBillingPeriodRange(billingPeriod),
+    );
+    const billingEnd = PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod));
+
+    const [subBillingStart, subBillingEnd] = this.overlapWith(billingPeriod);
+    const billingTime = moment.utc(billingEnd).diff(billingStart, 'seconds');
 
     const subTime = moment.utc(subBillingEnd).diff(subBillingStart, 'seconds');
 
@@ -220,7 +233,10 @@ class PlatformSubscription extends Model<
     if (subscriptions.length === 0) {
       return {
         collectiveId,
-        baseAmount: 0,
+        base: {
+          total: 0,
+          subscriptions: [],
+        },
         additional: {
           utilization: Object.fromEntries(Object.entries(utilization).map(([k]) => [k, 0])) as PeriodUtilization,
           total: 0,
@@ -255,13 +271,26 @@ class PlatformSubscription extends Model<
     ) as PeriodUtilization;
 
     const additionalTotal = Object.entries(additionalUtilizationAmounts).reduce((acc, [, amount]) => acc + amount, 0);
-    const baseAmount = subscriptions.reduce((acc, sub) => acc + sub.prorateBasePrice(billingPeriod), 0);
 
-    const totalAmount = baseAmount + additionalTotal;
+    const subscriptionValues: Billing['base']['subscriptions'] = subscriptions.map(sub => {
+      const [startDate, endDate] = sub.overlapWith(billingPeriod);
+      return {
+        title: sub.plan.title,
+        startDate,
+        endDate,
+        amount: sub.prorateBasePrice(billingPeriod),
+      };
+    });
+    const baseTotal = subscriptionValues.reduce((acc, sub) => acc + sub.amount, 0);
+
+    const totalAmount = baseTotal + additionalTotal;
 
     return {
       collectiveId,
-      baseAmount: baseAmount,
+      base: {
+        total: baseTotal,
+        subscriptions: subscriptionValues,
+      },
       additional: {
         utilization: additionalUtilization,
         amounts: additionalUtilizationAmounts,
