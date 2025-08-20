@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 import FEATURE from '../../constants/feature';
 import { hasFeature } from '../../lib/allowed-features';
 import models from '../../models';
-import Conversation from '../../models/Conversation';
+import Conversation, { ConversationVisibility } from '../../models/Conversation';
 import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
 
 import { checkRemoteUserCanUseConversations } from './scope-check';
@@ -15,6 +15,7 @@ interface CreateConversationParams {
   html: string;
   CollectiveId: number;
   tags?: string[] | null;
+  visibility?: ConversationVisibility;
 }
 
 /**
@@ -26,7 +27,7 @@ export const createConversation = async (req: Request, params: CreateConversatio
   // For now any authenticated user can create a conversation to any collective
   checkRemoteUserCanUseConversations(req);
 
-  const { CollectiveId, title, html, tags } = params;
+  const { CollectiveId, title, html, tags, visibility } = params;
 
   // Collective must exist and be of type `COLLECTIVE`
   const collective = await req.loaders.Collective.byId.load(CollectiveId);
@@ -36,12 +37,13 @@ export const createConversation = async (req: Request, params: CreateConversatio
     throw new FeatureNotSupportedForCollective();
   }
 
-  return Conversation.createWithComment(req.remoteUser, collective, title, html, tags);
+  return Conversation.createWithComment(req.remoteUser, collective, title, html, tags, visibility);
 };
 
 interface EditConversationParams {
   id: number;
   title: string;
+  visibility?: ConversationVisibility;
 }
 
 /**
@@ -63,5 +65,5 @@ export const editConversation = async (req: Request, params: EditConversationPar
     throw new Unauthorized();
   }
 
-  return conversation.update(pick(params, ['title', 'tags']));
+  return conversation.update(pick(params, ['title', 'tags', 'visibility']));
 };

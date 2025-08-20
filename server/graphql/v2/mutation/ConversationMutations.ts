@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 import models from '../../../models';
 import { createConversation, editConversation } from '../../common/conversations';
 import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
+import { GraphQLConversationVisibility } from '../enum/ConversationVisibility';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import GraphQLConversation from '../object/Conversation';
@@ -33,6 +34,11 @@ const conversationMutations = {
         type: new GraphQLList(GraphQLString),
         description: 'A list of tags for this conversation',
       },
+      visibility: {
+        type: new GraphQLNonNull(GraphQLConversationVisibility),
+        description: 'The visibility level for this conversation',
+        defaultValue: 'PUBLIC',
+      },
     },
     async resolve(_, args, req) {
       let CollectiveId;
@@ -45,7 +51,7 @@ const conversationMutations = {
         throw new Error('Please provide an account');
       }
 
-      return createConversation(req, { ...args, CollectiveId });
+      return createConversation(req, { ...args, CollectiveId, visibility: args.visibility });
     },
   },
   editConversation: {
@@ -63,6 +69,10 @@ const conversationMutations = {
       tags: {
         type: new GraphQLList(GraphQLString),
         description: 'A list of tags for this conversation',
+      },
+      visibility: {
+        type: GraphQLConversationVisibility,
+        description: 'The visibility level for this conversation',
       },
     },
     resolve(_, args, req) {
