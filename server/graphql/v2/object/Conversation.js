@@ -6,6 +6,7 @@ import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CommentCollection } from '../collection/CommentCollection';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
+import { GraphQLConversationVisibility } from '../enum/ConversationVisibility';
 
 import { GraphQLComment } from './Comment';
 
@@ -24,6 +25,7 @@ const GraphQLConversation = new GraphQLObjectType({
       updatedAt: { type: new GraphQLNonNull(GraphQLDateTime) },
       tags: { type: new GraphQLList(GraphQLString) },
       summary: { type: new GraphQLNonNull(GraphQLString) },
+      visibility: { type: new GraphQLNonNull(GraphQLConversationVisibility) },
       account: {
         type: GraphQLAccount,
         resolve(conversation, args, req) {
@@ -101,6 +103,18 @@ const GraphQLConversation = new GraphQLObjectType({
         }),
         resolve(conversation) {
           return conversation;
+        },
+      },
+      lastCommentDate: {
+        type: GraphQLDateTime,
+        description: 'The date of the last comment in this conversation',
+        async resolve(conversation) {
+          // TODO use loader
+          const lastComment = await models.Comment.findOne({
+            where: { ConversationId: conversation.id },
+            order: [['createdAt', 'DESC']],
+          });
+          return lastComment ? lastComment.createdAt : null;
         },
       },
     };

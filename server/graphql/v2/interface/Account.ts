@@ -46,6 +46,7 @@ import {
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { GraphQLActivityClassType } from '../enum/ActivityType';
 import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
+import { GraphQLConversationVisibility } from '../enum/ConversationVisibility';
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
@@ -412,6 +413,16 @@ const accountFieldsDefinition = () => ({
       tag: {
         type: GraphQLString,
         description: 'Only return conversations matching this tag',
+      },
+      visibility: {
+        type: GraphQLConversationVisibility,
+        description: 'Only return conversations with this visibility level',
+        defaultValue: 'PUBLIC',
+      },
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+        defaultValue: { field: 'CREATED_AT', direction: 'DESC' },
+        description: 'The order of results',
       },
     },
   },
@@ -1272,20 +1283,50 @@ export const AccountFields = {
         type: GraphQLString,
         description: 'Only return conversations matching this tag',
       },
+      visibility: {
+        type: GraphQLConversationVisibility,
+        description: 'Only return conversations with this visibility level',
+        defaultValue: 'PUBLIC',
+      },
+      orderBy: {
+        type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
+        defaultValue: UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+        description: 'The order of results',
+      },
     },
-    async resolve(collective, { limit, offset, tag }) {
-      const query = { where: { CollectiveId: collective.id }, order: [['createdAt', 'DESC']] as Order };
-      if (limit) {
-        query['limit'] = limit;
-      }
-      if (offset) {
-        query['offset'] = offset;
-      }
+    async resolve(collective, { limit, offset, tag, visibility, orderBy, ...args }, req) {
+      const where: Parameters<typeof models.Conversation.findAll>[0]['where'] = { HostCollectiveId: collective.id };
+
       if (tag) {
-        query.where['tags'] = { [Op.contains]: [tag] };
+        where.tags = { [Op.contains]: [tag] };
       }
-      const result = await models.Conversation.findAndCountAll(query);
-      return { nodes: result.rows, totalCount: result.count, limit, offset };
+
+      const host =
+        args.host && (await fetchAccountWithReference(args.host, { throwIfMissing: true, loaders: req.loaders }));
+
+      if (host) {
+        where.HostCollectiveId = host.id;
+        if (visibility === 'ADMINS_AND_HOST' && !req.remoteUser?.isAdminOfCollective(host)) {
+          throw new Unauthorized('You are not allowed to see conversations for this host');
+        }
+      }
+
+      if (visibility) {
+        where.visibility = visibility;
+      }
+
+      return {
+        totalCount: () => models.Conversation.count({ where }),
+        nodes: () =>
+          models.Conversation.findAll({
+            where,
+            order: [[orderBy.field, orderBy.direction]],
+            limit,
+            offset,
+          }),
+        limit,
+        offset,
+      };
     },
   },
   conversationsTags: {
