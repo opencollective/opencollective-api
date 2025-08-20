@@ -97,6 +97,7 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
@@ -2624,6 +2625,22 @@ const checkLockedFields = async (
   if (lockedFields.includes(ExpenseLockableFields.AMOUNT)) {
     assert(!isValueChanging(existing, updated, 'amount'), new Forbidden('Amount cannot be edited'));
     assert(!isValueChanging(existing, updated, 'currency'), new Forbidden('Currency cannot be edited'));
+  }
+
+  if (lockedFields.includes(ExpenseLockableFields.PAYOUT_METHOD)) {
+    if (existing.status === ExpenseStatus.DRAFT) {
+      console.log(updated.payoutMethod, updated.payoutMethod?.id, existing.data?.payoutMethod?.['id']);
+
+      assert(
+        isNil(updated.payoutMethod) ||
+          isNil(existing.data?.payoutMethod?.['id']) ||
+          isEqual(
+            updated.payoutMethod?.id,
+            idDecode(existing.data.payoutMethod['id'] as string, IDENTIFIER_TYPES.PAYOUT_METHOD),
+          ),
+        new Forbidden('Payout method cannot be edited'),
+      );
+    }
   }
 };
 
