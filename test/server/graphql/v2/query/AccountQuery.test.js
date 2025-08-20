@@ -544,6 +544,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
     it('applies the right priority order', async () => {
       const host = await fakeHost({
+        plan: 'start-plan-2021',
         settings: {
           expenseTypes: {
             GRANT: true,

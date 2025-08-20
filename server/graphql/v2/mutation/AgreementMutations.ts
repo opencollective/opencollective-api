@@ -6,6 +6,8 @@ import type { FileUpload } from 'graphql-upload/Upload.js';
 import { pick } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
+import FEATURE from '../../../constants/feature';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { Activity, UploadedFile } from '../../../models';
 import AgreementModel from '../../../models/Agreement';
@@ -62,6 +64,9 @@ export default {
         // We're not checking `isActive` as it should be possible to create agreements for accounts not approved yet
         throw new Unauthorized(`Account ${account.name} is not currently hosted by ${host.name}`);
       }
+
+      // Check feature access for AGREEMENTS
+      await checkFeatureAccess(host, FEATURE.AGREEMENTS, { loaders: req.loaders });
 
       await twoFactorAuthLib.enforceForAccount(req, host);
 
@@ -134,6 +139,9 @@ export default {
         throw new Unauthorized('Only host admins can edit agreements');
       }
 
+      // Check feature access for AGREEMENTS
+      await checkFeatureAccess(host, FEATURE.AGREEMENTS, { loaders: req.loaders });
+
       await twoFactorAuthLib.enforceForAccount(req, host);
 
       const toUpdate: Parameters<AgreementModel['update']>[0] = pick(args, ['notes', 'title', 'expiresAt']);
@@ -185,6 +193,9 @@ export default {
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can delete agreements');
       }
+
+      // Check feature access for AGREEMENTS
+      await checkFeatureAccess(host, FEATURE.AGREEMENTS, { loaders: req.loaders });
 
       await twoFactorAuthLib.enforceForAccount(req, host);
 

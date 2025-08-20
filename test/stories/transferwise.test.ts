@@ -12,6 +12,7 @@ import Expense from '../../server/models/Expense';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
@@ -47,7 +48,7 @@ describe('/test/stories/transferwise.test.ts', () => {
     const hostCurrency = 'USD';
     const expenseAmount = 100e2;
     const hostAdmin = await fakeUser();
-    const host = await fakeCollective({
+    const host = await fakeActiveHost({
       admin: hostAdmin.collective,
       plan: 'network-host-plan',
       currency: hostCurrency,

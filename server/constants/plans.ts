@@ -254,6 +254,7 @@ export const freeFeatures: CommercialFeaturesType[] = [
   PlatformFeature.RECEIVE_EXPENSES,
   PlatformFeature.UPDATES,
   PlatformFeature.VENDORS,
+  PlatformFeature.FUNDS_GRANTS_MANAGEMENT,
   PlatformFeature.RECEIVE_FINANCIAL_CONTRIBUTIONS,
 ] as const;
 
@@ -272,7 +273,6 @@ const proFeatures: CommercialFeaturesType[] = [
   ...basicFeatures,
   PlatformFeature.AGREEMENTS,
   PlatformFeature.TAX_FORMS,
-  PlatformFeature.FUNDS_GRANTS_MANAGEMENT,
   PlatformFeature.OFF_PLATFORM_TRANSACTIONS,
 ] as const;
 

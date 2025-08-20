@@ -233,10 +233,10 @@ describe('server/lib/allowed-features', () => {
       it('is AVAILABLE for hosts, UNSUPPORTED for others', async () => {
         const host = await fakeActiveHost();
         expect(await getFeatureAccess(host, FEATURE.HOST_DASHBOARD)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const inactiveHost = await fakeCollective({ isHostAccount: true, isActive: false });
-        expect(await getFeatureAccess(inactiveHost, FEATURE.HOST_DASHBOARD)).to.deep.eq({
-          access: 'AVAILABLE',
-          reason: null,
+        const independentCollective = await fakeCollective({ isHostAccount: true, isActive: false });
+        expect(await getFeatureAccess(independentCollective, FEATURE.HOST_DASHBOARD)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
         });
         const org = await fakeOrganization();
         expect(await getFeatureAccess(org, FEATURE.HOST_DASHBOARD)).to.deep.eq({
@@ -277,13 +277,8 @@ describe('server/lib/allowed-features', () => {
         it('is UNSUPPORTED for inactive hosts', async () => {
           const host = await fakeHost({ isActive: false });
           expect(await getFeatureAccess(host, FEATURE.OFF_PLATFORM_TRANSACTIONS)).to.deep.eq({
-<<<<<<< HEAD
             access: 'DISABLED',
             reason: 'PRICING',
-=======
-            access: 'UNSUPPORTED',
-            reason: 'ACCOUNT_TYPE',
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
           });
         });
 
@@ -330,17 +325,6 @@ describe('server/lib/allowed-features', () => {
           });
         });
 
-<<<<<<< HEAD
-=======
-        it('is UNSUPPORTED for inactive hosts', async () => {
-          const host = await fakeHost({ isActive: false });
-          expect(await getFeatureAccess(host, FEATURE.OFF_PLATFORM_TRANSACTIONS)).to.deep.eq({
-            access: 'UNSUPPORTED',
-            reason: 'ACCOUNT_TYPE',
-          });
-        });
-
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
         it('is supported for independent collectives', async () => {
           const collective = await fakeCollective({
             isHostAccount: true,
@@ -553,21 +537,6 @@ describe('server/lib/allowed-features', () => {
           });
         });
 
-<<<<<<< HEAD
-=======
-        it('is UNSUPPORTED for inactive hosts', async () => {
-          const host = await fakeHost({ isActive: false, settings: { apply: true } });
-          await fakePlatformSubscription({
-            CollectiveId: host.id,
-            plan: { features: { RECEIVE_HOST_APPLICATIONS: true } },
-          });
-          expect(await getFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
-            access: 'UNSUPPORTED',
-            reason: 'ACCOUNT_TYPE',
-          });
-        });
-
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
         it('is UNSUPPORTED for independent collectives', async () => {
           const org = await fakeCollective({ isHostAccount: true, isActive: true });
           expect(await getFeatureAccess(org, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
@@ -661,6 +630,21 @@ describe('server/lib/allowed-features', () => {
       });
     });
 
+    describe('TAX_FORMS', () => {
+      it('is unsupported for non-US accounts', async () => {
+        const org = await fakeActiveHost({ countryISO: 'FR' });
+        expect(await getFeatureAccess(org, FEATURE.TAX_FORMS)).to.deep.eq({ access: 'UNSUPPORTED', reason: 'REGION' });
+        const org2 = await fakeActiveHost({ countryISO: null });
+        expect(await getFeatureAccess(org2, FEATURE.TAX_FORMS)).to.deep.eq({ access: 'UNSUPPORTED', reason: 'REGION' });
+      });
+
+      it('is supported for US accounts', async () => {
+        const org = await fakeActiveHost({ countryISO: 'US' });
+        await fakePlatformSubscription({ CollectiveId: org.id, plan: { features: { TAX_FORMS: true } } });
+        expect(await getFeatureAccess(org, FEATURE.TAX_FORMS)).to.deep.eq({ access: 'AVAILABLE', reason: null });
+      });
+    });
+
     describe('TOP_FINANCIAL_CONTRIBUTORS', () => {
       it('is AVAILABLE for collectives, organizations, and funds, UNSUPPORTED for others', async () => {
         const collective = await fakeCollective();
@@ -703,17 +687,6 @@ describe('server/lib/allowed-features', () => {
           });
         });
 
-<<<<<<< HEAD
-=======
-        it('is UNSUPPORTED for inactive hosts', async () => {
-          const host = await fakeHost({ isActive: false });
-          expect(await getFeatureAccess(host, FEATURE.TRANSFERWISE)).to.deep.eq({
-            access: 'UNSUPPORTED',
-            reason: 'ACCOUNT_TYPE',
-          });
-        });
-
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
         it('is UNSUPPORTED for non-host users', async () => {
           const user = await fakeUser();
           expect(await getFeatureAccess(user.collective, FEATURE.TRANSFERWISE)).to.deep.eq({
@@ -814,7 +787,6 @@ describe('server/lib/allowed-features', () => {
         VIRTUAL_CARDS: { access: 'AVAILABLE', reason: null },
 
         ACCOUNT_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-<<<<<<< HEAD
         AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -824,32 +796,19 @@ describe('server/lib/allowed-features', () => {
         RESTRICTED_FUNDS: { access: 'UNSUPPORTED', reason: 'NEED_HOST' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-=======
-        AGREEMENTS: { access: 'AVAILABLE', reason: null },
-        CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
-        CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        CONNECT_BANK_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-        RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        TAX_FORMS: { access: 'AVAILABLE', reason: null },
-        VENDORS: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
       };
 
       it('for a simple user', async () => {
-        const user = await fakeUser();
+        const user = await fakeUser(null, { countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(user.collective);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
 
       it('for a HOST user', async () => {
-        const user = await fakeUser({}, { plan: 'start-plan-2021', isHostAccount: true });
+        const user = await fakeUser({}, { plan: 'start-plan-2021', isHostAccount: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(user.collective);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-<<<<<<< HEAD
           AGREEMENTS: { access: 'AVAILABLE', reason: null },
           ALIPAY: { access: 'AVAILABLE', reason: null },
           CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
@@ -857,21 +816,14 @@ describe('server/lib/allowed-features', () => {
           EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
           EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
           FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-=======
-          ALIPAY: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
           HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_HOST_APPLICATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
-<<<<<<< HEAD
           RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
           TAX_FORMS: { access: 'AVAILABLE', reason: null },
           TRANSFERWISE: { access: 'AVAILABLE', reason: null },
           VENDORS: { access: 'AVAILABLE', reason: null },
-=======
-          TRANSFERWISE: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
         });
       });
     });
@@ -915,10 +867,6 @@ describe('server/lib/allowed-features', () => {
         AGREEMENTS: { access: 'AVAILABLE', reason: null },
         CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
         CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-<<<<<<< HEAD
-=======
-        CONNECT_BANK_ACCOUNTS: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
         EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
         EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
         FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
@@ -928,7 +876,11 @@ describe('server/lib/allowed-features', () => {
       };
 
       it('for a HOST organization', async () => {
-        const hostOrg = await fakeActiveHost({ plan: 'start-plan-2021', type: CollectiveType.ORGANIZATION });
+        const hostOrg = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          type: CollectiveType.ORGANIZATION,
+          countryISO: 'US',
+        });
         const featuresMap = await getFeaturesAccessMap(hostOrg);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
@@ -981,7 +933,6 @@ describe('server/lib/allowed-features', () => {
         VIRTUAL_CARDS: { access: 'AVAILABLE', reason: null },
 
         ACCOUNT_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-<<<<<<< HEAD
         AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -991,32 +942,16 @@ describe('server/lib/allowed-features', () => {
         RESTRICTED_FUNDS: { access: 'UNSUPPORTED', reason: 'NEED_HOST' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-=======
-        AGREEMENTS: { access: 'AVAILABLE', reason: null },
-        CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
-        CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        CONNECT_BANK_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-        RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        TAX_FORMS: { access: 'AVAILABLE', reason: null },
-        VENDORS: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
       };
 
       it('for a hosted collective', async () => {
-        const host = await fakeActiveHost({ plan: 'start-plan-2021' });
-        const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
+        const host = await fakeActiveHost({ plan: 'start-plan-2021', countryISO: 'US' });
+        const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(collective);
-<<<<<<< HEAD
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
           RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
         });
-=======
-        expect(featuresMap).to.deep.equal(basePermissions);
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
       });
 
       it('for a self-hosted collective', async () => {
@@ -1024,45 +959,36 @@ describe('server/lib/allowed-features', () => {
           plan: 'start-plan-2021',
           isHostAccount: true,
           isActive: true,
+          countryISO: 'US',
         });
         const featuresMap = await getFeaturesAccessMap(selfHosted);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-<<<<<<< HEAD
-          AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           ALIPAY: { access: 'AVAILABLE', reason: null },
           CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
           EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
           EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-          FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-=======
-          ALIPAY: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
-          HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
+          FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
+          HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
           RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
           RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-<<<<<<< HEAD
           RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
           TAX_FORMS: { access: 'AVAILABLE', reason: null },
           TRANSFERWISE: { access: 'AVAILABLE', reason: null },
           VENDORS: { access: 'AVAILABLE', reason: null },
-=======
-          TRANSFERWISE: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
           OFF_PLATFORM_TRANSACTIONS: { access: 'DISABLED', reason: 'OPT_IN' },
         });
       });
 
       it('for an unhosted collective', async () => {
-        const unhosted = await fakeCollective({ isActive: false, HostCollectiveId: null });
+        const unhosted = await fakeCollective({ isActive: false, HostCollectiveId: null, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(unhosted);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-<<<<<<< HEAD
           AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1076,12 +1002,6 @@ describe('server/lib/allowed-features', () => {
           RESTRICTED_FUNDS: { access: 'UNSUPPORTED', reason: 'NEED_HOST' },
           TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-=======
-          CONTACT_FORM: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-          EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-          PROJECTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-          COLLECTIVE_GOALS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
         });
       });
     });
@@ -1122,7 +1042,6 @@ describe('server/lib/allowed-features', () => {
         VIRTUAL_CARDS: { access: 'AVAILABLE', reason: null },
 
         ACCOUNT_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-<<<<<<< HEAD
         AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1132,22 +1051,10 @@ describe('server/lib/allowed-features', () => {
         RESTRICTED_FUNDS: { access: 'DISABLED', reason: 'PRICING' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-=======
-        AGREEMENTS: { access: 'AVAILABLE', reason: null },
-        CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
-        CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        CONNECT_BANK_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-        RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        TAX_FORMS: { access: 'AVAILABLE', reason: null },
-        VENDORS: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
       };
 
       it('for an active fund', async () => {
-        const fund = await fakeCollective({ type: CollectiveType.FUND, isActive: true });
+        const fund = await fakeCollective({ type: CollectiveType.FUND, isActive: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(fund);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
@@ -1189,7 +1096,6 @@ describe('server/lib/allowed-features', () => {
         VIRTUAL_CARDS: { access: 'AVAILABLE', reason: null },
 
         ACCOUNT_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-<<<<<<< HEAD
         AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1199,22 +1105,10 @@ describe('server/lib/allowed-features', () => {
         RESTRICTED_FUNDS: { access: 'DISABLED', reason: 'PRICING' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-=======
-        AGREEMENTS: { access: 'AVAILABLE', reason: null },
-        CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
-        CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        CONNECT_BANK_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-        RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        TAX_FORMS: { access: 'AVAILABLE', reason: null },
-        VENDORS: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
       };
 
       it('for an active project', async () => {
-        const project = await fakeProject({ isActive: true });
+        const project = await fakeProject({ isActive: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(project);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
@@ -1256,7 +1150,6 @@ describe('server/lib/allowed-features', () => {
         VIRTUAL_CARDS: { access: 'AVAILABLE', reason: null },
 
         ACCOUNT_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-<<<<<<< HEAD
         AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1266,22 +1159,10 @@ describe('server/lib/allowed-features', () => {
         RESTRICTED_FUNDS: { access: 'DISABLED', reason: 'PRICING' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-=======
-        AGREEMENTS: { access: 'AVAILABLE', reason: null },
-        CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
-        CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        CONNECT_BANK_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-        EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-        FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-        RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
-        TAX_FORMS: { access: 'AVAILABLE', reason: null },
-        VENDORS: { access: 'AVAILABLE', reason: null },
->>>>>>> 168bf87c01 (feat(AllowdFeature): base library implementation)
       };
 
       it('for an active event', async () => {
-        const event = await fakeEvent({ isActive: true });
+        const event = await fakeEvent({ isActive: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(event);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
@@ -1293,7 +1174,7 @@ describe('server/lib/allowed-features', () => {
       it('should throw an error if the feature is unsupported by the account type', async () => {
         const user = await fakeUser();
         await expect(checkFeatureAccess(user.collective, FEATURE.RECEIVE_EXPENSES)).to.be.rejectedWith(
-          'This feature is not supported for your account type',
+          'This feature is not supported for your account',
         );
       });
 

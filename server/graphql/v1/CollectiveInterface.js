@@ -1434,8 +1434,9 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
       description: 'The list of expense types supported by this account',
       async resolve(collective, _, req) {
-        const host =
-          collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
+        const host = collective.isHostAccount
+          ? collective
+          : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
         const parent =
           collective.ParentCollectiveId && (await req.loaders.Collective.byId.load(collective.ParentCollectiveId));
 
@@ -1445,7 +1446,7 @@ const CollectiveFields = () => {
         const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
         const supportedFromConfig = Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
         if (supportedFromConfig.includes('GRANT')) {
-          const hasGrantsFeature = await hasFeature(collective, FEATURE.FUNDS_GRANTS_MANAGEMENT, {
+          const hasGrantsFeature = await hasFeature(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, {
             loaders: req.loaders,
           });
           if (!hasGrantsFeature) {
