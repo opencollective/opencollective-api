@@ -30,6 +30,8 @@ if (process.env.EXTRA_ENV || process.env.OC_ENV === 'development') {
 
 if (process.env.NODE_ENV !== 'test') {
   dotenv.config();
+} else if (fs.existsSync(path.join(__dirname, '..', '.env.test'))) {
+  dotenv.config({ path: path.join(__dirname, '..', '.env.test') });
 }
 
 debug.enable(process.env.DEBUG);

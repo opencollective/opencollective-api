@@ -218,6 +218,10 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.user(activity);
       break;
 
+    case ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED:
+      await notify.collective(activity);
+      break;
+
     case ActivityTypes.TAXFORM_INVALIDATED:
       await notify.collective(activity);
       break;

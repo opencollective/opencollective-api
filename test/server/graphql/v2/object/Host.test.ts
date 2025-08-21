@@ -626,7 +626,7 @@ describe('server/graphql/v2/object/Host', () => {
         admin: hostAdmin,
       });
       const startDate = new Date(2025, 7, 8);
-      await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
+      await PlatformSubscription.createSubscription(host, startDate, { title: 'A plan' }, hostAdmin);
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
       expect(result.errors).to.be.undefined;
       expect(result.data.host.platformSubscription).to.eql({
@@ -645,7 +645,12 @@ describe('server/graphql/v2/object/Host', () => {
       });
       const startDate = moment.utc().startOf('day').toDate();
       const endDate = moment.utc(startDate).add('10', 'days').toDate();
-      const subscription = await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
+      const subscription = await PlatformSubscription.createSubscription(
+        host,
+        startDate,
+        { title: 'A plan' },
+        hostAdmin,
+      );
       await subscription.update({
         period: [
           subscription.start,
@@ -752,7 +757,7 @@ describe('server/graphql/v2/object/Host', () => {
         year: moment.utc(startDate).year(),
         month: BillingMonth[moment.utc(startDate).month()],
       };
-      await PlatformSubscription.createSubscription(host.id, startDate, { title: 'A plan' });
+      await PlatformSubscription.createSubscription(host, startDate, { title: 'A plan' }, hostAdmin);
       let result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
       expect(result.errors).to.be.undefined;
       expect(result.data.host.platformBilling).to.eql({
@@ -776,11 +781,12 @@ describe('server/graphql/v2/object/Host', () => {
       });
 
       const aNewSubscription = await PlatformSubscription.replaceCurrentSubscription(
-        host.id,
+        host,
         moment.utc(startDate).add('5', 'days').toDate(),
         {
           title: 'A new plan',
         },
+        hostAdmin,
       );
 
       result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
@@ -845,9 +851,14 @@ describe('server/graphql/v2/object/Host', () => {
         ],
       });
 
-      await PlatformSubscription.createSubscription(host.id, moment.utc(startDate).add('10', 'days').toDate(), {
-        title: 'Yet another plan in this billing period',
-      });
+      await PlatformSubscription.createSubscription(
+        host,
+        moment.utc(startDate).add('10', 'days').toDate(),
+        {
+          title: 'Yet another plan in this billing period',
+        },
+        hostAdmin,
+      );
 
       result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
       expect(result.errors).to.be.undefined;

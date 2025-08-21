@@ -2,6 +2,8 @@ import handlebars from 'handlebars';
 import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
 import moment from 'moment-timezone';
 
+import { freeFeatures } from '../constants/plans';
+
 import {
   capitalize,
   formatCurrency,
@@ -250,6 +252,53 @@ handlebars.registerHelper('debug', console.log);
  */
 handlebars.registerHelper('escapeForSubject', str => {
   return str ? str.replaceAll(/[\r\n]/g, ' ') : '';
+});
+
+/**
+ * Returns a human-readable label for platform features
+ */
+handlebars.registerHelper('getPlatformFeatureLabel', featureKey => {
+  const featureLabels = {
+    TRANSFERWISE: 'Payouts with Wise',
+    PAYPAL_PAYOUTS: 'Payouts with PayPal',
+    RECEIVE_HOST_APPLICATIONS: 'Receive Host Applications',
+    CHART_OF_ACCOUNTS: 'Chart of Accounts',
+    EXPENSE_SECURITY_CHECKS: 'Expense Security Checks',
+    EXPECTED_FUNDS: 'Expected Funds',
+    CHARGE_HOSTING_FEES: 'Charge Hosting Fees',
+    RESTRICTED_FUNDS: 'Restricted Funds',
+    AGREEMENTS: 'Agreements',
+    TAX_FORMS: 'Tax Forms',
+    CONNECT_BANK_ACCOUNTS: 'Connect Bank Accounts',
+    FUNDS_GRANTS_MANAGEMENT: 'Funds & Grants Management',
+    VENDORS: 'Vendors',
+    USE_EXPENSES: 'Submit Expenses',
+    UPDATES: 'Updates',
+    RECEIVE_FINANCIAL_CONTRIBUTIONS: 'Receive Financial Contributions',
+    RECEIVE_EXPENSES: 'Receive Expenses',
+    ACCOUNT_MANAGEMENT: 'Account Management',
+  };
+
+  return featureLabels[featureKey] || startCase(lowerCase(featureKey));
+});
+
+/**
+ * Checks if a feature is NOT in the free features list
+ */
+handlebars.registerHelper('isFreeFeature', featureKey => {
+  return freeFeatures.includes(featureKey);
+});
+
+/**
+ * Checks if a plan has any premium (non-free) features enabled
+ */
+handlebars.registerHelper('hasPremiumFeatures', features => {
+  if (!features || typeof features !== 'object') {
+    return false;
+  }
+
+  // Check if any enabled feature is not in the free features list
+  return Object.keys(features).some(featureKey => features[featureKey] === true && !freeFeatures.includes(featureKey));
 });
 
 // Math operations

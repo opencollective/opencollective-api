@@ -65,7 +65,7 @@ describe('submit-platform-subscription-bills', () => {
     ];
     for (const org of organizations) {
       const i = organizations.indexOf(org);
-      await PlatformSubscription.createSubscription(org.id, moment(date).subtract(2, 'month').toDate(), plans[i]);
+      await PlatformSubscription.createSubscription(org, moment(date).subtract(2, 'month').toDate(), plans[i], user);
     }
 
     const calculateUtilizationStub = sandbox.stub(PlatformSubscription, 'calculateUtilization');
