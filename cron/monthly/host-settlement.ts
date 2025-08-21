@@ -76,16 +76,6 @@ async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMet
     return null;
   }
 
-  if (
-    !res['paymentMethod'] || // manual
-    res['paymentMethod'].type === PAYMENT_METHOD_TYPE.MANUAL || // manual
-    res.PayoutMethod?.type === PayoutMethodTypes.OTHER
-  ) {
-    // ignore other payout method here to try automated payout methods again
-    // specially now that we support Stripe
-    return null;
-  }
-
   return res.PayoutMethod;
 }
 
