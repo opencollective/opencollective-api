@@ -2,6 +2,7 @@ import handlebars from 'handlebars';
 import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
 import moment from 'moment-timezone';
 
+import { FeatureDetails } from '../constants/feature';
 import { freeFeatures } from '../constants/plans';
 
 import {
@@ -255,31 +256,15 @@ handlebars.registerHelper('escapeForSubject', str => {
 });
 
 /**
- * Returns a human-readable label for platform features
+ * Returns feature details with label and documentation URL for platform features
  */
-handlebars.registerHelper('getPlatformFeatureLabel', featureKey => {
-  const featureLabels = {
-    TRANSFERWISE: 'Payouts with Wise',
-    PAYPAL_PAYOUTS: 'Payouts with PayPal',
-    RECEIVE_HOST_APPLICATIONS: 'Receive Host Applications',
-    CHART_OF_ACCOUNTS: 'Chart of Accounts',
-    EXPENSE_SECURITY_CHECKS: 'Expense Security Checks',
-    EXPECTED_FUNDS: 'Expected Funds',
-    CHARGE_HOSTING_FEES: 'Charge Hosting Fees',
-    RESTRICTED_FUNDS: 'Restricted Funds',
-    AGREEMENTS: 'Agreements',
-    TAX_FORMS: 'Tax Forms',
-    CONNECT_BANK_ACCOUNTS: 'Connect Bank Accounts',
-    FUNDS_GRANTS_MANAGEMENT: 'Funds & Grants Management',
-    VENDORS: 'Vendors',
-    USE_EXPENSES: 'Submit Expenses',
-    UPDATES: 'Updates',
-    RECEIVE_FINANCIAL_CONTRIBUTIONS: 'Receive Financial Contributions',
-    RECEIVE_EXPENSES: 'Receive Expenses',
-    ACCOUNT_MANAGEMENT: 'Account Management',
-  };
-
-  return featureLabels[featureKey] || startCase(lowerCase(featureKey));
+handlebars.registerHelper('getPlatformFeatureDetails', featureKey => {
+  return (
+    FeatureDetails[featureKey] || {
+      label: startCase(lowerCase(featureKey)),
+      documentationUrl: null,
+    }
+  );
 });
 
 /**

@@ -201,7 +201,16 @@
         <div class="plan-feature">
           <table class="plan-feature-table">
             <tr>
-              <td class="plan-feature-text"><span class="plan-feature-icon">✓</span> {{getPlatformFeatureLabel @key}}</td>
+              <td class="plan-feature-text">
+                <span class="plan-feature-icon">✓</span> 
+                {{#with (getPlatformFeatureDetails @key)}}
+                  {{#if documentationUrl}}
+                    <a href="{{documentationUrl}}" target="_blank" rel="noopener noreferrer" style="text-decoration: underline; color: #4b5563;">{{label}}</a>
+                  {{else}}
+                    {{label}}
+                  {{/if}}
+                {{/with}}
+              </td>
             </tr>
           </table>
         </div>
