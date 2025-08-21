@@ -122,8 +122,8 @@ function isValidHostPayoutMethodType(
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
   const momentDate = moment(baseDate);
   const billingPeriodDate = moment(momentDate).subtract(1, 'months');
-  const year = momentDate.year();
-  const month = momentDate.month();
+  const year = billingPeriodDate.year();
+  const month = billingPeriodDate.month();
   logger.info(`Submitting platform subscription bills for ${billingPeriodDate.format('MMMM/YYYY')}...`);
 
   const payoutMethods = groupBy(
