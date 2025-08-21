@@ -8,7 +8,6 @@ import moment from 'moment';
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
-import { PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import { getPlatformConstantsForDate, PLATFORM_MIGRATION_DATE } from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
