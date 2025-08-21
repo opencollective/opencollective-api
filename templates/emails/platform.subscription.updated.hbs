@@ -37,6 +37,10 @@ Subject: Platform subscription updated for {{account.name}}
   .plan-cell.new-plan {
     text-align: center;
   }
+  .previous-plan {
+    filter: grayscale(1);
+    opacity: 0.7;
+  }
   .plan-cell.previous-plan .plan-title {
     background-color: #6b7280;
   }
@@ -112,12 +116,9 @@ Subject: Platform subscription updated for {{account.name}}
 
 <p>The platform subscription for {{> linkCollective collective=account}} has been updated
 {{#if previousPlan}}from <strong>{{previousPlan.title}}</strong>{{/if}}
-to <strong>{{newPlan.title}}</strong>.</p>
-
-{{#if newPlan.pricing.pricePerMonth}}
-<p>The new subscription cost of <strong>{{currency newPlan.pricing.pricePerMonth currency="USD"}}</strong> will be next charged on <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.</p>
-{{/if}}
-
+to <strong>{{newPlan.title}}</strong>. {{#if newPlan.pricing.pricePerMonth}}
+The new subscription will be charged on <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.
+{{/if}}</p>
 
 <div class="plan-comparison-container">
   <table class="plan-comparison-table">
