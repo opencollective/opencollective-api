@@ -20,7 +20,7 @@ describe('server/graphql/loaders/collective', () => {
     await resetTestDB();
   });
 
-  describe('canSeePrivateInfo', () => {
+  describe('canSeePrivateProfileInfo', () => {
     describe('User info', () => {
       let userWithPrivateInfo, randomUser, collectiveAdmin, hostAdmin;
 
@@ -37,31 +37,31 @@ describe('server/graphql/loaders/collective', () => {
       });
 
       it('Cannot see infos as unauthenticated', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: null });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: null });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Cannot see infos as a random user', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: randomUser });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: randomUser });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Can see infos if self', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: userWithPrivateInfo });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: userWithPrivateInfo });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
 
       it('Can see infos if collective admin', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: collectiveAdmin });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
 
       it('Can see infos if host admin', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: hostAdmin });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: hostAdmin });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
@@ -97,34 +97,80 @@ describe('server/graphql/loaders/collective', () => {
       });
 
       it('Cannot see infos as unauthenticated', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: null });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: null });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Cannot see infos as a random user', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: randomUser });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: randomUser });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Can see infos if self', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: userWithPrivateInfo });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: userWithPrivateInfo });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
 
       it('Cannot see infos if collective admin', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: collectiveAdmin });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Cannot see infos if host admin', async () => {
-        const loader = CollectiveLoaders.canSeePrivateInfo({ remoteUser: hostAdmin });
+        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: hostAdmin });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
+    });
+  });
+
+  describe('canSeePrivateLocation', () => {
+    let userWithPrivateInfo, randomUser, collectiveAdmin, hostAdmin;
+
+    before(async () => {
+      userWithPrivateInfo = await fakeUser();
+      randomUser = await fakeUser();
+      collectiveAdmin = await fakeUser();
+      hostAdmin = await fakeUser();
+
+      const collective = await fakeCollective();
+      await collective.addUserWithRole(userWithPrivateInfo, 'BACKER');
+      await collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+      await collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+    });
+
+    it('Cannot see infos as unauthenticated', async () => {
+      const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: null });
+      const result = await loader.load(userWithPrivateInfo.CollectiveId);
+      expect(result).to.be.false;
+    });
+
+    it('Cannot see infos as a random user', async () => {
+      const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: randomUser });
+      const result = await loader.load(userWithPrivateInfo.CollectiveId);
+      expect(result).to.be.false;
+    });
+
+    it('Can see infos if self', async () => {
+      const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: userWithPrivateInfo });
+      const result = await loader.load(userWithPrivateInfo.CollectiveId);
+      expect(result).to.be.true;
+    });
+
+    it('Cannot see infos if collective admin', async () => {
+      const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: collectiveAdmin });
+      const result = await loader.load(userWithPrivateInfo.CollectiveId);
+      expect(result).to.be.false;
+    });
+
+    it('Can see infos if host admin', async () => {
+      const loader = CollectiveLoaders.canSeePrivateLocation({ remoteUser: hostAdmin });
+      const result = await loader.load(userWithPrivateInfo.CollectiveId);
+      expect(result).to.be.true;
     });
   });
 

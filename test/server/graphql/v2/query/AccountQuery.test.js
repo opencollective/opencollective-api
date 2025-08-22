@@ -183,6 +183,27 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(resultHostAdmin.data.account.location.address).to.eq('PRIVATE!');
     });
 
+    it('collective admins cannot see contributor locations', async () => {
+      const contributor = await fakeUser(null, { location: { address: 'CONTRIBUTOR_ADDRESS' } });
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+
+      // Make the contributor a member of the collective
+      await collective.addUserWithRole(contributor, roles.BACKER);
+
+      // Collective admin should not be able to see contributor's location
+      const result = await graphqlQueryV2(accountQuery, { slug: contributor.collective.slug }, collectiveAdmin);
+      expect(result.data.account.location).to.be.null;
+    });
+
+    it('users can see their own location', async () => {
+      const user = await fakeUser(null, { location: { address: 'MY_ADDRESS' } });
+
+      // User should be able to see their own location
+      const result = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, user);
+      expect(result.data.account.location.address).to.eq('MY_ADDRESS');
+    });
+
     describe('for incognito', () => {
       it('is retrieved from the main profile', async () => {
         const user = await fakeUser(null, { location: { address: 'PRIVATE!' } });
