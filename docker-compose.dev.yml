@@ -1,4 +1,15 @@
 services:
+  postgres:
+    image: postgres:16
+    profiles: [full, dev, db]
+    volumes:
+      - opencollective-postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - 5432:5432
   search:
     image: opensearchproject/opensearch:3
     profiles: [full, search]
@@ -44,7 +55,6 @@ services:
       MP_DATABASE: /data/mailpit.db
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
-
   minio:
     image: minio/minio:latest
     profiles: [full, dev, uploads]
@@ -60,3 +70,4 @@ services:
 
 volumes:
   minio:
+  opencollective-postgres-data:
