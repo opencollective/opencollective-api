@@ -199,7 +199,7 @@ export const getFeatureStatusResolver =
       return FEATURE_STATUS.UNSUPPORTED;
     }
 
-    const access = getFeatureAccess(collective, feature);
+    const { access } = await getFeatureAccess(collective, feature, { loaders: req?.loaders });
     if (access === 'UNSUPPORTED') {
       return FEATURE_STATUS.UNSUPPORTED;
     } else if (access === 'DISABLED') {

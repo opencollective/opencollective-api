@@ -13,7 +13,7 @@ export const GraphQLPermission = new GraphQLObjectType({
   }),
 });
 
-export type PermissionFields = { allowed: boolean; reason?: string };
+export type PermissionFields = { allowed: boolean | Promise<boolean>; reason?: string };
 
 export const parsePermissionFromEvaluator =
   (fn: ExpenseLib.ExpensePermissionEvaluator) =>

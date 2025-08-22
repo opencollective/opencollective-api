@@ -16,6 +16,7 @@ import {
   fakeConnectedAccount,
   fakeExpense,
   fakeOrder,
+  fakePlatformSubscription,
   fakeTransactionsImport,
   fakeTransactionsImportRow,
   fakeUploadedFile,
@@ -23,7 +24,7 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
-describe('server/graphql/v2/mutation/PlaidMutations', () => {
+describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
   let platform;
   let sandbox: sinon.SinonSandbox;
   let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
@@ -391,7 +392,11 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
       sandbox.stub(GoCardlessConnect, 'createGoCardlessLink').resolves(mockLink);
 
       const remoteUser = await fakeUser({ data: { isRoot: true } });
-      const host = await fakeActiveHost({ admin: remoteUser, data: { features: { OFF_PLATFORM_TRANSACTIONS: true } } });
+      const host = await fakeActiveHost({ admin: remoteUser });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { OFF_PLATFORM_TRANSACTIONS: true } },
+      });
       const result = await graphqlQueryV2(
         GENERATE_GOCARDLESS_LINK_MUTATION,
         {
@@ -423,7 +428,11 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
       sandbox.stub(GoCardlessConnect, 'createGoCardlessLink').rejects(new Error('GoCardless API error'));
 
       const remoteUser = await fakeUser({ data: { isRoot: true } });
-      const host = await fakeActiveHost({ admin: remoteUser, data: { features: { OFF_PLATFORM_TRANSACTIONS: true } } });
+      const host = await fakeActiveHost({ admin: remoteUser });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { OFF_PLATFORM_TRANSACTIONS: true } },
+      });
       const result = await graphqlQueryV2(
         GENERATE_GOCARDLESS_LINK_MUTATION,
         {

@@ -248,14 +248,14 @@ export interface PlatformSubscriptionPlan {
   features: Partial<Record<CommercialFeaturesType, boolean>>;
 }
 
-const freeFeatures: CommercialFeaturesType[] = [
+export const freeFeatures: CommercialFeaturesType[] = [
   PlatformFeature.ACCOUNT_MANAGEMENT,
   PlatformFeature.USE_EXPENSES,
   PlatformFeature.RECEIVE_EXPENSES,
   PlatformFeature.UPDATES,
   PlatformFeature.VENDORS,
   PlatformFeature.RECEIVE_FINANCIAL_CONTRIBUTIONS,
-];
+] as const;
 
 const basicFeatures: CommercialFeaturesType[] = [
   ...freeFeatures,
@@ -266,7 +266,7 @@ const basicFeatures: CommercialFeaturesType[] = [
   PlatformFeature.EXPECTED_FUNDS,
   PlatformFeature.CHARGE_HOSTING_FEES,
   PlatformFeature.RESTRICTED_FUNDS,
-];
+] as const;
 
 const proFeatures: CommercialFeaturesType[] = [
   ...basicFeatures,
@@ -274,7 +274,8 @@ const proFeatures: CommercialFeaturesType[] = [
   PlatformFeature.TAX_FORMS,
   PlatformFeature.CONNECT_BANK_ACCOUNTS,
   PlatformFeature.FUNDS_GRANTS_MANAGEMENT,
-];
+  PlatformFeature.OFF_PLATFORM_TRANSACTIONS,
+] as const;
 
 const featuresForStarter = Object.fromEntries(
   CommercialFeatures.map(feature => [feature, freeFeatures.includes(feature)]),

@@ -7,7 +7,7 @@ import PlatformConstants from '../../../../../server/constants/platform';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import models from '../../../../../server/models';
 import { plaidItemPublicTokenExchangeResponse, plaidLinkTokenCreateResponse } from '../../../../mocks/plaid';
-import { fakeActiveHost, fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakePlatformSubscription, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/PlaidMutations', () => {
@@ -62,7 +62,11 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
 
     it('should generate a Plaid Link token', async () => {
       const remoteUser = await fakeUser({ data: { isRoot: true } });
-      const host = await fakeActiveHost({ admin: remoteUser, data: { features: { OFF_PLATFORM_TRANSACTIONS: true } } });
+      const host = await fakeActiveHost({ admin: remoteUser });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { OFF_PLATFORM_TRANSACTIONS: true } },
+      });
       await platform.addUserWithRole(remoteUser, 'ADMIN');
       const result = await graphqlQueryV2(
         GENERATE_PLAID_LINK_TOKEN_MUTATION,

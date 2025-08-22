@@ -63,22 +63,17 @@ describe('server/graphql/common/features', () => {
       });
 
       it('Returns DISABLED when the feature is disabled', async () => {
-        const collective = await fakeHost({ settings: { features: { transferwise: false } } });
+        const collective = await fakeHost({ plan: 'start-plan-2021', settings: { features: { transferwise: false } } });
         const result = await getFeatureStatusResolver(FEATURE.TRANSFERWISE)(collective);
         expect(result).to.eq(FEATURE_STATUS.DISABLED);
       });
 
       it("Returns ACTIVE if there's a linked transferwise account", async () => {
-        const collective = await fakeHost({ settings: { features: { transferwise: true } } });
+        const collective = await fakeHost({ plan: 'start-plan-2021', settings: { features: { transferwise: true } } });
         await fakeConnectedAccount({ CollectiveId: collective.id, service: 'transferwise' });
         const result = await getFeatureStatusResolver(FEATURE.TRANSFERWISE)(collective);
         expect(result).to.eq(FEATURE_STATUS.ACTIVE);
       });
     });
-
-    // TO DO
-    // describe('RECURRING_CONTRIBUTIONS', () => {
-    //   //
-    // });
   });
 });
