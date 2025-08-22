@@ -63,10 +63,6 @@ const FeaturesAccess: Partial<
     optIn: true,
     flagOverride: 'settings.collectivePage.showGoals',
   },
-  // TODO: This permission shouldn't have been implemented, the right flag is OffPlatformTransactions
-  [FEATURE.CONNECT_BANK_ACCOUNTS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
-  },
   [FEATURE.CONTACT_FORM]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     flagOverride: 'settings.features.contactForm',
