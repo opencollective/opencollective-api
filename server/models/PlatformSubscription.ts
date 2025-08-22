@@ -17,9 +17,13 @@ import Temporal from 'sequelize-temporal';
 
 import { PlatformSubscriptionPlan } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
+import { getPreferredPlatformPayout } from '../lib/platform-subscriptions/payment-options';
+import { chargePlatformBillingExpenseWithStripe } from '../lib/platform-subscriptions/stripe-payment';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
+import Expense from './Expense';
+import { PayoutMethodTypes } from './PayoutMethod';
 
 export type Billing = {
   collectiveId: number;
@@ -448,6 +452,21 @@ class PlatformSubscription extends Model<
     }
 
     return PlatformSubscription.createSubscription(collectiveId, newSubscriptionStart.toDate(), plan, opts);
+  }
+
+  static getPreferredPlatformPayout = getPreferredPlatformPayout;
+
+  static async chargeExpense(expense: Expense) {
+    const payoutMethod = await expense.getPayoutMethod();
+
+    switch (payoutMethod.type) {
+      case PayoutMethodTypes.STRIPE: {
+        return chargePlatformBillingExpenseWithStripe(expense);
+      }
+      default: {
+        return;
+      }
+    }
   }
 
   static get loaders() {
