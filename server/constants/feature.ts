@@ -92,7 +92,6 @@ enum FEATURE {
   RESTRICTED_FUNDS = 'RESTRICTED_FUNDS',
   AGREEMENTS = 'AGREEMENTS',
   TAX_FORMS = 'TAX_FORMS',
-  CONNECT_BANK_ACCOUNTS = 'CONNECT_BANK_ACCOUNTS',
   FUNDS_GRANTS_MANAGEMENT = 'FUNDS_GRANTS_MANAGEMENT',
   VENDORS = 'VENDORS',
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
@@ -110,7 +109,6 @@ export const CommercialFeatures = [
   FEATURE.RESTRICTED_FUNDS,
   FEATURE.AGREEMENTS,
   FEATURE.TAX_FORMS,
-  FEATURE.CONNECT_BANK_ACCOUNTS,
   FEATURE.FUNDS_GRANTS_MANAGEMENT,
   FEATURE.VENDORS,
   FEATURE.USE_EXPENSES,
@@ -170,10 +168,6 @@ export const FeatureDetails: Record<CommercialFeaturesType, { label: string; doc
     documentationUrl:
       'https://documentation.opencollective.com/expenses-and-getting-paid/understanding-tax-requirements',
   },
-  CONNECT_BANK_ACCOUNTS: {
-    label: 'Connect Bank Accounts',
-    documentationUrl: null,
-  },
   FUNDS_GRANTS_MANAGEMENT: {
     label: 'Funds & Grants Management',
     documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/funds-and-grants/funds',
@@ -202,6 +196,10 @@ export const FeatureDetails: Record<CommercialFeaturesType, { label: string; doc
   },
   ACCOUNT_MANAGEMENT: {
     label: 'Account Management',
+    documentationUrl: null,
+  },
+  OFF_PLATFORM_TRANSACTIONS: {
+    label: 'Synchronize Bank Accounts',
     documentationUrl: null,
   },
 } as const;

@@ -272,7 +272,6 @@ const proFeatures: CommercialFeaturesType[] = [
   ...basicFeatures,
   PlatformFeature.AGREEMENTS,
   PlatformFeature.TAX_FORMS,
-  PlatformFeature.CONNECT_BANK_ACCOUNTS,
   PlatformFeature.FUNDS_GRANTS_MANAGEMENT,
   PlatformFeature.OFF_PLATFORM_TRANSACTIONS,
 ] as const;
