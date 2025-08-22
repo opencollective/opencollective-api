@@ -155,6 +155,9 @@ enum ActivityTypes {
   AGREEMENT_EDITED = 'agreement.edited',
   AGREEMENT_DELETED = 'agreement.deleted',
 
+  // Platform subscriptions
+  PLATFORM_SUBSCRIPTION_UPDATED = 'platform.subscription.updated',
+
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
   COLLECTIVE_TRANSACTION_PAID = 'collective.transaction.paid', // replaced with COLLECTIVE_EXPENSE_PAID
@@ -185,6 +188,7 @@ export const TransactionalActivities = [
   ActivityTypes.HOST_APPLICATION_CONTACT,
   ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
   ActivityTypes.OAUTH_APPLICATION_AUTHORIZED,
+  ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
 ];
 
 export enum ActivityClasses {
