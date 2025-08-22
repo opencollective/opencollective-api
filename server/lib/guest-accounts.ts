@@ -111,7 +111,10 @@ export const confirmGuestAccount = async (
   const newName = userCollective.name !== DEFAULT_GUEST_NAME ? userCollective.name : 'Incognito';
   userCollective = await userCollective.update({
     name: newName,
-    slug: newName === 'Incognito' ? `user-${uuid().split('-')[0]}` : await models.Collective.generateSlug([newName]),
+    slug:
+      !newName || newName === 'Incognito'
+        ? `user-${uuid().split('-')[0]}`
+        : await models.Collective.generateSlug([newName]),
     data: { ...userCollective.data, isGuest: false, wasGuest: true },
   });
 
