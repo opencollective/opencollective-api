@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
@@ -110,6 +111,14 @@ const AccountsCollectionQuery = {
       type: GraphQLBoolean,
       description: 'Filter accounts that are first party hosts',
     },
+    lastTransactionFrom: {
+      type: GraphQLDateTime,
+      description: 'Filter accounts that have a last transaction after this date',
+    },
+    lastTransactionTo: {
+      type: GraphQLDateTime,
+      description: 'Filter accounts that have a last transaction before this date',
+    },
   },
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
@@ -144,6 +153,8 @@ const AccountsCollectionQuery = {
       isPlatformSubscriber: args.isPlatformSubscriber,
       isVerified: args.isVerified,
       isFirstPartyHost: args.isFirstPartyHost,
+      lastTransactionFrom: args.lastTransactionFrom,
+      lastTransactionTo: args.lastTransactionTo,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

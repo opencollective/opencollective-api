@@ -151,6 +151,7 @@ const getSortSubQuery = (
 ) => {
   const sortSubQueries = {
     [ORDER_BY_PSEUDO_FIELDS.ACTIVITY]: `COALESCE(transaction_stats."count", 0)`,
+    [ORDER_BY_PSEUDO_FIELDS.LAST_TRANSACTION_CREATED_AT]: `COALESCE(transaction_stats."LatestTransactionCreatedAt", '2015-11-23')`,
     [ORDER_BY_PSEUDO_FIELDS.RANK]: `
       CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
         1
@@ -256,6 +257,8 @@ export const searchCollectivesInDB = async (
     plan?: string[];
     isVerified?: boolean;
     isFirstPartyHost?: boolean;
+    lastTransactionFrom?: Date;
+    lastTransactionTo?: Date;
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -387,6 +390,12 @@ export const searchCollectivesInDB = async (
       dynamicConditions += `AND (${verifiedConditions.join(' OR ')}) `;
     }
   }
+  if (args.lastTransactionFrom) {
+    dynamicConditions += `AND transaction_stats."LatestTransactionCreatedAt" >= :lastTransactionFrom `;
+  }
+  if (args.lastTransactionTo) {
+    dynamicConditions += `AND transaction_stats."LatestTransactionCreatedAt" <= :lastTransactionTo `;
+  }
 
   // Build the query
   const result = await sequelize.query(
@@ -427,6 +436,8 @@ export const searchCollectivesInDB = async (
         currency: args.currency,
         includeVendorsForHostId,
         plan: args.plan,
+        lastTransactionFrom: args.lastTransactionFrom,
+        lastTransactionTo: args.lastTransactionTo,
       },
     },
   );
