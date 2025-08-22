@@ -73,7 +73,6 @@ export default {
     try {
       return await axios.post(targetUrl, slackOptions);
     } catch (err) {
-      logger.warn(`SlackLib.postMessage failed for ${targetUrl}:`, err);
       reportErrorToSentry(err, { extra: { targetUrl, slackOptions } });
       throw err;
     }
