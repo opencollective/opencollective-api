@@ -677,7 +677,7 @@ const CollectiveFields = () => {
         const user = await req.loaders.User.byId.load(collective.CreatedByUserId);
         if (
           user &&
-          (!collective.isIncognito || (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId)))
+          (!collective.isIncognito || (await req.loaders.Collective.canSeePrivateProfileInfo.load(user.CollectiveId)))
         ) {
           return user;
         } else {
@@ -786,7 +786,7 @@ const CollectiveFields = () => {
           }
 
           return req.loaders.Location.byCollectiveId.load(collective.id);
-        } else if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
+        } else if (await req.loaders.Collective.canSeePrivateLocation.load(collective.id)) {
           return req.loaders.Location.byCollectiveId.load(collective.id);
         }
       },
@@ -1801,7 +1801,7 @@ export const UserCollectiveType = new GraphQLObjectType({
           if (!req.remoteUser || userCollective.isIncognito) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.email;
             }
@@ -1814,7 +1814,7 @@ export const UserCollectiveType = new GraphQLObjectType({
           if (!req.remoteUser || userCollective.isIncognito) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.newsletterOptIn;
             }

@@ -453,7 +453,8 @@ export const generateLoaders = req => {
         return sortResults(ids, results, 'CollectiveId', []) as ConnectedAccount[][];
       }),
 
-      canSeePrivateInfo: collectiveLoaders.canSeePrivateInfo(req),
+      canSeePrivateProfileInfo: collectiveLoaders.canSeePrivateProfileInfo(req),
+      canSeePrivateLocation: collectiveLoaders.canSeePrivateLocation(req),
 
       childrenIds: new DataLoader<number, number[]>(ids =>
         Collective.findAll({
