@@ -1220,7 +1220,7 @@ export const AccountFields = {
     description:
       'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
     async resolve(collective, _, req) {
-      if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
+      if (await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id)) {
         return req.loaders.Member.adminUserEmailsForCollective.load(collective);
       }
     },

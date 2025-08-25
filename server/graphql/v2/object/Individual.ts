@@ -42,7 +42,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'email')) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.email;
             }
@@ -85,7 +85,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
             (await individual.isHost()) ||
             (checkScope(req, 'account') &&
               (req.remoteUser?.isAdmin(individual.id) ||
-                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, individual.id)));
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, individual.id)));
 
           if (!canSeeLocation) {
             return null;
@@ -122,7 +122,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'account')) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.newsletterOptIn;
             }

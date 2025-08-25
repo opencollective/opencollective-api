@@ -615,7 +615,7 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('CREDIT_CARD');
             if (
               parseToBoolean(config.stripe.paymentIntentEnabled) ||
-              hasFeature(collective, FEATURE.STRIPE_PAYMENT_INTENT)
+              (await hasFeature(collective, FEATURE.STRIPE_PAYMENT_INTENT, { loaders: req.loaders }))
             ) {
               supportedPaymentMethods.push(PaymentMethodLegacyTypeEnum.PAYMENT_INTENT);
             }

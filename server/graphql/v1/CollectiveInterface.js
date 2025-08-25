@@ -20,6 +20,7 @@ import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import PlatformConstants from '../../constants/platform';
 import roles from '../../constants/roles';
+import { hasFeature } from '../../lib/allowed-features';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import logger from '../../lib/logger';
@@ -676,7 +677,7 @@ const CollectiveFields = () => {
         const user = await req.loaders.User.byId.load(collective.CreatedByUserId);
         if (
           user &&
-          (!collective.isIncognito || (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId)))
+          (!collective.isIncognito || (await req.loaders.Collective.canSeePrivateProfileInfo.load(user.CollectiveId)))
         ) {
           return user;
         } else {
@@ -785,7 +786,7 @@ const CollectiveFields = () => {
           }
 
           return req.loaders.Location.byCollectiveId.load(collective.id);
-        } else if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
+        } else if (await req.loaders.Collective.canSeePrivateLocation.load(collective.id)) {
           return req.loaders.Location.byCollectiveId.load(collective.id);
         }
       },
@@ -974,8 +975,8 @@ const CollectiveFields = () => {
     canContact: {
       description: 'Returns whether this collectives can be contacted',
       type: GraphQLBoolean,
-      resolve(collective) {
-        return collective.canContact();
+      async resolve(collective, _, req) {
+        return hasFeature(collective, FEATURE.CONTACT_FORM, { loaders: req.loaders });
       },
     },
     isIncognito: {
@@ -1800,7 +1801,7 @@ export const UserCollectiveType = new GraphQLObjectType({
           if (!req.remoteUser || userCollective.isIncognito) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.email;
             }
@@ -1813,7 +1814,7 @@ export const UserCollectiveType = new GraphQLObjectType({
           if (!req.remoteUser || userCollective.isIncognito) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.newsletterOptIn;
             }

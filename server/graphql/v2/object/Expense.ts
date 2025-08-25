@@ -781,6 +781,14 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           }
         },
       },
+      platformBillingData: {
+        type: GraphQLJSON,
+        async resolve(expense, _, req) {
+          if (req.remoteUser.isRoot()) {
+            return expense.data.bill;
+          }
+        },
+      },
     };
   },
 });

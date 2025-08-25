@@ -60,9 +60,9 @@ import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { HostPlan } from '../constants/plans';
+import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
-import { hasFeature } from '../lib/allowed-features';
 import {
   getBalanceAmount,
   getBalanceTimeSeries,
@@ -1349,13 +1349,6 @@ class Collective extends Model<
    */
   canBeUsedAsPayoutProfile = function () {
     return !this.isIncognito;
-  };
-
-  /**
-   *  Checks if the collective can be contacted.
-   */
-  canContact = function () {
-    return hasFeature(this, FEATURE.CONTACT_FORM);
   };
 
   /**
@@ -3199,6 +3192,14 @@ class Collective extends Model<
     return Collective.findOne({
       where: { id: CollectiveId, HostCollectiveId: this.id },
     }).then(r => Boolean(r));
+  };
+
+  isPlatformAccount = function () {
+    if (this.ParentCollectiveId) {
+      return PlatformConstants.CurrentPlatformCollectiveIds.includes(this.ParentCollectiveId);
+    } else {
+      return PlatformConstants.CurrentPlatformCollectiveIds.includes(this.id);
+    }
   };
 
   // get the host of the parent collective if any, or of this collective

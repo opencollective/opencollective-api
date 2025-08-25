@@ -14,6 +14,10 @@ export const isCaptchaSetup = (): boolean => {
   );
 };
 
+type VerifyResponse = {
+  success: boolean;
+};
+
 export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_PROVIDERS }, reqIp: string) {
   const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
 
@@ -26,7 +30,7 @@ export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_P
   if (!token) {
     throw new Error('You need to provide a valid captcha token');
   }
-  let response;
+  let response: VerifyResponse;
   if (provider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
     response = await hcaptcha.verify(config.hcaptcha.secret, token, reqIp, config.hcaptcha.sitekey);
   } else if (provider === CAPTCHA_PROVIDERS.RECAPTCHA && config.recaptcha && parseToBoolean(config.recaptcha.enable)) {

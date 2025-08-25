@@ -114,6 +114,7 @@ export const templateNames = [
   'expense.comment.created',
   'virtualcard.purchase',
   'connected_account.removed',
+  'platform.subscription.updated',
 ] as const;
 
 export type EmailTemplates = (typeof templateNames)[number];
@@ -134,6 +135,7 @@ const linkCollective = fs.readFileSync(`${templatesPath}/partials/link-collectiv
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
 const mthReportSubscription = fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
+const planDetails = fs.readFileSync(`${templatesPath}/partials/plan-details.hbs`, 'utf8');
 
 handlebars.registerPartial('header', header);
 handlebars.registerPartial('greeting', greeting);
@@ -148,6 +150,7 @@ handlebars.registerPartial('eventdata', eventdata);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
+handlebars.registerPartial('plan-details', planDetails);
 handlebars.registerHelper('idEncode', (id, type) => {
   return idEncode(id, type);
 });

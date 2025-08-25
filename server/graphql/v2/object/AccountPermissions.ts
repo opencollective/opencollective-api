@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import FEATURE from '../../../constants/feature';
+import { hasFeature } from '../../../lib/allowed-features';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { checkScope } from '../../common/scope-check';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -30,7 +31,7 @@ const GraphQLAccountPermissions = new GraphQLObjectType({
         if (!canUseFeature(req.remoteUser, FEATURE.CONTACT_COLLECTIVE)) {
           return { allowed: false, reason: 'You are not authorized to contact other accounts' };
         } else {
-          return { allowed: collective.canContact() };
+          return { allowed: hasFeature(collective, FEATURE.CONTACT_FORM, { loaders: req.loaders }) };
         }
       },
     },

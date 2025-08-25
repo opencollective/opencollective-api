@@ -1,0 +1,154 @@
+Subject: Platform subscription updated for {{account.name}}
+
+<style>
+  .arrow-cell {
+    text-align: center;
+    vertical-align: top;
+    width: 80px;
+    padding: 100px 10px;
+  }
+  .arrow {
+    font-size: 24px;
+    color: #6b7280;
+    font-weight: bold;
+  }
+  .arrow-down {
+    display: none;
+    font-size: 24px;
+    color: #6b7280;
+    font-weight: bold;
+    text-align: center;
+    padding: 20px 0;
+  }
+  .plan-comparison-container {
+    margin-bottom: 40px;
+  }
+  .plan-comparison-table {
+    width: 100%;
+    max-width: 600px;
+    margin: 30px auto;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .plan-cell {
+    vertical-align: top;
+    padding: 0;
+  }
+  .plan-cell.new-plan {
+    text-align: center;
+  }
+  .previous-plan {
+    filter: grayscale(1);
+    opacity: 0.7;
+  }
+  .plan-cell.previous-plan .plan-title {
+    background-color: #6b7280;
+  }
+  /* Mobile responsive styles */
+  @media screen and (max-width: 600px) {
+    .plan-comparison-container {
+      padding: 0;
+      margin: 0;
+    }
+    .plan-comparison-table {
+      display: block;
+      width: 100%;
+      max-width: none;
+      margin: 30px 0;
+    }
+    .plan-comparison-table tbody {
+      display: block;
+      width: 100%;
+    }
+    .plan-comparison-table tr {
+      display: block;
+      width: 100%;
+    }
+    .plan-comparison-table td {
+      display: block;
+      width: 100% !important;
+      padding: 0 !important;
+    }
+    /* Keep plan header tables as normal tables */
+    .plan-header-table,
+    .plan-header-table tbody,
+    .plan-header-table tr,
+    .plan-header-table td {
+      display: table !important;
+    }
+    .plan-header-table tbody {
+      display: table-row-group !important;
+    }
+    .plan-header-table tr {
+      display: table-row !important;
+    }
+    .plan-header-table td {
+      display: table-cell !important;
+      width: auto !important;
+      padding: 0 !important;
+      margin-bottom: 0 !important;
+    }
+    .plan-cell {
+      width: 100% !important;
+    }
+    .arrow-cell {
+      width: 100% !important;
+      padding: 15px 0 !important;
+      text-align: center;
+    }
+    .arrow {
+      display: none;
+    }
+    .arrow-down {
+      display: block !important;
+      font-size: 24px;
+      color: #6b7280;
+      font-weight: bold;
+    }
+  }
+</style>
+
+{{> header}}
+
+{{> toplogo}}
+
+<p>Hi {{recipientName}},</p>
+
+<p>The platform subscription for {{> linkCollective collective=account}} has been updated
+{{#if previousPlan}}from <strong>{{previousPlan.title}}</strong>{{/if}}
+to <strong>{{newPlan.title}}</strong>. {{#if newPlan.pricing.pricePerMonth}}
+The new subscription will be charged on <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.
+{{/if}}</p>
+
+<div class="plan-comparison-container">
+  <table class="plan-comparison-table">
+    <tr>
+      {{#if previousPlan}}
+      <td class="plan-cell previous-plan">
+        {{> plan-details plan=previousPlan title="Previous Tier"}}
+      </td>
+      <td class="arrow-cell">
+        <div class="arrow">→</div>
+        <div class="arrow-down">↓</div>
+      </td>
+      {{/if}}
+      <td class="plan-cell new-plan">
+        {{#if previousPlan}}
+          {{> plan-details plan=newPlan title="New Tier"}}
+        {{else}}
+          {{> plan-details plan=newPlan}}
+        {{/if}}
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>If you have any questions, please don't hesitate to <a href="https://opencollective.com/contact">contact support</a>.</p>
+
+<p>Warmly,</p>
+
+<p>
+  – Team Open Collective
+</p>
+
+{{> footer}}

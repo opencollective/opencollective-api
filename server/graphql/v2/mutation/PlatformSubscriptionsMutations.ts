@@ -73,7 +73,10 @@ const platformSubscriptionMutations = {
         };
       }
 
-      await PlatformSubscription.replaceCurrentSubscription(account.id, new Date(), plan);
+      await PlatformSubscription.replaceCurrentSubscription(account, new Date(), plan, req.remoteUser, {
+        UserTokenId: req.userToken?.id,
+      });
+
       return account.update({ plan: null });
     },
   },

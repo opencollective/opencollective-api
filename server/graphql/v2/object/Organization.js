@@ -39,7 +39,7 @@ export const GraphQLOrganization = new GraphQLObjectType({
             (await organization.isHost()) ||
             (checkScope(req, 'account') &&
               (req.remoteUser?.isAdmin(organization.id) ||
-                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, organization.id)));
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, organization.id)));
 
           if (canSeeLocation) {
             return location;

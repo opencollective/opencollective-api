@@ -1,0 +1,222 @@
+<style>
+  .plan-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    background-color: #ffffff;
+    width: 240px;
+    text-align: left;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Mobile responsive styles for plan cards */
+  @media screen and (max-width: 600px) {
+    .plan-card {
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      box-sizing: border-box;
+    }
+    .plan-header-table {
+      width: 100%;
+      table-layout: fixed;
+    }
+    .plan-header-table td {
+      vertical-align: top !important;
+    }
+    .plan-label-cell {
+      width: 60%;
+    }
+    .plan-price-cell {
+      width: 40%;
+    }
+    .plan-label {
+      font-size: 14px;
+      line-height: 1.3;
+    }
+    .plan-price {
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+  }
+  .plan-header {
+    width: 100%;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 16px;
+  }
+  .plan-header-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .plan-header-table td {
+    vertical-align: middle;
+    padding: 0;
+  }
+  .plan-header-table .plan-label-cell {
+    text-align: left;
+  }
+  .plan-header-table .plan-price-cell {
+    text-align: right;
+  }
+  .plan-label {
+    font-size: 16px;
+    font-weight: bold;
+    color: #1f2937;
+    margin: 0;
+  }
+  .plan-price {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+    white-space: nowrap;
+    background-color: #EEF7FF;
+    padding: 6px 12px;
+    border-radius: 16px;
+    display: inline-block;
+    border: 1px solid #E1F0FF;
+  }
+  .plan-title {
+    display: inline-block;
+    background-color: #297acc;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 16px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    letter-spacing: 0.3px;
+  }
+  .plan-features {
+    text-align: left;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .plan-feature {
+    width: 100%;
+    margin-bottom: 12px;
+    color: #4b5563;
+  }
+  .plan-feature-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .plan-feature-table td {
+    vertical-align: top;
+    padding: 0;
+  }
+  .plan-feature-icon {
+    color: #10b981;
+    font-weight: bold;
+    width: 24px;
+    padding-right: 8px;
+  }
+  .plan-feature-text {
+    width: auto;
+  }
+  .plan-feature-highlight {
+    font-weight: 600;
+    color: #1f2937;
+  }
+  .additional-features {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #f1f5f9;
+  }
+  .additional-features-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #1f2937;
+    margin-bottom: 12px;
+  }
+</style>
+
+
+<div class="plan-card">
+  <div class="plan-header">
+    <table class="plan-header-table">
+      <tr>
+        <td class="plan-label-cell">
+          <div class="plan-label">{{#if title}}{{title}}:<br/>{{/if}}{{plan.title}}</div>
+        </td>
+        <td class="plan-price-cell">
+          <div class="plan-price">{{#if plan.pricing.pricePerMonth}}{{currency plan.pricing.pricePerMonth currency="USD"}} / Month{{else}}Free{{/if}}</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+  
+  <div class="plan-features">
+    <div class="plan-feature">
+      <table class="plan-feature-table">
+        <tr>
+          <td class="plan-feature-text">
+            <span class="plan-feature-icon">👥</span>
+            <span class="plan-feature-highlight">{{plan.pricing.includedCollectives}} Active {{pluralize "Collective" n=plan.pricing.includedCollectives}}</span>
+            {{#if plan.pricing.pricePerAdditionalCollective}}
+            <br><span style="color: #6b7280; font-size: 13px;">{{currency plan.pricing.pricePerAdditionalCollective currency="USD"}} / Collective after that</span>
+            {{/if}}
+          </td>
+        </tr>
+      </table>
+    </div>
+    
+    <div class="plan-feature">
+      <table class="plan-feature-table">
+        <tr>
+          <td class="plan-feature-text">
+            <span class="plan-feature-icon">🧾</span>
+            <span class="plan-feature-highlight">{{plan.pricing.includedExpensesPerMonth}} Paid {{pluralize "expense" n=plan.pricing.includedExpensesPerMonth}}</span>
+            {{#if plan.pricing.pricePerAdditionalExpense}}
+            <br><span style="color: #6b7280; font-size: 13px;">{{currency plan.pricing.pricePerAdditionalExpense currency="USD"}} / expense after that</span>
+            {{/if}}
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    {{#if plan.pricing.crowdfundingFeePercent}}
+    <div class="plan-feature">
+      <table class="plan-feature-table">
+        <tr>
+          <td class="plan-feature-text">
+            <span class="plan-feature-icon">💳</span>
+            <span class="plan-feature-highlight">{{plan.pricing.crowdfundingFeePercent}}% Platform Fee</span>
+            <br><span style="color: #6b7280; font-size: 13px;">On crowdfunding contributions</span>
+          </td>
+        </tr>
+      </table>
+    </div>
+    {{/if}}
+  </div>
+  
+  {{#if (hasPremiumFeatures plan.features)}}
+  <div class="additional-features">
+    <div class="additional-features-title">Additional Features:</div>
+    {{#each plan.features}}
+      {{#if this}}
+        {{#unless (isFreeFeature @key)}}
+        <div class="plan-feature">
+          <table class="plan-feature-table">
+            <tr>
+              <td class="plan-feature-text">
+                <span class="plan-feature-icon">✓</span> 
+                {{#with (getPlatformFeatureDetails @key)}}
+                  {{#if documentationUrl}}
+                    <a href="{{documentationUrl}}" target="_blank" rel="noopener noreferrer" style="text-decoration: underline; color: #4b5563;">{{label}}</a>
+                  {{else}}
+                    {{label}}
+                  {{/if}}
+                {{/with}}
+              </td>
+            </tr>
+          </table>
+        </div>
+        {{/unless}}
+      {{/if}}
+    {{/each}}
+  </div>
+  {{/if}}
+</div>

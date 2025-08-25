@@ -3,6 +3,7 @@ import sanitize from 'sanitize-html';
 
 import activities from '../../constants/activities';
 import FEATURE from '../../constants/feature';
+import { hasFeature } from '../../lib/allowed-features';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import { canUseFeature } from '../../lib/user-permissions';
 import models from '../../models';
@@ -42,7 +43,7 @@ async function sendMessage({ req, collective, args, isGqlV2 }) {
     throw new NotFound(`${isGqlV2 ? 'Account' : 'Collective'} not found`);
   }
 
-  if (!collective.canContact()) {
+  if (!(await hasFeature(collective, FEATURE.CONTACT_FORM, { loaders: req.loaders }))) {
     throw new Unauthorized(`You can't contact this ${isGqlV2 ? 'account' : 'collective'}`);
   }
 

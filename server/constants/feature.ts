@@ -92,7 +92,6 @@ enum FEATURE {
   RESTRICTED_FUNDS = 'RESTRICTED_FUNDS',
   AGREEMENTS = 'AGREEMENTS',
   TAX_FORMS = 'TAX_FORMS',
-  CONNECT_BANK_ACCOUNTS = 'CONNECT_BANK_ACCOUNTS',
   FUNDS_GRANTS_MANAGEMENT = 'FUNDS_GRANTS_MANAGEMENT',
   VENDORS = 'VENDORS',
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
@@ -110,7 +109,6 @@ export const CommercialFeatures = [
   FEATURE.RESTRICTED_FUNDS,
   FEATURE.AGREEMENTS,
   FEATURE.TAX_FORMS,
-  FEATURE.CONNECT_BANK_ACCOUNTS,
   FEATURE.FUNDS_GRANTS_MANAGEMENT,
   FEATURE.VENDORS,
   FEATURE.USE_EXPENSES,
@@ -118,7 +116,93 @@ export const CommercialFeatures = [
   FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
   FEATURE.RECEIVE_EXPENSES,
   FEATURE.ACCOUNT_MANAGEMENT,
+  FEATURE.OFF_PLATFORM_TRANSACTIONS,
 ] as const;
+
+/**
+ * A map of labels and documentation URLs for features; mostly used to build the emails.
+ */
+export const FeatureDetails: Record<CommercialFeaturesType, { label: string; documentationUrl: string | null }> = {
+  TRANSFERWISE: {
+    label: 'Payouts with Wise',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-wise',
+  },
+  PAYPAL_PAYOUTS: {
+    label: 'Payouts with PayPal',
+    documentationUrl:
+      'https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-paypal',
+  },
+  RECEIVE_HOST_APPLICATIONS: {
+    label: 'Receive Host Applications',
+    documentationUrl:
+      'https://documentation.opencollective.com/fiscal-hosts/managing-your-collectives/collective-applications',
+  },
+  CHART_OF_ACCOUNTS: {
+    label: 'Chart of Accounts',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/chart-of-accounts',
+  },
+  EXPENSE_SECURITY_CHECKS: {
+    label: 'Expense Security Checks',
+    documentationUrl:
+      'https://documentation.opencollective.com/fiscal-hosts/expense-payment/understanding-security-checks',
+  },
+  EXPECTED_FUNDS: {
+    label: 'Expected Funds',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/receiving-money/pending-contributions',
+  },
+  CHARGE_HOSTING_FEES: {
+    label: 'Charge Hosting Fees',
+    documentationUrl:
+      'https://documentation.opencollective.com/fiscal-hosts/setting-up-a-fiscal-host/setting-your-fiscal-host-fees',
+  },
+  RESTRICTED_FUNDS: {
+    label: 'Restricted Funds',
+    documentationUrl: null,
+  },
+  AGREEMENTS: {
+    label: 'Agreements',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/managing-your-collectives/agreements',
+  },
+  TAX_FORMS: {
+    label: 'Tax Forms',
+    documentationUrl:
+      'https://documentation.opencollective.com/expenses-and-getting-paid/understanding-tax-requirements',
+  },
+  FUNDS_GRANTS_MANAGEMENT: {
+    label: 'Funds & Grants Management',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/funds-and-grants/funds',
+  },
+  VENDORS: {
+    label: 'Vendors',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/managing-your-collectives/vendors',
+  },
+  USE_EXPENSES: {
+    label: 'Submit Expenses',
+    documentationUrl: 'https://documentation.opencollective.com/expenses-and-getting-paid/submitting-expenses',
+  },
+  UPDATES: {
+    label: 'Updates',
+    documentationUrl:
+      'https://documentation.opencollective.com/advanced/keeping-your-community-updated/updates-and-contact',
+  },
+  RECEIVE_FINANCIAL_CONTRIBUTIONS: {
+    label: 'Receive Financial Contributions',
+    documentationUrl: null,
+  },
+  RECEIVE_EXPENSES: {
+    label: 'Receive Expenses',
+    documentationUrl:
+      'https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-as-a-fiscal-host',
+  },
+  ACCOUNT_MANAGEMENT: {
+    label: 'Account Management',
+    documentationUrl: null,
+  },
+  OFF_PLATFORM_TRANSACTIONS: {
+    label: 'Synchronize Bank Accounts',
+    documentationUrl: null,
+  },
+} as const;
 
 export type CommercialFeaturesType = (typeof CommercialFeatures)[number];
 

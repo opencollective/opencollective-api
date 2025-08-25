@@ -269,16 +269,22 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
     let currentPage = 1;
     let totalPages;
     let transactions;
+    let fullResponse;
 
     logger.info(`Fetching transactions between ${fromDate.format('YYYY-MM-DD')} and ${toDate.format('YYYY-MM-DD')}...`);
     do {
       // Fetch all (paginated) transactions from PayPal for this date range
       try {
-        ({ transactions, currentPage, totalPages } = await listPayPalTransactions(host, fromDate, toDate, {
-          transactionStatus: 'S', // Successful transactions
-          fields: 'transaction_info',
-          currentPage,
-        }));
+        ({ fullResponse, transactions, currentPage, totalPages } = await listPayPalTransactions(
+          host,
+          fromDate,
+          toDate,
+          {
+            transactionStatus: 'S', // Successful transactions
+            fields: 'transaction_info',
+            currentPage,
+          },
+        ));
         if (ONLY_CHECK_PAYPAL) {
           return;
         }
@@ -292,6 +298,15 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         } else {
           throw e;
         }
+      }
+
+      if (!transactions) {
+        reportMessageToSentry(`Empty response from PayPal sync job`, {
+          extra: { fullResponse, fromDate, toDate, currentPage, totalPages },
+          feature: FEATURE.PAYPAL_DONATIONS,
+          severity: 'warning',
+        });
+        return;
       }
 
       const filteredTransactions = transactions.filter(t =>

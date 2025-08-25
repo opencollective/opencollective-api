@@ -4,7 +4,7 @@ import moment from 'moment';
 import { activities } from '../../../server/constants';
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
-import { PlatformSubscription } from '../../../server/models';
+import { Activity, PlatformSubscription } from '../../../server/models';
 import { BillingMonth, BillingPeriod, UtilizationType } from '../../../server/models/PlatformSubscription';
 import {
   fakeActiveHost,
@@ -14,6 +14,7 @@ import {
   fakeExpense,
   fakeProject,
   fakeTransaction,
+  fakeUser,
 } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -84,13 +85,15 @@ describe('server/models/PlatformSubscriptions', () => {
     });
 
     it('creates a subscription if not existing current subscription', async () => {
-      const collective = await fakeCollective();
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
       const subscription = await PlatformSubscription.createSubscription(
-        collective.id,
+        collective,
         new Date(Date.UTC(2016, 0, 1, 22, 22, 3)),
         {
           title: 'A plan',
         },
+        admin,
       );
 
       expect(subscription.start.inclusive).to.be.true;
@@ -101,28 +104,72 @@ describe('server/models/PlatformSubscriptions', () => {
     });
 
     it('throws if subscription already exists', async () => {
-      const collective = await fakeCollective();
-      await PlatformSubscription.createSubscription(collective.id, new Date(Date.UTC(2016, 0, 1, 22, 11, 2)), {
-        title: 'A plan',
-      });
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 1, 22, 11, 2)),
+        {
+          title: 'A plan',
+        },
+        admin,
+      );
 
       await expect(
-        PlatformSubscription.createSubscription(collective.id, new Date(Date.UTC(2016, 0, 2)), {
-          title: 'A plan',
-        }),
+        PlatformSubscription.createSubscription(
+          collective,
+          new Date(Date.UTC(2016, 0, 2)),
+          {
+            title: 'A plan',
+          },
+          admin,
+        ),
       ).to.be.rejectedWith(Error);
+    });
+
+    it('emits PLATFORM_SUBSCRIPTION_UPDATED activity', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const planData = {
+        title: 'Basic Plan',
+        id: 'basic-5',
+      };
+
+      await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 1, 22, 22, 3)),
+        planData,
+        admin,
+      );
+
+      // Check that activity was created
+      const activity = await Activity.findOne({
+        where: {
+          CollectiveId: collective.id,
+          type: activities.PLATFORM_SUBSCRIPTION_UPDATED,
+        },
+      });
+
+      expect(activity).to.not.be.null;
+      expect(activity.data).to.have.property('previousPlan');
+      expect(activity.data).to.have.property('newPlan');
+      expect(activity.data.previousPlan).to.be.null; // No previous plan when creating first subscription
+      expect(activity.data.newPlan.title).to.equal('Basic Plan');
+      expect(activity.data.newPlan.id).to.equal('basic-5');
     });
   });
 
   describe('replaceCurrentSubscription', () => {
     it('replaces existing period if less than a full day', async () => {
-      const collective = await fakeCollective();
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
       const subscription = await PlatformSubscription.createSubscription(
-        collective.id,
+        collective,
         new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
         {
           title: 'A plan',
         },
+        admin,
       );
 
       expect(subscription.start.inclusive).to.be.true;
@@ -132,11 +179,12 @@ describe('server/models/PlatformSubscriptions', () => {
       expect(subscription.end.value).to.equal(Infinity);
 
       const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
-        collective.id,
+        collective,
         new Date(Date.UTC(2016, 0, 1, 10, 1, 1)),
         {
           title: 'A plan',
         },
+        admin,
       );
 
       await subscription.reload({
@@ -152,13 +200,15 @@ describe('server/models/PlatformSubscriptions', () => {
     });
 
     it('ends existing period and start new until end of month', async () => {
-      const collective = await fakeCollective();
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
       const subscription = await PlatformSubscription.createSubscription(
-        collective.id,
+        collective,
         new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
         {
           title: 'A plan',
         },
+        admin,
       );
 
       expect(subscription.start.inclusive).to.be.true;
@@ -168,11 +218,12 @@ describe('server/models/PlatformSubscriptions', () => {
       expect(subscription.end.value).to.equal(Infinity);
 
       const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
-        collective.id,
+        collective,
         new Date(Date.UTC(2016, 0, 2, 22, 3)),
         {
           title: 'A plan',
         },
+        admin,
       );
 
       await subscription.reload();
@@ -188,6 +239,55 @@ describe('server/models/PlatformSubscriptions', () => {
       expect(newSubscription.end.inclusive).to.be.true;
       expect(newSubscription.end.value).to.equal(Infinity);
     });
+
+    it('emits PLATFORM_SUBSCRIPTION_UPDATED activity with legacy and new plan details', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+
+      // Create initial subscription
+      const initialPlan = {
+        title: 'Initial Plan',
+        id: 'initial-1',
+      };
+
+      await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+        initialPlan,
+        admin,
+      );
+
+      // Replace with new subscription
+      const newPlan = {
+        title: 'New Plan',
+        id: 'new-5',
+      };
+
+      await PlatformSubscription.replaceCurrentSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 2, 22, 3)),
+        newPlan,
+        admin,
+      );
+
+      // Check that activity was created
+      const activity = await Activity.findOne({
+        where: {
+          CollectiveId: collective.id,
+          type: activities.PLATFORM_SUBSCRIPTION_UPDATED,
+        },
+        order: [['createdAt', 'DESC']], // Get the most recent activity
+      });
+
+      expect(activity).to.not.be.null;
+      expect(activity.data).to.have.property('previousPlan');
+      expect(activity.data).to.have.property('newPlan');
+      expect(activity.data.previousPlan).to.not.be.null;
+      expect(activity.data.previousPlan.title).to.equal('Initial Plan');
+      expect(activity.data.previousPlan.id).to.equal('initial-1');
+      expect(activity.data.newPlan.title).to.equal('New Plan');
+      expect(activity.data.newPlan.id).to.equal('new-5');
+    });
   });
 
   describe('calculateUtilization', () => {
@@ -196,7 +296,8 @@ describe('server/models/PlatformSubscriptions', () => {
     });
 
     it('returns utilization for period', async () => {
-      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
       const col = await fakeCollective({
         HostCollectiveId: host.id,
       });
@@ -246,9 +347,15 @@ describe('server/models/PlatformSubscriptions', () => {
         HostCollectiveId: host.id,
       });
 
-      await PlatformSubscription.createSubscription(host.id, new Date(Date.UTC(2016, 0, 1)), {
-        title: 'A plan',
-      });
+      await PlatformSubscription.createSubscription(
+        host,
+        new Date(Date.UTC(2016, 0, 1)),
+        {
+          title: 'A plan',
+        },
+        hostAdmin,
+      );
+
       const billingPeriod: BillingPeriod = {
         year: 2016,
         month: BillingMonth.JANUARY,
@@ -372,38 +479,42 @@ describe('server/models/PlatformSubscriptions', () => {
         month: BillingMonth.JANUARY,
       };
 
-      const collective1 = await fakeCollective(); // two subscriptions were active in billing period
+      const admin = await fakeUser();
+      const collective1 = await fakeCollective({ admin }); // two subscriptions were active in billing period
       const collective1Sub1 = await PlatformSubscription.createSubscription(
-        collective1.id,
+        collective1,
         new Date(Date.UTC(2016, 0, 1)),
         {
           title: 'A plan',
         },
+        admin,
       );
       const collective1Sub2 = await PlatformSubscription.replaceCurrentSubscription(
-        collective1.id,
+        collective1,
         new Date(Date.UTC(2016, 0, 5)),
         {
           title: 'A plan',
         },
+        admin,
       );
 
       const collective1Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod(collective1.id, billingPeriod);
       expect(collective1Subs[0].id).to.eql(collective1Sub2.id);
       expect(collective1Subs[1].id).to.eql(collective1Sub1.id);
 
-      const collective2 = await fakeCollective(); // no active subscription in billing period
+      const collective2 = await fakeCollective({ admin }); // no active subscription in billing period
       await expect(
         PlatformSubscription.getSubscriptionsInBillingPeriod(collective2.id, billingPeriod),
       ).to.eventually.have.length(0);
 
-      const collective3 = await fakeCollective(); // one active subscription in billing period
+      const collective3 = await fakeCollective({ admin }); // one active subscription in billing period
       const collective3Sub1 = await PlatformSubscription.createSubscription(
-        collective3.id,
+        collective3,
         new Date(Date.UTC(2016, 0, 1)),
         {
           title: 'A plan',
         },
+        admin,
       );
       const collective3Subs = await PlatformSubscription.getSubscriptionsInBillingPeriod(collective3.id, billingPeriod);
       expect(collective3Subs[0].id).to.eql(collective3Sub1.id);
@@ -415,11 +526,13 @@ describe('server/models/PlatformSubscriptions', () => {
         month: BillingMonth.JANUARY,
       };
 
-      const host = await fakeActiveHost();
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
       const sub1 = await PlatformSubscription.createSubscription(
-        host.id,
+        host,
         new Date(Date.UTC(2016, 0, 1)),
         PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5'),
+        admin,
       );
 
       // create 10 active collectives
@@ -468,9 +581,10 @@ describe('server/models/PlatformSubscriptions', () => {
       });
 
       const sub2 = await PlatformSubscription.replaceCurrentSubscription(
-        host.id,
+        host,
         new Date(Date.UTC(2016, 0, 15)),
         PlatformSubscriptionTiers.find(plan => plan.id === 'pro-20'),
+        admin,
       );
       await sub1.reload();
       const [, sub2BillingEnd] = sub2.overlapWith(billingPeriod);
@@ -519,11 +633,13 @@ describe('server/models/PlatformSubscriptions', () => {
         month: BillingMonth.JANUARY,
       };
 
-      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
       await PlatformSubscription.createSubscription(
-        host.id,
+        host,
         new Date(Date.UTC(2016, 0, 15)),
         PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5'),
+        hostAdmin,
       );
 
       // create 10 active collectives
@@ -578,11 +694,13 @@ describe('server/models/PlatformSubscriptions', () => {
         month: BillingMonth.JANUARY,
       };
 
-      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
       const sub = await PlatformSubscription.createSubscription(
-        host.id,
+        host,
         new Date(Date.UTC(2016, 0, 1)),
         PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5'),
+        hostAdmin,
       );
 
       // create 10 active collectives
