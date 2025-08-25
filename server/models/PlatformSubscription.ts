@@ -18,15 +18,12 @@ import Temporal from 'sequelize-temporal';
 import ActivityTypes from '../constants/activities';
 import { PlatformSubscriptionPlan } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
-import { getPreferredPlatformPayout } from '../lib/platform-subscriptions/payment-options';
-import { chargePlatformBillingExpenseWithStripe } from '../lib/platform-subscriptions/stripe-payment';
+import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
-import Expense from './Expense';
-import { PayoutMethodTypes } from './PayoutMethod';
 import User from './User';
 
 export type Billing = {
@@ -504,18 +501,7 @@ class PlatformSubscription extends Model<
 
   static getPreferredPlatformPayout = getPreferredPlatformPayout;
 
-  static async chargeExpense(expense: Expense) {
-    const payoutMethod = await expense.getPayoutMethod();
-
-    switch (payoutMethod.type) {
-      case PayoutMethodTypes.STRIPE: {
-        return chargePlatformBillingExpenseWithStripe(expense);
-      }
-      default: {
-        return;
-      }
-    }
-  }
+  static chargeExpense = chargeExpense;
 
   static get loaders() {
     return {

@@ -1,7 +1,8 @@
-import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import { Collective, ConnectedAccount, Expense, PaymentMethod, PayoutMethod } from '../../models';
-import { ExpenseStatus, ExpenseType } from '../../models/Expense';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import { Collective, ConnectedAccount, Expense, PaymentMethod, PayoutMethod } from '../models';
+import { ExpenseStatus, ExpenseType } from '../models/Expense';
+import { PayoutMethodTypes } from '../models/PayoutMethod';
+import { chargePlatformBillingExpenseWithStripe } from '../paymentProviders/stripe/platform-billing';
 
 export async function getPreferredPlatformPayout(
   organization: Collective,
@@ -41,6 +42,19 @@ export async function getPreferredPlatformPayout(
     .find(Boolean);
 
   return payoutMethod;
+}
+
+export async function chargeExpense(expense: Expense) {
+  const payoutMethod = await expense.getPayoutMethod();
+
+  switch (payoutMethod.type) {
+    case PayoutMethodTypes.STRIPE: {
+      return chargePlatformBillingExpenseWithStripe(expense);
+    }
+    default: {
+      return;
+    }
+  }
 }
 
 async function getLastUsedPayoutMethod(organization: Collective): Promise<PayoutMethod> {

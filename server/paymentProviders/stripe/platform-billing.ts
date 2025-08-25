@@ -1,9 +1,9 @@
 import config from 'config';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import { Expense, PaymentMethod } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import stripe, { convertToStripeAmount } from '../stripe';
 
 export async function chargePlatformBillingExpenseWithStripe(expense: Expense) {
   const payoutMethod = await expense.getPayoutMethod();
