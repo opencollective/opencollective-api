@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import moment from 'moment';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import models, { PlatformSubscription } from '../../../../../server/models';
 import { BillingMonth } from '../../../../../server/models/PlatformSubscription';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
@@ -689,6 +690,23 @@ describe('server/graphql/v2/object/Host', () => {
                 expensesPaid
               }
 
+              base {
+                total {
+                  valueInCents
+                  currency
+                }
+
+                subscriptions {
+                  startDate
+                  endDate
+                  title
+                  amount {
+                    valueInCents
+                    currency
+                  }
+                }
+              }
+
               subscriptions {
                 startDate
                 endDate
@@ -715,6 +733,10 @@ describe('server/graphql/v2/object/Host', () => {
           year: moment.utc().year(),
           month: BillingMonth[moment.utc().month()],
         },
+        base: {
+          subscriptions: [],
+          total: { currency: 'USD', valueInCents: 0 },
+        },
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -739,6 +761,10 @@ describe('server/graphql/v2/object/Host', () => {
           year: 2016,
           month: 'JANUARY',
         },
+        base: {
+          subscriptions: [],
+          total: { currency: 'USD', valueInCents: 0 },
+        },
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -757,13 +783,33 @@ describe('server/graphql/v2/object/Host', () => {
         year: moment.utc(startDate).year(),
         month: BillingMonth[moment.utc(startDate).month()],
       };
-      await PlatformSubscription.createSubscription(host, startDate, { title: 'A plan' }, hostAdmin);
+      const sub = await PlatformSubscription.createSubscription(
+        host,
+        startDate,
+        PlatformSubscriptionTiers.find(t => t.id === 'basic-5'),
+        hostAdmin,
+      );
+      const [, subBillingEnd] = sub.overlapWith({ year: billingPeriod.year, month: BillingMonth.FEBRUARY });
       let result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
       expect(result.errors).to.be.undefined;
       expect(result.data.host.platformBilling).to.eql({
         billingPeriod: {
           year: billingPeriod.year,
           month: billingPeriod.month,
+        },
+        base: {
+          total: {
+            currency: 'USD',
+            valueInCents: 5000,
+          },
+          subscriptions: [
+            {
+              title: 'Basic 5',
+              amount: { currency: 'USD', valueInCents: 5000 },
+              startDate: startDate,
+              endDate: subBillingEnd,
+            },
+          ],
         },
         utilization: {
           activeCollectives: 0,
@@ -774,7 +820,7 @@ describe('server/graphql/v2/object/Host', () => {
             startDate: startDate,
             endDate: null,
             plan: {
-              title: 'A plan',
+              title: 'Basic 5',
             },
           },
         ],
@@ -783,11 +829,10 @@ describe('server/graphql/v2/object/Host', () => {
       const aNewSubscription = await PlatformSubscription.replaceCurrentSubscription(
         host,
         moment.utc(startDate).add('5', 'days').toDate(),
-        {
-          title: 'A new plan',
-        },
+        PlatformSubscriptionTiers.find(t => t.id === 'pro-20'),
         hostAdmin,
       );
+      await sub.reload();
 
       result = await graphqlQueryV2(accountQuery, { slug: host.slug, billingPeriod }, hostAdmin);
       expect(result.errors).to.be.undefined;
@@ -795,6 +840,26 @@ describe('server/graphql/v2/object/Host', () => {
         billingPeriod: {
           year: billingPeriod.year,
           month: billingPeriod.month,
+        },
+        base: {
+          total: {
+            currency: 'USD',
+            valueInCents: 29828,
+          },
+          subscriptions: [
+            {
+              title: 'Pro 20',
+              amount: { currency: 'USD', valueInCents: 28966 },
+              startDate: aNewSubscription.startDate,
+              endDate: subBillingEnd,
+            },
+            {
+              title: 'Basic 5',
+              amount: { currency: 'USD', valueInCents: 862 },
+              startDate: startDate,
+              endDate: sub.endDate,
+            },
+          ],
         },
         utilization: {
           activeCollectives: 0,
@@ -805,14 +870,14 @@ describe('server/graphql/v2/object/Host', () => {
             startDate: moment.utc(startDate).add('5', 'days').toDate(),
             endDate: null,
             plan: {
-              title: 'A new plan',
+              title: 'Pro 20',
             },
           },
           {
             startDate: startDate,
             endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
             plan: {
-              title: 'A plan',
+              title: 'Basic 5',
             },
           },
         ],
@@ -829,6 +894,26 @@ describe('server/graphql/v2/object/Host', () => {
           year: billingPeriod.year,
           month: billingPeriod.month,
         },
+        base: {
+          total: {
+            currency: 'USD',
+            valueInCents: 3276,
+          },
+          subscriptions: [
+            {
+              title: 'Pro 20',
+              amount: { currency: 'USD', valueInCents: 2414 },
+              startDate: aNewSubscription.startDate,
+              endDate: aNewSubscription.endDate,
+            },
+            {
+              title: 'Basic 5',
+              amount: { currency: 'USD', valueInCents: 862 },
+              startDate: startDate,
+              endDate: sub.endDate,
+            },
+          ],
+        },
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -838,25 +923,23 @@ describe('server/graphql/v2/object/Host', () => {
             startDate: moment.utc(startDate).add('5', 'days').toDate(),
             endDate: moment.utc(startDate).add('7', 'days').toDate(),
             plan: {
-              title: 'A new plan',
+              title: 'Pro 20',
             },
           },
           {
             startDate: startDate,
             endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
             plan: {
-              title: 'A plan',
+              title: 'Basic 5',
             },
           },
         ],
       });
 
-      await PlatformSubscription.createSubscription(
+      const lastSub = await PlatformSubscription.createSubscription(
         host,
         moment.utc(startDate).add('10', 'days').toDate(),
-        {
-          title: 'Yet another plan in this billing period',
-        },
+        PlatformSubscriptionTiers.find(plan => plan.id === 'discover-1'),
         hostAdmin,
       );
 
@@ -867,6 +950,32 @@ describe('server/graphql/v2/object/Host', () => {
           year: billingPeriod.year,
           month: billingPeriod.month,
         },
+        base: {
+          total: {
+            currency: 'USD',
+            valueInCents: 3276,
+          },
+          subscriptions: [
+            {
+              title: 'Discover 1',
+              amount: { currency: 'USD', valueInCents: 0 },
+              startDate: lastSub.startDate,
+              endDate: subBillingEnd,
+            },
+            {
+              title: 'Pro 20',
+              amount: { currency: 'USD', valueInCents: 2414 },
+              startDate: aNewSubscription.startDate,
+              endDate: aNewSubscription.endDate,
+            },
+            {
+              title: 'Basic 5',
+              amount: { currency: 'USD', valueInCents: 862 },
+              startDate: startDate,
+              endDate: sub.endDate,
+            },
+          ],
+        },
         utilization: {
           activeCollectives: 0,
           expensesPaid: 0,
@@ -876,21 +985,21 @@ describe('server/graphql/v2/object/Host', () => {
             startDate: moment.utc(startDate).add('10', 'days').toDate(),
             endDate: null,
             plan: {
-              title: 'Yet another plan in this billing period',
+              title: 'Discover 1',
             },
           },
           {
             startDate: moment.utc(startDate).add('5', 'days').toDate(),
             endDate: moment.utc(startDate).add('7', 'days').toDate(),
             plan: {
-              title: 'A new plan',
+              title: 'Pro 20',
             },
           },
           {
             startDate: startDate,
             endDate: moment.utc(startDate).add('5', 'days').subtract(1, 'millisecond').toDate(),
             plan: {
-              title: 'A plan',
+              title: 'Basic 5',
             },
           },
         ],

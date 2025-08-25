@@ -24,6 +24,7 @@ import models, {
 } from '../../server/models';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { Billing } from '../../server/models/PlatformSubscription';
 import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
@@ -184,15 +185,22 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         continue;
       }
 
+      function subscriptionBaseItemDescription(sub: Billing['base']['subscriptions'][number]) {
+        const startDate = moment.utc(sub.startDate).format('DD-MMM-YYYY');
+        const endDate = moment.utc(sub.endDate).format('DD-MMM-YYYY');
+        return `Base subscription ${sub.title} - ${startDate} to ${endDate}`;
+      }
+
       const incurredAt = moment.utc(bill.billingPeriod).toDate();
       let items = compact([
-        // TODO: We should have separated items for the current subscription + any possible pro-rated subscriptions
-        {
-          description: 'Base Subscription Amount',
-          amount: bill.baseAmount,
-          incurredAt,
-          currency,
-        },
+        ...bill.base.subscriptions
+          .filter(sub => sub.amount > 0)
+          .map(sub => ({
+            description: subscriptionBaseItemDescription(sub),
+            amount: sub.amount,
+            incurredAt: sub.endDate,
+            currency,
+          })),
         bill.additional.utilization.activeCollectives > 0 && {
           description: `Additional Active Collective Utilization: ${bill.additional.utilization.activeCollectives}`,
           amount: bill.additional.amounts.activeCollectives,

@@ -528,7 +528,7 @@ describe('server/models/PlatformSubscriptions', () => {
 
       const admin = await fakeUser();
       const host = await fakeActiveHost({ admin });
-      await PlatformSubscription.createSubscription(
+      const sub1 = await PlatformSubscription.createSubscription(
         host,
         new Date(Date.UTC(2016, 0, 1)),
         PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5'),
@@ -573,16 +573,21 @@ describe('server/models/PlatformSubscriptions', () => {
           activeCollectives: 10,
           expensesPaid: 60,
         },
-        baseAmount: 5000,
+        base: {
+          total: 5000,
+          subscriptions: [{ amount: 5000 }],
+        },
         totalAmount: 14000,
       });
 
-      await PlatformSubscription.replaceCurrentSubscription(
+      const sub2 = await PlatformSubscription.replaceCurrentSubscription(
         host,
         new Date(Date.UTC(2016, 0, 15)),
         PlatformSubscriptionTiers.find(plan => plan.id === 'pro-20'),
         admin,
       );
+      await sub1.reload();
+      const [, sub2BillingEnd] = sub2.overlapWith(billingPeriod);
 
       billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
       expect(billing).to.containSubset({
@@ -601,7 +606,23 @@ describe('server/models/PlatformSubscriptions', () => {
           activeCollectives: 10,
           expensesPaid: 60,
         },
-        baseAmount: 21452,
+        base: {
+          total: 21452,
+          subscriptions: [
+            {
+              title: 'Pro 20',
+              amount: 19194,
+              startDate: sub2.startDate,
+              endDate: sub2BillingEnd,
+            },
+            {
+              title: 'Basic 5',
+              amount: 2258,
+              startDate: sub1.startDate,
+              endDate: sub1.endDate,
+            },
+          ],
+        },
         totalAmount: 21452,
       });
     });
@@ -659,7 +680,10 @@ describe('server/models/PlatformSubscriptions', () => {
           activeCollectives: 10,
           expensesPaid: 60,
         },
-        baseAmount: 2742,
+        base: {
+          total: 2742,
+          subscriptions: [{ amount: 2742 }],
+        },
         totalAmount: 11742,
       });
     });
@@ -727,7 +751,10 @@ describe('server/models/PlatformSubscriptions', () => {
           activeCollectives: 10,
           expensesPaid: 60,
         },
-        baseAmount: 2258,
+        base: {
+          total: 2258,
+          subscriptions: [{ amount: 2258 }],
+        },
         totalAmount: 11258,
       });
     });
