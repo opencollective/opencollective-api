@@ -18,6 +18,7 @@ import Temporal from 'sequelize-temporal';
 import ActivityTypes from '../constants/activities';
 import { PlatformSubscriptionPlan } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
+import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
 
@@ -497,6 +498,10 @@ class PlatformSubscription extends Model<
 
     return newSubscription;
   }
+
+  static getPreferredPlatformPayout = getPreferredPlatformPayout;
+
+  static chargeExpense = chargeExpense;
 
   static get loaders() {
     return {

@@ -9,20 +9,10 @@ import activityType from '../../server/constants/activities';
 import { SupportedCurrency } from '../../server/constants/currencies';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
-import { PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
 import PlatformConstants from '../../server/constants/platform';
 import logger from '../../server/lib/logger';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, {
-  Collective,
-  ConnectedAccount,
-  Expense,
-  Op,
-  PaymentMethod,
-  PlatformSubscription,
-  sequelize,
-} from '../../server/models';
-import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
+import models, { Collective, Op, PlatformSubscription, sequelize } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { Billing } from '../../server/models/PlatformSubscription';
 import { runCronJob } from '../utils';
@@ -49,76 +39,6 @@ if (DRY) {
   logger.warn('Running dry, changes are not going to be persisted to the DB.');
 }
 
-// return last payout method used for the last paid settlement if its was not manual or other.
-async function getLastUsedPayoutMethod(host): Promise<PayoutMethod> {
-  const res = await Expense.findOne({
-    where: {
-      CollectiveId: host.id,
-      type: ExpenseType.PLATFORM_BILLING,
-      status: ExpenseStatus.PAID,
-    },
-    attributes: [],
-    include: [
-      {
-        model: PayoutMethod,
-        attributes: ['type'],
-        paranoid: false, // even if it was deleted at some point, we just want to know the type used
-      },
-      {
-        model: PaymentMethod,
-        as: 'paymentMethod',
-        attributes: ['type'],
-        paranoid: false, // even if it was deleted at some point, we just want to know the type used
-      },
-    ],
-    order: [['createdAt', 'desc']],
-  });
-
-  if (!res) {
-    return null;
-  }
-
-  if (
-    !res['paymentMethod'] || // manual
-    res['paymentMethod'].type === PAYMENT_METHOD_TYPE.MANUAL || // manual
-    res.PayoutMethod?.type === PayoutMethodTypes.OTHER
-  ) {
-    // ignore other payout method here to try automated payout methods again
-    // specially now that we support Stripe
-    return null;
-  }
-
-  return res.PayoutMethod;
-}
-
-function isValidHostPayoutMethodType(
-  host: Collective,
-  hostConnectedAccounts: ConnectedAccount[],
-  payoutMethodType: PayoutMethodTypes,
-): boolean {
-  switch (payoutMethodType) {
-    case PayoutMethodTypes.PAYPAL: {
-      if (hostConnectedAccounts?.find(c => c.service === 'paypal') && !host.settings?.['disablePaypalPayouts']) {
-        return true;
-      }
-      break;
-    }
-    case PayoutMethodTypes.BANK_ACCOUNT: {
-      if (hostConnectedAccounts?.find(c => c.service === 'transferwise')) {
-        return true;
-      }
-      break;
-    }
-
-    case PayoutMethodTypes.OTHER:
-    case PayoutMethodTypes.STRIPE: {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
   const momentDate = moment(baseDate);
   const billingPeriodDate = moment(momentDate).subtract(1, 'months');
@@ -131,7 +51,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       where: { CollectiveId: PlatformConstants.PlatformCollectiveId, isSaved: true },
     }),
     'type',
-  );
+  ) as Record<PayoutMethodTypes, PayoutMethod[]>;
   const settlementBankAccountPayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
     pm => pm.data?.['currency'] === 'USD',
   );
@@ -215,31 +135,11 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         },
       ]);
 
-      const connectedAccounts = await organization.getConnectedAccounts({
-        where: { deletedAt: null },
-      });
-
-      const lastPayoutMethod = await getLastUsedPayoutMethod(organization);
-      const payoutMethod = [
-        lastPayoutMethod?.type,
-        PayoutMethodTypes.STRIPE,
-        PayoutMethodTypes.BANK_ACCOUNT,
-        PayoutMethodTypes.PAYPAL,
-        PayoutMethodTypes.OTHER,
-      ]
-        .filter(Boolean)
-        .filter(type => isValidHostPayoutMethodType(organization, connectedAccounts, type))
-        .map(type => {
-          if (type === lastPayoutMethod?.type && payoutMethods[type]?.some(pm => pm.id === lastPayoutMethod.id)) {
-            return lastPayoutMethod;
-          }
-
-          if (type === PayoutMethodTypes.BANK_ACCOUNT) {
-            return settlementBankAccountPayoutMethod;
-          }
-          return payoutMethods[type]?.[0];
-        })
-        .find(Boolean);
+      const payoutMethod = await PlatformSubscription.getPreferredPlatformPayout(
+        organization,
+        payoutMethods,
+        settlementBankAccountPayoutMethod,
+      );
 
       if (!payoutMethod) {
         throw new Error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
@@ -282,6 +182,12 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
         const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
         await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
+
+        try {
+          await PlatformSubscription.chargeExpense(expense);
+        } catch (err) {
+          logger.error(`Error while charging platform expense #${expense.id} to #${orgId}: ${err.message}`);
+        }
       }
     } catch (e) {
       logger.error(
