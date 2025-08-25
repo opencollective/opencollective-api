@@ -233,10 +233,10 @@ describe('server/lib/allowed-features', () => {
       it('is AVAILABLE for hosts, UNSUPPORTED for others', async () => {
         const host = await fakeActiveHost();
         expect(await getFeatureAccess(host, FEATURE.HOST_DASHBOARD)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const inactiveHost = await fakeCollective({ isHostAccount: true, isActive: false });
-        expect(await getFeatureAccess(inactiveHost, FEATURE.HOST_DASHBOARD)).to.deep.eq({
-          access: 'AVAILABLE',
-          reason: null,
+        const independentCollective = await fakeCollective({ isHostAccount: true, isActive: false });
+        expect(await getFeatureAccess(independentCollective, FEATURE.HOST_DASHBOARD)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
         });
         const org = await fakeOrganization();
         expect(await getFeatureAccess(org, FEATURE.HOST_DASHBOARD)).to.deep.eq({
@@ -944,14 +944,13 @@ describe('server/lib/allowed-features', () => {
         const featuresMap = await getFeaturesAccessMap(selfHosted);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           ALIPAY: { access: 'AVAILABLE', reason: null },
           CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
           EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
           EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
           FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-          HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
+          HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },

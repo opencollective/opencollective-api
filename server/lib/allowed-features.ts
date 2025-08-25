@@ -14,7 +14,6 @@ enum FEATURE_ACCESS_PARTY {
   HOSTS = 'HOSTS',
   FIRST_PARTY_HOSTS = 'FIRST_PARTY_HOSTS',
   ACTIVE_ACCOUNTS = 'ACTIVE_ACCOUNTS',
-  ACTIVE_HOSTS = 'ACTIVE_HOSTS',
   INDEPENDENT_COLLECTIVES = 'INDEPENDENT_COLLECTIVES',
   PLATFORM_ACCOUNTS = 'PLATFORM_ACCOUNTS',
 }
@@ -45,17 +44,17 @@ const FeaturesAccess: Partial<
     }
   >
 > = {
-  [FEATURE.AGREEMENTS]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
-  },
   [FEATURE.ALIPAY]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+  },
+  [FEATURE.AGREEMENTS]: {
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
   },
   [FEATURE.CHARGE_HOSTING_FEES]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
   },
   [FEATURE.CHART_OF_ACCOUNTS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.COLLECTIVE_GOALS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
@@ -82,40 +81,40 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
   },
   [FEATURE.EXPECTED_FUNDS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.EXPENSE_SECURITY_CHECKS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.HOST_DASHBOARD]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS],
   },
   [FEATURE.FUNDS_GRANTS_MANAGEMENT]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
   },
   [FEATURE.TAX_FORMS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.VENDORS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.OFF_PLATFORM_TRANSACTIONS]: {
     optIn: 'legacy-pricing',
     enabledByDefaultFor: [FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS, FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS],
     onlyAllowedFor: [
-      FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+      FEATURE_ACCESS_PARTY.HOSTS,
       FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS,
       FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES,
     ],
     accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
   },
   [FEATURE.PAYPAL_DONATIONS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
     optIn: true,
     flagOverride: 'settings.features.paypalDonations',
   },
   [FEATURE.PAYPAL_PAYOUTS]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
     optIn: true,
     flagOverride: 'settings.features.paypalPayouts',
   },
@@ -142,7 +141,7 @@ const FeaturesAccess: Partial<
     ],
   },
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
     optIn: true,
     flagOverride: 'settings.apply',
   },
@@ -160,7 +159,7 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.FUND],
   },
   [FEATURE.TRANSFERWISE]: {
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.UPDATES]: {
     accountTypes: [
@@ -211,13 +210,6 @@ const checkFeatureAccessParty = (
         return true;
       case FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS:
         return collective.isActive;
-      case FEATURE_ACCESS_PARTY.ACTIVE_HOSTS:
-        return (
-          collective.type !== CollectiveType.COLLECTIVE && // Independent collectives are treated differently
-          collective.isHostAccount
-          // We can't enforce that part yet, see https://github.com/opencollective/opencollective/issues/8158
-          // && (collective.isActive || (collective.type === CollectiveType.USER && !collective.deactivatedAt)) // `isActive` is not used for host users
-        );
       case FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES:
         return collective.type === CollectiveType.COLLECTIVE && collective.isHostAccount && collective.isActive;
       case FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS:
@@ -225,7 +217,7 @@ const checkFeatureAccessParty = (
       case FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS:
         return PlatformConstants.CurrentPlatformCollectiveIds.includes(collective.id);
       case FEATURE_ACCESS_PARTY.HOSTS:
-        return collective.isHostAccount;
+        return collective.isHostAccount && collective.type !== CollectiveType.COLLECTIVE;
     }
   });
 };
@@ -325,8 +317,12 @@ export const getFeatureAccess = async (
       return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
     }
 
-    // Check general opt-in flag
-    if (featureAccess.optIn === true && !hasOptInFlag(collective, feature, featureAccess)) {
+    // Check general opt-in flag (opt-in for paying features are checked below, in the pricing check)
+    if (
+      !isPayingFeature(feature) &&
+      featureAccess.optIn === true &&
+      !hasOptInFlag(collective, feature, featureAccess)
+    ) {
       // Check if enabled by default
       if (featureAccess.enabledByDefaultFor && checkFeatureAccessParty(collective, featureAccess.enabledByDefaultFor)) {
         return { access: 'AVAILABLE', reason: null };
@@ -354,7 +350,7 @@ export const getFeatureAccess = async (
 
     // Check if the feature is part of the host plan
     const subscription = await loadPLatformSubscription(collective.id, loaders);
-    if (!subscription || !subscription.plan.features[feature]) {
+    if (!subscription || !get(subscription, `plan.features.${feature}`)) {
       return { access: 'DISABLED', reason: 'PRICING' };
     } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(collective, feature, featureAccess)) {
       return { access: 'DISABLED', reason: 'OPT_IN' };

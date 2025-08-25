@@ -1378,6 +1378,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         },
         randomUser,
       );
+      expect(result.errors).to.exist;
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal(`You can't contact this account`);
     });
