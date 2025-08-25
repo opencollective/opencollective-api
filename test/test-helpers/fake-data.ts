@@ -37,6 +37,7 @@ import models, {
   Notification,
   PaypalProduct,
   PersonalToken,
+  PlatformSubscription,
   sequelize,
   Subscription,
   Tier,
@@ -307,6 +308,10 @@ export const fakeCollective = async (
     },
     collectiveSequelizeParams,
   );
+
+  if (collective.isHostAccount && !collective.HostCollectiveId && collectiveData.HostCollectiveId === undefined) {
+    await collective.update({ HostCollectiveId: collective.id });
+  }
 
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
   if (collective.host) {
@@ -1093,6 +1098,15 @@ export const fakePaypalPlan = async (data: Record<string, unknown> = {}) => {
     id: randStr('PaypalPlan-'),
     ...data,
     ProductId: product.id,
+  });
+};
+
+export const fakePlatformSubscription = async (data: Partial<InferCreationAttributes<PlatformSubscription>> = {}) => {
+  const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+  return models.PlatformSubscription.create({
+    period: [{ value: new Date(), inclusive: true }, null],
+    ...data,
+    CollectiveId,
   });
 };
 

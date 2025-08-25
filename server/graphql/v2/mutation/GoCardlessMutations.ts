@@ -43,7 +43,7 @@ const goCardlessMutations = {
 
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Forbidden('You do not have permission to generate a GoCardless link');
-      } else if (!hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS')) {
+      } else if (!(await hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS', { loaders: req.loaders }))) {
         throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 
@@ -116,7 +116,7 @@ const goCardlessMutations = {
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Forbidden('You do not have permission to connect a GoCardless account');
-      } else if (!hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS')) {
+      } else if (!(await hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS', { loaders: req.loaders }))) {
         throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 

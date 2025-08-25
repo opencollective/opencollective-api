@@ -15,15 +15,19 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
+import ActivityTypes from '../constants/activities';
 import { PlatformSubscriptionPlan } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
 import { getPreferredPlatformPayout } from '../lib/platform-subscriptions/payment-options';
 import { chargePlatformBillingExpenseWithStripe } from '../lib/platform-subscriptions/stripe-payment';
+import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
 
+import Activity from './Activity';
 import Collective from './Collective';
 import Expense from './Expense';
 import { PayoutMethodTypes } from './PayoutMethod';
+import User from './User';
 
 export type Billing = {
   collectiveId: number;
@@ -376,17 +380,22 @@ class PlatformSubscription extends Model<
     });
   }
 
-  static createSubscription(
-    collectiveId: number,
+  static async createSubscription(
+    collective: Collective,
     start: Date,
     plan: Partial<PlatformSubscriptionPlan>,
-    opts?: { transaction?: SequelizeTransaction },
+    user: User,
+    opts?: {
+      transaction?: SequelizeTransaction;
+      UserTokenId?: number;
+      previousPlan?: Partial<PlatformSubscriptionPlan>;
+    },
   ): Promise<PlatformSubscription> {
     const alignedStart = moment.utc(start).startOf('day').toDate();
 
-    return PlatformSubscription.create(
+    const subscription = await PlatformSubscription.create(
       {
-        CollectiveId: collectiveId,
+        CollectiveId: collective.id,
         period: [
           {
             value: alignedStart,
@@ -403,6 +412,35 @@ class PlatformSubscription extends Model<
         transaction: opts?.transaction,
       },
     );
+
+    // Emit activity if user is provided
+    try {
+      // Calculate next billing date (first day of next month)
+      const nextBillingDate = moment.utc().add(1, 'month').startOf('month').toDate();
+
+      await Activity.create(
+        {
+          type: ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
+          UserId: user.id,
+          CollectiveId: collective.id,
+          UserTokenId: opts?.UserTokenId,
+          data: {
+            account: collective.info,
+            user: user.info,
+            previousPlan: opts?.previousPlan ?? null,
+            newPlan: plan,
+            nextBillingDate,
+          },
+        },
+        {
+          transaction: opts?.transaction,
+        },
+      );
+    } catch (error) {
+      reportErrorToSentry(error);
+    }
+
+    return subscription;
   }
 
   static getCurrentSubscription(
@@ -421,13 +459,15 @@ class PlatformSubscription extends Model<
   }
 
   static async replaceCurrentSubscription(
-    collectiveId: number,
+    collective: Collective,
     when: Date,
     plan: Partial<PlatformSubscriptionPlan>,
-    opts?: { transaction?: SequelizeTransaction },
+    user: User,
+    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number },
   ): Promise<PlatformSubscription> {
-    const currentSubscription = await PlatformSubscription.getCurrentSubscription(collectiveId);
+    const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id);
     const newSubscriptionStart = moment.utc(when).startOf('day');
+    const previousPlan = currentSubscription?.plan;
 
     if (currentSubscription) {
       const currentSubscriptionStart = moment.utc(currentSubscription.startDate);
@@ -451,7 +491,15 @@ class PlatformSubscription extends Model<
       }
     }
 
-    return PlatformSubscription.createSubscription(collectiveId, newSubscriptionStart.toDate(), plan, opts);
+    const newSubscription = await PlatformSubscription.createSubscription(
+      collective,
+      newSubscriptionStart.toDate(),
+      plan,
+      user,
+      { ...opts, previousPlan },
+    );
+
+    return newSubscription;
   }
 
   static getPreferredPlatformPayout = getPreferredPlatformPayout;

@@ -345,6 +345,7 @@ export const removeUnusedPaypalWebhooks = async (host): Promise<number> => {
 };
 
 type ListPaypalTransactionsResult = {
+  fullResponse: PaypalTransactionSearchResult;
   transactions: PaypalTransactionSearchResult['transaction_details'];
   totalPages: number;
   currentPage: number;
@@ -383,7 +384,7 @@ export async function listPayPalTransactions(
   const response = (await paypalRequest(apiUrl, null, host, 'GET')) as PaypalTransactionSearchResult;
   const totalPages = response.total_pages || 1;
   const transactions = response.transaction_details;
-  return { transactions, totalPages, currentPage };
+  return { fullResponse: response, transactions, totalPages, currentPage };
 }
 
 export { paypal };

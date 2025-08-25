@@ -1,9 +1,12 @@
 import { get, omit } from 'lodash';
 
 import { CollectiveType } from '../constants/collectives';
-import FEATURE from '../constants/feature';
+import FEATURE, { CommercialFeatures } from '../constants/feature';
+import { freeFeatures } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
-import { Collective } from '../models';
+import { Forbidden } from '../graphql/errors';
+import { Loaders } from '../graphql/loaders';
+import { Collective, PlatformSubscription } from '../models';
 
 type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
 enum FEATURE_ACCESS_PARTY {
@@ -12,6 +15,7 @@ enum FEATURE_ACCESS_PARTY {
   FIRST_PARTY_HOSTS = 'FIRST_PARTY_HOSTS',
   ACTIVE_ACCOUNTS = 'ACTIVE_ACCOUNTS',
   ACTIVE_HOSTS = 'ACTIVE_HOSTS',
+  INDEPENDENT_COLLECTIVES = 'INDEPENDENT_COLLECTIVES',
   PLATFORM_ACCOUNTS = 'PLATFORM_ACCOUNTS',
 }
 
@@ -25,7 +29,7 @@ const MULTI_ADMIN_ACCOUNT_TYPES = [
 ] as const;
 
 /**
- * A new way to define feature access
+ * Defines features access
  */
 const FeaturesAccess: Partial<
   Record<
@@ -33,20 +37,30 @@ const FeaturesAccess: Partial<
     {
       accountTypes?: readonly CollectiveType[];
       onlyAllowedFor?: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[];
+      optIn?: true | 'legacy-pricing' | 'new-pricing';
+      /** When the feature is opt-in, this defines who is enabled by default */
       enabledByDefaultFor?: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[];
-      isOptIn?: boolean;
       /** @deprecated To override the default data.features.${feature} flag. For retro-compatibility. */
       flagOverride?: string;
     }
   >
 > = {
-  [FEATURE.ALIPAY]: {
+  [FEATURE.AGREEMENTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+  },
+  [FEATURE.ALIPAY]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+  },
+  [FEATURE.CHARGE_HOSTING_FEES]: {
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+  },
+  [FEATURE.CHART_OF_ACCOUNTS]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.COLLECTIVE_GOALS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.PROJECT],
-    isOptIn: true,
+    optIn: true,
     flagOverride: 'settings.collectivePage.showGoals',
   },
   [FEATURE.CONTACT_FORM]: {
@@ -67,23 +81,42 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
   },
+  [FEATURE.EXPECTED_FUNDS]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+  },
+  [FEATURE.EXPENSE_SECURITY_CHECKS]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+  },
   [FEATURE.HOST_DASHBOARD]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
   },
+  [FEATURE.FUNDS_GRANTS_MANAGEMENT]: {
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+  },
+  [FEATURE.TAX_FORMS]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+  },
+  [FEATURE.VENDORS]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+  },
   [FEATURE.OFF_PLATFORM_TRANSACTIONS]: {
-    isOptIn: true,
+    optIn: 'legacy-pricing',
     enabledByDefaultFor: [FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS, FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS],
-    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
-    accountTypes: [CollectiveType.ORGANIZATION],
+    onlyAllowedFor: [
+      FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+      FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS,
+      FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES,
+    ],
+    accountTypes: [CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
   },
   [FEATURE.PAYPAL_DONATIONS]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
-    isOptIn: true,
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    optIn: true,
     flagOverride: 'settings.features.paypalDonations',
   },
   [FEATURE.PAYPAL_PAYOUTS]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
-    isOptIn: true,
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    optIn: true,
     flagOverride: 'settings.features.paypalPayouts',
   },
   [FEATURE.PROJECTS]: {
@@ -109,15 +142,15 @@ const FeaturesAccess: Partial<
     ],
   },
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
-    isOptIn: true,
+    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+    optIn: true,
     flagOverride: 'settings.apply',
   },
   [FEATURE.RECURRING_CONTRIBUTIONS]: {
     accountTypes: [CollectiveType.USER, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE, CollectiveType.FUND],
   },
   [FEATURE.STRIPE_PAYMENT_INTENT]: {
-    isOptIn: true,
+    optIn: true,
     flagOverride: 'settings.features.stripePaymentIntent',
   },
   [FEATURE.TEAM]: {
@@ -127,7 +160,7 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.FUND],
   },
   [FEATURE.TRANSFERWISE]: {
-    onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_HOSTS,
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
   },
   [FEATURE.UPDATES]: {
     accountTypes: [
@@ -174,23 +207,75 @@ const checkFeatureAccessParty = (
   const allParties = Array.isArray(parties) ? parties : [parties];
   return allParties.some(party => {
     switch (party) {
-      case 'EVERYONE':
+      case FEATURE_ACCESS_PARTY.EVERYONE:
         return true;
-      case 'ACTIVE_ACCOUNTS':
+      case FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS:
         return collective.isActive;
-      case 'ACTIVE_HOSTS':
+      case FEATURE_ACCESS_PARTY.ACTIVE_HOSTS:
         return (
-          collective.isHostAccount &&
-          (collective.isActive || (collective.type === CollectiveType.USER && !collective.deactivatedAt)) // `isActive` is not used for host users
+          collective.type !== CollectiveType.COLLECTIVE && // Independent collectives are treated differently
+          collective.isHostAccount
+          // We can't enforce that part yet, see https://github.com/opencollective/opencollective/issues/8158
+          // && (collective.isActive || (collective.type === CollectiveType.USER && !collective.deactivatedAt)) // `isActive` is not used for host users
         );
-      case 'FIRST_PARTY_HOSTS':
+      case FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES:
+        return collective.type === CollectiveType.COLLECTIVE && collective.isHostAccount && collective.isActive;
+      case FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS:
         return collective.isHostAccount && collective.data?.isFirstPartyHost;
-      case 'PLATFORM_ACCOUNTS':
+      case FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS:
         return PlatformConstants.CurrentPlatformCollectiveIds.includes(collective.id);
-      case 'HOSTS':
+      case FEATURE_ACCESS_PARTY.HOSTS:
         return collective.isHostAccount;
     }
   });
+};
+
+const loadPLatformSubscription = (collectiveId: number, loaders?: Loaders) => {
+  if (loaders) {
+    return loaders.PlatformSubscription.currentByCollectiveId.load(collectiveId);
+  } else {
+    return PlatformSubscription.getCurrentSubscription(collectiveId);
+  }
+};
+
+const loadHost = async (collective: Collective, loaders?: Loaders): Promise<Collective | null> => {
+  if (collective.isHostAccount) {
+    return collective;
+  } else if (!collective.HostCollectiveId || !collective.isActive) {
+    return null;
+  } else if (collective.host) {
+    return collective.host;
+  } else if (loaders) {
+    return loaders.Collective.byId.load(collective.HostCollectiveId);
+  } else {
+    return Collective.findByPk(collective.HostCollectiveId);
+  }
+};
+
+const isPayingFeature = (feature: FEATURE | `${FEATURE}`): boolean => {
+  return (
+    (CommercialFeatures as readonly string[]).includes(feature) &&
+    !(freeFeatures as readonly string[]).includes(feature)
+  );
+};
+
+const hasOptInFlag = (
+  collective: Collective,
+  feature: FEATURE | `${FEATURE}`,
+  {
+    flagOverride,
+    enabledByDefaultFor,
+  }: { flagOverride?: string; enabledByDefaultFor?: FEATURE_ACCESS_PARTY | readonly FEATURE_ACCESS_PARTY[] },
+): boolean => {
+  if (get(collective, `data.features.${feature}`)) {
+    return true;
+  } else if (flagOverride && get(collective, flagOverride)) {
+    return true;
+  } else if (enabledByDefaultFor && checkFeatureAccessParty(collective, enabledByDefaultFor)) {
+    return true;
+  }
+
+  return false;
 };
 
 /**
@@ -200,68 +285,135 @@ const checkFeatureAccessParty = (
  * @param feature - The feature to check the access for.
  * @returns The access level for the feature.
  */
-export const getFeatureAccess = (collective: Collective, feature: FEATURE | `${FEATURE}`): FEATURE_ACCESS => {
+export const getFeatureAccess = async (
+  collective: Collective,
+  feature: FEATURE | `${FEATURE}`,
+  {
+    loaders = null,
+  }: {
+    /** Pass loader to optimize DB calls when available */
+    loaders?: Loaders;
+  } = {},
+): Promise<{
+  access: FEATURE_ACCESS;
+  reason: 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'NEED_HOST' | 'OPT_IN' | null;
+}> => {
   if (!collective) {
-    return 'UNSUPPORTED';
+    return { access: 'UNSUPPORTED', reason: null };
   } else if (isFeatureBlockedForAccount(collective, feature)) {
-    return 'DISABLED';
+    return { access: 'DISABLED', reason: 'BLOCKED' };
   }
 
-  // No config => feature is allowed by default
+  // Enforce feature config
   const featureAccess = FeaturesAccess[feature];
-  if (!featureAccess) {
-    return 'AVAILABLE';
+  if (featureAccess) {
+    // Account types
+    if (featureAccess.accountTypes && !featureAccess.accountTypes.includes(collective.type)) {
+      return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
+    }
+
+    // Check opt-out flag
+    if (
+      get(collective, `data.features.${feature}`) === false ||
+      (featureAccess.flagOverride && get(collective, featureAccess.flagOverride) === false)
+    ) {
+      return { access: 'DISABLED', reason: 'BLOCKED' };
+    }
+
+    // Check if only allowed for a specific party
+    if (featureAccess.onlyAllowedFor && !checkFeatureAccessParty(collective, featureAccess.onlyAllowedFor)) {
+      return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
+    }
+
+    // Check general opt-in flag
+    if (featureAccess.optIn === true && !hasOptInFlag(collective, feature, featureAccess)) {
+      // Check if enabled by default
+      if (featureAccess.enabledByDefaultFor && checkFeatureAccessParty(collective, featureAccess.enabledByDefaultFor)) {
+        return { access: 'AVAILABLE', reason: null };
+      } else {
+        return { access: 'DISABLED', reason: 'OPT_IN' };
+      }
+    }
   }
 
-  // Account types
-  if (featureAccess.accountTypes && !featureAccess.accountTypes.includes(collective.type)) {
-    return 'UNSUPPORTED';
+  // Check pricing
+  if (isPayingFeature(feature) && !collective.isPlatformAccount()) {
+    const host = await loadHost(collective, loaders);
+    if (!host) {
+      return { access: 'UNSUPPORTED', reason: 'NEED_HOST' };
+    }
+
+    // With legacy plans
+    if (host.plan) {
+      if (featureAccess?.optIn === 'legacy-pricing' && !hasOptInFlag(collective, feature, featureAccess)) {
+        return { access: 'DISABLED', reason: 'OPT_IN' };
+      } else {
+        return { access: 'AVAILABLE', reason: null }; // Legacy plans don't support feature customization
+      }
+    }
+
+    // Check if the feature is part of the host plan
+    const subscription = await loadPLatformSubscription(collective.id, loaders);
+    if (!subscription || !subscription.plan.features[feature]) {
+      return { access: 'DISABLED', reason: 'PRICING' };
+    } else if (featureAccess?.optIn === 'new-pricing' && !hasOptInFlag(collective, feature, featureAccess)) {
+      return { access: 'DISABLED', reason: 'OPT_IN' };
+    }
   }
 
-  // Check opt-out flag
-  if (
-    get(collective, `data.features.${feature}`) === false ||
-    (featureAccess.flagOverride && get(collective, featureAccess.flagOverride) === false)
-  ) {
-    return 'DISABLED';
-  }
-
-  // Check if only allowed for a specific party
-  if (featureAccess.onlyAllowedFor && !checkFeatureAccessParty(collective, featureAccess.onlyAllowedFor)) {
-    return 'UNSUPPORTED';
-  }
-
-  // Check if enabled by default
-  if (featureAccess.enabledByDefaultFor && checkFeatureAccessParty(collective, featureAccess.enabledByDefaultFor)) {
-    return 'AVAILABLE';
-  }
-
-  // Check opt-in flag
-  if (
-    featureAccess.isOptIn &&
-    !get(collective, `data.features.${feature}`) &&
-    !(featureAccess.flagOverride && get(collective, featureAccess.flagOverride))
-  ) {
-    return 'DISABLED';
-  }
-
-  return 'AVAILABLE';
+  return { access: 'AVAILABLE', reason: null };
 };
 
 /**
  * A small wrapper around `getFeatureAccess` to check if a feature is available for a collective.
  */
-export const hasFeature = (collective: Collective, feature: FEATURE | `${FEATURE}`): boolean => {
-  return getFeatureAccess(collective, feature) === 'AVAILABLE';
+export const hasFeature = async (
+  collective: Collective,
+  feature: FEATURE | `${FEATURE}`,
+  { loaders }: { loaders?: Loaders } = {},
+): Promise<boolean> => {
+  const { access } = await getFeatureAccess(collective, feature, { loaders });
+  return access === 'AVAILABLE';
 };
 
-export const getCollectiveFeaturesMap = (collective: Collective) => {
+/**
+ * A wrapper around `getFeatureAccess` that throws the right error (if any) based on the access level.
+ */
+export const checkFeatureAccess = async (
+  collective: Collective,
+  feature: FEATURE | `${FEATURE}`,
+  { loaders }: { loaders?: Loaders } = {},
+): Promise<void> => {
+  const { access, reason } = await getFeatureAccess(collective, feature, { loaders });
+  switch (access) {
+    case 'UNSUPPORTED':
+      throw new Forbidden('This feature is not supported for your account type');
+    case 'DISABLED':
+      throw new Forbidden(
+        reason === 'PRICING'
+          ? 'This feature is not available in your current plan'
+          : 'This feature is not enabled for your account',
+      );
+  }
+};
+
+export const getFeaturesAccessMap = async (
+  collective: Collective,
+  { loaders }: { loaders?: Loaders } = {},
+): Promise<
+  Record<
+    Exclude<FEATURE, FEATURE.ALL>,
+    { access: FEATURE_ACCESS; reason: 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'OPT_IN' | null }
+  >
+> => {
   return Object.fromEntries(
-    Object.entries(omit(FEATURE, FEATURE.ALL)).map(([feature]) => [
-      feature,
-      getFeatureAccess(collective, feature as FEATURE),
-    ]),
-  ) as Record<Exclude<FEATURE, FEATURE.ALL>, FEATURE_ACCESS>;
+    await Promise.all(
+      Object.entries(omit(FEATURE, FEATURE.ALL)).map(async ([feature]) => [
+        feature,
+        await getFeatureAccess(collective, feature as FEATURE, { loaders }),
+      ]),
+    ),
+  );
 };
 
 export { FEATURE };

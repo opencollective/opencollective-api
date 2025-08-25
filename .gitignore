@@ -24,7 +24,6 @@ tempStripe.js
 .envrc
 
 !.env.development
-!.env.test
 
 # IDE files
 jsconfig.json

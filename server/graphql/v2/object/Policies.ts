@@ -158,7 +158,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
         let thresholds = await getPolicy(host, POLICIES.CONTRIBUTOR_INFO_THRESHOLDS, req);
         let fxRate = 1;
         if (!thresholds) {
-          if (host.currency === 'USD') {
+          if (host?.currency === 'USD') {
             thresholds = DEFAULT_CONTRIBUTION_INFO_USD_THRESHOLDS;
           } else {
             return null;

@@ -162,7 +162,7 @@ export const UserType = new GraphQLObjectType({
           if (
             req.remoteUser &&
             user.CollectiveId && // We sometimes pass an empty object as `user`
-            (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))
+            (await req.loaders.Collective.canSeePrivateProfileInfo.load(user.CollectiveId))
           ) {
             return user.email;
           }
