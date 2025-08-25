@@ -159,7 +159,7 @@
     "@types/validator": "^13.11.8",
     "@typescript-eslint/parser": "^8.13.0",
     "babel-plugin-istanbul": "^7.0.0",
-    "chai": "^4.3.10",
+    "chai": "^6.0.0",
     "chai-as-promised": "^7.1.1",
     "chai-jest-snapshot": "^2.0.0",
     "chai-sorted": "^0.2.0",
