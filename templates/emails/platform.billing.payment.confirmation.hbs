@@ -1,0 +1,246 @@
+Subject: Open Collective subscription payment confirmation
+
+{{> header}}
+
+<style>
+  .billing-container {
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: {{theme.colors.neutral.[50]}};
+    padding: 30px 20px;
+    border-radius: 16px;
+  }
+  
+  .email-header {
+    text-align: center;
+    margin: -30px -20px 32px -20px;
+    padding: 48px 20px;
+    background-color: {{theme.colors.blue.[900]}};
+    border-radius: 16px 16px 0 0;
+    position: relative;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 50px;
+  }
+  
+  .email-header h1 {
+    color: {{theme.colors.neutral.[50]}};
+    font-size: 26px;
+    font-weight: bold;
+  }
+
+  .email-header p {
+    color: {{theme.colors.neutral.[50]}};
+    font-size: 16px;
+    margin: 0;
+    opacity: 0.9;
+  }
+  
+  .info-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    padding: 28px;
+    margin: 24px 0;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+  
+  .info-section h3 {
+    margin: 0 0 20px 0;
+    color: #1e293b;
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f1f5f9;
+  }
+  
+  .info-section h3::before {
+    content: "📋";
+    margin-right: 8px;
+    font-size: 18px;
+  }
+  
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .info-table tr:not(:last-child) {
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .info-table th {
+    text-align: left;
+    padding: 12px 16px;
+    color: #64748b;
+    font-weight: 500;
+    font-size: 14px;
+    vertical-align: top;
+    width: 40%;
+  }
+  
+  .info-table td {
+    padding: 12px 0;
+    color: #1e293b;
+    font-weight: 600;
+    font-size: 15px;
+  }
+  
+  .total-row {
+    background: #F5FAFF;
+    border-radius: 8px;
+  }
+  
+  .total-row th,
+  .total-row td {
+    padding: 16px 12px;
+    font-weight: 600;
+  }
+  
+  .total-row td {
+    font-weight: 700;
+    padding: 12px 0;
+  }
+  
+  .subscription-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    padding: 28px;
+    margin: 24px 0;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+  
+  .subscription-section h3 {
+    margin: 0 0 20px 0;
+    color: #1e293b;
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f1f5f9;
+  }
+  
+  .subscription-section h3::before {
+    content: "⭐";
+    margin-right: 8px;
+    font-size: 18px;
+  }
+  
+  .subscription-title {
+    text-align: center;
+    color: #1e293b;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 32px 0 24px 0;
+  }
+
+  /* Override plan-details styles to prevent overflow in this specific email */
+  .billing-container .plan-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    padding: 20px !important;
+    margin: 0 !important;
+  }
+
+  .last-section {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .btn {
+    white-space: nowrap;
+  }
+
+  /* Responsive styles */
+  @media screen and (max-width: 600px) {
+    .info-section {
+      padding: 28px 0;
+    }
+  }
+  </style>
+
+<center>
+  <div class="billing-container">
+    <div class="email-header">
+      <h1 class="success-indicator">✅ Payment Successful</h1>
+      <p>Your Open Collective platform subscription has been processed successfully.</p>
+    </div>
+    
+
+
+    <h3 class="subscription-title">Subscription Details</h3>
+
+    <div class="info-section">
+      <table class="info-table">
+        <tr>
+          <th>Organization</th>
+          <td>{{collective.name}}</td>
+        </tr>
+        <tr>
+          <th>Billing Period</th>
+          <td>{{bill.billingPeriod.month}}/{{bill.billingPeriod.year}}</td>
+        </tr>
+        <tr>
+          <th>Due Date</th>
+          <td>{{moment bill.dueDate format="MMM Do, YYYY"}}</td>
+        </tr>
+        <tr>
+          <th>Payment Date</th>
+          <td>{{moment expense.updatedAt format="MMM Do, YYYY"}}</td>
+        </tr>
+        {{#if expense.payoutMethod}}
+          <tr>
+            <th>Payment Method</th>
+            <td>
+              {{#ifCond expense.payoutMethod.type '===' 'CREDIT_CARD'}}
+                Card ending in {{#if expense.payoutMethod.data.last4}}{{expense.payoutMethod.data.last4}}{{else}}****{{/if}}
+              {{else}}
+                {{expense.payoutMethodLabel}}
+              {{/ifCond}}
+            </td>
+          </tr>
+        {{/if}}
+        <tr>
+          <th>Expenses Processed</th>
+          <td>{{bill.utilization.expensesPaid}}</td>
+        </tr>
+        <tr>
+          <th>Active Collectives</th>
+          <td>{{bill.utilization.activeCollectives}}</td>
+        </tr>
+        <tr class="total-row">
+          <th>Total Amount Charged</th>
+          <td>{{currency bill.totalAmount currency=expense.currency}}</td>
+        </tr>
+      </table>
+    </div>
+
+    
+    {{#with bill.subscriptions.[0]}}
+      <h3 class="subscription-title">Plan Details</h3>
+      {{> plan-details plan=plan title="Current Plan" width="100%"}}
+    {{/with}}
+  </div>
+
+  <center class="last-section">
+    <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+      <div>Review Details</div>
+    </a>
+  </center>
+
+  <br />
+
+  <p style="font-size: 14px; color: #666;">
+    If you have any questions about this charge, please <a href="https://opencollective.com/contact">contact us</a>.
+  </p>
+
+</center>
+
+{{> footer}}

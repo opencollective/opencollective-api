@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
 import Channels from '../../constants/channels';
 import { CollectiveType } from '../../constants/collectives';
+import ExpenseType from '../../constants/expense-type';
 import PlatformConstants from '../../constants/platform';
 import MemberRoles from '../../constants/roles';
 import { TransactionKind } from '../../constants/transaction-kind';
@@ -532,19 +533,26 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_PAID:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      await notify.user(activity, {
-        from: config.email.noReply,
-        userId: activity.data.expense.UserId,
-      });
-      if (get(activity, 'data.host.id')) {
+
+      // Use dedicated template for platform billing expenses
+      if (activity.data.expense.type === ExpenseType.PLATFORM_BILLING) {
+        // Send platform billing payment confirmation to organization admins
         await notify.collective(activity, {
-          collectiveId: activity.data.host.id,
-          template: 'collective.expense.paid.for.host',
+          template: 'platform.billing.payment.confirmation',
         });
+      } else {
+        // Standard expense payment notification to the expense submitter
+        await notify.user(activity, {
+          from: config.email.noReply,
+          userId: activity.data.expense.UserId,
+        });
+        if (get(activity, 'data.host.id')) {
+          await notify.collective(activity, {
+            collectiveId: activity.data.host.id,
+            template: 'collective.expense.paid.for.host',
+          });
+        }
       }
       break;
 

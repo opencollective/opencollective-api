@@ -4,10 +4,12 @@ import moment from 'moment';
 import sinon from 'sinon';
 
 import { run } from '../../../cron/monthly/submit-platform-subscription-bills';
-import { expenseTypes } from '../../../server/constants';
+import { expenseTypes, roles } from '../../../server/constants';
+import ActivityTypes from '../../../server/constants/activities';
 import { CollectiveType } from '../../../server/constants/collectives';
 import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
 import PlatformConstants from '../../../server/constants/platform';
+import emailLib from '../../../server/lib/email';
 import models, { PlatformSubscription } from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
@@ -18,14 +20,15 @@ import {
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { resetTestDB, waitForCondition } from '../../utils';
 
 describe('submit-platform-subscription-bills', () => {
   const date = moment.utc('2023-10-09T10:00:00Z');
-  const sandbox = sinon.createSandbox();
+  let organizations, sandbox, emailSendMessageSpy;
 
-  let organizations;
   before(async () => {
+    sandbox = sinon.createSandbox();
+    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
     await resetTestDB();
     const user = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
     const oc = await fakeHost({
@@ -63,9 +66,12 @@ describe('submit-platform-subscription-bills', () => {
       PlatformSubscriptionTiers[3],
       PlatformSubscriptionTiers[4],
     ];
+
+    const orgAdmin = await fakeUser();
     for (const org of organizations) {
       const i = organizations.indexOf(org);
       await PlatformSubscription.createSubscription(org, moment(date).subtract(2, 'month').toDate(), plans[i], user);
+      await org.addUserWithRole(orgAdmin, roles.ADMIN);
     }
 
     const calculateUtilizationStub = sandbox.stub(PlatformSubscription, 'calculateUtilization');
@@ -126,5 +132,86 @@ describe('submit-platform-subscription-bills', () => {
     });
 
     expect(expenses).to.have.length(1);
+  });
+
+  it('should create COLLECTIVE_EXPENSE_CREATED activities', async () => {
+    const activities = await models.Activity.findAll({
+      where: { type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED },
+    });
+
+    expect(activities).to.have.length(4);
+    const org2Activity = activities.find(a => a.CollectiveId === organizations[2].id);
+    expect(org2Activity.data).to.containSubset({
+      expense: { type: expenseTypes.PLATFORM_BILLING, CollectiveId: organizations[2].id, amount: 4500 },
+      items: [
+        {
+          amount: 4000,
+          currency: 'USD',
+          description: 'Base subscription Discover 5 - 01-Sep-2023 to 30-Sep-2023',
+          incurredAt: '2023-09-30T23:59:59.999Z',
+        },
+        {
+          amount: 500,
+          currency: 'USD',
+          description: 'Additional Paid Expenses Utilization: 5',
+          incurredAt: '2023-09-01T00:00:00.000Z',
+        },
+      ],
+      payoutMethod: { type: 'STRIPE' },
+    });
+
+    expect(org2Activity.data.bill).to.containSubset({
+      base: {
+        subscriptions: [{ amount: 4000, title: 'Discover 5' }],
+        total: 4000,
+      },
+      additional: {
+        total: 500,
+        amounts: { activeCollectives: 0, expensesPaid: 500 },
+        utilization: { activeCollectives: 0, expensesPaid: 5 },
+      },
+      billingPeriod: { month: 8, year: 2023 },
+      dueDate: '2023-10-01T00:00:00.000Z',
+      subscriptions: [
+        {
+          period: [{ inclusive: true, value: '2023-08-09T00:00:00.000Z' }, { inclusive: true }],
+          plan: {
+            id: 'discover-5',
+            pricing: {
+              includedCollectives: 5,
+              includedExpensesPerMonth: 50,
+              pricePerAdditionalCollective: 1000,
+              pricePerAdditionalExpense: 100,
+              pricePerMonth: 4000,
+            },
+            title: 'Discover 5',
+            type: 'Discover',
+          },
+        },
+      ],
+      totalAmount: 4500,
+      utilization: {
+        activeCollectives: 4,
+        expensesPaid: 55,
+      },
+    });
+  });
+
+  it('paying the expense sends a confirmation email', async () => {
+    emailSendMessageSpy.resetHistory();
+    const expense = await models.Expense.findOne({
+      where: { CollectiveId: organizations[2].id, type: expenseTypes.PLATFORM_BILLING },
+    });
+
+    await expense.markAsPaid();
+
+    await waitForCondition(() => emailSendMessageSpy.callCount > 0);
+    expect(emailSendMessageSpy.callCount).to.equal(1);
+
+    const org2Body = emailSendMessageSpy.args[0][2];
+    expect(org2Body).to.contain('Your Open Collective platform subscription has been processed successfully.');
+    expect(org2Body).to.contain('Billing Period');
+    expect(org2Body).to.contain('8/2023');
+    expect(org2Body).to.contain('$45.00');
   });
 });
