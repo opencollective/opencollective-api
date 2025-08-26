@@ -6,7 +6,7 @@ import POLICIES from '../../constants/policies';
 import { ApolloError, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
 import { sessionCache } from '../cache';
-import { hasPolicy } from '../policies';
+import { getPolicy } from '../policies';
 
 import recoveryCode from './recovery-code';
 import totp from './totp';
@@ -251,7 +251,8 @@ async function userHasTwoFactorAuthEnabled(user: User) {
  * The parent account, if any, is always the source of truth
  */
 async function shouldEnforceForAccount(account?: Collective): Promise<boolean> {
-  return await hasPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
+  const policy = await getPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
+  return policy === true;
 }
 
 /**
