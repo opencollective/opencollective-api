@@ -1078,7 +1078,7 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else if (expense.type === ExpenseType.CHARGE) {
+  } else if ([ExpenseType.CHARGE, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
     return false;
   } else if (
     ![ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED, ExpenseStatus.ERROR].includes(expense.status as ExpenseStatus)
