@@ -35,6 +35,7 @@ export const templateNames = [
   'collective.expense.paid',
   'collective.expense.paid.for.host',
   'platform.billing.payment.confirmation',
+  'platform.billing.new.expense',
   'collective.expense.invite.drafted',
   'collective.expense.missing.receipt',
   'collective.expense.recurring.drafted',
@@ -137,6 +138,7 @@ const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
 const mthReportSubscription = fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
 const planDetails = fs.readFileSync(`${templatesPath}/partials/plan-details.hbs`, 'utf8');
+const subscriptionDetails = fs.readFileSync(`${templatesPath}/partials/subscription-details.hbs`, 'utf8');
 
 handlebars.registerPartial('header', header);
 handlebars.registerPartial('greeting', greeting);
@@ -152,6 +154,7 @@ handlebars.registerPartial('charge_date_notice', chargeDateNotice);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
 handlebars.registerPartial('plan-details', planDetails);
+handlebars.registerPartial('subscription-details', subscriptionDetails);
 handlebars.registerHelper('idEncode', (id, type) => {
   return idEncode(id, type);
 });

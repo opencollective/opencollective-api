@@ -1,0 +1,123 @@
+<style>
+  .info-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    padding: 28px;
+    margin: 24px 0;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+  
+  .info-section h3 {
+    margin: 0 0 20px 0;
+    color: #1e293b;
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f1f5f9;
+  }
+  
+  .info-section h3::before {
+    content: "📋";
+    margin-right: 8px;
+    font-size: 18px;
+  }
+  
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .info-table tr:not(:last-child) {
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  .info-table th {
+    text-align: left;
+    padding: 12px 16px;
+    color: #64748b;
+    font-weight: 500;
+    font-size: 14px;
+    vertical-align: top;
+    width: 40%;
+  }
+  
+  .info-table td {
+    padding: 12px 0;
+    color: #1e293b;
+    font-weight: 600;
+    font-size: 15px;
+  }
+  
+  .total-row {
+    background: #F5FAFF;
+    border-radius: 8px;
+  }
+  
+  .total-row th,
+  .total-row td {
+    padding: 16px 12px;
+    font-weight: 600;
+  }
+  
+  .total-row td {
+    font-weight: 700;
+    padding: 12px 0;
+  }
+
+  /* Responsive styles */
+  @media screen and (max-width: 600px) {
+    .info-section {
+      padding: 28px 0;
+    }
+  }
+</style>
+
+<div class="info-section">
+  <table class="info-table">
+    <tr>
+      <th>Organization</th>
+      <td>{{collective.name}}</td>
+    </tr>
+    <tr>
+      <th>Billing Period</th>
+      <td>{{bill.billingPeriod.month}}/{{bill.billingPeriod.year}}</td>
+    </tr>
+    <tr>
+      <th>Due Date</th>
+      <td>{{moment bill.dueDate format="MMM Do, YYYY"}}</td>
+    </tr>
+    {{#ifCond expense.status '===' 'PAID'}}
+    <tr>
+      <th>Payment Date</th>
+      <td>{{moment expense.updatedAt format="MMM Do, YYYY"}}</td>
+    </tr>
+    {{/ifCond}}
+    {{#if expense.payoutMethod}}
+      <tr>
+        <th>Payment Method</th>
+        <td>
+          {{#ifCond expense.payoutMethod.type '===' 'CREDIT_CARD'}}
+            Card ending in {{#if expense.payoutMethod.data.last4}}{{expense.payoutMethod.data.last4}}{{else}}****{{/if}}
+          {{else}}
+            {{expense.payoutMethodLabel}}
+          {{/ifCond}}
+        </td>
+      </tr>
+    {{/if}}
+    <tr>
+      <th>Expenses Processed</th>
+      <td>{{bill.utilization.expensesPaid}}</td>
+    </tr>
+    <tr>
+      <th>Active Collectives</th>
+      <td>{{bill.utilization.activeCollectives}}</td>
+    </tr>
+    <tr class="total-row">
+      <th>Total Amount {{#if showDue}}Due{{else}}Charged{{/if}}</th>
+      <td>{{currency bill.totalAmount currency=expense.currency}}</td>
+    </tr>
+  </table>
+</div>
