@@ -157,6 +157,7 @@ enum ActivityTypes {
 
   // Platform subscriptions
   PLATFORM_SUBSCRIPTION_UPDATED = 'platform.subscription.updated',
+  PLATFORM_BILLING_OVERDUE_REMINDER = 'platform.billing.overdue.reminder',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
