@@ -76,7 +76,7 @@ Subject: Open Collective subscription payment request
     border: 1px solid {{theme.colors.yellow.[300]}};
     border-left: 4px solid {{theme.colors.yellow.[500]}};
     padding: 20px;
-    margin-bottom: 52px;
+    margin-top: 32px;
     border-radius: 8px;
   }
 
@@ -92,7 +92,7 @@ Subject: Open Collective subscription payment request
   .payment-instructions p {
     color: {{theme.colors.yellow.[900]}};
     font-size: 14px;
-    margin: 8px 0;
+    margin: 0;
     line-height: 1.5;
     text-align: left;
   }
@@ -107,7 +107,7 @@ Subject: Open Collective subscription payment request
   }
 
   .last-section {
-    margin-top: 40px;
+    margin-top: 32px;
     padding-top: 30px;
     border-top: 1px solid #e2e8f0;
   }
@@ -130,25 +130,17 @@ Subject: Open Collective subscription payment request
       <h1 class="payment-indicator">💳 Payment Required</h1>
       <p>Your Open Collective subscription is due for payment.</p>
     </div>
-    
-    <div class="payment-instructions">
-      <h4>Payment Instructions</h4>
-      <p>
-        Since automatic payment is not set up for your organization, you need to submit your payment manually.
-        Please process this payment by <strong>{{moment bill.dueDate format="MMM Do, YYYY"}}</strong> to avoid any
-        service interruptions.
-      </p>
-    </div>
 
     <h3 class="subscription-title">Subscription Details</h3>
 
     {{> subscription-details showDue=true}}
     
-    {{#with bill.subscriptions.[0]}}
-      <h3 class="subscription-title">Plan Details</h3>
-      {{> plan-details plan=plan title="Current Plan" width="100%"}}
-    {{/with}}
-
+    <div class="payment-instructions">
+      <h4>Payment Instructions</h4>
+      <p>
+        Your organization may experience service disruption if payment is not made by <strong>{{moment bill.dueDate format="MMM Do, YYYY"}}</strong>.
+      </p>
+    </div>
     <center class="last-section">
       <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
         <div>Pay Now</div>

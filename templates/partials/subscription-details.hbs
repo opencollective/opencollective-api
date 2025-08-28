@@ -107,14 +107,16 @@
         </td>
       </tr>
     {{/if}}
-    <tr>
-      <th>Expenses Processed</th>
-      <td>{{bill.utilization.expensesPaid}}</td>
-    </tr>
-    <tr>
-      <th>Active Collectives</th>
-      <td>{{bill.utilization.activeCollectives}}</td>
-    </tr>
+    {{#unless hideUtilization}}
+      <tr>
+        <th>Expenses Processed</th>
+        <td>{{bill.utilization.expensesPaid}}</td>
+      </tr>
+      <tr>
+        <th>Active Collectives</th>
+        <td>{{bill.utilization.activeCollectives}}</td>
+      </tr>
+    {{/unless}}
     <tr class="total-row">
       <th>Total Amount {{#if showDue}}Due{{else}}Charged{{/if}}</th>
       <td>{{currency bill.totalAmount currency=expense.currency}}</td>

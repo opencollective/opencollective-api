@@ -105,14 +105,7 @@ Subject: Open Collective subscription payment confirmation
 
     <h3 class="subscription-title">Subscription Details</h3>
 
-    {{> subscription-details}}
-
-    
-    {{#with bill.subscriptions.[0]}}
-      <h3 class="subscription-title">Plan Details</h3>
-      {{> plan-details plan=plan title="Current Plan" width="100%"}}
-    {{/with}}
-
+    {{> subscription-details hideUtilization=true}}
 
     <center class="last-section">
       <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
