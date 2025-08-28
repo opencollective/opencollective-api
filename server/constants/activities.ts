@@ -158,6 +158,7 @@ enum ActivityTypes {
   // Platform subscriptions
   PLATFORM_SUBSCRIPTION_UPDATED = 'platform.subscription.updated',
   PLATFORM_BILLING_OVERDUE_REMINDER = 'platform.billing.overdue.reminder',
+  PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION = 'platform.billing.additional.charges.notification',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
@@ -190,6 +191,8 @@ export const TransactionalActivities = [
   ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
   ActivityTypes.OAUTH_APPLICATION_AUTHORIZED,
   ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
+  ActivityTypes.PLATFORM_BILLING_OVERDUE_REMINDER,
+  ActivityTypes.PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION,
 ];
 
 export enum ActivityClasses {
