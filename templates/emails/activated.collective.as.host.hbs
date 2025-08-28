@@ -4,18 +4,19 @@ Subject: Fiscal Host Activated — Welcome!
 
 <p>{{> greeting}}</p>
 
-<p>Congratulations! Your Fiscal Host is now activated and ready to support Collectives. Here's everything you need to get started:</p>
+<p>Congratulations! Your organization is now activated. Here's everything you need to get started.</p>
 
 <h3>Get Started</h3>
 <p>
-Visit your <a href="https://opencollective.com/dashboard/{{collective.slug}}">Dashboard Welcome section</a> where you'll find a comprehensive checklist of things you can do to set up your account and get acquainted with the Platform.
+Visit your <a href="https://opencollective.com/dashboard/{{collective.slug}}">Dashboard</a> and explore the platform. In your dashboard, you will find a checklist to guide you through the things you need to do to set up your account.
 </p>
 
+{{#unless collective.plan}}
 <h3>Your Current Tier</h3>
 <p>
-You are currently on the <strong>Discover tier</strong>. This grants you basic access to the Platform so you can get acquainted with it and begin your setup. When you are ready, you can upgrade to a tier and package that best suits your needs. As you move up the tiers, you will gain access to more advanced features. Within each tier, you can choose a package of monthly active Collectives and expenses that is best aligned with your needs.
+You are currently on the <strong>Discover Tier</strong>. This grants you basic access to the platform and includes 1 active monthly collective and 10 expenses. Visit our <a href="https://opencollective.com/pricing">pricing page</a> to learn more about our tiers and plans. Visit your <a href="https://opencollective.com/dashboard/{{collective.slug}}/platform-subscription">platform payments page</a> to upgrade to a tier and a package that best suits your needs.
 </p>
-
+{{/unless}}
 
 <h3>Essential Resources</h3>
 <ul>
@@ -27,10 +28,8 @@ You are currently on the <strong>Discover tier</strong>. This grants you basic a
 
 <h3>Get Support</h3>
 <p>
-Join our vibrant community on <a href="https://discord.opencollective.com">Discord</a> and connect with other Hosts in the #hosts channel. You can also explore our <a href="https://documentation.opencollective.com">documentation</a> for detailed guides and best practices.
+Join our <a href="https://discord.opencollective.com">Discord community</a> and connect to other fiscal hosts in the #hosts channel. Explore our <a href="https://documentation.opencollective.com">documentation</a> for detailed guides and best practices.
 </p>
-
-<p>We're here to help your community thrive!</p>
 
 <p>Best,</p>
 
