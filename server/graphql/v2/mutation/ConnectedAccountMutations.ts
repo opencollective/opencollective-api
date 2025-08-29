@@ -3,6 +3,8 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
+import FEATURE from '../../../constants/feature';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { crypto } from '../../../lib/encryption';
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import * as paypal from '../../../lib/paypal';
@@ -44,6 +46,15 @@ const connectedAccountMutations = {
       }
 
       await twoFactorAuthLib.enforceForAccount(req, collective);
+
+      // Check feature access for TRANSFERWISE
+      if (args.connectedAccount.service === Service.TRANSFERWISE) {
+        await checkFeatureAccess(collective, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+      }
+      // Check feature access for PAYPAL_PAYOUTS
+      if (args.connectedAccount.service === Service.PAYPAL) {
+        await checkFeatureAccess(collective, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+      }
 
       if ([Service.TRANSFERWISE, Service.PAYPAL].includes(args.connectedAccount.service)) {
         if (!args.connectedAccount.token) {

@@ -24,6 +24,7 @@ import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import logger from '../../../lib/logger';
@@ -1139,6 +1140,8 @@ const orderMutations = {
         );
       }
 
+      await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
+
       // Check accounting category
       let AccountingCategoryId = null;
       if (args.order.accountingCategory) {
@@ -1278,6 +1281,8 @@ const orderMutations = {
       if (!(await OrdersLib.canEdit(req, order))) {
         throw new ValidationFailed(`Only pending orders can be edited, this one is ${order.status}`);
       }
+
+      await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
 
       // Load data
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount);

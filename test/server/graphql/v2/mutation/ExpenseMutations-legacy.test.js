@@ -26,6 +26,7 @@ import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adapti
 import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeAccountingCategory,
+  fakeActiveHost,
   fakeCollective,
   fakeComment,
   fakeConnectedAccount,
@@ -587,6 +588,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         const collectiveAdmin = await fakeUser();
         await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await expense.collective.host.update({ plan: 'start-plan-2021' });
         const newAccountingCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
           kind: 'EXPENSE',
@@ -621,6 +623,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         const expense = await fakeExpense();
         const accountingCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
         await expense.update({ AccountingCategoryId: accountingCategory.id });
+        await expense.collective.host.update({ plan: 'start-plan-2021' });
         const result = await graphqlQueryV2(
           editExpenseMutation,
           { expense: { id: idEncode(expense.id, 'expense'), accountingCategory: null } },
@@ -639,6 +642,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         const expense = await fakeExpense();
         await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await expense.collective.host.update({ plan: 'start-plan-2021' });
 
         const initialCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
@@ -693,6 +697,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         const hostAdmin = await fakeUser();
         const expense = await fakeExpense();
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await expense.collective.host.update({ plan: 'start-plan-2021' });
 
         const initialCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
@@ -1319,11 +1324,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
       await resetTestDB();
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeCollective({
+      host = await fakeActiveHost({
         name: 'OSC',
         admin: hostAdmin.collective,
         plan: 'network-host-plan',
         currency: 'USD',
+        settings: { features: { paypalPayouts: true } },
       });
       collective = await fakeCollective({
         name: 'Babel',
@@ -1665,7 +1671,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
       });
 
       it('Pays the expense manually (Collective currency != Host currency)', async () => {
-        const host = await fakeCollective({
+        const host = await fakeActiveHost({
           name: 'OC EU',
           admin: hostAdmin.collective,
           plan: 'network-host-plan',
@@ -1817,12 +1823,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
 
           const mutationParams = { expenseId: expense.id, action: 'PAY' };
           const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+
+          expect(res.errors).to.exist;
+          expect(res.errors[0].message).to.contain('Not enough funds in your existing Paypal preapproval');
+
           expect(callPaypal.firstCall.args[0]).to.equal('pay');
           expect(callPaypal.firstCall.args[1].currencyCode).to.equal(expense.currency);
           expect(callPaypal.firstCall.args[1].memo).to.include('Reimbursement from');
           expect(callPaypal.firstCall.args[1].memo).to.include(expense.description);
-          expect(res.errors).to.exist;
-          expect(res.errors[0].message).to.contain('Not enough funds in your existing Paypal preapproval');
           const updatedExpense = await models.Expense.findByPk(expense.id);
           expect(updatedExpense.status).to.equal('APPROVED');
           const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
@@ -2942,13 +2950,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
       hostAdmin = await fakeUser();
       user = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeCollective({
+      host = await fakeActiveHost({
         admin: hostAdmin.collective,
         settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 50000 } },
+        plan: 'network-host-plan',
       });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
       await hostAdmin.populateRoles();
-      await host.update({ plan: 'network-host-plan' });
       await addFunds(user, host, collective, 15000000);
       await fakeConnectedAccount({
         CollectiveId: host.id,
@@ -3049,6 +3057,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
       });
 
+      result1.errors && console.error(result1.errors);
       expect(result1.errors).to.not.exist;
       expect(result1.data.processExpense.status).to.eq('PROCESSING');
 

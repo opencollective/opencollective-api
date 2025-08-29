@@ -233,10 +233,10 @@ describe('server/lib/allowed-features', () => {
       it('is AVAILABLE for hosts, UNSUPPORTED for others', async () => {
         const host = await fakeActiveHost();
         expect(await getFeatureAccess(host, FEATURE.HOST_DASHBOARD)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const inactiveHost = await fakeCollective({ isHostAccount: true, isActive: false });
-        expect(await getFeatureAccess(inactiveHost, FEATURE.HOST_DASHBOARD)).to.deep.eq({
-          access: 'AVAILABLE',
-          reason: null,
+        const independentCollective = await fakeCollective({ isHostAccount: true, isActive: false });
+        expect(await getFeatureAccess(independentCollective, FEATURE.HOST_DASHBOARD)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
         });
         const org = await fakeOrganization();
         expect(await getFeatureAccess(org, FEATURE.HOST_DASHBOARD)).to.deep.eq({
@@ -630,6 +630,21 @@ describe('server/lib/allowed-features', () => {
       });
     });
 
+    describe('TAX_FORMS', () => {
+      it('is unsupported for non-US accounts', async () => {
+        const org = await fakeActiveHost({ countryISO: 'FR' });
+        expect(await getFeatureAccess(org, FEATURE.TAX_FORMS)).to.deep.eq({ access: 'UNSUPPORTED', reason: 'REGION' });
+        const org2 = await fakeActiveHost({ countryISO: null });
+        expect(await getFeatureAccess(org2, FEATURE.TAX_FORMS)).to.deep.eq({ access: 'UNSUPPORTED', reason: 'REGION' });
+      });
+
+      it('is supported for US accounts', async () => {
+        const org = await fakeActiveHost({ countryISO: 'US' });
+        await fakePlatformSubscription({ CollectiveId: org.id, plan: { features: { TAX_FORMS: true } } });
+        expect(await getFeatureAccess(org, FEATURE.TAX_FORMS)).to.deep.eq({ access: 'AVAILABLE', reason: null });
+      });
+    });
+
     describe('TOP_FINANCIAL_CONTRIBUTORS', () => {
       it('is AVAILABLE for collectives, organizations, and funds, UNSUPPORTED for others', async () => {
         const collective = await fakeCollective();
@@ -784,13 +799,13 @@ describe('server/lib/allowed-features', () => {
       };
 
       it('for a simple user', async () => {
-        const user = await fakeUser();
+        const user = await fakeUser(null, { countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(user.collective);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
 
       it('for a HOST user', async () => {
-        const user = await fakeUser({}, { plan: 'start-plan-2021', isHostAccount: true });
+        const user = await fakeUser({}, { plan: 'start-plan-2021', isHostAccount: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(user.collective);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
@@ -861,7 +876,11 @@ describe('server/lib/allowed-features', () => {
       };
 
       it('for a HOST organization', async () => {
-        const hostOrg = await fakeActiveHost({ plan: 'start-plan-2021', type: CollectiveType.ORGANIZATION });
+        const hostOrg = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          type: CollectiveType.ORGANIZATION,
+          countryISO: 'US',
+        });
         const featuresMap = await getFeaturesAccessMap(hostOrg);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
@@ -926,8 +945,8 @@ describe('server/lib/allowed-features', () => {
       };
 
       it('for a hosted collective', async () => {
-        const host = await fakeActiveHost({ plan: 'start-plan-2021' });
-        const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id });
+        const host = await fakeActiveHost({ plan: 'start-plan-2021', countryISO: 'US' });
+        const collective = await fakeCollective({ isActive: true, HostCollectiveId: host.id, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(collective);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
@@ -940,18 +959,18 @@ describe('server/lib/allowed-features', () => {
           plan: 'start-plan-2021',
           isHostAccount: true,
           isActive: true,
+          countryISO: 'US',
         });
         const featuresMap = await getFeaturesAccessMap(selfHosted);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           ALIPAY: { access: 'AVAILABLE', reason: null },
           CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
           EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
           EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-          FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-          HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
+          FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
+          HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
@@ -966,7 +985,7 @@ describe('server/lib/allowed-features', () => {
       });
 
       it('for an unhosted collective', async () => {
-        const unhosted = await fakeCollective({ isActive: false, HostCollectiveId: null });
+        const unhosted = await fakeCollective({ isActive: false, HostCollectiveId: null, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(unhosted);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
@@ -1035,7 +1054,7 @@ describe('server/lib/allowed-features', () => {
       };
 
       it('for an active fund', async () => {
-        const fund = await fakeCollective({ type: CollectiveType.FUND, isActive: true });
+        const fund = await fakeCollective({ type: CollectiveType.FUND, isActive: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(fund);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
@@ -1089,7 +1108,7 @@ describe('server/lib/allowed-features', () => {
       };
 
       it('for an active project', async () => {
-        const project = await fakeProject({ isActive: true });
+        const project = await fakeProject({ isActive: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(project);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
@@ -1143,7 +1162,7 @@ describe('server/lib/allowed-features', () => {
       };
 
       it('for an active event', async () => {
-        const event = await fakeEvent({ isActive: true });
+        const event = await fakeEvent({ isActive: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(event);
         expect(featuresMap).to.deep.equal(basePermissions);
       });
@@ -1155,7 +1174,7 @@ describe('server/lib/allowed-features', () => {
       it('should throw an error if the feature is unsupported by the account type', async () => {
         const user = await fakeUser();
         await expect(checkFeatureAccess(user.collective, FEATURE.RECEIVE_EXPENSES)).to.be.rejectedWith(
-          'This feature is not supported for your account type',
+          'This feature is not supported for your account',
         );
       });
 

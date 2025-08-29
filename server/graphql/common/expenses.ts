@@ -43,6 +43,7 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import PlatformConstants from '../../constants/platform';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
@@ -106,6 +107,28 @@ import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
+
+const loadHostForExpense = async (req: express.Request, expense: Expense): Promise<Collective | null> => {
+  if (expense.host) {
+    return expense.host;
+  } else if (expense.HostCollectiveId) {
+    expense.host = await req.loaders.Collective.byId.load(expense.HostCollectiveId);
+    return expense.host;
+  } else if (expense.collective?.host) {
+    return expense.collective.host;
+  } else if (expense.collective) {
+    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+    return expense.collective.host;
+  } else {
+    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    if (expense.collective) {
+      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      return expense.collective.host;
+    }
+  }
+
+  return null;
+};
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
@@ -412,8 +435,16 @@ export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (re
 
   // Preload host and collective, we'll need them for permissions checks
   expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-  if (expense.collective?.HostCollectiveId && !expense.collective.host) {
+  if (!expense.collective) {
+    return false;
+  } else if (expense.collective.HostCollectiveId && !expense.collective.host) {
     expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+  }
+
+  // Check if the feature is available for the host
+  const host = await loadHostForExpense(req, expense);
+  if (!(await hasFeature(host, FEATURE.EXPENSE_SECURITY_CHECKS, { loaders: req.loaders }))) {
+    return false;
   }
 
   // Only trusted hosts can use security checks
@@ -1178,6 +1209,24 @@ export const canEditExpenseAccountingCategory = async (
     return false;
   }
 
+  const host = await loadHostForExpense(req, expense).catch(e => console.error(e));
+  if (!host) {
+    if (options?.throw) {
+      throw new Forbidden('Collective does not have a host', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  }
+
+  if (!(await hasFeature(host, FEATURE.CHART_OF_ACCOUNTS, { loaders: req.loaders }))) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Collective does not have accounting categories enabled',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
+    return false;
+  }
+
   // Host admins and accountants can always change the accounting category.
   if (await remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isHostAccountant])) {
     return true;
@@ -1620,10 +1669,12 @@ export const scheduleExpenseForPayment = async (
 
   // If Wise, add expense to a new batch group
   if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
     await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
   }
   // If PayPal, check if host is connected to PayPal
   else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
+    await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
     await host.getAccountForPaymentProvider(Service.PAYPAL);
   }
 
@@ -1643,6 +1694,8 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
   // If Wise, add expense to a new batch group
   const payoutMethod = await expense.getPayoutMethod();
   if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const host = await loadHostForExpense(req, expense);
+    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
     await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
   }
 
@@ -1693,7 +1746,7 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
   }
 };
 
-const checkExpenseType = (
+const checkExpenseType = async (
   newType: ExpenseType,
   fromAccount: Collective,
   account: Collective,
@@ -1701,7 +1754,8 @@ const checkExpenseType = (
   host: Collective | null,
   existingExpense: Expense | null = null,
   remoteUser: User | null = null,
-): void => {
+  req: express.Request,
+): Promise<void> => {
   // Prevent changing the type in certain cases
   if (existingExpense && newType && existingExpense.type !== newType) {
     if (existingExpense.type === ExpenseType.CHARGE) {
@@ -1745,7 +1799,8 @@ const checkExpenseType = (
 
   // Fallback on default values
   if (newType === ExpenseType.GRANT) {
-    // TODO: enforce this to resolve https://github.com/opencollective/opencollective/issues/5395
+    await checkFeatureAccess(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, { loaders: req.loaders });
+    // TODO: enforce a check based on supportedExpenseTypes to resolve https://github.com/opencollective/opencollective/issues/5395
   }
 };
 
@@ -2183,7 +2238,16 @@ export async function createExpense(
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
-  checkExpenseType(expenseData.type, fromCollective, collective, collective.parent, collective.host, null, remoteUser);
+  await checkExpenseType(
+    expenseData.type,
+    fromCollective,
+    collective,
+    collective.parent,
+    collective.host,
+    null,
+    remoteUser,
+    req,
+  );
 
   let accountingCategorySource: 'submitter' | 'prediction' = 'submitter';
   if (expenseData.accountingCategory) {
@@ -2856,7 +2920,7 @@ export async function editExpense(
 
   // When changing the type, we must make sure that the new type is allowed
   if (expenseData.type && expenseData.type !== expense.type) {
-    checkExpenseType(
+    await checkExpenseType(
       expenseData.type,
       fromCollective,
       collective,
@@ -2864,6 +2928,7 @@ export async function editExpense(
       collective.host,
       expense,
       remoteUser,
+      req,
     );
   }
 
@@ -3763,6 +3828,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
         });
       } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+        await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+
         if (expense.collective.currency !== host.currency) {
           throw new Error(
             'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-paypal',
@@ -3797,6 +3864,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         if (host.settings?.transferwise?.ott === true) {
           throw new Error('You cannot pay this expense directly without Scheduling it for payment first.');
         }
+        await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+
         const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
           CreatedByUserId: remoteUser.id,
           fallbackToNonUserAccount: true,

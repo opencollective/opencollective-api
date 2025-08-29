@@ -8,6 +8,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
+import { hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -432,7 +433,9 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseType))),
     description: 'The list of expense types supported by this account',
     async resolve(collective, _, req) {
-      const host = collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
+      const host = collective.isHostAccount
+        ? collective
+        : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
       const parent =
         collective.ParentCollectiveId && (await req.loaders.Collective.byId.load(collective.ParentCollectiveId));
 
@@ -440,7 +443,18 @@ const accountFieldsDefinition = () => ({
       const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
       const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
       const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
-      return Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
+      const supportedFromConfig = Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
+      if (supportedFromConfig.includes('GRANT')) {
+        const hasGrantsFeature = await hasFeature(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, {
+          loaders: req.loaders,
+        });
+
+        if (!hasGrantsFeature) {
+          return supportedFromConfig.filter(type => type !== 'GRANT');
+        }
+      }
+
+      return supportedFromConfig;
     },
   },
   transferwise: {

@@ -2,6 +2,8 @@ import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { cloneDeep, isNil, pick, uniq } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
 import models, { sequelize } from '../../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
@@ -52,6 +54,8 @@ export default {
       } else if (args.categories.length > 120) {
         throw new ValidationFailed('You can only create up to 100 accounting categories at once');
       }
+
+      await checkFeatureAccess(account, FEATURE.CHART_OF_ACCOUNTS, { loaders: req.loaders });
 
       const isIndependentCollective = account.type === CollectiveType.COLLECTIVE;
 

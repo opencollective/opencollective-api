@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 
 import POLICIES from '../../../../../server/constants/policies';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeComment,
   fakeExpense,
@@ -47,6 +48,10 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
             data
           }
           permissions {
+            editAccountingCategory {
+              allowed
+              reason
+            }
             approve {
               allowed
               reason
@@ -62,7 +67,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       hostAccountantUser = await fakeUser();
       collectiveAdminUser = await fakeUser();
       randomUser = await fakeUser();
-      const host = await fakeCollective({ admin: hostAdminUser.collective });
+      const host = await fakeActiveHost({ admin: hostAdminUser.collective });
       await host.addUserWithRole(hostAccountantUser, 'ACCOUNTANT');
       const collective = await fakeCollective({ admin: collectiveAdminUser.collective, HostCollectiveId: host.id });
       payoutMethod = await fakePayoutMethod({ type: 'OTHER', data: { content: 'Test content' } });
@@ -278,6 +283,18 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultAsOwner.data.expense.draft).to.deep.equal(expectedData);
       expect(resultAsHostAdmin.data.expense.draft).to.deep.equal(expectedData);
       expect(resultAsHostAccountant.data.expense.draft).to.deep.equal(expectedData);
+    });
+
+    describe('editAccountingCategory', () => {
+      it('can edit accounting category if host admin when using a legacy plan', async () => {
+        const host = await expense.collective.getHost();
+        await host.update({ plan: 'start-plan-2021' });
+        const result = await graphqlQueryV2(expenseQuery, { id: expense.id }, hostAdminUser);
+        expect(result.data.expense.permissions.editAccountingCategory).to.deep.equal({
+          allowed: true,
+          reason: null,
+        });
+      });
     });
   });
 
