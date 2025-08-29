@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
 import { runAllChecksThenExit } from './_utils';
@@ -33,7 +34,7 @@ async function checkCollectivePaymentMethodsCurrencies({ fix = false } = {}) {
     }
 
     for (const result of results) {
-      console.log(
+      logger.info(
         `Fixing payment method ${result.paymentMethodId} for ${result.collectiveSlug}: ${result.paymentMethodCurrency} -> ${result.hostCurrency}`,
       );
 

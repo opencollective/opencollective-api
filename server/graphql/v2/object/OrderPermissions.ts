@@ -66,7 +66,11 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
           return false;
         }
 
-        const host = collective.host || (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
+        const host = collective.isHostAccount
+          ? collective
+          : collective.host ||
+            (collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId)));
+
         if (!(await hasFeature(host, FEATURE.CHART_OF_ACCOUNTS))) {
           return false;
         }

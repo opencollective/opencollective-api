@@ -2,6 +2,7 @@ import { get } from 'lodash';
 
 import { LegalDocument } from '../../models';
 import { USTaxFormType } from '../../models/LegalDocument';
+import logger from '../logger';
 
 type TaxFormCSVFields = {
   type?: USTaxFormType;
@@ -282,7 +283,7 @@ export const getFormFieldsFromHelloWorksInstance = (recipientData: Record<string
             : data.field_TDyswI || data.field_W7cOxA,
     };
   } else {
-    console.warn('Could not find form data in HelloWorks instance', instance);
+    logger.error('Could not find form data in HelloWorks instance', instance);
     return { ...baseData, email: baseData.email };
   }
 };

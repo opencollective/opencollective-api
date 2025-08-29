@@ -182,7 +182,10 @@ export async function resumeOrder(order: Order, reason: string): Promise<void> {
   // If externally manage subscription, resume on the payment provider first
   const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
   if (isPaymentProviderWithExternalRecurring(paymentMethodProvider)) {
-    await paymentMethodProvider.resumeSubscription(order, reason);
+    const { resumed } = await paymentMethodProvider.resumeSubscription(order, reason);
+    if (!resumed) {
+      throw new Error('Failed to resume contribution');
+    }
   }
 
   // Then resume the order in the database

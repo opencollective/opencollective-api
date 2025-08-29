@@ -488,7 +488,17 @@ const PaymentMethodServicePayPalSubscription: PaymentMethodServiceWithExternalRe
     }
   },
 
-  async resumeSubscription(order: Order, reason: string): Promise<void> {
+  /**
+   *
+   * @returns true if the subscription was resumed, false if it cannot be resumed
+   */
+  async resumeSubscription(
+    order: Order,
+    reason: string,
+  ): Promise<{
+    resumed: boolean;
+    shouldCancel: boolean;
+  }> {
     const subscription = order.Subscription || (await order.getSubscription());
     if (!subscription) {
       throw new Error('Subscription not found');
@@ -507,14 +517,42 @@ const PaymentMethodServicePayPalSubscription: PaymentMethodServiceWithExternalRe
         host,
         'POST',
       );
+
+      return { resumed: true, shouldCancel: false };
     } catch (e) {
-      logger.error(`[PayPal] Error while pausing subscription: ${e}`);
-      reportErrorToSentry(e, {
-        feature: FEATURE.PAYPAL_DONATIONS,
-        extra: { subscriptionId: subscription.id, reason },
-      });
-      throw new Error('Failed to pause PayPal subscription');
+      if (e?.metadata?.error?.details?.[0]?.issue === 'SUBSCRIPTION_STATUS_INVALID') {
+        let subscriptionFromApi;
+        try {
+          subscriptionFromApi = await fetchPaypalSubscription(host, subscription.paypalSubscriptionId);
+          if (subscriptionFromApi.status === PayPalSubscriptionStatus.ACTIVE) {
+            return { resumed: true, shouldCancel: false }; // Already resumed
+          } else if (
+            [PayPalSubscriptionStatus.CANCELLED, PayPalSubscriptionStatus.EXPIRED].includes(subscriptionFromApi.status)
+          ) {
+            return { resumed: false, shouldCancel: true };
+          } else {
+            reportMessageToSentry('PayPal subscription is not cancelled', {
+              feature: FEATURE.PAYPAL_DONATIONS,
+              extra: { subscriptionId: subscription.id, reason, subscriptionFromApi },
+            });
+            return { resumed: false, shouldCancel: false };
+          }
+        } catch (e) {
+          reportErrorToSentry(e, {
+            feature: FEATURE.PAYPAL_DONATIONS,
+            extra: { subscriptionId: subscription.id, reason },
+          });
+        }
+      } else {
+        reportErrorToSentry(e, {
+          feature: FEATURE.PAYPAL_DONATIONS,
+          extra: { subscriptionId: subscription.id, reason },
+        });
+      }
     }
+
+    // Unknown error, let's not cancel the subscription
+    return { resumed: false, shouldCancel: false };
   },
 };
 

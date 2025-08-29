@@ -7,6 +7,7 @@ import { ApolloError, Unauthorized } from '../../graphql/errors';
 import { Activity, Collective, User, UserTwoFactorMethod } from '../../models';
 import { sessionCache } from '../cache';
 import { getPolicy } from '../policies';
+import { reportMessageToSentry } from '../sentry';
 
 import recoveryCode from './recovery-code';
 import totp from './totp';
@@ -220,10 +221,12 @@ async function validateRequest(
     });
   } else if (req.userToken || req.clientApp) {
     // 2FA tokens should not be used with personal tokens or OAuth tokens
-    console.warn(`2FA token used with personal token or OAuth token`, {
-      userToken: req.userToken?.id,
-      clientApp: req.clientApp?.id,
-      url: req.url,
+    reportMessageToSentry(`2FA token used with personal token or OAuth token`, {
+      extra: {
+        userToken: req.userToken?.id,
+        clientApp: req.clientApp?.id,
+        url: req.url,
+      },
     });
   }
 
