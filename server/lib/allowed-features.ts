@@ -372,17 +372,7 @@ export const hasFeature = async (
   feature: FEATURE | `${FEATURE}`,
   { loaders }: { loaders?: Loaders } = {},
 ): Promise<boolean> => {
-  const { access, reason } = await getFeatureAccess(collective, feature, { loaders });
-  console.log({
-    slug: collective.slug,
-    isHost: collective.isHostAccount,
-    isActive: collective.isActive,
-    id: collective.id,
-    HostId: collective.HostCollectiveId,
-    feature,
-    access,
-    reason,
-  });
+  const { access } = await getFeatureAccess(collective, feature, { loaders });
   return access === 'AVAILABLE';
 };
 

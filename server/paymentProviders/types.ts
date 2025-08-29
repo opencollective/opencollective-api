@@ -82,7 +82,13 @@ export interface PaymentMethodServiceWithExternalRecurringManagement extends Bas
   /**
    * For external recurring management, use this method to define how resuming a subscription should be handled.
    */
-  resumeSubscription?: (order: Order, reason: string) => Promise<void>;
+  resumeSubscription?: (
+    order: Order,
+    reason: string,
+  ) => Promise<{
+    resumed: boolean;
+    shouldCancel: boolean;
+  }>;
 }
 
 export type PaymentProviderService =

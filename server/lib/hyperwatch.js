@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 import hyperwatch from '@hyperwatch/hyperwatch';
 import config from 'config';
 import expressBasicAuth from 'express-basic-auth';

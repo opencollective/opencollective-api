@@ -117,11 +117,13 @@ const loadHostForExpense = async (req: express.Request, expense: Expense): Promi
   } else if (expense.collective?.host) {
     return expense.collective.host;
   } else if (expense.collective) {
-    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
-    return expense.collective.host;
+    if (expense.collective.HostCollectiveId) {
+      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      return expense.collective.host;
+    }
   } else {
     expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-    if (expense.collective) {
+    if (expense.collective && expense.collective.HostCollectiveId) {
       expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
       return expense.collective.host;
     }
@@ -1209,7 +1211,7 @@ export const canEditExpenseAccountingCategory = async (
     return false;
   }
 
-  const host = await loadHostForExpense(req, expense).catch(e => console.error(e));
+  const host = await loadHostForExpense(req, expense);
   if (!host) {
     if (options?.throw) {
       throw new Forbidden('Collective does not have a host', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);

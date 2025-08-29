@@ -23,7 +23,6 @@ import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
-import { reportMessageToSentry } from '../../lib/sentry';
 import { sanitizeStripeError } from '../../lib/stripe';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
@@ -136,8 +135,6 @@ export const UserType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         resolve(user, args, req) {
           if (!user.CollectiveId) {
-            console.error('>>> user', user.id, 'does not have a CollectiveId', user.CollectiveId);
-            reportMessageToSentry(`User does not have a CollectiveId`, { extra: { user: user.info } });
             return null;
           }
           return req.loaders.Collective.byId.load(user.CollectiveId);
@@ -1405,7 +1402,6 @@ export const OrderType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         async resolve(order, args, req) {
           if (!order.FromCollectiveId) {
-            console.warn('There is no FromCollectiveId for order', order.id);
             return null;
           }
 

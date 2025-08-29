@@ -283,8 +283,10 @@ export default async app => {
       }
 
       if (parseToBoolean(config.graphql.error.detailed)) {
+        /* eslint-disable no-console */
         console.log(formattedError);
         console.log(error);
+        /* eslint-enable no-console */
       }
 
       return formattedError;

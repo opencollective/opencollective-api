@@ -198,7 +198,7 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
         }
         await checkBatchItemStatus(item, expense, host);
       } catch (e) {
-        console.error(e);
+        reportErrorToSentry(e, { feature: FEATURE.PAYPAL_PAYOUTS });
       }
     };
 

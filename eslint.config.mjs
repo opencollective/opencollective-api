@@ -40,7 +40,7 @@ export default [
     },
 
     rules: {
-      'no-console': 'off',
+      'no-console': 'error',
       'import/no-commonjs': 'error',
       'import/no-named-as-default-member': 'off',
       'n/no-process-exit': 'off', // Applied only for CRON
@@ -57,6 +57,7 @@ export default [
     files: ['migrations/**/*.{js,ts}'],
     rules: {
       'import/no-commonjs': 'off',
+      'no-console': 'warn',
     },
   },
   // Disable some JS rules that are enforced in TS
@@ -133,6 +134,7 @@ export default [
       'n/no-missing-import': 'off', // We should configure it, but it's not working for now
       '@typescript-eslint/no-unused-expressions': 'off', // Doesn't play well with chai
       'mocha/no-exclusive-tests': 'error',
+      'no-console': 'off',
     },
   },
   // Mocks
@@ -144,9 +146,10 @@ export default [
   },
   // CRON jobs
   {
-    files: ['cron/**/*.js'],
+    files: ['cron/**/*'],
     rules: {
       'n/no-process-exit': 'off',
+      'no-console': 'warn',
     },
   },
   {
@@ -179,6 +182,13 @@ export default [
           },
         },
       ],
+    },
+  },
+  // Scripts
+  {
+    files: ['scripts/**/*.+(js|ts)'],
+    rules: {
+      'no-console': 'warn',
     },
   },
   {

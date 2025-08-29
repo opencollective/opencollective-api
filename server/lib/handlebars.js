@@ -224,6 +224,7 @@ handlebars.registerHelper('formatOrderAmountWithInterval', order => {
   }
 });
 
+// eslint-disable-next-line no-console
 handlebars.registerHelper('debug', console.log);
 
 /**

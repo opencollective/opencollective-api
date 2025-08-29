@@ -23,10 +23,11 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate } from '../lib/currency';
+import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry } from '../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { getPaymentProcessorFeeVendor, getTaxVendor } from '../lib/transactions';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
@@ -208,7 +209,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         return Transaction.create(transaction) as Promise<Transaction>;
       }),
     ).catch(error => {
-      console.error(error);
+      logger.error(error);
       reportErrorToSentry(error);
     });
   }
@@ -222,7 +223,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         return Transaction.createDoubleEntry(transaction) as Promise<Transaction>;
       }),
     ).catch(error => {
-      console.error(error);
+      logger.error(error);
       reportErrorToSentry(error);
     });
   }
@@ -1119,7 +1120,9 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     }
     if (!host) {
       // throw new Error(`transaction.HostCollectiveId should always bet set`);
-      console.warn(`transaction.HostCollectiveId should always bet set`);
+      reportMessageToSentry(`transaction.HostCollectiveId should always bet set`, {
+        extra: { transaction: transaction.info },
+      });
       const collective = await Collective.findByPk(transaction.CollectiveId);
       host = await collective.getHostCollective();
     }
@@ -1169,10 +1172,6 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
           return Activity.create(activityPayload, { transaction: options?.sequelizeTransaction });
         })
         .catch(err => {
-          console.error(
-            `Error creating activity of type ${activities.COLLECTIVE_TRANSACTION_CREATED} for transaction ID ${transaction.id}`,
-            err,
-          );
           reportErrorToSentry(err);
         })
     );

@@ -126,7 +126,6 @@ class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpens
         description: draftedExpense.description,
       })
       .catch(e => {
-        console.error('An error happened when creating the COLLECTIVE_EXPENSE_RECURRING_DRAFTED activity', e);
         reportErrorToSentry(e);
       });
 
