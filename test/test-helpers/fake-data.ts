@@ -7,6 +7,7 @@
 // to use in loops and repeated tests.
 
 import config from 'config';
+import deepmerge from 'deepmerge';
 import { get, kebabCase, padStart, sample } from 'lodash';
 import moment from 'moment';
 import type { CreateOptions, InferCreationAttributes } from 'sequelize';
@@ -58,6 +59,7 @@ import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
 import PaymentMethod from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { Billing } from '../../server/models/PlatformSubscription';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import SocialLink, { SocialLinkType } from '../../server/models/SocialLink';
 import { AssetType } from '../../server/models/SuspendedAsset';
@@ -273,7 +275,7 @@ export const fakeHostApplication = async (data: Partial<InferCreationAttributes<
  */
 export const fakeCollective = async (
   collectiveData: Partial<InferCreationAttributes<Collective>> & {
-    admin?: User | { id: number; CreatedByUserId: number };
+    admin?: User | { id: number; CreatedByUserId: number } | User[] | { id: number; CreatedByUserId: number }[];
   } = {},
   sequelizeParams: CreateOptions = {},
 ) => {
@@ -331,16 +333,20 @@ export const fakeCollective = async (
   }
   if (collectiveData.admin) {
     try {
-      const admin = collectiveData.admin;
-      const isUser = admin instanceof models.User;
-      await models.Member.create(
-        {
-          CollectiveId: collective.id,
-          MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
-          role: roles.ADMIN,
-          CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
-        },
-        sequelizeParams,
+      const admins = Array.isArray(collectiveData.admin) ? collectiveData.admin : [collectiveData.admin];
+      await Promise.all(
+        admins.map(admin => {
+          const isUser = admin instanceof models.User;
+          return models.Member.create(
+            {
+              CollectiveId: collective.id,
+              MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
+              role: roles.ADMIN,
+              CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
+            },
+            sequelizeParams,
+          );
+        }),
       );
     } catch {
       // Ignore if host is already linked
@@ -1230,4 +1236,91 @@ export const fakeSuspendedAsset = async (
     fingerprint: data.fingerprint || randStr('asset'),
     reason: data.reason || 'for the sake of this test',
   });
+};
+
+export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
+  const dueDateMoment = moment(data.dueDate || '2025-08-01');
+  const totalAmount = data.totalAmount || randAmount(100, 100000);
+  return deepmerge(
+    {
+      dueDate: dueDateMoment.toISOString(),
+      additional: {
+        total: 0,
+        amounts: {
+          expensesPaid: 0,
+          activeCollectives: 0,
+        },
+        utilization: {
+          expensesPaid: 0,
+          activeCollectives: 0,
+        },
+      },
+      baseAmount: totalAmount,
+      totalAmount: totalAmount,
+      utilization: {
+        expensesPaid: 1,
+        activeCollectives: 3,
+      },
+      collectiveId: 11004,
+      billingPeriod: {
+        year: 2025,
+        month: 6,
+      },
+      subscriptions: [
+        {
+          id: 35,
+          plan: {
+            type: 'Basic',
+            title: 'Plan title',
+            pricing: {
+              pricePerMonth: totalAmount,
+              includedCollectives: 10,
+              includedExpensesPerMonth: 10,
+              pricePerAdditionalExpense: 100,
+              pricePerAdditionalCollective: 100,
+            },
+          },
+          period: [
+            {
+              value: dueDateMoment.subtract(1, 'month').startOf('month').toISOString(),
+              inclusive: true,
+            },
+            {
+              value: dueDateMoment.subtract(1, 'month').endOf('month').toISOString(),
+              inclusive: false,
+            },
+          ],
+          createdAt: '2025-08-07T10:39:20.321Z',
+          updatedAt: '2025-08-15T12:36:09.922Z',
+        },
+        {
+          id: 1,
+          plan: {
+            type: 'Basic',
+            title: 'Plan title',
+            pricing: {
+              pricePerMonth: 1000,
+              includedCollectives: 10,
+              includedExpensesPerMonth: 10,
+              pricePerAdditionalExpense: 100,
+              pricePerAdditionalCollective: 100,
+            },
+          },
+          period: [
+            {
+              value: '2024-08-06T00:00:00.000Z',
+              inclusive: true,
+            },
+            {
+              value: '2025-07-06T00:00:00.000Z',
+              inclusive: false,
+            },
+          ],
+          createdAt: '2025-08-06T15:51:51.122Z',
+          updatedAt: '2025-08-06T15:51:51.122Z',
+        },
+      ],
+    },
+    data,
+  );
 };

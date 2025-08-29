@@ -11,6 +11,7 @@ import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
 import PlatformConstants from '../../server/constants/platform';
 import logger from '../../server/lib/logger';
+import { notify } from '../../server/lib/notifications/email';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Op, PlatformSubscription, sequelize } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -181,12 +182,17 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         await models.ExpenseItem.bulkCreate(items);
 
         const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
-        await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
+        const newExpenseActivity = await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser, {
+          notify: false,
+        });
 
         try {
           await PlatformSubscription.chargeExpense(expense);
         } catch (err) {
           logger.error(`Error while charging platform expense #${expense.id} to #${orgId}: ${err.message}`);
+          await notify.collective(newExpenseActivity, {
+            template: 'platform.billing.new.expense',
+          });
         }
       }
     } catch (e) {

@@ -48,6 +48,7 @@ import ExpenseItem from './ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
+import { Billing } from './PlatformSubscription';
 import RecurringExpense from './RecurringExpense';
 import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
@@ -123,6 +124,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     };
     paymentIntent?: Stripe.PaymentIntent;
     previousPaymentIntents?: Stripe.PaymentIntent[];
+    bill?: Billing;
   };
 
   declare public currency: SupportedCurrency;
@@ -218,7 +220,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       ExpenseId: this.id,
       TransactionId: transaction?.id,
       data: {
-        ...pick(this.data, 'payee'),
+        ...pick(this.data, ['payee', 'bill']),
         ...pick(data, [
           'isManualPayout',
           'error',

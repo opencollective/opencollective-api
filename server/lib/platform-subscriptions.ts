@@ -52,7 +52,7 @@ export async function chargeExpense(expense: Expense) {
       return chargePlatformBillingExpenseWithStripe(expense);
     }
     default: {
-      return;
+      throw new Error(`Unsupported payout method for automatic charge: ${payoutMethod.type}`);
     }
   }
 }

@@ -161,6 +161,19 @@ class PlatformSubscription extends Model<
     return Math.round(basePrice * (subTime / billingTime));
   }
 
+  get info(): NonAttribute<
+    Pick<PlatformSubscription, 'id' | 'plan' | 'period' | 'CollectiveId' | 'createdAt' | 'updatedAt'>
+  > {
+    return {
+      id: this.id,
+      plan: this.plan,
+      period: this.period,
+      CollectiveId: this.CollectiveId,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+
   static async calculateUtilization(collectiveId: number, billingPeriod: BillingPeriod): Promise<PeriodUtilization> {
     const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
     const billingRangeArg = PlatformSubscription.rangeLiteral(billingRange);

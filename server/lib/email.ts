@@ -7,6 +7,7 @@ import nodemailer from 'nodemailer';
 import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 import { activities } from '../constants';
+import { EmailTheme } from '../constants/email-theme';
 import models from '../models';
 
 import authorizedEmailDomains from './authorizedEmailDomains';
@@ -327,6 +328,7 @@ const generateEmailFromTemplate = (
   }
 
   data.config = pick(config, ['host']);
+  data.theme = EmailTheme;
 
   if (!templates[template]) {
     throw new Error(`Invalid email template: ${template}`);
