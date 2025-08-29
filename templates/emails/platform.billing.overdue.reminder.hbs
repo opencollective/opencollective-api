@@ -4,7 +4,7 @@ Subject: Outstanding payments for your Open Collective platform subscription
 Subject: Outstanding payment for your Open Collective platform subscription
 {{/ifCond}}
 
-{{> header}}
+{{> header noContentPadding=true}}
 
 <style>
   .billing-container {
@@ -140,6 +140,12 @@ Subject: Outstanding payment for your Open Collective platform subscription
 
   .btn {
     white-space: nowrap;
+  }
+
+  @media screen and (max-width: 600px) {
+    .billing-container {
+      padding: 20px 10px !important;
+    }
   }
 </style>
 

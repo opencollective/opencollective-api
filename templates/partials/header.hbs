@@ -6,7 +6,7 @@
   <style>
     body {margin: 0; padding: 0; min-width: 100%!important;}
     body[yahoo] .class {}
-    .content {width: 100%; max-width: 600px; padding: 0 10px; }
+    .content {width: 100%; max-width: 600px; padding: {{#if noContentPadding}}0{{else}}0 10px{{/if}}; }
     @media only screen and (min-device-width: 601px) {
       .content {width: 600px !important;}
     }

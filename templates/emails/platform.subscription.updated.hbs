@@ -1,10 +1,51 @@
 Subject: Platform subscription updated for {{account.name}}
 
+{{> header noContentPadding=true}}
+
 <style>
+  .billing-container {
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: {{theme.colors.neutral.[50]}};
+    padding: 30px 20px;
+    border-radius: 16px;
+  }
+  
+  .email-header {
+    text-align: center;
+    margin: -30px -20px 32px -20px;
+    padding: 48px 20px;
+    background-color: {{theme.colors.blue.[900]}};
+    border-radius: 16px 16px 0 0;
+    position: relative;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 50px;
+  }
+  
+  .email-header h1 {
+    color: {{theme.colors.neutral.[50]}};
+    font-size: 26px;
+    font-weight: bold;
+  }
+
+  .email-header p {
+    color: {{theme.colors.neutral.[50]}};
+    font-size: 16px;
+    margin: 0;
+    opacity: 0.9;
+  }
+
+  .email-header a {
+    color: {{theme.colors.neutral.[50]}};
+    text-decoration: underline;
+  }
+
   .arrow-cell {
     text-align: center;
     vertical-align: top;
-    width: 80px;
+    width: 34px;
     padding: 100px 10px;
   }
   .arrow {
@@ -21,7 +62,7 @@ Subject: Platform subscription updated for {{account.name}}
     padding: 20px 0;
   }
   .plan-comparison-container {
-    margin-bottom: 40px;
+    margin: 24px 0;
   }
   .plan-comparison-table {
     width: 100%;
@@ -29,10 +70,12 @@ Subject: Platform subscription updated for {{account.name}}
     margin: 30px auto;
     border-collapse: separate;
     border-spacing: 0;
+    table-layout: fixed;
   }
   .plan-cell {
     vertical-align: top;
     padding: 0;
+    width: 50%;
   }
   .plan-cell.new-plan {
     text-align: center;
@@ -44,12 +87,38 @@ Subject: Platform subscription updated for {{account.name}}
   .plan-cell.previous-plan .plan-title {
     background-color: #6b7280;
   }
+
+  /* Override plan-details styles to prevent overflow in this specific email */
+  .billing-container .plan-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    padding: 20px !important;
+    margin: 0 !important;
+  }
+
+  .last-section {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .btn {
+    white-space: nowrap;
+    margin: 0 10px;
+  }
+
+  .button-container {
+    text-align: center;
+    margin: 20px 0;
+  }
+
   /* Mobile responsive styles */
   @media screen and (max-width: 600px) {
-    .plan-comparison-container {
-      padding: 0;
-      margin: 0;
+    .billing-container {
+      padding: 20px 10px !important;
     }
+
     .plan-comparison-table {
       display: block;
       width: 100%;
@@ -90,6 +159,7 @@ Subject: Platform subscription updated for {{account.name}}
     }
     .plan-cell {
       width: 100% !important;
+      max-width: none !important;
     }
     .arrow-cell {
       width: 100% !important;
@@ -105,50 +175,67 @@ Subject: Platform subscription updated for {{account.name}}
       color: #6b7280;
       font-weight: bold;
     }
+    .btn {
+      white-space: nowrap;
+    }
   }
 </style>
 
-{{> header}}
-
-{{> toplogo}}
-
-<p>Hi {{recipientName}},</p>
-
-<p>The platform subscription for {{> linkCollective collective=account}} has been updated
-{{#if previousPlan}}from <strong>{{previousPlan.title}}</strong>{{/if}}
-to <strong>{{newPlan.title}}</strong>. {{#if newPlan.pricing.pricePerMonth}}
-The new subscription will be charged on <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.
-{{/if}}</p>
-
-<div class="plan-comparison-container">
-  <table class="plan-comparison-table">
-    <tr>
-      {{#if previousPlan}}
-      <td class="plan-cell previous-plan">
-        {{> plan-details plan=previousPlan title="Previous Tier"}}
-      </td>
-      <td class="arrow-cell">
-        <div class="arrow">→</div>
-        <div class="arrow-down">↓</div>
-      </td>
-      {{/if}}
-      <td class="plan-cell new-plan">
-        {{#if previousPlan}}
-          {{> plan-details plan=newPlan title="New Tier"}}
-        {{else}}
-          {{> plan-details plan=newPlan}}
+<center>
+  <div class="billing-container">
+    <div class="email-header">
+      <h1>🔄 Subscription Updated</h1>
+      <p>
+        The platform subscription for {{> linkCollective collective=account}} has been updated
+        {{#if previousPlan}}from <strong>{{previousPlan.title}}</strong>{{/if}}
+        to <strong>{{newPlan.title}}</strong>. {{#if newPlan.pricing.pricePerMonth}}
+        The new subscription will be charged on <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.
         {{/if}}
-      </td>
-    </tr>
-  </table>
-</div>
+      </p>
+    </div>
 
-<p>If you have any questions, please don't hesitate to <a href="https://opencollective.com/contact">contact support</a>.</p>
+    <div class="plan-comparison-container">
+      <table class="plan-comparison-table">
+        <tr>
+          {{#if previousPlan}}
+          <td class="plan-cell previous-plan">
+            {{> plan-details plan=previousPlan title="Previous Tier"}}
+          </td>
+          <td class="arrow-cell">
+            <div class="arrow">→</div>
+            <div class="arrow-down">↓</div>
+          </td>
+          {{/if}}
+          <td class="plan-cell new-plan">
+            {{#if previousPlan}}
+              {{> plan-details plan=newPlan title="New Tier"}}
+            {{else}}
+              {{> plan-details plan=newPlan}}
+            {{/if}}
+          </td>
+        </tr>
+      </table>
+    </div>
 
-<p>Warmly,</p>
+    <center class="last-section">
+      <div class="button-container">
+        <a href="{{config.host.website}}/{{account.slug}}/admin/platform-subscription" class="btn blue">
+          <div>Manage Subscription</div>
+        </a>
+      </div>
+    </center>
 
-<p>
-  – Team Open Collective
-</p>
+    <br />
+
+    <p style="font-size: 14px; color: #666; text-align: center;">
+      If you have any questions, please don't hesitate to <a href="https://opencollective.com/contact">contact support</a>.
+    </p>
+
+    <p style="font-size: 14px; color: #666; text-align: center; margin-top: 20px;">
+      Warmly,<br />
+      – Team Open Collective
+    </p>
+  </div>
+</center>
 
 {{> footer}}

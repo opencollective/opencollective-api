@@ -1,6 +1,6 @@
 Subject: Open Collective subscription payment confirmation
 
-{{> header}}
+{{> header noContentPadding=true}}
 
 <style>
   .billing-container {
@@ -91,7 +91,11 @@ Subject: Open Collective subscription payment confirmation
     white-space: nowrap;
   }
 
-
+  @media screen and (max-width: 600px) {
+    .billing-container {
+      padding: 20px 10px !important;
+    }
+  }
   </style>
 
 <center>

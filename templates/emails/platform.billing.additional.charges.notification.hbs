@@ -1,6 +1,6 @@
 Subject: Additional charges notice for your Open Collective platform subscription
 
-{{> header}}
+{{> header noContentPadding=true}}
 
 <style>
   .billing-container {
@@ -73,6 +73,12 @@ Subject: Additional charges notice for your Open Collective platform subscriptio
 
   .btn {
     white-space: nowrap;
+  }
+
+  @media screen and (max-width: 600px) {
+    .billing-container {
+      padding: 20px 10px !important;
+    }
   }
 </style>
 
