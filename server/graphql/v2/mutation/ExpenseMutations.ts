@@ -629,7 +629,7 @@ const expenseMutations = {
 
       const lockedFields = args.lockedFields ?? [];
 
-      if (lockedFields?.includes(ExpenseLockableFields.AMOUNT)) {
+      if (lockedFields.includes(ExpenseLockableFields.AMOUNT)) {
         assert(items.length > 0, new ValidationFailed('You need to provide at least one item to lock the amount'));
         assert(
           items.every(item => item.amount),
