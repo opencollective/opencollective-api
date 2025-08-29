@@ -670,7 +670,7 @@ export const notifyByEmail = async (activity: Activity) => {
           : await models.Collective.findBySlug(activity.data.payee.slug);
 
         // If the payee is hosted by a different host, we need to notify the host admins as they're the ones setting the payout method,
-        // iff the payout method is not set
+        // if the payout method is not set
         if (
           activity.data.payoutMethod?.id &&
           payee.HostCollectiveId &&
