@@ -54,7 +54,9 @@ describe('cron/weekly/send-platform-billing-overdue-notifications', () => {
     await waitForCondition(() => sendEmailSpy.callCount > 0);
     expect(sendEmailSpy.callCount).to.equal(1);
     expect(sendEmailSpy.firstCall.args[0]).to.equal(admin.email);
-    expect(sendEmailSpy.firstCall.args[2]).to.contain(`/${collective.slug}/expenses/${overdueExpense.id}`);
+    expect(sendEmailSpy.firstCall.args[2]).to.contain(
+      `/dashboard/${collective.slug}/platform-subscription?ExpenseId=${overdueExpense.id}`,
+    );
 
     // Verify activity was created
     const activity = await models.Activity.findOne({
@@ -242,8 +244,14 @@ describe('cron/weekly/send-platform-billing-overdue-notifications', () => {
     expect(sendEmailSpy.callCount).to.equal(1);
     expect(sendEmailSpy.firstCall.args[0]).to.equal(admin.email);
     expect(sendEmailSpy.firstCall.args[2]).to.contain(`/dashboard/${collective.slug}/platform-subscription`); // General link
-    expect(sendEmailSpy.firstCall.args[2]).to.contain(`/${collective.slug}/expenses/${expense1.id}`);
-    expect(sendEmailSpy.firstCall.args[2]).to.contain(`/${collective.slug}/expenses/${expense2.id}`);
-    expect(sendEmailSpy.firstCall.args[2]).to.contain(`/${collective.slug}/expenses/${expense3.id}`);
+    expect(sendEmailSpy.firstCall.args[2]).to.contain(
+      `/dashboard/${collective.slug}/platform-subscription?ExpenseId=${expense1.id}`,
+    );
+    expect(sendEmailSpy.firstCall.args[2]).to.contain(
+      `/dashboard/${collective.slug}/platform-subscription?ExpenseId=${expense2.id}`,
+    );
+    expect(sendEmailSpy.firstCall.args[2]).to.contain(
+      `/dashboard/${collective.slug}/platform-subscription?ExpenseId=${expense3.id}`,
+    );
   });
 });

@@ -176,7 +176,7 @@ Subject: Outstanding payment for your Open Collective platform subscription
                     <span style="color: #666; font-size: 14px;">- Due {{moment dueDate}}</span>
                   {{/if}}
                 </div>
-                <a href="{{../config.host.website}}/{{../collective.slug}}/expenses/{{id}}" style="color: {{../theme.colors.blue.[600]}}; text-decoration: none; font-size: 14px;">View →</a>
+                <a href="{{../config.host.website}}/dashboard/{{../collective.slug}}/platform-subscription?ExpenseId={{id}}" style="color: {{../theme.colors.blue.[600]}}; text-decoration: none; font-size: 14px;">View →</a>
               </div>
             </li>
           {{/each}}
