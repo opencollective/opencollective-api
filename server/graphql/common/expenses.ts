@@ -2629,7 +2629,6 @@ const checkLockedFields = async (
 
   if (lockedFields.includes(ExpenseLockableFields.PAYOUT_METHOD)) {
     if (existing.status === ExpenseStatus.DRAFT) {
-      console.log(updated.payoutMethod, updated.payoutMethod?.id, existing.data?.payoutMethod?.['id']);
 
       assert(
         isNil(updated.payoutMethod) ||
