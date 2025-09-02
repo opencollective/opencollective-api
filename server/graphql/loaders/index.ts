@@ -21,6 +21,8 @@ import { ifStr } from '../../lib/utils';
 import {
   Collective,
   ConnectedAccount,
+  ExpenseAttachedFile,
+  ExpenseItem,
   Member,
   Models,
   Op,
@@ -109,6 +111,12 @@ export const generateLoaders = req => {
       byUrl: new DataLoader(async (urls: string[]) => {
         const files = await UploadedFile.findAll({ where: { url: urls } });
         return sortResultsSimple(urls, files, file => file.getDataValue('url'));
+      }),
+      byChecksum: new DataLoader(async (checksums: string[]) => {
+        const files = await UploadedFile.findAll({
+          where: { data: { s3SHA256: { [Op.in]: checksums } } },
+        });
+        return sortResultsArray(checksums, files, file => file.data.s3SHA256);
       }),
     },
     Conversation: {
@@ -1232,12 +1240,27 @@ export const generateLoaders = req => {
       ...context.loaders.PlatformSubscription,
       ...PlatformSubscription.loaders,
     },
+    ExpenseItem: {
+      ...context.loaders.ExpenseItem,
+      byUrl: new DataLoader(async (urls: string[]) => {
+        const items = await ExpenseItem.findAll({ where: { url: urls } });
+        return sortResultsSimple(urls, items, file => file.getDataValue('url'));
+      }),
+    },
+    ExpenseAttachedFile: {
+      ...context.loaders.ExpenseAttachedFile,
+      byUrl: new DataLoader(async (urls: string[]) => {
+        const files = await ExpenseAttachedFile.findAll({ where: { url: urls } });
+        return sortResultsSimple(urls, files, file => file.getDataValue('url'));
+      }),
+    },
 
     // Non-model loaders
     Contributors: {
       forCollectiveId: contributorsLoaders.forCollectiveId(),
       totalContributedToHost: contributorsLoaders.generateTotalContributedToHost(),
     },
+
     search: generateSearchLoaders(req),
   };
 

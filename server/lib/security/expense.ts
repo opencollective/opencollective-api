@@ -1,5 +1,22 @@
 import type { Request } from 'express';
-import { capitalize, compact, filter, find, first, isEqual, isNil, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
+import {
+  capitalize,
+  compact,
+  filter,
+  find,
+  first,
+  flatten,
+  forIn,
+  groupBy,
+  isEqual,
+  isNil,
+  keyBy,
+  mapValues,
+  max,
+  startCase,
+  uniq,
+  uniqBy,
+} from 'lodash';
 import moment from 'moment';
 
 import { CollectiveType } from '../../constants/collectives';
@@ -7,7 +24,7 @@ import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
-import models, { Op, sequelize } from '../../models';
+import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
@@ -19,6 +36,7 @@ export enum Scope {
   COLLECTIVE = 'COLLECTIVE',
   PAYEE = 'PAYEE',
   PAYOUT_METHOD = 'PAYOUT_METHOD',
+  ATTACHMENTS = 'ATTACHMENTS',
 }
 
 export enum Level {
@@ -176,6 +194,73 @@ const checkExpenseAmountStats = (
       )}, with the top 5% being above ${formatCurrency(expenseStats.paidAmountP95ForCollective, displayCurrency)}.`,
     });
   }
+};
+
+const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Array<Expense>) => {
+  const attachments = flatten(
+    expenses.map(expense =>
+      compact(
+        flatten([
+          expense.items?.map(item => item.url && { expenseId: expense.id, url: item.url }),
+          expense.attachedFiles?.map(item => item.url && { expenseId: expense.id, url: item.url }),
+        ]),
+      ),
+    ),
+  );
+
+  // Map Attachments and Items from scanned expenses
+  const urlToExpense = mapValues(groupBy(attachments, 'url'), ids => ids.map(id => id.expenseId));
+  // Load Files checksums
+  const urls = uniq(attachments.map(a => a.url));
+  const uploadedFiles = await req.loaders.UploadedFile.byUrl.loadMany(urls);
+  const filesWithChecksum = uploadedFiles
+    .filter(f => f instanceof models.UploadedFile)
+    .filter(f => Boolean(f.data?.s3SHA256));
+
+  const checksumToExpense: Record<string, number[]> = filesWithChecksum.reduce((result, file) => {
+    if (result[file.data.s3SHA256]) {
+      result[file.data.s3SHA256] = uniq([...result[file.data.s3SHA256], ...urlToExpense[file.getDataValue('url')]]);
+    } else {
+      result[file.data.s3SHA256] = urlToExpense[file.getDataValue('url')];
+    }
+    return result;
+  }, {});
+
+  // Load attachments that match checksums, despite their expense
+  const similarFiles = flatten(
+    (await req.loaders.UploadedFile.byChecksum.loadMany(filesWithChecksum.map(f => f.data.s3SHA256))) as Array<
+      UploadedFile[]
+    >,
+  ).filter(f => f instanceof models.UploadedFile);
+  const similarFilesUrls = uniq(similarFiles.map(f => f.getDataValue('url')));
+  const similarAttachments = compact(
+    flatten(
+      await Promise.all([
+        await req.loaders.ExpenseItem.byUrl.loadMany(similarFilesUrls),
+        await req.loaders.ExpenseAttachedFile.byUrl.loadMany(similarFilesUrls),
+      ]),
+    ) as Array<ExpenseItem | ExpenseAttachedFile>,
+  );
+  similarAttachments.forEach(item => {
+    const checksum = similarFiles.find(f => f.getDataValue('url') === item.url)?.data?.s3SHA256;
+    checksumToExpense[checksum] = uniq([...checksumToExpense[checksum], item.ExpenseId]);
+  });
+
+  const checkExpense = (checks: Array<SecurityCheck>, expense: Expense) => {
+    forIn(checksumToExpense, (expenseIds, checksum) => {
+      if (expenseIds.includes(expense.id) && expenseIds.length > 1) {
+        const files = uniq(similarFiles.filter(f => f.data.s3SHA256 === checksum).map(f => f.fileName));
+        checks.push({
+          scope: Scope.ATTACHMENTS,
+          level: Level.HIGH,
+          message: `Same attachment uploaded to multiple expenses`,
+          details: `Expenses ${expenseIds.join(', ')} have the same file attached as ${files.join(', ')}.`,
+        });
+      }
+    });
+  };
+
+  return checkExpense;
 };
 
 const getGroupedExpensesStats = (expenses: Array<Expense>) => {
@@ -353,6 +438,9 @@ export const checkExpensesBatch = async (
       ],
     };
   });
+
+  const checkExpenseAttachments = await buildExpenseAttachmentChecker(req, expenses);
+
   const usersByIp = await models.User.findAll({
     where: { [Op.or]: usersByIpConditions },
     include: [{ association: 'collective' }],
@@ -365,6 +453,7 @@ export const checkExpensesBatch = async (
         expense.User.collective = await req.loaders.Collective.byId.load(expense.User.CollectiveId);
       }
       await expense.User.populateRoles();
+      checkExpenseAttachments(checks, expense);
 
       // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.
       const relatedUsersByIp = uniqBy(
@@ -586,5 +675,7 @@ export const checkExpense = async (expense: Expense, { req }: { req?: Request } 
       { model: models.PayoutMethod },
     ],
   });
+  expense.items = await req.loaders.Expense.items.load(expense.id);
+  expense.attachedFiles = await req.loaders.Expense.attachedFiles.load(expense.id);
   return checkExpensesBatch(req, [expense]).then(first);
 };

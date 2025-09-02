@@ -10,8 +10,10 @@ import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
+  fakeExpenseAttachedFile,
   fakeOrder,
   fakePayoutMethod,
+  fakeUploadedFile,
   fakeUser,
   multiple,
   randStr,
@@ -125,6 +127,25 @@ describe('lib/security/expense', () => {
 
       const checks = await checkExpense(vendorExpense, { req: makeRequest() as any });
       expect(snapshotChecks(checks)).to.matchTableSnapshot();
+    });
+
+    it('detects if the same file was attached to multiple expenses', async () => {
+      const expense = await fakeExpense();
+      const file1 = await fakeUploadedFile({ data: { s3SHA256: 'test' } });
+      await fakeExpenseAttachedFile({ ExpenseId: expense.id, url: file1.getDataValue('url') });
+
+      const otherExpense = await fakeExpense();
+      const file2 = await fakeUploadedFile({ data: { s3SHA256: 'test' } });
+      await fakeExpenseAttachedFile({ ExpenseId: otherExpense.id, url: file2.getDataValue('url') });
+
+      const checks = await checkExpense(otherExpense, { req: makeRequest() as any });
+      expect(checks).to.containSubset([
+        {
+          scope: 'ATTACHMENTS',
+          level: 'HIGH',
+          message: 'Same attachment uploaded to multiple expenses',
+        },
+      ]);
     });
   });
 });
