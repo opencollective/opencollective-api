@@ -108,7 +108,39 @@ async function checkUniqueTransactionGroup() {
   }
 }
 
-export const checks = [checkDeletedCollectives, checkOrphanTransactions, checkUniqueUuid, checkUniqueTransactionGroup];
+async function checkPaidTransactionsWithHostCollectiveId() {
+  const results = await sequelize.query(
+    `
+    SELECT *
+    FROM "Transactions" t
+    INNER JOIN "Collectives" c ON t."CollectiveId" = c."id"
+    INNER JOIN "Orders" o ON t."OrderId" = o."id"
+    LEFT JOIN "PaymentMethods" pm ON pm."id" = o."PaymentMethodId"
+    WHERE t."kind" = 'CONTRIBUTION'
+    AND t."type" = 'DEBIT'
+    AND pm."service" IN ('stripe', 'paypal')
+    AND c."type" != 'ORGANIZATION' AND c."type" != 'USER' AND c."approvedAt" IS NOT NULL AND c."isActive" IS TRUE
+    AND t."RefundTransactionId" IS NULL
+    AND t."description" NOT LIKE 'Refund of%'
+    AND t."createdAt" > '2025-01-01'
+    AND COALESCE(TRIM(BOTH '"'::text FROM (((c."settings" -> 'budget'::text) -> 'version'::text))::text), 'v2'::text) = 'v2'
+    `,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    // Not fixable
+    throw new Error('Found STRIPE/PAYPAL paid orders affecting Collective balances');
+  }
+}
+
+export const checks = [
+  checkDeletedCollectives,
+  checkOrphanTransactions,
+  checkUniqueUuid,
+  checkUniqueTransactionGroup,
+  checkPaidTransactionsWithHostCollectiveId,
+];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);
