@@ -339,6 +339,10 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       throw new Error('Transaction type must be set when amount is 0');
     }
 
+    if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
+      transaction.PaymentMethod = await PaymentMethod.findByPk(transaction.PaymentMethodId);
+    }
+
     if (
       transaction.kind === EXPENSE &&
       transaction.type === CREDIT &&
@@ -456,11 +460,21 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         transaction,
       );
 
+      let HostCollectiveId = fromCollectiveHost.id;
+      // Exception: Contributors that are also hosted collectives
+      // We should not assign HostCollectiveId when contributing with PayPal or Stripe,
+      // since this money does not comes out of their hosted balance.
+      if (
+        transaction.PaymentMethod &&
+        transaction.kind === TransactionKind.CONTRIBUTION &&
+        [PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL].includes(transaction.PaymentMethod.service)
+      ) {
+        HostCollectiveId = null;
+      }
+
       oppositeTransaction = {
         ...oppositeTransaction,
-        // TODO: credit card transactions (and similar) should not be marked with the HostCollectiveId
-        //       only Collective to Collective (and such) should be
-        HostCollectiveId: fromCollectiveHost.id,
+        HostCollectiveId,
         hostCurrency,
         hostCurrencyFxRate,
         amount: -Math.round(transaction.netAmountInCollectiveCurrency),

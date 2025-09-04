@@ -4,10 +4,10 @@ exports[`server/models/Transaction createFromContributionPayload creates a doubl
 "
 | kind         | type   | netAmountInCollectiveCurrency | currency | Host | platformFee | paymentFee | tax   | amount | description                              |
 | ------------ | ------ | ----------------------------- | -------- | ---- | ----------- | ---------- | ----- | ------ | ---------------------------------------- |
-| HOST_FEE     | DEBIT  | -500                          | EUR      | #2   | 0           | 0          |       | -500   | Host Fee                                 |
-| HOST_FEE     | CREDIT | 500                           | EUR      | #2   | 0           | 0          |       | 500    | Host Fee                                 |
+| HOST_FEE     | DEBIT  | -500                          | EUR      | #9   | 0           | 0          |       | -500   | Host Fee                                 |
+| HOST_FEE     | CREDIT | 500                           | EUR      | #9   | 0           | 0          |       | 500    | Host Fee                                 |
 | CONTRIBUTION | DEBIT  | -12100                        | EUR      | NULL | -500        | -300       | -2100 | -9200  | €121 for Vegan Burgers including €21 VAT |
-| CONTRIBUTION | CREDIT | 9200                          | EUR      | #2   | -500        | -300       | -2100 | 12100  | €121 for Vegan Burgers including €21 VAT |"
+| CONTRIBUTION | CREDIT | 9200                          | EUR      | #9   | -500        | -300       | -2100 | 12100  | €121 for Vegan Burgers including €21 VAT |"
 `;
 
 exports[`server/models/Transaction fees on top should create an additional pair of transactions between contributor and Open Collective Inc 1`] = `
@@ -22,4 +22,16 @@ exports[`server/models/Transaction fees on top should create an additional pair 
 | HOST_FEE          | CREDIT | false  | Collective      | Random Host     | Random Host     | 500    | USD      | 0           | 0          |            | Host Fee                                                |
 | CONTRIBUTION      | DEBIT  | false  | Collective      | User            | NULL            | -9800  | USD      | 0           | -200       |            | $100 donation to Merveilles                             |
 | CONTRIBUTION      | CREDIT | false  | User            | Collective      | Random Host     | 10000  | USD      | 0           | -200       |            | $100 donation to Merveilles                             |"
+`;
+
+exports[`server/models/Transaction with separated fees transactions does not debit from prepaid-balance if donation is made using Stripe or PayPal 1`] = `
+"
+| type   | kind                  | To  | Host | amount |
+| ------ | --------------------- | --- | ---- | ------ |
+| DEBIT  | HOST_FEE              | #10 | #9   | -500   |
+| CREDIT | HOST_FEE              | #9  | #9   | 500    |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | #10 | #9   | -200   |
+| CREDIT | PAYMENT_PROCESSOR_FEE | #1  | NULL | 200    |
+| DEBIT  | CONTRIBUTION          | #18 | NULL | -10000 |
+| CREDIT | CONTRIBUTION          | #10 | #9   | 10000  |"
 `;
