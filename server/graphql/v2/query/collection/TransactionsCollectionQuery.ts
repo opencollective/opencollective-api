@@ -186,6 +186,12 @@ export const TransactionsCollectionArgs = {
     description:
       'Used when filtering with the `host` argument to determine whether to include transactions on the fiscal host account (and children)',
   },
+  includePlatformTips: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: true,
+    description:
+      'When filtering with the `host` argument, also include PLATFORM_TIP credit transactions related to this host via TransactionGroup',
+  },
   includeRegularTransactions: {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: true,
@@ -403,7 +409,27 @@ export const TransactionsCollectionResolver = async (
       where.push({ CollectiveId: { [Op.notIn]: hostAccountsIds } });
     }
 
-    where.push({ HostCollectiveId: host.id });
+    if (args.includePlatformTips) {
+      // Include transactions accounted by the host, and also PLATFORM_TIP credits related to the host via TransactionGroup
+      where.push(
+        sequelize.or(
+          { HostCollectiveId: host.id },
+          sequelize.literal(`(
+              "Transaction"."kind" = 'PLATFORM_TIP'
+              AND "Transaction"."type" = 'CREDIT'
+              AND EXISTS (
+                SELECT 1 FROM "Transactions" t1
+                WHERE t1."TransactionGroup" = "Transaction"."TransactionGroup"
+                  AND t1."HostCollectiveId" = ${host.id}
+                  AND (t1."kind" IN ('CONTRIBUTION'))
+                  AND t1."deletedAt" IS NULL
+              )
+            )`),
+        ),
+      );
+    } else {
+      where.push({ HostCollectiveId: host.id });
+    }
   }
 
   // Store the current where as it will be later used to fetch available kinds and paymentMethodTypes
