@@ -11,6 +11,7 @@ import { get, pick } from 'lodash';
 import multer from 'multer';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import { receiveEmail } from './controllers/email';
 import * as filesController from './controllers/files';
 import * as gitbook from './controllers/gitbook';
 import uploadImage from './controllers/images';
@@ -351,6 +352,9 @@ export default async app => {
    * Contact Form
    */
   app.post('/contact/send-message', email.messageSupport);
+
+  // Expense email creation inbox route. Needs to come before the sanitizer middleware.
+  app.all('/inbox', receiveEmail);
 
   // TODO: This sanitizer only applies to the routes below. It uses sanitize-html & some custom logic to remove all HTML tags.
   // It's not a good idea to use it globally, as it can break some routes that expect HTML content. We should aim at removing it.
