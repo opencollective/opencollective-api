@@ -61,17 +61,6 @@ export default {
       },
     },
     resolve: async (_, args, req: express.Request) => {
-      if (args.captcha) {
-        await checkCaptcha(args.captcha, req.ip as string);
-      } else if (!req.remoteUser && isCaptchaSetup()) {
-        throw new ValidationFailed('Captcha is required');
-      } else if (!['test', 'e2e', 'ci'].includes(config.env)) {
-        reportMessageToSentry('createOrganization request without captcha', {
-          severity: 'warning',
-          extra: { args },
-        });
-      }
-
       if (args.inviteMembers) {
         assert(args.inviteMembers.length <= 5, new ValidationFailed('You can only invite up to 5 members'));
       }
@@ -84,6 +73,10 @@ export default {
         CreatedByUserId: req.remoteUser?.id,
         settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
       };
+
+      if (!canUseSlug(organizationData.slug, req.remoteUser)) {
+        throw new ValidationFailed(`The slug '${organizationData.slug}' is not allowed.`, 'SLUG_NOT_ALLOWED');
+      }
 
       if (req.remoteUser) {
         checkRemoteUserCanUseAccount(req);
@@ -104,10 +97,6 @@ export default {
           }
         }
       }
-
-      if (!canUseSlug(organizationData.slug, req.remoteUser)) {
-        throw new ValidationFailed(`The slug '${organizationData.slug}' is not allowed.`, 'SLUG_NOT_ALLOWED');
-      }
       const collectiveWithSlug = await models.Collective.findOne({ where: { slug: organizationData.slug } });
       if (collectiveWithSlug) {
         throw new ValidationFailed(
@@ -120,6 +109,17 @@ export default {
       const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
+      }
+
+      if (args.captcha) {
+        await checkCaptcha(args.captcha, req.ip as string);
+      } else if (!req.remoteUser && isCaptchaSetup()) {
+        throw new ValidationFailed('Captcha is required');
+      } else if (!['test', 'e2e', 'ci'].includes(config.env)) {
+        reportMessageToSentry('createOrganization request without captcha', {
+          severity: 'warning',
+          extra: { args },
+        });
       }
 
       // Validate now to avoid uploading images if the collective is invalid
