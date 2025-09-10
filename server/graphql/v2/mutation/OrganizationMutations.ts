@@ -6,12 +6,14 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 import { cloneDeep, pick, set } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
+import { PlatformSubscriptionTiers } from '../../../constants/plans';
 import roles from '../../../constants/roles';
 import { checkCaptcha, isCaptchaSetup } from '../../../lib/check-captcha';
 import { canUseSlug } from '../../../lib/collectivelib';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportMessageToSentry } from '../../../lib/sentry';
-import models, { type User } from '../../../models';
+import { parseToBoolean } from '../../../lib/utils';
+import models, { PlatformSubscription, type User } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -27,6 +29,8 @@ import { GraphQLOrganization } from '../object/Organization';
 const DEFAULT_ORGANIZATION_SETTINGS = {
   features: { conversations: true },
 };
+
+const NEW_PRICING = parseToBoolean(config.features?.newPricing);
 
 export default {
   createOrganization: {
@@ -154,6 +158,16 @@ export default {
         const settings = organization.settings ? cloneDeep(organization.settings) : {};
         set(settings, 'canHostAccounts', false);
         await organization.update({ settings });
+      }
+
+      if (NEW_PRICING) {
+        await PlatformSubscription.createSubscription(
+          organization,
+          new Date(),
+          PlatformSubscriptionTiers.find(t => (t.id = 'discover-1')),
+          user,
+          { notify: false },
+        );
       }
 
       await organization.addUserWithRole(user, roles.ADMIN, {

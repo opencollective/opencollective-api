@@ -293,7 +293,8 @@
   "features": {
     "dashboard": {
       "redirect": false
-    }
+    },
+    "newPricing": false
   },
   "performance": {
     "hostsWithManyTransactions": [],
