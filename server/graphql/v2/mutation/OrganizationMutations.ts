@@ -148,7 +148,7 @@ export default {
       if (args.organization.currency) {
         await organization.setCurrency(args.organization.currency);
       }
-      if (args.activateBudget) {
+      if (args.financiallyActive) {
         await organization.becomeHost(user);
         await organization.reload();
         const settings = organization.settings ? cloneDeep(organization.settings) : {};
