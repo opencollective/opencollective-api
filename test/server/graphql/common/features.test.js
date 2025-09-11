@@ -68,6 +68,12 @@ describe('server/graphql/common/features', () => {
         expect(result).to.eq(FEATURE_STATUS.DISABLED);
       });
 
+      it('Returns AVAILABLE when the feature is available', async () => {
+        const collective = await fakeHost({ plan: 'start-plan-2021', settings: { features: { transferwise: true } } });
+        const result = await getFeatureStatusResolver(FEATURE.TRANSFERWISE)(collective);
+        expect(result).to.eq(FEATURE_STATUS.AVAILABLE);
+      });
+
       it("Returns ACTIVE if there's a linked transferwise account", async () => {
         const collective = await fakeHost({ plan: 'start-plan-2021', settings: { features: { transferwise: true } } });
         await fakeConnectedAccount({ CollectiveId: collective.id, service: 'transferwise' });

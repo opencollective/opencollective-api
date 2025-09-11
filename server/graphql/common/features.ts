@@ -239,7 +239,6 @@ export const getFeatureStatusResolver =
         return checkIsActiveIfExistsInDB(
           `SELECT 1 FROM "ConnectedAccounts" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "service" = 'transferwise'`,
           { replacements: { CollectiveId: collective.id } },
-          FEATURE_STATUS.DISABLED,
         );
       case FEATURE.EVENTS:
         return checkIsActiveIfExistsInDB(
