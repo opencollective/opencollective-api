@@ -163,6 +163,7 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.TRANSFERWISE]: {
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.HOSTS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
+    flagOverride: 'settings.features.transferwise',
   },
   [FEATURE.UPDATES]: {
     accountTypes: [
