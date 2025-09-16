@@ -273,6 +273,8 @@ const hasOptInFlag = (
   return false;
 };
 
+type ErrorReason = 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'NEED_HOST' | 'OPT_IN' | 'REGION';
+
 /**
  * Returns the access level for a feature.
  *
@@ -291,7 +293,7 @@ export const getFeatureAccess = async (
   } = {},
 ): Promise<{
   access: FEATURE_ACCESS;
-  reason: 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'NEED_HOST' | 'OPT_IN' | 'REGION' | null;
+  reason: ErrorReason | null;
 }> => {
   if (!collective) {
     return { access: 'UNSUPPORTED', reason: null };
@@ -376,6 +378,17 @@ export const hasFeature = async (
   return access === 'AVAILABLE';
 };
 
+export const getErrorMessageFromFeatureAccess = (access: FEATURE_ACCESS, reason: ErrorReason | null): string => {
+  switch (access) {
+    case 'UNSUPPORTED':
+      return 'This feature is not supported for your account';
+    case 'DISABLED':
+      return reason === 'PRICING'
+        ? 'This feature is not available in your current plan'
+        : 'This feature is not enabled for your account';
+  }
+};
+
 /**
  * A wrapper around `getFeatureAccess` that throws the right error (if any) based on the access level.
  */
@@ -385,27 +398,16 @@ export const checkFeatureAccess = async (
   { loaders }: { loaders?: Loaders } = {},
 ): Promise<void> => {
   const { access, reason } = await getFeatureAccess(collective, feature, { loaders });
-  switch (access) {
-    case 'UNSUPPORTED':
-      throw new Forbidden('This feature is not supported for your account');
-    case 'DISABLED':
-      throw new Forbidden(
-        reason === 'PRICING'
-          ? 'This feature is not available in your current plan'
-          : 'This feature is not enabled for your account',
-      );
+  const error = getErrorMessageFromFeatureAccess(access, reason);
+  if (error) {
+    throw new Forbidden(error);
   }
 };
 
 export const getFeaturesAccessMap = async (
   collective: Collective,
   { loaders }: { loaders?: Loaders } = {},
-): Promise<
-  Record<
-    Exclude<FEATURE, FEATURE.ALL>,
-    { access: FEATURE_ACCESS; reason: 'BLOCKED' | 'PRICING' | 'ACCOUNT_TYPE' | 'OPT_IN' | null }
-  >
-> => {
+): Promise<Record<Exclude<FEATURE, FEATURE.ALL>, { access: FEATURE_ACCESS; reason: ErrorReason | null }>> => {
   return Object.fromEntries(
     await Promise.all(
       Object.entries(omit(FEATURE, FEATURE.ALL)).map(async ([feature]) => [

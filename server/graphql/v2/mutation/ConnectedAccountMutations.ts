@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
-import { checkFeatureAccess } from '../../../lib/allowed-features';
+import { checkFeatureAccess, getErrorMessageFromFeatureAccess, getFeatureAccess } from '../../../lib/allowed-features';
 import { crypto } from '../../../lib/encryption';
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import * as paypal from '../../../lib/paypal';
@@ -14,7 +14,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import type { ConnectedAccount as ConnectedAccountModel } from '../../../models';
 import models from '../../../models';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
-import { Unauthorized, ValidationFailed } from '../../errors';
+import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput';
 import {
@@ -53,7 +53,11 @@ const connectedAccountMutations = {
       }
       // Check feature access for PAYPAL_PAYOUTS
       if (args.connectedAccount.service === Service.PAYPAL) {
-        await checkFeatureAccess(collective, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+        const payoutsAccess = await getFeatureAccess(collective, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+        const paymentsAccess = await getFeatureAccess(collective, FEATURE.PAYPAL_DONATIONS, { loaders: req.loaders });
+        if (payoutsAccess.access !== 'AVAILABLE' && paymentsAccess.access !== 'AVAILABLE') {
+          throw new Forbidden(getErrorMessageFromFeatureAccess(payoutsAccess.access, payoutsAccess.reason));
+        }
       }
 
       if ([Service.TRANSFERWISE, Service.PAYPAL].includes(args.connectedAccount.service)) {
