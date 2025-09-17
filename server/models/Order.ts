@@ -99,6 +99,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     isBalanceTransfer?: boolean;
     isGuest?: boolean;
     isPendingContribution?: boolean;
+    isManualContribution?: boolean;
     closedReason?: string;
     taxRemovedFromMigration?: OrderTax;
     taxAmountRemovedFromMigration?: number;
