@@ -3,7 +3,6 @@ import config from 'config';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import errorHandler from 'errorhandler';
 import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
@@ -55,11 +54,6 @@ export default async function setupExpress(app: express.Application) {
 
   // Hyperwatch
   await hyperwatch(app);
-
-  // Error handling.
-  if (config.env !== 'production' && config.env !== 'staging') {
-    app.use(errorHandler());
-  }
 
   // Cors.
   app.use(cors());
