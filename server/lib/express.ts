@@ -17,7 +17,7 @@ import hyperwatch from './hyperwatch';
 import logger from './logger';
 import { createRedisClient, RedisInstanceType } from './redis';
 
-export default async function (app) {
+export default async function setupExpress(app: express.Application) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
 
   app.use(
@@ -44,7 +44,7 @@ export default async function (app) {
       // If the request is routed to our /webhooks/transferwise endpoint, we add
       // the request body buffer to a new property called `rawBody` so we can
       // calculate the checksum to verify if the request is authentic.
-      verify(req, res, buf) {
+      verify(req: express.Request, res: express.Response, buf: Buffer) {
         if (req.originalUrl.startsWith('/webhooks')) {
           req.rawBody = buf.toString();
         }

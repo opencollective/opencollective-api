@@ -2,14 +2,16 @@ import './env';
 import './lib/sentry/init';
 import './open-telemetry';
 
+import { AddressInfo } from 'net';
 import os from 'os';
 
 import * as Sentry from '@sentry/node';
 import config from 'config';
 import express from 'express';
+import { isUndefined, toInteger } from 'lodash';
 import throng from 'throng';
 
-import expressLib from './lib/express';
+import setupExpress from './lib/express';
 import logger from './lib/logger';
 import { isOpenSearchConfigured } from './lib/open-search/client';
 import { startOpenSearchPostgresSync, stopOpenSearchPostgresSync } from './lib/open-search/sync-postgres';
@@ -18,13 +20,13 @@ import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-m
 import { parseToBoolean } from './lib/utils';
 import routes from './routes';
 
-const workers = process.env.WEB_CONCURRENCY || 1;
+const workers = isUndefined(process.env.WEB_CONCURRENCY) ? toInteger(process.env.WEB_CONCURRENCY) : 1;
 
 async function startExpressServer(workerId) {
   const expressApp = express();
 
   await updateCachedFidoMetadata();
-  await expressLib(expressApp);
+  await setupExpress(expressApp);
 
   /**
    * Routes.
@@ -41,14 +43,14 @@ async function startExpressServer(workerId) {
     logger.info(
       'Open Collective API listening at http://%s:%s in %s environment. Worker #%s',
       host,
-      server.address().port,
+      (server.address() as AddressInfo).port,
       config.env,
       workerId,
     );
   });
 
   server.timeout = 25000; // sets timeout to 25 seconds
-  expressApp.__server__ = server;
+  expressApp['__server__'] = server;
 
   return expressApp;
 }

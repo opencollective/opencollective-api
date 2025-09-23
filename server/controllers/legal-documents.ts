@@ -1,5 +1,5 @@
 import config from 'config';
-import type { Request, Response } from 'express';
+import type express from 'express';
 
 import MemberRoles from '../constants/roles';
 import { idDecode } from '../graphql/v2/identifiers';
@@ -42,7 +42,7 @@ const hasPermissionToDownload = async (legalDocument: LegalDocument, remoteUser:
 };
 
 export default {
-  download: async (req: Request, res: Response) => {
+  async download(req: express.Request, res: express.Response) {
     // Must be logged in
     if (!req.remoteUser) {
       return res.status(401).send({ message: 'Unauthorized' });

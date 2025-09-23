@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from 'express';
+import type express from 'express';
 
 import logger from '../lib/logger';
 import { handlePlaidWebhookEvent } from '../lib/plaid/webhooks';
@@ -7,7 +7,11 @@ import paymentProviders from '../paymentProviders';
 import paypalWebhookHandler from '../paymentProviders/paypal/webhook';
 import transferwiseWebhookHandler from '../paymentProviders/transferwise/webhook';
 
-export async function stripeWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function stripeWebhook(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): Promise<void> {
   try {
     await paymentProviders.stripe.webhook(req);
     res.sendStatus(200);
@@ -19,9 +23,9 @@ export async function stripeWebhook(req: Request, res: Response, next: NextFunct
 }
 
 export async function transferwiseWebhook(
-  req: Request & { rawBody: string },
-  res: Response,
-  next: NextFunction,
+  req: express.Request & { rawBody: string },
+  res: express.Response,
+  next: express.NextFunction,
 ): Promise<void> {
   try {
     await transferwiseWebhookHandler(req);
@@ -31,7 +35,11 @@ export async function transferwiseWebhook(
   }
 }
 
-export async function paypalWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function paypalWebhook(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): Promise<void> {
   try {
     await paypalWebhookHandler(req);
     res.sendStatus(200);
@@ -40,7 +48,11 @@ export async function paypalWebhook(req: Request, res: Response, next: NextFunct
   }
 }
 
-export async function plaidWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function plaidWebhook(
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+): Promise<void> {
   try {
     await handlePlaidWebhookEvent(req);
     res.sendStatus(200);

@@ -235,7 +235,7 @@
     "depcheck": "npx @opencollective/depcheck .",
     "deploy:production": "./scripts/pre-deploy.sh production && git push production main",
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
-    "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
+    "dev": "nodemon server/index.ts -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
     "docs:generate:oauth": "babel-node --extensions .js,.ts ./scripts/docs/oauth.ts",
     "graphql:update": "npm-run-all graphql:updateV1 graphql:updateV2",
     "graphql:updateV1": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v1 server/graphql/schemaV1.graphql && prettier server/graphql/schemaV1.graphql --write",

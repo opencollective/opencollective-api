@@ -7,6 +7,10 @@ declare global {
     export interface Request {
       remoteUser?: User;
       isGraphQL?: boolean;
+      startAt: Date;
+      endAt: Date;
+      cacheKey?: string;
+      cacheSlug?: string;
       apiKey?: string;
       jwtPayload?: {
         sessionId?: string;
@@ -31,6 +35,10 @@ declare global {
       baseUrl: string;
       ip: string;
       middlewareTimingTracker?: MiddlewareTimingTracker;
+    }
+
+    export interface Response {
+      servedFromGraphqlCache?: boolean;
     }
   }
 }
