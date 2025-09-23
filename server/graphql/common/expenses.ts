@@ -2290,8 +2290,11 @@ export async function createExpense(
       new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
     );
     const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+    const isVendorVisibleByCollective = fromCollective.data?.visibleToAccountIds?.includes(collective.id);
     assert(
-      publicVendorPolicy || remoteUser.isAdminOfCollective(fromCollective),
+      publicVendorPolicy ||
+        remoteUser.isAdminOfCollective(fromCollective) ||
+        (isVendorVisibleByCollective && remoteUser.isAdminOfCollective(collective)),
       new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
     );
   } else if (!remoteUser.isAdminOfCollective(fromCollective)) {
