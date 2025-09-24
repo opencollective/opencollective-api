@@ -1074,6 +1074,24 @@ const orderMutations = {
           paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
         }
 
+        const stripeRequestOptions = !isPlatformHost ? { stripeAccount: hostStripeAccount.username } : undefined;
+
+        if (!stripeCustomerId && args.guestInfo) {
+          const guestName = [args.guestInfo?.name, args.guestInfo?.legalName]
+            .map(s => s?.trim())
+            .filter(Boolean)
+            .join(' / ');
+          const customer = await stripe.customers.create(
+            {
+              email: args.guestInfo.email,
+              description: `Guest Contributor (${guestName || 'Incognito'})`,
+            },
+            stripeRequestOptions,
+          );
+
+          stripeCustomerId = customer.id;
+        }
+
         const paymentIntent = await stripe.paymentIntents.create(
           {
             /* eslint-disable camelcase */
@@ -1090,11 +1108,7 @@ const orderMutations = {
               to: `${config.host.website}/${toAccount.slug}`,
             },
           },
-          !isPlatformHost
-            ? {
-                stripeAccount: hostStripeAccount.username,
-              }
-            : undefined,
+          stripeRequestOptions,
         );
 
         return {
