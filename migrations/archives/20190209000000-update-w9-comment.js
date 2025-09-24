@@ -32,7 +32,7 @@ module.exports = {
             'before we can proceed with this payment. If you are not a US person please send the ' +
             '<a href="https://www.irs.gov/pub/irs-pdf/fw8ben.pdf">W-8BEN</a> for individuals ' +
             'or the <a href="https://www.irs.gov/pub/irs-pdf/fw8bene.pdf">W-8BEN-E ' +
-            'form</a> for companies. <a href="https://docs.opencollective.com">' +
+            'form</a> for companies. <a href="https://documentation.opencollective.com">' +
             'See docs for more info</a>.</p>' +
             '<p>Note: if your expenses are reimbursements not invoices, please disregard this message.</p>',
         );
