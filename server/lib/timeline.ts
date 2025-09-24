@@ -10,7 +10,6 @@ import { createRedisClient, RedisInstanceType } from '../lib/redis';
 import { Activity, Collective, Member } from '../models';
 
 import makeRedisProvider from './cache/redis';
-import { utils } from './statsd';
 import { parseToBoolean } from './utils';
 
 const debug = debugLib('timeline');
@@ -217,7 +216,6 @@ debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
  */
 const updateFeed = async (collective: Collective, sinceId: number) => {
   const cacheKey = `timeline-${collective.slug}`;
-  const stopWatch = utils.stopwatch('timeline.update', { log: debug });
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
   const where = await makeTimelineQuery(collective);
   where['id'] = { [Op.gt]: sinceId };
@@ -246,13 +244,10 @@ const updateFeed = async (collective: Collective, sinceId: number) => {
   if (count > FEED_LIMIT) {
     await redis.zRemRangeByRank(cacheKey, 0, count - FEED_LIMIT - 1);
   }
-
-  stopWatch();
 };
 
 const createNewFeed = async (collective: Collective) => {
   const cacheKey = `timeline-${collective.slug}`;
-  const stopWatch = utils.stopwatch('timeline.create', { log: debug });
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
 
   const where = await makeTimelineQuery(collective);
@@ -289,8 +284,6 @@ const createNewFeed = async (collective: Collective) => {
 
   await redis.expire(cacheKey, TTL);
   debug(`Generated timeline for ${collective.slug} with ${total} activities`);
-
-  stopWatch();
 };
 
 export const getCollectiveFeed = async ({
@@ -313,7 +306,6 @@ export const getCollectiveFeed = async ({
   // If we don't have a redis client, we can't cache the timeline using sorted sets
   if (!redis) {
     debug('Redis is not configured, skipping cached timeline');
-    const stopWatch = utils.stopwatch('timeline.readPage.noCache');
 
     const where = await makeTimelineQuery(collective, classes);
     if (dateTo) {
@@ -327,7 +319,6 @@ export const getCollectiveFeed = async ({
       order,
       limit,
     });
-    stopWatch();
     return activities;
   }
 
@@ -350,9 +341,6 @@ export const getCollectiveFeed = async ({
     return null;
   }
 
-  const stopWatch = utils.stopwatch(dateTo ? 'timeline.readPage.cached' : 'timeline.readFirstPage.cached', {
-    log: debug,
-  });
   const wantedTypes = flatten(classes.map(c => ActivitiesPerClass[c]));
   let offset = 0;
 
@@ -399,6 +387,5 @@ export const getCollectiveFeed = async ({
 
   // Return the actual activities from the database
   const activities = await Activity.findAll({ where: { id: idsToLoad }, order });
-  stopWatch();
   return activities;
 };

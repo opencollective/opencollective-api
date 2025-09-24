@@ -151,9 +151,5 @@
 | FRAUD_PROTECTION_SUSPEND_ASSET                | .fraud.enforceSuspendedAsset                       | Enforce suspended asset for fraud protection                                       |
 | GITBOOK_API_KEY                               | .gitbook.apiKey                                    | GitBook API key                                                                    |
 | OPENTELEMETRY_ENABLED                         | .opentelemetry.enabled                             | Enable OpenTelemetry                                                               |
-| STATSD_ENABLED                                | .statsd.enabled                                    | Enable StatsD                                                                      |
-| STATSD_URL                                    | .statsd.url                                        | StatsD URL                                                                         |
-| STATSD_PORT                                   | .statsd.port                                       | StatsD port                                                                        |
-| STATSD_PREFIX                                 | .statsd.prefix                                     | StatsD prefix                                                                      |
 | FEATURES_DASHBOARD_REDIRECT                   | .features.dashboard.redirect                       | Dashboard redirect feature                                                         |
 | SETTLEMENT_MINIMUM_AMOUNT_IN_USD              | .settlement.minimumAmountInUSD                     | Minimum settlement amount in USD                                                   |

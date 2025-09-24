@@ -107,7 +107,6 @@
     "moment-timezone": "0.6.0",
     "multer": "2.0.2",
     "node-fetch": "2.7.0",
-    "node-statsd": "0.1.1",
     "nodemailer": "7.0.5",
     "nordigen-node": "1.4.1",
     "p-map": "4.0.0",
