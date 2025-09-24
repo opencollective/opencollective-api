@@ -1,7 +1,6 @@
 import config from 'config';
 import { get, uniq } from 'lodash';
 import moment from 'moment';
-import prependHttp from 'prepend-http';
 import {
   BelongsToGetAssociationMixin,
   DataTypes,
@@ -21,7 +20,7 @@ import { notify } from '../lib/notifications/email';
 import SQLQueries from '../lib/queries';
 import sequelize from '../lib/sequelize';
 import { getTaxFormsS3Bucket } from '../lib/tax-forms';
-import { isValidURL } from '../lib/url-utils';
+import { isValidURL, prependHttp } from '../lib/url-utils';
 
 import Activity from './Activity';
 import Collective from './Collective';
