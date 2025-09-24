@@ -5,7 +5,6 @@ import config from 'config';
 import fastRedact from 'fast-redact';
 import { filter, get, isObject, omit, padStart, sumBy } from 'lodash';
 import moment from 'moment';
-import pFilter from 'p-filter';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 
@@ -66,113 +65,6 @@ export const flattenArray = arr => {
   return arr.reduce((flat, toFlatten) => {
     return flat.concat(Array.isArray(toFlatten) ? flattenArray(toFlatten) : toFlatten);
   }, []);
-};
-
-/**
- * Returns stats for each tier compared to previousMonth
- *
- * @PRE:
- *  - tiers: array of Tier: [ { name, interval, users: [ { id, totalDonations, firstDonation, lastDonation } ] } ]
- *  - startDate, endDate: boundaries for lastMonth
- *
- * @POST: { stats, tiers }
- *  - stats.backers.lastMonth: number of backers who were active by endDate
- *  - stats.backers.previousMonth: number of backers who were active by startDate
- *  - stats.backers.new: the number of backers whose first donation was after startDate
- *  - stats.backers.lost: the number of backers who were active before startDate, but stopped being active
- *  - tiers: tiers with users sorted by totalDonations
- */
-export const getTiersStats = (tiers, startDate, endDate) => {
-  const backersIds = {};
-  const stats = { backers: {} };
-
-  const rank = user => {
-    if (user.isNew) {
-      return 1;
-    }
-    if (user.isLost) {
-      return 2;
-    }
-    return 3;
-  };
-
-  stats.backers.lastMonth = 0;
-  stats.backers.previousMonth = 0;
-  stats.backers.new = 0;
-  stats.backers.lost = 0;
-
-  // We only keep the tiers that have at least one user
-  tiers = tiers.filter(tier => {
-    if (get(tier, 'dataValues.users') && get(tier, 'dataValues.users').length > 0) {
-      return true;
-    } else {
-      return false;
-    }
-  });
-
-  // We sort tiers by number of users ASC
-  tiers.sort((a, b) => b.amount - a.amount);
-
-  return Promise.all(
-    tiers.map(tier => {
-      const backers = get(tier, 'dataValues.users');
-      let index = 0;
-
-      // We sort backers by total donations DESC
-      backers.sort((a, b) => b.totalDonations - a.totalDonations);
-
-      return pFilter(backers, backer => {
-        if (backersIds[backer.id]) {
-          return false;
-        }
-        backersIds[backer.id] = true;
-
-        backer.index = index++;
-        return Promise.all([tier.isBackerActive(backer, endDate), tier.isBackerActive(backer, startDate)]).then(
-          results => {
-            backer.activeLastMonth = results[0];
-            backer.activePreviousMonth = backer.firstDonation < startDate && results[1];
-            if (tier.name.match(/sponsor/i)) {
-              backer.isSponsor = true;
-            }
-            if (backer.firstDonation > startDate) {
-              backer.isNew = true;
-              stats.backers.new++;
-            }
-            if (backer.activePreviousMonth && !backer.activeLastMonth) {
-              backer.isLost = true;
-              stats.backers.lost++;
-            }
-            if (backer.activePreviousMonth) {
-              stats.backers.previousMonth++;
-            }
-            if (backer.activeLastMonth) {
-              stats.backers.lastMonth++;
-              return true;
-            } else if (backer.isLost) {
-              return true;
-            }
-          },
-        );
-      }).then(backers => {
-        backers.sort((a, b) => {
-          if (rank(a) > rank(b)) {
-            return 1;
-          }
-          if (rank(a) < rank(b)) {
-            return -1;
-          }
-          return a.index - b.index; // make sure we keep the original order within a tier (typically totalDonations DESC)
-        });
-
-        tier.activeBackers = backers.filter(b => !b.isLost);
-
-        return tier;
-      });
-    }),
-  ).then(tiers => {
-    return { stats, tiers };
-  });
 };
 
 /**
