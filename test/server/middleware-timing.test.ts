@@ -63,7 +63,7 @@ describe('middleware-timing', () => {
       const mockUser = { id: 123, email: 'test@example.com' };
       const mockReqWithUser = makeRequest(mockUser);
       const logSpy = sinon.spy(logger, 'warn');
-      const trackerWithUser = new MiddlewareTimingTracker(mockReqWithUser);
+      const trackerWithUser = new MiddlewareTimingTracker(mockReqWithUser as unknown as Express.Request);
 
       const endTiming = trackerWithUser.startTiming('slowMiddleware');
       clock.tick(150);

@@ -5,6 +5,7 @@ import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHt
 import { expressMiddleware } from '@as-integrations/express4';
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import config from 'config';
+import type express from 'express';
 import { print as convertASTToString } from 'graphql';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.js';
 import { get, pick } from 'lodash';
@@ -45,7 +46,7 @@ const noCache = (req, res, next) => {
   next();
 };
 
-export default async app => {
+export default async (app: express.Application) => {
   /**
    * Extract GraphQL API Key
    */
@@ -121,14 +122,14 @@ export default async app => {
   app.use('*', withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
 
   // OAuth server (after authentication/JWT handling, at least for authorize)
-  app.oauth = oauth;
-  app.post('/oauth/token', noCache, app.oauth.token());
+  app['oauth'] = oauth;
+  app.post('/oauth/token', noCache, app['oauth'].token());
   app.post(
     '/oauth/authorize',
     noCache,
-    app.oauth.authorize({ allowEmptyState: true, authenticateHandler: authorizeAuthenticateHandler }),
+    app['oauth'].authorize({ allowEmptyState: true, authenticateHandler: authorizeAuthenticateHandler }),
   );
-  app.post('/oauth/authenticate', noCache, app.oauth.authenticate());
+  app.post('/oauth/authenticate', noCache, app['oauth'].authenticate());
 
   /**
    * GraphQL caching
@@ -136,7 +137,7 @@ export default async app => {
   if (parseToBoolean(config.graphql.cache.enabled)) {
     app.use(
       '/graphql',
-      withTiming('graphqlCache', async (req, res, next) => {
+      withTiming('graphqlCache', async (req: express.Request, res: express.Response, next: express.NextFunction) => {
         req.startAt = req.startAt || new Date();
         const { cacheKey, cacheSlug } = getGraphqlCacheProperties(req) || {}; // Returns null if not cacheable (e.g. if logged in)
         if (cacheKey) {
@@ -144,8 +145,8 @@ export default async app => {
           if (fromCache) {
             res.servedFromGraphqlCache = true;
             req.endAt = req.endAt || new Date();
-            const executionTime = req.endAt - req.startAt;
-            res.set('Execution-Time', executionTime);
+            const executionTime = req.endAt.getTime() - req.startAt.getTime();
+            res.set('Execution-Time', String(executionTime));
             res.set('GraphQL-Cache', 'HIT');
             res.send(fromCache);
             return;
@@ -266,7 +267,7 @@ export default async app => {
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#introspection
     introspection: true,
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#persistedqueries
-    persistedQueries: false,
+    persistedQueries: false as const,
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#csrfprevention
     csrfPrevention: { requestHeaders: ['Authorization'] },
     // https://www.apollographql.com/docs/apollo-server/api/apollo-server#formaterror
@@ -394,8 +395,8 @@ export default async app => {
   /**
    * File downloads
    */
-  app.get('/legal-documents/:id/download', LegalDocumentsController.download);
-  app.get('/files/:uploadedFileId', filesController.getFile);
+  app.get('/legal-documents/:id/download', LegalDocumentsController.download as any);
+  app.get('/files/:uploadedFileId', filesController.getFile as any);
 
   /**
    * Gitbook Search API
@@ -417,17 +418,21 @@ export default async app => {
   /**
    * Override default 404 handler to make sure to obfuscate api_key visible in URL
    */
-  app.use((req, res) => res.sendStatus(404));
+  function simple404Middleware(_req, res: express.Response) {
+    res.sendStatus(404);
+  }
+  app.use(simple404Middleware);
 
   /**
    * Cleanup middleware timing tracking
    */
-  app.use((req, res, next) => {
+  function timeTrackingMiddleware(req, res, next) {
     if (req.middlewareTimingTracker) {
       req.middlewareTimingTracker.clear();
     }
     next();
-  });
+  }
+  app.use(timeTrackingMiddleware);
 
   /**
    * Error handler.
