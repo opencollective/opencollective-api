@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { isAxiosError } from 'axios';
 import debug from 'debug';
 import { pick } from 'lodash';
 
@@ -35,6 +36,11 @@ const run = async () => {
         log: debug.enabled('gocardless'),
       });
     } catch (err) {
+      if (isAxiosError(err) && err.response?.status === 429) {
+        // Ignore rate limit errors
+        continue;
+      }
+
       reportErrorToSentry(err, {
         severity: err instanceof TransactionsImportLockedError ? 'warning' : 'error',
         extra: { importInstance: pick(importInstance, ['id', 'CollectiveId', 'ConnectedAccountId']) },
