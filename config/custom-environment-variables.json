@@ -155,7 +155,8 @@
   },
   "slack": {
     "webhooks": {
-      "abuse": "SLACK_WEBHOOK_ABUSE"
+      "abuse": "SLACK_WEBHOOK_ABUSE",
+      "engineeringAlerts": "SLACK_WEBHOOK_ENGINEERING_ALERTS"
     }
   },
   "github": {
