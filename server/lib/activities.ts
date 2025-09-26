@@ -12,16 +12,14 @@ export default {
    * Formats an activity *FOR EXTERNAL USE* based on its type
    * This function strips out email addresses and shows only a subset of activities
    * because many of them aren't relevant externally (like USER_CREATED)
-   *
-   * @returns {Object} - { message: string }
    */
-  formatMessageForPublicChannel: (activity, format) => {
+  formatMessageForPublicChannel: (activity, format): { message: string; options?: Record<string, unknown> } => {
     const result = doFormatMessage(activity, format);
     return typeof result === 'string' ? { message: result } : result;
   },
 };
 
-const doFormatMessage = (activity, format) => {
+const doFormatMessage = (activity, format): string | { message: string; options: Record<string, unknown> } => {
   let userString = '',
     hostString = '';
   let collectiveName = '';

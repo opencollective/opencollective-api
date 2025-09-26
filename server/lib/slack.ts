@@ -12,6 +12,7 @@ import { reportErrorToSentry } from './sentry';
 
 export const OPEN_COLLECTIVE_SLACK_CHANNEL = {
   ABUSE: 'abuse',
+  ENGINEERING_ALERTS: 'engineeringAlerts',
 };
 
 // Mattermost is compatible with Slack webhooks
@@ -31,10 +32,10 @@ export default {
    * Post a message on Open Collective's Slack. Channel must be a valid key of
    * `config.slack.webhooks`. Use the `OPEN_COLLECTIVE_SLACK_CHANNEL` helper.
    */
-  postMessageToOpenCollectiveSlack(message, channel) {
+  postMessageToOpenCollectiveSlack(message, channel, options = undefined) {
     const webhookUrl = config.slack.webhooks[channel];
     if (webhookUrl) {
-      this.postMessage(message, webhookUrl);
+      return this.postMessage(message, webhookUrl, options);
     } else if (typeof webhookUrl === 'undefined') {
       logger.warn(`Unknown slack channel ${channel}`);
     }

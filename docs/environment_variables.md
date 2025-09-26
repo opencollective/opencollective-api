@@ -95,6 +95,7 @@
 | ORDERS_LIMIT_SKIP_CLEAN_SLUGS                 | .limits.skipCleanOrdersLimitSlugs                  | Skip clean orders limit slugs                                                      |
 | ORDERS_LIMIT_ENABLED_MASKS                    | .limits.enabledMasks                               | Enabled masks for orders limit                                                     |
 | SLACK_WEBHOOK_ABUSE                           | .slack.webhooks.abuse                              | Slack abuse webhook URL                                                            |
+| SLACK_WEBHOOK_ENGINEERING_ALERTS              | .slack.webhooks.engineeringAlerts                  | Slack engineering alerts webhook URL                                               |
 | GITHUB_CLIENT_ID                              | .github.clientID                                   | GitHub client ID                                                                   |
 | GITHUB_CLIENT_SECRET                          | .github.clientSecret                               | GitHub client secret                                                               |
 | FIXER_ACCESS_KEY                              | .fixer.accessKey                                   | Fixer access key                                                                   |

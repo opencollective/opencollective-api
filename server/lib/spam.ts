@@ -956,7 +956,7 @@ export const notifyTeamAboutSuspiciousCollective = async (report: SpamAnalysisRe
   message = addLine(message, `Score: ${score}`);
   message = addLine(message, keywords.length > 0 && `Keywords: \`${keywords.toString()}\``);
   message = addLine(message, domains.length > 0 && `Domains: \`${domains.toString()}\``);
-  return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
+  await slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
 };
 
 /**
@@ -969,7 +969,7 @@ export const notifyTeamAboutSpamExpense = async (activity: Activity): Promise<vo
 
   let message = `*Expense was marked as spam:* ${expenseUrl}`;
   message = addLine(message, `Submitted by: ${submittedByUserUrl}`);
-  return slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
+  await slackLib.postMessageToOpenCollectiveSlack(message, OPEN_COLLECTIVE_SLACK_CHANNEL.ABUSE);
 };
 
 /**
