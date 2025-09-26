@@ -359,12 +359,9 @@ export async function createOrder(order, req) {
       // Create or retrieve guest profile from GUEST_TOKEN
       const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
 
-      // We're enforcing Captcha if the order is calling a payment provider, unless it's a payment intent
-      // because payment intents are checked for captcha when created.
-      if (
-        [PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL].includes(order.paymentMethod?.service) &&
-        order.paymentMethod.type !== PAYMENT_METHOD_TYPE.PAYMENT_INTENT
-      ) {
+      // We're just enforcing Captcha if the order is using Credit Card
+      const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
+      if (isCreditCardOrder) {
         try {
           captchaResponse = await checkCaptcha(order.guestInfo?.captcha, reqIp);
         } catch (err) {
