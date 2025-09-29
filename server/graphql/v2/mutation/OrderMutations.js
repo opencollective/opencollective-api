@@ -52,6 +52,7 @@ import {
   Forbidden,
   NotFound,
   Unauthorized,
+  UnexpectedError,
   ValidationFailed,
 } from '../../errors';
 import {
@@ -1074,6 +1075,29 @@ const orderMutations = {
           paymentMethodConfiguration = config.stripe.recurringPaymentMethodConfiguration;
         }
 
+        const stripeRequestOptions = !isPlatformHost ? { stripeAccount: hostStripeAccount.username } : undefined;
+
+        if (!stripeCustomerId && args.guestInfo) {
+          try {
+            const guestName = [args.guestInfo?.name, args.guestInfo?.legalName]
+              .map(s => s?.trim())
+              .filter(Boolean)
+              .join(' / ');
+            const customer = await stripe.customers.create(
+              {
+                email: args.guestInfo.email,
+                description: `Guest Contributor (${guestName || 'Incognito'})`,
+              },
+              stripeRequestOptions,
+            );
+
+            stripeCustomerId = customer.id;
+          } catch (customerError) {
+            reportErrorToSentry(customerError, { transactionName: 'createPaymentIntent', user: req.remoteUser });
+            throw new UnexpectedError('The payment failed, please try again later');
+          }
+        }
+
         const paymentIntent = await stripe.paymentIntents.create(
           {
             /* eslint-disable camelcase */
@@ -1090,11 +1114,7 @@ const orderMutations = {
               to: `${config.host.website}/${toAccount.slug}`,
             },
           },
-          !isPlatformHost
-            ? {
-                stripeAccount: hostStripeAccount.username,
-              }
-            : undefined,
+          stripeRequestOptions,
         );
 
         return {
