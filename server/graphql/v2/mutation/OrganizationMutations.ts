@@ -6,12 +6,14 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 import { cloneDeep, pick, set } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
+import { PlatformSubscriptionTiers } from '../../../constants/plans';
 import roles from '../../../constants/roles';
 import { checkCaptcha, isCaptchaSetup } from '../../../lib/check-captcha';
 import { canUseSlug } from '../../../lib/collectivelib';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportMessageToSentry } from '../../../lib/sentry';
-import models, { type User } from '../../../models';
+import { parseToBoolean } from '../../../lib/utils';
+import models, { PlatformSubscription, type User } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -27,6 +29,8 @@ import { GraphQLOrganization } from '../object/Organization';
 const DEFAULT_ORGANIZATION_SETTINGS = {
   features: { conversations: true },
 };
+
+const NEW_PRICING = parseToBoolean(config.features?.newPricing);
 
 export default {
   createOrganization: {
@@ -61,17 +65,6 @@ export default {
       },
     },
     resolve: async (_, args, req: express.Request) => {
-      if (args.captcha) {
-        await checkCaptcha(args.captcha, req.ip as string);
-      } else if (!req.remoteUser && isCaptchaSetup()) {
-        throw new ValidationFailed('Captcha is required');
-      } else if (!['test', 'e2e', 'ci'].includes(config.env)) {
-        reportMessageToSentry('createOrganization request without captcha', {
-          severity: 'warning',
-          extra: { args },
-        });
-      }
-
       if (args.inviteMembers) {
         assert(args.inviteMembers.length <= 5, new ValidationFailed('You can only invite up to 5 members'));
       }
@@ -84,6 +77,10 @@ export default {
         CreatedByUserId: req.remoteUser?.id,
         settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
       };
+
+      if (!canUseSlug(organizationData.slug, req.remoteUser)) {
+        throw new ValidationFailed(`The slug '${organizationData.slug}' is not allowed.`, 'SLUG_NOT_ALLOWED');
+      }
 
       if (req.remoteUser) {
         checkRemoteUserCanUseAccount(req);
@@ -104,10 +101,6 @@ export default {
           }
         }
       }
-
-      if (!canUseSlug(organizationData.slug, req.remoteUser)) {
-        throw new ValidationFailed(`The slug '${organizationData.slug}' is not allowed.`, 'SLUG_NOT_ALLOWED');
-      }
       const collectiveWithSlug = await models.Collective.findOne({ where: { slug: organizationData.slug } });
       if (collectiveWithSlug) {
         throw new ValidationFailed(
@@ -120,6 +113,17 @@ export default {
       const rateLimit = new RateLimit(rateLimitKey, config.limits.userSignUpPerHour, ONE_HOUR_IN_SECONDS, true);
       if (!(await rateLimit.registerCall())) {
         throw new RateLimitExceeded();
+      }
+
+      if (args.captcha) {
+        await checkCaptcha(args.captcha, req.ip as string);
+      } else if (!req.remoteUser && isCaptchaSetup()) {
+        throw new ValidationFailed('Captcha is required');
+      } else if (!['test', 'e2e', 'ci'].includes(config.env)) {
+        reportMessageToSentry('createOrganization request without captcha', {
+          severity: 'warning',
+          extra: { args },
+        });
       }
 
       // Validate now to avoid uploading images if the collective is invalid
@@ -148,12 +152,22 @@ export default {
       if (args.organization.currency) {
         await organization.setCurrency(args.organization.currency);
       }
-      if (args.activateBudget) {
+      if (args.financiallyActive) {
         await organization.becomeHost(user);
         await organization.reload();
         const settings = organization.settings ? cloneDeep(organization.settings) : {};
         set(settings, 'canHostAccounts', false);
         await organization.update({ settings });
+      }
+
+      if (NEW_PRICING) {
+        await PlatformSubscription.createSubscription(
+          organization,
+          new Date(),
+          PlatformSubscriptionTiers.find(t => (t.id = 'discover-1')),
+          user,
+          { notify: false },
+        );
       }
 
       await organization.addUserWithRole(user, roles.ADMIN, {

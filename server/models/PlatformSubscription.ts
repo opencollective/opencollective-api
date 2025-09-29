@@ -399,9 +399,11 @@ class PlatformSubscription extends Model<
       transaction?: SequelizeTransaction;
       UserTokenId?: number;
       previousPlan?: Partial<PlatformSubscriptionPlan>;
+      notify?: boolean;
     },
   ): Promise<PlatformSubscription> {
     const alignedStart = moment.utc(start).startOf('day').toDate();
+    const notify = opts?.notify ?? true;
 
     const subscription = await PlatformSubscription.create(
       {
@@ -440,6 +442,7 @@ class PlatformSubscription extends Model<
             previousPlan: opts?.previousPlan ?? null,
             newPlan: plan,
             nextBillingDate,
+            notify,
           },
         },
         {

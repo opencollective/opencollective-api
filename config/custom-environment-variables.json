@@ -273,7 +273,8 @@
   "features": {
     "dashboard": {
       "redirect": "FEATURES_DASHBOARD_REDIRECT"
-    }
+    },
+    "newPricing": "NEW_PRICING"
   },
   "settlement": {
     "minimumAmountInUSD": "SETTLEMENT_MINIMUM_AMOUNT_IN_USD"
