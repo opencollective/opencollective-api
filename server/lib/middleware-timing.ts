@@ -3,7 +3,6 @@ import { NextFunction, Request, Response } from 'express';
 
 import logger from './logger';
 import { getStringIdentifiersFromRequest } from './request-utils';
-import { timing } from './statsd';
 import { parseToBoolean } from './utils';
 
 /**
@@ -39,9 +38,6 @@ export class MiddlewareTimingTracker {
       if (duration >= this.threshold) {
         this.logSlowMiddleware(middlewareName, duration);
       }
-
-      // Send to statsd if available
-      timing(`middleware.${middlewareName}.duration`, duration);
     };
   }
 

@@ -2,7 +2,6 @@ import debugLib from 'debug';
 
 import logger from './logger';
 import { createRedisClient, RedisInstanceType } from './redis';
-import { utils } from './statsd';
 import { sleep } from './utils';
 
 const debug = debugLib('mutex');
@@ -23,7 +22,6 @@ export async function lockUntilResolved<T>(
 
   const start = Date.now();
   const _key = `lock:${key}`;
-  const stopWatch = utils.stopwatch(`mutex.lockUntilResolved.${_key}`);
   const lock = () => redis.set(_key, 1, { NX: true, PX: unlockTimeoutMs });
 
   let lockAcquired = await lock();
@@ -40,7 +38,6 @@ export async function lockUntilResolved<T>(
   debug(`Acquired lock ${_key}`);
   return until().finally(async () => {
     await redis.del(_key);
-    stopWatch();
     debug(`Released lock ${_key}`);
   });
 }

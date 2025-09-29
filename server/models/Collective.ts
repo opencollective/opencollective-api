@@ -31,7 +31,6 @@ import {
 import moment from 'moment';
 import fetch from 'node-fetch';
 import pMap from 'p-map';
-import prependHttp from 'prepend-http';
 import {
   Attributes,
   CreationOptional,
@@ -107,7 +106,7 @@ import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, SpamAnalysisReport } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
-import { isValidURL } from '../lib/url-utils';
+import { isValidURL, prependHttp } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';

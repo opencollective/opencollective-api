@@ -279,12 +279,6 @@
   "plaid": {
     "env": "sandbox"
   },
-  "statsd": {
-    "enabled": false,
-    "url": "localhost",
-    "port": 8125,
-    "prefix": ""
-  },
   "webauthn": {
     "rpName": "[Test] Open Collective",
     "rpId": "localhost",

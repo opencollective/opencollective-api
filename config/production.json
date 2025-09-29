@@ -64,10 +64,6 @@
   "captcha": {
     "enabled": true
   },
-  "statsd": {
-    "enabled": true,
-    "url": "statsd.hostedgraphite.com"
-  },
   "webauthn": {
     "rpName": "Open Collective",
     "rpId": "opencollective.com",
