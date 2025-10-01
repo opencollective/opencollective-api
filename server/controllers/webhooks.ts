@@ -1,6 +1,7 @@
 import type express from 'express';
 
 import logger from '../lib/logger';
+import { draftExpenseFromEmail } from '../lib/mailgun';
 import { handlePlaidWebhookEvent } from '../lib/plaid/webhooks';
 import { reportErrorToSentry } from '../lib/sentry';
 import paymentProviders from '../paymentProviders';
@@ -60,5 +61,16 @@ export async function plaidWebhook(
     logger.error(`plaid/webhook : ${error.message}`, { body: req.body });
     reportErrorToSentry(error, { req, handler: 'WEBHOOK' });
     next(error);
+  }
+}
+
+export async function mailgunWebhook(req: express.Request, res: express.Response): Promise<void> {
+  try {
+    await draftExpenseFromEmail(req);
+  } catch (error) {
+    logger.error(`mailgun/webhook : ${error.message}`, { body: req.body });
+    reportErrorToSentry(error, { req, handler: 'WEBHOOK' });
+  } finally {
+    res.sendStatus(200);
   }
 }
