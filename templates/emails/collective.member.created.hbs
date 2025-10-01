@@ -66,7 +66,12 @@ Subject: New financial contributor to {{{collective.name}}}: {{{member.memberCol
   {{/ifCond}}
   <tr>
     <th>Amount:</th>
-    <td>{{currency order.totalAmount currency=order.currency}}</td>
+    <td>
+      {{currency order.netAmount currency=order.currency}}
+      {{#if order.platformTipAmount}}
+        (+ {{currency order.platformTipAmount currency=order.currency}} tip to Open Collective)
+      {{/if}}
+    </td>
   </tr>
   {{#if order.subscription}}
   {{#if order.subscription.interval}}
