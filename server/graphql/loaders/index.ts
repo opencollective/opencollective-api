@@ -7,7 +7,6 @@ import { OrderItem, Sequelize } from 'sequelize';
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
-import orderStatus from '../../constants/order-status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
   getBalances,
@@ -56,6 +55,7 @@ import {
 import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { generateSearchLoaders } from './search';
+import { generateTierAvailableQuantityLoader } from './tiers';
 import * as transactionLoaders from './transactions';
 import {
   generateOffPlatformTransactionsStatsLoader,
@@ -783,37 +783,7 @@ export const generateLoaders = req => {
     },
     Tier: {
       ...context.loaders.Tier,
-      availableQuantity: new DataLoader(tierIds =>
-        sequelize
-          .query(
-            `
-          SELECT t.id, (t."maxQuantity" - COALESCE(SUM(o.quantity), 0)) AS "availableQuantity"
-          FROM "Tiers" t
-          LEFT JOIN "Orders" o ON o."TierId" = t.id AND o."deletedAt" IS NULL AND o."processedAt" IS NOT NULL AND o."status" NOT IN (?)
-          WHERE t.id IN (?)
-          AND t."maxQuantity" IS NOT NULL
-          AND t."deletedAt" IS NULL
-          GROUP BY t.id
-        `,
-            {
-              replacements: [
-                [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED],
-                tierIds,
-              ],
-              type: sequelize.QueryTypes.SELECT,
-            },
-          )
-          .then(results => {
-            return tierIds.map(tierId => {
-              const result = results.find(({ id }) => id === tierId);
-              if (result) {
-                return result.availableQuantity > 0 ? result.availableQuantity : 0;
-              } else {
-                return null;
-              }
-            });
-          }),
-      ),
+      availableQuantity: generateTierAvailableQuantityLoader(),
       // Tier - totalDistinctOrders
       totalDistinctOrders: new DataLoader<number, number>(ids =>
         Order.findAll({

@@ -310,9 +310,11 @@ export async function createOrder(order, req) {
         }
       }
 
-      const enoughQuantityAvailable = await tier.checkAvailableQuantity(order.quantity);
-      if (!enoughQuantityAvailable) {
-        throw new Error(`No more tickets left for ${tier.name}`);
+      if (tier.maxQuantity) {
+        const availableQuantity = await loaders.Tier.availableQuantity.load(tier.id);
+        if (order.quantity > availableQuantity) {
+          throw new Error(`No more tickets left for ${tier.name}`);
+        }
       }
     }
 
