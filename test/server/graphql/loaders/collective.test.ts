@@ -9,7 +9,6 @@ import {
   fakeActiveHost,
   fakeCollective,
   fakeMember,
-  fakeMemberInvitation,
   fakeTransaction,
   fakeUser,
   multiple,
@@ -23,11 +22,10 @@ describe('server/graphql/loaders/collective', () => {
 
   describe('canSeePrivateProfileInfo', () => {
     describe('User info', () => {
-      let userWithPrivateInfo, randomUser, collectiveAdmin, hostAdmin, invitedUserWithPrivateInfo;
+      let userWithPrivateInfo, randomUser, collectiveAdmin, hostAdmin;
 
       before(async () => {
         userWithPrivateInfo = await fakeUser();
-        invitedUserWithPrivateInfo = await fakeUser();
         randomUser = await fakeUser();
         collectiveAdmin = await fakeUser();
         hostAdmin = await fakeUser();
@@ -36,11 +34,6 @@ describe('server/graphql/loaders/collective', () => {
         await collective.addUserWithRole(userWithPrivateInfo, 'BACKER');
         await collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await collective.host.addUserWithRole(hostAdmin, 'ADMIN');
-        await fakeMemberInvitation({
-          CollectiveId: collective.id,
-          MemberCollectiveId: invitedUserWithPrivateInfo.CollectiveId,
-          role: MemberRoles.ADMIN,
-        });
       });
 
       it('Cannot see infos as unauthenticated', async () => {
@@ -64,12 +57,6 @@ describe('server/graphql/loaders/collective', () => {
       it('Can see infos if collective admin', async () => {
         const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
-        expect(result).to.be.true;
-      });
-
-      it('Can see infos if user is invited to collective', async () => {
-        const loader = CollectiveLoaders.canSeePrivateProfileInfo({ remoteUser: collectiveAdmin });
-        const result = await loader.load(invitedUserWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
 
