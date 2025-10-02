@@ -95,35 +95,25 @@ export default {
       if (otherAccountsCollectiveIds.length) {
         await remoteUser.populateRoles();
         const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-        const include = {
-          association: 'collective',
-          required: true,
-          attributes: [],
-          where: {
-            [Op.or]: [
-              { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
-              { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
-              { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
-            ],
-          },
-        };
         administratedMembers = await models.Member.findAll({
           attributes: ['MemberCollectiveId'],
           group: ['MemberCollectiveId'],
           raw: true,
           mapToModel: false,
           where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.ne]: MemberRoles.FOLLOWER } },
-          include,
+          include: {
+            association: 'collective',
+            required: true,
+            attributes: [],
+            where: {
+              [Op.or]: [
+                { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
+                { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
+                { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
+              ],
+            },
+          },
         });
-        const invitedMembers = await models.MemberInvitation.findAll({
-          attributes: ['MemberCollectiveId'],
-          group: ['MemberCollectiveId'],
-          raw: true,
-          mapToModel: false,
-          where: { MemberCollectiveId: otherAccountsCollectiveIds },
-          include,
-        });
-        administratedMembers = administratedMembers.concat(invitedMembers);
       }
 
       // User must be self or directly administered by remoteUser
