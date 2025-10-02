@@ -54,6 +54,7 @@ RequiredLegalDocument.init(
   },
   {
     sequelize,
+    paranoid: true,
   },
 );
 
