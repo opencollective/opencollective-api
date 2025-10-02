@@ -761,6 +761,7 @@ export const fakeOrder = async (
   }
 
   if (withTransactions) {
+    const transactionGroup = uuid();
     order.transactions = await Promise.all([
       fakeTransaction({
         OrderId: order.id,
@@ -771,6 +772,7 @@ export const fakeOrder = async (
         HostCollectiveId: collective.HostCollectiveId,
         amount: order.totalAmount,
         PaymentMethodId: order.PaymentMethodId,
+        TransactionGroup: transactionGroup,
       }),
       fakeTransaction({
         OrderId: order.id,
@@ -780,6 +782,7 @@ export const fakeOrder = async (
         FromCollectiveId: order.CollectiveId,
         amount: -order.totalAmount,
         PaymentMethodId: order.PaymentMethodId,
+        TransactionGroup: transactionGroup,
       }),
     ]);
   }
