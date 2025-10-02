@@ -231,7 +231,7 @@ Subject: {{capitalize month}} Open Collective Report
               You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
               (<a href="{{../config.host.website}}/recurring-contributions">increase your contribution</a>)
               {{else}}
-              You have contributed {{order.totalAmount}}.
+              You have contributed {{order.netAmount}} {{#if order.platformTipAmount}}(+ {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}.
               (<a href="{{../config.host.website}}/{{slug}}/donate">increase your contribution</a>)
               {{/if}}
               </li>

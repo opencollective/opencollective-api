@@ -20,7 +20,7 @@ Subject: Funds from {{fromCollective.name}} are now available
 <h2>Contribution Details</h2>
 <p>
   Description: {{order.description}}<br />
-  Amount: {{currency order.totalAmount currency=order.currency}}<br />
+  Amount: {{currency order.netAmount currency=order.currency}} {{#if order.platformTipAmount}}(+ {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}<br />
   {{#if tierName}}
   Tier: {{tierName}}<br />
   {{/if}}

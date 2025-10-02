@@ -17,17 +17,17 @@ Subject: Merci pour votre contribution de {{currency order.totalAmount currency=
 {{#if interval}}
 
 {{#if firstPayment }}
-<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} par {{interval}}. Votre premier
+<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} par {{interval}}{{#if order.platformTipAmount}}(incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}}. Votre premier
   paiement a bien été reçu. Votre soutien nous permettra de poursuivre nos activités.</p>
 <p>À noter que vos prochains paiements seront effectués le premier du mois (<a
     href='https://documentation.opencollective.com/giving-to-collectives/making-a-recurring-contribution'>plus
     d'informations</a>).</p>
 {{else}}
-<p>Votre dernière contribution de {{currency order.totalAmount currency=order.currency}} vient d'être reçue. Merci de continuer à nous soutenir !</p>
+<p>Votre dernière contribution de {{currency order.totalAmount currency=order.currency}}{{#if order.platformTipAmount}} (incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}} vient d'être reçue. Merci de continuer à nous soutenir !</p>
 {{/if}}
 
 {{else}}
-<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}}.
+<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}}.
   Votre soutien nous permet de poursuivre nos activités.</p>
 {{/if}}
 

@@ -20,7 +20,7 @@ Subject: {{#if instructions}}ACTION REQUIRED:{{/if}} your {{currency order.total
 <p>Hi!</p>
 {{/if}}
 
-<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}, made on
+<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}, made on
   {{moment order.createdAt}}.</p>
 
 <p>Your contribution is currently pending. Once you transmit the funds per the instructions below,
