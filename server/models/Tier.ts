@@ -130,7 +130,15 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
     return Order.sum('quantity', {
       where: {
         TierId: this.id,
-        status: { [Op.notIn]: [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED] },
+        status: {
+          [Op.notIn]: [
+            orderStatus.ERROR,
+            orderStatus.CANCELLED,
+            orderStatus.EXPIRED,
+            orderStatus.REJECTED,
+            orderStatus.REFUNDED,
+          ],
+        },
         processedAt: { [Op.ne]: null },
       },
     }).then(usedQuantity => {

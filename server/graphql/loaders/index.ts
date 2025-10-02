@@ -797,7 +797,13 @@ export const generateLoaders = req => {
         `,
             {
               replacements: [
-                [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED],
+                [
+                  orderStatus.ERROR,
+                  orderStatus.CANCELLED,
+                  orderStatus.EXPIRED,
+                  orderStatus.REJECTED,
+                  orderStatus.REFUNDED,
+                ],
                 tierIds,
               ],
               type: sequelize.QueryTypes.SELECT,
