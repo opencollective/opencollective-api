@@ -13,6 +13,7 @@ import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { get, isEmpty, isEqual, pick } from 'lodash';
 
+import { ENGINEERING_DOMAINS } from '../../constants/engineering-domains';
 import FEATURE from '../../constants/feature';
 import { User } from '../../models';
 import logger from '../logger';
@@ -28,6 +29,7 @@ export type CaptureErrorParams = {
   user?: Sentry.User | User;
   handler?: HandlerType | `${HandlerType}`;
   feature?: FEATURE;
+  domain?: ENGINEERING_DOMAINS;
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
@@ -96,7 +98,18 @@ const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError, params
 };
 
 const withScopeFromCaptureErrorParams = (
-  { severity = 'error', tags, handler, extra, user, breadcrumbs, feature, requestPath, req }: CaptureErrorParams = {},
+  {
+    severity = 'error',
+    tags,
+    handler,
+    extra,
+    user,
+    breadcrumbs,
+    feature,
+    domain,
+    requestPath,
+    req,
+  }: CaptureErrorParams = {},
   callback: (scope: Sentry.Scope) => void,
 ) => {
   Sentry.withScope(scope => {
@@ -108,6 +121,9 @@ const withScopeFromCaptureErrorParams = (
     }
     if (feature) {
       scope.setTag('feature', feature);
+    }
+    if (domain) {
+      scope.setTag('engineering-domain', domain);
     }
     if (requestPath) {
       scope.setTag('requestPath', requestPath);
