@@ -40,6 +40,9 @@ if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
 } else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
   console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
   process.exit();
+} else if (!KIND && !DRY) {
+  console.log('KIND must be set when not running in dry mode.');
+  process.exit();
 }
 
 if (DRY) {
