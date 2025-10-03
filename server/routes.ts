@@ -35,7 +35,6 @@ import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/s
 import { checkIfSentryConfigured } from './lib/sentry/init';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
-import errorHandler from './middleware/error-handler';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
 
@@ -433,9 +432,4 @@ export default async (app: express.Application) => {
     next();
   }
   app.use(timeTrackingMiddleware);
-
-  /**
-   * Error handler.
-   */
-  app.use(errorHandler);
 };
