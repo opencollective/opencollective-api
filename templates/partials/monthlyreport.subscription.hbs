@@ -134,9 +134,9 @@
         </tr>
         <tr>
           {{#if order.Subscription}}
-            <td><p>You’re contributing <b>{{currency order.Subscription.amount currency=order.Subscription.currency}}</b> per {{order.Subscription.interval}} since {{moment order.Subscription.createdAt format="MMMM YYYY"}}</p></td>
+            <td><p>You’re contributing <b>{{currency order.Subscription.amount currency=order.Subscription.currency}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.Subscription.currency}} tip to the Open Collective Platform){{/if}} per {{order.Subscription.interval}} since {{moment order.Subscription.createdAt format="MMMM YYYY"}}</p></td>
           {{else}}
-            <td><p>You've contributed <b>{{order.totalAmount}}</b></p></td>
+            <td><p>You've contributed <b>{{order.totalAmount}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}</p></td>
           {{/if}}
         </tr>
         <tr><td height="10"></td></tr>
