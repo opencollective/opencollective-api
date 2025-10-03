@@ -8,6 +8,7 @@ import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 import { activities } from '../constants';
 import { EmailTheme } from '../constants/email-theme';
+import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import models from '../models';
 
 import authorizedEmailDomains from './authorizedEmailDomains';
@@ -381,7 +382,11 @@ const generateEmailFromTemplateAndSend = async (
   } catch (err) {
     logger.error(err.message);
     logger.debug(err);
-    reportErrorToSentry(err, { severity: 'error', extra: { template, recipient, data, options } });
+    reportErrorToSentry(err, {
+      severity: 'error',
+      domain: ENGINEERING_DOMAINS.EMAIL_NOTIFICATIONS,
+      extra: { template, recipient, data, options },
+    });
   }
 };
 
