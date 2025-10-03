@@ -12,6 +12,7 @@ import {
 } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
+import { SUPPORTED_CURRENCIES } from '../constants/currencies';
 import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
 import sequelize, { Op } from '../lib/sequelize';
@@ -289,6 +290,14 @@ PayoutMethod.init(
       allowNull: false,
       validate: {
         isValidValue(value): void {
+          // General checks
+          if (value && value.currency) {
+            if (typeof value.currency !== 'string' || !SUPPORTED_CURRENCIES.includes(value.currency)) {
+              throw new Error('Invalid currency');
+            }
+          }
+
+          // Type-specific checks
           if (this.type === PayoutMethodTypes.PAYPAL) {
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
