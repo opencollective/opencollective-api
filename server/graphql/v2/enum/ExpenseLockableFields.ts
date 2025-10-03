@@ -15,6 +15,9 @@ const values: Record<ExpenseLockableFields, { description: string }> = {
   [ExpenseLockableFields.TYPE]: {
     description: 'Locks the type field.',
   },
+  [ExpenseLockableFields.PAYOUT_METHOD]: {
+    description: 'Locks the payout method field.',
+  },
 };
 
 export const GraphQLExpenseLockableFields = new GraphQLEnumType({
