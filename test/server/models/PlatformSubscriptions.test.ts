@@ -295,7 +295,7 @@ describe('server/models/PlatformSubscriptions', () => {
       it('removes RequiredLegalDocument when removing TAX_FORMS feature', async () => {
         const admin = await fakeUser();
         const host = await fakeActiveHost({ admin });
-        await PlatformSubscription.createSubscription(
+        const oldSubscription = await PlatformSubscription.createSubscription(
           host,
           new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
           { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
@@ -304,9 +304,9 @@ describe('server/models/PlatformSubscriptions', () => {
 
         await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
 
-        await PlatformSubscription.replaceCurrentSubscription(
+        const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
           host,
-          new Date(Date.UTC(2016, 0, 2, 22, 3)),
+          new Date(),
           { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: false } },
           admin,
         );
@@ -318,12 +318,16 @@ describe('server/models/PlatformSubscriptions', () => {
 
         expect(updatedLegalDocument).to.exist;
         expect(updatedLegalDocument.deletedAt).to.not.be.null;
+
+        await oldSubscription.reload();
+        expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
+        expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
       });
 
       it('keeps the RequiredLegalDocument when there is no change to the feature flag', async () => {
         const admin = await fakeUser();
         const host = await fakeActiveHost({ admin });
-        await PlatformSubscription.createSubscription(
+        const oldSubscription = await PlatformSubscription.createSubscription(
           host,
           new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
           { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
@@ -332,9 +336,9 @@ describe('server/models/PlatformSubscriptions', () => {
 
         const requiredLegalDoc = await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
 
-        await PlatformSubscription.replaceCurrentSubscription(
+        const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
           host,
-          new Date(Date.UTC(2016, 0, 2, 22, 3)),
+          new Date(),
           { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: true } },
           admin,
         );
@@ -347,6 +351,10 @@ describe('server/models/PlatformSubscriptions', () => {
         expect(updatedLegalDocument).to.exist;
         expect(updatedLegalDocument.id).to.equal(requiredLegalDoc.id);
         expect(updatedLegalDocument.deletedAt).to.be.null;
+
+        await oldSubscription.reload();
+        expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
+        expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
       });
     });
   });

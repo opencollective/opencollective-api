@@ -91,6 +91,7 @@ class PlatformSubscription extends Model<
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare plan: Partial<PlatformSubscriptionPlan>;
   declare period: Range<Date>;
+  declare featureProvisioningStatus: 'PENDING' | 'PROVISIONED' | 'DEPROVISIONED';
   declare createdAt: Date;
   declare updatedAt: Date;
   declare deletedAt?: Date;
@@ -514,12 +515,13 @@ class PlatformSubscription extends Model<
       { ...opts, previousPlan },
     );
 
-    await PlatformSubscription.handleSubscriptionUpdateFeatureChanges(
-      collective,
-      currentSubscription,
-      newSubscription,
-      { transaction: opts?.transaction },
-    );
+    // If the new subscription starts today, provision the features immediately. Otherwise,
+    // they'll be provisioned in the "handle-plans-feature-provisioning" CRON job.
+    if (newSubscriptionStart.isSame(moment.utc().startOf('day'))) {
+      await PlatformSubscription.provisionFeatureChanges(collective, currentSubscription, newSubscription, {
+        transaction: opts?.transaction,
+      });
+    }
 
     return newSubscription;
   }
@@ -528,37 +530,44 @@ class PlatformSubscription extends Model<
    * A hook to call when changing plan, to handle the side-effects required to
    * enable/disable new features.
    */
-  private static async handleSubscriptionUpdateFeatureChanges(
+  public static async provisionFeatureChanges(
     collective: Collective,
     previousSubscription: PlatformSubscription | null,
     newSubscription: PlatformSubscription | null,
     opts?: { transaction?: SequelizeTransaction },
   ): Promise<void> {
-    // This function only looks at removed features for now. In the future, we
-    // may want to hook here the side-effects required to enable new features
-    // like creating a RequiredLegalDocument for tax forms, which we don't want
-    // to do yet for security reasons: https://github.com/opencollective/opencollective/issues/8153.
-    if (!previousSubscription) {
-      return;
+    if (previousSubscription) {
+      const currentSubscriptionFeatures = previousSubscription.plan?.features || {};
+      const newSubscriptionFeatures = newSubscription?.plan?.features || {};
+      const removedFeatures = Object.keys(currentSubscriptionFeatures).filter(
+        feature => currentSubscriptionFeatures[feature] && !newSubscriptionFeatures[feature],
+      );
+
+      for (const feature of removedFeatures) {
+        switch (feature) {
+          case FEATURE.TAX_FORMS:
+            await models.RequiredLegalDocument.destroy({
+              where: { HostCollectiveId: collective.id },
+              transaction: opts?.transaction,
+            });
+            break;
+          default:
+            break;
+        }
+      }
+
+      await previousSubscription.update(
+        { featureProvisioningStatus: 'DEPROVISIONED' },
+        { transaction: opts?.transaction },
+      );
     }
 
-    const currentSubscriptionFeatures = previousSubscription.plan?.features || {};
-    const newSubscriptionFeatures = newSubscription?.plan?.features || {};
-    const removedFeatures = Object.keys(currentSubscriptionFeatures).filter(
-      feature => currentSubscriptionFeatures[feature] && !newSubscriptionFeatures[feature],
-    );
-
-    for (const feature of removedFeatures) {
-      switch (feature) {
-        case FEATURE.TAX_FORMS:
-          await models.RequiredLegalDocument.destroy({
-            where: { HostCollectiveId: collective.id },
-            transaction: opts?.transaction,
-          });
-          break;
-        default:
-          break;
-      }
+    if (newSubscription) {
+      // This function only looks at removed features for now. In the future, we
+      // may want to hook here the side-effects required to enable new features
+      // like creating a RequiredLegalDocument for tax forms, which we don't want
+      // to do yet for security reasons: https://github.com/opencollective/opencollective/issues/8153.
+      await newSubscription.update({ featureProvisioningStatus: 'PROVISIONED' }, { transaction: opts?.transaction });
     }
   }
 
@@ -605,6 +614,11 @@ PlatformSubscription.init(
     period: {
       type: DataTypes.RANGE(DataTypes.DATE),
       allowNull: false,
+    },
+    featureProvisioningStatus: {
+      type: DataTypes.ENUM('PENDING', 'PROVISIONED', 'DEPROVISIONED'),
+      allowNull: false,
+      defaultValue: 'PENDING',
     },
     createdAt: {
       type: DataTypes.DATE,
