@@ -12,7 +12,7 @@ import MemberRoles from '../constants/roles';
 import { Collective, sequelize } from '../models';
 
 import cache from './cache';
-import { filterUntil } from './utils';
+import { filterUntil, ifStr } from './utils';
 
 /**
  * Represent a single contributor.
@@ -253,4 +253,86 @@ export const getContributorsForCollective = async (collective: Collective): Prom
 export const invalidateContributorsCache = async (collectiveId: number): Promise<void> => {
   const cacheKey = getCacheKey(collectiveId);
   await cache.delete(cacheKey);
+};
+
+type HostContributorsReplacement = {
+  email?: string;
+  type?: string[];
+  role?: string[];
+  collectiveid?: number;
+  hostid?: number;
+};
+
+const hostContributorsBaseQuery = (replacements: HostContributorsReplacement = {}) => `
+  FROM
+    "Collectives" mc
+    INNER JOIN "Members" m ON mc.id = m."MemberCollectiveId" AND m."deletedAt" IS NULL
+    INNER JOIN "Collectives" c ON c.id = m."CollectiveId" AND c."deletedAt" IS NULL
+    LEFT JOIN "Users" u ON u."CollectiveId" = mc.id AND u."deletedAt" IS NULL
+  WHERE mc."deletedAt" IS NULL
+    AND mc."isIncognito" = FALSE
+    ${ifStr(replacements.email, 'AND u.email = :email')}
+    ${ifStr(replacements.type, 'AND mc.type in (:type)')}
+    ${ifStr(replacements.role, 'AND m.role in (:role)')}
+    ${ifStr(replacements.collectiveid, 'AND c."id" = :collectiveid')}
+    ${ifStr(replacements.hostid, 'AND c."HostCollectiveId" = :hostid AND c."approvedAt" IS NOT NULL')}
+`;
+
+export const getHostContributors = async (args: HostContributorsReplacement) => {
+  return sequelize.query(
+    `
+      SELECT mc.*,
+        ARRAY_AGG(DISTINCT (m.role)) as roles,
+        ARRAY_AGG(DISTINCT (c.id)) as "ContributedCollectiveIds",
+        'ADMIN' = ANY (ARRAY_AGG(m.role)) as "isAdmin",
+        'ADMIN' = ANY (ARRAY_AGG(m.role))  OR 'MEMBER' = ANY (ARRAY_AGG(m.role)) as "isCore",
+        'BACKER' = ANY (ARRAY_AGG(m.role)) as "isBacker"
+      ${hostContributorsBaseQuery(args)}
+      GROUP BY
+      mc.id
+        ORDER BY mc."createdAt" DESC
+        LIMIT :limit
+        OFFSET :offset;
+    `,
+    { replacements: args, type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+};
+
+export const countHostContributors = async (args: HostContributorsReplacement) => {
+  const result = await sequelize.query(
+    `
+      SELECT COUNT(DISTINCT (mc.id))
+      ${hostContributorsBaseQuery(args)}
+    `,
+    { replacements: args, type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+  return result[0].count;
+};
+
+export const getHostContributorDetail = async (memberCollectiveId: number, hostId: number) => {
+  return await sequelize.query(
+    `
+      SELECT mc.*,
+        ARRAY_AGG(DISTINCT (m.role)) as roles,
+        ARRAY_AGG(DISTINCT (c.id)) as "ContributedCollectiveIds",
+        'ADMIN' = ANY (ARRAY_AGG(m.role)) as "isAdmin",
+        'ADMIN' = ANY (ARRAY_AGG(m.role))  OR 'MEMBER' = ANY (ARRAY_AGG(m.role)) as "isCore",
+        'BACKER' = ANY (ARRAY_AGG(m.role)) as "isBacker"
+      ${hostContributorsBaseQuery({ hostid: hostId })}
+        AND mc."id" = :membercollectiveid
+      GROUP BY
+        mc.id
+          ORDER BY mc."createdAt" DESC
+      LIMIT 1;
+    `,
+    {
+      replacements: {
+        membercollectiveid: memberCollectiveId,
+        hostid: hostId,
+      },
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+      plain: true,
+    },
+  );
 };
