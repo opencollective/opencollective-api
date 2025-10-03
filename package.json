@@ -169,7 +169,7 @@
     "eslint-config-opencollective": "^6.0.0",
     "eslint-import-resolver-typescript": "^4.0.0",
     "eslint-plugin-import": "^2.31.0",
-    "eslint-plugin-mocha": "11.1.0",
+    "eslint-plugin-mocha": "11.2.0",
     "eslint-plugin-n": "^17.11.1",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-simple-import-sort": "^12.1.1",
