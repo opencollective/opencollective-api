@@ -39,6 +39,7 @@ import models, {
   PaypalProduct,
   PersonalToken,
   PlatformSubscription,
+  RequiredLegalDocument,
   sequelize,
   Subscription,
   Tier,
@@ -53,7 +54,7 @@ import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
-import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
+import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
@@ -1023,6 +1024,14 @@ export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<Pa
     token,
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
     currency: data.currency || 'USD',
+  });
+};
+
+export const fakeRequiredLegalDocument = async (data: Partial<InferCreationAttributes<RequiredLegalDocument>> = {}) => {
+  return models.RequiredLegalDocument.create({
+    ...data,
+    documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+    HostCollectiveId: data.HostCollectiveId || (await fakeCollective().then(c => c.id)),
   });
 };
 

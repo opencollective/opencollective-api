@@ -3,8 +3,9 @@ import moment from 'moment';
 
 import { activities } from '../../../server/constants';
 import ExpenseStatuses from '../../../server/constants/expense-status';
+import FEATURE from '../../../server/constants/feature';
 import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
-import { Activity, PlatformSubscription } from '../../../server/models';
+import { Activity, PlatformSubscription, RequiredLegalDocument } from '../../../server/models';
 import { BillingMonth, BillingPeriod, UtilizationType } from '../../../server/models/PlatformSubscription';
 import {
   fakeActiveHost,
@@ -13,6 +14,7 @@ import {
   fakeEvent,
   fakeExpense,
   fakeProject,
+  fakeRequiredLegalDocument,
   fakeTransaction,
   fakeUser,
 } from '../../test-helpers/fake-data';
@@ -287,6 +289,73 @@ describe('server/models/PlatformSubscriptions', () => {
       expect(activity.data.previousPlan.id).to.equal('initial-1');
       expect(activity.data.newPlan.title).to.equal('New Plan');
       expect(activity.data.newPlan.id).to.equal('new-5');
+    });
+
+    describe('feature changes side-effects', () => {
+      it('removes RequiredLegalDocument when removing TAX_FORMS feature', async () => {
+        const admin = await fakeUser();
+        const host = await fakeActiveHost({ admin });
+        const oldSubscription = await PlatformSubscription.createSubscription(
+          host,
+          new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+          { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
+          admin,
+        );
+
+        await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+
+        const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
+          host,
+          new Date(),
+          { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: false } },
+          admin,
+        );
+
+        const updatedLegalDocument = await RequiredLegalDocument.findOne({
+          where: { HostCollectiveId: host.id },
+          paranoid: false,
+        });
+
+        expect(updatedLegalDocument).to.exist;
+        expect(updatedLegalDocument.deletedAt).to.not.be.null;
+
+        await oldSubscription.reload();
+        expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
+        expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
+      });
+
+      it('keeps the RequiredLegalDocument when there is no change to the feature flag', async () => {
+        const admin = await fakeUser();
+        const host = await fakeActiveHost({ admin });
+        const oldSubscription = await PlatformSubscription.createSubscription(
+          host,
+          new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+          { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
+          admin,
+        );
+
+        const requiredLegalDoc = await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+
+        const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
+          host,
+          new Date(),
+          { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: true } },
+          admin,
+        );
+
+        const updatedLegalDocument = await RequiredLegalDocument.findOne({
+          where: { HostCollectiveId: host.id },
+          paranoid: false,
+        });
+
+        expect(updatedLegalDocument).to.exist;
+        expect(updatedLegalDocument.id).to.equal(requiredLegalDoc.id);
+        expect(updatedLegalDocument.deletedAt).to.be.null;
+
+        await oldSubscription.reload();
+        expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
+        expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
+      });
     });
   });
 

@@ -16,6 +16,7 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import ActivityTypes from '../constants/activities';
+import FEATURE from '../constants/feature';
 import { PlatformSubscriptionPlan } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
 import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
@@ -25,6 +26,7 @@ import sequelize from '../lib/sequelize';
 import Activity from './Activity';
 import Collective from './Collective';
 import User from './User';
+import models from '.';
 
 export type Billing = {
   collectiveId: number;
@@ -89,6 +91,7 @@ class PlatformSubscription extends Model<
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare plan: Partial<PlatformSubscriptionPlan>;
   declare period: Range<Date>;
+  declare featureProvisioningStatus: 'PENDING' | 'PROVISIONED' | 'DEPROVISIONED';
   declare createdAt: Date;
   declare updatedAt: Date;
   declare deletedAt?: Date;
@@ -485,7 +488,7 @@ class PlatformSubscription extends Model<
     if (currentSubscription) {
       const currentSubscriptionStart = moment.utc(currentSubscription.startDate);
       if (currentSubscriptionStart.isSameOrAfter(newSubscriptionStart)) {
-        await currentSubscription.destroy();
+        await currentSubscription.destroy({ transaction: opts?.transaction });
       } else {
         await currentSubscription.update(
           {
@@ -512,7 +515,60 @@ class PlatformSubscription extends Model<
       { ...opts, previousPlan },
     );
 
+    // If the new subscription starts today, provision the features immediately. Otherwise,
+    // they'll be provisioned in the "handle-plans-feature-provisioning" CRON job.
+    if (newSubscriptionStart.isSame(moment.utc().startOf('day'))) {
+      await PlatformSubscription.provisionFeatureChanges(collective, currentSubscription, newSubscription, {
+        transaction: opts?.transaction,
+      });
+    }
+
     return newSubscription;
+  }
+
+  /**
+   * A hook to call when changing plan, to handle the side-effects required to
+   * enable/disable new features.
+   */
+  public static async provisionFeatureChanges(
+    collective: Collective,
+    previousSubscription: PlatformSubscription | null,
+    newSubscription: PlatformSubscription | null,
+    opts?: { transaction?: SequelizeTransaction },
+  ): Promise<void> {
+    if (previousSubscription) {
+      const currentSubscriptionFeatures = previousSubscription.plan?.features || {};
+      const newSubscriptionFeatures = newSubscription?.plan?.features || {};
+      const removedFeatures = Object.keys(currentSubscriptionFeatures).filter(
+        feature => currentSubscriptionFeatures[feature] && !newSubscriptionFeatures[feature],
+      );
+
+      for (const feature of removedFeatures) {
+        switch (feature) {
+          case FEATURE.TAX_FORMS:
+            await models.RequiredLegalDocument.destroy({
+              where: { HostCollectiveId: collective.id },
+              transaction: opts?.transaction,
+            });
+            break;
+          default:
+            break;
+        }
+      }
+
+      await previousSubscription.update(
+        { featureProvisioningStatus: 'DEPROVISIONED' },
+        { transaction: opts?.transaction },
+      );
+    }
+
+    if (newSubscription) {
+      // This function only looks at removed features for now. In the future, we
+      // may want to hook here the side-effects required to enable new features
+      // like creating a RequiredLegalDocument for tax forms, which we don't want
+      // to do yet for security reasons: https://github.com/opencollective/opencollective/issues/8153.
+      await newSubscription.update({ featureProvisioningStatus: 'PROVISIONED' }, { transaction: opts?.transaction });
+    }
   }
 
   static getPreferredPlatformPayout = getPreferredPlatformPayout;
@@ -558,6 +614,11 @@ PlatformSubscription.init(
     period: {
       type: DataTypes.RANGE(DataTypes.DATE),
       allowNull: false,
+    },
+    featureProvisioningStatus: {
+      type: DataTypes.ENUM('PENDING', 'PROVISIONED', 'DEPROVISIONED'),
+      allowNull: false,
+      defaultValue: 'PENDING',
     },
     createdAt: {
       type: DataTypes.DATE,
