@@ -84,7 +84,7 @@ const processEndedSubscriptions = async () => {
     include: [{ association: 'collective', required: true }],
     where: {
       featureProvisioningStatus: 'PROVISIONED',
-      period: sequelize.literal(`upper(period) < NOW()`),
+      period: sequelize.literal(`upper(period) < NOW() - INTERVAL '5 minutes'`),
     },
   });
 
@@ -96,6 +96,7 @@ const processEndedSubscriptions = async () => {
       await sequelize.transaction(async transaction => {
         const newerSubscription = await models.PlatformSubscription.findOne({
           where: { CollectiveId: collective.id, period: { [Op.contains]: today } },
+          transaction,
         });
 
         // Only deprovision if there's no replacement subscription
