@@ -129,6 +129,11 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       reference: {
         type: GraphQLString,
         description: 'User-provided reference number or any other identifier that references the invoice',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+            return expense.reference;
+          }
+        },
       },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
