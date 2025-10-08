@@ -18,6 +18,7 @@ import {
   isUndefined,
   keyBy,
   mapValues,
+  matches,
   min,
   omit,
   omitBy,
@@ -2657,6 +2658,14 @@ const isValueChanging = (expense: Expense, expenseData: Partial<ExpenseData>, ke
   }
 };
 
+const isDifferentInvitedPayee = (expense: Expense, payee): boolean => {
+  const isInvitedPayee = !expense.data?.payee?.id && expense.data.payee.email;
+  if (isInvitedPayee) {
+    return !matches(expense.data.payee)(payee);
+  }
+  return false;
+};
+
 const checkLockedFields = async (
   existing: Expense,
   updated: ExpenseData & { payee?: Collective | { legacyId: number } | { email: string; name: string } },
@@ -2780,7 +2789,11 @@ export async function editExpenseDraft(
 
   await checkLockedFields(existingExpense, expenseData);
 
-  if (args.expense.payee && !existingExpense.RecurringExpenseId) {
+  if (
+    args.expense.payee &&
+    isDifferentInvitedPayee(existingExpense, args.expense.payee) &&
+    !existingExpense.RecurringExpenseId
+  ) {
     const payee = args.expense.payee as { email: string; name?: string };
     if (payee.email) {
       payee.email = payee.email.toLowerCase();
