@@ -152,7 +152,7 @@
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.17.9",
     "@types/node-fetch": "^2.6.10",
-    "@types/nodemailer": "^6.4.14",
+    "@types/nodemailer": "^7.0.0",
     "@types/validator": "^13.11.8",
     "@typescript-eslint/parser": "^8.13.0",
     "babel-plugin-istanbul": "^7.0.0",
