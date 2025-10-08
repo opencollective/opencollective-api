@@ -1133,13 +1133,18 @@ export const generateLoaders = req => {
           where: {
             [Op.or]: {
               FromCollectiveId: {
-                [Op.in]: keys.map(k => k.FromCollectiveId),
+                // Deduplicated Ids
+                [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))],
               },
               UsingGiftCardFromCollectiveId: {
-                [Op.in]: keys.map(k => k.FromCollectiveId),
+                // Deduplicated Ids
+                [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))],
               },
             },
-            CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
+            CollectiveId: {
+              // Deduplicated Ids
+              [Op.in]: [...new Set(keys.map(k => k.CollectiveId))],
+            },
             type: TransactionTypes.CREDIT,
             kind: { [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'] },
             RefundTransactionId: null,
