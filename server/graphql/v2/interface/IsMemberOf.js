@@ -94,7 +94,7 @@ export const IsMemberOfFields = {
       }
       if (args.accountType && args.accountType.length > 0) {
         collectiveConditions.type = {
-          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+          [Op.in]: [...new Set(args.accountType.map(value => AccountTypeToModelMapping[value]))],
         };
       }
       if (args.account) {
