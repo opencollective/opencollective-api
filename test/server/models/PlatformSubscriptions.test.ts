@@ -1,21 +1,30 @@
 import { expect } from 'chai';
 import moment from 'moment';
+import { PlaidApi } from 'plaid';
+import sinon from 'sinon';
 
 import { activities } from '../../../server/constants';
+import { Service } from '../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import FEATURE from '../../../server/constants/feature';
 import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
+import * as GoCardlessConnect from '../../../server/lib/gocardless/connect';
+import * as PlaidClient from '../../../server/lib/plaid/client';
+import * as SentryLib from '../../../server/lib/sentry';
 import { Activity, PlatformSubscription, RequiredLegalDocument } from '../../../server/models';
 import { BillingMonth, BillingPeriod, UtilizationType } from '../../../server/models/PlatformSubscription';
 import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
+  fakeConnectedAccount,
   fakeEvent,
   fakeExpense,
   fakeProject,
   fakeRequiredLegalDocument,
   fakeTransaction,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUser,
 } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
@@ -35,6 +44,16 @@ async function fakeExpensePaidWithActivity(data) {
 }
 
 describe('server/models/PlatformSubscriptions', () => {
+  let sandbox: sinon.SinonSandbox;
+
+  before(() => {
+    sandbox = sinon.createSandbox();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
   describe('getCurrentSubscription', () => {
     it('returns null if no platform subscription for collective id', async () => {
       const collective = await fakeCollective();
@@ -292,69 +311,238 @@ describe('server/models/PlatformSubscriptions', () => {
     });
 
     describe('feature changes side-effects', () => {
-      it('removes RequiredLegalDocument when removing TAX_FORMS feature', async () => {
-        const admin = await fakeUser();
-        const host = await fakeActiveHost({ admin });
-        const oldSubscription = await PlatformSubscription.createSubscription(
-          host,
-          new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
-          { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
-          admin,
-        );
+      describe('Tax forms', () => {
+        it('removes RequiredLegalDocument when removing TAX_FORMS feature', async () => {
+          const admin = await fakeUser();
+          const host = await fakeActiveHost({ admin });
+          const oldSubscription = await PlatformSubscription.createSubscription(
+            host,
+            new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+            { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
+            admin,
+          );
 
-        await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+          await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
 
-        const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
-          host,
-          new Date(),
-          { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: false } },
-          admin,
-        );
+          const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
+            host,
+            new Date(),
+            { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: false } },
+            admin,
+          );
 
-        const updatedLegalDocument = await RequiredLegalDocument.findOne({
-          where: { HostCollectiveId: host.id },
-          paranoid: false,
+          const updatedLegalDocument = await RequiredLegalDocument.findOne({
+            where: { HostCollectiveId: host.id },
+            paranoid: false,
+          });
+
+          expect(updatedLegalDocument).to.exist;
+          expect(updatedLegalDocument.deletedAt).to.not.be.null;
+
+          await oldSubscription.reload();
+          expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
+          expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
         });
 
-        expect(updatedLegalDocument).to.exist;
-        expect(updatedLegalDocument.deletedAt).to.not.be.null;
+        it('keeps the RequiredLegalDocument when there is no change to the feature flag', async () => {
+          const admin = await fakeUser();
+          const host = await fakeActiveHost({ admin });
+          const oldSubscription = await PlatformSubscription.createSubscription(
+            host,
+            new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+            { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
+            admin,
+          );
 
-        await oldSubscription.reload();
-        expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
-        expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
+          const requiredLegalDoc = await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+
+          const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
+            host,
+            new Date(),
+            { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: true } },
+            admin,
+          );
+
+          const updatedLegalDocument = await RequiredLegalDocument.findOne({
+            where: { HostCollectiveId: host.id },
+            paranoid: false,
+          });
+
+          expect(updatedLegalDocument).to.exist;
+          expect(updatedLegalDocument.id).to.equal(requiredLegalDoc.id);
+          expect(updatedLegalDocument.deletedAt).to.be.null;
+
+          await oldSubscription.reload();
+          expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
+          expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
+        });
       });
 
-      it('keeps the RequiredLegalDocument when there is no change to the feature flag', async () => {
-        const admin = await fakeUser();
-        const host = await fakeActiveHost({ admin });
-        const oldSubscription = await PlatformSubscription.createSubscription(
-          host,
-          new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
-          { title: 'A plan', features: { [FEATURE.TAX_FORMS]: true } },
-          admin,
-        );
+      describe('Off-platform transactions', () => {
+        let admin, host, connectedAccount, transactionsImport, row;
 
-        const requiredLegalDoc = await fakeRequiredLegalDocument({ HostCollectiveId: host.id });
+        describe('Plaid', () => {
+          let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
 
-        const newSubscription = await PlatformSubscription.replaceCurrentSubscription(
-          host,
-          new Date(),
-          { title: 'A new plan', features: { [FEATURE.TAX_FORMS]: true } },
-          admin,
-        );
+          beforeEach(async () => {
+            stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
+            sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
 
-        const updatedLegalDocument = await RequiredLegalDocument.findOne({
-          where: { HostCollectiveId: host.id },
-          paranoid: false,
+            admin = await fakeUser();
+            host = await fakeActiveHost({ admin });
+            connectedAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: Service.PLAID });
+            transactionsImport = await fakeTransactionsImport({
+              CollectiveId: host.id,
+              ConnectedAccountId: connectedAccount.id,
+            });
+            row = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+            await PlatformSubscription.createSubscription(
+              host,
+              new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+              { title: 'A plan', features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: true } },
+              admin,
+            );
+          });
+
+          it('removes the connected account and archives the import when removing OFF_PLATFORM_TRANSACTIONS feature', async () => {
+            await PlatformSubscription.replaceCurrentSubscription(
+              host,
+              new Date(),
+              { title: 'A new plan', features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: false } },
+              admin,
+            );
+
+            await connectedAccount.reload({ paranoid: false });
+            expect(connectedAccount.deletedAt).to.not.be.null;
+
+            await row.reload({ paranoid: false });
+            expect(row.deletedAt).to.be.null; // Rows should be preserved
+
+            expect(stubPlaidAPI.itemRemove).to.have.been.calledOnce;
+            expect(stubPlaidAPI.itemRemove).to.have.been.calledWith({
+              /* eslint-disable camelcase */
+              access_token: connectedAccount.token,
+              /* eslint-enable camelcase */
+            });
+          });
+
+          it('keeps the connected account and import when there is no change to the feature flag', async () => {
+            await PlatformSubscription.replaceCurrentSubscription(
+              host,
+              new Date(),
+              { title: 'A new plan', features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: true } },
+              admin,
+            );
+
+            await connectedAccount.reload({ paranoid: false });
+            expect(connectedAccount.deletedAt).to.be.null;
+
+            await row.reload({ paranoid: false });
+            expect(row.deletedAt).to.be.null; // Rows should be preserved
+
+            expect(stubPlaidAPI.itemRemove).to.not.have.been.called;
+          });
         });
 
-        expect(updatedLegalDocument).to.exist;
-        expect(updatedLegalDocument.id).to.equal(requiredLegalDoc.id);
-        expect(updatedLegalDocument.deletedAt).to.be.null;
+        describe('GoCardless', () => {
+          beforeEach(async () => {
+            admin = await fakeUser();
+            host = await fakeActiveHost({ admin });
+            connectedAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: Service.GOCARDLESS });
+            transactionsImport = await fakeTransactionsImport({
+              CollectiveId: host.id,
+              ConnectedAccountId: connectedAccount.id,
+            });
+            row = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+            await PlatformSubscription.createSubscription(
+              host,
+              new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+              { title: 'A plan', features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: true } },
+              admin,
+            );
+          });
 
-        await oldSubscription.reload();
-        expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
-        expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
+          it('removes the connected account and archives the import when removing OFF_PLATFORM_TRANSACTIONS feature', async () => {
+            const stubDisconnectGoCardlessAccount = sandbox
+              .stub(GoCardlessConnect, 'disconnectGoCardlessAccount')
+              .resolves();
+            await PlatformSubscription.replaceCurrentSubscription(
+              host,
+              new Date(),
+              { title: 'A new plan', features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: false } },
+              admin,
+            );
+
+            await connectedAccount.reload({ paranoid: false });
+            expect(connectedAccount.deletedAt).to.not.be.null;
+
+            await row.reload({ paranoid: false });
+            expect(row.deletedAt).to.be.null; // Rows should be preserved
+
+            expect(stubDisconnectGoCardlessAccount).to.have.been.calledOnce;
+            expect(stubDisconnectGoCardlessAccount.firstCall.args[0]).to.containSubset({
+              id: connectedAccount.id,
+            });
+          });
+
+          it('keeps the connected account and import when there is no change to the feature flag', async () => {
+            const stubDisconnectGoCardlessAccount = sandbox
+              .stub(GoCardlessConnect, 'disconnectGoCardlessAccount')
+              .resolves();
+
+            await PlatformSubscription.replaceCurrentSubscription(
+              host,
+              new Date(),
+              { title: 'A new plan', features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: true } },
+              admin,
+            );
+
+            expect(stubDisconnectGoCardlessAccount).to.not.have.been.called;
+
+            await connectedAccount.reload({ paranoid: false });
+            expect(connectedAccount.deletedAt).to.be.null;
+          });
+
+          it('continues if the disconnect fails', async () => {
+            const stubDisconnectGoCardlessAccount = sandbox
+              .stub(GoCardlessConnect, 'disconnectGoCardlessAccount')
+              .rejects(new Error('Failed to disconnect GoCardless account'));
+            const stubReportErrorToSentry = sandbox.stub(SentryLib, 'reportErrorToSentry');
+
+            await PlatformSubscription.replaceCurrentSubscription(
+              host,
+              new Date(),
+              { title: 'A new plan', features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: false } },
+              admin,
+            );
+
+            // Account not deleted if the disconnect fails
+            await connectedAccount.reload({ paranoid: false });
+            expect(connectedAccount.deletedAt).to.be.null;
+
+            await transactionsImport.reload({ paranoid: false });
+            expect(transactionsImport.ConnectedAccountId).to.be.null;
+
+            await row.reload({ paranoid: false });
+            expect(row.deletedAt).to.be.null; // Rows should be preserved
+
+            expect(stubDisconnectGoCardlessAccount).to.have.been.calledOnce;
+            expect(stubDisconnectGoCardlessAccount.firstCall.args[0]).to.containSubset({
+              id: connectedAccount.id,
+            });
+
+            expect(stubReportErrorToSentry).to.have.been.calledOnce;
+            expect(stubReportErrorToSentry.firstCall.args[0].message).to.equal(
+              'Failed to disconnect transactions imports while provisioning feature changes',
+            );
+            expect(stubReportErrorToSentry.firstCall.args[1].extra.failures[0].import.id).to.equal(
+              transactionsImport.id,
+            );
+            expect(stubReportErrorToSentry.firstCall.args[1].extra.failures[0].error.message).to.equal(
+              'Failed to disconnect GoCardless account',
+            );
+          });
+        });
       });
     });
   });
