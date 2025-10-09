@@ -810,7 +810,7 @@ const accountFieldsDefinition = () => ({
       }
       if (args.accountType && args.accountType.length > 0) {
         where['type'] = {
-          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+          [Op.in]: [...new Set(args.accountType.map(value => AccountTypeToModelMapping[value]))],
         };
       } else {
         where['type'] = {
