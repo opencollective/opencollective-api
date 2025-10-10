@@ -43,7 +43,8 @@
     "error": {
       "detailed": "GRAPHQL_ERROR_DETAILED"
     },
-    "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG"
+    "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG",
+    "rejectOnMaxComplexity": "GRAPHQL_REJECT_ON_MAX_COMPLEXITY"
   },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",

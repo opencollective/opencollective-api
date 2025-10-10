@@ -25,6 +25,7 @@
 | GRAPHQL_CACHE_TTL                             | .graphql.cache.ttl                                 | GraphQL cache TTL                                                                  |
 | GRAPHQL_CACHE_MIN_EXECUTION_TIME_TO_CACHE     | .graphql.cache.minExecutionTimeToCache             | Minimum execution time to cache GraphQL queries                                    |
 | GRAPHQL_ERROR_DETAILED                        | .graphql.error.detailed                            | Enable detailed GraphQL errors                                                     |
+| GRAPHQL_REJECT_ON_MAX_COMPLEXITY              | .graphql.rejectOnMaxComplexity                     | Whether to throw an error when the query exceeds max complexity                    |
 | GRAPHQL_RESOLVER_TIME_DEBUG                   | .graphql.resolverTimeDebugWarning                  | Enable GraphQL resolver time debug warnings                                        |
 | MEMCACHE_SERVERS                              | .memcache.servers                                  | Memcache servers                                                                   |
 | MEMCACHE_USERNAME                             | .memcache.username                                 | Memcache username                                                                  |
