@@ -117,7 +117,8 @@ export const updatePaymentMethodForSubscription = async (
     // Update the next charge dates
     const previousNextChargeDate = order.Subscription.nextChargeDate;
     const interval = order.Subscription.interval;
-    const nextChargeDate = getNextChargeDateForUpdateContribution(previousNextChargeDate, interval, interval, false);
+    const nextChargeDate = getNextChargeDateForUpdateContribution(previousNextChargeDate, interval, interval, true);
+
     newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
     newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
   }
