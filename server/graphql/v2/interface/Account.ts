@@ -1,3 +1,4 @@
+import type express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
@@ -70,6 +71,7 @@ import GraphQLAccountPermissions from '../object/AccountPermissions';
 import { GraphQLAccountStats } from '../object/AccountStats';
 import { GraphQLActivity } from '../object/Activity';
 import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
+import { GraphQLCommunityStats } from '../object/CommunityStats';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 import { GraphQLLegalDocument } from '../object/LegalDocument';
 import { GraphQLLocation } from '../object/Location';
@@ -1091,6 +1093,28 @@ const accountFieldsDefinition = () => ({
         dateTo: args.dateTo,
         nodes,
       };
+    },
+  },
+  communityStats: {
+    type: GraphQLCommunityStats,
+    description: 'Various stats about how this account is connected to the rest of the community',
+    args: {
+      host: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+    },
+    async resolve(account, args, req: express.Request) {
+      if (args.host) {
+        const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+        if (!req.remoteUser?.isAdminOfCollective(host)) {
+          throw new BadRequest('Only host admins can lookup for members using the "host" argument');
+        }
+
+        return req.loaders.Collective.communityStats.onHostContext.load({
+          HostCollectiveId: host.id,
+          FromCollectiveId: account.id,
+        });
+      }
     },
   },
 });
