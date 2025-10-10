@@ -523,7 +523,9 @@ export const generateLoaders = req => {
             : { value: 0, currency: 'USD' },
         );
       }),
-
+      communityStats: {
+        onHostContext: collectiveLoaders.communityStats.onHostContext(),
+      },
       // // Collective - Stats
       stats: {
         backers: new DataLoader<number, Partial<Record<CollectiveType, number>> & Record<'all' | 'id', number>>(

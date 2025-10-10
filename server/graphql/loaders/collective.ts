@@ -178,4 +178,49 @@ export default {
       });
     });
   },
+  communityStats: {
+    onHostContext: (): DataLoader<{ HostCollectiveId: number; FromCollectiveId: number }, Collective> =>
+      new DataLoader(
+        async HostCollectivePairs => {
+          const conditionals: Record<number, number[]> = {};
+          const keys = HostCollectivePairs.map(pair => `${pair.HostCollectiveId}-${pair.FromCollectiveId}`);
+          HostCollectivePairs.forEach(({ FromCollectiveId, HostCollectiveId }) => {
+            conditionals[HostCollectiveId] = conditionals[HostCollectiveId] || [];
+            conditionals[HostCollectiveId].push(FromCollectiveId);
+          });
+
+          const conditionalQuery = Object.entries(conditionals)
+            .map(([HostCollectiveId, FromCollectiveIds]) => {
+              return `(cas."HostCollectiveId" = ${HostCollectiveId} AND cas."FromCollectiveId" IN (${FromCollectiveIds.join(
+                ',',
+              )}))`;
+            })
+            .join(' OR ');
+
+          const results: Collective[] = await sequelize.query(
+            `
+          SELECT
+            c.*, JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") AS "associatedCollectives",
+            cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt" 
+          FROM
+            "CommunityActivitySummary" cas
+            INNER JOIN "Collectives" c ON c.id = cas."FromCollectiveId"
+          WHERE
+            c."deletedAt" IS NULL AND (${conditionalQuery}) 
+            GROUP BY c.id, cas."HostCollectiveId"`,
+            {
+              model: Collective,
+              mapToModel: true,
+            },
+          );
+
+          return sortResultsSimple(
+            keys,
+            results,
+            result => `${result.dataValues['contextualHostCollectiveId']}-${result.id}`,
+          );
+        },
+        { cacheKeyFn: arg => `${arg.HostCollectiveId}-${arg.FromCollectiveId}` },
+      ),
+  },
 };
