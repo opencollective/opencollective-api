@@ -135,7 +135,7 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "pdfV2": "PDF_SERVICE_V2_URL",
+    "pdf": "PDF_SERVICE_URL",
     "rest": "REST_URL",
     "ml": "ML_SERVICE_URL"
   },
