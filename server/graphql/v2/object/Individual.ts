@@ -91,6 +91,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
             return null;
           }
 
+          let location;
           // For incognito profiles, we retrieve the location from the main user profile
           if (individual.isIncognito) {
             if (!checkScope(req, 'incognito')) {
@@ -98,11 +99,18 @@ export const GraphQLIndividual = new GraphQLObjectType({
             }
             const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
             if (mainProfile) {
-              return req.loaders.Location.byCollectiveId.load(mainProfile.id);
+              location = await req.loaders.Location.byCollectiveId.load(mainProfile.id);
             }
           }
 
-          return req.loaders.Location.byCollectiveId.load(individual.id);
+          location = location || (await req.loaders.Location.byCollectiveId.load(individual.id));
+          if (!location && individual.countryISO) {
+            location = { country: individual.countryISO };
+            if (individual.address) {
+              location.address = individual.address;
+            }
+          }
+          return location;
         },
       },
       hasTwoFactorAuth: {
