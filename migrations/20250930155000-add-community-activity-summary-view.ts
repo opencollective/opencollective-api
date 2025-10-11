@@ -39,11 +39,11 @@ module.exports = {
               "type",
               "createdAt",
               (CASE
-                WHEN "type" = 'collective.expense.approved' THEN 'EXPENSE_APPROVER'
+                WHEN "type" IN ('collective.expense.approved', 'collective.expense.rejected') THEN 'EXPENSE_APPROVER'
                 END) AS "relations"
             FROM "Activities"
             WHERE "type" IN
-                  ('collective.expense.approved')
+                  ('collective.expense.approved', 'collective.expense.rejected')
             GROUP BY
               "HostCollectiveId", "UserId", "FromCollectiveId", "CollectiveId", "type", "createdAt"
             -- Member Roles

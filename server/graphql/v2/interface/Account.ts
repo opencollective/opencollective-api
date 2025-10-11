@@ -1107,9 +1107,11 @@ const accountFieldsDefinition = () => ({
       if (args.host) {
         const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
         if (!req.remoteUser?.isAdminOfCollective(host)) {
-          throw new BadRequest('Only host admins can lookup for members using the "host" argument');
+          throw new BadRequest('Only host admins can fetch community stats');
         }
 
+        // Assumption: the relationship we track in CommunityActivitySummary are enough to
+        // concede the host-admin access to this information.
         return req.loaders.Collective.communityStats.onHostContext.load({
           HostCollectiveId: host.id,
           FromCollectiveId: account.id,

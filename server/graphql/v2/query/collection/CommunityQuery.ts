@@ -8,6 +8,7 @@ import { Sequelize } from 'sequelize';
 import { ifStr } from '../../../../lib/utils';
 import { Collective, sequelize } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
+import { enforceScope } from '../../../common/scope-check';
 import { BadRequest } from '../../../errors';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum/AccountType';
@@ -85,12 +86,13 @@ const CommunityQuery = {
       type: GraphQLString,
     },
     relation: {
-      type: new GraphQLList(GraphQLCommunityRelationType),
+      type: new GraphQLList(new GraphQLNonNull(GraphQLCommunityRelationType)),
     },
     limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: DEFAULT_LIMIT },
     offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
   },
   async resolve(_: void, args, req: Express.Request) {
+    enforceScope(req, 'host');
     if (isNil(args.limit) || args.limit < 0) {
       args.limit = DEFAULT_LIMIT;
     }
@@ -98,7 +100,7 @@ const CommunityQuery = {
       args.offset = 0;
     }
     if (args.limit > DEFAULT_LIMIT && !req.remoteUser?.isRoot()) {
-      throw new Error(`Cannot fetch more than ${DEFAULT_LIMIT},members at the same time, please adjust the limit`);
+      throw new Error(`Cannot fetch more than ${DEFAULT_LIMIT} members at the same time, please adjust the limit`);
     }
 
     assert(
@@ -114,6 +116,7 @@ const CommunityQuery = {
     const account = args.account && (await fetchAccountWithReference(args.account, { throwIfMissing: false }));
     const host = args.host && (await fetchAccountWithReference(args.host, { throwIfMissing: false }));
     if (host && account) {
+      // TODO: Add exception for accounts that were previously hosted by the host
       assert(
         host.id === account.HostCollectiveId,
         new BadRequest('The account provided is not hosted by the host provided'),
