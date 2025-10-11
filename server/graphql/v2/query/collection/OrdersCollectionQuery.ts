@@ -208,6 +208,10 @@ export const OrdersCollectionArgs = {
     type: new GraphQLList(GraphQLAccountReferenceInput),
     description: 'Return only orders made from/to these hosted accounts',
   },
+  host: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return orders only for this host',
+  },
 };
 
 export const OrdersCollectionResolver = async (args, req: express.Request) => {
@@ -229,11 +233,11 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }
 
+  const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
+  const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
   let account, oppositeAccount, hostedAccounts;
-
   // Load accounts
   if (args.account) {
-    const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
     account = await fetchAccountWithReference(args.account, fetchAccountParams);
 
     // Load opposite account
@@ -282,6 +286,12 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           // Is this desirable? Some current tests don't like it.
           // throw new Error('Only admins and root can fetch incognito orders');
         }
+      }
+      if (host) {
+        where[Op.and].push({
+          '$collective.HostCollectiveId$': host.id,
+          '$collective.approvedAt$': { [Op.not]: null },
+        });
       }
     }
 
