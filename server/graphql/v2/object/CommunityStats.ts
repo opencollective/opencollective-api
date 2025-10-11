@@ -1,5 +1,5 @@
 import type express from 'express';
-import { GraphQLInt, GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { flatten, uniq } from 'lodash';
 import type { Sequelize } from 'sequelize';
@@ -17,19 +17,19 @@ const GraphQLCommunityTransactionSummary = new GraphQLObjectType({
   name: 'CommunityTransactionSummary',
   fields: () => ({
     year: {
-      type: GraphQLInt,
+      type: new GraphQLNonNull(GraphQLInt),
     },
     expenseTotal: {
-      type: GraphQLAmount,
+      type: new GraphQLNonNull(GraphQLAmount),
     },
     expenseCount: {
-      type: GraphQLInt,
+      type: new GraphQLNonNull(GraphQLInt),
     },
     contributionTotal: {
-      type: GraphQLAmount,
+      type: new GraphQLNonNull(GraphQLAmount),
     },
     contributionCount: {
-      type: GraphQLInt,
+      type: new GraphQLNonNull(GraphQLInt),
     },
   }),
 });
@@ -66,15 +66,17 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
         },
       },
       relations: {
-        type: new GraphQLList(GraphQLCommunityRelationType),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLCommunityRelationType)),
         async resolve(account) {
           if (account.dataValues.associatedCollectives) {
             return uniq(flatten(Object.values(account.dataValues.associatedCollectives)));
+          } else {
+            return [];
           }
         },
       },
       transactionSummary: {
-        type: new GraphQLList(GraphQLCommunityTransactionSummary),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLCommunityTransactionSummary))),
         async resolve(account) {
           const FromCollectiveId = account.id;
           const HostCollectiveId = account.dataValues.contextualHostCollectiveId;
@@ -145,41 +147,48 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
             return { nodes: [], limit, offset, totalCount: 0 };
           }
 
-          const { count: totalCount, rows: nodes } = await Activity.findAndCountAll({
-            where: {
-              [Op.or]: [
-                {
-                  UserId,
-                  type: [
-                    ActivityTypes.USER_NEW_TOKEN,
-                    ActivityTypes.USER_CHANGE_EMAIL,
-                    ActivityTypes.USER_RESET_PASSWORD,
-                  ],
-                },
-                {
-                  UserId,
-                  HostCollectiveId,
-                  type: [
-                    ActivityTypes.COLLECTIVE_APPROVED,
-                    ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
-                    ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
-                    ActivityTypes.COLLECTIVE_EDITED,
-                    ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
-                    ActivityTypes.EXPENSE_COMMENT_CREATED,
-                    ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
-                    ActivityTypes.ORDER_PROCESSED,
-                    ActivityTypes.SUBSCRIPTION_CANCELED,
-                    ActivityTypes.SUBSCRIPTION_PAUSED,
-                    ActivityTypes.SUBSCRIPTION_ACTIVATED,
-                  ],
-                },
-              ],
-            },
-            order: [['createdAt', 'DESC']],
+          const where = {
+            [Op.or]: [
+              {
+                UserId,
+                type: [
+                  ActivityTypes.USER_NEW_TOKEN,
+                  ActivityTypes.USER_CHANGE_EMAIL,
+                  ActivityTypes.USER_RESET_PASSWORD,
+                ],
+              },
+              {
+                UserId,
+                HostCollectiveId,
+                type: [
+                  ActivityTypes.COLLECTIVE_APPROVED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+                  ActivityTypes.COLLECTIVE_EDITED,
+                  ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+                  ActivityTypes.EXPENSE_COMMENT_CREATED,
+                  ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+                  ActivityTypes.ORDER_PROCESSED,
+                  ActivityTypes.SUBSCRIPTION_CANCELED,
+                  ActivityTypes.SUBSCRIPTION_PAUSED,
+                  ActivityTypes.SUBSCRIPTION_ACTIVATED,
+                ],
+              },
+            ],
+          };
+
+          return {
+            nodes: () =>
+              Activity.findAll({
+                where,
+                order: [['createdAt', 'DESC']],
+                limit,
+                offset,
+              }),
+            totalCount: () => Activity.count({ where }),
             limit,
             offset,
-          });
-          return { nodes, limit, offset, totalCount };
+          };
         },
       },
     };

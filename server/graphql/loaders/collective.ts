@@ -182,18 +182,18 @@ export default {
     onHostContext: (): DataLoader<{ HostCollectiveId: number; FromCollectiveId: number }, Collective> =>
       new DataLoader(
         async HostCollectivePairs => {
-          const conditionals: Record<number, number[]> = {};
+          const conditionals: Record<number, Set<number>> = {};
           const keys = HostCollectivePairs.map(pair => `${pair.HostCollectiveId}-${pair.FromCollectiveId}`);
           HostCollectivePairs.forEach(({ FromCollectiveId, HostCollectiveId }) => {
-            conditionals[HostCollectiveId] = conditionals[HostCollectiveId] || [];
-            conditionals[HostCollectiveId].push(FromCollectiveId);
+            conditionals[HostCollectiveId] = conditionals[HostCollectiveId] || new Set();
+            conditionals[HostCollectiveId].add(FromCollectiveId);
           });
 
           const conditionalQuery = Object.entries(conditionals)
             .map(([HostCollectiveId, FromCollectiveIds]) => {
-              return `(cas."HostCollectiveId" = ${HostCollectiveId} AND cas."FromCollectiveId" IN (${FromCollectiveIds.join(
-                ',',
-              )}))`;
+              return `(cas."HostCollectiveId" = ${HostCollectiveId} AND cas."FromCollectiveId" IN (${Array.from(
+                FromCollectiveIds,
+              ).join(',')}))`;
             })
             .join(' OR ');
 
