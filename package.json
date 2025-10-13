@@ -119,7 +119,7 @@
     "pg-format": "1.0.4",
     "pg-listen": "1.7.0",
     "plaid": "31.1.0",
-    "redis": "5.5.6",
+    "redis": "5.8.3",
     "sanitize-html": "2.17.0",
     "sequelize": "6.37.7",
     "sequelize-cli": "6.6.3",
