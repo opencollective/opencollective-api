@@ -100,7 +100,7 @@
     "ics": "3.8.1",
     "jsonwebtoken": "9.0.2",
     "juice": "11.0.1",
-    "limax": "4.1.0",
+    "limax": "4.2.1",
     "lodash": "4.17.21",
     "lru-cache": "11.1.0",
     "moment": "2.30.1",
