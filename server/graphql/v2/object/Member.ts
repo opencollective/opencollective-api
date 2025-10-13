@@ -6,7 +6,7 @@ import { checkScope } from '../../common/scope-check';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { idEncode } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
-import { GraphQLAmount } from '../object/Amount';
+import { GraphQLAmount, GraphQLAmountFields } from '../object/Amount';
 import { GraphQLTier } from '../object/Tier';
 
 const getMemberFields = () => ({
@@ -54,15 +54,18 @@ const getMemberFields = () => ({
   totalDonations: {
     type: new GraphQLNonNull(GraphQLAmount),
     description: 'Total amount donated',
-    async resolve(member, args, req) {
-      if (member.totalDonations) {
-        return { value: member.totalDonations };
-      }
+    async resolve(member, args, req): Promise<GraphQLAmountFields> {
       const collective = await req.loaders.Collective.byId.load(member.CollectiveId);
+      if (member.totalDonations) {
+        return { value: member.totalDonations, currency: collective.currency };
+      }
+
       const value = await req.loaders.Transaction.totalAmountDonatedFromTo.load({
         FromCollectiveId: member.MemberCollectiveId,
         CollectiveId: member.CollectiveId,
+        currency: collective.currency,
       });
+
       return { value, currency: collective.currency };
     },
   },

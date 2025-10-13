@@ -283,12 +283,14 @@ const StatsMemberType = new GraphQLObjectType({
       totalDonations: {
         type: GraphQLFloat,
         description: 'total amount donated by this member either directly or using a gift card it has emitted',
-        resolve(member, args, req) {
+        async resolve(member, args, req) {
+          const collective = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
           return (
             member.totalDonations ||
             req.loaders.Transaction.totalAmountDonatedFromTo.load({
               FromCollectiveId: member.MemberCollectiveId,
               CollectiveId: member.CollectiveId,
+              currency: collective.currency,
             })
           );
         },
