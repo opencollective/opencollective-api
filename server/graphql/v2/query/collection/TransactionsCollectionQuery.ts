@@ -529,7 +529,7 @@ export const TransactionsCollectionResolver = async (
       paymentMethods.every(pm => req.remoteUser?.isAdmin(pm.CollectiveId)),
       new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
     );
-    where.push({ PaymentMethodId: { [Op.in]: paymentMethods.map(pm => pm.id) } });
+    where.push({ PaymentMethodId: { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] } });
   } else if (args.paymentMethodService || args.paymentMethodType) {
     const paymentMethodTypeConditions = [];
     const paymentMethodServiceConditions = [];

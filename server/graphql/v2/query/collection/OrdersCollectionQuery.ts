@@ -320,7 +320,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     if (!paymentMethods.every(paymentMethod => req.remoteUser?.isAdminOfCollective(paymentMethod.Collective))) {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
-    where['PaymentMethodId'] = { [Op.in]: paymentMethods.map(pm => pm.id) };
+    where['PaymentMethodId'] = { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] };
   }
 
   // Filter on payment method service/type

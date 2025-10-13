@@ -43,7 +43,8 @@
     "error": {
       "detailed": "GRAPHQL_ERROR_DETAILED"
     },
-    "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG"
+    "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG",
+    "rejectOnMaxComplexity": "GRAPHQL_REJECT_ON_MAX_COMPLEXITY"
   },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",
@@ -135,7 +136,7 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "pdfV2": "PDF_SERVICE_V2_URL",
+    "pdf": "PDF_SERVICE_URL",
     "rest": "REST_URL",
     "ml": "ML_SERVICE_URL"
   },
