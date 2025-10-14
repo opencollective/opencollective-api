@@ -173,7 +173,7 @@ export default async (app: express.Application) => {
       // 2) GraphQL v1 is not officially supported and should not be used by third party developers
       if (req.userToken && req.userToken.type === 'OAUTH') {
         // We need exceptions for prototype and internal tools
-        if (!req.userToken.client?.data?.enableGraphqlV1) {
+        if (!req.userToken.application?.data?.enableGraphqlV1) {
           const errorMessage = 'OAuth access tokens are not accepted on GraphQL v1';
           logger.warn(errorMessage);
           return next(new errors.Unauthorized(errorMessage));
