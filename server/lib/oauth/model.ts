@@ -50,6 +50,19 @@ export const dbOAuthAuthorizationCodeToAuthorizationCode = (
   scope: authorization.scope,
 });
 
+export const dbTokenToOAuthToken = async (token: any): Promise<Token> => {
+  if (!token.user && token.UserId) {
+    token.user = await models.User.findOne({ where: { id: token.UserId } });
+  }
+  if (!token.application && token.ApplicationId) {
+    token.application = await models.Application.findOne({ where: { id: token.ApplicationId } });
+  }
+  if (!token.client && token.application) {
+    token.client = dbApplicationToClient(token.application);
+  }
+  return token;
+};
+
 // For some reason `saveAuthorizationCode` and `saveToken` can receive a `scope`
 // property that is a string[], string or undefined, and in the case of a string
 // it may still be URL encoded. I wouldn't expected the framework to parse the
@@ -110,9 +123,7 @@ const model: OauthModel = {
         scope,
         preAuthorize2FA: Boolean(application.preAuthorize2FA),
       });
-      oauthToken.user = user;
-      oauthToken.client = client;
-      return <Token>oauthToken;
+      return (await dbTokenToOAuthToken(oauthToken)) as Token;
     } catch (e) {
       debug(e);
       // TODO: what should be thrown so it's properly catched on the library side?
@@ -139,7 +150,7 @@ const model: OauthModel = {
       throw new InvalidTokenError('Invalid token');
     }
 
-    return <Token>token;
+    return (await dbTokenToOAuthToken(token)) as Token;
   },
 
   async getRefreshToken(refreshToken): Promise<RefreshToken> {
@@ -149,7 +160,7 @@ const model: OauthModel = {
       throw new InvalidTokenError('Invalid refresh token');
     }
 
-    return <RefreshToken>token;
+    return (await dbTokenToOAuthToken(token)) as RefreshToken;
   },
 
   // -- Authorization code --
