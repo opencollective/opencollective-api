@@ -54,8 +54,9 @@ const getNextChargeDateForUpdateContribution = (
     // Yearly => beginning of next year
     return [newDates, newDates];
   } else if (now.date() === 1 && !nextChargeIsFuture) {
+    const newDates = now.startOf('month');
     // When updating from yearly to monthly on the first day of the month, we can charge today
-    return [now.startOf('month'), previousNextPeriodStart];
+    return [newDates, newDates];
   } else if (previousNextChargeDate.date() > 15) {
     // Set the next charge date to 2 months time if the subscription was made after 15th of the month.
     const newDates = now.add(2, 'months').startOf('month');
