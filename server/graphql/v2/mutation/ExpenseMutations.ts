@@ -194,8 +194,8 @@ const expenseMutations = {
         description: 'Expense data',
       },
       isDraftEdit: {
-        type: GraphQLBoolean,
-        default: false,
+        type: new GraphQLNonNull(GraphQLBoolean),
+        defaultValue: false,
         description: 'Edit draft without submiting it',
       },
       draftKey: {
