@@ -16,6 +16,7 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import ActivityTypes from '../constants/activities';
+import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import FEATURE from '../constants/feature';
 import { PlatformSubscriptionPlan } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
@@ -544,15 +545,21 @@ class PlatformSubscription extends Model<
       );
 
       for (const feature of removedFeatures) {
-        switch (feature) {
-          case FEATURE.TAX_FORMS:
-            await models.RequiredLegalDocument.destroy({
-              where: { HostCollectiveId: collective.id },
-              transaction: opts?.transaction,
-            });
-            break;
-          default:
-            break;
+        if (feature === FEATURE.TAX_FORMS) {
+          await models.RequiredLegalDocument.destroy({
+            where: { HostCollectiveId: collective.id },
+            transaction: opts?.transaction,
+          });
+        } else if (feature === FEATURE.OFF_PLATFORM_TRANSACTIONS) {
+          const { failures } = await models.TransactionsImport.disconnectAll(collective, {
+            transaction: opts?.transaction,
+          });
+          if (failures.length > 0) {
+            reportErrorToSentry(
+              new Error('Failed to disconnect transactions imports while provisioning feature changes'),
+              { extra: { failures }, domain: ENGINEERING_DOMAINS.OFF_PLATFORM_TRANSACTIONS },
+            );
+          }
         }
       }
 

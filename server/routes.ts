@@ -60,6 +60,34 @@ export default async (app: express.Application) => {
 
   app.use('*', withTiming('authorizeClient', authentication.authorizeClient));
 
+  /**
+   * Sign In related features
+   */
+  app.post('/users/signin', required('user'), users.signin);
+  // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
+  app.post('/users/update-token', authentication.mustBeLoggedIn, users.exchangeLoginToken); // deprecated
+  app.post('/users/exchange-login-token', authentication.mustBeLoggedIn, users.exchangeLoginToken);
+  // check JWT and send an extended JWT back
+  app.post('/users/refresh-token', authentication.mustBeLoggedIn, users.refreshToken);
+  // check the 2FA code against the token in the db to let 2FA-enabled users log in
+  app.post('/users/two-factor-auth', authentication.mustBeLoggedIn, users.twoFactorAuthAndUpdateToken);
+
+  /**
+   * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
+   * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
+   */
+  app.use('*', withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
+
+  // OAuth server (after authentication/JWT handling, at least for authorize)
+  app['oauth'] = oauth;
+  app.post('/oauth/token', noCache, app['oauth'].token());
+  app.post(
+    '/oauth/authorize',
+    noCache,
+    app['oauth'].authorize({ allowEmptyState: true, authenticateHandler: authorizeAuthenticateHandler }),
+  );
+  app.post('/oauth/authenticate', noCache, app['oauth'].authenticate());
+
   // Setup rate limiter
   // TODO: move to RedisInstanceType.SESSION ?
   const redisClient = await createRedisClient(RedisInstanceType.DEFAULT);
@@ -102,34 +130,6 @@ export default async (app: express.Application) => {
 
     app.use('/graphql', expressLimiter(redisClient)(expressLimiterOptions));
   }
-
-  /**
-   * Sign In related features
-   */
-  app.post('/users/signin', required('user'), users.signin);
-  // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
-  app.post('/users/update-token', authentication.mustBeLoggedIn, users.exchangeLoginToken); // deprecated
-  app.post('/users/exchange-login-token', authentication.mustBeLoggedIn, users.exchangeLoginToken);
-  // check JWT and send an extended JWT back
-  app.post('/users/refresh-token', authentication.mustBeLoggedIn, users.refreshToken);
-  // check the 2FA code against the token in the db to let 2FA-enabled users log in
-  app.post('/users/two-factor-auth', authentication.mustBeLoggedIn, users.twoFactorAuthAndUpdateToken);
-
-  /**
-   * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
-   * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
-   */
-  app.use('*', withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
-
-  // OAuth server (after authentication/JWT handling, at least for authorize)
-  app['oauth'] = oauth;
-  app.post('/oauth/token', noCache, app['oauth'].token());
-  app.post(
-    '/oauth/authorize',
-    noCache,
-    app['oauth'].authorize({ allowEmptyState: true, authenticateHandler: authorizeAuthenticateHandler }),
-  );
-  app.post('/oauth/authenticate', noCache, app['oauth'].authenticate());
 
   /**
    * GraphQL caching
@@ -221,13 +221,13 @@ export default async (app: express.Application) => {
     costLimit: {
       onReject: [getGraphQLComplexityRejectionLogger('costLimit')],
       ignoreIntrospection: true,
-      propagateOnRejection: false,
+      propagateOnRejection: parseToBoolean(config.graphql.rejectOnMaxComplexity),
       maxCost: 125_000, // Currently identified max: around 103926 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
       onReject: [getGraphQLComplexityRejectionLogger('maxTokens')],
-      propagateOnRejection: false,
+      propagateOnRejection: parseToBoolean(config.graphql.rejectOnMaxComplexity),
       n: 1500, // ExpensePage query
       enabled: true,
     },
