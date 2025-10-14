@@ -50,7 +50,7 @@ export const dbOAuthAuthorizationCodeToAuthorizationCode = (
   scope: authorization.scope,
 });
 
-export const dbTokenToOAuthToken = async (token: any): Promise<Token> => {
+const dbTokenToOAuthToken = async (token: any): Promise<Token> => {
   if (!token.user && token.UserId) {
     token.user = await models.User.findOne({ where: { id: token.UserId } });
   }
