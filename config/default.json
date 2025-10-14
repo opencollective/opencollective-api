@@ -94,7 +94,8 @@
       "email": {
         "perHourPerUser": 150,
         "perHourPerIp": 50
-      }
+      },
+      "concurrentRequests": 10
     },
     "userSigninAttemptsPerHourPerIp": 50,
     "userSignUpPerHour": 3,
