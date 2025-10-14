@@ -85,6 +85,35 @@ const replaceUsersStripeTokens = () => {
   ).catch(e => console.error("Can't remove users stripe tokens. Please do it manually", e));
 };
 
+const replacePaypalTokens = () => {
+  return models.PaymentMethod.update(
+    { name: null, token: null, data: null },
+    { where: { service: 'paypal' }, paranoid: false },
+  ).catch(e => console.error("Can't remove users paypal tokens. Please do it manually", e));
+};
+
+const sanitizePayoutMethods = async () => {
+  try {
+    // Sanitize email + content
+    await sequelize.query(
+      `UPDATE "PayoutMethods"SET "data" = JSONB_SET('{}', '{email}', 'test@example.com') WHERE data ->> 'email' IS NOT NULL`,
+    );
+    await sequelize.query(
+      `UPDATE "PayoutMethods"SET "data" = JSONB_SET('{}', '{content}', 'Bank account info') WHERE data ->> 'content' IS NOT NULL`,
+    );
+
+    // Omit all other fields
+    await sequelize.query(
+      `UPDATE "PayoutMethods"SET "data" = JSONB_BUILD_OBJECT(
+        'currency', data ->> 'currency',
+        'content', data ->> 'content',
+      ) WHERE data ->> 'content' IS NOT NULL`,
+    );
+  } catch (e) {
+    console.error("Can't sanitize payout methods. Please do it manually", e);
+  }
+};
+
 // Removes all tokens from connected accounts
 const removeConnectedAccountsTokens = () => {
   return models.ConnectedAccount.update(
@@ -112,6 +141,8 @@ const sanitizeDB = async () => {
   return Promise.all([
     replaceHostStripeTokens(),
     replaceUsersStripeTokens(),
+    replacePaypalTokens(),
+    sanitizePayoutMethods(),
     removeConnectedAccountsTokens(),
     deleteWebhooks(),
     deleteLegalDocuments(),
