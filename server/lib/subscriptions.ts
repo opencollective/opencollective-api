@@ -27,11 +27,13 @@ const getIsSubscriptionManagedExternally = pm => {
  */
 const getNextChargeDateForUpdateContribution = (
   baseNextChargeDate: Date,
+  baseNextPeriodStart: Date,
   newInterval: Order['interval'],
   prevInterval: Order['interval'],
-  supportsOffCycle: boolean,
-) => {
+  allowReuseOfFutureOffCycleNextChargeDate: boolean,
+): [nextChargeDate: moment.Moment, nextPeriodStart: moment.Moment] => {
   const previousNextChargeDate = moment(baseNextChargeDate);
+  const previousNextPeriodStart = moment(baseNextPeriodStart);
   const maxDiffInDaysToReusePreviousNextChargeDate = newInterval === 'month' ? 25 : 340; // 25 days for monthly, 340 days for yearly
   const now = moment();
   const nextChargeIsFuture = previousNextChargeDate.isAfter(now);
@@ -39,26 +41,29 @@ const getNextChargeDateForUpdateContribution = (
 
   // We allow re-using the previous next charge date if it's no too old or if the next charge date is in the future (and the new date is supported)
   if (nextChargeIsFuture) {
-    if (isKeepingInterval && (supportsOffCycle || previousNextChargeDate.date() === 1)) {
-      return previousNextChargeDate;
+    if (isKeepingInterval && (allowReuseOfFutureOffCycleNextChargeDate || previousNextChargeDate.date() === 1)) {
+      return [previousNextChargeDate, previousNextPeriodStart];
     }
   } else if (now.diff(previousNextChargeDate, 'days') < maxDiffInDaysToReusePreviousNextChargeDate) {
-    return previousNextChargeDate;
+    return [previousNextChargeDate, previousNextPeriodStart];
   }
 
   // Otherwise, we need to calculate the next charge date
   if (newInterval === 'year') {
+    const newDates = now.add(1, 'years').startOf('year');
     // Yearly => beginning of next year
-    return now.add(1, 'years').startOf('year');
+    return [newDates, newDates];
   } else if (now.date() === 1 && !nextChargeIsFuture) {
     // When updating from yearly to monthly on the first day of the month, we can charge today
-    return supportsOffCycle ? now : now.startOf('month');
+    return [now.startOf('month'), previousNextPeriodStart];
   } else if (previousNextChargeDate.date() > 15) {
     // Set the next charge date to 2 months time if the subscription was made after 15th of the month.
-    return now.add(2, 'months').startOf('month');
+    const newDates = now.add(2, 'months').startOf('month');
+    return [newDates, newDates];
   } else {
     // Otherwise, next charge date will be the beginning of the next month
-    return now.add(1, 'months').startOf('month');
+    const newDates = now.add(1, 'months').startOf('month');
+    return [newDates, newDates];
   }
 };
 
@@ -107,20 +112,28 @@ export const updatePaymentMethodForSubscription = async (
 
   // Subscription changes
   const newSubscriptionData = { isActive: true, deactivatedAt: null };
-  const isManagedExternally = getIsSubscriptionManagedExternally(newPaymentMethod);
+  const isNewPaymentMethodManagedExternally = getIsSubscriptionManagedExternally(newPaymentMethod);
 
-  if (!isManagedExternally) {
+  if (!isNewPaymentMethodManagedExternally) {
     // Reset flags for managing the subscription externally
     newSubscriptionData['isManagedExternally'] = false;
     newSubscriptionData['paypalSubscriptionId'] = null;
 
     // Update the next charge dates
     const previousNextChargeDate = order.Subscription.nextChargeDate;
+    const previousNextPeriodStart = order.Subscription.nextPeriodStart;
     const interval = order.Subscription.interval;
-    const nextChargeDate = getNextChargeDateForUpdateContribution(previousNextChargeDate, interval, interval, true);
+    const changedFromExternallyManagedToInternallyManaged = order.Subscription.isManagedExternally;
+    const [nextChargeDate, nextPeriodStart] = getNextChargeDateForUpdateContribution(
+      previousNextChargeDate,
+      previousNextPeriodStart,
+      interval,
+      interval,
+      !changedFromExternallyManagedToInternallyManaged,
+    );
 
     newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
-    newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
+    newSubscriptionData['nextPeriodStart'] = nextPeriodStart.toDate();
   }
 
   // Need to cancel previous subscription
@@ -236,15 +249,17 @@ export const updateSubscriptionDetails = async (
     const prevInterval = order.interval;
     const newInterval = newOrderData['interval'];
     const previousNextChargeDate = order.Subscription.nextChargeDate;
+    const previousNextPeriodStart = order.Subscription.nextPeriodStart;
     const supportsOffCycle = getIsSubscriptionManagedExternally(order.paymentMethod);
-    const nextChargeDate = getNextChargeDateForUpdateContribution(
+    const [nextChargeDate, nextPeriodStart] = getNextChargeDateForUpdateContribution(
       previousNextChargeDate,
+      previousNextPeriodStart,
       newInterval,
       prevInterval,
       supportsOffCycle,
     );
     newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
-    newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
+    newSubscriptionData['nextPeriodStart'] = nextPeriodStart.toDate();
   }
 
   // Update order's Tier
