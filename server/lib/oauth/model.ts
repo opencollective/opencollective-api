@@ -50,7 +50,7 @@ export const dbOAuthAuthorizationCodeToAuthorizationCode = (
   scope: authorization.scope,
 });
 
-const dbTokenToOAuthToken = async (token: any): Promise<Token> => {
+const dbTokenToOAuthToken = async (token: UserToken): Promise<Token> => {
   if (!token.user && token.UserId) {
     token.user = await models.User.findOne({ where: { id: token.UserId } });
   }
@@ -60,7 +60,8 @@ const dbTokenToOAuthToken = async (token: any): Promise<Token> => {
   if (!token.client && token.application) {
     token.client = dbApplicationToClient(token.application);
   }
-  return token;
+
+  return token as Token;
 };
 
 // For some reason `saveAuthorizationCode` and `saveToken` can receive a `scope`
