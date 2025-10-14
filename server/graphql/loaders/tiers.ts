@@ -1,6 +1,5 @@
 import DataLoader from 'dataloader';
 
-import orderStatus from '../../constants/order-status';
 import { sequelize } from '../../models';
 
 export const generateTierAvailableQuantityLoader = () => {
@@ -14,8 +13,10 @@ export const generateTierAvailableQuantityLoader = () => {
         LEFT JOIN "Transactions" trx ON trx."OrderId" = o.id AND trx."kind" = 'CONTRIBUTION' AND trx."type" = 'CREDIT' AND trx."deletedAt" IS NULL
         WHERE o."TierId" = t.id
         AND o."deletedAt" IS NULL
-        AND o."processedAt" IS NOT NULL
-        AND o."status" NOT IN (?)
+        AND (
+          o."status" IN ('PAID', 'ACTIVE', 'DISPUTED', 'IN_REVIEW')
+          OR (o."status" IN ('NEW', 'REQUIRE_CLIENT_CONFIRMATION', 'PROCESSING') AND o."updatedAt" > NOW() - INTERVAL '12 hour') -- Allow 12 hours to complete a payment
+        )
         AND (
           trx.id IS NULL -- No transactions yet, important to consider for payment intents that are processed asynchronously
           OR trx."RefundTransactionId" IS NULL -- Not refunded
@@ -28,10 +29,7 @@ export const generateTierAvailableQuantityLoader = () => {
       GROUP BY t.id
     `,
         {
-          replacements: [
-            [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED, orderStatus.REFUNDED],
-            tierIds,
-          ],
+          replacements: [tierIds],
           type: sequelize.QueryTypes.SELECT,
         },
       )
