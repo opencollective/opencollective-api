@@ -1,8 +1,10 @@
 import { expect } from 'chai';
+import moment from 'moment';
 
 import OrderStatuses from '../../../../server/constants/order-status';
 import { generateTierAvailableQuantityLoader } from '../../../../server/graphql/loaders/tiers';
 import { refundTransaction } from '../../../../server/lib/payments';
+import { sequelize } from '../../../../server/models';
 import { fakeOrder, fakeTier } from '../../../test-helpers/fake-data';
 
 describe('server/graphql/loaders/tiers', () => {
@@ -59,6 +61,37 @@ describe('server/graphql/loaders/tiers', () => {
       loader = generateTierAvailableQuantityLoader();
       const availableAfterRefund = await loader.load(tier.id);
       expect(availableAfterRefund).to.equal(10); // Should be back to 10
+    });
+
+    it('does not count paused orders', async () => {
+      const tier = await fakeTier({ maxQuantity: 10 });
+      await fakeOrder({ TierId: tier.id, status: OrderStatuses.ACTIVE }, { withTransactions: true });
+      await fakeOrder({ TierId: tier.id, status: OrderStatuses.PAUSED }, { withTransactions: true });
+
+      const loader = generateTierAvailableQuantityLoader();
+      const availableQuantity = await loader.load(tier.id);
+      expect(availableQuantity).to.equal(9); // Only 1 taken
+    });
+
+    it('only counts new/processing orders for a limited time', async () => {
+      const tier = await fakeTier({ maxQuantity: 10 });
+      await fakeOrder({ TierId: tier.id, status: OrderStatuses.NEW }, { withTransactions: true });
+      await fakeOrder({ TierId: tier.id, status: OrderStatuses.PROCESSING }, { withTransactions: true });
+      const oldNewOrder = await fakeOrder({ TierId: tier.id, status: OrderStatuses.NEW }, { withTransactions: true });
+      const oldProcessingOrder = await fakeOrder(
+        { TierId: tier.id, status: OrderStatuses.PROCESSING },
+        { withTransactions: true },
+      );
+
+      const aWeekAgo = moment().subtract(1, 'week').toDate();
+      await sequelize.query(`UPDATE "Orders" SET "createdAt" = :date, "updatedAt" = :date WHERE "id" IN (:ids)`, {
+        replacements: { date: aWeekAgo, ids: [oldNewOrder.id, oldProcessingOrder.id] },
+        type: sequelize.QueryTypes.UPDATE,
+      });
+
+      const loader = generateTierAvailableQuantityLoader();
+      const availableQuantity = await loader.load(tier.id);
+      expect(availableQuantity).to.equal(8); // Only one "NEW" and one "PROCESSING" recent order
     });
   });
 });
