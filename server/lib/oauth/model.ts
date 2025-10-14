@@ -33,7 +33,8 @@ interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {}
 export const dbApplicationToClient = (application: Application): OAuth2Server.Client => ({
   id: application.clientId,
   redirectUris: [application.callbackUrl],
-  grants: ['authorization_code'],
+  // Allow exchanging authorization codes and refreshing access tokens
+  grants: ['authorization_code', 'refresh_token'],
 });
 
 export const dbOAuthAuthorizationCodeToAuthorizationCode = (
