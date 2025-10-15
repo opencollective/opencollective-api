@@ -310,7 +310,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(
-        /Enter a valid URL. The URL should have the format https:\/\/opencollective.com\//,
+        /Enter a valid URL. The URL should have the format https:\/\/example.com\/…/,
       );
     });
   });
