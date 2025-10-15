@@ -2747,14 +2747,10 @@ export async function editExpenseDraft(
   }
 
   const currency = expenseData.currency || existingExpense.currency;
-  const items = await prepareExpenseItemInputs(
-    req,
-    currency,
-    expenseData.items || (existingExpense.data.items as any),
-    {
+  const items =
+    (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
       isEditing: true,
-    },
-  );
+    })) || existingExpense.items;
 
   const attachedFiles =
     (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;
