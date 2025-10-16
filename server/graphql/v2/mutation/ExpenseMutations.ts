@@ -193,6 +193,11 @@ const expenseMutations = {
         type: new GraphQLNonNull(GraphQLExpenseUpdateInput),
         description: 'Expense data',
       },
+      isDraftEdit: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        defaultValue: false,
+        description: 'Edit draft without submiting it',
+      },
       draftKey: {
         type: GraphQLString,
         description: 'Expense draft key if invited to submit expense. Scope: "expenses".',
@@ -248,7 +253,10 @@ const expenseMutations = {
       const userIsAuthor = req.remoteUser?.id === existingExpense.UserId;
       const isRecurring = Boolean(existingExpense.RecurringExpenseId);
       // Draft can be edited by the author of the expense if the expense is not recurring
-      if (existingExpense.status === expenseStatus.DRAFT && !userIsOriginalPayee && userIsAuthor && !isRecurring) {
+      if (
+        (existingExpense.status === expenseStatus.DRAFT && !userIsOriginalPayee && userIsAuthor && !isRecurring) ||
+        (existingExpense.status === expenseStatus.DRAFT && userIsAuthor && isRecurring && args.isDraftEdit)
+      ) {
         return editExpenseDraft(req, expenseData, args, {
           isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true',
         });
