@@ -1,6 +1,6 @@
 import { inherits } from 'util';
 
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 const errors = {
   BadRequest: function (msg) {
     this.code = 400;
@@ -129,11 +129,11 @@ Error.prototype['info'] = function () {
 
 export const formatZodError = (error: ZodError) => {
   const allErrors = [];
-  const flatErrors = error.flatten();
+  const flatErrors = z.flattenError(error);
   flatErrors.formErrors.forEach(error => {
     allErrors.push(`- ${error}`);
   });
-  Object.entries(flatErrors.fieldErrors).forEach(([field, errors]) => {
+  Object.entries<string[]>(flatErrors.fieldErrors).forEach(([field, errors]) => {
     allErrors.push(`${field}: ${errors.join(', ')}`);
   });
   return allErrors.join('\n');
