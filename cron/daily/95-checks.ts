@@ -25,7 +25,7 @@ async function run() {
     if (config.slack.webhooks.engineeringAlerts) {
       try {
         await slackLib.postMessageToOpenCollectiveSlack(
-          [failureMessage, ...errors.map(msg => `- ${msg}`)].join('\n'),
+          [failureMessage, ...errors.map(msg => `- ${msg}`), '', `${fixMessage} ${fixCommand}`].join('\n'),
           OPEN_COLLECTIVE_SLACK_CHANNEL.ENGINEERING_ALERTS,
         );
       } catch (error) {

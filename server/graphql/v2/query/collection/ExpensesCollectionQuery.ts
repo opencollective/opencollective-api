@@ -297,7 +297,7 @@ export const ExpensesCollectionQueryResolver = async (
     const fromAccountIds = fromAccounts.map(account => account.id);
     if (args.includeChildrenExpenses) {
       const childIds = await req.loaders.Collective.childrenIds.loadMany(fromAccountIds);
-      fromAccountIds.push(...childIds.filter(result => typeof result === 'number'));
+      fromAccountIds.push(...childIds.flat().filter(result => typeof result === 'number'));
     }
     where['FromCollectiveId'] = fromAccountIds;
   }

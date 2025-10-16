@@ -164,6 +164,7 @@ const simplifyReq = req =>
   !req
     ? undefined
     : pick(req, [
+        'ip',
         'method',
         'url',
         'isGraphQL',

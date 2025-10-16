@@ -2725,6 +2725,7 @@ type Expense {
   [Host admins only] If the expense associated with a transactions import row, this field will reference it
   """
   transactionImportRow: TransactionsImportRow
+  platformBillingData: JSON
 }
 
 """
@@ -4998,6 +4999,11 @@ enum OrderByFieldType {
   Order by the total amount managed by the Organization on the platform
   """
   MONEY_MANAGED
+
+  """
+  Order by the date of the last transaction. Using CollectiveTransactionStats.LatestTransactionCreatedAt.
+  """
+  LAST_TRANSACTION_CREATED_AT
 }
 
 """
@@ -7080,6 +7086,8 @@ enum ActivityType {
   AGREEMENT_EDITED
   AGREEMENT_DELETED
   PLATFORM_SUBSCRIPTION_UPDATED
+  PLATFORM_BILLING_OVERDUE_REMINDER
+  PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION
   ADDED_FUND_TO_ORG
   COLLECTIVE_TRANSACTION_PAID
   COLLECTIVE_USER_ADDED
@@ -8381,7 +8389,7 @@ type ExpensePermissions {
   """
   Whether the current user can edit the expense accounting category
   """
-  editAccountingCategory: Boolean!
+  editAccountingCategory: Permission!
   editTags: Permission!
   delete: Permission!
   seeInvoiceInfo: Permission!
@@ -8524,6 +8532,7 @@ enum SecurityCheckScope {
   COLLECTIVE
   PAYEE
   PAYOUT_METHOD
+  ATTACHMENTS
 }
 
 """
@@ -15996,6 +16005,16 @@ type Query {
     Filter accounts that are first party hosts
     """
     isFirstPartyHost: Boolean
+
+    """
+    Filter accounts that have a last transaction after this date
+    """
+    lastTransactionFrom: DateTime
+
+    """
+    Filter accounts that have a last transaction before this date
+    """
+    lastTransactionTo: DateTime
   ): AccountCollection!
   activities(
     """
@@ -18487,6 +18506,8 @@ enum ActivityAndClassesType {
   AGREEMENT_EDITED
   AGREEMENT_DELETED
   PLATFORM_SUBSCRIPTION_UPDATED
+  PLATFORM_BILLING_OVERDUE_REMINDER
+  PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION
   ADDED_FUND_TO_ORG
   COLLECTIVE_TRANSACTION_PAID
   COLLECTIVE_USER_ADDED
@@ -21601,6 +21622,11 @@ type Mutation {
     Expense data
     """
     expense: ExpenseUpdateInput!
+
+    """
+    Edit draft without submiting it
+    """
+    isDraftEdit: Boolean! = false
 
     """
     Expense draft key if invited to submit expense. Scope: "expenses".

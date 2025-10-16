@@ -89,12 +89,15 @@ export const idEncode = (integer: number, type: IdentifierType): string => {
 };
 
 export const idDecode = (string: string, type: IdentifierType): number => {
-  const [decoded] = getInstance(type).decode(string.split('-').join(''));
-  if (decoded === undefined) {
+  try {
+    const [decoded] = getInstance(type).decode(string.split('-').join(''));
+    if (decoded === undefined) {
+      throw new Error('No returned value from hashids');
+    }
+    return Number(decoded);
+  } catch {
     throw new BadRequest(`Invalid ${type} id: ${string}`);
   }
-
-  return Number(decoded);
 };
 
 /**
