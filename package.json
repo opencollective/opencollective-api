@@ -115,7 +115,7 @@
     "passport-github": "1.1.0",
     "paypal-adaptive": "0.4.2",
     "pg": "8.16.3",
-    "pg-connection-string": "2.9.0",
+    "pg-connection-string": "2.9.1",
     "pg-format": "1.0.4",
     "pg-listen": "1.7.0",
     "plaid": "31.1.0",
