@@ -216,7 +216,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     }
 
     const protectedUrls = {};
-    for (const item of items) {
+    for (const item of items || []) {
       if (!item.url) {
         continue;
       }
