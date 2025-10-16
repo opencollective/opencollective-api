@@ -110,7 +110,8 @@ describe('server/models/UserTwoFactorMethod', () => {
         UserId: user.id,
         data: {
           secret: 11,
-        } as unknown,
+          // forcing type for validation
+        } as unknown as UserTwoFactorMethod<TwoFactorMethod.TOTP>['data'],
       }),
     ).to.eventually.be.rejectedWith('Validation error');
 
