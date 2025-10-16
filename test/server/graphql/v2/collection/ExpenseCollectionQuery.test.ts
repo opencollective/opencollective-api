@@ -14,6 +14,7 @@ import {
   fakeHost,
   fakeLegalDocument,
   fakePayoutMethod,
+  fakeProject,
   fakeTransaction,
   fakeUser,
   randStr,
@@ -29,6 +30,7 @@ const expensesQuery = gql`
     $searchTerm: String
     $customData: JSON
     $chargeHasReceipts: Boolean
+    $includeChildrenExpenses: Boolean = false
   ) {
     expenses(
       fromAccount: $fromAccount
@@ -38,6 +40,7 @@ const expensesQuery = gql`
       searchTerm: $searchTerm
       customData: $customData
       chargeHasReceipts: $chargeHasReceipts
+      includeChildrenExpenses: $includeChildrenExpenses
     ) {
       totalCount
       totalAmount {
@@ -191,6 +194,52 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.expenses.nodes.length).to.eq(1);
       expect(result.data.expenses.nodes[0].legacyId).to.eq(expenses[0].id);
+    });
+
+    describe('with account', () => {
+      describe('children expenses', () => {
+        it('are not returned by default', async () => {
+          const parentCollective = await fakeCollective();
+          const childCollective = await fakeProject({ ParentCollectiveId: parentCollective.id });
+          await fakeExpense({ type: 'RECEIPT', CollectiveId: childCollective.id, status: 'APPROVED' });
+          const result = await graphqlQueryV2(expensesQuery, { account: { legacyId: parentCollective.id } });
+          expect(result.data.expenses.totalCount).to.eq(0);
+        });
+
+        it('are returned if includeChildrenExpenses is true', async () => {
+          const parentCollective = await fakeCollective();
+          const childCollective = await fakeProject({ ParentCollectiveId: parentCollective.id });
+          await fakeExpense({ type: 'RECEIPT', CollectiveId: childCollective.id, status: 'APPROVED' });
+          const result = await graphqlQueryV2(expensesQuery, {
+            account: { legacyId: parentCollective.id },
+            includeChildrenExpenses: true,
+          });
+          expect(result.data.expenses.totalCount).to.eq(1);
+        });
+      });
+    });
+
+    describe('with fromAccount (payee)', () => {
+      describe('children expenses', () => {
+        it('are not returned by default', async () => {
+          const parentCollective = await fakeCollective();
+          const childCollective = await fakeProject({ ParentCollectiveId: parentCollective.id });
+          await fakeExpense({ type: 'RECEIPT', FromCollectiveId: childCollective.id, status: 'APPROVED' });
+          const result = await graphqlQueryV2(expensesQuery, { fromAccount: { legacyId: parentCollective.id } });
+          expect(result.data.expenses.totalCount).to.eq(0);
+        });
+
+        it('are returned if includeChildrenExpenses is true', async () => {
+          const parentCollective = await fakeCollective();
+          const childCollective = await fakeProject({ ParentCollectiveId: parentCollective.id });
+          await fakeExpense({ type: 'RECEIPT', FromCollectiveId: childCollective.id, status: 'APPROVED' });
+          const result = await graphqlQueryV2(expensesQuery, {
+            fromAccount: { legacyId: parentCollective.id },
+            includeChildrenExpenses: true,
+          });
+          expect(result.data.expenses.totalCount).to.eq(1);
+        });
+      });
     });
   });
 

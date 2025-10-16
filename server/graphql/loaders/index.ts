@@ -470,9 +470,15 @@ export const generateLoaders = req => {
           raw: true,
           where: { ParentCollectiveId: { [Op.in]: ids } },
           attributes: ['ParentCollectiveId', 'id'],
-        }).then(results => {
-          const groupedResults = groupBy(results, 'ParentCollectiveId');
-          return ids.map(id => groupedResults[id]?.map(result => result.id) || []);
+        }).then((results: { ParentCollectiveId: number; id: number }[]) => {
+          const groupedResults = new Map<number, Set<number>>();
+          for (const result of results) {
+            const existingSet = groupedResults.get(result.ParentCollectiveId) || new Set<number>();
+            existingSet.add(result.id);
+            groupedResults.set(result.ParentCollectiveId, existingSet);
+          }
+
+          return ids.map(id => Array.from(groupedResults.get(id) || []));
         }),
       ),
 
