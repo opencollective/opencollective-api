@@ -666,6 +666,15 @@ export const canEditPayee: ExpensePermissionEvaluator = async (req, expense, opt
     }
     return false;
   } else if (expense.status === ExpenseStatus.DRAFT) {
+    if (expense.RecurringExpenseId) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not edit payee for a recurring draft',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+        );
+      }
+      return false;
+    }
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
@@ -2739,13 +2748,27 @@ export async function editExpenseDraft(
 
   const currency = expenseData.currency || existingExpense.currency;
   const items =
-    (await prepareExpenseItemInputs(req, currency, expenseData.items, { isEditing: true })) || existingExpense.items;
+    (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
+      isEditing: true,
+    })) || existingExpense.items;
 
-  const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
-  const invoiceFile =
-    (expenseData.type || existingExpense.type) === ExpenseType.INVOICE
-      ? await prepareInvoiceFile(req, expenseData.invoiceFile)
-      : null;
+  const attachedFiles =
+    (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;
+
+  const existingInvoiceFileUrl = existingExpense.data.invoiceFile?.['url'];
+
+  let invoiceFileUrl: string =
+    (expenseData.type || existingExpense.type) === ExpenseType.INVOICE ? existingInvoiceFileUrl : null;
+  if (expenseData.invoiceFile !== undefined) {
+    const newInvoiceFile =
+      (expenseData.type || existingExpense.type) === ExpenseType.INVOICE
+        ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+        : null;
+
+    if (newInvoiceFile) {
+      invoiceFileUrl = newInvoiceFile.getDataValue('url');
+    }
+  }
 
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
@@ -2756,13 +2779,17 @@ export async function editExpenseDraft(
       items,
       taxes: expenseData.tax,
       attachedFiles: attachedFiles,
-      invoiceFile: invoiceFile ? { url: invoiceFile.getDataValue('url') } : null,
+      invoiceFile: invoiceFileUrl ? { url: invoiceFileUrl } : null,
     },
   };
 
   await checkLockedFields(existingExpense, expenseData);
 
-  if (args.expense.payee && isDifferentInvitedPayee(existingExpense, args.expense.payee)) {
+  if (
+    args.expense.payee &&
+    isDifferentInvitedPayee(existingExpense, args.expense.payee) &&
+    !existingExpense.RecurringExpenseId
+  ) {
     const payee = args.expense.payee as { email: string; name?: string };
     if (payee.email) {
       payee.email = payee.email.toLowerCase();

@@ -470,9 +470,15 @@ export const generateLoaders = req => {
           raw: true,
           where: { ParentCollectiveId: { [Op.in]: ids } },
           attributes: ['ParentCollectiveId', 'id'],
-        }).then(results => {
-          const groupedResults = groupBy(results, 'ParentCollectiveId');
-          return ids.map(id => groupedResults[id]?.map(result => result.id) || []);
+        }).then((results: { ParentCollectiveId: number; id: number }[]) => {
+          const groupedResults = new Map<number, Set<number>>();
+          for (const result of results) {
+            const existingSet = groupedResults.get(result.ParentCollectiveId) || new Set<number>();
+            existingSet.add(result.id);
+            groupedResults.set(result.ParentCollectiveId, existingSet);
+          }
+
+          return ids.map(id => Array.from(groupedResults.get(id) || []));
         }),
       ),
 
@@ -1018,9 +1024,9 @@ export const generateLoaders = req => {
       findByMembership: new DataLoader<string, Order[]>(combinedKeys =>
         Order.findAll({
           where: {
-            CollectiveId: { [Op.in]: combinedKeys.map(k => k.split(':')[0]) },
+            CollectiveId: { [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[0]))] },
             FromCollectiveId: {
-              [Op.in]: combinedKeys.map(k => k.split(':')[1]),
+              [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[1]))],
             },
           },
           order: [['createdAt', 'DESC']],
@@ -1055,9 +1061,9 @@ export const generateLoaders = req => {
       transactions: new DataLoader<string, Transaction[]>(combinedKeys =>
         Transaction.findAll({
           where: {
-            CollectiveId: { [Op.in]: combinedKeys.map(k => k.split(':')[0]) },
+            CollectiveId: { [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[0]))] },
             FromCollectiveId: {
-              [Op.in]: combinedKeys.map(k => k.split(':')[1]),
+              [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[1]))],
             },
           },
           order: [['createdAt', 'DESC']],
@@ -1107,8 +1113,8 @@ export const generateLoaders = req => {
             [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
           ],
           where: {
-            FromCollectiveId: { [Op.in]: keys.map(k => k.FromCollectiveId) },
-            CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
+            FromCollectiveId: { [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))] },
+            CollectiveId: { [Op.in]: [...new Set(keys.map(k => k.CollectiveId))] },
             type: TransactionTypes.CREDIT,
           },
           group: ['FromCollectiveId', 'CollectiveId'],
@@ -1133,13 +1139,18 @@ export const generateLoaders = req => {
           where: {
             [Op.or]: {
               FromCollectiveId: {
-                [Op.in]: keys.map(k => k.FromCollectiveId),
+                // Deduplicated Ids
+                [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))],
               },
               UsingGiftCardFromCollectiveId: {
-                [Op.in]: keys.map(k => k.FromCollectiveId),
+                // Deduplicated Ids
+                [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))],
               },
             },
-            CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
+            CollectiveId: {
+              // Deduplicated Ids
+              [Op.in]: [...new Set(keys.map(k => k.CollectiveId))],
+            },
             type: TransactionTypes.CREDIT,
             kind: { [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'] },
             RefundTransactionId: null,

@@ -25,6 +25,7 @@
 | GRAPHQL_CACHE_TTL                             | .graphql.cache.ttl                                 | GraphQL cache TTL                                                                  |
 | GRAPHQL_CACHE_MIN_EXECUTION_TIME_TO_CACHE     | .graphql.cache.minExecutionTimeToCache             | Minimum execution time to cache GraphQL queries                                    |
 | GRAPHQL_ERROR_DETAILED                        | .graphql.error.detailed                            | Enable detailed GraphQL errors                                                     |
+| GRAPHQL_REJECT_ON_MAX_COMPLEXITY              | .graphql.rejectOnMaxComplexity                     | Whether to throw an error when the query exceeds max complexity                    |
 | GRAPHQL_RESOLVER_TIME_DEBUG                   | .graphql.resolverTimeDebugWarning                  | Enable GraphQL resolver time debug warnings                                        |
 | MEMCACHE_SERVERS                              | .memcache.servers                                  | Memcache servers                                                                   |
 | MEMCACHE_USERNAME                             | .memcache.username                                 | Memcache username                                                                  |
@@ -83,7 +84,7 @@
 | IMAGES_URL                                    | .host.images                                       | Images URL                                                                         |
 | FRONTEND_URL                                  | .host.frontend                                     | URL of the frontend service                                                        |
 | WEBSITE_URL                                   | .host.website                                      | Website URL                                                                        |
-| PDF_SERVICE_V2_URL                            | .host.pdfV2                                        | PDF service V2 URL                                                                 |
+| PDF_SERVICE_URL                               | .host.pdf                                          | PDF service V2 URL                                                                 |
 | REST_URL                                      | .host.rest                                         | REST service URL                                                                   |
 | ORDERS_LIMIT_ACCOUNT                          | .limits.ordersPerHour.perAccount                   | Orders limit per account                                                           |
 | ORDERS_LIMIT_ACCOUNT_COLLECTIVE               | .limits.ordersPerHour.perAccountForCollective      | Orders limit per account for collective                                            |

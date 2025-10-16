@@ -9,7 +9,7 @@ env:
   WEBSITE_URL: http://localhost:3000
   IMAGES_URL: http://localhost:3001
   API_URL: http://localhost:3060
-  PDF_SERVICE_V2_URL: http://localhost:3002
+  PDF_SERVICE_URL: http://localhost:3002
   API_KEY: dvl-1510egmf4a23d80342403fb599qd
   CI: true
 
@@ -57,7 +57,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.9
+        image: postgres:16.10
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -106,10 +106,10 @@ jobs:
           ./mc mb --ignore-existing minio/opencollective-e2e
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
           cache: 'npm'
@@ -133,7 +133,7 @@ jobs:
 
       - name: Checkout (frontend - matching branch)
         if: steps.check-matching-branch.outputs.status == 200
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
@@ -141,19 +141,19 @@ jobs:
 
       - name: Checkout (frontend - main)
         if: steps.check-matching-branch.outputs.status != 200
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: opencollective/opencollective-frontend
           path: opencollective-frontend
 
       - name: Checkout (images)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: opencollective/opencollective-images
           path: opencollective-images
 
       - name: Checkout (PDF)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: opencollective/opencollective-pdf
           path: opencollective-pdf

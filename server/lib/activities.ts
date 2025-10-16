@@ -1,5 +1,5 @@
 import config from 'config';
-import { lowerCase } from 'lodash';
+import { isNil, lowerCase } from 'lodash';
 
 import activities from '../constants/activities';
 import { TransactionTypes } from '../constants/transactions';
@@ -69,10 +69,16 @@ const doFormatMessage = (activity, format): string | { message: string; options:
 
   // get transaction data
   if (activity.data.transaction) {
-    amount = Math.abs(activity.data.transaction.amount / 100);
-    recurringAmount = amount + (interval ? `/${interval}` : '');
-    ({ currency } = activity.data.transaction);
-    ({ description } = activity.data.transaction);
+    if (!isNil(activity.data.transaction?.amount)) {
+      amount = Math.abs(activity.data.transaction.amount / 100);
+      recurringAmount = amount + (interval ? `/${interval}` : '');
+    }
+    if (!isNil(activity.data.transaction?.currency)) {
+      currency = activity.data.transaction.currency;
+    }
+    if (!isNil(activity.data.transaction?.description)) {
+      description = activity.data.transaction.description;
+    }
   }
 
   // get expense data
