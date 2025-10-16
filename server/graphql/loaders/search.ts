@@ -168,10 +168,10 @@ export const generateSearchLoaders = req => {
         if (hits) {
           return {
             count: typeof hits.total === 'number' ? hits.total : hits.total.value,
-            maxScore: (typeof hits.max_score === 'string' ? parseInt(hits.max_score, 10) : hits.max_score) || 0,
+            maxScore: (typeof hits.max_score === 'string' ? parseFloat(hits.max_score) : hits.max_score) || 0,
             hits: hits.hits.map(hit => ({
               indexName: request.index,
-              score: typeof hit._score === 'string' ? parseInt(hit._score, 10) : hit._score,
+              score: typeof hit._score === 'string' ? parseFloat(hit._score) : hit._score,
               id: hit._id,
               source: hit._source,
               highlight: hit.highlight,
