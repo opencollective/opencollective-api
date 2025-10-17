@@ -188,7 +188,10 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     type: ActivityTypes,
     user: User | { id: number } | null = null,
     data:
-      | ({ notifyCollective?: boolean; ledgerTransaction?: Transaction; notify?: boolean } & Record<string, unknown>)
+      | ({ notifyCollective?: boolean; ledgerTransaction?: Transaction; notify?: boolean; draftKey?: string } & Record<
+          string,
+          unknown
+        >)
       | null = {},
   ) {
     const submittedByUser = await this.getSubmitterUser();
@@ -199,7 +202,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     }
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
-    const items = this.items || this.data?.items || (await this.getItems());
+    const items: Array<{ url?: string } & Record<string, unknown>> =
+      this.items || this.data?.items || (await this.getItems());
 
     let transaction;
     if (data?.ledgerTransaction) {
@@ -208,6 +212,23 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       transaction = await Transaction.findOne({
         where: { type: 'DEBIT', kind: 'EXPENSE', ExpenseId: this.id },
         order: [['id', 'DESC']],
+      });
+    }
+
+    const protectedUrls = {};
+    for (const item of items || []) {
+      if (!item.url) {
+        continue;
+      }
+
+      const uploadedFile = await UploadedFile.getFromURL(item.url);
+      if (!uploadedFile) {
+        continue;
+      }
+
+      protectedUrls[item.url] = UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
+        expenseId: this.id,
+        draftKey: data.draftKey,
       });
     }
 
@@ -254,7 +275,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
             currency: item.currency,
             expenseCurrencyFxRate: item.expenseCurrencyFxRate,
             expenseCurrencyFxRateSource: item.expenseCurrencyFxRateSource,
-            url: item.url,
+            url: protectedUrls[item.url] || item.url,
           })),
       },
     });
