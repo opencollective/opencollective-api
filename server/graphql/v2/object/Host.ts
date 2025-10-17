@@ -1877,7 +1877,7 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its legal documents');
           }
 
-          if (args.type.length > 1 || args.type[0] !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
+          if (args.type?.length > 1 || args.type?.[0] !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
             throw new Error('Only US_TAX_FORM is supported for now');
           }
 
@@ -1898,9 +1898,9 @@ export const GraphQLHost = new GraphQLObjectType({
             where['requestStatus'] = args.status;
           }
 
-          if (args.accounts && args.accounts.length > 0) {
-            const accountIds = await fetchAccountsIdsWithReference(args.accounts, { throwIfMissing: true });
-            where['CollectiveId'] = uniq([...where['CollectiveId'], ...accountIds]);
+          if (args.account && args.account.length > 0) {
+            const accountIds = await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true });
+            where['CollectiveId'] = uniq(accountIds);
           }
 
           if (args.requestedAtFrom) {

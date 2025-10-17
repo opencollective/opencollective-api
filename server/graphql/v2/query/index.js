@@ -2,6 +2,7 @@ import { GraphQLIndividual } from '../object/Individual';
 
 import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
 import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
+import CommunityQuery from './collection/CommunityQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
@@ -46,6 +47,7 @@ const query = {
   application: ApplicationQuery,
   collective: CollectiveQuery,
   conversation: ConversationQuery,
+  community: CommunityQuery,
   currencyExchangeRate: CurrencyExchangeRateQuery,
   event: EventQuery,
   expense: ExpenseQuery,
