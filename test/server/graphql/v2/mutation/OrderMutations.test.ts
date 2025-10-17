@@ -2839,7 +2839,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           const order = await fakeOrder(
             {
               interval: initialInterval,
-              subscription: { nextChargeDate },
+              subscription: {
+                nextChargeDate,
+                nextPeriodStart: moment(nextChargeDate).startOf(initialInterval).toDate(),
+              },
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
