@@ -255,6 +255,7 @@ export const freeFeatures: CommercialFeaturesType[] = [
   PlatformFeature.UPDATES,
   PlatformFeature.VENDORS,
   PlatformFeature.RECEIVE_FINANCIAL_CONTRIBUTIONS,
+  PlatformFeature.RECEIVE_HOST_APPLICATIONS,
 ] as const;
 
 const basicFeatures: CommercialFeaturesType[] = [
