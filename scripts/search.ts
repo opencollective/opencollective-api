@@ -8,7 +8,7 @@ import logger from '../server/lib/logger';
 import { getOpenSearchClient } from '../server/lib/open-search/client';
 import { formatIndexNameForOpenSearch } from '../server/lib/open-search/common';
 import { OpenSearchIndexName } from '../server/lib/open-search/constants';
-import { openSearchGlobalSearch } from '../server/lib/open-search/search';
+import { openSearchMultiIndexGlobalSearch } from '../server/lib/open-search/search';
 import {
   createOpenSearchIndex,
   getAvailableOpenSearchIndexes,
@@ -249,7 +249,7 @@ program
     }
 
     const indexInputs = indexes.map(index => ({ index }));
-    const result = await openSearchGlobalSearch(indexInputs, query, { account, host, limit, user });
+    const result = await openSearchMultiIndexGlobalSearch(indexInputs, query, { account, host, limit, user });
     console.log('Result', JSON.stringify(result, null, 2));
   });
 

@@ -152,7 +152,10 @@
     },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
     "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
-    "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR"
+    "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR",
+    "search": {
+      "concurrentRequests": "LIMIT_SEARCH_CONCURRENT_REQUESTS"
+    }
   },
   "slack": {
     "webhooks": {

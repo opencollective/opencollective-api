@@ -181,7 +181,21 @@ const buildQuery = (
   return { query, searchedFields, indexes: fetchedIndexes };
 };
 
-export const openSearchGlobalSearch = async (
+const getHighlightConfig = (searchedFields: Set<string>) => {
+  return {
+    /* eslint-disable camelcase */
+    pre_tags: ['<mark>'],
+    post_tags: ['</mark>'],
+    fragment_size: 40,
+    number_of_fragments: 1,
+    fields: Array.from(searchedFields).reduce((acc, field) => {
+      acc[field] = {};
+      return acc;
+    }, {}),
+  };
+};
+
+export const openSearchMultiIndexGlobalSearch = async (
   requestedIndexes: OpenSearchIndexRequest[],
   searchTerm: string,
   {
@@ -189,12 +203,14 @@ export const openSearchGlobalSearch = async (
     host,
     timeoutInSeconds = 30,
     limit = 50,
+    offset = 0,
     user,
   }: {
     account?: Collective;
     host?: Collective;
     timeoutInSeconds?: number;
     limit?: number;
+    offset?: number;
     user?: User;
   } = {},
 ) => {
@@ -226,20 +242,12 @@ export const openSearchGlobalSearch = async (
               top_hits_by_index: {
                 top_hits: {
                   size: limit,
+                  from: offset,
                   _source: {
                     // We only need to retrieve the IDs, the rest will be fetched by the loaders
                     includes: ['id', 'uuid'],
                   },
-                  highlight: {
-                    pre_tags: ['<mark>'],
-                    post_tags: ['</mark>'],
-                    fragment_size: 40,
-                    number_of_fragments: 1,
-                    fields: Array.from(searchedFields).reduce((acc, field) => {
-                      acc[field] = {};
-                      return acc;
-                    }, {}),
-                  },
+                  highlight: getHighlightConfig(searchedFields),
                 },
               },
             },
@@ -250,6 +258,57 @@ export const openSearchGlobalSearch = async (
     } as SearchRequest);
   } catch (e) {
     reportErrorToSentry(e, { user, extra: { requestedIndexes, searchTerm, limit, account, host } });
+    throw new Error('The search query failed, please try again later');
+  }
+};
+
+export const openSearchSingleIndexSearch = async (
+  request: OpenSearchIndexRequest,
+  searchTerm: string,
+  {
+    account,
+    host,
+    timeoutInSeconds = 30,
+    limit = 50,
+    offset = 0,
+    user,
+  }: {
+    account?: Collective;
+    host?: Collective;
+    timeoutInSeconds?: number;
+    limit?: number;
+    offset?: number;
+    user?: User;
+  } = {},
+) => {
+  const client = getOpenSearchClient({ throwIfUnavailable: true });
+  const { query, searchedFields, indexes } = buildQuery(searchTerm, [request], user, account, host);
+
+  // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
+  if (indexes.size === 0) {
+    return null;
+  }
+
+  try {
+    return await client.search({
+      /* eslint-disable camelcase */
+      timeout: `${timeoutInSeconds}s`,
+      index: Array.from(indexes).map(formatIndexNameForOpenSearch).join(','),
+      body: {
+        from: offset,
+        size: limit,
+        query,
+        min_score: 0.0001, // Ignore results that fulfill the accounts criteria but don't match the search term
+        _source: {
+          // We only need to retrieve the IDs, the rest will be fetched by the loaders
+          includes: ['id', 'uuid'],
+        },
+        highlight: getHighlightConfig(searchedFields),
+      },
+      /* eslint-enable camelcase */
+    } as SearchRequest);
+  } catch (e) {
+    reportErrorToSentry(e, { user, extra: { request, searchTerm, limit, account, host } });
     throw new Error('The search query failed, please try again later');
   }
 };
