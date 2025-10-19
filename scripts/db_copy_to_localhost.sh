@@ -13,51 +13,53 @@ if [[ ${ENV} != staging ]] && [[ ${ENV} != prod ]]; then
   exit 1;
 fi
 
-LOCALDBUSER="opencollective"
+LOCALDBUSER="opencollective" 
 LOCALDBNAME="opencollective_${ENV}_snapshot"
 DBDUMPS_DIR="dbdumps/"
+PG_HOST=${PG_HOST:-"localhost"}
 
-FILENAME="`date +"%Y-%m-%d"`-${ENV}.pgsql"
+# FILENAME="`date +"%Y-%m-%d"`-${ENV}.pgsql"
+FILENAME="2025-08-13-staging.pgsql"
 
-if [[ ! -d ${DBDUMPS_DIR} ]]; then
-  mkdir -p "${DBDUMPS_DIR}"
-fi
+# if [[ ! -d ${DBDUMPS_DIR} ]]; then
+#   mkdir -p "${DBDUMPS_DIR}"
+# fi
 
-if [[ ! -s ${DBDUMPS_DIR}${FILENAME} ]]; then
-  echo "Dumping ${ENV} database"
-  if [ -x "$(command -v heroku)" ]; then
-    heroku pg:backups:download -a "opencollective-${ENV}-api" -o "${DBDUMPS_DIR}${FILENAME}"
-  else
-    PG_URL_ENVIRONMENT_VARIABLE=`heroku config:get PG_URL_ENVIRONMENT_VARIABLE -a "opencollective-${ENV}-api"`
-    PG_URL_ENVIRONMENT_VARIABLE="${PG_URL_ENVIRONMENT_VARIABLE:-DATABASE_URL}"
-    PG_URL=`heroku config:get ${PG_URL_ENVIRONMENT_VARIABLE} -a "opencollective-${ENV}-api"`
-    pg_dump -O -F t "${PG_URL}" > "${DBDUMPS_DIR}${FILENAME}"
-  fi
-fi
+# if [[ ! -s ${DBDUMPS_DIR}${FILENAME} ]]; then
+#   echo "Dumping ${ENV} database"
+#   if [ -x "$(command -v heroku)" ]; then
+#     heroku pg:backups:download -a "opencollective-${ENV}-api" -o "${DBDUMPS_DIR}${FILENAME}"
+#   else
+#     PG_URL_ENVIRONMENT_VARIABLE=`heroku config:get PG_URL_ENVIRONMENT_VARIABLE -a "opencollective-${ENV}-api"`
+#     PG_URL_ENVIRONMENT_VARIABLE="${PG_URL_ENVIRONMENT_VARIABLE:-DATABASE_URL}"
+#     PG_URL=`heroku config:get ${PG_URL_ENVIRONMENT_VARIABLE} -a "opencollective-${ENV}-api"`
+#     pg_dump -O -F t "${PG_URL}" > "${DBDUMPS_DIR}${FILENAME}"
+#   fi
+# fi
 
 echo "DB dump saved in ${DBDUMPS_DIR}${FILENAME}"
 
 echo Restore...
-./scripts/db_restore.sh -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME}
+./scripts/db_restore.sh -h $PG_HOST -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME}
 
 # cool trick: all stdout ignored in this block
 {
   set +e
   # We make sure the user $LOCALDBUSER has access; could fail
-  psql "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
+  psql "${LOCALDBNAME}" -h $PG_HOST -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
   set -e
 
   # Change ownership of all tables
-  tables=`psql -qAt -c "select tablename from pg_tables where schemaname = 'public';" "${LOCALDBNAME}"`
+  tables=`psql -h $PG_HOST -qAt -c "select tablename from pg_tables where schemaname = 'public';" "${LOCALDBNAME}"`
 
   for tbl in $tables ; do
-    psql "${LOCALDBNAME}" -c "alter table \"${tbl}\" owner to ${LOCALDBUSER};"
+    psql "${LOCALDBNAME}" -h $PG_HOST -c "alter table \"${tbl}\" owner to ${LOCALDBUSER};"
   done
 
   # Change ownership of the database
-  psql "${LOCALDBNAME}" -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -h $PG_HOST -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
 
-  psql "${LOCALDBNAME}" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -h $PG_HOST -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
 
 } | tee >/dev/null
 

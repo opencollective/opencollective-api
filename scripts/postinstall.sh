@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+PG_HOST=${PG_HOST:-"localhost"}
+
 set -e
 
 if [ "$OC_ENV" = "ci" ]; then
@@ -28,7 +30,7 @@ else
   echo ""
   exit 1
 fi
-if psql -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
+if psql -h $PG_HOST -U postgres -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
   echo "✓ opencollective_dvl exists"
 else
   echo "- restoring opencollective_dvl";

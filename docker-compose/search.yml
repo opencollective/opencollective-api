@@ -1,0 +1,30 @@
+services:
+  search:
+    image: docker.io/opensearchproject/opensearch:3
+    ports:
+      - 9200:9200
+      - 9600:9600
+    deploy:
+      resources:
+        limits:
+          cpus: '${OPENSEARCH_CPU_LIMIT:-0.25}'
+          memory: '${OPENSEARCH_MEMORY_LIMIT:-8gb}'
+    environment:
+      - cluster.name=opensearch-cluster
+      - cluster.routing.allocation.disk.watermark.low=98%
+      - cluster.routing.allocation.disk.watermark.high=99%
+      - cluster.routing.allocation.disk.watermark.flood_stage=99.5%
+      - node.name=opensearch-node1
+      - discovery.seed_hosts=opensearch-node1
+      - cluster.initial_cluster_manager_nodes=opensearch-node1
+      - bootstrap.memory_lock=true
+      - 'OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m'
+      - 'DISABLE_INSTALL_DEMO_CONFIG=true'
+      - 'DISABLE_SECURITY_PLUGIN=true'
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536

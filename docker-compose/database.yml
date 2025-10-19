@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: docker.io/postgres:16
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    deploy:
+      resources:
+        limits:
+          cpus: '${POSTGRES_CPU_LIMIT:-0.25}'
+          memory: '${POSTGRES_MEMORY_LIMIT:-4gb}'
+    volumes:
+      - opencollective-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  opencollective-postgres-data:
