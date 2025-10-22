@@ -15,6 +15,7 @@ import { reportMessageToSentry } from '../../../lib/sentry';
 import { parseToBoolean } from '../../../lib/utils';
 import models, { PlatformSubscription, type User } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
+import { SocialLinkType } from '../../../models/SocialLink';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { createUser, sendLoginEmail } from '../../common/user';
@@ -72,7 +73,7 @@ export default {
       const organizationData = {
         type: CollectiveType.ORGANIZATION,
         slug: args.organization.slug.toLowerCase(),
-        ...pick(args.organization, ['name', 'legalName', 'description', 'website']),
+        ...pick(args.organization, ['name', 'legalName', 'description', 'countryISO']),
         isActive: false,
         CreatedByUserId: req.remoteUser?.id,
         settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
@@ -149,6 +150,9 @@ export default {
       }
       await organization.save();
 
+      if (args.organization.website) {
+        await organization.updateSocialLinks([{ type: SocialLinkType.WEBSITE, url: args.organization.website }]);
+      }
       if (args.organization.currency) {
         await organization.setCurrency(args.organization.currency);
       }
