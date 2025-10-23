@@ -49,10 +49,28 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       $includeTiers: Boolean!
       $includeTransactions: Boolean!
       $includeUpdates: Boolean!
+      $useTopHits: Boolean!
+      $defaultLimit: Int!
+      $accountsOffset: Int!
+      $accountsLimit: Int!
+      $commentsOffset: Int!
+      $commentsLimit: Int!
+      $expensesOffset: Int!
+      $expensesLimit: Int!
+      $hostApplicationsOffset: Int!
+      $hostApplicationsLimit: Int!
+      $ordersOffset: Int!
+      $ordersLimit: Int!
+      $tiersOffset: Int!
+      $tiersLimit: Int!
+      $transactionsOffset: Int!
+      $transactionsLimit: Int!
+      $updatesOffset: Int!
+      $updatesLimit: Int!
     ) {
-      search(searchTerm: $searchTerm) {
+      search(searchTerm: $searchTerm, useTopHits: $useTopHits, defaultLimit: $defaultLimit) {
         results {
-          accounts @include(if: $includeAccounts) {
+          accounts(offset: $accountsOffset, limit: $accountsLimit) @include(if: $includeAccounts) {
             highlights
             maxScore
             collection {
@@ -64,7 +82,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               }
             }
           }
-          comments @include(if: $includeComments) {
+          comments(offset: $commentsOffset, limit: $commentsLimit) @include(if: $includeComments) {
             highlights
             maxScore
             collection {
@@ -74,7 +92,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               }
             }
           }
-          expenses @include(if: $includeExpenses) {
+          expenses(offset: $expensesOffset, limit: $expensesLimit) @include(if: $includeExpenses) {
             highlights
             maxScore
             collection {
@@ -84,7 +102,8 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               }
             }
           }
-          hostApplications @include(if: $includeHostApplications) {
+          hostApplications(offset: $hostApplicationsOffset, limit: $hostApplicationsLimit)
+            @include(if: $includeHostApplications) {
             highlights
             maxScore
             collection {
@@ -94,7 +113,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               }
             }
           }
-          orders @include(if: $includeOrders) {
+          orders(offset: $ordersOffset, limit: $ordersLimit) @include(if: $includeOrders) {
             highlights
             maxScore
             collection {
@@ -104,7 +123,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               }
             }
           }
-          tiers @include(if: $includeTiers) {
+          tiers(offset: $tiersOffset, limit: $tiersLimit) @include(if: $includeTiers) {
             highlights
             maxScore
             collection {
@@ -114,7 +133,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               }
             }
           }
-          transactions @include(if: $includeTransactions) {
+          transactions(offset: $transactionsOffset, limit: $transactionsLimit) @include(if: $includeTransactions) {
             highlights
             maxScore
             collection {
@@ -124,7 +143,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               }
             }
           }
-          updates @include(if: $includeUpdates) {
+          updates(offset: $updatesOffset, limit: $updatesLimit) @include(if: $includeUpdates) {
             highlights
             maxScore
             collection {
@@ -138,41 +157,6 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       }
     }
   `;
-
-  const callSearchQuery = async (
-    searchTerm: string,
-    {
-      includeAccounts = false,
-      includeComments = false,
-      includeExpenses = false,
-      includeHostApplications = false,
-      includeOrders = false,
-      includeTiers = false,
-      includeTransactions = false,
-      includeUpdates = false,
-    } = {},
-    remoteUser?: User,
-    params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
-  ) => {
-    const args = {
-      searchTerm,
-      includeAccounts,
-      includeComments,
-      includeExpenses,
-      includeHostApplications,
-      includeOrders,
-      includeTiers,
-      includeTransactions,
-      includeUpdates,
-    };
-
-    if (params.useOAuth) {
-      const userToken = await fakeUserToken({ scope: params.oauthScopes, UserId: remoteUser.id });
-      return oAuthGraphqlQueryV2(searchQuery, args, userToken);
-    } else {
-      return graphqlQueryV2(searchQuery, args, remoteUser);
-    }
-  };
 
   let sandbox: sinon.SinonSandbox,
     openSearchClient: Client,
@@ -372,414 +356,531 @@ describe('server/graphql/v2/query/SearchQuery', () => {
     sandbox.restore();
   });
 
-  describe('base', () => {
-    it('should search only in requested indexes', async () => {
-      const searchSpy = sandbox.spy(openSearchClient, 'search');
-
-      const queryResult = await callSearchQuery('iNcReDiBlE', { includeAccounts: true, includeExpenses: true });
-      queryResult.errors && console.error(queryResult.errors);
-      expect(queryResult.errors).to.be.undefined;
-
-      const results = queryResult.data.search.results;
-      expect(results.accounts.collection.totalCount).to.eq(3); // Collective + host + project
-      expect(results.accounts.collection.nodes).to.have.length(3);
-      expect(results.accounts.maxScore).to.be.gt(0);
-
-      expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
-      const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
-      expect(hostMatch.score).to.be.within(0.5, 2);
-      expect(hostMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Host']);
-      const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
-      expect(collectiveMatch.score).to.be.within(0.5, 2);
-      expect(collectiveMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Collective with AUniqueCollectiveName']);
-      const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
-      expect(projectMatch.score).to.be.within(0.5, 2);
-      expect(projectMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Project']);
-
-      expect(results.comments).to.be.undefined;
-      expect(searchSpy.callCount).to.eq(1);
-      expect(searchSpy.firstCall.args[0].index).to.eq(
-        `${formatIndexNameForOpenSearch(OpenSearchIndexName.COLLECTIVES)},${formatIndexNameForOpenSearch(OpenSearchIndexName.EXPENSES)}`,
-      );
-    });
-
-    it('should not return hidden accounts', async () => {
-      const queryResult = await callSearchQuery('hide', { includeAccounts: true });
-      queryResult.errors && console.error(queryResult.errors);
-      expect(queryResult.errors).to.be.undefined;
-      expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(0);
-    });
-  });
-
-  describe('weights', () => {
-    it('should prioritize the slug over the name', async () => {
-      const queryResult = await callSearchQuery('a-prioritized-unique-name-or-slug', { includeAccounts: true });
-      queryResult.errors && console.error(queryResult.errors);
-
-      expect(queryResult.errors).to.be.undefined;
-      expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
-      const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
-      expect(first.slug).to.eq('a-prioritized-unique-name-or-slug');
-      expect(second.slug).to.eq('whatever');
-
-      const highlights = queryResult.data.search.results.accounts.highlights;
-      const firstScore = highlights[first.id].score;
-      const secondScore = highlights[second.id].score;
-      expect(firstScore).to.be.gt(secondScore);
-    });
-
-    it('should prioritize the name over the description', async () => {
-      const queryResult = await callSearchQuery('frank zappa', { includeAccounts: true });
-      queryResult.errors && console.error(queryResult.errors);
-
-      expect(queryResult.errors).to.be.undefined;
-      expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
-      const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
-      expect(first.name).to.eq('frank zappa');
-      expect(second.name).to.eq('whatever');
-
-      const highlights = queryResult.data.search.results.accounts.highlights;
-      const firstScore = highlights[first.id].score;
-      const secondScore = highlights[second.id].score;
-      expect(firstScore).to.be.gt(secondScore);
-    });
-  });
-
-  describe('permissions', () => {
-    const testPermissionsForField = (
-      index: string,
-      uniqueValue: string,
-      permissions: Record<keyof typeof testUsers, number> & { unauthenticated: number },
+  [false, true].forEach(TEST_USE_TOP_HITS => {
+    const callSearchQuery = async (
+      searchTerm: string,
+      {
+        includeAccounts = false,
+        includeComments = false,
+        includeExpenses = false,
+        includeHostApplications = false,
+        includeOrders = false,
+        includeTiers = false,
+        includeTransactions = false,
+        includeUpdates = false,
+        defaultLimit = 10,
+        accountsOffset = 0,
+        accountsLimit = 10,
+        commentsOffset = 0,
+        commentsLimit = 10,
+        expensesOffset = 0,
+        expensesLimit = 10,
+        tiersOffset = 0,
+        tiersLimit = 10,
+        hostApplicationsOffset = 0,
+        hostApplicationsLimit = 10,
+        ordersOffset = 0,
+        ordersLimit = 10,
+        transactionsOffset = 0,
+        transactionsLimit = 10,
+        updatesOffset = 0,
+        updatesLimit = 10,
+      } = {},
+      remoteUser?: User,
       params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
     ) => {
-      const getIncludes = (index: string) => {
-        switch (index) {
-          case 'accounts':
-            return { includeAccounts: true };
-          case 'comments':
-            return { includeComments: true };
-          case 'expenses':
-            return { includeExpenses: true };
-          case 'hostApplications':
-            return { includeHostApplications: true };
-          case 'orders':
-            return { includeOrders: true };
-          case 'tiers':
-            return { includeTiers: true };
-          case 'transactions':
-            return { includeTransactions: true };
-          case 'updates':
-            return { includeUpdates: true };
-          default:
-            return {};
-        }
+      const args = {
+        searchTerm,
+        includeAccounts,
+        includeComments,
+        includeExpenses,
+        includeHostApplications,
+        includeOrders,
+        includeTiers,
+        includeTransactions,
+        includeUpdates,
+        useTopHits: TEST_USE_TOP_HITS,
+        defaultLimit,
+        accountsOffset,
+        accountsLimit,
+        commentsOffset,
+        commentsLimit,
+        expensesOffset,
+        expensesLimit,
+        hostApplicationsOffset,
+        hostApplicationsLimit,
+        ordersOffset,
+        ordersLimit,
+        tiersOffset,
+        tiersLimit,
+        transactionsOffset,
+        transactionsLimit,
+        updatesOffset,
+        updatesLimit,
       };
 
-      for (const [userKey, permission] of Object.entries(permissions)) {
-        if (!isNil(permission)) {
-          it(`can ${permission ? '' : 'not '}be used by ${userKey}`, async () => {
-            const queryResult = await callSearchQuery(uniqueValue, getIncludes(index), testUsers[userKey], params);
-            queryResult.errors && console.error(queryResult.errors);
-            expect(queryResult.errors).to.be.undefined;
-            expect(queryResult.data.search.results[index].collection.totalCount).to.eq(permission);
-          });
-        }
+      if (params.useOAuth) {
+        const userToken = await fakeUserToken({ scope: params.oauthScopes, UserId: remoteUser.id });
+        return oAuthGraphqlQueryV2(searchQuery, args, userToken);
+      } else {
+        return graphqlQueryV2(searchQuery, args, remoteUser);
       }
     };
 
-    describe('accounts', () => {
-      describe('name', () => {
-        testPermissionsForField('accounts', 'AUniqueCollectiveName', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          unauthenticated: 1,
-          fromUser: null, // doesn't apply
+    describe(`With useTopHits=${TEST_USE_TOP_HITS}`, () => {
+      describe('base', () => {
+        it('should search only in requested indexes', async () => {
+          const searchSpy = sandbox.spy(openSearchClient, 'search');
+
+          const queryResult = await callSearchQuery('iNcReDiBlE', { includeAccounts: true, includeExpenses: true });
+          queryResult.errors && console.error(queryResult.errors);
+          expect(queryResult.errors).to.be.undefined;
+
+          const results = queryResult.data.search.results;
+          expect(results.accounts.collection.totalCount).to.eq(3); // Collective + host + project
+          expect(results.accounts.collection.nodes).to.have.length(3);
+          expect(results.accounts.maxScore).to.be.gt(0);
+
+          expect(results.accounts.highlights).to.have.property(idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT));
+          const hostMatch = results.accounts.highlights[idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT)];
+          expect(hostMatch.score).to.be.within(0.5, 2);
+          expect(hostMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Host']);
+          const collectiveMatch = results.accounts.highlights[idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT)];
+          expect(collectiveMatch.score).to.be.within(0.5, 2);
+          expect(collectiveMatch.fields.name).to.deep.eq([
+            '<mark>Incredible</mark> Collective with AUniqueCollectiveName',
+          ]);
+          const projectMatch = results.accounts.highlights[idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT)];
+          expect(projectMatch.score).to.be.within(0.5, 2);
+          expect(projectMatch.fields.name).to.deep.eq(['<mark>Incredible</mark> Project']);
+
+          expect(results.comments).to.be.undefined;
+          expect(searchSpy.callCount).to.eq(TEST_USE_TOP_HITS ? 1 : 2);
+
+          const expectedIndexes = TEST_USE_TOP_HITS
+            ? [OpenSearchIndexName.COLLECTIVES, OpenSearchIndexName.EXPENSES]
+            : [OpenSearchIndexName.COLLECTIVES];
+          expect(searchSpy.firstCall.args[0].index).to.eq(expectedIndexes.map(formatIndexNameForOpenSearch).join(','));
+        });
+
+        it('should not return hidden accounts', async () => {
+          const queryResult = await callSearchQuery('hide', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(0);
         });
       });
 
-      describe('legalName', () => {
-        testPermissionsForField('accounts', 'SecretProjectLegalName', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 0,
-          rootUser: 1,
-          unauthenticated: 0,
-          fromUser: null, // doesn't apply
-        });
-      });
-    });
+      describe('pagination', () => {
+        if (TEST_USE_TOP_HITS) {
+          it('can only use offset when useTopHits is false', async () => {
+            const queryResult = await callSearchQuery('iNcReDiBlE', { includeAccounts: true, accountsOffset: 15 });
+            expect(queryResult.errors).to.exist;
+            expect(queryResult.errors[0].message).to.eq(
+              'Paginating with `offset` is not supported when `useTopHits` is true',
+            );
+          });
+        } else {
+          it('paginates results based on query parameters', async () => {
+            const firstQueryResult = await callSearchQuery('iNcReDiBlE', {
+              includeAccounts: true,
+              accountsOffset: 0,
+              accountsLimit: 2,
+            });
+            firstQueryResult.errors && console.error(firstQueryResult.errors);
+            expect(firstQueryResult.errors).to.be.undefined;
+            const firstCollection = firstQueryResult.data.search.results.accounts.collection;
+            expect(firstCollection.totalCount).to.eq(3);
+            expect(firstCollection.nodes).to.have.length(2);
+            const resultAccountNames = firstCollection.nodes.map(node => node.name);
+            expect(resultAccountNames).to.include.members(['Incredible Host', 'Incredible Project']);
 
-    describe('comments', () => {
-      describe('html for regular comments', () => {
-        testPermissionsForField('comments', 'AVerySecretComment', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 0,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 0,
-        });
-      });
-
-      describe('html for private notes', () => {
-        testPermissionsForField('comments', 'AVerySecretPrivateNoteForHostAdmins', {
-          hostAdmin: 1,
-          collectiveAdmin: 0,
-          projectAdmin: 0,
-          randomUser: 0,
-          rootUser: 1,
-          fromUser: 0,
-          unauthenticated: 0,
-        });
-      });
-    });
-
-    describe('expenses', () => {
-      describe('privateMessage', () => {
-        testPermissionsForField('expenses', 'AVerySecretExpensePrivateMessage', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 0,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 0,
-        });
+            const secondQueryResult = await callSearchQuery('iNcReDiBlE', {
+              includeAccounts: true,
+              accountsOffset: 2,
+              accountsLimit: 2,
+            });
+            secondQueryResult.errors && console.error(secondQueryResult.errors);
+            expect(secondQueryResult.errors).to.be.undefined;
+            const secondCollection = secondQueryResult.data.search.results.accounts.collection;
+            expect(secondCollection.totalCount).to.eq(3);
+            expect(secondCollection.nodes).to.have.length(1);
+            expect(secondCollection.nodes[0].name).to.eq('Incredible Collective with AUniqueCollectiveName');
+          });
+        }
       });
 
-      describe('invoiceInfo', () => {
-        testPermissionsForField('expenses', 'AVerySecretExpenseInvoiceInfo', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 0,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 0,
-        });
-      });
+      describe('weights', () => {
+        it('should prioritize the slug over the name', async () => {
+          const queryResult = await callSearchQuery('a-prioritized-unique-name-or-slug', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
 
-      describe('reference', () => {
-        testPermissionsForField('expenses', 'AVerySecretExpenseReference', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 0,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 0,
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+          const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.slug).to.eq('a-prioritized-unique-name-or-slug');
+          expect(second.slug).to.eq('whatever');
+
+          const highlights = queryResult.data.search.results.accounts.highlights;
+          const firstScore = highlights[first.id].score;
+          const secondScore = highlights[second.id].score;
+          expect(firstScore).to.be.gt(secondScore);
+        });
+
+        it('should prioritize the name over the description', async () => {
+          const queryResult = await callSearchQuery('frank zappa', { includeAccounts: true });
+          queryResult.errors && console.error(queryResult.errors);
+
+          expect(queryResult.errors).to.be.undefined;
+          expect(queryResult.data.search.results.accounts.collection.totalCount).to.eq(2);
+          const [first, second] = queryResult.data.search.results.accounts.collection.nodes;
+          expect(first.name).to.eq('frank zappa');
+          expect(second.name).to.eq('whatever');
+
+          const highlights = queryResult.data.search.results.accounts.highlights;
+          const firstScore = highlights[first.id].score;
+          const secondScore = highlights[second.id].score;
+          expect(firstScore).to.be.gt(secondScore);
         });
       });
 
-      describe('description (public)', () => {
-        testPermissionsForField('expenses', 'FullyPublicExpenseDescription', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
+      describe('permissions', () => {
+        const testPermissionsForField = (
+          index: string,
+          uniqueValue: string,
+          permissions: Record<keyof typeof testUsers, number> & { unauthenticated: number },
+          params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
+        ) => {
+          const getIncludes = (index: string) => {
+            switch (index) {
+              case 'accounts':
+                return { includeAccounts: true };
+              case 'comments':
+                return { includeComments: true };
+              case 'expenses':
+                return { includeExpenses: true };
+              case 'hostApplications':
+                return { includeHostApplications: true };
+              case 'orders':
+                return { includeOrders: true };
+              case 'tiers':
+                return { includeTiers: true };
+              case 'transactions':
+                return { includeTransactions: true };
+              case 'updates':
+                return { includeUpdates: true };
+              default:
+                return {};
+            }
+          };
+
+          for (const [userKey, permission] of Object.entries(permissions)) {
+            if (!isNil(permission)) {
+              it(`can ${permission ? '' : 'not '}be used by ${userKey}`, async () => {
+                const queryResult = await callSearchQuery(uniqueValue, getIncludes(index), testUsers[userKey], params);
+                queryResult.errors && console.error(queryResult.errors);
+                expect(queryResult.errors).to.be.undefined;
+                expect(queryResult.data.search.results[index].collection.totalCount).to.eq(permission);
+              });
+            }
+          }
+        };
+
+        describe('accounts', () => {
+          describe('name', () => {
+            testPermissionsForField('accounts', 'AUniqueCollectiveName', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              unauthenticated: 1,
+              fromUser: null, // doesn't apply
+            });
+          });
+
+          describe('legalName', () => {
+            testPermissionsForField('accounts', 'SecretProjectLegalName', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 0,
+              rootUser: 1,
+              unauthenticated: 0,
+              fromUser: null, // doesn't apply
+            });
+          });
         });
-      });
-    });
 
-    describe('hostApplications', () => {
-      describe('message', () => {
-        testPermissionsForField('hostApplications', 'AVerySecretHostApplicationMessage', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          rootUser: 1,
-          randomUser: 0,
-          fromUser: null, // doesn't apply
-          projectAdmin: null, // doesn't apply
-          unauthenticated: 0,
+        describe('comments', () => {
+          describe('html for regular comments', () => {
+            testPermissionsForField('comments', 'AVerySecretComment', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 0,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 0,
+            });
+          });
+
+          describe('html for private notes', () => {
+            testPermissionsForField('comments', 'AVerySecretPrivateNoteForHostAdmins', {
+              hostAdmin: 1,
+              collectiveAdmin: 0,
+              projectAdmin: 0,
+              randomUser: 0,
+              rootUser: 1,
+              fromUser: 0,
+              unauthenticated: 0,
+            });
+          });
         });
-      });
-    });
 
-    describe('orders', () => {
-      describe('description (public)', () => {
-        testPermissionsForField('orders', 'AVeryUniqueOrderDescription', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
+        describe('expenses', () => {
+          describe('privateMessage', () => {
+            testPermissionsForField('expenses', 'AVerySecretExpensePrivateMessage', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 0,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 0,
+            });
+          });
+
+          describe('invoiceInfo', () => {
+            testPermissionsForField('expenses', 'AVerySecretExpenseInvoiceInfo', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 0,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 0,
+            });
+          });
+
+          describe('reference', () => {
+            testPermissionsForField('expenses', 'AVerySecretExpenseReference', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 0,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 0,
+            });
+          });
+
+          describe('description (public)', () => {
+            testPermissionsForField('expenses', 'FullyPublicExpenseDescription', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
         });
-      });
-    });
 
-    describe('tiers', () => {
-      describe('description', () => {
-        testPermissionsForField('tiers', 'AVeryUniqueTierDescription', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
+        describe('hostApplications', () => {
+          describe('message', () => {
+            testPermissionsForField('hostApplications', 'AVerySecretHostApplicationMessage', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              rootUser: 1,
+              randomUser: 0,
+              fromUser: null, // doesn't apply
+              projectAdmin: null, // doesn't apply
+              unauthenticated: 0,
+            });
+          });
         });
-      });
 
-      describe('longDescription', () => {
-        testPermissionsForField('tiers', 'AVeryUniqueTierLongDescription', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
+        describe('orders', () => {
+          describe('description (public)', () => {
+            testPermissionsForField('orders', 'AVeryUniqueOrderDescription', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
         });
-      });
 
-      describe('name', () => {
-        testPermissionsForField('tiers', 'Incredible Tier', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
+        describe('tiers', () => {
+          describe('description', () => {
+            testPermissionsForField('tiers', 'AVeryUniqueTierDescription', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
+
+          describe('longDescription', () => {
+            testPermissionsForField('tiers', 'AVeryUniqueTierLongDescription', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
+
+          describe('name', () => {
+            testPermissionsForField('tiers', 'Incredible Tier', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
+
+          describe('slug', () => {
+            testPermissionsForField('tiers', 'a-very-unique-incredible-tier', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
         });
-      });
 
-      describe('slug', () => {
-        testPermissionsForField('tiers', 'a-very-unique-incredible-tier', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
+        describe('transactions', () => {
+          describe('description (public)', () => {
+            testPermissionsForField('transactions', 'AVeryUniqueTransactionDescription', {
+              // Using 2 for CREDIT + DEBIT
+              hostAdmin: 2,
+              collectiveAdmin: 2,
+              projectAdmin: 2,
+              randomUser: 2,
+              rootUser: 2,
+              fromUser: 2,
+              unauthenticated: 2,
+            });
+          });
+
+          describe('merchantId', () => {
+            testPermissionsForField('transactions', 'AVeryUniqueTransactionCaptureId', {
+              hostAdmin: 1,
+              collectiveAdmin: 0,
+              projectAdmin: 0,
+              randomUser: 0,
+              rootUser: 2,
+              fromUser: 0,
+              unauthenticated: 0,
+            });
+          });
+
+          describe('merchantId (OAuth without transactions scope)', () => {
+            testPermissionsForField(
+              'transactions',
+              'AVeryUniqueTransactionCaptureId',
+              {
+                hostAdmin: 0,
+                collectiveAdmin: 0,
+                projectAdmin: 0,
+                randomUser: 0,
+                rootUser: 0,
+                fromUser: 0,
+                unauthenticated: null, // doesn't apply
+              },
+              {
+                useOAuth: true,
+                oauthScopes: [OAuthScopes.account],
+              },
+            );
+          });
+
+          describe('merchantId (OAuth with transactions scope)', () => {
+            testPermissionsForField(
+              'transactions',
+              'AVeryUniqueTransactionCaptureId',
+              {
+                hostAdmin: 1,
+                collectiveAdmin: 0,
+                projectAdmin: 0,
+                randomUser: 0,
+                rootUser: 2,
+                fromUser: 0,
+                unauthenticated: null, // doesn't apply
+              },
+              {
+                useOAuth: true,
+                oauthScopes: [OAuthScopes.account, OAuthScopes.transactions],
+              },
+            );
+          });
         });
-      });
-    });
 
-    describe('transactions', () => {
-      describe('description (public)', () => {
-        testPermissionsForField('transactions', 'AVeryUniqueTransactionDescription', {
-          // Using 2 for CREDIT + DEBIT
-          hostAdmin: 2,
-          collectiveAdmin: 2,
-          projectAdmin: 2,
-          randomUser: 2,
-          rootUser: 2,
-          fromUser: 2,
-          unauthenticated: 2,
-        });
-      });
+        describe('updates', () => {
+          describe('html for public updates', () => {
+            testPermissionsForField('updates', 'AVeryUniqueUpdateHtml', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
 
-      describe('merchantId', () => {
-        testPermissionsForField('transactions', 'AVeryUniqueTransactionCaptureId', {
-          hostAdmin: 1,
-          collectiveAdmin: 0,
-          projectAdmin: 0,
-          randomUser: 0,
-          rootUser: 2,
-          fromUser: 0,
-          unauthenticated: 0,
-        });
-      });
+          describe('html for public but unpublished updates', () => {
+            testPermissionsForField('updates', 'AVeryUniqueUnpublishedUpdateHtml', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 0,
+              rootUser: 1,
+              fromUser: 0,
+              unauthenticated: 0,
+            });
+          });
 
-      describe('merchantId (OAuth without transactions scope)', () => {
-        testPermissionsForField(
-          'transactions',
-          'AVeryUniqueTransactionCaptureId',
-          {
-            hostAdmin: 0,
-            collectiveAdmin: 0,
-            projectAdmin: 0,
-            randomUser: 0,
-            rootUser: 0,
-            fromUser: 0,
-            unauthenticated: null, // doesn't apply
-          },
-          {
-            useOAuth: true,
-            oauthScopes: [OAuthScopes.account],
-          },
-        );
-      });
+          describe('html for private updates', () => {
+            testPermissionsForField('updates', 'AVeryUniquePrivateUpdateHtml', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 0,
+              rootUser: 1,
+              fromUser: 0,
+              unauthenticated: 0,
+            });
+          });
 
-      describe('merchantId (OAuth with transactions scope)', () => {
-        testPermissionsForField(
-          'transactions',
-          'AVeryUniqueTransactionCaptureId',
-          {
-            hostAdmin: 1,
-            collectiveAdmin: 0,
-            projectAdmin: 0,
-            randomUser: 0,
-            rootUser: 2,
-            fromUser: 0,
-            unauthenticated: null, // doesn't apply
-          },
-          {
-            useOAuth: true,
-            oauthScopes: [OAuthScopes.account, OAuthScopes.transactions],
-          },
-        );
-      });
-    });
-
-    describe('updates', () => {
-      describe('html for public updates', () => {
-        testPermissionsForField('updates', 'AVeryUniqueUpdateHtml', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
-        });
-      });
-
-      describe('html for public but unpublished updates', () => {
-        testPermissionsForField('updates', 'AVeryUniqueUnpublishedUpdateHtml', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 0,
-          rootUser: 1,
-          fromUser: 0,
-          unauthenticated: 0,
-        });
-      });
-
-      describe('html for private updates', () => {
-        testPermissionsForField('updates', 'AVeryUniquePrivateUpdateHtml', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 0,
-          rootUser: 1,
-          fromUser: 0,
-          unauthenticated: 0,
-        });
-      });
-
-      describe('title', () => {
-        testPermissionsForField('updates', 'AVeryUniqueUpdateTitle', {
-          hostAdmin: 1,
-          collectiveAdmin: 1,
-          projectAdmin: 1,
-          randomUser: 1,
-          rootUser: 1,
-          fromUser: 1,
-          unauthenticated: 1,
+          describe('title', () => {
+            testPermissionsForField('updates', 'AVeryUniqueUpdateTitle', {
+              hostAdmin: 1,
+              collectiveAdmin: 1,
+              projectAdmin: 1,
+              randomUser: 1,
+              rootUser: 1,
+              fromUser: 1,
+              unauthenticated: 1,
+            });
+          });
         });
       });
     });
