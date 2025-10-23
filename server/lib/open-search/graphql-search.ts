@@ -166,20 +166,21 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
       }
 
       const limit = args.limit || baseSearchParams.defaultLimit;
+      const offset = args.offset;
       const result = await req.loaders.search.load({
         ...baseSearchParams,
         index,
         useTopHits: baseSearchParams.useTopHits,
         indexParams: strategy.prepareArguments ? strategy.prepareArguments(args) : args,
         forbidPrivate: getForbidPrivate(req, strategy),
-        offset: args.offset || 0,
+        offset,
         limit,
       });
 
       if (!result || result.count === 0) {
         return {
           maxScore: 0,
-          collection: { totalCount: 0, offset: 0, limit, nodes: () => [] },
+          collection: { totalCount: 0, offset, limit, nodes: () => [] },
           highlights: {},
         };
       }
@@ -197,7 +198,7 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         highlights,
         collection: {
           totalCount: result.count,
-          offset: 0,
+          offset,
           limit,
           nodes: async () => {
             const entries = await strategy.loadMany(req, result.hits.map(getSQLIdFromHit));
