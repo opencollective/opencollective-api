@@ -1,5 +1,5 @@
 import { BaseContext, GraphQLRequestContext } from '@apollo/server';
-import Sentry from '@sentry/node';
+import * as Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import sinon from 'sinon';
