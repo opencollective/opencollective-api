@@ -117,7 +117,7 @@ const HostApplicationMutations = {
       let validatedRepositoryInfo: ValidatedRepositoryInfo,
         shouldAutomaticallyApprove = false;
 
-      // Trigger automated Github approval when repository is on github.com
+      // Trigger Github validation when repository is on github.com
       const repositoryUrl = args.applicationData?.repositoryUrl;
       if (args.applicationData?.useGithubValidation) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
@@ -139,8 +139,7 @@ const HostApplicationMutations = {
               }
             }
           }
-          const { allValidationsPassed } = validatedRepositoryInfo || {};
-          shouldAutomaticallyApprove = Boolean(allValidationsPassed || bypassGithubValidation);
+          shouldAutomaticallyApprove = Boolean(bypassGithubValidation);
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
