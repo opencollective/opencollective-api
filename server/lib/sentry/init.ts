@@ -1,6 +1,6 @@
 import querystring from 'querystring';
 
-import Sentry from '@sentry/node';
+import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
 import config from 'config';
 import { cloneDeep, compact } from 'lodash';

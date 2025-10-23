@@ -8,7 +8,7 @@
 import '../../env';
 
 import { ApolloServerPlugin } from '@apollo/server';
-import Sentry, { SeverityLevel } from '@sentry/node';
+import * as Sentry from '@sentry/node';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { get, isEmpty, isEqual, pick } from 'lodash';
@@ -22,7 +22,7 @@ import { safeJsonStringify, sanitizeObjectForJSON } from '../safe-json-stringify
 import { checkIfSentryConfigured, HandlerType, redactSensitiveDataFromRequest } from './init';
 
 export type CaptureErrorParams = {
-  severity?: SeverityLevel;
+  severity?: Sentry.SeverityLevel;
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;
   breadcrumbs?: Sentry.Breadcrumb[];
@@ -303,7 +303,7 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
               {
                 category: 'query-path',
                 message: err.path.join(' > '),
-                level: 'debug' as SeverityLevel,
+                level: 'debug' as Sentry.SeverityLevel,
               },
             ],
           });
