@@ -10,7 +10,9 @@ import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import {
   fakeActiveHost,
   fakeCollective,
+  fakeEvent,
   fakeExpense,
+  fakeProject,
   fakeUploadedFile,
   fakeUser,
   fakeVirtualCard,
@@ -462,7 +464,9 @@ describe('server/graphql/v2/object/Host', () => {
       host,
       account,
       collectiveA,
+      collectiveAProject,
       collectiveB,
+      collectiveBEvent,
       vendor,
       knownVendor,
       vendorVisibleToCollectiveA,
@@ -472,7 +476,9 @@ describe('server/graphql/v2/object/Host', () => {
       host = await fakeActiveHost({ admin: hostAdmin });
       account = await fakeCollective({ HostCollectiveId: host.id });
       collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+      collectiveAProject = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collectiveA.id });
       collectiveB = await fakeCollective({ HostCollectiveId: host.id });
+      collectiveBEvent = await fakeEvent({ HostCollectiveId: host.id, ParentCollectiveId: collectiveB.id });
       vendor = await fakeCollective({
         ParentCollectiveId: host.id,
         type: CollectiveType.VENDOR,
@@ -584,6 +590,28 @@ describe('server/graphql/v2/object/Host', () => {
       result = await graphqlQueryV2(
         accountQuery,
         { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveB.id }] },
+        hostAdmin,
+      );
+
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+
+      result = await graphqlQueryV2(
+        accountQuery,
+        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveAProject.id }] },
+        hostAdmin,
+      );
+
+      // same as visible to parent collectiveA
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+
+      // same as visible to parent collectiveB
+      result = await graphqlQueryV2(
+        accountQuery,
+        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveBEvent.id }] },
         hostAdmin,
       );
 
