@@ -154,10 +154,14 @@ const CommunityQuery = {
 
     const data = await getHostCommunity(replacements);
     const ids: number[] = data.nodes.map(c => c.id);
-    const permissions = await req.loaders.Collective.canSeePrivateLocation.loadMany(ids);
+    const canSeePrivateLocation = await req.loaders.Collective.canSeePrivateLocation.loadMany(ids);
+    const canSeePrivateProfileInfo = await req.loaders.Collective.canSeePrivateProfileInfo.loadMany(ids);
     ids.forEach((id, i) => {
-      if (permissions[i]) {
+      if (canSeePrivateLocation[i]) {
         allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, id);
+      }
+      if (canSeePrivateProfileInfo[i]) {
+        allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, id);
       }
     });
     return { ...data, limit: args.limit, offset: args.offset };

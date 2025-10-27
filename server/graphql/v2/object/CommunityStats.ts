@@ -1,7 +1,7 @@
 import type express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { flatten, uniq } from 'lodash';
+import { compact, flatten, uniq } from 'lodash';
 import type { Sequelize } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
@@ -143,13 +143,10 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
           const { limit, offset } = args;
           const HostCollectiveId = account.dataValues.contextualHostCollectiveId;
           const UserId = account.data?.UserId;
-          if (!UserId) {
-            return { nodes: [], limit, offset, totalCount: 0 };
-          }
 
           const where = {
-            [Op.or]: [
-              {
+            [Op.or]: compact([
+              UserId && {
                 UserId,
                 type: [
                   ActivityTypes.USER_NEW_TOKEN,
@@ -157,7 +154,7 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
                   ActivityTypes.USER_RESET_PASSWORD,
                 ],
               },
-              {
+              UserId && {
                 UserId,
                 HostCollectiveId,
                 type: [
@@ -174,7 +171,19 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
                   ActivityTypes.SUBSCRIPTION_ACTIVATED,
                 ],
               },
-            ],
+              {
+                HostCollectiveId,
+                FromCollectiveId: account.id,
+                type: [
+                  ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+                  ActivityTypes.ORDER_PROCESSED,
+                  ActivityTypes.SUBSCRIPTION_CANCELED,
+                  ActivityTypes.SUBSCRIPTION_PAUSED,
+                  ActivityTypes.SUBSCRIPTION_ACTIVATED,
+                ],
+              },
+            ]),
           };
 
           return {
