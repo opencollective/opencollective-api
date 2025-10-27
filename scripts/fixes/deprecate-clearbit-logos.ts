@@ -50,7 +50,7 @@ async function clearbitImageGetterImpl(imgUrl: string) {
   const bytes = await clearbitImageRequest.arrayBuffer();
   const mimetype = clearbitImageRequest.headers.get('Content-Type') || 'image/png';
   const file = {
-    buffer: bytes,
+    buffer: Buffer.from(bytes),
     size: bytes.byteLength,
     mimetype,
     originalname: null,

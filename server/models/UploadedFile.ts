@@ -55,7 +55,7 @@ type ImageDataShape = CommonDataShape & {
 };
 
 type FileUpload = {
-  buffer: Buffer | ArrayBuffer;
+  buffer: Buffer;
   size: number;
   mimetype: string;
   originalname: string;

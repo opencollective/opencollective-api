@@ -109,7 +109,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { isValidURL, prependHttp } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, md5 } from '../lib/utils';
 import { Location as LocationType, StructuredAddress } from '../types/Location';
 
 import AccountingCategory from './AccountingCategory';
