@@ -167,6 +167,22 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       await payoutMethod.reload({ paranoid: false });
       expect(payoutMethod.deletedAt).to.not.be.null;
     });
+
+    it('Prevents removing STRIPE payout method', async () => {
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: adminUser.CollectiveId,
+        isSaved: true,
+        type: PayoutMethodTypes.STRIPE,
+      });
+      const mutationArgs = { id: idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) };
+
+      expect(payoutMethod.isSaved).to.be.true;
+      const result = await graphqlQueryV2(removePayoutMethodMutation, mutationArgs, adminUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eql('You are authenticated but forbidden to perform this action');
+      await payoutMethod.reload({ paranoid: false });
+      expect(payoutMethod.deletedAt).to.be.null;
+    });
   });
 
   describe('editPayoutMethod', () => {

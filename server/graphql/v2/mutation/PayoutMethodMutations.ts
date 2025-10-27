@@ -98,8 +98,10 @@ const payoutMethodMutations = {
       if (await payoutMethod.canBeDeleted()) {
         await payoutMethod.destroy();
         return payoutMethod;
-      } else {
+      } else if (await payoutMethod.canBeArchived()) {
         return payoutMethod.update({ isSaved: false });
+      } else {
+        throw new Forbidden();
       }
     },
   },

@@ -490,6 +490,17 @@ export const fakePayoutMethod = async ({
         details: { iban: 'DE1237812738192OK' },
         ...data,
       };
+    } else if (type === PayoutMethodTypes.STRIPE) {
+      return {
+        stripeAccountId: 'stripeAccountId',
+        connectedAccountId: 'connectedAccountId',
+        ...data,
+      };
+    } else if (type === PayoutMethodTypes.CREDIT_CARD) {
+      return {
+        token: 'token',
+        ...data,
+      };
     } else {
       return {};
     }
