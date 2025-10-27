@@ -68,6 +68,9 @@ export const buildAccountQuery = ({ objectType }) => ({
     if (await req.loaders.Collective.canSeePrivateLocation.load(collective.id)) {
       allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, collective.id);
     }
+    if (await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id)) {
+      allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, collective.id);
+    }
 
     return collective;
   },
