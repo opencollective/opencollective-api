@@ -10,8 +10,6 @@ async function main() {
     if (collective.type === 'USER') {
       const user = await collective.getUser();
       await collective.findImageForUser(user);
-    } else {
-      await collective.findImage();
     }
   }
   console.log('Done.');

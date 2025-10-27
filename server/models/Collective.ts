@@ -853,20 +853,6 @@ class Collective extends Model<
     });
   };
 
-  // If no image has been provided, try to find an image using clearbit and save it
-  findImage = function (force = false) {
-    if (this.getDataValue('image')) {
-      return;
-    }
-
-    if (this.type === 'ORGANIZATION' && this.website && !this.website.match(/^https:\/\/twitter\.com\//)) {
-      const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
-      return this.checkAndUpdateImage(image, force);
-    }
-
-    return Promise.resolve();
-  };
-
   // If no image has been provided, try to find an image using gravatar and save it
   findImageForUser = function (user, force = false) {
     if (this.getDataValue('image')) {
@@ -4174,7 +4160,6 @@ Collective.init(
         }
       },
       afterCreate: async (instance, options) => {
-        instance.findImage();
         if (
           [CollectiveType.COLLECTIVE, CollectiveType.FUND, CollectiveType.EVENT, CollectiveType.PROJECT].includes(
             instance.type,
