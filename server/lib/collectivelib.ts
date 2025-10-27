@@ -187,11 +187,11 @@ export function filterCollectiveSettings(settings: Record<string, unknown> | nul
   const preparedSettings = { ...settings };
 
   if (preparedSettings.VAT) {
-    preparedSettings.VAT = pick(preparedSettings.VAT, ['number', 'type']);
+    preparedSettings.VAT = pick(preparedSettings.VAT, ['number', 'type', 'disabled']);
   }
 
   if (preparedSettings.GST) {
-    preparedSettings.GST = pick(preparedSettings.GST, ['number']);
+    preparedSettings.GST = pick(preparedSettings.GST, ['number', 'disabled']);
   }
 
   // Generate warnings for invalid settings

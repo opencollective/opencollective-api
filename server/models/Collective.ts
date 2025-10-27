@@ -1,6 +1,5 @@
 import assert from 'assert';
 
-import { TaxType } from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
 import deepmerge from 'deepmerge';
@@ -146,6 +145,7 @@ type TaxSettings = {
   [key in 'VAT' | 'GST' | 'EIN']?: {
     number: string;
     type?: 'OWN' | 'HOST';
+    disabled?: boolean;
   };
 };
 
@@ -3113,17 +3113,6 @@ class Collective extends Model<
     }
 
     return Transaction.findAll(query);
-  };
-
-  /**
-   * Returns the main tax type for this collective
-   */
-  getTaxType = function () {
-    if (this.settings?.VAT) {
-      return TaxType.VAT;
-    } else if (this.settings?.GST) {
-      return TaxType.GST;
-    }
   };
 
   getTotalTransactions = async function (startDate, endDate, type, attribute = 'netAmountInCollectiveCurrency') {
