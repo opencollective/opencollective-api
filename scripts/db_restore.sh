@@ -65,13 +65,18 @@ CMD_CREATE_DB="createdb"
 CMD_PSQL="psql"
 CMD_PG_RESTORE="pg_restore"
 
-if [ "$USE_DOCKER" = "true" ]; then
-  echo "Using docker to run Postgres commands"
-  CMD_DOCKER="./scripts/dev/run-docker.sh run --rm --network host"
+if [ "$USE_DOCKER" = "true" || "$USE_PODMAN" = "true" ]; then
+  if [ "$USE_DOCKER" = "true" ]; then
+    echo "Using docker to run Postgres commands"
+    CMD_DOCKER="./scripts/dev/run-docker.sh run --rm --network host"
+  else
+    echo "Using podman to run Postgres commands"
+    CMD_DOCKER="podman run --rm --network host"
+  fi
   CMD_DROP_DB="$CMD_DOCKER postgres:16 dropdb"
   CMD_CREATE_DB="$CMD_DOCKER postgres:16 createdb"
   CMD_PSQL="$CMD_DOCKER postgres:16 psql"
-  CMD_PG_RESTORE="$CMD_DOCKER -v ./$(dirname "$DBDUMP_FILE"):/dbdumps postgres:16 pg_restore"
+  CMD_PG_RESTORE="$CMD_DOCKER -v ./$(dirname "$DBDUMP_FILE"):/dbdumps:Z postgres:16 pg_restore"
   LOCAL_FILE="/dbdumps/$(basename "$DBDUMP_FILE")"
 fi
 
