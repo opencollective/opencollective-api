@@ -1529,11 +1529,12 @@ export const GraphQLHost = new GraphQLObjectType({
             const parentAccounts = await Collective.findAll({
               where: {
                 id: visibleToAccountIds,
+                ParentCollectiveId: { [Op.ne]: null },
               },
               attributes: ['ParentCollectiveId'],
             });
 
-            const accountIds = [...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)];
+            const accountIds = compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
             findArgs.where[Op.and] = [
               sequelize.literal(`
                     data#>'{visibleToAccountIds}' IS NULL 
