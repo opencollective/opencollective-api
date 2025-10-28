@@ -17,6 +17,7 @@ export const SUPPORTED_FILE_KINDS = [
   'ACCOUNT_CUSTOM_EMAIL',
   'AGREEMENT_ATTACHMENT',
   'EXPENSE_INVOICE',
+  'RECEIPT_EMBEDDED_IMAGE',
 ] as const;
 
 export type FileKind = (typeof SUPPORTED_FILE_KINDS)[number];

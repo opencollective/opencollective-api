@@ -1,6 +1,8 @@
 import config from 'config';
 import winston, { format } from 'winston';
 
+import { safeJsonStringify } from './safe-json-stringify';
+
 const logger = winston.createLogger();
 
 const winstonLevel = config.log.level;
@@ -18,7 +20,7 @@ const simpleWithPaddedMeta = format.printf(({ level, message, ...props }) => {
   if (extras && extras.length === 1 && typeof extras[0] === 'string') {
     m += ` ${extras[0]}`;
   } else if (Object.keys(props).length > 0) {
-    m += `\n\n${' '.repeat(padding)}Meta:\n${padLines(JSON.stringify(props, null, 2), padding)}`;
+    m += `\n\n${' '.repeat(padding)}Meta:\n${padLines(safeJsonStringify(props, null, 2), padding)}`;
   }
   return m;
 });
