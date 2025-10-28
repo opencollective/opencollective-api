@@ -154,7 +154,7 @@ const payoutMethodMutations = {
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
         });
-      } else {
+      } else if (await payoutMethod.canBeArchived()) {
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
         const newPayoutMethod = await models.PayoutMethod.create({
@@ -169,6 +169,8 @@ const payoutMethodMutations = {
           { where: { PayoutMethodId: payoutMethod.id, status: [ExpenseStatuses.PENDING, ExpenseStatuses.DRAFT] } },
         );
         return newPayoutMethod;
+      } else {
+        throw new Forbidden();
       }
     },
   },

@@ -75,7 +75,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
         }
         const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (req.remoteUser?.isAdminOfCollective(collective)) {
-          return payoutMethod.canBeEdited();
+          return (await payoutMethod.canBeEdited()) || (await payoutMethod.canBeArchived());
         } else {
           return false;
         }
@@ -90,7 +90,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
         }
         const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (req.remoteUser?.isAdminOfCollective(collective)) {
-          return payoutMethod.canBeDeleted();
+          return (await payoutMethod.canBeDeleted()) || (await payoutMethod.canBeArchived());
         } else {
           return false;
         }
