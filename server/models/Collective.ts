@@ -1,6 +1,5 @@
 import assert from 'assert';
 
-import { TaxType } from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
 import deepmerge from 'deepmerge';
@@ -109,7 +108,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { isValidURL, prependHttp } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, md5 } from '../lib/utils';
 import { Location as LocationType, StructuredAddress } from '../types/Location';
 
 import AccountingCategory from './AccountingCategory';
@@ -146,6 +145,7 @@ type TaxSettings = {
   [key in 'VAT' | 'GST' | 'EIN']?: {
     number: string;
     type?: 'OWN' | 'HOST';
+    disabled?: boolean;
   };
 };
 
@@ -851,20 +851,6 @@ class Collective extends Model<
         });
       });
     });
-  };
-
-  // If no image has been provided, try to find an image using clearbit and save it
-  findImage = function (force = false) {
-    if (this.getDataValue('image')) {
-      return;
-    }
-
-    if (this.type === 'ORGANIZATION' && this.website && !this.website.match(/^https:\/\/twitter\.com\//)) {
-      const image = `https://logo.clearbit.com/${getDomain(this.website)}`;
-      return this.checkAndUpdateImage(image, force);
-    }
-
-    return Promise.resolve();
   };
 
   // If no image has been provided, try to find an image using gravatar and save it
@@ -3115,17 +3101,6 @@ class Collective extends Model<
     return Transaction.findAll(query);
   };
 
-  /**
-   * Returns the main tax type for this collective
-   */
-  getTaxType = function () {
-    if (this.settings?.VAT) {
-      return TaxType.VAT;
-    } else if (this.settings?.GST) {
-      return TaxType.GST;
-    }
-  };
-
   getTotalTransactions = async function (startDate, endDate, type, attribute = 'netAmountInCollectiveCurrency') {
     endDate = endDate || new Date();
     const where = {
@@ -4174,7 +4149,6 @@ Collective.init(
         }
       },
       afterCreate: async (instance, options) => {
-        instance.findImage();
         if (
           [CollectiveType.COLLECTIVE, CollectiveType.FUND, CollectiveType.EVENT, CollectiveType.PROJECT].includes(
             instance.type,

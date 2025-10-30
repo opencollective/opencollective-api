@@ -4,7 +4,7 @@ services:
     container_name: mailpit
     restart: unless-stopped
     volumes:
-      - ./test/output/emails-data:/data
+      - mailpit-data:/data
     ports:
       - 1080:8025
       - 1025:1025
@@ -18,3 +18,5 @@ services:
         limits:
           cpus: '${MAILPIT_CPU_LIMIT:-0.10}'
           memory: '${MAILPIT_MEMORY_LIMIT:-1gb}'
+volumes:
+  mailpit-data:

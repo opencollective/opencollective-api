@@ -10,10 +10,10 @@ Simply run on of these:
 
 ```bash
 # With docker-compose
-docker-compose -f docker-compose/database.yml up
+docker-compose -f docker-compose/db.yml up
 
 # With podman
-podman-compose -f docker-compose/database.yml up # Only start the DB
+podman-compose -f docker-compose/db.yml up # Only start the DB
 ```
 
 ### On macOS

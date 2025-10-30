@@ -9,7 +9,7 @@ export const FileFieldsDefinition: Record<
   Exclude<FileKind, 'AGREEMENT_ATTACHMENT' | 'TRANSACTIONS_IMPORT'>,
   {
     model;
-    field: string;
+    field: string | string[];
     fieldType: 'url' | 'richText';
     UserIdField?: string;
   }
@@ -70,5 +70,10 @@ export const FileFieldsDefinition: Record<
     model: models.Collective,
     field: 'settings.customEmailMessage',
     fieldType: 'richText',
+  },
+  RECEIPT_EMBEDDED_IMAGE: {
+    model: models.Collective,
+    field: ['settings.invoice.templates.default.embeddedImage', 'settings.invoice.templates.alternative.embeddedImage'],
+    fieldType: 'url',
   },
 };

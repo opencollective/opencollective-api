@@ -1526,6 +1526,15 @@ export const GraphQLHost = new GraphQLObjectType({
             const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
               throwIfMissing: true,
             });
+            const parentAccounts = await Collective.findAll({
+              where: {
+                id: visibleToAccountIds,
+                ParentCollectiveId: { [Op.ne]: null },
+              },
+              attributes: ['ParentCollectiveId'],
+            });
+
+            const accountIds = compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
             findArgs.where[Op.and] = [
               sequelize.literal(`
                     data#>'{visibleToAccountIds}' IS NULL 
@@ -1538,7 +1547,7 @@ export const GraphQLHost = new GraphQLObjectType({
                       EXISTS (
                         SELECT v FROM (
                           SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(${sequelize.escape(visibleToAccountIds)})
+                        ) WHERE v = ANY(${sequelize.escape(accountIds)})
                       )  
                     )
               `),
