@@ -5726,6 +5726,11 @@ type PayoutMethod {
   Whether this payout method can be deleted or only archived
   """
   canBeDeleted: Boolean
+
+  """
+  Whether this payout method can be archived
+  """
+  canBeArchived: Boolean
 }
 
 """
@@ -16822,6 +16827,11 @@ type Query {
     host: AccountReferenceInput
 
     """
+    Set this to true if you are displaying all the results in the same list, and want a consistent sorting order across different types. (!) Paginating wih `offset` will not be supported
+    """
+    useTopHits: Boolean! = false
+
+    """
     The maximum amount of time in millisecond to wait for a single entity type query to complete (for SQL search)
     """
     timeout: Int! = 10000
@@ -20944,6 +20954,16 @@ type SearchResults {
   """
   accounts(
     """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
     Type of account
     """
     type: AccountType
@@ -20962,37 +20982,107 @@ type SearchResults {
   """
   Search results for Comments
   """
-  comments: SearchResultsComments
+  comments(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): SearchResultsComments
 
   """
   Search results for Expenses
   """
-  expenses: SearchResultsExpenses
+  expenses(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): SearchResultsExpenses
 
   """
   Search results for HostApplications
   """
-  hostApplications: SearchResultsHostApplications
+  hostApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): SearchResultsHostApplications
 
   """
   Search results for Orders
   """
-  orders: SearchResultsOrders
+  orders(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): SearchResultsOrders
 
   """
   Search results for Tiers
   """
-  tiers: SearchResultsTiers
+  tiers(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): SearchResultsTiers
 
   """
   Search results for Transactions
   """
-  transactions: SearchResultsTransactions
+  transactions(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): SearchResultsTransactions
 
   """
   Search results for Updates
   """
-  updates: SearchResultsUpdates
+  updates(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): SearchResultsUpdates
 }
 
 type SearchResultsAccounts {
@@ -23438,6 +23528,8 @@ input EventCreateInput {
   description: String
   tags: [String]
   settings: JSON
+  location: LocationInput
+  privateInstructions: String
 
   """
   The Event start date and time
