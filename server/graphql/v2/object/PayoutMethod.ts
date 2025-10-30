@@ -90,7 +90,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
         }
         const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (req.remoteUser?.isAdminOfCollective(collective)) {
-          return (await payoutMethod.canBeDeleted()) || (await payoutMethod.canBeArchived());
+          return payoutMethod.canBeDeleted();
         } else {
           return false;
         }

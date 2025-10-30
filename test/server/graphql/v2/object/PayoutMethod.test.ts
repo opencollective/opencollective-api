@@ -53,7 +53,7 @@ describe('server/graphql/v2/object/PayoutMethod', () => {
       expect(result.errors).to.not.exist;
       const pms = result.data.account.payoutMethods;
       for (const pm of pms) {
-        if (pm.name.includes('canBeDeleted') || pm.name.includes('canBeArchived')) {
+        if (pm.name.includes('canBeDeleted')) {
           expect(pm.canBeDeleted).to.be.true;
         } else {
           expect(pm.canBeDeleted, JSON.stringify(pm)).to.be.false;
