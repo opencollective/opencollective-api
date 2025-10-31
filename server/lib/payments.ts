@@ -1361,8 +1361,10 @@ export const getHostFeePercent = async (
   ];
 
   if (
-    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
-    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL
+    order.data?.isPendingContribution === true ||
+    order.data?.isManualContribution === true ||
+    (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+      order.paymentMethod?.type === PAYMENT_METHOD_TYPE.MANUAL)
   ) {
     // Fixed for Bank Transfers at collective level
     // As of December 2023, this will be only set on a selection of OCF Collectives
