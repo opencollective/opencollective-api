@@ -75,6 +75,12 @@ export type TransactionData = {
   dispute?: Stripe.Dispute;
   expenseToHostFxRate?: number;
   feesPayer?: Expense['feesPayer'];
+  fxRates?: {
+    expenseToHost?: number;
+    collectiveToHost?: number;
+    expenseToCollective?: number;
+    expenseToPayoutMethod?: number;
+  };
   hasPlatformTip?: boolean;
   hostFeeMigration?: string;
   hostFeeSharePercent?: number;
