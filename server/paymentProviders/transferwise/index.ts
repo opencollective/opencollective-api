@@ -143,7 +143,6 @@ async function quoteExpense(
 
   expense.collective = expense.collective || (await Collective.findByPk(expense.CollectiveId));
   expense.host = expense.host || (await expense.collective.getHostCollective());
-  const hasMultiCurrency = expense.currency !== expense.collective.currency;
   const targetCurrency = payoutMethod.unfilteredData.currency as string;
   const quoteParams = {
     profileId: connectedAccount.data.id,
@@ -158,19 +157,13 @@ async function quoteExpense(
       isUndefined,
     ),
   };
+  assert(
+    expense.collective.currency === expense.host.currency,
+    'The host currency must be the same as the collective currency',
+  );
 
-  if (hasMultiCurrency) {
-    assert(
-      expense.collective.currency === expense.host.currency,
-      'For multi-currency expenses, the host currency must be the same as the collective currency',
-    );
-    assert(
-      expense.currency === targetCurrency,
-      'For multi-currency expenses, the payout currency must be the same as the expense currency',
-    );
-    quoteParams['targetCurrency'] = expense.currency;
-    quoteParams['targetAmount'] = expense.amount / 100;
-  } else if (expense.feesPayer === 'PAYEE') {
+  let expenseToPayoutMethodExchangeRate: number | null = null;
+  if (expense.feesPayer === 'PAYEE') {
     // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
     assert(
       expense.host.currency === expense.currency,
@@ -181,9 +174,11 @@ async function quoteExpense(
     const targetAmount = expense.amount;
     // Convert Expense amount to targetCurrency
     if (targetCurrency !== expense.currency) {
-      const [exchangeRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
-      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * exchangeRate.rate);
+      const [wiseRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
+      expenseToPayoutMethodExchangeRate = wiseRate.rate;
+      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * expenseToPayoutMethodExchangeRate);
     } else {
+      expenseToPayoutMethodExchangeRate = 1;
       quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
     }
   }
@@ -191,7 +186,7 @@ async function quoteExpense(
   const quote = await transferwise.createQuote(connectedAccount, quoteParams);
   const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
   const expenseDataQuote = { ...omit(quote, ['paymentOptions']), paymentOption };
-  await expense.update({ data: { ...expense.data, quote: expenseDataQuote } });
+  await expense.update({ data: { ...expense.data, quote: expenseDataQuote, expenseToPayoutMethodExchangeRate } });
   return expenseDataQuote;
 }
 
