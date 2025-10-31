@@ -129,6 +129,9 @@ export const computeExpenseAmounts = async (
   fees: FEES_IN_HOST_CURRENCY,
 ) => {
   const fxRates = { expenseToHost: expenseToHostFxRate, collectiveToHost: undefined, expenseToCollective: undefined };
+  if (expense.data?.expenseToPayoutMethodExchangeRate) {
+    fxRates['expenseToPayoutMethod'] = expense.data.expenseToPayoutMethodExchangeRate;
+  }
 
   // Adapt all FX rates based on what we received from the provider
   if (expense.collective.currency === hostCurrency) {
@@ -140,8 +143,14 @@ export const computeExpenseAmounts = async (
     // Or the expense has the same currency as its collective and we need to convert it to the host currency
     fxRates.collectiveToHost = expenseToHostFxRate;
     fxRates.expenseToCollective = 1;
-  } else {
-    // Or we're in a tricky situation where we have neither the currency of the host or the currency of the collective
+  }
+  // Or we're in a tricky situation where we have neither the currency of the host or the currency of the collective
+  else {
+    // TODO: Multi-currency expenses where the expense currency is different from both the collective
+    // and the host currency are not supported yet
+    // fxRates.collectiveToHost = await getFxRate(expense.collective.currency, hostCurrency as SupportedCurrency);
+    // fxRates.expenseToCollective = await getFxRate(expense.currency, expense.collective.currency as SupportedCurrency);
+    // fxRates.expenseToHost = await getFxRate(expense.currency, hostCurrency as SupportedCurrency);
     throw new Error(
       'Multi-currency expenses are not supported for collectives that have a different currency than their hosts',
     );
@@ -318,6 +327,7 @@ export async function createTransactionsFromPaidExpense(
     data: {
       ...data,
       ...expenseDataForTransaction,
+      fxRates: processedAmounts.fxRates,
     },
   };
 
@@ -328,7 +338,7 @@ export async function createTransactionsFromPaidExpense(
     transaction.amount += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
     transaction.amountInHostCurrency += processedAmounts.paymentProcessorFee.inHostCurrency;
     transaction.netAmountInCollectiveCurrency += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
-    transaction.data = set(transaction.data || {}, 'feesPayer', 'PAYEE');
+    transaction.data['feesPayer'] = 'PAYEE';
   }
 
   return models.Transaction.createDoubleEntry(transaction, { sequelizeTransaction });
