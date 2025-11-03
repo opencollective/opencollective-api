@@ -264,6 +264,10 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
 
     return !expenses;
   }
+
+  async canBeArchived(): Promise<boolean> {
+    return this.type !== PayoutMethodTypes.STRIPE;
+  }
 }
 
 // Link the model to database fields

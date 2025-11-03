@@ -189,4 +189,24 @@ describe('server/models/PayoutMethod', () => {
       expect(await pm.canBeDeleted()).to.be.true;
     });
   });
+
+  describe('canBeArchived', () => {
+    it(`returns false for STRIPE`, async () => {
+      const pm = await fakePayoutMethod({
+        type: PayoutMethodTypes.STRIPE,
+      });
+      expect(await pm.canBeArchived()).to.be.false;
+    });
+
+    Object.keys(PayoutMethodTypes)
+      .filter(p => p !== PayoutMethodTypes.STRIPE)
+      .forEach(t => {
+        it(`return true for ${t}`, async () => {
+          const pm = await fakePayoutMethod({
+            type: t,
+          });
+          expect(await pm.canBeArchived()).to.be.true;
+        });
+      });
+  });
 });
