@@ -157,10 +157,6 @@ async function quoteExpense(
       isUndefined,
     ),
   };
-  assert(
-    expense.collective.currency === expense.host.currency,
-    'The host currency must be the same as the collective currency',
-  );
 
   let expenseToPayoutMethodExchangeRate: number | null = null;
   if (expense.feesPayer === 'PAYEE') {
@@ -171,6 +167,10 @@ async function quoteExpense(
     );
     quoteParams['sourceAmount'] = expense.amount / 100;
   } else {
+    assert(
+      expense.collective.currency === expense.host.currency || expense.currency === expense.collective.currency,
+      'The host currency must be the same as the collective currency, or the expense currency must match the collective currency',
+    );
     const targetAmount = expense.amount;
     // Convert Expense amount to targetCurrency
     if (targetCurrency !== expense.currency) {
