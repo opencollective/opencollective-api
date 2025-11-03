@@ -113,6 +113,7 @@ const expenseMutations = {
       privateComment: {
         type: GraphQLString,
         description: 'A optional private comment to add to the created expense',
+        deprecationReason: '2025-11-03: This field is no longer used',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
@@ -168,18 +169,6 @@ const expenseMutations = {
 
       if (args.recurring) {
         await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endsAt);
-      }
-
-      if (args.privateComment) {
-        await createComment(
-          {
-            ExpenseId: expense.id,
-            html: args.privateComment,
-            type: CommentType.PRIVATE_NOTE,
-            isCreateExpense: true,
-          },
-          req,
-        );
       }
 
       return expense;
