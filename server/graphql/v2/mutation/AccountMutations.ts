@@ -168,6 +168,15 @@ const accountMutations = {
           }
         }
 
+        if (args.key === 'canHostAccounts' && args.value === false) {
+          const hostedCollectives = await account.getHostedCollectivesCount();
+          if (hostedCollectives >= 1) {
+            throw new Error(
+              `You can't deactivate hosting while still hosting ${hostedCollectives} collectives. Please contact support: support@opencollective.com.`,
+            );
+          }
+        }
+
         const settings = account.settings ? cloneDeep(account.settings) : {};
         set(settings, args.key, args.value);
 
