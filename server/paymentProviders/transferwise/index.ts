@@ -161,7 +161,7 @@ async function quoteExpense(
   let expenseToPayoutMethodExchangeRate: number | null = null;
   if (expense.host.data?.useLegacyWiseQuoting === false) {
     if (expense.feesPayer === 'PAYEE') {
-      // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
+      // Customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
       assert(
         expense.host.currency === expense.currency,
         'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
