@@ -4,17 +4,35 @@ exports[`/test/stories/transferwise.test.ts host.currency = payee.currency != ex
 "
 | kind    | description    | type   | amount    | paymentFee | amountInHostCurrency | netAmountInCollectiveCurrency | To          | currency | From                   | Host                   | hostCurrency | data.expenseToHostFxRate |
 | ------- | -------------- | ------ | --------- | ---------- | -------------------- | ----------------------------- | ----------- | -------- | ---------------------- | ---------------------- | ------------ | ------------------------ |
-| EXPENSE | Expense in EUR | CREDIT | 10104     | -113       | 10936                | 10000                         | Donnortello | EUR      | Babel EUR              | NULL                   | USD          | 1.0823                   |
-| EXPENSE | Expense in EUR | DEBIT  | -10000    | -113       | -10823               | -10104                        | Babel EUR   | EUR      | Donnortello            | Open Source Collective | USD          | 1.0823                   |
+| EXPENSE | Expense in EUR | CREDIT | 10098     | -113       | 11631                | 10000                         | Donnortello | EUR      | Babel EUR              | NULL                   | USD          | 1.1518                   |
+| EXPENSE | Expense in EUR | DEBIT  | -10000    | -113       | -11518               | -10098                        | Babel EUR   | EUR      | Donnortello            | Open Source Collective | USD          | 1.1518                   |
 |         |                | CREDIT | 100000000 | 0          | 100000000            | 100000000                     | Babel EUR   | EUR      | Open Source Collective | NULL                   | USD          |                          |"
+`;
+
+exports[`/test/stories/transferwise.test.ts payee.currency != expense.currency != collective.currency = host.currency 1`] = `
+"
+| kind    | description    | type   | amount    | paymentFee | amountInHostCurrency | netAmountInCollectiveCurrency | To          | currency | From                   | Host                   | hostCurrency | data.expenseToHostFxRate |
+| ------- | -------------- | ------ | --------- | ---------- | -------------------- | ----------------------------- | ----------- | -------- | ---------------------- | ---------------------- | ------------ | ------------------------ |
+| EXPENSE | Expense in EUR | CREDIT | 11614     | -96        | 11614                | 11518                         | Donnortello | USD      | Babel USD              | NULL                   | USD          | 1.1518                   |
+| EXPENSE | Expense in EUR | DEBIT  | -11518    | -96        | -11518               | -11614                        | Babel USD   | USD      | Donnortello            | Open Source Collective | USD          | 1.1518                   |
+|         |                | CREDIT | 100000000 | 0          | 100000000            | 100000000                     | Babel USD   | USD      | Open Source Collective | NULL                   | USD          |                          |"
+`;
+
+exports[`/test/stories/transferwise.test.ts payee.currency != expense.currency != collective.currency = host.currency 2`] = `
+Object {
+  "collectiveToHost": 1,
+  "expenseToCollective": 1.1518,
+  "expenseToHost": 1.1518,
+  "expenseToPayoutMethod": 0.877175,
+}
 `;
 
 exports[`/test/stories/transferwise.test.ts payee.currency != expense.currency = collective.currency != host.currency 1`] = `
 "
 | kind    | description    | type   | amount    | paymentFee | amountInHostCurrency | netAmountInCollectiveCurrency | To          | currency | From                   | Host                   | hostCurrency | data.expenseToHostFxRate |
 | ------- | -------------- | ------ | --------- | ---------- | -------------------- | ----------------------------- | ----------- | -------- | ---------------------- | ---------------------- | ------------ | ------------------------ |
-| EXPENSE | Expense in EUR | CREDIT | 10086     | -93        | 10918                | 10000                         | Donnortello | EUR      | Babel EUR              | NULL                   | USD          | 1.0825                   |
-| EXPENSE | Expense in EUR | DEBIT  | -10000    | -93        | -10825               | -10086                        | Babel EUR   | EUR      | Donnortello            | Open Source Collective | USD          | 1.0825                   |
+| EXPENSE | Expense in EUR | CREDIT | 10083     | -96        | 11615                | 10000                         | Donnortello | EUR      | Babel EUR              | NULL                   | USD          | 1.1519000000000001       |
+| EXPENSE | Expense in EUR | DEBIT  | -10000    | -96        | -11519               | -10083                        | Babel EUR   | EUR      | Donnortello            | Open Source Collective | USD          | 1.1519000000000001       |
 |         |                | CREDIT | 100000000 | 0          | 100000000            | 100000000                     | Babel EUR   | EUR      | Open Source Collective | NULL                   | USD          |                          |"
 `;
 
@@ -22,8 +40,8 @@ exports[`/test/stories/transferwise.test.ts payee.currency != expense.currency =
 "
 | kind    | description    | type   | amount    | paymentFee | amountInHostCurrency | netAmountInCollectiveCurrency | To          | currency | From                   | Host                   | hostCurrency | data.expenseToHostFxRate |
 | ------- | -------------- | ------ | --------- | ---------- | -------------------- | ----------------------------- | ----------- | -------- | ---------------------- | ---------------------- | ------------ | ------------------------ |
-| EXPENSE | Expense in USD | CREDIT | 10088     | -81        | 10088                | 10007                         | Donnortello | USD      | Babel USD              | NULL                   | USD          | 1.0007                   |
-| EXPENSE | Expense in USD | DEBIT  | -10007    | -81        | -10007               | -10088                        | Babel USD   | USD      | Donnortello            | Open Source Collective | USD          | 1.0007                   |
+| EXPENSE | Expense in USD | CREDIT | 10084     | -84        | 10084                | 10000                         | Donnortello | USD      | Babel USD              | NULL                   | USD          | 1                        |
+| EXPENSE | Expense in USD | DEBIT  | -10000    | -84        | -10000               | -10084                        | Babel USD   | USD      | Donnortello            | Open Source Collective | USD          | 1                        |
 |         |                | CREDIT | 100000000 | 0          | 100000000            | 100000000                     | Babel USD   | USD      | Open Source Collective | NULL                   | USD          |                          |"
 `;
 
@@ -31,8 +49,8 @@ exports[`/test/stories/transferwise.test.ts payee.currency = expense.currency !=
 "
 | kind    | description    | type   | amount    | paymentFee | amountInHostCurrency | netAmountInCollectiveCurrency | To          | currency | From                   | Host                   | hostCurrency | data.expenseToHostFxRate |
 | ------- | -------------- | ------ | --------- | ---------- | -------------------- | ----------------------------- | ----------- | -------- | ---------------------- | ---------------------- | ------------ | ------------------------ |
-| EXPENSE | Expense in EUR | CREDIT | 10914     | -84        | 10914                | 10830                         | Donnortello | USD      | Babel USD              | NULL                   | USD          | 1.083                    |
-| EXPENSE | Expense in EUR | DEBIT  | -10830    | -84        | -10830               | -10914                        | Babel USD   | USD      | Donnortello            | Open Source Collective | USD          | 1.083                    |
+| EXPENSE | Expense in EUR | CREDIT | 11606     | -88        | 11606                | 11518                         | Donnortello | USD      | Babel USD              | NULL                   | USD          | 1.1518                   |
+| EXPENSE | Expense in EUR | DEBIT  | -11518    | -88        | -11518               | -11606                        | Babel USD   | USD      | Donnortello            | Open Source Collective | USD          | 1.1518                   |
 |         |                | CREDIT | 100000000 | 0          | 100000000            | 100000000                     | Babel USD   | USD      | Open Source Collective | NULL                   | USD          |                          |"
 `;
 
@@ -40,8 +58,8 @@ exports[`/test/stories/transferwise.test.ts payee.currency = expense.currency = 
 "
 | kind    | description    | type   | amount    | paymentFee | amountInHostCurrency | netAmountInCollectiveCurrency | To          | currency | From                   | Host                   | hostCurrency | data.expenseToHostFxRate |
 | ------- | -------------- | ------ | --------- | ---------- | -------------------- | ----------------------------- | ----------- | -------- | ---------------------- | ---------------------- | ------------ | ------------------------ |
-| EXPENSE | Expense in EUR | CREDIT | 10078     | -84        | 10914                | 10000                         | Donnortello | EUR      | Babel EUR              | NULL                   | USD          | 1.083                    |
-| EXPENSE | Expense in EUR | DEBIT  | -10000    | -84        | -10830               | -10078                        | Babel EUR   | EUR      | Donnortello            | Open Source Collective | USD          | 1.083                    |
+| EXPENSE | Expense in EUR | CREDIT | 10076     | -88        | 11606                | 10000                         | Donnortello | EUR      | Babel EUR              | NULL                   | USD          | 1.1518                   |
+| EXPENSE | Expense in EUR | DEBIT  | -10000    | -88        | -11518               | -10076                        | Babel EUR   | EUR      | Donnortello            | Open Source Collective | USD          | 1.1518                   |
 |         |                | CREDIT | 100000000 | 0          | 100000000            | 100000000                     | Babel EUR   | EUR      | Open Source Collective | NULL                   | USD          |                          |"
 `;
 

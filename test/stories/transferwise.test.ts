@@ -63,30 +63,99 @@ describe('/test/stories/transferwise.test.ts', () => {
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
-      token: '3a0758c0-1df1-4995-91ee-21fb56a2a24b',
+      token: '5943426d-2b7e-407e-b943-37805e55e373',
       data: {
-        type: 'personal',
-        id: 6220,
-        userId: 5466594,
+        id: 29100096,
+        type: 'BUSINESS',
+        email: 'iajsdiajsdijaijsdiasjdi@oficonsortium.org',
+        scope: 'transfers',
+        userId: 13286308,
         address: {
-          addressFirstLine: '56 Shoreditch High Street',
-          city: 'London',
-          countryIso2Code: 'GB',
-          countryIso3Code: 'gbr',
-          postCode: 'E16JJ',
+          id: 50440316,
+          city: 'Artoon',
+          postCode: '41234',
           stateCode: null,
+          countryIso2Code: 'ES',
+          countryIso3Code: 'esp',
+          addressFirstLine: '14 Norwich Parc',
         },
-        email: '',
-        createdAt: '2020-01-21T18:13:48.000Z',
-        updatedAt: '2020-07-28T11:55:53.000Z',
+        partner: false,
+        version: 0,
+        webpage: 'https://raymondunlimited9404.com',
+        fullName: 'Raymond Unlimited 9404',
+        publicId: 'd4d72b16-108d-4456-a0d5-8615716cdf2e',
+        createdAt: '2025-10-31T10:04:14',
+        updatedAt: '2025-10-31T10:04:14',
+        expires_at: '2025-11-03T19:14:55.095Z',
+        expires_in: 43199,
         obfuscated: false,
+        token_type: 'bearer',
+        companyType: 'SOLE_TRADER',
+        profileRole: 'DIRECT_CUSTOMER_PROFILE',
+        businessName: 'Raymond Unlimited 9404',
         currentState: 'VISIBLE',
-        firstName: 'Leo',
-        lastName: 'Kewitz',
-        dateOfBirth: '1964-02-24',
-        phoneNumber: '+442038087139',
-        secondaryAddresses: [],
-        fullName: 'Leo Kewitz',
+        contactDetails: {
+          email: 'leo+twusa@oficonsortium.org',
+          phoneNumber: '+38263072971',
+        },
+        dataObfuscated: false,
+        onboardingFlow: 'DEFAULT',
+        creatorClientId: 'transferwise_web',
+        partnerCustomer: false,
+        personalProfile: {
+          id: 29100090,
+          type: 'PERSONAL',
+          email: 'juahsduihasdiuha@oficonsortium.org',
+          userId: 13286308,
+          address: {
+            id: 50440308,
+            city: 'Triakestocksfield',
+            postCode: 'E56JJ',
+            stateCode: null,
+            countryIso2Code: 'DE',
+            countryIso3Code: 'deu',
+            addressFirstLine: '25 Sackville Court',
+          },
+          partner: false,
+          version: 1,
+          fullName: 'Kaitlynn Adams',
+          lastName: 'Adams',
+          publicId: '84453470-bfe3-41bd-a299-00c6288e790e',
+          createdAt: '2025-10-31T10:01:30',
+          firstName: 'Kaitlynn',
+          updatedAt: '2025-10-31T10:01:31',
+          obfuscated: false,
+          dateOfBirth: '1997-01-05',
+          phoneNumber: '+38263072971',
+          profileRole: 'DIRECT_CUSTOMER_PROFILE',
+          currentState: 'VISIBLE',
+          contactDetails: {
+            email: 'leo+twusa@oficonsortium.org',
+            phoneNumber: '+38263072971',
+          },
+          dataObfuscated: false,
+          creatorClientId: 'transferwise_web',
+          partnerCustomer: false,
+          secondaryAddresses: [],
+        },
+        firstLevelCategory: 'CONSULTING_IT_BUSINESS_SERVICES',
+        registrationNumber: '00000000000000000000',
+        secondLevelCategory: 'DESIGN',
+        operationalAddresses: [
+          {
+            id: 50440317,
+            city: 'Artoon',
+            postCode: '41234',
+            stateCode: 'NY',
+            countryIso2Code: 'US',
+            countryIso3Code: 'usa',
+            addressFirstLine: '14 Norwich Parc',
+          },
+        ],
+        descriptionOfBusiness: 'DESIGN',
+        refresh_token_expires_at: '2045-10-29T07:14:55.095Z',
+        refresh_token_expires_in: 630719999,
+        businessFreeFormDescription: 'asdasdasdasdasda asd asd as asd as',
       },
     });
     await hostAdmin.populateRoles();
@@ -324,5 +393,34 @@ describe('/test/stories/transferwise.test.ts', () => {
 
     expect(debit.hostCurrencyFxRate).to.be.gt(1);
     expect(debit.amountInHostCurrency).to.be.eq(-1 * round(expense.amount * debit.hostCurrencyFxRate));
+  });
+
+  it('payee.currency != expense.currency != collective.currency = host.currency', async () => {
+    const expenseCurrency = 'EUR';
+    const collectiveCurrency = 'USD';
+    const payoutData = {
+      type: 'sort_code',
+      details: {
+        address: {
+          city: 'London',
+          country: 'GB',
+          postCode: 'ODF 6DB',
+          firstLine: '7 Road',
+        },
+        legalType: 'PRIVATE',
+        sortCode: '231470',
+        accountNumber: '28821822',
+      },
+      currency: 'GBP',
+      accountHolderName: 'Sir Nicolas Cage',
+    };
+
+    const { debit } = await setupTest({
+      expenseCurrency,
+      collectiveCurrency,
+      payoutData,
+    });
+
+    expect(debit.data.fxRates).to.matchSnapshot();
   });
 });

@@ -103,7 +103,9 @@ const parseError = (
 export async function getToken(connectedAccount: ConnectedAccount, refresh = false): Promise<string> {
   // OAuth token, require us to refresh every 12 hours
   const checkTokenIsExpired = connectedAccount => {
-    if (refresh) {
+    if (!isProduction && connectedAccount.refreshToken === null) {
+      return false;
+    } else if (refresh) {
       return true;
     } else if (connectedAccount.isNewRecord) {
       return false;
