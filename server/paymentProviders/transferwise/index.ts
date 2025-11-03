@@ -159,27 +159,60 @@ async function quoteExpense(
   };
 
   let expenseToPayoutMethodExchangeRate: number | null = null;
-  if (expense.feesPayer === 'PAYEE') {
-    // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
-    assert(
-      expense.host.currency === expense.currency,
-      'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
-    );
-    quoteParams['sourceAmount'] = expense.amount / 100;
-  } else {
-    assert(
-      expense.collective.currency === expense.host.currency || expense.currency === expense.collective.currency,
-      'The host currency must be the same as the collective currency, or the expense currency must match the collective currency',
-    );
-    const targetAmount = expense.amount;
-    // Convert Expense amount to targetCurrency
-    if (targetCurrency !== expense.currency) {
-      const [wiseRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
-      expenseToPayoutMethodExchangeRate = wiseRate.rate;
-      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * expenseToPayoutMethodExchangeRate);
+  if (expense.host.data?.useLegacyWiseQuoting === false) {
+    if (expense.feesPayer === 'PAYEE') {
+      // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
+      assert(
+        expense.host.currency === expense.currency,
+        'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
+      );
+      quoteParams['sourceAmount'] = expense.amount / 100;
     } else {
-      expenseToPayoutMethodExchangeRate = 1;
-      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
+      assert(
+        expense.collective.currency === expense.host.currency || expense.currency === expense.collective.currency,
+        'The host currency must be the same as the collective currency, or the expense currency must match the collective currency',
+      );
+      const targetAmount = expense.amount;
+      // Convert Expense amount to targetCurrency
+      if (targetCurrency !== expense.currency) {
+        const [wiseRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
+        expenseToPayoutMethodExchangeRate = wiseRate.rate;
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * expenseToPayoutMethodExchangeRate);
+      } else {
+        expenseToPayoutMethodExchangeRate = 1;
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
+      }
+    }
+  } else {
+    const hasMultiCurrency = expense.currency !== expense.collective.currency;
+    if (hasMultiCurrency) {
+      assert(
+        expense.collective.currency === expense.host.currency,
+        'For multi-currency expenses, the host currency must be the same as the collective currency',
+      );
+      assert(
+        expense.currency === targetCurrency,
+        'For multi-currency expenses, the payout currency must be the same as the expense currency',
+      );
+      quoteParams['targetCurrency'] = expense.currency;
+      quoteParams['targetAmount'] = expense.amount / 100;
+    } else if (expense.feesPayer === 'PAYEE') {
+      // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
+      assert(
+        expense.host.currency === expense.currency,
+        'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
+      );
+      quoteParams['sourceAmount'] = expense.amount / 100;
+    } else {
+      const targetAmount = expense.amount;
+      // Convert Expense amount to targetCurrency
+      if (targetCurrency !== expense.currency) {
+        const [wiseRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
+        expenseToPayoutMethodExchangeRate = wiseRate.rate;
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * expenseToPayoutMethodExchangeRate);
+      } else {
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
+      }
     }
   }
 

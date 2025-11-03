@@ -53,6 +53,9 @@ describe('/test/stories/transferwise.test.ts', () => {
       plan: 'network-host-plan',
       currency: hostCurrency,
       name: 'Open Source Collective',
+      data: {
+        useLegacyWiseQuoting: false,
+      },
     });
     const collective = await fakeCollective({
       HostCollectiveId: host.id,
