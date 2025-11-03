@@ -172,7 +172,7 @@ const accountMutations = {
           const hostedCollectives = await account.getHostedCollectivesCount();
           if (hostedCollectives >= 1) {
             throw new Error(
-              `You can't deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
+              `You can't deactivate hosting while still hosting ${hostedCollectives} collectives. Please contact support: support@opencollective.com.`,
             );
           }
         }
