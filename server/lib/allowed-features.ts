@@ -15,6 +15,7 @@ enum FEATURE_ACCESS_PARTY {
   FIRST_PARTY_HOSTS = 'FIRST_PARTY_HOSTS',
   ACTIVE_ACCOUNTS = 'ACTIVE_ACCOUNTS',
   INDEPENDENT_COLLECTIVES = 'INDEPENDENT_COLLECTIVES',
+  ORGANIZATIONS_WITH_MONEY_MANAGEMENT = 'ORGANIZATIONS_WITH_MONEY_MANAGEMENT',
   PLATFORM_ACCOUNTS = 'PLATFORM_ACCOUNTS',
 }
 
@@ -221,7 +222,18 @@ const checkFeatureAccessParty = (
       case FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS:
         return PlatformConstants.CurrentPlatformCollectiveIds.includes(collective.id);
       case FEATURE_ACCESS_PARTY.HOSTS:
-        return collective.isHostAccount && collective.type !== CollectiveType.COLLECTIVE;
+        return (
+          collective.isHostAccount &&
+          collective.type !== CollectiveType.COLLECTIVE &&
+          collective.settings?.canHostAccounts !== false
+        );
+      case FEATURE_ACCESS_PARTY.ORGANIZATIONS_WITH_MONEY_MANAGEMENT:
+        return (
+          collective.type === CollectiveType.ORGANIZATION &&
+          collective.isHostAccount &&
+          collective.HostCollectiveId === collective.id &&
+          collective.settings?.canHostAccounts === false
+        );
     }
   });
 };
