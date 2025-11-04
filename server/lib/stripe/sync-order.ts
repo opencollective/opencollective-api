@@ -12,11 +12,34 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
     logging?.(`Order ${order.id} has no paymentIntent`);
     return;
   }
-  const hostStripeAccount = await order.collective.getHostStripeAccount();
+  let hostStripeAccount;
+  try {
+    hostStripeAccount = await order.collective.getHostStripeAccount();
+  } catch (err) {
+    logging?.(`Host for ${order.id} has no stripe account`, err);
+    if (!IS_DRY) {
+      await order.update({
+        status: OrderStatuses.CANCELLED,
+      });
+    }
+    return;
+  }
   const stripeAccount = hostStripeAccount.username;
-  const paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, {
-    stripeAccount,
-  });
+  let paymentIntent;
+  try {
+    paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, {
+      stripeAccount,
+    });
+  } catch (err) {
+    logging?.(`Order ${order.id} payment intent not found on stripe`, err);
+    if (!IS_DRY) {
+      await order.update({
+        status: OrderStatuses.CANCELLED,
+      });
+    }
+    return;
+  }
+
   logging?.(`Order ${order.id} paymentIntent status: ${paymentIntent.status}`);
 
   const charge = (paymentIntent as any).charges?.data?.[0] as Stripe.Charge;
@@ -38,12 +61,16 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
 
     logging?.(`Order ${order.id} is missing charge ${charge.id}, re-processing payment intent...`);
     if (!IS_DRY) {
-      await paymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any);
+      await paymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any, {
+        skipNotify: true,
+      });
     }
   } else if (charge?.status === 'failed') {
     logging?.(`Order ${order.id} has failed charge: ${charge.id}`);
     if (!IS_DRY) {
-      await paymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any);
+      await paymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any, {
+        skipNotify: true,
+      });
     }
   } else if (!charge && ['requires_payment_method', 'requires_source'].includes(paymentIntent.status)) {
     logging?.(`Order ${order.id} has no payment method`);
