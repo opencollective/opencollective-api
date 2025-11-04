@@ -1,6 +1,7 @@
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
+import { randomInt } from 'node:crypto';
 
 import * as errors from '../graphql/errors';
 
@@ -24,20 +25,20 @@ export const ALGORITHM = 'HS256';
 export const KID = 'HS256-2019-09-02';
 
 /** Generate a JWToken with the received parameters */
-export function createJwt(subject, payload = {}, expiresIn) {
+export function createJwt(subject, payload: { scope?: string; sessionId?: string } = {}, expiresIn: number) {
   if (payload?.scope === 'session') {
     if (!payload.sessionId) {
       payload.sessionId = crypto.hash(generateKey());
     }
   }
   return jwt.sign(payload, config.keys.opencollective.jwtSecret, {
-    expiresIn,
+    expiresIn: expiresIn,
     subject: String(subject),
     algorithm: ALGORITHM,
     header: {
       kid: KID,
     },
-  });
+  } as jwt.SignOptions);
 }
 
 /** Verify JWToken */
@@ -65,10 +66,14 @@ export function mustHaveRole(remoteUser, roles, CollectiveId, action = 'perform 
  * @param {string} token
  * */
 export function setAuthCookie(res, token) {
-  const decodedToken = verifyJwt(token);
+  const decodedToken = verifyJwt(token) as jwt.JwtPayload;
 
   const maxAge = decodedToken.exp * 1000 - new Date().getTime();
   const [header, payload, signature] = token.split('.');
   res.cookie('accessTokenPayload', [header, payload].join('.'), { maxAge, httpOnly: false, secure: true });
   res.cookie('accessTokenSignature', signature, { maxAge, httpOnly: true, secure: true });
+}
+
+export function generateOTPCode() {
+  return randomInt(100000, 999999).toString();
 }

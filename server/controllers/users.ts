@@ -106,7 +106,7 @@ export const signin = async (req, res, next) => {
         const authenticationOptions = {};
 
         if (supported2FAMethods.includes(TwoFactorMethod.WEBAUTHN)) {
-          authenticationOptions.webauthn = await webauthn.authenticationOptions(user, req);
+          authenticationOptions['webauthn'] = await webauthn.authenticationOptions(user, req);
         }
 
         // Send 2FA token, can only be used to get a long term token
@@ -222,7 +222,7 @@ export const exchangeLoginToken = async (req, res, next) => {
     const authenticationOptions = {};
 
     if (supported2FAMethods.includes(TwoFactorMethod.WEBAUTHN)) {
-      authenticationOptions.webauthn = await webauthn.authenticationOptions(req.remoteUser, req);
+      authenticationOptions['webauthn'] = await webauthn.authenticationOptions(req.remoteUser, req);
     }
 
     const token = req.remoteUser.jwt(
