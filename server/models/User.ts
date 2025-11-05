@@ -95,6 +95,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     updateLastLoginAt = false,
     expiration = null,
     req = null,
+    isPasswordLogin = false,
   } = {}) {
     if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await Activity.create({
@@ -107,10 +108,43 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
 
     if (updateLastLoginAt && req && !parseToBoolean(config.database.readOnly)) {
+      const currentIp = req.ip;
+      const currentUserAgent = req.header('user-agent');
+      const previousSignInRequest = this.data?.lastSignInRequest;
+
+      // Check if this is a new device/location (different IP or user agent)
+      const isNewDeviceOrLocation =
+        !previousSignInRequest ||
+        previousSignInRequest.ip !== currentIp ||
+        previousSignInRequest.userAgent !== currentUserAgent;
+
+      // Send new sign-in email only for password logins from new device/location
+      if (isPasswordLogin && isNewDeviceOrLocation && previousSignInRequest) {
+        try {
+          const collective = await this.getCollective();
+          const signInTime = new Date().toISOString();
+
+          await emailLib.send(
+            activities.USER_NEW_PASSWORD_SIGNIN,
+            this.email,
+            {
+              clientIP: currentIp,
+              userAgent: currentUserAgent,
+              signInTime,
+              collective: collective.info,
+            },
+            { sendEvenIfNotProduction: true },
+          );
+        } catch (e) {
+          logger.error('Error sending new sign-in email', { error: e, userId: this.id });
+          // Don't fail the login if email sending fails
+        }
+      }
+
       await this.update({
         // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
         lastLoginAt: new Date(),
-        data: { ...this.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
+        data: { ...this.data, lastSignInRequest: { ip: currentIp, userAgent: currentUserAgent } },
       });
     }
 

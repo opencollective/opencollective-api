@@ -127,6 +127,7 @@ enum ActivityTypes {
   USER_CREATED = 'user.created',
   USER_NEW_TOKEN = 'user.new.token', // Replaced by USER_SIGNIN but still used in the email notification
   USER_SIGNIN = 'user.signin',
+  USER_NEW_PASSWORD_SIGNIN = 'user.new.password.signin', // New sign-in from new device/location (password login only)
   USER_RESET_PASSWORD = 'user.resetPassword',
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
   TWO_FACTOR_METHOD_ADDED = 'user.new.two.factor.method',
@@ -175,6 +176,7 @@ enum ActivityTypes {
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
 export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
+  ActivityTypes.USER_NEW_PASSWORD_SIGNIN,
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PENDING,
   ActivityTypes.ORDER_PENDING_CRYPTO,
