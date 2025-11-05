@@ -25,6 +25,7 @@ import {
   sendEmailNotifications,
   sendOrderFailedEmail,
 } from '../../lib/payments';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates, MAX_RETRIES } from '../../lib/recurring-contributions';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
@@ -253,7 +254,18 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     sideEffects.push(createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-    sideEffects.push(subscription.update({ lastChargedAt: transaction.clearedAt }));
+    const chargeRetryCount = getChargeRetryCount('success', order);
+    const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('success', order);
+
+    sideEffects.push(
+      subscription.update({
+        chargeNumber: subscription.chargeNumber + 1,
+        lastChargedAt: transaction.clearedAt,
+        chargeRetryCount,
+        nextPeriodStart,
+        nextChargeDate,
+      }),
+    );
   }
 
   sendEmailNotifications(order, transaction);
@@ -577,6 +589,28 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
   });
 
   const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
+
+  if (order.SubscriptionId) {
+    const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    const chargeRetryCount = getChargeRetryCount('failure', order);
+
+    const exceededAttempts = chargeRetryCount >= MAX_RETRIES;
+
+    if (exceededAttempts) {
+      await subscription.update({
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      await order.update({ status: OrderStatuses.CANCELLED });
+    } else {
+      const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('failure', order);
+      await subscription.update({
+        chargeRetryCount,
+        nextPeriodStart,
+        nextChargeDate,
+      });
+    }
+  }
 
   sendOrderFailedEmail(order, userFriendlyError);
 };
