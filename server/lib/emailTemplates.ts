@@ -107,6 +107,7 @@ export const templateNames = [
   'user.changeEmail',
   'user.monthlyreport',
   'user.new.token',
+  'user.new.password.signin',
   'user.resetPassword',
   'user.yearlyreport',
   'user.otp.requested',
