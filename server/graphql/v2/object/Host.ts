@@ -627,7 +627,13 @@ export const GraphQLHost = new GraphQLObjectType({
 
           // bank transfer = manual in host settings
           if (get(collective, 'settings.paymentMethods.manual', null)) {
-            supportedPaymentMethods.push('BANK_TRANSFER');
+            const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+            const hasManualBankTransferMethod = payoutMethods.some(
+              c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
+            );
+            if (hasManualBankTransferMethod) {
+              supportedPaymentMethods.push('BANK_TRANSFER');
+            }
           }
 
           return supportedPaymentMethods;
