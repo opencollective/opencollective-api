@@ -30,8 +30,8 @@ import Order from './Order';
 const debug = debugLib('models:User');
 
 type UserData = {
-  creationRequest?: { ip: string };
-  lastSignInRequest?: { ip: string };
+  creationRequest?: { ip: string; userAgent: string };
+  lastSignInRequest?: { ip: string; userAgent: string };
   features?: Record<FEATURE, boolean>;
   limits?: {
     draftExpenses?: 'bypass';
@@ -468,6 +468,20 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
         return collective;
       }
     }
+  };
+
+  /**
+   *  Safely destroy a user account to avoid email conflicts in the future
+   *  Updates the user email before soft-deleting the account
+   */
+  safeDestroy = async function () {
+    // Update user email in order to free up for future reuse
+    // Split the email, username from host domain
+    const splitedEmail = this.email.split('@');
+    // Add the current timestamp to email username
+    const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
+    await this.update({ email: newEmail });
+    return this.destroy();
   };
 
   /**

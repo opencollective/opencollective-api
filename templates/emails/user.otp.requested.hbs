@@ -1,0 +1,23 @@
+Subject: Open Collective: Email Confirmation
+
+{{> header}}
+
+<center>
+  <h3>Your 6-digit code is: {{otp}}</h3>
+  <p></p>
+  <p>
+    This code will expire in 5 minutes.
+  </p>
+</center>
+
+{{> footer}}
+
+<center>
+<div style="margin-top: 1em; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
+  This confirmation was requested by 
+    <span style="padding: .2em .4em; margin: 0; background-color: rgba(27,31,35,.05); border-radius: 3px;">
+      {{clientIP}}
+    </span>.
+    If you did not request this email, please inform <a href="mailto:support@opencollective.com">support@opencollective.com</a>.
+</div>
+</center>
