@@ -3,7 +3,7 @@ import type Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
 import models from '../../models';
-import { paymentIntentFailed, paymentIntentSucceeded } from '../../paymentProviders/stripe/webhook';
+import { paymentIntentFailed } from '../../paymentProviders/stripe/webhook';
 import stripe from '../stripe';
 
 export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? } = {}) => {
@@ -59,12 +59,7 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
       return;
     }
 
-    logging?.(`Order ${order.id} is missing charge ${charge.id}, re-processing payment intent...`);
-    if (!IS_DRY) {
-      await paymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any, {
-        skipNotify: true,
-      });
-    }
+    logging?.(`Order ${order.id} is missing charge ${charge.id}`);
   } else if (charge?.status === 'failed') {
     logging?.(`Order ${order.id} has failed charge: ${charge.id}`);
     if (!IS_DRY) {
