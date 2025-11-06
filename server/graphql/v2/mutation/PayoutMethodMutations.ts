@@ -99,7 +99,13 @@ const payoutMethodMutations = {
         await payoutMethod.destroy();
         return payoutMethod;
       } else if (await payoutMethod.canBeArchived()) {
-        return payoutMethod.update({ isSaved: false });
+        return payoutMethod.update({
+          isSaved: false,
+          data: {
+            ...payoutMethod.data,
+            ...(payoutMethod.data['isManualBankTransfer'] ? { isManualBankTransfer: false } : {}),
+          },
+        });
       } else {
         throw new Forbidden();
       }
