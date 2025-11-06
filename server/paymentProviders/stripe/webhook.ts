@@ -254,6 +254,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     sideEffects.push(createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    order.Subscription = subscription;
     const chargeRetryCount = getChargeRetryCount('success', order);
     const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('success', order);
 
@@ -268,7 +269,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     );
   }
 
-  sendEmailNotifications(order, transaction);
+  sendEmailNotifications(order, transaction, { firstPayment: order.interval && !order.SubscriptionId });
   await Promise.all(sideEffects);
 };
 
@@ -592,6 +593,7 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
 
   if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
+    order.Subscription = subscription;
     const chargeRetryCount = getChargeRetryCount('failure', order);
 
     const exceededAttempts = chargeRetryCount >= MAX_RETRIES;

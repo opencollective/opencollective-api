@@ -261,7 +261,7 @@ export function getNextChargeAndPeriodStartDates(status, order) {
 
   if (status === 'processing') {
     return {
-      nextPeriodStart: initial.toDate(),
+      nextPeriodStart: initial,
       nextChargeDate: order.Subscription.nextChargeDate,
     };
   }
