@@ -98,4 +98,29 @@ export class OpenSearchTransactionsAdapter implements OpenSearchModelAdapter {
       },
     };
   }
+
+  public getPersonalizationFilters(userId: number | null, adminOfAccountIds: number[], isRoot: boolean) {
+    /* eslint-disable camelcase */
+    if (isRoot) {
+      return null; // No filter, show all
+    }
+
+    if (!adminOfAccountIds.length) {
+      return null; // No user context, show all
+    }
+
+    return [
+      {
+        bool: {
+          minimum_should_match: 1,
+          should: [
+            { terms: { HostCollectiveId: adminOfAccountIds } },
+            { terms: { CollectiveId: adminOfAccountIds } },
+            { terms: { FromCollectiveId: adminOfAccountIds } },
+          ],
+        },
+      },
+    ];
+    /* eslint-enable camelcase */
+  }
 }

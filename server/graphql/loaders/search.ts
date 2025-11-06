@@ -18,6 +18,7 @@ import { Collective } from '../../models';
 type LoaderSearchParams = {
   requestId: string;
   useTopHits: boolean;
+  usePersonalization: boolean;
   searchTerm: string;
   index: OpenSearchIndexName;
   indexParams: OpenSearchIndexParams[OpenSearchIndexName];
@@ -95,7 +96,7 @@ export const generateSearchLoaders = req => {
     // Go through all the search request (one `search` field in the query = one request)
     for (const requestId in groupedRequests) {
       const firstRequest = groupedRequests[requestId][0];
-      const { searchTerm, limit, offset, account, host } = firstRequest;
+      const { searchTerm, limit, offset, account, host, usePersonalization } = firstRequest;
       const indexesRequests = getSearchIndexes(groupedRequests[requestId]);
 
       if (firstRequest.useTopHits) {
@@ -105,6 +106,7 @@ export const generateSearchLoaders = req => {
           host,
           limit,
           offset,
+          usePersonalization,
         });
 
         const results = response?.body;
@@ -122,6 +124,7 @@ export const generateSearchLoaders = req => {
             host,
             limit,
             offset,
+            usePersonalization,
           });
 
           const results = response?.body;
