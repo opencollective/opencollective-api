@@ -89,4 +89,29 @@ export class OpenSearchTiersAdapter implements OpenSearchModelAdapter {
   public getIndexPermissions(/* _adminOfAccountIds: number[]*/) {
     return { default: 'PUBLIC' as const };
   }
+
+  public getPersonalizationFilters(userId: number | null, adminOfAccountIds: number[], isRoot: boolean) {
+    /* eslint-disable camelcase */
+    if (isRoot) {
+      return null; // No filter, show all
+    }
+
+    if (!adminOfAccountIds.length) {
+      return null; // No user context, show all
+    }
+
+    return [
+      {
+        bool: {
+          minimum_should_match: 1,
+          should: [
+            { terms: { HostCollectiveId: adminOfAccountIds } },
+            { terms: { ParentCollectiveId: adminOfAccountIds } },
+            { terms: { CollectiveId: adminOfAccountIds } },
+          ],
+        },
+      },
+    ];
+    /* eslint-enable camelcase */
+  }
 }
