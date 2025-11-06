@@ -108,7 +108,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { isValidURL, prependHttp } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, md5, parseToBoolean } from '../lib/utils';
 import { Location as LocationType, StructuredAddress } from '../types/Location';
 
 import AccountingCategory from './AccountingCategory';
@@ -982,7 +982,7 @@ class Collective extends Model<
     if (!this.isHostAccount) {
       const updatedValues = {
         isHostAccount: true,
-        plan: 'start-plan-2021',
+        plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
         hostFeePercent: undefined,
         platformFeePercent: undefined,
       };
