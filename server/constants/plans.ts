@@ -302,19 +302,19 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     },
     features: featuresForStarter,
   },
-  {
-    id: 'discover-3',
-    title: 'Discover 3',
-    type: PlatformSubscriptionTierTypes.FREE,
-    pricing: {
-      pricePerMonth: 2000,
-      includedCollectives: 3,
-      pricePerAdditionalCollective: 1000,
-      includedExpensesPerMonth: 30,
-      pricePerAdditionalExpense: 100,
-    },
-    features: featuresForStarter,
-  },
+  // {
+  //   id: 'discover-3',
+  //   title: 'Discover 3',
+  //   type: PlatformSubscriptionTierTypes.FREE,
+  //   pricing: {
+  //     pricePerMonth: 2000,
+  //     includedCollectives: 3,
+  //     pricePerAdditionalCollective: 1000,
+  //     includedExpensesPerMonth: 30,
+  //     pricePerAdditionalExpense: 100,
+  //   },
+  //   features: featuresForStarter,
+  // },
   {
     id: 'discover-5',
     title: 'Discover 5',
@@ -333,10 +333,23 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Discover 10',
     type: PlatformSubscriptionTierTypes.FREE,
     pricing: {
-      pricePerMonth: 9000,
+      pricePerMonth: 8000,
       includedCollectives: 10,
       pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 100,
+      pricePerAdditionalExpense: 100,
+    },
+    features: featuresForStarter,
+  },
+  {
+    id: 'discover-20',
+    title: 'Discover 20',
+    type: PlatformSubscriptionTierTypes.FREE,
+    pricing: {
+      pricePerMonth: 16000,
+      includedCollectives: 20,
+      pricePerAdditionalCollective: 1000,
+      includedExpensesPerMonth: 200,
       pricePerAdditionalExpense: 100,
     },
     features: featuresForStarter,
@@ -347,7 +360,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Basic 5',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 5000,
+      pricePerMonth: 6000,
       includedCollectives: 5,
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 50,
@@ -360,7 +373,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Basic 10',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 13000,
+      pricePerMonth: 12000,
       includedCollectives: 10,
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 100,
@@ -373,7 +386,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Basic 20',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 27000,
+      pricePerMonth: 24000,
       includedCollectives: 20,
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 200,
@@ -386,7 +399,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Basic 50',
     type: PlatformSubscriptionTierTypes.BASIC,
     pricing: {
-      pricePerMonth: 65000,
+      pricePerMonth: 60000,
       includedCollectives: 50,
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 500,
@@ -400,7 +413,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Pro 20',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 35000,
+      pricePerMonth: 32000,
       includedCollectives: 20,
       pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 200,
@@ -439,7 +452,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
     title: 'Pro 200',
     type: PlatformSubscriptionTierTypes.PRO,
     pricing: {
-      pricePerMonth: 350000,
+      pricePerMonth: 360000,
       includedCollectives: 200,
       pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 2000,
