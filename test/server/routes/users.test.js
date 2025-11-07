@@ -292,4 +292,200 @@ describe('server/routes/users', () => {
       expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
     });
   });
+
+  describe('#newPasswordSigninEmail', () => {
+    const signinUrl = `/users/signin?api_key=${application.api_key}`;
+    const exchangeLoginTokenUrl = `/users/exchange-login-token?api_key=${application.api_key}`;
+
+    beforeEach(() => {
+      // Clear any previous sendMail calls
+      if (nm.sendMail.resetHistory) {
+        if (nm.sendMail.resetHistory) {
+          nm.sendMail.resetHistory();
+        }
+      }
+    });
+
+    it('should NOT send email when signing up (first login)', async () => {
+      // Given a new user signing up with password
+      const email = 'newuser@example.com';
+      const password = 'testpassword123';
+
+      // When the user signs up with a password
+      const response = await request(expressApp)
+        .post(signinUrl)
+        .send({
+          user: { email, password },
+          createProfile: true,
+        })
+        .set('X-Forwarded-For', '192.168.1.1')
+        .set('User-Agent', 'Mozilla/5.0');
+
+      // Then the sign-in should succeed
+      expect(response.statusCode).to.equal(200);
+      expect(response.body.token).to.exist;
+
+      // And the new password sign-in email should NOT be sent
+      const emailCalls = nm.sendMail.getCalls ? nm.sendMail.getCalls() : [];
+      const newSigninEmailSent = emailCalls.some(
+        call => call.args[0].subject && call.args[0].subject.includes('New sign-in'),
+      );
+      expect(newSigninEmailSent).to.be.false;
+    });
+
+    it('should NOT send email when signing in with magic link', async () => {
+      // Given a user with a password
+      const user = await fakeUser({ email: 'magiclink@example.com' });
+      await user.setPassword('testpassword123');
+
+      // First sign-in to establish a known device/location
+      await request(expressApp)
+        .post(signinUrl)
+        .send({
+          user: { email: user.email, password: 'testpassword123' },
+        })
+        .set('X-Forwarded-For', '192.168.1.1')
+        .set('User-Agent', 'Mozilla/5.0');
+
+      if (nm.sendMail.resetHistory) {
+        nm.sendMail.resetHistory();
+      }
+
+      // When the user requests a magic link
+      await request(expressApp)
+        .post(signinUrl)
+        .send({
+          user: { email: user.email },
+          sendLink: true,
+        })
+        .set('X-Forwarded-For', '192.168.1.2')
+        .set('User-Agent', 'Different User Agent');
+
+      // Get the login token from the email (we'll need to extract it from sendMail calls)
+      const emailCalls = nm.sendMail.getCalls ? nm.sendMail.getCalls() : [];
+      const loginEmailCall = emailCalls.find(call => {
+        const html = call.args[0].html || '';
+        return html.includes('One-click Sign In') || html.includes('signin');
+      });
+
+      expect(loginEmailCall).to.exist;
+      const loginLinkMatch = loginEmailCall.args[0].html.match(/signin\/([^"<>\s]+)/);
+      expect(loginLinkMatch).to.exist;
+      const loginToken = loginLinkMatch[1];
+
+      if (nm.sendMail.resetHistory) {
+        nm.sendMail.resetHistory();
+      }
+
+      // When the user exchanges the magic link token
+      const exchangeResponse = await request(expressApp)
+        .post(exchangeLoginTokenUrl)
+        .set('Authorization', `Bearer ${loginToken}`)
+        .set('X-Forwarded-For', '192.168.1.2')
+        .set('User-Agent', 'Different User Agent');
+
+      // Then the exchange should succeed
+      expect(exchangeResponse.statusCode).to.equal(200);
+
+      // And the new password sign-in email should NOT be sent
+      const newEmailCalls = nm.sendMail.getCalls ? nm.sendMail.getCalls() : [];
+      const newSigninEmailSent = newEmailCalls.some(
+        call => call.args[0].subject && call.args[0].subject.includes('New sign-in'),
+      );
+      expect(newSigninEmailSent).to.be.false;
+    });
+
+    it('should NOT send email when signing in with password from known location/device', async () => {
+      // Given a user with a password
+      const user = await fakeUser({ email: 'knowndevice@example.com' });
+      await user.setPassword('testpassword123');
+
+      const knownIp = '192.168.1.1';
+      const knownUserAgent = 'Mozilla/5.0 (Known Device)';
+
+      // First sign-in to establish a known device/location
+      await request(expressApp)
+        .post(signinUrl)
+        .send({
+          user: { email: user.email, password: 'testpassword123' },
+        })
+        .set('X-Forwarded-For', knownIp)
+        .set('User-Agent', knownUserAgent);
+
+      if (nm.sendMail.resetHistory) {
+        nm.sendMail.resetHistory();
+      }
+
+      // When the user signs in again from the same device/location
+      const response = await request(expressApp)
+        .post(signinUrl)
+        .send({
+          user: { email: user.email, password: 'testpassword123' },
+        })
+        .set('X-Forwarded-For', knownIp)
+        .set('User-Agent', knownUserAgent);
+
+      // Then the sign-in should succeed
+      expect(response.statusCode).to.equal(200);
+      expect(response.body.token).to.exist;
+
+      // And the new password sign-in email should NOT be sent
+      const emailCalls = nm.sendMail.getCalls ? nm.sendMail.getCalls() : [];
+      const newSigninEmailSent = emailCalls.some(
+        call => call.args[0].subject && call.args[0].subject.includes('New sign-in'),
+      );
+      expect(newSigninEmailSent).to.be.false;
+    });
+
+    it('should send email when signing in with password from new location/device', async () => {
+      // Given a user with a password
+      const user = await fakeUser({ email: 'newdevice@example.com' });
+      await user.setPassword('testpassword123');
+
+      const knownIp = '192.168.1.1';
+      const knownUserAgent = 'Mozilla/5.0 (Known Device)';
+
+      // First sign-in to establish a known device/location
+      await request(expressApp)
+        .post(signinUrl)
+        .send({
+          user: { email: user.email, password: 'testpassword123' },
+        })
+        .set('X-Forwarded-For', knownIp)
+        .set('User-Agent', knownUserAgent);
+
+      if (nm.sendMail.resetHistory) {
+        nm.sendMail.resetHistory();
+      }
+
+      // When the user signs in from a new device/location
+      const newIp = '192.168.1.2';
+      const newUserAgent = 'Mozilla/5.0 (New Device)';
+      const response = await request(expressApp)
+        .post(signinUrl)
+        .send({
+          user: { email: user.email, password: 'testpassword123' },
+        })
+        .set('X-Forwarded-For', newIp)
+        .set('User-Agent', newUserAgent);
+
+      // Then the sign-in should succeed
+      expect(response.statusCode).to.equal(200);
+      expect(response.body.token).to.exist;
+
+      // And the new password sign-in email SHOULD be sent
+      const emailCalls = nm.sendMail.getCalls ? nm.sendMail.getCalls() : [];
+      const newSigninEmailCall = emailCalls.find(
+        call => call.args[0].subject && call.args[0].subject.includes('New sign-in'),
+      );
+      expect(newSigninEmailCall).to.exist;
+
+      // And the email should contain the correct information
+      const emailHtml = newSigninEmailCall.args[0].html;
+      expect(emailHtml).to.include(newIp);
+      expect(emailHtml).to.include(newUserAgent);
+      expect(emailHtml).to.include('New sign-in detected');
+      expect(emailHtml).to.include('password');
+    });
+  });
 });
