@@ -2,22 +2,24 @@
 import bcrypt from 'bcrypt';
 import config from 'config';
 import type express from 'express';
-import { randomInt } from 'node:crypto';
 
 import { activities } from '../constants';
+import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import { BadRequest } from '../graphql/errors';
 import * as auth from '../lib/auth';
 import { sessionCache } from '../lib/cache';
+import { checkCaptcha, isCaptchaSetup } from '../lib/check-captcha';
 import emailLib from '../lib/email';
 import errors from '../lib/errors';
 import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
+import { lockUntilOrThrow } from '../lib/mutex';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import { reportErrorToSentry } from '../lib/sentry';
+import { HandlerType, reportErrorToSentry } from '../lib/sentry';
 import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
 import * as webauthn from '../lib/two-factor-authentication/webauthn';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
-import models from '../models';
+import models, { sequelize } from '../models';
 
 const { Unauthorized, TooManyRequests } = errors;
 
@@ -183,7 +185,7 @@ export const signin = async (req, res, next) => {
   }
 };
 
-type SignupResquestSession = {
+type SignupRequestSession = {
   secret: string;
   tries: number;
   userId: number;
@@ -192,157 +194,273 @@ type SignupResquestSession = {
 /**
  * Creates a new User and sends a new OTP verification code.
  */
-export const signup: express.RequestHandler<unknown, unknown, { email: string; password?: string }> =
-  async function signup(
-    req,
-    res,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    next,
-  ) {
-    const ipRateLimit = new RateLimit(`signup_ip_${req.ip}`, 3, 15 * 60);
-    if (!(await ipRateLimit.registerCall())) {
+export async function signup(req: express.Request, res: express.Response) {
+  const { email, password, captcha } = req.body;
+  if (captcha) {
+    await checkCaptcha(captcha, req.ip);
+  } else if (!req.remoteUser && isCaptchaSetup()) {
+    res.status(403).send({
+      error: { message: 'Captcha is required', type: 'CAPTCHA_REQUIRED' },
+    });
+    return;
+  }
+
+  const ipRateLimit = new RateLimit(
+    `signup_ip_${req.ip}`,
+    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
+    auth.OTP_RATE_LIMIT_WINDOW,
+  );
+  if (!(await ipRateLimit.registerCall())) {
+    res.status(403).send({
+      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+    });
+    return;
+  }
+
+  const sanitizedEmail = email.toLowerCase();
+  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
+
+  if (!isValidEmail(sanitizedEmail)) {
+    res.status(400).send({
+      error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
+    });
+    return;
+  }
+  const emailRateLimit = new RateLimit(
+    `signup_email_${sanitizedEmail}`,
+    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
+    auth.OTP_RATE_LIMIT_WINDOW,
+  );
+  if (!(await emailRateLimit.registerCall())) {
+    res.status(403).send({
+      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+    });
+    return;
+  }
+
+  // Check if OTP request already exists
+  const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
+  if (otpSession) {
+    // Should we just return SUCCESS true here to take the user to the verify OTP step?
+    res.status(401).send({
+      error: { message: 'OTP request already exists', type: 'OTP_REQUEST_EXISTS' },
+    });
+    return;
+  }
+
+  // Check if Users exists
+  let user = await models.User.findOne({ where: { email: sanitizedEmail } });
+  if (user) {
+    if (user.confirmedAt) {
       res.status(403).send({
-        error: { message: 'Rate limit exceeded' },
+        error: { message: 'User already exists', type: 'USER_ALREADY_EXISTS' },
       });
       return;
     }
-
-    const { email, password } = req.body;
-    const sanitizedEmail = email.toLowerCase();
-    const otpSessionKey = `otp_signup_${sanitizedEmail}`;
-
-    if (!isValidEmail(sanitizedEmail)) {
-      res.status(400).send({
-        error: { message: 'Invalid email address' },
-      });
-      return;
-    }
-    const emailRateLimit = new RateLimit(`signup_email_${sanitizedEmail}`, 3, 15 * 60);
-    if (!(await emailRateLimit.registerCall())) {
-      res.status(403).send({
-        error: { message: 'Rate limit exceeded' },
-      });
-      return;
-    }
-
-    // Check if OTP request already exists
-    const otpSession: SignupResquestSession = await sessionCache.get(otpSessionKey);
-    if (otpSession) {
-      res.status(401).send({
-        error: { message: 'OTP request already exists' },
-      });
-      return;
-    }
-
-    // Check if Users exists
-    let user = await models.User.findOne({ where: { email: sanitizedEmail } });
-    if (user) {
-      if (user.confirmedAt) {
-        res.status(403).send({
-          error: { message: 'User already exists' },
-        });
-        return;
-      }
-    } else {
-      user = await models.User.create({
-        email: sanitizedEmail,
-        confirmedAt: null,
-        data: {
-          creationRequest: {
-            ip: req.ip,
-            userAgent: req.header('user-agent'),
-          },
+  } else {
+    user = await models.User.create({
+      email: sanitizedEmail,
+      confirmedAt: null,
+      data: {
+        creationRequest: {
+          ip: req.ip,
+          userAgent: req.header('user-agent'),
         },
-      });
-      if (password) {
-        await user.setPassword(password);
-      }
+      },
+    });
+    if (password) {
+      await user.setPassword(password);
     }
+  }
 
-    const otp = randomInt(100000, 999999).toString();
-    const secret = await bcrypt.hash(otp, 10);
-    const session: SignupResquestSession = {
-      secret,
-      tries: 0,
-      userId: user.id,
-    };
-    await sessionCache.set(otpSessionKey, session, 5 * 60); // 5 minutes
-    try {
-      await emailLib.send(
-        activities.USER_OTP_REQUESTED,
-        user.email,
-        { otp, clientIP: req.ip },
-        { sendEvenIfNotProduction: true },
-      );
-    } catch (e) {
-      reportErrorToSentry(e, { user });
-      res.status(500).send({
-        error: { message: 'Error sending OTP email' },
-      });
-      return;
-    }
-
-    res.sendStatus(200);
+  const otp = auth.generateOTPCode();
+  if (config.env === 'development') {
+    logger.info(`OTP Code for ${email}: ${otp}`);
+  }
+  const secret = await bcrypt.hash(otp, 10);
+  const session: SignupRequestSession = {
+    secret,
+    tries: 0,
+    userId: user.id,
   };
+  await sessionCache.set(otpSessionKey, session, auth.OTP_TOKEN_EXPIRATION);
+  try {
+    await emailLib.send(
+      activities.USER_OTP_REQUESTED,
+      user.email,
+      { otp, clientIP: req.ip, ttl: auth.OTP_TOKEN_EXPIRATION / 60 },
+      { sendEvenIfNotProduction: true },
+    );
+  } catch (e) {
+    reportErrorToSentry(e, { user, handler: HandlerType.EXPRESS, domain: ENGINEERING_DOMAINS.INDIVIDUAL_ONBOARDING });
+    res.status(500).send({
+      error: { message: 'Error sending OTP email', type: 'EMAIL_SEND_ERROR' },
+    });
+    return;
+  }
 
-export const verifyEmail: express.RequestHandler<unknown, unknown, { email: string; otp: string }> =
-  async function verifyEmail(
-    req,
-    res,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    next,
-  ) {
-    const { email, otp } = req.body;
-    const sanitizedEmail = email.toLowerCase();
-    if (!isValidEmail(sanitizedEmail)) {
-      res.status(400).send({
-        error: { message: 'Invalid email address' },
-      });
-      return;
-    }
+  res.send({ success: true });
+}
 
-    const emailRateLimit = new RateLimit(`verifyEmail_email_${sanitizedEmail}`, 3, 15 * 60);
-    const ipRateLimit = new RateLimit(`verifyEmail_ip_${req.ip}`, 3, 15 * 60);
-    if (!(await emailRateLimit.registerCall())) {
-      res.status(403).send({
-        error: { message: 'Rate limit exceeded' },
-      });
-      return;
-    } else if (!(await ipRateLimit.registerCall())) {
-      res.status(403).send({
-        error: { message: 'Rate limit exceeded' },
-      });
-      return;
-    }
+export async function resendOTP(req: express.Request, res: express.Response) {
+  const { email } = req.body;
 
-    const otpSessionKey = `otp_signup_${sanitizedEmail}`;
-    const otpSession: SignupResquestSession = await sessionCache.get(otpSessionKey);
-    if (otpSession) {
-      const user = await models.User.findByPk(otpSession.userId);
-      if (user) {
-        const validOtp = await bcrypt.compare(otp, otpSession.secret);
-        if (validOtp) {
-          await sessionCache.delete(otpSessionKey);
-          // Verify user and create public profile
-          await user.update({ confirmedAt: new Date() });
-          res.send({ success: true });
-          return;
-        } else {
-          const tries = otpSession.tries + 1;
-          if (tries >= 3) {
-            await sessionCache.delete(otpSessionKey);
-            await user.safeDestroy();
+  const ipRateLimit = new RateLimit(
+    `resendOTP_ip_${req.ip}`,
+    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
+    auth.OTP_RATE_LIMIT_WINDOW,
+  );
+  if (!(await ipRateLimit.registerCall())) {
+    res.status(403).send({
+      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+    });
+    return;
+  }
+
+  const sanitizedEmail = email.toLowerCase();
+  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
+
+  if (!isValidEmail(sanitizedEmail)) {
+    res.status(400).send({
+      error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
+    });
+    return;
+  }
+  const emailRateLimit = new RateLimit(
+    `resendOTP_email_${sanitizedEmail}`,
+    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
+    auth.OTP_RATE_LIMIT_WINDOW,
+  );
+  if (!(await emailRateLimit.registerCall())) {
+    res.status(403).send({
+      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+    });
+    return;
+  }
+
+  // Check if OTP request already exists
+  const existingSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
+  if (!existingSession) {
+    res.status(401).send({
+      error: { message: 'Cannot resend OTP because no OTP request was found', type: 'OTP_REQUEST_NOT_FOUND' },
+    });
+    return;
+  }
+
+  const user = await models.User.findByPk(existingSession.userId);
+  if (!user) {
+    res.status(500).send({
+      error: { message: 'User not found, try again', type: 'NOT_FOUND' },
+    });
+    return;
+  }
+
+  const otp = auth.generateOTPCode();
+  if (config.env === 'development') {
+    logger.info(`OTP Code for ${email}: ${otp}`);
+  }
+  const secret = await bcrypt.hash(otp, 10);
+  const session: SignupRequestSession = {
+    secret,
+    tries: 0,
+    userId: user.id,
+  };
+  await sessionCache.set(otpSessionKey, session, auth.OTP_TOKEN_EXPIRATION);
+  try {
+    await emailLib.send(
+      activities.USER_OTP_REQUESTED,
+      user.email,
+      { otp, clientIP: req.ip, ttl: auth.OTP_TOKEN_EXPIRATION / 60 },
+      { sendEvenIfNotProduction: true },
+    );
+  } catch (e) {
+    reportErrorToSentry(e, { user, handler: HandlerType.EXPRESS, domain: ENGINEERING_DOMAINS.INDIVIDUAL_ONBOARDING });
+    res.status(500).send({
+      error: { message: 'Error sending OTP email', type: 'EMAIL_SEND_ERROR' },
+    });
+    return;
+  }
+
+  res.send({ success: true });
+}
+
+export async function verifyEmail(req: express.Request, res: express.Response) {
+  const { email, otp } = req.body;
+  const sanitizedEmail = email.toLowerCase();
+  if (!isValidEmail(sanitizedEmail)) {
+    res.status(400).send({
+      error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
+    });
+    return;
+  }
+
+  const emailRateLimit = new RateLimit(`verifyEmail_email_${sanitizedEmail}`, 3, 15 * 60);
+  const ipRateLimit = new RateLimit(`verifyEmail_ip_${req.ip}`, 3, 15 * 60);
+  if (!(await emailRateLimit.registerCall())) {
+    res.status(403).send({
+      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+    });
+    return;
+  } else if (!(await ipRateLimit.registerCall())) {
+    res.status(403).send({
+      error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
+    });
+    return;
+  }
+
+  try {
+    await lockUntilOrThrow(
+      `otp:verifyEmail:${sanitizedEmail}`,
+      async () => {
+        const otpSessionKey = `otp_signup_${sanitizedEmail}`;
+        const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
+        if (otpSession) {
+          const user = await models.User.findByPk(otpSession.userId);
+          if (user) {
+            const validOtp = await bcrypt.compare(otp, otpSession.secret);
+            if (validOtp) {
+              await sequelize.transaction(async transaction => {
+                await user.createCollective(
+                  { name: sanitizedEmail.split('@')[0], data: { requiresProfileCompletion: true } },
+                  transaction,
+                );
+                await user.update({ confirmedAt: new Date() }, { transaction });
+              });
+              await sessionCache.delete(otpSessionKey);
+              const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
+              auth.setAuthCookie(res, token);
+              res.send({ token, success: true });
+              return;
+            } else {
+              const tries = otpSession.tries + 1;
+              if (tries >= 3) {
+                await sessionCache.delete(otpSessionKey);
+                await user.safeDestroy();
+              } else {
+                await sessionCache.set(otpSessionKey, { ...otpSession, tries }, 15 * 60);
+              }
+            }
           } else {
-            await sessionCache.set(otpSessionKey, { ...otpSession, tries }, 15 * 60);
+            await sessionCache.delete(otpSessionKey);
           }
         }
-      } else {
-        await sessionCache.delete(otpSessionKey);
-      }
-    }
+      },
+      {
+        unlockTimeoutMs: 30 * 1000,
+      },
+    );
+  } catch (e) {
+    reportErrorToSentry(e, {
+      extra: { email: sanitizedEmail },
+      handler: HandlerType.EXPRESS,
+      domain: ENGINEERING_DOMAINS.INDIVIDUAL_ONBOARDING,
+    });
+  }
 
-    res.status(403).send({ error: { message: 'Invalid or expired OTP code' } });
-  };
+  if (!res.headersSent) {
+    res.status(403).send({ error: { message: 'Invalid or expired OTP code', type: 'INVALID_OTP' } });
+  }
+}
 
 /**
  * Exchange a login JWT (received by email).

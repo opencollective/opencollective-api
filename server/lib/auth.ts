@@ -74,6 +74,12 @@ export function setAuthCookie(res, token) {
   res.cookie('accessTokenSignature', signature, { maxAge, httpOnly: true, secure: true });
 }
 
-export function generateOTPCode() {
-  return randomInt(100000, 999999).toString();
+export const OTP_RATE_LIMIT_WINDOW = minutesToSeconds(15);
+export const OTP_RATE_LIMIT_MAX_ATTEMPTS = 5;
+export const OTP_TOKEN_EXPIRATION = minutesToSeconds(5);
+
+export function generateOTPCode(length = 6): string {
+  return randomInt(0, 10 ** length - 1)
+    .toString()
+    .padStart(length, '0');
 }
