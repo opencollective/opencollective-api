@@ -4,7 +4,7 @@ import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
-import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
@@ -507,7 +507,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return User.findOne({ where: { email: email.toLowerCase() }, transaction });
   };
 
-  createCollective = async function (userData, transaction = undefined) {
+  createCollective = async function (userData, transaction?: Transaction) {
     if (this.CollectiveId) {
       return Promise.reject(new Error('User already has a collective'));
     }
@@ -538,12 +538,10 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       data: { ...(userData.data || {}), UserId: this.id },
       settings: userData.settings,
     };
-    const collective = await Collective.create(userCollectiveData, sequelizeParams);
-    await this.update({ CollectiveId: collective.id }, sequelizeParams);
-    return collective;
+    return await Collective.create(userCollectiveData, sequelizeParams);
   };
 
-  static createUserWithCollective = async (userData, transaction = undefined) => {
+  static createUserWithCollective = async (userData, transaction?: Transaction) => {
     if (!userData) {
       return Promise.reject(new Error('Cannot create a user: no user data provided'));
     }
@@ -553,15 +551,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     const cleanUserData = pick(userData, ['email', 'newsletterOptIn']);
     const user = await User.create(cleanUserData, sequelizeParams);
 
-    // If user doesn't provide a name, set it to "incognito". If we cannot
-    // slugify it (for example name="------") then fallback on "user".
-    let collectiveName = userData.name;
-    if (!collectiveName || collectiveName.trim().length === 0) {
-      collectiveName = 'incognito';
-    } else if (slugify(collectiveName).length === 0) {
-      collectiveName = 'user';
-    }
-    user.collective = await user.createCollective(userData, sequelizeParams);
+    user.collective = await user.createCollective(userData, transaction);
 
     if (userData.location) {
       await user.collective.setLocation(userData.location, transaction);

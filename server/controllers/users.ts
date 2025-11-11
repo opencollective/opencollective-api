@@ -420,11 +420,11 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
             const validOtp = await bcrypt.compare(otp, otpSession.secret);
             if (validOtp) {
               await sequelize.transaction(async transaction => {
-                await user.createCollective(
+                const collective = await user.createCollective(
                   { name: sanitizedEmail.split('@')[0], data: { requiresProfileCompletion: true } },
                   transaction,
                 );
-                await user.update({ confirmedAt: new Date() }, { transaction });
+                await user.update({ confirmedAt: new Date(), CollectiveId: collective.id }, { transaction });
               });
               await sessionCache.delete(otpSessionKey);
               const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
