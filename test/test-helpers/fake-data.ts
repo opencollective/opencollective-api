@@ -106,7 +106,7 @@ export const randArray = (generateFunc, min = 1, max = 1) => {
   return [...Array(arrayLength)].map((_, idx) => generateFunc(idx, arrayLength));
 };
 
-export const randIp = () => {
+export const randIPV4 = () => {
   return [randNumber(1, 255), randNumber(1, 255), randNumber(1, 255), randNumber(1, 255)].join('.');
 };
 
