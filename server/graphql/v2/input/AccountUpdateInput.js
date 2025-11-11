@@ -24,6 +24,7 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
     legalName: { type: GraphQLString },
     slug: { type: GraphQLString },
     description: { type: GraphQLString },
+    image: { type: GraphQLString },
     longDescription: { type: GraphQLString },
     company: { type: GraphQLString },
     tags: { type: new GraphQLList(GraphQLString) },

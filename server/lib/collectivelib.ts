@@ -74,6 +74,11 @@ export const getCollectiveAvatarUrl = (
 ): string => {
   const sections = [config.host.images, collectiveSlug];
 
+  // Allow direct link to localhost images in development
+  if (config.env === 'development' && image?.startsWith('http://localhost:')) {
+    return image;
+  }
+
   if (image) {
     sections.push(md5(image).substring(0, 7));
   }
