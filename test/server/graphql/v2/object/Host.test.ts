@@ -828,12 +828,12 @@ describe('server/graphql/v2/object/Host', () => {
         base: {
           total: {
             currency: 'USD',
-            valueInCents: 5000,
+            valueInCents: 6000,
           },
           subscriptions: [
             {
               title: 'Basic 5',
-              amount: { currency: 'USD', valueInCents: 5000 },
+              amount: { currency: 'USD', valueInCents: 6000 },
               startDate: startDate,
               endDate: subBillingEnd,
             },
