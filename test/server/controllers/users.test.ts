@@ -3,18 +3,22 @@ import httpMocks from 'node-mocks-http';
 import sinon from 'sinon';
 
 import ActivityTypes from '../../../server/constants/activities';
-import { signup, verifyEmail } from '../../../server/controllers/users';
+import { resendOTP, signup, verifyEmail } from '../../../server/controllers/users';
 import { generateLoaders } from '../../../server/graphql/loaders';
+import { OTP_RATE_LIMIT_MAX_ATTEMPTS } from '../../../server/lib/auth';
 import { sessionCache } from '../../../server/lib/cache';
 import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
-import { fakeUser, randEmail, randIp } from '../../test-helpers/fake-data';
+import { fakeUser, randEmail, randIPV4 } from '../../test-helpers/fake-data';
 
 describe('server/controllers/users', () => {
   let sandbox;
 
   before(async () => {
     sandbox = sinon.createSandbox();
+  });
+  beforeEach(() => {
+    sessionCache.clear();
   });
 
   afterEach(() => {
@@ -35,7 +39,23 @@ describe('server/controllers/users', () => {
     request.loaders = generateLoaders({});
     const response = httpMocks.createResponse();
 
-    await signup(request, response, undefined);
+    await signup(request, response);
+    return response;
+  };
+
+  const makeResendOtpRequest = async (email: string, ip: string) => {
+    const request = httpMocks.createRequest({
+      method: 'POST',
+      url: `/users/resend-otp`,
+      body: {
+        email,
+      },
+      ip,
+    });
+    request.loaders = generateLoaders({});
+    const response = httpMocks.createResponse();
+
+    await resendOTP(request, response);
     return response;
   };
 
@@ -52,7 +72,7 @@ describe('server/controllers/users', () => {
     request.loaders = generateLoaders({});
     const response = httpMocks.createResponse();
 
-    await verifyEmail(request, response, undefined);
+    await verifyEmail(request, response);
     return response;
   };
 
@@ -61,7 +81,7 @@ describe('server/controllers/users', () => {
       sandbox.stub(emailLib, 'send').resolves();
       const email = randEmail();
 
-      const response = await makeOtpRequest(email, randIp());
+      const response = await makeOtpRequest(email, randIPV4());
       expect(response._getStatusCode()).to.eql(200);
 
       const otpSessionKey = `otp_signup_${email}`;
@@ -83,7 +103,7 @@ describe('server/controllers/users', () => {
       const email = randEmail();
       const password = 'password123';
 
-      const response = await makeOtpRequest(email, randIp(), password);
+      const response = await makeOtpRequest(email, randIPV4(), password);
       expect(response._getStatusCode()).to.eql(200);
 
       const otpSessionKey = `otp_signup_${email}`;
@@ -101,7 +121,7 @@ describe('server/controllers/users', () => {
     it('should reuse an existing unconfirmed user as an alternative to the magic-link ', async () => {
       sandbox.stub(emailLib, 'send').resolves();
       const user = await fakeUser({ confirmedAt: null });
-      const response = await makeOtpRequest(user.email, randIp());
+      const response = await makeOtpRequest(user.email, randIPV4());
       expect(response._getStatusCode()).to.eql(200);
 
       const otpSessionKey = `otp_signup_${user.email}`;
@@ -118,26 +138,28 @@ describe('server/controllers/users', () => {
     it('should fail if a verified user already exists', async () => {
       const user = await fakeUser({ confirmedAt: new Date() });
 
-      const response = await makeOtpRequest(user.email, randIp());
+      const response = await makeOtpRequest(user.email, randIPV4());
       expect(response._getStatusCode()).to.eql(403);
-      expect(response._getData()).to.eql({ error: { message: 'User already exists' } });
+      expect(response._getData()).to.eql({ error: { message: 'User already exists', type: 'USER_ALREADY_EXISTS' } });
     });
 
     it('should fail if an ongoing OTP request exists', async () => {
       const email = randEmail();
 
-      await makeOtpRequest(email, randIp());
-      const response = await makeOtpRequest(email, randIp());
+      await makeOtpRequest(email, randIPV4());
+      const response = await makeOtpRequest(email, randIPV4());
       expect(response._getStatusCode()).to.eql(401);
-      expect(response._getData()).to.eql({ error: { message: 'OTP request already exists' } });
+      expect(response._getData()).to.eql({
+        error: { message: 'OTP request already exists', type: 'OTP_REQUEST_EXISTS' },
+      });
     });
 
     it('should be rate-limited on the request IP', async () => {
-      const ip = randIp();
+      const ip = randIPV4();
 
-      await makeOtpRequest(randEmail(), ip);
-      await makeOtpRequest(randEmail(), ip);
-      await makeOtpRequest(randEmail(), ip);
+      for (let i = 0; i < OTP_RATE_LIMIT_MAX_ATTEMPTS; i++) {
+        await makeOtpRequest(randEmail(), ip);
+      }
       const response = await makeOtpRequest(randEmail(), ip);
       expect(response._getStatusCode()).to.eql(403);
     });
@@ -145,11 +167,70 @@ describe('server/controllers/users', () => {
     it('should be rate-limited on the email', async () => {
       const email = randEmail();
 
-      await makeOtpRequest(email, randIp());
-      await makeOtpRequest(email, randIp());
-      await makeOtpRequest(email, randIp());
-      const response = await makeOtpRequest(email, randIp());
+      for (let i = 0; i < OTP_RATE_LIMIT_MAX_ATTEMPTS; i++) {
+        await makeOtpRequest(email, randIPV4());
+      }
+
+      const response = await makeOtpRequest(email, randIPV4());
       expect(response._getStatusCode()).to.eql(403);
+    });
+  });
+
+  describe('resendOTP', () => {
+    it('shoud fail if we are not waiting for an OTP for provided email', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+
+      const response = await makeOtpRequest(email, randIPV4());
+      expect(response._getStatusCode()).to.eql(200);
+
+      const otpSessionKey = `otp_signup_${email}`;
+      const otpSession = await sessionCache.get(otpSessionKey);
+      expect(otpSession).to.exist;
+
+      const user = await models.User.findByPk(otpSession.userId);
+      expect(user.confirmedAt).to.be.null;
+
+      expect(emailLib.send).to.have.been.calledOnce;
+      expect(emailLib.send).to.have.been.calledWithMatch(ActivityTypes.USER_OTP_REQUESTED, user.email);
+
+      const resendResponse = await makeResendOtpRequest(randEmail(), randIPV4());
+      expect(resendResponse._getStatusCode()).to.eql(401);
+      expect(emailLib.send).to.have.been.calledOnce;
+    });
+
+    it('shoud generate a new OTP and send it to the same email', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+
+      const response = await makeOtpRequest(email, randIPV4());
+      expect(response._getStatusCode()).to.eql(200);
+
+      const otpSessionKey = `otp_signup_${email}`;
+      let otpSession = await sessionCache.get(otpSessionKey);
+      expect(otpSession).to.exist;
+      expect(otpSession.secret).to.be.a('string');
+      expect(otpSession.userId).to.be.a('number');
+      expect(otpSession.tries).to.equal(0);
+      const firstSecret = otpSession.secret;
+
+      const user = await models.User.findByPk(otpSession.userId);
+      expect(user.confirmedAt).to.be.null;
+
+      expect(emailLib.send).to.have.been.calledOnce;
+      expect(emailLib.send).to.have.been.calledWithMatch(ActivityTypes.USER_OTP_REQUESTED, user.email);
+      const firstOtp = (emailLib.send as sinon.SinonStub).getCall(0).args[2]['otp'];
+
+      const resendResponse = await makeResendOtpRequest(email, randIPV4());
+      expect(resendResponse._getStatusCode()).to.eql(200);
+      expect(emailLib.send).to.have.been.calledTwice;
+      const secondOtp = (emailLib.send as sinon.SinonStub).getCall(1).args[2]['otp'];
+      expect(secondOtp).to.not.equal(firstOtp);
+
+      otpSession = await sessionCache.get(otpSessionKey);
+      expect(otpSession).to.exist;
+      expect(otpSession.secret).to.be.a('string');
+      expect(otpSession.secret).to.not.equal(firstSecret);
     });
   });
 
@@ -158,7 +239,7 @@ describe('server/controllers/users', () => {
       sandbox.stub(emailLib, 'send').resolves();
       const email = randEmail();
 
-      const otpResponse = await makeOtpRequest(email, randIp());
+      const otpResponse = await makeOtpRequest(email, randIPV4());
       expect(otpResponse._getStatusCode()).to.eql(200);
 
       const otpSessionKey = `otp_signup_${email}`;
@@ -168,7 +249,7 @@ describe('server/controllers/users', () => {
 
       const sendEmailCall = (emailLib.send as sinon.SinonStub).getCall(0);
       const otp = sendEmailCall.args[2].otp;
-      const verifyResponse = await makeVerifyOtpRequest(email, otp, randIp());
+      const verifyResponse = await makeVerifyOtpRequest(email, otp, randIPV4());
       expect(verifyResponse._getStatusCode()).to.eql(200);
 
       // Should add confirmedAt to user
@@ -184,14 +265,14 @@ describe('server/controllers/users', () => {
       sandbox.stub(emailLib, 'send').resolves();
       const email = randEmail();
 
-      const otpResponse = await makeOtpRequest(email, randIp());
+      const otpResponse = await makeOtpRequest(email, randIPV4());
       expect(otpResponse._getStatusCode()).to.eql(200);
 
       const otpSessionKey = `otp_signup_${email}`;
       let otpSession = await sessionCache.get(otpSessionKey);
       expect(otpSession).to.exist;
 
-      const verifyResponse = await makeVerifyOtpRequest(email, '023456', randIp());
+      const verifyResponse = await makeVerifyOtpRequest(email, '023456', randIPV4());
       expect(verifyResponse._getStatusCode()).to.eql(403);
 
       otpSession = await sessionCache.get(otpSessionKey);
@@ -203,7 +284,7 @@ describe('server/controllers/users', () => {
       sandbox.stub(emailLib, 'send').resolves();
       const email = randEmail();
 
-      const otpResponse = await makeOtpRequest(email, randIp());
+      const otpResponse = await makeOtpRequest(email, randIPV4());
       expect(otpResponse._getStatusCode()).to.eql(200);
 
       const otpSessionKey = `otp_signup_${email}`;
@@ -215,7 +296,7 @@ describe('server/controllers/users', () => {
 
       const sendEmailCall = (emailLib.send as sinon.SinonStub).getCall(0);
       const otp = sendEmailCall.args[2].otp;
-      const verifyResponse = await makeVerifyOtpRequest(email, otp, randIp());
+      const verifyResponse = await makeVerifyOtpRequest(email, otp, randIPV4());
       expect(verifyResponse._getStatusCode()).to.eql(403);
     });
 
@@ -223,23 +304,25 @@ describe('server/controllers/users', () => {
       sandbox.stub(emailLib, 'send').resolves();
       const email = randEmail();
 
-      const otpResponse = await makeOtpRequest(email, randIp());
+      const otpResponse = await makeOtpRequest(email, randIPV4());
       expect(otpResponse._getStatusCode()).to.eql(200);
 
       const otpSessionKey = `otp_signup_${email}`;
       let otpSession = await sessionCache.get(otpSessionKey);
       expect(otpSession).to.exist;
 
-      let verifyResponse = await makeVerifyOtpRequest(email, '023456', randIp());
+      let verifyResponse = await makeVerifyOtpRequest(email, '023456', randIPV4());
       expect(verifyResponse._getStatusCode()).to.eql(403);
-      verifyResponse = await makeVerifyOtpRequest(email, '023456', randIp());
+      verifyResponse = await makeVerifyOtpRequest(email, '023456', randIPV4());
       expect(verifyResponse._getStatusCode()).to.eql(403);
 
       otpSession = await sessionCache.get(otpSessionKey);
       expect(otpSession).to.exist;
       expect(otpSession.tries).to.equal(2);
 
-      verifyResponse = await makeVerifyOtpRequest(email, '023456', randIp());
+      for (let i = 0; i < OTP_RATE_LIMIT_MAX_ATTEMPTS - 2; i++) {
+        verifyResponse = await makeVerifyOtpRequest(email, '023456', randIPV4());
+      }
       expect(verifyResponse._getStatusCode()).to.eql(403);
       otpSession = await sessionCache.get(otpSessionKey);
       expect(otpSession).to.be.undefined;

@@ -65,6 +65,7 @@ export default async (app: express.Application) => {
    */
   app.post('/users/signin', required('user'), users.signin);
   app.post('/users/signup', users.signup);
+  app.post('/users/resend-otp', users.resendOTP);
   app.post('/users/verify-email', users.verifyEmail);
   // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
   app.post('/users/update-token', authentication.mustBeLoggedIn, users.exchangeLoginToken); // deprecated
