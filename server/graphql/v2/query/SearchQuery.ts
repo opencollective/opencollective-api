@@ -51,10 +51,15 @@ const SearchQuery = {
       description: 'The default limit for each entity type',
       defaultValue: 10,
     },
+    usePersonalization: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether to filter results based on user context (user ID and administrated collective IDs)',
+      defaultValue: true,
+    },
   },
   async resolve(
     _: void,
-    { searchTerm, useTopHits, ...args },
+    { searchTerm, useTopHits, usePersonalization, ...args },
     req: express.Request,
   ): Promise<{
     results: GraphQLSearchParams;
@@ -84,8 +89,8 @@ const SearchQuery = {
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
     const resolverId = uuidV7(); // To distinguish in case multiple search queries are made with aliases
-    const requestId = `${resolverId}-${getOpenSearchQueryId(remoteUser, host, account, searchTerm, useTopHits)}`;
-    return { results: { requestId, defaultLimit, searchTerm, account, host, useTopHits } };
+    const requestId = `${resolverId}-${getOpenSearchQueryId(remoteUser, host, account, searchTerm, useTopHits, usePersonalization)}`;
+    return { results: { requestId, defaultLimit, searchTerm, account, host, useTopHits, usePersonalization } };
   },
 };
 

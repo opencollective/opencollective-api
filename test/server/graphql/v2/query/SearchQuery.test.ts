@@ -67,8 +67,14 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       $transactionsLimit: Int!
       $updatesOffset: Int!
       $updatesLimit: Int!
+      $usePersonalization: Boolean!
     ) {
-      search(searchTerm: $searchTerm, useTopHits: $useTopHits, defaultLimit: $defaultLimit) {
+      search(
+        searchTerm: $searchTerm
+        useTopHits: $useTopHits
+        defaultLimit: $defaultLimit
+        usePersonalization: $usePersonalization
+      ) {
         results {
           accounts(offset: $accountsOffset, limit: $accountsLimit) @include(if: $includeAccounts) {
             highlights
@@ -385,6 +391,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         transactionsLimit = 10,
         updatesOffset = 0,
         updatesLimit = 10,
+        usePersonalization = false,
       } = {},
       remoteUser?: User,
       params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
@@ -417,6 +424,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         transactionsLimit,
         updatesOffset,
         updatesLimit,
+        usePersonalization,
       };
 
       if (params.useOAuth) {
@@ -881,6 +889,310 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               unauthenticated: 1,
             });
           });
+        });
+      });
+
+      describe('personalization', () => {
+        it('should filter expenses by user context when usePersonalization is true', async () => {
+          // Create an expense for a different collective that the user doesn't admin
+          const otherCollective = await fakeCollective({
+            name: 'Other Collective',
+            slug: 'other-collective',
+          });
+          await fakeExpense({
+            CollectiveId: otherCollective.id,
+            FromCollectiveId: testUsers.randomUser.CollectiveId,
+            UserId: testUsers.randomUser.id,
+            description: 'FullyPublicExpenseDescription',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.EXPENSES);
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see expenses related to the user
+          const personalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: true },
+            testUsers.fromUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.expenses.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all expenses
+          const nonPersonalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: false },
+            testUsers.fromUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.expenses.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter accounts by user context when usePersonalization is true', async () => {
+          // Create an account that the user doesn't admin
+          const otherCollective = await fakeCollective({
+            name: 'Other Collective',
+            slug: 'other-collective',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see accounts the user admins
+          const personalizedResult = await callSearchQuery(
+            'Incredible',
+            { includeAccounts: true, usePersonalization: true },
+            testUsers.collectiveAdmin,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          const personalizedAccounts = personalizedResult.data.search.results.accounts.collection.nodes;
+          expect(personalizedAccounts.some(acc => acc.id === idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT))).to.be
+            .true;
+          expect(personalizedAccounts.some(acc => acc.id === idEncode(otherCollective.id, IDENTIFIER_TYPES.ACCOUNT))).to
+            .be.false;
+
+          // Search with personalization disabled - should see all accounts
+          const nonPersonalizedResult = await callSearchQuery(
+            'Incredible',
+            { includeAccounts: true, usePersonalization: false },
+            testUsers.collectiveAdmin,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.accounts.collection.totalCount).to.be.gte(
+            personalizedResult.data.search.results.accounts.collection.totalCount,
+          );
+        });
+
+        it('should filter comments by user context when usePersonalization is true', async () => {
+          // Create a comment from a different user
+          await fakeComment({
+            CollectiveId: collective.id,
+            FromCollectiveId: testUsers.randomUser.CollectiveId,
+            CreatedByUserId: testUsers.randomUser.id,
+            html: '<div>AVerySecretComment</div>',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.COMMENTS);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see comments related to the user
+          const personalizedResult = await callSearchQuery(
+            'AVerySecretComment',
+            { includeComments: true, usePersonalization: true },
+            testUsers.fromUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          // Should see the comment created by fromUser, but not the one from randomUser
+          expect(personalizedResult.data.search.results.comments.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all comments
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVerySecretComment',
+            { includeComments: true, usePersonalization: false },
+            testUsers.fromUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.comments.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter orders by user context when usePersonalization is true', async () => {
+          // Create an order from a different user
+          await fakeOrder({
+            CollectiveId: collective.id,
+            FromCollectiveId: testUsers.randomUser.CollectiveId,
+            CreatedByUserId: testUsers.randomUser.id,
+            description: 'AVeryUniqueOrderDescription',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.ORDERS);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see orders related to the user
+          const personalizedResult = await callSearchQuery(
+            'AVeryUniqueOrderDescription',
+            { includeOrders: true, usePersonalization: true },
+            testUsers.fromUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.orders.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all orders
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVeryUniqueOrderDescription',
+            { includeOrders: true, usePersonalization: false },
+            testUsers.fromUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.orders.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter updates by user context when usePersonalization is true', async () => {
+          // Create an update from a different user
+          await fakeUpdate({
+            FromCollectiveId: testUsers.randomUser.CollectiveId,
+            CollectiveId: collective.id,
+            CreatedByUserId: testUsers.randomUser.id,
+            html: '<div>AVeryUniqueUpdateHtml</div>',
+            title: 'AVeryUniqueUpdateTitle',
+            isPrivate: false,
+            publishedAt: new Date(),
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.UPDATES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see updates related to the user
+          const personalizedResult = await callSearchQuery(
+            'AVeryUniqueUpdateHtml',
+            { includeUpdates: true, usePersonalization: true },
+            testUsers.fromUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.updates.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all updates
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVeryUniqueUpdateHtml',
+            { includeUpdates: true, usePersonalization: false },
+            testUsers.fromUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.updates.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter host applications by user context when usePersonalization is true', async () => {
+          // Create a host application from a different user
+          await fakeHostApplication({
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            CreatedByUserId: testUsers.randomUser.id,
+            message: 'AVerySecretHostApplicationMessage',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.HOST_APPLICATIONS);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see host applications related to the user
+          const personalizedResult = await callSearchQuery(
+            'AVerySecretHostApplicationMessage',
+            { includeHostApplications: true, usePersonalization: true },
+            testUsers.rootUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.hostApplications.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all host applications
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVerySecretHostApplicationMessage',
+            { includeHostApplications: true, usePersonalization: false },
+            testUsers.rootUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.hostApplications.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter transactions by user context when usePersonalization is true', async () => {
+          // Create a transaction for a different collective
+          const otherCollective = await fakeCollective({
+            name: 'Other Collective',
+            slug: 'other-collective',
+          });
+          await fakeTransaction(
+            {
+              kind: TransactionKind.CONTRIBUTION,
+              CollectiveId: otherCollective.id,
+              FromCollectiveId: testUsers.randomUser.CollectiveId,
+              amount: 1000,
+              description: 'AVeryUniqueTransactionDescription',
+            },
+            {
+              createDoubleEntry: true,
+            },
+          );
+          await syncOpenSearchIndex(OpenSearchIndexName.TRANSACTIONS);
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see transactions related to the user's collectives
+          const personalizedResult = await callSearchQuery(
+            'AVeryUniqueTransactionDescription',
+            { includeTransactions: true, usePersonalization: true },
+            testUsers.collectiveAdmin,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          // Should see transactions for the project (which is a child of collective)
+          expect(personalizedResult.data.search.results.transactions.collection.totalCount).to.be.gte(1);
+
+          // Search with personalization disabled - should see all transactions
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVeryUniqueTransactionDescription',
+            { includeTransactions: true, usePersonalization: false },
+            testUsers.collectiveAdmin,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.transactions.collection.totalCount).to.be.gte(
+            personalizedResult.data.search.results.transactions.collection.totalCount,
+          );
+        });
+
+        it('should filter tiers by user context when usePersonalization is true', async () => {
+          // Create a tier for a different collective
+          const otherCollective = await fakeCollective({
+            name: 'Other Collective',
+            slug: 'other-collective',
+          });
+          await fakeTier({
+            CollectiveId: otherCollective.id,
+            name: 'Incredible Tier',
+            description: 'AVeryUniqueTierDescription',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.TIERS);
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see tiers related to the user's collectives
+          const personalizedResult = await callSearchQuery(
+            'AVeryUniqueTierDescription',
+            { includeTiers: true, usePersonalization: true },
+            testUsers.projectAdmin,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.tiers.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all tiers
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVeryUniqueTierDescription',
+            { includeTiers: true, usePersonalization: false },
+            testUsers.projectAdmin,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.tiers.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should show all results for root users regardless of personalization', async () => {
+          const personalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: true },
+            testUsers.rootUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          const personalizedCount = personalizedResult.data.search.results.expenses.collection.totalCount;
+
+          const nonPersonalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: false },
+            testUsers.rootUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          // Root users should see all results regardless of personalization
+          expect(nonPersonalizedResult.data.search.results.expenses.collection.totalCount).to.eq(personalizedCount);
+        });
+
+        it('should default to personalization enabled', async () => {
+          // When usePersonalization is not specified, it should default to true
+          const result = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true },
+            testUsers.fromUser,
+          );
+          expect(result.errors).to.be.undefined;
+          // Should only see expenses related to the user
+          expect(result.data.search.results.expenses.collection.totalCount).to.eq(1);
         });
       });
     });
