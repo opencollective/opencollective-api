@@ -3,7 +3,7 @@ import httpMocks from 'node-mocks-http';
 import sinon from 'sinon';
 
 import ActivityTypes from '../../../server/constants/activities';
-import { resendOTP, signup, verifyEmail } from '../../../server/controllers/users';
+import { resendOTP, signin, signup, verifyEmail } from '../../../server/controllers/users';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { OTP_RATE_LIMIT_MAX_ATTEMPTS } from '../../../server/lib/auth';
 import { sessionCache } from '../../../server/lib/cache';
@@ -73,6 +73,24 @@ describe('server/controllers/users', () => {
     const response = httpMocks.createResponse();
 
     await verifyEmail(request, response);
+    return response;
+  };
+
+  const makeSignInRequest = async (email: string, ip: string) => {
+    const request = httpMocks.createRequest({
+      method: 'POST',
+      url: `/users/signin`,
+      body: {
+        user: {
+          email,
+        },
+      },
+      ip,
+    });
+    request.loaders = generateLoaders({});
+    const response = httpMocks.createResponse();
+
+    await signin(request, response, () => {});
     return response;
   };
 
@@ -173,6 +191,21 @@ describe('server/controllers/users', () => {
 
       const response = await makeOtpRequest(email, randIPV4());
       expect(response._getStatusCode()).to.eql(403);
+    });
+
+    it('should be impossible to use a pending verification email to sign-in', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+      const email = randEmail();
+
+      let response = await makeOtpRequest(email, randIPV4());
+      expect(response._getStatusCode()).to.eql(200);
+
+      response = await makeSignInRequest(email, randIPV4());
+      expect(response._getStatusCode()).to.eql(403);
+      expect(response._getData()).to.eql({
+        message: 'Email awaiting verification',
+        errorCode: 'EMAIL_AWAITING_VERIFICATION',
+      });
     });
   });
 

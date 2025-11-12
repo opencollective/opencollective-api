@@ -86,6 +86,11 @@ export const signin = async (req, res, next) => {
       });
     } else if (!user && createProfile) {
       user = await models.User.createUserWithCollective(req.body.user);
+    } else if (!user.CollectiveId) {
+      return res.status(403).send({
+        errorCode: 'EMAIL_AWAITING_VERIFICATION',
+        message: 'Email awaiting verification',
+      });
     }
 
     // If password set and not passed, challenge user with password
