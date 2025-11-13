@@ -828,12 +828,12 @@ describe('server/graphql/v2/object/Host', () => {
         base: {
           total: {
             currency: 'USD',
-            valueInCents: 5000,
+            valueInCents: 6000,
           },
           subscriptions: [
             {
               title: 'Basic 5',
-              amount: { currency: 'USD', valueInCents: 5000 },
+              amount: { currency: 'USD', valueInCents: 6000 },
               startDate: startDate,
               endDate: subBillingEnd,
             },
@@ -872,18 +872,18 @@ describe('server/graphql/v2/object/Host', () => {
         base: {
           total: {
             currency: 'USD',
-            valueInCents: 29828,
+            valueInCents: 27517,
           },
           subscriptions: [
             {
               title: 'Pro 20',
-              amount: { currency: 'USD', valueInCents: 28966 },
+              amount: { currency: 'USD', valueInCents: 26483 },
               startDate: aNewSubscription.startDate,
               endDate: subBillingEnd,
             },
             {
               title: 'Basic 5',
-              amount: { currency: 'USD', valueInCents: 862 },
+              amount: { currency: 'USD', valueInCents: 1034 },
               startDate: startDate,
               endDate: sub.endDate,
             },
@@ -925,18 +925,18 @@ describe('server/graphql/v2/object/Host', () => {
         base: {
           total: {
             currency: 'USD',
-            valueInCents: 3276,
+            valueInCents: 3241,
           },
           subscriptions: [
             {
               title: 'Pro 20',
-              amount: { currency: 'USD', valueInCents: 2414 },
+              amount: { currency: 'USD', valueInCents: 2207 },
               startDate: aNewSubscription.startDate,
               endDate: aNewSubscription.endDate,
             },
             {
               title: 'Basic 5',
-              amount: { currency: 'USD', valueInCents: 862 },
+              amount: { currency: 'USD', valueInCents: 1034 },
               startDate: startDate,
               endDate: sub.endDate,
             },
@@ -981,7 +981,7 @@ describe('server/graphql/v2/object/Host', () => {
         base: {
           total: {
             currency: 'USD',
-            valueInCents: 3276,
+            valueInCents: 3241,
           },
           subscriptions: [
             {
@@ -992,13 +992,13 @@ describe('server/graphql/v2/object/Host', () => {
             },
             {
               title: 'Pro 20',
-              amount: { currency: 'USD', valueInCents: 2414 },
+              amount: { currency: 'USD', valueInCents: 2207 },
               startDate: aNewSubscription.startDate,
               endDate: aNewSubscription.endDate,
             },
             {
               title: 'Basic 5',
-              amount: { currency: 'USD', valueInCents: 862 },
+              amount: { currency: 'USD', valueInCents: 1034 },
               startDate: startDate,
               endDate: sub.endDate,
             },

@@ -174,7 +174,7 @@ describe('server/graphql/v2/mutation/PlatformSubscriptionsMutations', () => {
           title: 'Basic 5',
           type: 'Basic',
           pricing: {
-            pricePerMonth: { valueInCents: 5000, currency: 'USD' },
+            pricePerMonth: { valueInCents: 6000, currency: 'USD' },
             pricePerAdditionalCollective: { valueInCents: 1500, currency: 'USD' },
             pricePerAdditionalExpense: { valueInCents: 150, currency: 'USD' },
             includedCollectives: 5,
@@ -273,7 +273,7 @@ describe('server/graphql/v2/mutation/PlatformSubscriptionsMutations', () => {
       expect(newPlanLabel).to.contain('Basic 5');
 
       const newPlanPrice = newPlanCard.find('.plan-price').text();
-      expect(newPlanPrice).to.contain('$50.00 / Month');
+      expect(newPlanPrice).to.contain('$60.00 / Month');
 
       const newPlanFeatures = newPlanCard.find('.plan-feature');
       expect(newPlanFeatures).to.have.length.at.least(2);
