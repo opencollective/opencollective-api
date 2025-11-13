@@ -10,6 +10,8 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
   const toPick = [];
   if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID) {
     toPick.push('isManualPayout');
+  } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_UPDATED) {
+    toPick.push('previousData.status', 'expense.status');
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_ERROR) {
     if (activity.CollectiveId) {
       const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
