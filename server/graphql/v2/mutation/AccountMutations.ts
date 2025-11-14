@@ -177,27 +177,32 @@ const accountMutations = {
           }
         }
 
-        const settings = account.settings ? cloneDeep(account.settings) : {};
+        const previousSettings = account.settings ? account.settings : {};
+        const settings = cloneDeep(previousSettings);
         set(settings, args.key, args.value);
 
-        const previousData = { settings: { [args.key]: account.data?.[args.key] } };
         const updatedAccount = await account.update({ settings }, { transaction });
-        await models.Activity.create(
-          {
-            type: activities.COLLECTIVE_EDITED,
-            UserId: req.remoteUser.id,
-            UserTokenId: req.userToken?.id,
-            CollectiveId: account.id,
-            FromCollectiveId: account.id,
-            HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-            data: {
-              collective: updatedAccount.minimal,
-              previousData,
-              newData: { settings: { [args.key]: args.value } },
+
+        // Ignore some activities like dismissing the setup guide that polute the activity log without adding much value
+        const ignoreActivity = args.key.startsWith('showSetupGuide.');
+        if (!ignoreActivity) {
+          await models.Activity.create(
+            {
+              type: activities.COLLECTIVE_EDITED,
+              UserId: req.remoteUser.id,
+              UserTokenId: req.userToken?.id,
+              CollectiveId: account.id,
+              FromCollectiveId: account.id,
+              HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+              data: {
+                collective: updatedAccount.minimal,
+                previousData: { settings: pick(previousSettings, [args.key]) },
+                newData: { settings: pick(settings, [args.key]) },
+              },
             },
-          },
-          { transaction },
-        );
+            { transaction },
+          );
+        }
 
         return updatedAccount;
       });
