@@ -682,7 +682,7 @@ const accountMutations = {
             if (args.account.hostFeePercent !== undefined && args.account.hostFeePercent !== account.hostFeePercent) {
               previousData['hostFeePercent'] = account.hostFeePercent;
               newData['hostFeePercent'] = args.account.hostFeePercent;
-              await account.updateHostFee(args.account.hostFeePercent, req.remoteUser);
+              await account.updateHostFeeAsUser(args.account.hostFeePercent, req.remoteUser);
             }
             break;
           }
