@@ -89,7 +89,6 @@ enum FEATURE {
   EXPENSE_SECURITY_CHECKS = 'EXPENSE_SECURITY_CHECKS',
   EXPECTED_FUNDS = 'EXPECTED_FUNDS',
   CHARGE_HOSTING_FEES = 'CHARGE_HOSTING_FEES',
-  RESTRICTED_FUNDS = 'RESTRICTED_FUNDS',
   AGREEMENTS = 'AGREEMENTS',
   TAX_FORMS = 'TAX_FORMS',
   FUNDS_GRANTS_MANAGEMENT = 'FUNDS_GRANTS_MANAGEMENT',
@@ -106,7 +105,6 @@ export const CommercialFeatures = [
   FEATURE.EXPENSE_SECURITY_CHECKS,
   FEATURE.EXPECTED_FUNDS,
   FEATURE.CHARGE_HOSTING_FEES,
-  FEATURE.RESTRICTED_FUNDS,
   FEATURE.AGREEMENTS,
   FEATURE.TAX_FORMS,
   FEATURE.FUNDS_GRANTS_MANAGEMENT,
@@ -154,10 +152,6 @@ export const FeatureDetails: Record<CommercialFeaturesType, { label: string; doc
     label: 'Charge Hosting Fees',
     documentationUrl:
       'https://documentation.opencollective.com/fiscal-hosts/setting-up-a-fiscal-host/setting-your-fiscal-host-fees',
-  },
-  RESTRICTED_FUNDS: {
-    label: 'Restricted Funds',
-    documentationUrl: null,
   },
   AGREEMENTS: {
     label: 'Agreements',

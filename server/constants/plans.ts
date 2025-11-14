@@ -266,7 +266,6 @@ const basicFeatures: CommercialFeaturesType[] = [
   PlatformFeature.EXPENSE_SECURITY_CHECKS,
   PlatformFeature.EXPECTED_FUNDS,
   PlatformFeature.CHARGE_HOSTING_FEES,
-  PlatformFeature.RESTRICTED_FUNDS,
 ] as const;
 
 const proFeatures: CommercialFeaturesType[] = [
