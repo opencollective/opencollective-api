@@ -266,6 +266,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editAccountSetting.settings).to.deep.eq({ collectivePage: { background: { zoom: 0.5 } } });
 
+      const activity = await models.Activity.findOne({
+        where: { UserId: adminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(collective.id);
+      expect(activity.data).to.containSubset({
+        previousData: { settings: {} },
+        newData: { settings: { collectivePage: { background: { zoom: 0.5 } } } },
+      });
+
       const result2 = await graphqlQueryV2(
         editSettingsMutation,
         {
@@ -280,6 +292,61 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result2.data.editAccountSetting.settings).to.deep.eq({
         collectivePage: { background: { zoom: 0.5, crop: { x: 0, y: 0 } } },
       });
+
+      // Edit existing key
+      const result3 = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'collectivePage.background.crop',
+          value: { x: 1, y: 1 },
+        },
+        adminUser,
+      );
+
+      expect(result3.errors).to.not.exist;
+      expect(result3.data.editAccountSetting.settings).to.deep.eq({
+        collectivePage: { background: { zoom: 0.5, crop: { x: 1, y: 1 } } },
+      });
+
+      const activity3 = await models.Activity.findOne({
+        where: { UserId: adminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(activity3).to.exist;
+      expect(activity3.CollectiveId).to.equal(collective.id);
+      expect(activity3.data).to.containSubset({
+        previousData: { settings: { collectivePage: { background: { crop: { x: 0, y: 0 } } } } },
+        newData: { settings: { collectivePage: { background: { crop: { x: 1, y: 1 } } } } },
+      });
+    });
+
+    it('does not create activity for some specific keys', async () => {
+      const admin = await fakeUser();
+      const account = await fakeCollective({ admin });
+      const key = 'showSetupGuide.id123';
+      await models.Activity.destroy({ where: { UserId: admin.id, type: ACTIVITY.COLLECTIVE_EDITED } });
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: account.id },
+          key,
+          value: true,
+        },
+        admin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountSetting.settings).to.deep.eq({ showSetupGuide: { id123: true } });
+
+      const activity = await models.Activity.findOne({
+        where: { UserId: admin.id, type: ACTIVITY.COLLECTIVE_EDITED },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(activity).to.not.exist;
     });
 
     it('validates settings and refuses bad values for specific keys', async () => {
