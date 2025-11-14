@@ -793,7 +793,6 @@ describe('server/lib/allowed-features', () => {
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        RESTRICTED_FUNDS: { access: 'UNSUPPORTED', reason: 'NEED_HOST' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
@@ -820,7 +819,6 @@ describe('server/lib/allowed-features', () => {
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_HOST_APPLICATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
-          RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
           TAX_FORMS: { access: 'AVAILABLE', reason: null },
           TRANSFERWISE: { access: 'AVAILABLE', reason: null },
           VENDORS: { access: 'AVAILABLE', reason: null },
@@ -870,7 +868,6 @@ describe('server/lib/allowed-features', () => {
         EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
         EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
         FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-        RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
         TAX_FORMS: { access: 'AVAILABLE', reason: null },
         VENDORS: { access: 'AVAILABLE', reason: null },
       };
@@ -939,7 +936,6 @@ describe('server/lib/allowed-features', () => {
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        RESTRICTED_FUNDS: { access: 'UNSUPPORTED', reason: 'NEED_HOST' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
@@ -950,7 +946,6 @@ describe('server/lib/allowed-features', () => {
         const featuresMap = await getFeaturesAccessMap(collective);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
         });
       });
 
@@ -976,7 +971,6 @@ describe('server/lib/allowed-features', () => {
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
           RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
           RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-          RESTRICTED_FUNDS: { access: 'AVAILABLE', reason: null },
           TAX_FORMS: { access: 'AVAILABLE', reason: null },
           TRANSFERWISE: { access: 'AVAILABLE', reason: null },
           VENDORS: { access: 'AVAILABLE', reason: null },
@@ -999,7 +993,6 @@ describe('server/lib/allowed-features', () => {
           EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PROJECTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-          RESTRICTED_FUNDS: { access: 'UNSUPPORTED', reason: 'NEED_HOST' },
           TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         });
@@ -1048,7 +1041,6 @@ describe('server/lib/allowed-features', () => {
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        RESTRICTED_FUNDS: { access: 'DISABLED', reason: 'PRICING' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
@@ -1102,7 +1094,6 @@ describe('server/lib/allowed-features', () => {
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        RESTRICTED_FUNDS: { access: 'DISABLED', reason: 'PRICING' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
@@ -1156,7 +1147,6 @@ describe('server/lib/allowed-features', () => {
         EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
-        RESTRICTED_FUNDS: { access: 'DISABLED', reason: 'PRICING' },
         TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
       };
