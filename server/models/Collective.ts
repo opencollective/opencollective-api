@@ -154,6 +154,7 @@ type Settings = {
   collectivePage?: {
     showGoals?: boolean;
   };
+  budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   canHostAccounts?: boolean;
