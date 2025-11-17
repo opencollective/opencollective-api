@@ -214,6 +214,7 @@ export async function signup(req: express.Request, res: express.Response) {
     `signup_ip_${req.ip}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
+    true,
   );
   if (!(await ipRateLimit.registerCall())) {
     res.status(403).send({
@@ -235,6 +236,7 @@ export async function signup(req: express.Request, res: express.Response) {
     `signup_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
+    true,
   );
   if (!(await emailRateLimit.registerCall())) {
     res.status(403).send({
@@ -314,6 +316,7 @@ export async function resendOTP(req: express.Request, res: express.Response) {
     `resendOTP_ip_${req.ip}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
+    true,
   );
   if (!(await ipRateLimit.registerCall())) {
     res.status(403).send({
@@ -335,6 +338,7 @@ export async function resendOTP(req: express.Request, res: express.Response) {
     `resendOTP_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
+    true,
   );
   if (!(await emailRateLimit.registerCall())) {
     res.status(403).send({
@@ -361,7 +365,7 @@ export async function resendOTP(req: express.Request, res: express.Response) {
   }
 
   const otp = auth.generateOTPCode();
-  if (config.env === 'development') {
+  if (config.env === 'development' || process.env.E2E_TEST) {
     logger.info(`OTP Code for ${email}: ${otp}`);
   }
   const secret = await bcrypt.hash(otp, 10);
@@ -399,8 +403,18 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     return;
   }
 
-  const emailRateLimit = new RateLimit(`verifyEmail_email_${sanitizedEmail}`, 3, 15 * 60);
-  const ipRateLimit = new RateLimit(`verifyEmail_ip_${req.ip}`, 3, 15 * 60);
+  const emailRateLimit = new RateLimit(
+    `verifyEmail_email_${sanitizedEmail}`,
+    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
+    auth.OTP_RATE_LIMIT_WINDOW,
+    true,
+  );
+  const ipRateLimit = new RateLimit(
+    `verifyEmail_ip_${req.ip}`,
+    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
+    auth.OTP_RATE_LIMIT_WINDOW,
+    true,
+  );
   if (!(await emailRateLimit.registerCall())) {
     res.status(403).send({
       error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
