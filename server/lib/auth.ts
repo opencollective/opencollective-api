@@ -78,8 +78,10 @@ export const OTP_RATE_LIMIT_WINDOW = minutesToSeconds(15);
 export const OTP_RATE_LIMIT_MAX_ATTEMPTS = 5;
 export const OTP_TOKEN_EXPIRATION = minutesToSeconds(5);
 
+const OTP_SYMBOLS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 export function generateOTPCode(length = 6): string {
-  return randomInt(0, 10 ** length - 1)
-    .toString()
-    .padStart(length, '0');
+  return Array.from({ length })
+    .map(() => OTP_SYMBOLS.charAt(randomInt(0, OTP_SYMBOLS.length)))
+    .join('');
 }
