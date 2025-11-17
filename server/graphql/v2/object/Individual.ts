@@ -56,7 +56,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         },
       },
       requiresProfileCompletion: {
-        type: new GraphQLNonNull(GraphQLBoolean),
+        type: GraphQLBoolean,
         async resolve(account: Collective, _, req) {
           const user = await req.loaders.User.byCollectiveId.load(account.id);
           if (req.remoteUser?.id === user.id) {

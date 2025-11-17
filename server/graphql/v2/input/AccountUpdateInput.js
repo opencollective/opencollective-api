@@ -9,6 +9,7 @@ import {
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { GraphQLCurrency } from '../enum/Currency';
+import GraphQLURL from '../scalar/URL';
 
 import { GraphQLLocationInput } from './LocationInput';
 import { GraphQLSocialLinkInput } from './SocialLinkInput';
@@ -24,7 +25,7 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
     legalName: { type: GraphQLString },
     slug: { type: GraphQLString },
     description: { type: GraphQLString },
-    image: { type: GraphQLString },
+    image: { type: GraphQLURL },
     longDescription: { type: GraphQLString },
     company: { type: GraphQLString },
     tags: { type: new GraphQLList(GraphQLString) },

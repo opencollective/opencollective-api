@@ -3,7 +3,7 @@ import httpMocks from 'node-mocks-http';
 import sinon from 'sinon';
 
 import ActivityTypes from '../../../server/constants/activities';
-import { resendOTP, signin, signup, verifyEmail } from '../../../server/controllers/users';
+import { resendEmailVerificationOTP, signin, signup, verifyEmail } from '../../../server/controllers/users';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { OTP_RATE_LIMIT_MAX_ATTEMPTS } from '../../../server/lib/auth';
 import { sessionCache } from '../../../server/lib/cache';
@@ -55,7 +55,7 @@ describe('server/controllers/users', () => {
     request.loaders = generateLoaders({});
     const response = httpMocks.createResponse();
 
-    await resendOTP(request, response);
+    await resendEmailVerificationOTP(request, response);
     return response;
   };
 

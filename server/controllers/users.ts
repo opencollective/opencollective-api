@@ -309,7 +309,7 @@ export async function signup(req: express.Request, res: express.Response) {
   res.send({ success: true });
 }
 
-export async function resendOTP(req: express.Request, res: express.Response) {
+export async function resendEmailVerificationOTP(req: express.Request, res: express.Response) {
   const { email } = req.body;
 
   const ipRateLimit = new RateLimit(
