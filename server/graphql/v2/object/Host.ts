@@ -627,12 +627,17 @@ export const GraphQLHost = new GraphQLObjectType({
 
           // bank transfer = manual in host settings
           if (get(collective, 'settings.paymentMethods.manual', null)) {
-            const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-            const hasManualBankTransferMethod = payoutMethods.some(
-              c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
-            );
-            if (hasManualBankTransferMethod) {
+            // these accounts do not have a structured bank detail in the payment instructions
+            if (get(collective, 'settings.paymentMethods.manual.legacy', false)) {
               supportedPaymentMethods.push('BANK_TRANSFER');
+            } else {
+              const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+              const hasManualBankTransferMethod = payoutMethods.some(
+                c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
+              );
+              if (hasManualBankTransferMethod) {
+                supportedPaymentMethods.push('BANK_TRANSFER');
+              }
             }
           }
 
