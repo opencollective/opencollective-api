@@ -10,6 +10,7 @@ import * as auth from '../lib/auth';
 import { sessionCache } from '../lib/cache';
 import { checkCaptcha, isCaptchaSetup } from '../lib/check-captcha';
 import emailLib from '../lib/email';
+import { generateKey } from '../lib/encryption';
 import errors from '../lib/errors';
 import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
@@ -191,6 +192,7 @@ export const signin = async (req, res, next) => {
 };
 
 type SignupRequestSession = {
+  sessionId: string;
   secret: string;
   tries: number;
   userId: number;
@@ -284,8 +286,10 @@ export async function signup(req: express.Request, res: express.Response) {
   if (config.env === 'development') {
     logger.info(`OTP Code for ${email}: ${otp}`);
   }
+  const sessionId = generateKey();
   const secret = await bcrypt.hash(otp, 10);
   const session: SignupRequestSession = {
+    sessionId,
     secret,
     tries: 0,
     userId: user.id,
@@ -306,11 +310,11 @@ export async function signup(req: express.Request, res: express.Response) {
     return;
   }
 
-  res.send({ success: true });
+  res.send({ success: true, sessionId });
 }
 
 export async function resendEmailVerificationOTP(req: express.Request, res: express.Response) {
-  const { email } = req.body;
+  const { email, sessionId } = req.body;
 
   const ipRateLimit = new RateLimit(
     `resendOTP_ip_${req.ip}`,
@@ -349,7 +353,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
 
   // Check if OTP request already exists
   const existingSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
-  if (!existingSession) {
+  if (!sessionId || !existingSession || existingSession.sessionId !== sessionId) {
     res.status(401).send({
       error: { message: 'Cannot resend OTP because no OTP request was found', type: 'OTP_REQUEST_NOT_FOUND' },
     });
@@ -370,6 +374,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   }
   const secret = await bcrypt.hash(otp, 10);
   const session: SignupRequestSession = {
+    sessionId,
     secret,
     tries: 0,
     userId: user.id,
@@ -394,7 +399,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
 }
 
 export async function verifyEmail(req: express.Request, res: express.Response) {
-  const { email, otp } = req.body;
+  const { email, otp, sessionId } = req.body;
   const sanitizedEmail = email.toLowerCase();
   if (!isValidEmail(sanitizedEmail)) {
     res.status(400).send({
@@ -433,7 +438,7 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
       async () => {
         const otpSessionKey = `otp_signup_${sanitizedEmail}`;
         const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
-        if (otpSession) {
+        if (otpSession && otpSession.sessionId === sessionId) {
           const user = await models.User.findByPk(otpSession.userId);
           if (user) {
             const validOtp = await bcrypt.compare(otp, otpSession.secret);
