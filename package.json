@@ -59,7 +59,7 @@
     "@simplewebauthn/types": "11.0.0",
     "argparse": "2.0.1",
     "async-mutex": "0.5.0",
-    "axios": "1.12.2",
+    "axios": "1.13.2",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
     "bcrypt": "6.0.0",
