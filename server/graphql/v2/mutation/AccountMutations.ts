@@ -15,6 +15,7 @@ import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
 import { crypto } from '../../../lib/encryption';
@@ -182,6 +183,7 @@ const accountMutations = {
         set(settings, args.key, args.value);
 
         const updatedAccount = await account.update({ settings }, { transaction });
+        purgeCacheForCollective(account.slug); // Some settings affect the collective page
 
         // Ignore some activities like dismissing the setup guide that polute the activity log without adding much value
         const ignoreActivity = args.key.startsWith('showSetupGuide.');
