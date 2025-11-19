@@ -202,7 +202,7 @@ type SignupRequestSession = {
  * Creates a new User and sends a new OTP verification code.
  */
 export async function signup(req: express.Request, res: express.Response) {
-  const { email, password, captcha } = req.body;
+  const { email, captcha } = req.body;
   if (captcha) {
     await checkCaptcha(captcha, req.ip);
   } else if (!req.remoteUser && isCaptchaSetup()) {
@@ -227,13 +227,13 @@ export async function signup(req: express.Request, res: express.Response) {
 
   const sanitizedEmail = email.toLowerCase();
   const otpSessionKey = `otp_signup_${sanitizedEmail}`;
-
   if (!isValidEmail(sanitizedEmail)) {
     res.status(400).send({
       error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
     });
     return;
   }
+
   const emailRateLimit = new RateLimit(
     `signup_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
@@ -250,7 +250,6 @@ export async function signup(req: express.Request, res: express.Response) {
   // Check if OTP request already exists
   const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
   if (otpSession) {
-    // Should we just return SUCCESS true here to take the user to the verify OTP step?
     res.status(401).send({
       error: { message: 'OTP request already exists', type: 'OTP_REQUEST_EXISTS' },
     });
@@ -277,9 +276,6 @@ export async function signup(req: express.Request, res: express.Response) {
         },
       },
     });
-    if (password) {
-      await user.setPassword(password);
-    }
   }
 
   const otp = auth.generateOTPCode();
@@ -331,13 +327,13 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
 
   const sanitizedEmail = email.toLowerCase();
   const otpSessionKey = `otp_signup_${sanitizedEmail}`;
-
   if (!isValidEmail(sanitizedEmail)) {
     res.status(400).send({
       error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
     });
     return;
   }
+
   const emailRateLimit = new RateLimit(
     `resendOTP_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
@@ -408,24 +404,26 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     return;
   }
 
-  const emailRateLimit = new RateLimit(
-    `verifyEmail_email_${sanitizedEmail}`,
-    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
-    auth.OTP_RATE_LIMIT_WINDOW,
-    true,
-  );
   const ipRateLimit = new RateLimit(
     `verifyEmail_ip_${req.ip}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
     true,
   );
-  if (!(await emailRateLimit.registerCall())) {
+  if (!(await ipRateLimit.registerCall())) {
     res.status(403).send({
       error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
     });
     return;
-  } else if (!(await ipRateLimit.registerCall())) {
+  }
+
+  const emailRateLimit = new RateLimit(
+    `verifyEmail_email_${sanitizedEmail}`,
+    auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
+    auth.OTP_RATE_LIMIT_WINDOW,
+    true,
+  );
+  if (!(await emailRateLimit.registerCall())) {
     res.status(403).send({
       error: { message: 'Rate limit exceeded', type: 'RATE_LIMIT_EXCEEDED' },
     });
