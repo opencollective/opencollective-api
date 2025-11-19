@@ -376,41 +376,6 @@ describe('server/models/PlatformSubscriptions', () => {
           expect(oldSubscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
           expect(newSubscription.featureProvisioningStatus).to.equal('PROVISIONED');
         });
-
-        it('removes the host fee when removing CHARGE_HOSTING_FEES feature', async () => {
-          const admin = await fakeUser();
-          const host = await fakeActiveHost({ admin, hostFeePercent: 10 });
-          const regularCollective = await fakeCollective({
-            HostCollectiveId: host.id,
-            hostFeePercent: 10,
-            approvedAt: new Date(),
-          });
-          const collectiveWithCustomHostFee = await fakeCollective({
-            HostCollectiveId: host.id,
-            hostFeePercent: 5,
-            approvedAt: new Date(),
-            data: { useCustomHostFee: true },
-          });
-          await PlatformSubscription.createSubscription(
-            host,
-            new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
-            { title: 'A plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: true } },
-            admin,
-          );
-
-          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 10);
-          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 5);
-
-          await PlatformSubscription.replaceCurrentSubscription(
-            host,
-            new Date(),
-            { title: 'A new plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: false } },
-            admin,
-          );
-
-          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 0);
-          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 0);
-        });
       });
 
       describe('Off-platform transactions', () => {
@@ -577,6 +542,78 @@ describe('server/models/PlatformSubscriptions', () => {
               'Failed to disconnect GoCardless account',
             );
           });
+        });
+      });
+
+      describe('Host fee', () => {
+        it('removes the host fee when removing CHARGE_HOSTING_FEES feature', async () => {
+          const admin = await fakeUser();
+          const host = await fakeActiveHost({ admin, hostFeePercent: 10 });
+          const regularCollective = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 10,
+            approvedAt: new Date(),
+          });
+          const collectiveWithCustomHostFee = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 5,
+            approvedAt: new Date(),
+            data: { useCustomHostFee: true },
+          });
+          await PlatformSubscription.createSubscription(
+            host,
+            new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+            { title: 'A plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: true } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 10);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 5);
+
+          await PlatformSubscription.replaceCurrentSubscription(
+            host,
+            new Date(),
+            { title: 'A new plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: false } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 0);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 0);
+        });
+
+        it('is NOT removed when upgrading to a plan that also has the feature', async () => {
+          const admin = await fakeUser();
+          const host = await fakeActiveHost({ admin, hostFeePercent: 10 });
+          const regularCollective = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 10,
+            approvedAt: new Date(),
+          });
+          const collectiveWithCustomHostFee = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 5,
+            approvedAt: new Date(),
+            data: { useCustomHostFee: true },
+          });
+          await PlatformSubscription.createSubscription(
+            host,
+            new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+            { title: 'A plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: true } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 10);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 5);
+
+          await PlatformSubscription.replaceCurrentSubscription(
+            host,
+            new Date(),
+            { title: 'A new plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: true } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 10);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 5);
         });
       });
     });
