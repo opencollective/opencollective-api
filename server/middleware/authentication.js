@@ -158,8 +158,9 @@ const _authenticateUserByJwt = async (req, res, next) => {
   Sentry.setUser(dbUserToSentryUser(user));
   const { earlyAccess = {} } = user.collective.settings || {};
   if (
-    earlyAccess.dashboard ||
-    (parseToBoolean(config.features.dashboard.redirect) && earlyAccess.dashboard !== false)
+    // Ignore redirect if profile completion is required
+    !user.collective?.data?.requiresProfileCompletion &&
+    (earlyAccess.dashboard || (parseToBoolean(config.features.dashboard.redirect) && earlyAccess.dashboard !== false))
   ) {
     setRedirectCookie(res);
   } else {

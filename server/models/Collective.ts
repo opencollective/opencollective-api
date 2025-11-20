@@ -154,6 +154,7 @@ type Settings = {
   collectivePage?: {
     showGoals?: boolean;
   };
+  budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   canHostAccounts?: boolean;
@@ -219,6 +220,7 @@ type Data = Partial<{
     notes: string;
   }>;
   visibleToAccountIds: number[];
+  requiresProfileCompletion: boolean;
 }> &
   Record<string, unknown>;
 
@@ -425,7 +427,7 @@ class Collective extends Model<
      * Checks a given slug against existing and reserved slugs. Increments count if non-unique/reserved and
      * recursively checks again until acceptable slug is found.
      */
-    const slugSuggestionHelper = (slugToCheck, slugList, count) => {
+    const slugSuggestionHelper = (slugToCheck, slugList, count): string => {
       const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
       if (slugList.indexOf(slug) === -1 && !isCollectiveSlugReserved(slug)) {
         return slug;

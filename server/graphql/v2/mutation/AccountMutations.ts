@@ -701,6 +701,7 @@ const accountMutations = {
           case 'company':
           case 'address':
           case 'timezone':
+          case 'image':
           case 'startsAt':
           case 'endsAt': {
             if (args.account[key] !== account[key]) {
@@ -718,6 +719,12 @@ const accountMutations = {
               previousData[key] = account[key];
               newData[key] = args.account[key];
               updateParams[key] = args.account[key];
+              if (account.data?.requiresProfileCompletion) {
+                updateParams.data = { ...account.data, requiresProfileCompletion: false };
+                updateParams.slug = await Collective.generateSlug([args.account.name], true);
+                previousData.slug = account.slug;
+                newData.slug = updateParams.slug;
+              }
             }
             break;
           case 'slug':

@@ -127,7 +127,7 @@ const accountFieldsDefinition = () => ({
   legalName: {
     type: GraphQLString,
     description: 'Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".',
-    resolve: async (account, _, req) => {
+    resolve: async (account: Collective, _, req) => {
       if (!checkScope(req, 'account')) {
         return null;
       }
@@ -176,7 +176,7 @@ const accountFieldsDefinition = () => ({
   },
   socialLinks: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
-    async resolve(collective, _, req) {
+    async resolve(collective: Collective, _, req) {
       return req.loaders.SocialLink.byCollectiveId.load(collective.id);
     },
   },
@@ -191,7 +191,7 @@ const accountFieldsDefinition = () => ({
   isVerified: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether the account is verified',
-    resolve(collective) {
+    resolve(collective: Collective) {
       return get(collective, 'data.isVerified') || false;
     },
   },
@@ -234,7 +234,7 @@ const accountFieldsDefinition = () => ({
         description: 'The host account this collective was hosted by',
       },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req) {
       const host = await fetchAccountWithReference(args.host, { loaders: req.loaders, throwIfMissing: true });
       const activity = await models.Activity.findOne({
         order: [['createdAt', 'DESC']],
@@ -274,7 +274,7 @@ const accountFieldsDefinition = () => ({
   parentAccount: {
     type: GraphQLAccount,
     deprecationReason: '2022-12-16: use parent on AccountWithParent instead',
-    async resolve(collective, _, req) {
+    async resolve(collective: Collective, _, req) {
       if (!collective.ParentCollectiveId) {
         return null;
       } else {
@@ -327,7 +327,7 @@ const accountFieldsDefinition = () => ({
         description: 'Filter by type',
       },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(collective)) {
         return null;
       } else {
@@ -434,7 +434,7 @@ const accountFieldsDefinition = () => ({
   supportedExpenseTypes: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseType))),
     description: 'The list of expense types supported by this account',
-    async resolve(collective, _, req) {
+    async resolve(collective: Collective, _, req) {
       const host = collective.isHostAccount
         ? collective
         : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
@@ -461,7 +461,7 @@ const accountFieldsDefinition = () => ({
   },
   transferwise: {
     type: GraphQLTransferWise,
-    async resolve(collective) {
+    async resolve(collective: Collective) {
       const connectedAccount = await models.ConnectedAccount.findOne({
         where: { service: 'transferwise', CollectiveId: collective.id },
       });
@@ -528,7 +528,7 @@ const accountFieldsDefinition = () => ({
     args: {
       ...CollectionArgs,
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
@@ -558,14 +558,14 @@ const accountFieldsDefinition = () => ({
   },
   stats: {
     type: GraphQLAccountStats,
-    resolve(collective) {
+    resolve(collective: Collective) {
       return collective;
     },
   },
   canHaveChangelogUpdates: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account can have changelog updates',
-    resolve(collective) {
+    resolve(collective: Collective) {
       return Boolean(collective.data?.canHaveChangelogUpdates);
     },
   },
@@ -591,7 +591,7 @@ const accountFieldsDefinition = () => ({
       searchTerm: { type: GraphQLString },
     },
     async resolve(
-      collective,
+      collective: Collective,
       { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm },
       req,
     ) {
@@ -640,7 +640,7 @@ const accountFieldsDefinition = () => ({
   features: {
     type: new GraphQLNonNull(GraphQLCollectiveFeatures),
     description: 'Describes the features enabled and available for this account',
-    resolve(collective) {
+    resolve(collective: Collective) {
       return collective;
     },
   },
@@ -668,7 +668,7 @@ const accountFieldsDefinition = () => ({
         defaultValue: GraphQLChronologicalOrderInput['defaultValue'],
       },
     },
-    async resolve(account, args, req) {
+    async resolve(account: Collective, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(account) || !checkScope(req, 'virtualCards')) {
         return null;
       }
@@ -742,7 +742,7 @@ const accountFieldsDefinition = () => ({
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     },
-    async resolve(account, args, req) {
+    async resolve(account: Collective, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(account) || !checkScope(req, 'virtualCards')) {
         return null;
       }
@@ -798,7 +798,7 @@ const accountFieldsDefinition = () => ({
         description: 'Order of the results. Defaults to createdAt DESC.',
       },
     },
-    async resolve(account, args) {
+    async resolve(account: Collective, args) {
       if (args.limit > 100) {
         throw new BadRequest('Cannot fetch more than 100 accounts at the same time, please adjust the limit');
       }
@@ -864,7 +864,7 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLPolicies),
     description:
       'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
-    async resolve(account) {
+    async resolve(account: Collective) {
       return account;
     },
   },
@@ -876,7 +876,7 @@ const accountFieldsDefinition = () => ({
         type: GraphQLActivityChannel,
       },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req) {
       if (!req.remoteUser) {
         return null;
       }
@@ -928,7 +928,7 @@ const accountFieldsDefinition = () => ({
         description: 'The classes of activity types to filter for',
       },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isRoot()) {
         throw new Unauthorized('You need to be logged in as an admin of this collective to see its activity');
       }
@@ -954,7 +954,7 @@ const accountFieldsDefinition = () => ({
   duplicatedFromAccount: {
     type: GraphQLAccount,
     description: 'If created by duplication, the account from which this one was duplicated',
-    async resolve(collective, _, req) {
+    async resolve(collective: Collective, _, req) {
       if (collective.data?.duplicatedFromCollectiveId) {
         return req.loaders.Collective.byId.load(collective.data.duplicatedFromCollectiveId);
       }
@@ -967,7 +967,7 @@ const accountFieldsDefinition = () => ({
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     },
-    async resolve(collective, args) {
+    async resolve(collective: Collective, args) {
       const { limit, offset } = args;
       if (!collective.data?.duplicatedToCollectiveIds) {
         return { nodes: [], totalCount: 0, limit, offset };
@@ -998,7 +998,7 @@ const accountFieldsDefinition = () => ({
         type: GraphQLDateTime,
       },
     },
-    resolve: async (collective, args) => {
+    resolve: async (collective: Collective, args) => {
       if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
         throw new Error('Only monthly, quarterly and yearly reports are supported.');
       }
@@ -1103,7 +1103,7 @@ const accountFieldsDefinition = () => ({
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       },
     },
-    async resolve(account, args, req: express.Request) {
+    async resolve(account: Collective, args, req: express.Request) {
       if (args.host) {
         const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
         if (!req.remoteUser?.isAdminOfCollective(host)) {
@@ -1132,7 +1132,7 @@ const accountTransactions = {
   args: {
     ...TransactionsCollectionArgs,
   },
-  async resolve(collective, args, req) {
+  async resolve(collective: Collective, args, req) {
     return TransactionsCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
   },
 };
@@ -1143,7 +1143,7 @@ const accountTransactionGroups = {
   args: {
     ...TransactionGroupCollectionArgs,
   },
-  async resolve(collective, args, req) {
+  async resolve(collective: Collective, args, req) {
     return TransactionGroupCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
   },
 };
@@ -1153,7 +1153,7 @@ const accountOrders = {
   args: {
     ...OrdersCollectionArgs,
   },
-  async resolve(collective, args, req) {
+  async resolve(collective: Collective, args, req) {
     return OrdersCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
   },
 };
@@ -1163,7 +1163,7 @@ const accountWebhooks = {
   args: {
     ...WebhookCollectionArgs,
   },
-  async resolve(collective, args, req) {
+  async resolve(collective: Collective, args, req) {
     return WebhookCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
   },
 };
@@ -1172,19 +1172,19 @@ export const AccountFields = {
   ...accountFieldsDefinition(),
   id: {
     type: new GraphQLNonNull(GraphQLString),
-    resolve(collective) {
+    resolve(collective: Collective) {
       return idEncode(collective.id, 'account');
     },
   },
   legacyId: {
     type: new GraphQLNonNull(GraphQLInt),
-    resolve(collective) {
+    resolve(collective: Collective) {
       return collective.id;
     },
   },
   type: {
     type: new GraphQLNonNull(GraphQLAccountType),
-    resolve(collective) {
+    resolve(collective: Collective) {
       return invert(AccountTypeToModelMapping)[collective.type];
     },
   },
@@ -1196,7 +1196,7 @@ export const AccountFields = {
         type: GraphQLImageFormat,
       },
     },
-    resolve(collective, args) {
+    resolve(collective: Collective, args) {
       return collective.getImageUrl(args);
     },
   },
@@ -1208,48 +1208,48 @@ export const AccountFields = {
         type: GraphQLImageFormat,
       },
     },
-    resolve(collective, args) {
+    resolve(collective: Collective, args) {
       return collective.getBackgroundImageUrl(args);
     },
   },
   updatedAt: {
     type: GraphQLDateTime,
-    resolve(collective) {
+    resolve(collective: Collective) {
       return collective.updatedAt || collective.createdAt;
     },
   },
   isArchived: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether this account is archived',
-    resolve(collective) {
+    resolve(collective: Collective) {
       return Boolean(collective.deactivatedAt && !collective.isActive);
     },
   },
   isFrozen: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is frozen',
-    resolve(collective) {
+    resolve(collective: Collective) {
       return get(collective, `data.features.${FEATURE.ALL}`) === false;
     },
   },
   isSuspended: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is suspended',
-    resolve(collective) {
+    resolve(collective: Collective) {
       return get(collective, `data.isSuspended`) === true;
     },
   },
   isHost: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether the account is setup to Host collectives.',
-    resolve(collective) {
+    resolve(collective: Collective) {
       return Boolean(collective.isHostAccount);
     },
   },
   isAdmin: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns true if the remote user is an admin of this account',
-    resolve(collective, _, req) {
+    resolve(collective: Collective, _, req) {
       return Boolean(req.remoteUser?.isAdminOfCollective(collective));
     },
   },
@@ -1259,7 +1259,7 @@ export const AccountFields = {
     type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
       'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
-    async resolve(collective, _, req) {
+    async resolve(collective: Collective, _, req) {
       if (await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id)) {
         return req.loaders.Member.adminUserEmailsForCollective.load(collective);
       }
@@ -1276,7 +1276,7 @@ export const AccountFields = {
       },
       ...ExpensesCollectionQueryArgs,
     },
-    resolve(collective, args, req) {
+    resolve(collective: Collective, args, req) {
       const accountConditions = {};
       if (!args.direction || args.direction === 'SUBMITTED') {
         accountConditions['fromAccount'] = { legacyId: collective.id };
@@ -1299,7 +1299,7 @@ export const AccountFields = {
         description: 'Only return conversations matching this tag',
       },
     },
-    async resolve(collective, { limit, offset, tag }) {
+    async resolve(collective: Collective, { limit, offset, tag }) {
       const query = { where: { CollectiveId: collective.id }, order: [['createdAt', 'DESC']] as Order };
       if (limit) {
         query['limit'] = limit;
@@ -1320,7 +1320,7 @@ export const AccountFields = {
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
-    async resolve(collective, { limit }) {
+    async resolve(collective: Collective, { limit }) {
       return models.Conversation.getMostPopularTagsForCollective(collective.id, limit);
     },
   },
@@ -1330,7 +1330,7 @@ export const AccountFields = {
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
-    async resolve(collective, { limit }) {
+    async resolve(collective: Collective, { limit }) {
       return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);
     },
   },
@@ -1345,7 +1345,7 @@ export const AccountFields = {
         description: 'Whether to include archived payout methods',
       },
     },
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'expenses')) {
         return null;
       }
@@ -1384,7 +1384,7 @@ export const AccountFields = {
     },
     description:
       'The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".',
-    async resolve(collective, args, req) {
+    async resolve(collective: Collective, args, req) {
       if (!req.remoteUser?.isAdminOfCollectiveOrHost(collective) || !checkScope(req, 'orders')) {
         return null;
       }
@@ -1475,7 +1475,7 @@ export const AccountFields = {
   permissions: {
     type: new GraphQLNonNull(GraphQLAccountPermissions),
     description: 'Logged-in user permissions on an account',
-    resolve: collective => collective, // Individual resolvers in `AccountPermissions`
+    resolve: (collective: Collective) => collective, // Individual resolvers in `AccountPermissions`
   },
   hostApplicationRequests: {
     type: new GraphQLNonNull(GraphQLHostApplicationCollection),

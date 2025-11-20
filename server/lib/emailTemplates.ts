@@ -107,6 +107,7 @@ export const templateNames = [
   'user.new.token',
   'user.resetPassword',
   'user.yearlyreport',
+  'user.otp.requested',
   'activated.collective.as.host',
   'activated.collective.as.independent',
   'deactivated.collective.as.host',

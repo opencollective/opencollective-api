@@ -74,6 +74,11 @@ export const getCollectiveAvatarUrl = (
 ): string => {
   const sections = [config.host.images, collectiveSlug];
 
+  // Allow direct link to localhost images in development
+  if (config.env === 'development' && image?.startsWith('http://localhost:')) {
+    return image;
+  }
+
   if (image) {
     sections.push(md5(image).substring(0, 7));
   }
@@ -460,7 +465,7 @@ export async function isCollectiveDeletable(collective) {
 }
 
 export async function deleteCollective(collective: Collective, remoteUser: User) {
-  let user;
+  let user: User;
   if (collective.type === USER) {
     user = await models.User.findOne({ where: { CollectiveId: collective.id } });
   }
@@ -515,14 +520,7 @@ export async function deleteCollective(collective: Collective, remoteUser: User)
   await collective.destroy();
 
   if (user) {
-    // Update user email in order to free up for future reuse
-    // Split the email, username from host domain
-    const splitedEmail = user.email.split('@');
-    // Add the current timestamp to email username
-    const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
-    await user.update({ email: newEmail });
-
-    await user.destroy();
+    await user.safeDestroy();
   }
 
   await models.Activity.create({
