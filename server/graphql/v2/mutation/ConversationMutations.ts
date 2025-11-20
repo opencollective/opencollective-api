@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 import models from '../../../models';
 import { createConversation, editConversation } from '../../common/conversations';
 import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
+import { GraphQLConversationVisibility } from '../enum/ConversationVisibility';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import GraphQLConversation from '../object/Conversation';
@@ -29,9 +30,18 @@ const conversationMutations = {
         type: GraphQLAccountReferenceInput,
         description: 'Account where the conversation will be created',
       },
+      host: {
+        type: GraphQLAccountReferenceInput,
+        description: 'Host where the conversation will be created',
+      },
       tags: {
         type: new GraphQLList(GraphQLString),
         description: 'A list of tags for this conversation',
+      },
+      visibility: {
+        type: new GraphQLNonNull(GraphQLConversationVisibility),
+        description: 'The visibility level for this conversation',
+        defaultValue: 'PUBLIC',
       },
     },
     async resolve(_, args, req) {
@@ -45,7 +55,13 @@ const conversationMutations = {
         throw new Error('Please provide an account');
       }
 
-      return createConversation(req, { ...args, CollectiveId });
+      let HostCollectiveId;
+      if (args.host) {
+        const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+        HostCollectiveId = host.id;
+      }
+
+      return createConversation(req, { ...args, CollectiveId, HostCollectiveId, visibility: args.visibility });
     },
   },
   editConversation: {
@@ -63,6 +79,10 @@ const conversationMutations = {
       tags: {
         type: new GraphQLList(GraphQLString),
         description: 'A list of tags for this conversation',
+      },
+      visibility: {
+        type: GraphQLConversationVisibility,
+        description: 'The visibility level for this conversation',
       },
     },
     resolve(_, args, req) {

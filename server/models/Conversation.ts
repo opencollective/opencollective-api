@@ -13,6 +13,11 @@ import Comment from './Comment';
 import ConversationFollower from './ConversationFollower';
 import User from './User';
 
+export enum ConversationVisibility {
+  PUBLIC = 'PUBLIC',
+  ADMINS_AND_HOST = 'ADMINS_AND_HOST',
+}
+
 class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
   declare public readonly id: CreationOptional<number>;
   declare public title: string;
@@ -21,8 +26,10 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
   declare public tags: string[];
   declare public CollectiveId: number;
   declare public FromCollectiveId: number;
+  declare public HostCollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public RootCommentId: ForeignKey<Comment['id']>;
+  declare public visibility: ConversationVisibility;
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
@@ -38,6 +45,8 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
     title: string,
     html: string,
     tags = null,
+    visibility = ConversationVisibility.PUBLIC,
+    host?: Collective,
   ): Promise<Conversation> {
     // Use a transaction to make sure conversation is not created if comment creation fails
     const conversation = await sequelize.transaction(async t => {
@@ -50,6 +59,8 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
           title: title,
           tags: tags,
           summary: html,
+          visibility: visibility,
+          HostCollectiveId: host?.id,
         },
         { transaction: t },
       );
@@ -90,6 +101,7 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
           CollectiveId: conversation.CollectiveId,
           RootCommentId: conversation.RootCommentId,
           CreatedByUserId: conversation.CreatedByUserId,
+          visibility: conversation.visibility,
         },
       },
     });
@@ -153,6 +165,7 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
       CreatedByUserId: this.CreatedByUserId,
       FromCollectiveId: this.FromCollectiveId,
       RootCommentId: this.RootCommentId,
+      visibility: this.visibility,
     };
   }
 }
@@ -214,6 +227,13 @@ Conversation.init(
       onUpdate: 'CASCADE',
       allowNull: false,
     },
+    HostCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Collectives' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Users' },
@@ -230,6 +250,11 @@ Conversation.init(
     },
     RootCommentId: {
       type: DataTypes.INTEGER,
+    },
+    visibility: {
+      type: DataTypes.ENUM(...Object.values(ConversationVisibility)),
+      defaultValue: ConversationVisibility.PUBLIC,
+      allowNull: false,
     },
   },
   {

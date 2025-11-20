@@ -824,6 +824,26 @@ interface Account {
     Only return conversations matching this tag
     """
     tag: String
+
+    """
+    Only return conversations with this visibility level
+    """
+    visibility: ConversationVisibility
+
+    """
+    Only return conversations for this specific account
+    """
+    account: AccountReferenceInput
+
+    """
+    Only return conversations for this specific host
+    """
+    host: AccountReferenceInput
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ConversationCollection!
 
   """
@@ -3507,6 +3527,26 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Only return conversations matching this tag
     """
     tag: String
+
+    """
+    Only return conversations with this visibility level
+    """
+    visibility: ConversationVisibility
+
+    """
+    Only return conversations for this specific account
+    """
+    account: AccountReferenceInput
+
+    """
+    Only return conversations for this specific host
+    """
+    host: AccountReferenceInput
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ConversationCollection!
 
   """
@@ -5432,6 +5472,7 @@ type Conversation {
   updatedAt: DateTime!
   tags: [String]
   summary: String!
+  visibility: ConversationVisibility!
   account: Account
   fromAccount: Account
 
@@ -5446,6 +5487,11 @@ type Conversation {
   comments(limit: Int! = 150, offset: Int! = 0): CommentCollection!
   followers(limit: Int! = 10, offset: Int! = 0): AccountCollection!
   stats: ConversationStats
+
+  """
+  The date of the last comment in this conversation
+  """
+  lastCommentDate: DateTime
 }
 
 """
@@ -5492,6 +5538,21 @@ enum CommentType {
   Comment is visible only to host admins
   """
   PRIVATE_NOTE
+}
+
+"""
+Conversation visibility levels
+"""
+enum ConversationVisibility {
+  """
+  Public conversation visible to everyone
+  """
+  PUBLIC
+
+  """
+  Private conversation visible only to collective admins and host admins
+  """
+  ADMINS_AND_HOST
 }
 
 type HostApplication {
@@ -9486,6 +9547,26 @@ type Bot implements Account {
     Only return conversations matching this tag
     """
     tag: String
+
+    """
+    Only return conversations with this visibility level
+    """
+    visibility: ConversationVisibility
+
+    """
+    Only return conversations for this specific account
+    """
+    account: AccountReferenceInput
+
+    """
+    Only return conversations for this specific host
+    """
+    host: AccountReferenceInput
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ConversationCollection!
 
   """
@@ -10449,6 +10530,26 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Only return conversations matching this tag
     """
     tag: String
+
+    """
+    Only return conversations with this visibility level
+    """
+    visibility: ConversationVisibility
+
+    """
+    Only return conversations for this specific account
+    """
+    account: AccountReferenceInput
+
+    """
+    Only return conversations for this specific host
+    """
+    host: AccountReferenceInput
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ConversationCollection!
 
   """
@@ -11970,6 +12071,26 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Only return conversations matching this tag
     """
     tag: String
+
+    """
+    Only return conversations with this visibility level
+    """
+    visibility: ConversationVisibility
+
+    """
+    Only return conversations for this specific account
+    """
+    account: AccountReferenceInput
+
+    """
+    Only return conversations for this specific host
+    """
+    host: AccountReferenceInput
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ConversationCollection!
 
   """
@@ -19407,6 +19528,26 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Only return conversations matching this tag
     """
     tag: String
+
+    """
+    Only return conversations with this visibility level
+    """
+    visibility: ConversationVisibility
+
+    """
+    Only return conversations for this specific account
+    """
+    account: AccountReferenceInput
+
+    """
+    Only return conversations for this specific host
+    """
+    host: AccountReferenceInput
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ConversationCollection!
 
   """
@@ -20517,6 +20658,26 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Only return conversations matching this tag
     """
     tag: String
+
+    """
+    Only return conversations with this visibility level
+    """
+    visibility: ConversationVisibility
+
+    """
+    Only return conversations for this specific account
+    """
+    account: AccountReferenceInput
+
+    """
+    Only return conversations for this specific host
+    """
+    host: AccountReferenceInput
+
+    """
+    The order of results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ConversationCollection!
 
   """
