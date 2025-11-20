@@ -394,7 +394,7 @@ export function editCollective(_, args, req) {
           newCollectiveData.hostFeePercent !== undefined &&
           newCollectiveData.hostFeePercent !== collective.hostFeePercent
         ) {
-          return collective.updateHostFee(newCollectiveData.hostFeePercent, req.remoteUser);
+          return collective.updateHostFeeAsUser(newCollectiveData.hostFeePercent, req.remoteUser);
         }
       })
       .then(() => {

@@ -2106,7 +2106,44 @@ class Collective extends Model<
     await Promise.all(promises);
   };
 
-  updateHostFee = async function (hostFeePercent, remoteUser) {
+  /**
+   * Similar to `updateHostFeeAsUser`, but doesn't check for permissions.
+   */
+  updateHostFeeAsSystem = async function (
+    hostFeePercent: number,
+    {
+      transaction = undefined,
+      dropCustomHostedCollectivesFees = false,
+    }: { transaction?: SequelizeTransaction; dropCustomHostedCollectivesFees?: boolean } = {},
+  ): Promise<Collective> {
+    if (typeof hostFeePercent === 'undefined' || hostFeePercent === this.hostFeePercent) {
+      return this;
+    } else if (
+      [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
+    ) {
+      return this.update({ hostFeePercent }, { transaction });
+    } else if (await this.isHost({ transaction })) {
+      await Collective.update(
+        { hostFeePercent },
+        {
+          transaction,
+          hooks: false,
+          where: {
+            HostCollectiveId: this.id,
+            approvedAt: { [Op.not]: null },
+            ...(dropCustomHostedCollectivesFees ? {} : { data: { useCustomHostFee: { [Op.not]: true } } }),
+          },
+        },
+      );
+
+      // Update host
+      return this.update({ hostFeePercent }, { transaction });
+    }
+
+    return this;
+  };
+
+  updateHostFeeAsUser = async function (hostFeePercent, remoteUser) {
     if (typeof hostFeePercent === 'undefined' || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
     }
@@ -2117,7 +2154,7 @@ class Collective extends Model<
       if (!remoteUser.isAdmin(this.HostCollectiveId)) {
         throw new Error('Only an admin of the host collective can edit the host fee for this collective');
       }
-      return this.update({ hostFeePercent });
+      return this.updateHostFeeAsSystem(hostFeePercent);
     } else {
       const isHost = await this.isHost();
       if (isHost) {
@@ -2125,22 +2162,7 @@ class Collective extends Model<
           throw new Error('You must be an admin of this host to change the host fee');
         }
 
-        await Collective.update(
-          { hostFeePercent },
-          {
-            hooks: false,
-            where: {
-              HostCollectiveId: this.id,
-              approvedAt: { [Op.not]: null },
-              data: {
-                useCustomHostFee: { [Op.not]: true },
-              },
-            },
-          },
-        );
-
-        // Update host
-        return this.update({ hostFeePercent });
+        return this.updateHostFeeAsSystem(hostFeePercent);
       }
     }
     return this;
@@ -3152,7 +3174,7 @@ class Collective extends Model<
     });
   };
 
-  isHost = function () {
+  isHost = function ({ transaction = undefined }: { transaction?: SequelizeTransaction } = {}) {
     if (this.isHostAccount) {
       return Promise.resolve(true);
     }
@@ -3161,7 +3183,7 @@ class Collective extends Model<
       return Promise.resolve(false);
     }
 
-    return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
+    return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' }, transaction }).then(r => Boolean(r));
   };
 
   isHostOf = function (CollectiveId) {
