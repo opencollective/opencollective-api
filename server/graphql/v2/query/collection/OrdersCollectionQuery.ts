@@ -4,7 +4,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, uniq } from 'lodash';
-import { Includeable, Order, Utils as SequelizeUtils } from 'sequelize';
+import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/sql-search';
@@ -14,6 +14,7 @@ import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
+import GraphQLHostContext from '../../enum/HostContext';
 import { GraphQLOrderPausedBy } from '../../enum/OrderPausedBy';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
 import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
@@ -43,9 +44,10 @@ const getCollectivesJoinCondition = (
   account,
   association: OrderAssociation,
   includeHostedAccounts = false,
+  excludeHostAccount = false,
   includeChildrenAccounts = false,
   limitToHostedAccounts?: Collective[],
-): Record<string, unknown> => {
+): WhereOptions => {
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
   const field =
     // Foreign Key columns should only be used in isolation. When querying for associated data, it is more performant to also query for the associated id
@@ -54,7 +56,7 @@ const getCollectivesJoinCondition = (
       : `$${association}.id$`;
   const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id) || [];
   const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
-  let conditions = [{ [field]: allTopAccountIds }];
+  let conditions: WhereOptions[] = [{ [field]: allTopAccountIds }];
 
   // Hosted accounts
   if (includeHostedAccounts && account.isHostAccount) {
@@ -66,6 +68,11 @@ const getCollectivesJoinCondition = (
         ...(limitToHostedAccountsIds.length ? { [`$${association}.id$`]: { [Op.in]: limitToHostedAccountsIds } } : {}),
       },
     ];
+
+    if (excludeHostAccount) {
+      conditions.push({ [`$${association}.id$`]: { [Op.not]: account.id } });
+      conditions.push({ [`$${association}.ParentCollectiveId$`]: { [Op.not]: account.id } });
+    }
   }
 
   // Children collectives
@@ -86,6 +93,13 @@ export const OrdersCollectionArgs = {
   includeHostedAccounts: {
     type: GraphQLBoolean,
     description: 'If account is a host, also include hosted accounts orders',
+    deprecationReason: '2025-11-20: Please use hostContext instead',
+  },
+  hostContext: {
+    type: GraphQLHostContext,
+    description:
+      'If account is a host, select whether to include ALL, INTERNAL or HOSTED (default behavior is INTERNAL)',
+    defaultValue: 'INTERNAL',
   },
   includeChildrenAccounts: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -235,7 +249,27 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
-  let account, oppositeAccount, hostedAccounts;
+  let account, oppositeAccount, hostedAccounts, includeHostedAccounts, excludeHostAccount;
+
+  switch (args.hostContext) {
+    case 'ALL':
+      includeHostedAccounts = true;
+      excludeHostAccount = false;
+      break;
+    case 'HOSTED':
+      includeHostedAccounts = true;
+      excludeHostAccount = true;
+      break;
+    case 'INTERNAL':
+    default:
+      includeHostedAccounts = false;
+      excludeHostAccount = false;
+  }
+  // Override with deprecated includeHostedAccounts argument
+  if (args.includeHostedAccounts) {
+    includeHostedAccounts = args.includeHostedAccounts;
+  }
+
   // Load accounts
   if (args.account) {
     account = await fetchAccountWithReference(args.account, fetchAccountParams);
@@ -264,7 +298,8 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
         getCollectivesJoinCondition(
           account,
           'fromCollective',
-          args.includeHostedAccounts,
+          includeHostedAccounts,
+          excludeHostAccount,
           args.includeChildrenAccounts,
           hostedAccounts,
         ),
@@ -301,7 +336,8 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
         getCollectivesJoinCondition(
           account,
           'collective',
-          args.includeHostedAccounts,
+          includeHostedAccounts,
+          excludeHostAccount,
           args.includeChildrenAccounts,
           hostedAccounts,
         ),
@@ -345,8 +381,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     include.push(paymentMethodInclude);
   }
 
-  const isHostAdmin =
-    account?.isHostAccount && args.includeHostedAccounts && req.remoteUser?.isAdminOfCollective(account);
+  const isHostAdmin = account?.isHostAccount && includeHostedAccounts && req.remoteUser?.isAdminOfCollective(account);
 
   // Add search filter
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
