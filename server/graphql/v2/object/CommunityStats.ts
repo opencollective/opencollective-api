@@ -31,6 +31,24 @@ const GraphQLCommunityTransactionSummary = new GraphQLObjectType({
     contributionCount: {
       type: new GraphQLNonNull(GraphQLInt),
     },
+    expenseTotalAcc: {
+      type: new GraphQLNonNull(GraphQLAmount),
+    },
+    expenseCountAcc: {
+      type: new GraphQLNonNull(GraphQLInt),
+    },
+    contributionTotalAcc: {
+      type: new GraphQLNonNull(GraphQLAmount),
+    },
+    contributionCountAcc: {
+      type: new GraphQLNonNull(GraphQLInt),
+    },
+    orderCount: {
+      type: new GraphQLNonNull(GraphQLInt),
+    },
+    orderCountAcc: {
+      type: new GraphQLNonNull(GraphQLInt),
+    },
   }),
 });
 
@@ -88,29 +106,18 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
             expenseCount: number;
             contributionTotal: number;
             contributionCount: number;
+            expenseTotalAcc: number;
+            expenseCountAcc: number;
+            contributionTotalAcc: number;
+            contributionCountAcc: number;
+            orderCount: number;
+            orderCountAcc: number;
           }>(
             `
-            SELECT
-              EXTRACT('YEAR' FROM t."createdAt") AS "year",
-              h.currency as "hostCurrency",
-              COALESCE(SUM(t."amountInHostCurrency") FILTER ( WHERE t.kind = 'EXPENSE' ), 0) AS "expenseTotal",
-              COALESCE(COUNT(t."id") FILTER ( WHERE t.kind = 'EXPENSE' ), 0) AS "expenseCount",
-              COALESCE(SUM(t."amountInHostCurrency") FILTER ( WHERE t.kind = 'CONTRIBUTION' ), 0) AS "contributionTotal",
-              COALESCE(COUNT(t."id") FILTER ( WHERE t.kind = 'CONTRIBUTION' ), 0) AS "contributionCount"
-            FROM
-              "Transactions" t
-              INNER JOIN public."Collectives" h ON t."HostCollectiveId" = h.id
-              INNER JOIN public."Collectives" c ON t."FromCollectiveId" = c.id
-            WHERE t."deletedAt" IS NULL
-              AND t."RefundTransactionId" IS NULL
-              AND t."isRefund" = FALSE
-              AND t."HostCollectiveId" = :HostCollectiveId
-              AND t."FromCollectiveId" = :FromCollectiveId
-              AND t.kind IN ('CONTRIBUTION', 'EXPENSE')
-              AND t."hostCurrency" = h.currency
-            GROUP BY
-              "year", h.currency
-            ORDER BY "year" DESC;
+            SELECT * FROM "CommunityHostTransactionSummary"
+            WHERE "FromCollectiveId" = :FromCollectiveId
+              AND "HostCollectiveId" = :HostCollectiveId
+            ORDER BY year DESC;
             `,
             { raw: true, type: sequelize.QueryTypes.SELECT, replacements: { FromCollectiveId, HostCollectiveId } },
           );
@@ -121,6 +128,12 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
             expenseCount: result.expenseCount,
             contributionTotal: { value: result.contributionTotal, currency: result.hostCurrency },
             contributionCount: result.contributionCount,
+            expenseTotalAcc: { value: result.expenseTotalAcc, currency: result.hostCurrency },
+            expenseCountAcc: result.expenseCountAcc,
+            contributionTotalAcc: { value: result.contributionTotalAcc, currency: result.hostCurrency },
+            contributionCountAcc: result.contributionCountAcc,
+            orderCount: result.orderCount,
+            orderCountAcc: result.orderCountAcc,
           }));
         },
       },
