@@ -265,7 +265,16 @@ const accountFieldsDefinition = () => ({
   },
   isHost: {
     type: new GraphQLNonNull(GraphQLBoolean),
+    deprecationReason: '2025-11-21: use hasMoneyManagement or hasHosting instead.',
     description: 'Returns whether the account is setup to Host collectives.',
+  },
+  hasMoneyManagement: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether the account has money management activated.',
+  },
+  hasHosting: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether the account has hosting activated.',
   },
   isAdmin: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -1241,9 +1250,24 @@ export const AccountFields = {
   },
   isHost: {
     type: new GraphQLNonNull(GraphQLBoolean),
+    deprecationReason: '2025-11-21: use hasMoneyManagement or hasHosting instead.',
     description: 'Returns whether the account is setup to Host collectives.',
     resolve(collective: Collective) {
       return Boolean(collective.isHostAccount);
+    },
+  },
+  hasMoneyManagement: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether the account has money management activated.',
+    resolve(collective: Collective) {
+      return collective.hasMoneyManagement();
+    },
+  },
+  hasHosting: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Returns whether the account has hosting activated.',
+    resolve(collective: Collective) {
+      return collective.hasHosting();
     },
   },
   isAdmin: {
