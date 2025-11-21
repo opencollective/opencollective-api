@@ -972,21 +972,30 @@ class Collective extends Model<
     }
   };
 
+  hasMoneyManagement = function () {
+    return this.isHostAccount;
+  };
+
+  hasHosting = function () {
+    return this.isHostAccount && this.settings?.canHostAccounts !== false;
+  };
+
   // deprecated: use activateMoneyManagement
-  becomeHost = async function (remoteUser, options = {}) {
+  becomeHost = function (remoteUser, options = {}) {
     return this.activateMoneyManagement(remoteUser, options);
   };
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  activateMoneyManagement = async function (remoteUser, { activateHosting = true } = {}) {
+  activateMoneyManagement = async function (remoteUser) {
+    // Independent Collective deprecation: remove COLLECTIVE, and remove USER while we're at it
     if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
       throw new Error('This account type cannot become a host');
     } else if (this.HostCollectiveId && this.HostCollectiveId !== this.id) {
       throw new Error('This account is already attached to another host, please remove host first');
     }
 
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement()) {
       const updatedValues = {
         isHostAccount: true,
         plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
@@ -1008,12 +1017,13 @@ class Collective extends Model<
 
     if (this.type === 'ORGANIZATION' || this.type === 'USER') {
       await Activity.create({
-        type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
+        type: activities.ACTIVATED_MONEY_MANAGEMENT,
         CollectiveId: this.id,
         FromCollectiveId: this.id,
         UserId: remoteUser.id,
         data: { collective: this.info },
       });
+      // TODO(hasMoneyManagement): remove with Independent Collective deprecation
     } else if (this.type === CollectiveType.COLLECTIVE) {
       await Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
@@ -1025,10 +1035,6 @@ class Collective extends Model<
     }
 
     await this.activateBudget();
-
-    const settings = this.settings ? cloneDeep(this.settings) : {};
-    set(settings, 'canHostAccounts', activateHosting);
-    await this.update({ settings });
 
     return this;
   };
@@ -1081,34 +1087,29 @@ class Collective extends Model<
     });
   };
 
+  // deprecated: use deactivateMoneyManagement or deactivateHosting separately
+  deactivateAsHost = async function () {
+    await this.deactivateHosting();
+
+    await this.deactivateMoneyManagement();
+
+    return this;
+  };
+
   /**
    * If the collective is a host, it needs to remove existing hosted collectives before
    * deactivating it as a host.
    */
-  deactivateAsHost = async function () {
-    const hostedCollectives = await this.getHostedCollectivesCount();
-    if (hostedCollectives >= 1) {
-      throw new Error(
-        `You can't deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
-      );
+  deactivateMoneyManagement = async function () {
+    if (this.hasHosting()) {
+      throw new Error(`Can't deactive money management with hosting activated.`);
     }
-
-    // Make sure we clean up all pending applications
-    await HostApplication.update({ status: HostApplicationStatus.EXPIRED }, { where: { HostCollectiveId: this.id } });
-
-    await Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' } });
-
-    await Collective.update(
-      { HostCollectiveId: null },
-      { hooks: false, where: { HostCollectiveId: this.id, isActive: false } },
-    );
 
     // TODO unsubscribe from OpenCollective tier plan.
 
     await this.deactivateBudget();
 
     const settings = this.settings ? cloneDeep(this.settings) : {};
-    set(settings, 'canHostAccounts', false);
     unset(settings, 'paymentMethods.manual');
 
     await this.update({ isHostAccount: false, plan: null, settings });
@@ -1128,7 +1129,60 @@ class Collective extends Model<
     });
 
     await Activity.create({
-      type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
+      type: activities.DEACTIVATED_MONEY_MANAGEMENT,
+      CollectiveId: this.id,
+      FromCollectiveId: this.id,
+      data: { collective: this.info },
+    });
+
+    return this;
+  };
+
+  activateHosting = async function () {
+    if (!this.hasMoneyManagement()) {
+      throw new Error(`Can't active hosting without money management.`);
+    }
+
+    const settings = this.settings ? cloneDeep(this.settings) : {};
+    set(settings, 'canHostAccounts', true);
+
+    await this.update({ settings });
+
+    await Activity.create({
+      type: activities.ACTIVATED_HOSTING,
+      CollectiveId: this.id,
+      FromCollectiveId: this.id,
+      data: { collective: this.info },
+    });
+
+    return this;
+  };
+
+  deactivateHosting = async function () {
+    const hostedCollectives = await this.getHostedCollectivesCount();
+    if (hostedCollectives >= 1) {
+      throw new Error(
+        `You can't deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
+      );
+    }
+
+    // Make sure we clean up all pending applications
+    await HostApplication.update({ status: HostApplicationStatus.EXPIRED }, { where: { HostCollectiveId: this.id } });
+
+    await Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' } });
+
+    await Collective.update(
+      { HostCollectiveId: null },
+      { hooks: false, where: { HostCollectiveId: this.id, isActive: false } },
+    );
+
+    const settings = this.settings ? cloneDeep(this.settings) : {};
+    set(settings, 'canHostAccounts', false);
+
+    await this.update({ settings });
+
+    await Activity.create({
+      type: activities.DEACTIVATED_HOSTING,
       CollectiveId: this.id,
       FromCollectiveId: this.id,
       data: { collective: this.info },
@@ -2634,8 +2688,10 @@ class Collective extends Model<
       if (!newHostCollective) {
         throw new Error('Host not found');
       } else if (!newHostCollective.isHostAccount) {
+        // TODO(hasHosting): sinply throw error if account doesn't have hosting activated
+        // throw new Error(`{${newHostCollective.name}} is not activated as Host`);
         if (remoteUser.isAdminOfCollective(newHostCollective)) {
-          await newHostCollective.becomeHost(remoteUser);
+          await newHostCollective.activateMoneyManagement(remoteUser);
         } else {
           throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
         }

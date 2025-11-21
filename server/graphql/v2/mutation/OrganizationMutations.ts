@@ -60,6 +60,7 @@ export default {
       captcha: {
         type: CaptchaInputType,
       },
+      // TODO(hasMoneyManagement): rename this flag with appropriate future proof name
       financiallyActive: {
         type: GraphQLBoolean,
         description:
@@ -159,11 +160,7 @@ export default {
         await organization.setCurrency(args.organization.currency);
       }
       if (args.financiallyActive) {
-        await organization.becomeHost(user);
-        await organization.reload();
-        const settings = organization.settings ? cloneDeep(organization.settings) : {};
-        set(settings, 'canHostAccounts', false);
-        await organization.update({ settings });
+        await organization.activateMoneyManagement(user);
       }
 
       if (NEW_PRICING) {

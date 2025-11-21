@@ -13,7 +13,7 @@ Email templates can be viewed locally by running `npm run compile:email <templat
 
 - activated.collective.as.host.hbs
   - Audience: Admins of accounts that became Fiscal Hosts (Users or Organizations).
-  - Trigger: When an account calls activateMoneyManagement (formerly becomeHost) and we emit ACTIVATED_COLLECTIVE_AS_HOST.
+  - Trigger: When an account calls activateMoneyManagement (formerly becomeHost) and we emit ACTIVATED_MONEY_MANAGEMENT (formerly ACTIVATED_COLLECTIVE_AS_HOST).
   - Content:
     - Pricing and platform fees; link to `opencollective.com/pricing`
     - Host Dashboard docs, setup guidance, FAQ, setting host fees

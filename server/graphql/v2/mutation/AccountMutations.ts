@@ -949,15 +949,10 @@ const accountMutations = {
         type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to convert.',
       },
-      activateMoneyManagement: {
+      hasMoneyManagement: {
         type: GraphQLBoolean,
         defaultValue: false,
         description: 'Should the Organization have money management capabilities',
-      },
-      activateHosting: {
-        type: GraphQLBoolean,
-        defaultValue: false,
-        description: 'Should the Organization have hosting capabilities',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
@@ -969,12 +964,17 @@ const accountMutations = {
         throw new Forbidden();
       }
 
+      // Disallow if Hosted
+      if (this.HostCollectiveId && this.approvedAt) {
+        throw new Error("Can't convert an hosted Collective.");
+      }
+
       await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
       await account.update({ type: CollectiveType.ORGANIZATION });
 
-      if (args.activateMoneyManagement) {
-        await account.activateMoneyManagement(req.remoteUser, { activateHosting: args.activateHosting });
+      if (args.hasMoneyManagement === true) {
+        await account.activateMoneyManagement(req.remoteUser);
       }
 
       await models.Activity.create({
