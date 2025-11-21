@@ -19,6 +19,7 @@ enum ActivityTypes {
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
+  COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
   // Freezing collectives
   COLLECTIVE_FROZEN = 'collective.frozen',

@@ -941,6 +941,57 @@ const accountMutations = {
       return recoveryCodesArray;
     },
   },
+  convertAccountToOrganization: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Convert an account to an Organization. Scope: "account".',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Account to convert.',
+      },
+      activateMoneyManagement: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Should the Organization have money management capabilities',
+      },
+      activateHosting: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Should the Organization have hosting capabilities',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+
+      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
+        throw new Forbidden();
+      }
+
+      await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+
+      await account.update({ type: CollectiveType.ORGANIZATION });
+
+      if (args.activateMoneyManagement) {
+        await account.activateMoneyManagement(req.remoteUser, { activateHosting: args.activateHosting });
+      }
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: {
+          collective: account.minimal,
+        },
+      });
+
+      return account;
+    },
+  },
 };
 
 export default accountMutations;

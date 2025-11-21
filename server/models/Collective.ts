@@ -972,9 +972,14 @@ class Collective extends Model<
     }
   };
 
+  // deprecated: use activateMoneyManagement
+  becomeHost = async function (remoteUser, options = {}) {
+    return this.activateMoneyManagement(remoteUser, options);
+  };
+
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  becomeHost = async function (remoteUser) {
+  activateMoneyManagement = async function (remoteUser, { activateHosting = true } = {}) {
     if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
       throw new Error('This account type cannot become a host');
     } else if (this.HostCollectiveId && this.HostCollectiveId !== this.id) {
@@ -1022,7 +1027,7 @@ class Collective extends Model<
     await this.activateBudget();
 
     const settings = this.settings ? cloneDeep(this.settings) : {};
-    set(settings, 'canHostAccounts', true);
+    set(settings, 'canHostAccounts', activateHosting);
     await this.update({ settings });
 
     return this;
