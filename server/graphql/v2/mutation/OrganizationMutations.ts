@@ -3,7 +3,7 @@ import assert from 'assert';
 import config from 'config';
 import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, pick, set } from 'lodash';
+import { pick } from 'lodash';
 
 import { CollectiveType } from '../../../constants/collectives';
 import { PlatformSubscriptionTiers } from '../../../constants/plans';
