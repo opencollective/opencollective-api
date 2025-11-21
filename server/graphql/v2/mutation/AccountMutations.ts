@@ -954,6 +954,10 @@ const accountMutations = {
         defaultValue: false,
         description: 'Should the Organization have money management capabilities',
       },
+      legalName: {
+        type: GraphQLString,
+        description: 'Legal name of the Organization.',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
@@ -972,6 +976,10 @@ const accountMutations = {
       await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
       await account.update({ type: CollectiveType.ORGANIZATION });
+
+      if (args.legalName) {
+        await account.update({ legalName: args.legalName });
+      }
 
       if (args.hasMoneyManagement === true) {
         await account.activateMoneyManagement(req.remoteUser);
