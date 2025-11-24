@@ -261,7 +261,17 @@ interface Account {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -2908,7 +2918,17 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -4587,7 +4607,7 @@ type AccountCollection implements Collection {
 }
 
 """
-An account that can be hosted by a Host
+An account that can have a Platform Subscription
 """
 interface AccountWithPlatformSubscription {
   """
@@ -7001,6 +7021,7 @@ enum ActivityType {
   COLLECTIVE_EDITED
   COLLECTIVE_DELETED
   COLLECTIVE_UNHOSTED
+  COLLECTIVE_CONVERTED_TO_ORGANIZATION
   ORGANIZATION_COLLECTIVE_CREATED
   COLLECTIVE_FROZEN
   COLLECTIVE_UNFROZEN
@@ -7095,6 +7116,7 @@ enum ActivityType {
   USER_NEW_TOKEN
   USER_SIGNIN
   USER_RESET_PASSWORD
+  USER_OTP_REQUESTED
   OAUTH_APPLICATION_AUTHORIZED
   TWO_FACTOR_METHOD_ADDED
   TWO_FACTOR_METHOD_DELETED
@@ -7110,6 +7132,10 @@ enum ActivityType {
   ACTIVATED_COLLECTIVE_AS_HOST
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT
   DEACTIVATED_COLLECTIVE_AS_HOST
+  ACTIVATED_MONEY_MANAGEMENT
+  DEACTIVATED_MONEY_MANAGEMENT
+  ACTIVATED_HOSTING
+  DEACTIVATED_HOSTING
   AGREEMENT_CREATED
   AGREEMENT_EDITED
   AGREEMENT_DELETED
@@ -8887,7 +8913,17 @@ type Bot implements Account {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -9850,7 +9886,17 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -11371,7 +11417,17 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -12608,7 +12664,17 @@ type Individual implements Account {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -13490,12 +13556,13 @@ type Individual implements Account {
   """
   email: String
   isGuest: Boolean!
+  requiresProfileCompletion: Boolean
   isFollowingConversation(id: String!): Boolean!
   hasTwoFactorAuth: Boolean
   newsletterOptIn: Boolean
 
   """
-  If the individual is a host account, this will return the matching Host object
+  If the individual has money management, this will return the matching Host object
   """
   host: Host
   hasSeenLatestChangelogEntry: Boolean
@@ -13823,7 +13890,17 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -14906,7 +14983,17 @@ type Vendor implements Account & AccountWithContributions {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -18557,6 +18644,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_EDITED
   COLLECTIVE_DELETED
   COLLECTIVE_UNHOSTED
+  COLLECTIVE_CONVERTED_TO_ORGANIZATION
   ORGANIZATION_COLLECTIVE_CREATED
   COLLECTIVE_FROZEN
   COLLECTIVE_UNFROZEN
@@ -18651,6 +18739,7 @@ enum ActivityAndClassesType {
   USER_NEW_TOKEN
   USER_SIGNIN
   USER_RESET_PASSWORD
+  USER_OTP_REQUESTED
   OAUTH_APPLICATION_AUTHORIZED
   TWO_FACTOR_METHOD_ADDED
   TWO_FACTOR_METHOD_DELETED
@@ -18666,6 +18755,10 @@ enum ActivityAndClassesType {
   ACTIVATED_COLLECTIVE_AS_HOST
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT
   DEACTIVATED_COLLECTIVE_AS_HOST
+  ACTIVATED_MONEY_MANAGEMENT
+  DEACTIVATED_MONEY_MANAGEMENT
+  ACTIVATED_HOSTING
+  DEACTIVATED_HOSTING
   AGREEMENT_CREATED
   AGREEMENT_EDITED
   AGREEMENT_DELETED
@@ -18808,7 +18901,17 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -19918,7 +20021,17 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean!
+  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -21561,6 +21674,26 @@ type Mutation {
   regenerateRecoveryCodes: [String!]
 
   """
+  Convert an account to an Organization. Scope: "account".
+  """
+  convertAccountToOrganization(
+    """
+    Account to convert.
+    """
+    account: AccountReferenceInput!
+
+    """
+    Should the Organization have money management capabilities
+    """
+    hasMoneyManagement: Boolean = false
+
+    """
+    Legal name of the Organization.
+    """
+    legalName: String
+  ): Account!
+
+  """
   Edit an accounting category. Returns the account with the updated categories.
   """
   editAccountingCategories(
@@ -22549,6 +22682,41 @@ type Mutation {
     """
     financiallyActive: Boolean = false
   ): Organization
+
+  """
+  Creates and invites admins to an existing Organization. Scope: "account".
+  """
+  inviteOrganizationAdmins(
+    """
+    Reference to the organization to invite admins to
+    """
+    organization: AccountReferenceInput!
+
+    """
+    List of members to invite as admins.
+    """
+    inviteMembers: [InviteMemberInput!]!
+  ): Organization
+
+  """
+  Convert an account to an Organization. Scope: "account".
+  """
+  editOrganizationMoneyManagementAndHosting(
+    """
+    Organization to edit money management capability.
+    """
+    organization: AccountReferenceInput!
+
+    """
+    Should the Organization have money management capabilities
+    """
+    hasMoneyManagement: Boolean
+
+    """
+    Should the Organization have hosting capabilities
+    """
+    hasHosting: Boolean
+  ): Account!
 
   """
   Add a new payment method to be used with an Order. Scope: "orders".
@@ -23649,6 +23817,7 @@ input AccountUpdateInput {
   legalName: String
   slug: String
   description: String
+  image: URL
   longDescription: String
   company: String
   tags: [String]

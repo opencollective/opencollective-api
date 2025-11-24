@@ -969,11 +969,11 @@ const accountMutations = {
       }
 
       // Disallow if Hosted
-      if (this.HostCollectiveId && this.approvedAt) {
+      if (account.HostCollectiveId && account.approvedAt) {
         throw new Error("Can't convert an hosted Collective.");
       }
 
-      await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+      await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
       await account.update({ type: CollectiveType.ORGANIZATION });
 
