@@ -140,7 +140,6 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     rows: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
       description: 'List of rows in the import',
-      deprecationReason: '2025-04-29: Please use `host.offPlatformTransactions` instead.',
       args: {
         ...getCollectionArgs({ limit: 100 }),
         status: {

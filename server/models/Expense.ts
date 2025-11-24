@@ -256,6 +256,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           'notifyCollective',
           'reference',
           'estimatedDelivery',
+          'previousData',
         ]),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },

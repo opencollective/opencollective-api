@@ -108,7 +108,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { isValidURL, prependHttp } from '../lib/url-utils';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, md5, parseToBoolean } from '../lib/utils';
 import { Location as LocationType, StructuredAddress } from '../types/Location';
 
 import AccountingCategory from './AccountingCategory';
@@ -154,6 +154,7 @@ type Settings = {
   collectivePage?: {
     showGoals?: boolean;
   };
+  budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   canHostAccounts?: boolean;
@@ -219,6 +220,7 @@ type Data = Partial<{
     notes: string;
   }>;
   visibleToAccountIds: number[];
+  requiresProfileCompletion: boolean;
 }> &
   Record<string, unknown>;
 
@@ -425,7 +427,7 @@ class Collective extends Model<
      * Checks a given slug against existing and reserved slugs. Increments count if non-unique/reserved and
      * recursively checks again until acceptable slug is found.
      */
-    const slugSuggestionHelper = (slugToCheck, slugList, count) => {
+    const slugSuggestionHelper = (slugToCheck, slugList, count): string => {
       const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
       if (slugList.indexOf(slug) === -1 && !isCollectiveSlugReserved(slug)) {
         return slug;
@@ -982,7 +984,7 @@ class Collective extends Model<
     if (!this.isHostAccount) {
       const updatedValues = {
         isHostAccount: true,
-        plan: 'start-plan-2021',
+        plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
         hostFeePercent: undefined,
         platformFeePercent: undefined,
       };

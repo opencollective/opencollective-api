@@ -223,12 +223,10 @@ async function createComment(commentData, req): Promise<Comment> {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
 
-  if (!commentData.isCreateExpense) {
-    // Check for permissions
-    const error = await getCommentPermissionsError(req, commentedEntity, type);
-    if (error) {
-      throw error;
-    }
+  // Check for permissions
+  const error = await getCommentPermissionsError(req, commentedEntity, type);
+  if (error) {
+    throw error;
   }
 
   // Create comment
