@@ -655,13 +655,6 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       break;
 
-    case ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT:
-      await notify.collective(activity, {
-        collectiveId: activity.data.collective.id,
-        template: 'activated.collective.as.independent',
-      });
-      break;
-
     case ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST: // deprecated
     case ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT:
       await notify.collective(activity, {

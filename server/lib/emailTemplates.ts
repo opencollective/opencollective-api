@@ -108,7 +108,6 @@ export const templateNames = [
   'user.resetPassword',
   'user.yearlyreport',
   'user.otp.requested',
-  'activated.collective.as.independent',
   'activated.moneyManagement',
   'deactivated.moneyManagement',
   'contribution.rejected',

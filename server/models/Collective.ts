@@ -980,11 +980,6 @@ class Collective extends Model<
     return this.isHostAccount && this.settings?.canHostAccounts !== false;
   };
 
-  /** @deprecated: use activateMoneyManagement */
-  becomeHost = function (remoteUser, options = {}) {
-    return this.activateMoneyManagement(remoteUser, options);
-  };
-
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
   activateMoneyManagement = async function (remoteUser) {
