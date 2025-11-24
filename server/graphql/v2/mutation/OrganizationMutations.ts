@@ -255,7 +255,7 @@ export default {
         throw new Forbidden();
       }
 
-      await twoFactorAuthLib.enforceForAccount(req, organization, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
 
       const shouldHaveMoneyManagement = args.hasMoneyManagement;
       if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement()) {
