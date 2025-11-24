@@ -1,5 +1,5 @@
 import { omit } from 'lodash';
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
 import models from '../../models';
@@ -25,18 +25,26 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
     return;
   }
   const stripeAccount = hostStripeAccount.username;
-  let paymentIntent;
+  let paymentIntent: Stripe.Response<Stripe.PaymentIntent>;
   try {
     paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, {
       stripeAccount,
     });
   } catch (err) {
-    logging?.(`Order ${order.id} payment intent not found on stripe`, err);
-    if (!IS_DRY) {
-      await order.update({
-        status: OrderStatuses.CANCELLED,
-      });
+    if (err instanceof Stripe.errors.StripeError) {
+      // payment intent expired.
+      if (err.code === 'resource_missing') {
+        logging?.(`Order ${order.id} payment intent not found on stripe`, err);
+        if (!IS_DRY) {
+          await order.update({
+            status: OrderStatuses.CANCELLED,
+          });
+        }
+        return;
+      }
     }
+
+    logging?.(`Unknown error retrieving payment intent ${order.data.paymentIntent.id} on stripe`, err);
     return;
   }
 
