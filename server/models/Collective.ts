@@ -980,7 +980,7 @@ class Collective extends Model<
     return this.isHostAccount && this.settings?.canHostAccounts !== false;
   };
 
-  // deprecated: use activateMoneyManagement
+  /** @deprecated: use activateMoneyManagement */
   becomeHost = function (remoteUser, options = {}) {
     return this.activateMoneyManagement(remoteUser, options);
   };
@@ -1087,7 +1087,7 @@ class Collective extends Model<
     });
   };
 
-  // deprecated: use deactivateMoneyManagement or deactivateHosting separately
+  /** @deprecated: use deactivateMoneyManagement or deactivateHosting separately */
   deactivateAsHost = async function () {
     await this.deactivateHosting();
 
