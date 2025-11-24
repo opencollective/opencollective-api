@@ -249,7 +249,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
-  let account, oppositeAccount, hostedAccounts, includeHostedAccounts, excludeHostAccount;
+  let account, oppositeAccount, hostedAccounts, includeHostedAccounts, excludeHostAccounts;
 
   switch (args.hostContext) {
     case 'ALL':
