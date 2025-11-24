@@ -266,7 +266,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       excludeHostAccount = false;
   }
   // Override with deprecated includeHostedAccounts argument
-  if (args.includeHostedAccounts) {
+  if (!isNil(args.includeHostedAccounts)) {
     includeHostedAccounts = args.includeHostedAccounts;
   }
 
