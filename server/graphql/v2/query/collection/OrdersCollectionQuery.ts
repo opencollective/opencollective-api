@@ -66,7 +66,7 @@ const getCollectivesJoinCondition = (
       [`$${association}.approvedAt$`]: { [Op.not]: null },
     };
 
-    // Handle id filtering: either limit to specific hosted accounts, or exclude host account
+    // Handle id filtering: either limit to specific hosted accounts, or exclude host accounts
     if (limitToHostedAccountsIds.length) {
       hostedAccountCondition[`$${association}.id$`] = { [Op.in]: limitToHostedAccountsIds };
     } else if (excludeHostAccounts) {
