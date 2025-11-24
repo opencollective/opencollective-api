@@ -826,7 +826,7 @@ export async function associateTransactionRefundId(
 export const sendEmailNotifications = (
   order: Order,
   transaction?: Transaction | void,
-  { firstPayment }: { firstPayment?: boolean } = {},
+  { firstPayment }: { firstPayment?: boolean } = { firstPayment: true },
 ): void => {
   debug('sendEmailNotifications');
   if (
@@ -965,7 +965,9 @@ export const executeOrder = async (
     order.paymentMethod.save();
   }
 
-  sendEmailNotifications(order, transaction);
+  sendEmailNotifications(order, transaction, {
+    firstPayment: true,
+  });
 
   // Register gift card emitter as collective backer too
   if (transaction && transaction.UsingGiftCardFromCollectiveId) {
