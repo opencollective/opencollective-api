@@ -2,6 +2,7 @@
 import bcrypt from 'bcrypt';
 import config from 'config';
 import type express from 'express';
+import { omit } from 'lodash';
 
 import { activities } from '../constants';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
@@ -87,7 +88,7 @@ export const signin = async (req, res, next) => {
       });
     } else if (!user && createProfile) {
       user = await models.User.createUserWithCollective(req.body.user);
-    } else if (!user.CollectiveId) {
+    } else if (!user.CollectiveId || user.data?.requiresVerification === true) {
       return res.status(403).send({
         errorCode: 'EMAIL_AWAITING_VERIFICATION',
         message: 'Email awaiting verification',
@@ -216,7 +217,6 @@ export async function signup(req: express.Request, res: express.Response) {
     `signup_ip_${req.ip}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
-    true,
   );
   if (!(await ipRateLimit.registerCall())) {
     res.status(403).send({
@@ -238,7 +238,6 @@ export async function signup(req: express.Request, res: express.Response) {
     `signup_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
-    true,
   );
   if (!(await emailRateLimit.registerCall())) {
     res.status(403).send({
@@ -266,15 +265,27 @@ export async function signup(req: express.Request, res: express.Response) {
       return;
     }
   } else {
-    user = await models.User.create({
-      email: sanitizedEmail,
-      confirmedAt: null,
-      data: {
-        creationRequest: {
-          ip: req.ip,
-          userAgent: req.header('user-agent'),
+    user = await sequelize.transaction(async transaction => {
+      const user = await models.User.create(
+        {
+          email: sanitizedEmail,
+          confirmedAt: null,
+          data: {
+            creationRequest: {
+              ip: req.ip,
+              userAgent: req.header('user-agent'),
+            },
+            requiresVerification: true,
+          },
         },
-      },
+        { transaction },
+      );
+      const collective = await user.createCollective(
+        { name: sanitizedEmail.split('@')[0], data: { requiresProfileCompletion: true, isSuspended: true } },
+        transaction,
+      );
+      await user.update({ CollectiveId: collective.id }, { transaction });
+      return user;
     });
   }
 
@@ -316,7 +327,6 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     `resendOTP_ip_${req.ip}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
-    true,
   );
   if (!(await ipRateLimit.registerCall())) {
     res.status(403).send({
@@ -338,7 +348,6 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     `resendOTP_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
-    true,
   );
   if (!(await emailRateLimit.registerCall())) {
     res.status(403).send({
@@ -357,8 +366,8 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   }
 
   const user = await models.User.findByPk(existingSession.userId);
-  if (!user) {
-    res.status(500).send({
+  if (!user || user.data?.requiresVerification !== true) {
+    res.status(401).send({
       error: { message: 'User not found, try again', type: 'NOT_FOUND' },
     });
     return;
@@ -408,7 +417,6 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     `verifyEmail_ip_${req.ip}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
-    true,
   );
   if (!(await ipRateLimit.registerCall())) {
     res.status(403).send({
@@ -421,7 +429,6 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
     `verifyEmail_email_${sanitizedEmail}`,
     auth.OTP_RATE_LIMIT_MAX_ATTEMPTS,
     auth.OTP_RATE_LIMIT_WINDOW,
-    true,
   );
   if (!(await emailRateLimit.registerCall())) {
     res.status(403).send({
@@ -437,16 +444,18 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
         const otpSessionKey = `otp_signup_${sanitizedEmail}`;
         const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
         if (otpSession && otpSession.sessionId === sessionId) {
-          const user = await models.User.findByPk(otpSession.userId);
+          const user = await models.User.findByPk(otpSession.userId, {
+            include: [{ model: models.Collective, as: 'collective' }],
+          });
           if (user) {
             const validOtp = await bcrypt.compare(otp, otpSession.secret);
             if (validOtp) {
               await sequelize.transaction(async transaction => {
-                const collective = await user.createCollective(
-                  { name: sanitizedEmail.split('@')[0], data: { requiresProfileCompletion: true } },
-                  transaction,
+                await user.update(
+                  { confirmedAt: new Date(), data: omit(user.data, ['requiresVerification']) },
+                  { transaction },
                 );
-                await user.update({ confirmedAt: new Date(), CollectiveId: collective.id }, { transaction });
+                await user.collective.update({ data: omit(user.collective.data, ['isSuspended']) }, { transaction });
               });
               await sessionCache.delete(otpSessionKey);
               const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
