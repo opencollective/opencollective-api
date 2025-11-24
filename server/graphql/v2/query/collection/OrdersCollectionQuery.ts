@@ -3,7 +3,7 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, uniq } from 'lodash';
+import { compact, isNil, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
@@ -44,7 +44,7 @@ const getCollectivesJoinCondition = (
   account,
   association: OrderAssociation,
   includeHostedAccounts = false,
-  excludeHostAccount = false,
+  excludeHostAccounts = false,
   includeChildrenAccounts = false,
   limitToHostedAccounts?: Collective[],
 ): WhereOptions => {
@@ -61,18 +61,23 @@ const getCollectivesJoinCondition = (
   // Hosted accounts
   if (includeHostedAccounts && account.isHostAccount) {
     // Host are always approved and have a HostCollectiveId
-    conditions = [
-      {
-        [`$${association}.HostCollectiveId$`]: account.id,
-        [`$${association}.approvedAt$`]: { [Op.not]: null },
-        ...(limitToHostedAccountsIds.length ? { [`$${association}.id$`]: { [Op.in]: limitToHostedAccountsIds } } : {}),
-      },
-    ];
+    const hostedAccountCondition: WhereOptions = {
+      [`$${association}.HostCollectiveId$`]: account.id,
+      [`$${association}.approvedAt$`]: { [Op.not]: null },
+    };
 
-    if (excludeHostAccount) {
-      conditions.push({ [`$${association}.id$`]: { [Op.not]: account.id } });
-      conditions.push({ [`$${association}.ParentCollectiveId$`]: { [Op.not]: account.id } });
+    // Handle id filtering: either limit to specific hosted accounts, or exclude host account
+    if (limitToHostedAccountsIds.length) {
+      hostedAccountCondition[`$${association}.id$`] = { [Op.in]: limitToHostedAccountsIds };
+    } else if (excludeHostAccounts) {
+      // Exclude the host account and its children
+      hostedAccountCondition[`$${association}.id$`] = { [Op.ne]: account.id };
+      hostedAccountCondition[`$${association}.ParentCollectiveId$`] = {
+        [Op.or]: [{ [Op.is]: null }, { [Op.ne]: account.id }],
+      };
     }
+
+    conditions = [hostedAccountCondition];
   }
 
   // Children collectives
@@ -254,16 +259,16 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   switch (args.hostContext) {
     case 'ALL':
       includeHostedAccounts = true;
-      excludeHostAccount = false;
+      excludeHostAccounts = false;
       break;
     case 'HOSTED':
       includeHostedAccounts = true;
-      excludeHostAccount = true;
+      excludeHostAccounts = true;
       break;
     case 'INTERNAL':
     default:
       includeHostedAccounts = false;
-      excludeHostAccount = false;
+      excludeHostAccounts = false;
   }
   // Override with deprecated includeHostedAccounts argument
   if (!isNil(args.includeHostedAccounts)) {
@@ -299,7 +304,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           account,
           'fromCollective',
           includeHostedAccounts,
-          excludeHostAccount,
+          excludeHostAccounts,
           args.includeChildrenAccounts,
           hostedAccounts,
         ),
@@ -337,7 +342,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           account,
           'collective',
           includeHostedAccounts,
-          excludeHostAccount,
+          excludeHostAccounts,
           args.includeChildrenAccounts,
           hostedAccounts,
         ),
