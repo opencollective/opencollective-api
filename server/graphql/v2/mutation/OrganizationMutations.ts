@@ -14,7 +14,7 @@ import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportMessageToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { parseToBoolean } from '../../../lib/utils';
-import models, { PlatformSubscription, type User } from '../../../models';
+import models, { Collective, PlatformSubscription, type User } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { SocialLinkType } from '../../../models/SocialLink';
 import { processInviteMembersInput } from '../../common/members';
@@ -27,6 +27,7 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
+import { GraphQLAccount } from '../interface/Account';
 import { GraphQLOrganization } from '../object/Organization';
 
 const DEFAULT_ORGANIZATION_SETTINGS = {
@@ -220,6 +221,56 @@ export default {
           supportedRoles: [roles.ADMIN],
           user: req.remoteUser,
         });
+      }
+
+      return organization;
+    },
+  },
+  editOrganizationMoneyManagementAndHosting: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Convert an account to an Organization. Scope: "account".',
+    args: {
+      organization: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Organization to edit money management capability.',
+      },
+      hasMoneyManagement: {
+        type: GraphQLBoolean,
+        description: 'Should the Organization have money management capabilities',
+      },
+      hasHosting: {
+        type: GraphQLBoolean,
+        description: 'Should the Organization have hosting capabilities',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+
+      const organization = await fetchAccountWithReference(args.organization, {
+        loaders: req.loaders,
+        throwIfMissing: true,
+      });
+
+      if (!req.remoteUser.isAdminOfCollective(organization) && !req.remoteUser.isRoot()) {
+        throw new Forbidden();
+      }
+
+      await twoFactorAuthLib.enforceForAccount(req, organization, { onlyAskOnLogin: true });
+
+      const shouldHaveMoneyManagement = args.hasMoneyManagement;
+      if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement()) {
+        await organization.activateMoneyManagement(req.remoteUser);
+      } else if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement()) {
+        await organization.deactivateMoneyManagement();
+      }
+
+      const shouldHaveHosting = args.hasHosting;
+      if (shouldHaveHosting === true && !organization.hasHosting()) {
+        if (organization.hasMoneyManagement()) {
+          await organization.activateHosting();
+        }
+      } else if (shouldHaveHosting === false && organization.hasHosting()) {
+        await organization.deactivateHosting();
       }
 
       return organization;
