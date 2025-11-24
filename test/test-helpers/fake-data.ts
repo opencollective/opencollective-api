@@ -106,6 +106,10 @@ export const randArray = (generateFunc, min = 1, max = 1) => {
   return [...Array(arrayLength)].map((_, idx) => generateFunc(idx, arrayLength));
 };
 
+export const randIPV4 = () => {
+  return [randNumber(1, 255), randNumber(1, 255), randNumber(1, 255), randNumber(1, 255)].join('.');
+};
+
 /**
  * Allows to generate an UUID with the first 8 characters hardcoded. This is useful to generate
  * random but identifiable valid UUIDs.

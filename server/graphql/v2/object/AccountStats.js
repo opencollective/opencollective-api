@@ -800,7 +800,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           const results = await sequelize.query(
             `
             SELECT
-              DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
+              DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt")) AS "date",
               (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
               ABS(SUM(t."amount")) as "amount",
               t."currency"
@@ -813,8 +813,8 @@ export const GraphQLAccountStats = new GraphQLObjectType({
               AND o."FromCollectiveId" NOT IN (:collectiveIds)
               AND t."type" = 'CREDIT'
               AND t."kind" = 'CONTRIBUTION'
-              ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
-              ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
+              ${dateFrom ? `AND COALESCE(t."clearedAt", t."createdAt") >= :startDate` : ``}
+              ${dateTo ? `AND COALESCE(t."clearedAt", t."createdAt") <= :endDate` : ``}
             GROUP BY "date", "label", t."currency"
             ORDER BY "date", ABS(SUM(t."amount")) DESC
             `,

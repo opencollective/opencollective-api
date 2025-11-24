@@ -4674,7 +4674,6 @@ type PlatformSubscriptionFeatures {
   EXPENSE_SECURITY_CHECKS: Boolean!
   EXPECTED_FUNDS: Boolean!
   CHARGE_HOSTING_FEES: Boolean!
-  RESTRICTED_FUNDS: Boolean!
   AGREEMENTS: Boolean!
   TAX_FORMS: Boolean!
   FUNDS_GRANTS_MANAGEMENT: Boolean!
@@ -6714,7 +6713,6 @@ type CollectiveFeatures {
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
-  RESTRICTED_FUNDS: CollectiveFeatureStatus
   AGREEMENTS: CollectiveFeatureStatus
   TAX_FORMS: CollectiveFeatureStatus
   FUNDS_GRANTS_MANAGEMENT: CollectiveFeatureStatus
@@ -7860,7 +7858,6 @@ type TransactionsImport {
     """
     accountId: [NonEmptyString]
   ): TransactionsImportRowCollection!
-    @deprecated(reason: "2025-04-29: Please use `host.offPlatformTransactions` instead.")
   stats: TransactionsImportStats!
 }
 
@@ -20956,7 +20953,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -20986,7 +20983,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -21001,7 +20998,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -21016,7 +21013,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -21031,7 +21028,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -21046,7 +21043,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -21061,7 +21058,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -21076,7 +21073,7 @@ type SearchResults {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int! = 10
+    limit: Int! = 0
 
     """
     The offset to use to fetch
@@ -21878,7 +21875,7 @@ type Mutation {
     """
     A optional private comment to add to the created expense
     """
-    privateComment: String
+    privateComment: String @deprecated(reason: "2025-11-03: This field is no longer used")
   ): Expense!
 
   """
@@ -25235,7 +25232,7 @@ input OrganizationCreateInput {
   name: String!
   legalName: String
   slug: String!
-  description: String!
+  description: String
   website: String @deprecated(reason: "2024-11-12: Please use socialLinks")
   settings: JSON
 
@@ -25696,6 +25693,7 @@ enum UploadedFileKind {
   ACCOUNT_CUSTOM_EMAIL
   AGREEMENT_ATTACHMENT
   EXPENSE_INVOICE
+  RECEIPT_EMBEDDED_IMAGE
 }
 
 """
@@ -25997,7 +25995,6 @@ input PlatformSubscriptionFeaturesFeatures {
   EXPENSE_SECURITY_CHECKS: Boolean!
   EXPECTED_FUNDS: Boolean!
   CHARGE_HOSTING_FEES: Boolean!
-  RESTRICTED_FUNDS: Boolean!
   AGREEMENTS: Boolean!
   TAX_FORMS: Boolean!
   FUNDS_GRANTS_MANAGEMENT: Boolean!

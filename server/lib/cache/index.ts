@@ -98,7 +98,7 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
   },
   set: async (key: string, value: any, expirationInSeconds?: number, options?) => {
     try {
-      debugCache(`set ${key}`);
+      debugCache(`set ${key} ttl:${expirationInSeconds}s`);
       const provider = await getDefaultProvider(instanceType);
       return provider.set(key, value, expirationInSeconds, options);
     } catch (err) {

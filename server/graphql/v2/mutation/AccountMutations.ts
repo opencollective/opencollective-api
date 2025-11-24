@@ -15,6 +15,7 @@ import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
 import { crypto } from '../../../lib/encryption';
@@ -177,27 +178,33 @@ const accountMutations = {
           }
         }
 
-        const settings = account.settings ? cloneDeep(account.settings) : {};
+        const previousSettings = account.settings ? account.settings : {};
+        const settings = cloneDeep(previousSettings);
         set(settings, args.key, args.value);
 
-        const previousData = { settings: { [args.key]: account.data?.[args.key] } };
         const updatedAccount = await account.update({ settings }, { transaction });
-        await models.Activity.create(
-          {
-            type: activities.COLLECTIVE_EDITED,
-            UserId: req.remoteUser.id,
-            UserTokenId: req.userToken?.id,
-            CollectiveId: account.id,
-            FromCollectiveId: account.id,
-            HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-            data: {
-              collective: updatedAccount.minimal,
-              previousData,
-              newData: { settings: { [args.key]: args.value } },
+        purgeCacheForCollective(account.slug); // Some settings affect the collective page
+
+        // Ignore some activities like dismissing the setup guide that polute the activity log without adding much value
+        const ignoreActivity = args.key.startsWith('showSetupGuide.');
+        if (!ignoreActivity) {
+          await models.Activity.create(
+            {
+              type: activities.COLLECTIVE_EDITED,
+              UserId: req.remoteUser.id,
+              UserTokenId: req.userToken?.id,
+              CollectiveId: account.id,
+              FromCollectiveId: account.id,
+              HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+              data: {
+                collective: updatedAccount.minimal,
+                previousData: { settings: pick(previousSettings, [args.key]) },
+                newData: { settings: pick(settings, [args.key]) },
+              },
             },
-          },
-          { transaction },
-        );
+            { transaction },
+          );
+        }
 
         return updatedAccount;
       });
@@ -694,6 +701,7 @@ const accountMutations = {
           case 'company':
           case 'address':
           case 'timezone':
+          case 'image':
           case 'startsAt':
           case 'endsAt': {
             if (args.account[key] !== account[key]) {
@@ -711,6 +719,12 @@ const accountMutations = {
               previousData[key] = account[key];
               newData[key] = args.account[key];
               updateParams[key] = args.account[key];
+              if (account.data?.requiresProfileCompletion) {
+                updateParams.data = { ...account.data, requiresProfileCompletion: false };
+                updateParams.slug = await Collective.generateSlug([args.account.name], true);
+                previousData.slug = account.slug;
+                newData.slug = updateParams.slug;
+              }
             }
             break;
           case 'slug':

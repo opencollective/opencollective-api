@@ -10,15 +10,18 @@ import { parseToBoolean } from './utils';
 
 export const isCaptchaSetup = (): boolean => {
   return (
-    config.captcha?.enabled && (config.hcaptcha?.secret || config.recaptcha?.secretKey || config.turnstile?.secretKey)
+    parseToBoolean(config.captcha?.enabled) &&
+    (config.hcaptcha?.secret || config.recaptcha?.secretKey || config.turnstile?.secretKey)
   );
 };
+
+type CaptchaArg = { token: string; provider: CAPTCHA_PROVIDERS };
 
 type VerifyResponse = {
   success: boolean;
 };
 
-export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_PROVIDERS }, reqIp: string) {
+export async function checkCaptcha(captcha: CaptchaArg, reqIp: string) {
   const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
 
   if (!isCaptchaEnabled) {

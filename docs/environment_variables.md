@@ -154,3 +154,4 @@
 | OPENTELEMETRY_ENABLED                         | .opentelemetry.enabled                             | Enable OpenTelemetry                                                               |
 | FEATURES_DASHBOARD_REDIRECT                   | .features.dashboard.redirect                       | Dashboard redirect feature                                                         |
 | SETTLEMENT_MINIMUM_AMOUNT_IN_USD              | .settlement.minimumAmountInUSD                     | Minimum settlement amount in USD                                                   |
+| NEW_PRICING                                   | .features.newPricing                               | New pricing feature                                                                |

@@ -12,6 +12,7 @@ import { checkCaptcha, isCaptchaSetup } from '../../../lib/check-captcha';
 import { canUseSlug } from '../../../lib/collectivelib';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportMessageToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { parseToBoolean } from '../../../lib/utils';
 import models, { PlatformSubscription, type User } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
@@ -19,9 +20,10 @@ import { SocialLinkType } from '../../../models/SocialLink';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { createUser, sendLoginEmail } from '../../common/user';
-import { RateLimitExceeded, ValidationFailed } from '../../errors';
+import { Forbidden, RateLimitExceeded, ValidationFailed } from '../../errors';
 import { CaptchaInputType } from '../../v1/inputTypes';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
@@ -185,6 +187,44 @@ export default {
           user,
         });
       }
+      return organization;
+    },
+  },
+  inviteOrganizationAdmins: {
+    type: GraphQLOrganization,
+    description: 'Creates and invites admins to an existing Organization. Scope: "account".',
+    args: {
+      organization: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Reference to the organization to invite admins to',
+      },
+      inviteMembers: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLInviteMemberInput))),
+        description: 'List of members to invite as admins.',
+      },
+    },
+    resolve: async (_, args, req: express.Request) => {
+      checkRemoteUserCanUseAccount(req);
+
+      const organization = await fetchAccountWithReference(args.organization, { throwIfMissing: true });
+      if (!organization || organization.type !== CollectiveType.ORGANIZATION) {
+        throw new ValidationFailed('Organization not found');
+      }
+
+      if (!req.remoteUser.isAdminOfCollective(organization)) {
+        throw new Forbidden('You need to be an Admin of the organization');
+      }
+
+      // Enforce 2FA for invite actions
+      await twoFactorAuthLib.enforceForAccount(req, organization, { onlyAskOnLogin: true });
+
+      if (args.inviteMembers && args.inviteMembers.length) {
+        await processInviteMembersInput(organization, args.inviteMembers, {
+          supportedRoles: [roles.ADMIN],
+          user: req.remoteUser,
+        });
+      }
+
       return organization;
     },
   },

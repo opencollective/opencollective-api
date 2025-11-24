@@ -55,6 +55,15 @@ export const GraphQLIndividual = new GraphQLObjectType({
           return Boolean(account.data?.isGuest);
         },
       },
+      requiresProfileCompletion: {
+        type: GraphQLBoolean,
+        async resolve(account: Collective, _, req) {
+          const user = await req.loaders.User.byCollectiveId.load(account.id);
+          if (req.remoteUser?.id === user.id) {
+            return Boolean(account.data?.requiresProfileCompletion);
+          }
+        },
+      },
       isFollowingConversation: {
         type: new GraphQLNonNull(GraphQLBoolean),
         args: {

@@ -128,6 +128,7 @@ enum ActivityTypes {
   USER_NEW_TOKEN = 'user.new.token', // Replaced by USER_SIGNIN but still used in the email notification
   USER_SIGNIN = 'user.signin',
   USER_RESET_PASSWORD = 'user.resetPassword',
+  USER_OTP_REQUESTED = 'user.otp.requested',
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
   TWO_FACTOR_METHOD_ADDED = 'user.new.two.factor.method',
   TWO_FACTOR_METHOD_DELETED = 'user.remove.two.factor.method',
