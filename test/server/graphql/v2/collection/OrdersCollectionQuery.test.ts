@@ -49,7 +49,7 @@ const ordersQuery = gql`
 describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
   before(resetTestDB);
 
-  describe('Filter on host context', () => {
+  describe('hostContext filter', () => {
     let host,
       hostedCollective,
       childAccount,
@@ -127,7 +127,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       });
     });
 
-    it('ALL - returns orders to both host account and hosted accounts', async () => {
+    it('should return orders to host account, hosted accounts, and their children when hostContext is ALL', async () => {
       const result = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: host.id },
         hostContext: 'ALL',
@@ -144,7 +144,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(collectiveIds).to.include(childAccount.id);
     });
 
-    it('INTERNAL - returns only orders to the host account itself, including children', async () => {
+    it('should return only orders to the host account itself when hostContext is INTERNAL', async () => {
       const result = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: host.id },
         hostContext: 'INTERNAL',
@@ -159,7 +159,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(result.data.orders.nodes[0].legacyId).to.eq(orderToHost.id);
     });
 
-    it('HOSTED - returns only orders to hosted accounts', async () => {
+    it('should return only orders to hosted accounts and their children when hostContext is HOSTED', async () => {
       const result = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: host.id },
         hostContext: 'HOSTED',
@@ -177,7 +177,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(orderIds).to.include(orderToHostedCollective.id);
     });
 
-    it('works with OUTGOING filter', async () => {
+    it('should work correctly with OUTGOING filter for all hostContext values', async () => {
       // Test INTERNAL with OUTGOING filter
       const resultInternal = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: host.id },
@@ -223,7 +223,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(fromAccountIds).to.include(childAccount.id);
     });
 
-    it('works with INCOMING filter', async () => {
+    it('should work correctly with INCOMING filter for all hostContext values', async () => {
       // Test INTERNAL with INCOMING filter
       const resultInternal = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: host.id },
@@ -265,8 +265,8 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(collectiveIdsAll).to.include(childAccount.id);
     });
 
-    describe('with children accounts', () => {
-      it('without hostContext and includeChildrenAccounts: false - excludes children accounts', async () => {
+    describe('with hostedAccounts and includeChildrenAccounts parameters', () => {
+      it('should exclude children accounts when hostContext is not set and includeChildrenAccounts is false', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: hostedCollective.id },
           filter: 'INCOMING',
@@ -281,7 +281,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(collectiveIds).to.not.include(childAccount.id);
       });
 
-      it('without hostContext and includeChildrenAccounts: true - includes children accounts', async () => {
+      it('should include children accounts when hostContext is not set and includeChildrenAccounts is true', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: hostedCollective.id },
           filter: 'INCOMING',
@@ -295,7 +295,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(collectiveIds).to.include(hostedCollective.id);
         expect(collectiveIds).to.include(childAccount.id);
       });
-      it('ALL with hostedAccounts - only returns orders for specified hosted accounts', async () => {
+      it('should return only orders for specified hosted accounts when hostContext is ALL and hostedAccounts is provided', async () => {
         const results = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'ALL',
@@ -303,13 +303,6 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
           filter: 'INCOMING',
           includeChildrenAccounts: false,
         });
-        console.log({
-          hostSlug: host.slug,
-          hostedAccountSlug: hostedCollective.slug,
-          nodesLength: results.data.orders.nodes.length,
-          totalCount: results.data.orders.totalCount,
-        });
-        console.log(results.data.orders.nodes);
 
         expect(results.errors).to.not.exist;
         // Should only include the specified hosted account
@@ -318,7 +311,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(collectiveIds).to.not.include(host.id);
         expect(collectiveIds).to.include(hostedCollective.id);
       });
-      it('ALL with hostedAccounts and includeChildrenAccounts - only returns orders for specified hosted accounts with children', async () => {
+      it('should return orders for specified hosted accounts and their children when hostContext is ALL, hostedAccounts is provided, and includeChildrenAccounts is true', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'ALL',
@@ -335,7 +328,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(collectiveIds).to.include(hostedCollective.id);
         expect(collectiveIds).to.include(childAccount.id);
       });
-      it('INTERNAL with hosted collective in hostedAccounts - should reject', async () => {
+      it('should reject hostedAccounts containing hosted collectives when hostContext is INTERNAL', async () => {
         const results = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'INTERNAL',
@@ -349,7 +342,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
           'You can only fetch orders from the host account or its children with host context set to INTERNAL',
         );
       });
-      it('INTERNAL with host account in hostedAccounts - should return host account orders', async () => {
+      it('should return host account orders when hostContext is INTERNAL and host account is in hostedAccounts', async () => {
         const results = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'INTERNAL',
@@ -361,7 +354,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         // Should include host account order, since host account is part of hostContext is set to INTERNAL
         expect(results.data.orders.totalCount).to.eq(1);
       });
-      it('should reject hostedAccounts from other hosts with ALL context', async () => {
+      it('should reject hostedAccounts from other hosts when hostContext is ALL', async () => {
         // Create a second host
         const otherHost = await fakeActiveHost();
 
@@ -385,7 +378,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
           'You can only fetch orders from hosted accounts of the specified account',
         );
       });
-      it('should reject hostedAccounts from other hosts with INTERNAL context', async () => {
+      it('should reject hostedAccounts from other hosts when hostContext is INTERNAL', async () => {
         // Create a second host
         const otherHost = await fakeActiveHost();
 
@@ -410,7 +403,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
           'You can only fetch orders from hosted accounts of the specified account',
         );
       });
-      it('ALL with includeChildrenAccounts: false - still includes children because hostContext overrides it', async () => {
+      it('should include children accounts when hostContext is ALL even if includeChildrenAccounts is false', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'ALL',
@@ -427,7 +420,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(collectiveIds).to.include(childAccount.id);
       });
 
-      it('ALL with includeChildrenAccounts: true - includes orders to children accounts', async () => {
+      it('should include orders to children accounts when hostContext is ALL and includeChildrenAccounts is true', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'ALL',
@@ -445,7 +438,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(orderIds).to.include(orderToChildAccount.id);
       });
 
-      it('INTERNAL with includeChildrenAccounts: false - still includes children of host because hostContext overrides it', async () => {
+      it('should return only host account orders when hostContext is INTERNAL even if includeChildrenAccounts is false', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'INTERNAL',
@@ -460,7 +453,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(result.data.orders.nodes[0].toAccount.legacyId).to.eq(host.id);
       });
 
-      it('INTERNAL with includeChildrenAccounts: true - includes children of host when hostContext is set', async () => {
+      it('should return only host account orders when hostContext is INTERNAL and includeChildrenAccounts is true', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'INTERNAL',
@@ -477,7 +470,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(collectiveIds).to.not.include(childAccount.id);
       });
 
-      it('HOSTED with includeChildrenAccounts: false - still includes children because hostContext overrides it', async () => {
+      it('should include children accounts when hostContext is HOSTED even if includeChildrenAccounts is false', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'HOSTED',
@@ -494,7 +487,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(collectiveIds).to.not.include(host.id);
       });
 
-      it('HOSTED with includeChildrenAccounts: true - includes orders to children accounts of hosted collectives', async () => {
+      it('should include orders to children accounts of hosted collectives when hostContext is HOSTED and includeChildrenAccounts is true', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'HOSTED',
@@ -512,7 +505,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(orderIds).to.include(orderToChildAccount.id);
       });
 
-      it('ALL with includeChildrenAccounts: true and OUTGOING filter - includes orders from children accounts', async () => {
+      it('should include orders from children accounts when hostContext is ALL, includeChildrenAccounts is true, and filter is OUTGOING', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'ALL',
@@ -530,7 +523,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(orderIds).to.include(orderFromChildAccount.id);
       });
 
-      it('HOSTED with includeChildrenAccounts: true and OUTGOING filter - includes orders from children accounts', async () => {
+      it('should include orders from children accounts when hostContext is HOSTED, includeChildrenAccounts is true, and filter is OUTGOING', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'HOSTED',
@@ -548,7 +541,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(orderIds).to.include(orderFromChildAccount.id);
       });
 
-      it('INTERNAL with includeChildrenAccounts: true and OUTGOING filter - excludes orders from children accounts', async () => {
+      it('should exclude orders from children accounts when hostContext is INTERNAL, includeChildrenAccounts is true, and filter is OUTGOING', async () => {
         const result = await graphqlQueryV2(ordersQuery, {
           account: { legacyId: host.id },
           hostContext: 'INTERNAL',
