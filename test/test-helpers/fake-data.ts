@@ -54,6 +54,7 @@ import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
+import { KYCProviderName, KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
@@ -1351,3 +1352,38 @@ export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
     data,
   );
 };
+
+export async function fakeKYCVerification<Provider extends KYCProviderName = KYCProviderName>(
+  opts: Partial<InferCreationAttributes<KYCVerification<Provider>>> = {},
+): Promise<KYCVerification<Provider>> {
+  const status = opts.status || sample(Object.values(KYCVerificationStatus));
+  const provider = opts['provider'] || sample(Object.values(KYCProviderName));
+  let providerData = opts?.data?.providerData;
+  if (!providerData) {
+    switch (provider) {
+      case KYCProviderName.MANUAL:
+        (providerData as KYCVerification<KYCProviderName.MANUAL>['data']['providerData']) = {
+          legalAddress: randStr('legalAddress'),
+          legalName: randStr('legalName'),
+          notes: randStr('notes'),
+        };
+        break;
+    }
+  }
+
+  const collectiveId = opts.CollectiveId ?? (await fakeCollective()).id;
+  const requestedByCollectiveId = opts.RequestedByCollectiveId ?? (await fakeOrganization()).id;
+
+  return await KYCVerification.create<KYCVerification<Provider>>({
+    status,
+    provider,
+    CollectiveId: collectiveId,
+    RequestedByCollectiveId: requestedByCollectiveId,
+    data: {
+      ...opts.data,
+      providerData,
+    },
+    verifiedAt: opts.verifiedAt ?? new Date(),
+    revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
+  });
+}

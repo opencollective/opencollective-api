@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
 import moment from 'moment';
-import { Order, Sequelize } from 'sequelize';
+import { Order, Sequelize, WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -16,11 +16,12 @@ import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-r
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Collective, Op, PayoutMethod, sequelize } from '../../../models';
 import Application from '../../../models/Application';
+import { KYCVerification } from '../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
-import { BadRequest, ContentNotReady, Unauthorized } from '../../errors';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
+import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
 import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
@@ -56,7 +57,11 @@ import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
 import { idEncode } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  fetchAccountsIdsWithReference,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -87,6 +92,7 @@ import {
   ExpensesCollectionQueryArgs,
   ExpensesCollectionQueryResolver,
 } from '../query/collection/ExpensesCollectionQuery';
+import { GraphQLKYCVerificationCollection } from '../query/collection/KYCVerificationCollection';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionGroupCollectionArgs,
@@ -1117,6 +1123,53 @@ const accountFieldsDefinition = () => ({
           FromCollectiveId: account.id,
         });
       }
+    },
+  },
+  kycVerificationRequests: {
+    type: new GraphQLNonNull(GraphQLKYCVerificationCollection),
+    description: 'KYC Verification requests made by this account',
+    args: {
+      ...CollectionArgs,
+      accounts: {
+        type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
+        description: 'If set, returns only verification requests made to these accounts',
+      },
+    },
+    async resolve(account, args, req: Express.Request) {
+      checkRemoteUserCanUseKYC(req);
+
+      const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
+
+      if (!isAccountAdmin) {
+        throw new Forbidden();
+      }
+
+      const accountIds = args.accounts
+        ? (await fetchAccountsIdsWithReference(args.accounts, { throwIfMissing: true })) || []
+        : [];
+
+      const where: WhereOptions<KYCVerification> = {
+        ...(accountIds.length > 0 ? { CollectiveId: accountIds } : {}),
+        RequestedByCollectiveId: account.id,
+      };
+
+      return {
+        limit: args.limit,
+        offset: args.offset,
+        async totalCount() {
+          return await KYCVerification.count({
+            where,
+          });
+        },
+        async nodes() {
+          return await KYCVerification.findAll({
+            where,
+            limit: args.limit,
+            offset: args.offset,
+            order: [['id', 'DESC']],
+          });
+        },
+      };
     },
   },
 });
