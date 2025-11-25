@@ -269,22 +269,14 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
-  let account, oppositeAccount, hostedAccounts, includeHostedAccounts, hostContext;
+  let account, oppositeAccount, hostedAccounts, hostContext;
 
-  // // Override with deprecated includeHostedAccounts argument
+  // Use deprecated includeHostedAccounts argument
   if (args.includeHostedAccounts === true && isNil(args.hostContext)) {
     hostContext = 'ALL';
   } else {
     hostContext = args.hostContext;
   }
-
-  // let includeChildrenAccounts = args.includeChildrenAccounts;
-
-  // Skip including children if `hostContext` is set without `hostedAccounts`
-  // It will not change the result (as all children accounts are also hosted) and only increase query complexity
-  // if (!isNil(args.hostContext) && isNil(args.hostedAccounts)) {
-  //   includeChildrenAccounts = true;
-  // }
 
   // Load accounts
   if (args.account) {
@@ -304,7 +296,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           throw new Forbidden('You can only fetch orders from hosted accounts of the specified account');
         }
 
-        // When hostContext is INTERNAL, validate that all accounts are the host account itself or its children
         if (args.hostContext === 'INTERNAL') {
           const isHostAccount = hostedAccount.id === account.id;
           const isHostChildAccount = hostedAccount.ParentCollectiveId === account.id;
@@ -359,14 +350,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
 
     // Filter on collective
     if (!args.filter || args.filter === 'INCOMING') {
-      // const collectivesJoinCondition = getCollectivesJoinCondition(
-      //   account,
-      //   'collective',
-      //   args.includeChildrenAccounts,
-      //   args.hostContext,
-      //   hostedAccounts,
-      // );
-      // console.log(collectivesJoinCondition);
       accountOrConditions.push(
         getCollectivesJoinCondition(account, 'collective', args.includeChildrenAccounts, hostContext, hostedAccounts),
       );
@@ -409,7 +392,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     include.push(paymentMethodInclude);
   }
 
-  const isHostAdmin = account?.isHostAccount && includeHostedAccounts && req.remoteUser?.isAdminOfCollective(account);
+  const isHostAdmin = account?.isHostAccount && req.remoteUser?.isAdminOfCollective(account);
 
   // Add search filter
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
