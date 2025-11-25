@@ -27,7 +27,6 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
-import { GraphQLAccount } from '../interface/Account';
 import { GraphQLOrganization } from '../object/Organization';
 
 const DEFAULT_ORGANIZATION_SETTINGS = {
@@ -227,7 +226,7 @@ export default {
     },
   },
   editOrganizationMoneyManagementAndHosting: {
-    type: new GraphQLNonNull(GraphQLAccount),
+    type: new GraphQLNonNull(GraphQLOrganization),
     description: 'Convert an account to an Organization. Scope: "account".',
     args: {
       organization: {
