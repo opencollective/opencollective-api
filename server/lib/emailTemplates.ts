@@ -110,6 +110,8 @@ export const templateNames = [
   'user.otp.requested',
   'activated.moneyManagement',
   'deactivated.moneyManagement',
+  'activated.hosting',
+  'deactivated.hosting',
   'contribution.rejected',
   'virtualcard.charge.declined',
   'virtualcard.requested',

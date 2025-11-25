@@ -1085,9 +1085,13 @@ class Collective extends Model<
 
   /** @deprecated: use deactivateMoneyManagement or deactivateHosting separately */
   deactivateAsHost = async function () {
-    await this.deactivateHosting();
+    if (this.hasHosting()) {
+      await this.deactivateHosting();
+    }
 
-    await this.deactivateMoneyManagement();
+    if (this.hasMoneyManagement()) {
+      await this.deactivateMoneyManagement();
+    }
 
     return this;
   };
@@ -1096,7 +1100,7 @@ class Collective extends Model<
    * If the collective is a host, it needs to remove existing hosted collectives before
    * deactivating it as a host.
    */
-  deactivateMoneyManagement = async function () {
+  deactivateMoneyManagement = async function (remoteUser = null) {
     if (this.hasHosting()) {
       throw new Error(`Can't deactive money management with hosting activated.`);
     }
@@ -1128,13 +1132,14 @@ class Collective extends Model<
       type: activities.DEACTIVATED_MONEY_MANAGEMENT,
       CollectiveId: this.id,
       FromCollectiveId: this.id,
+      UserId: remoteUser?.id,
       data: { collective: this.info },
     });
 
     return this;
   };
 
-  activateHosting = async function () {
+  activateHosting = async function (remoteUser = null) {
     if (!this.hasMoneyManagement()) {
       throw new Error(`Can't active hosting without money management.`);
     }
@@ -1148,13 +1153,14 @@ class Collective extends Model<
       type: activities.ACTIVATED_HOSTING,
       CollectiveId: this.id,
       FromCollectiveId: this.id,
+      UserId: remoteUser?.id,
       data: { collective: this.info },
     });
 
     return this;
   };
 
-  deactivateHosting = async function () {
+  deactivateHosting = async function (remoteUser = null) {
     const hostedCollectives = await this.getHostedCollectivesCount();
     if (hostedCollectives >= 1) {
       throw new Error(
@@ -1181,6 +1187,7 @@ class Collective extends Model<
       type: activities.DEACTIVATED_HOSTING,
       CollectiveId: this.id,
       FromCollectiveId: this.id,
+      UserId: remoteUser?.id,
       data: { collective: this.info },
     });
 

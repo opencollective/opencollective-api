@@ -647,7 +647,6 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
       break;
 
-    case ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST: // deprecated
     case ActivityTypes.ACTIVATED_MONEY_MANAGEMENT:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
@@ -655,11 +654,24 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       break;
 
-    case ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST: // deprecated
     case ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
         template: 'deactivated.moneyManagement',
+      });
+      break;
+
+    case ActivityTypes.ACTIVATED_HOSTING:
+      await notify.collective(activity, {
+        collectiveId: activity.data.collective.id,
+        template: 'activated.hosting',
+      });
+      break;
+
+    case ActivityTypes.DEACTIVATED_HOSTING:
+      await notify.collective(activity, {
+        collectiveId: activity.data.collective.id,
+        template: 'deactivated.hosting',
       });
       break;
 
