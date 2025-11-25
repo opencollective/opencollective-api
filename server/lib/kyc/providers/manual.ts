@@ -44,6 +44,8 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
       verifiedAt: new Date(),
     });
 
+    await this.createRequestedActivity(kycVerification);
+
     return kycVerification;
   }
 }

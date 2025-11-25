@@ -1,3 +1,5 @@
+import ActivityTypes from '../../../constants/activities';
+import { Activity } from '../../../models';
 import { KYCProviderName, KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
 
 export type KYCRequest = {
@@ -16,9 +18,36 @@ export abstract class KYCProvider<
   }
 
   abstract request(req: KYCRequest, providerRequest: ProviderKYCRequest): Promise<ProviderKYCVerification>;
+
   async revoke(kycVerification: ProviderKYCVerification): Promise<ProviderKYCVerification> {
-    return kycVerification.update({
+    const res = await kycVerification.update({
       status: KYCVerificationStatus.REVOKED,
     });
+
+    await Activity.create({
+      type: ActivityTypes.KYC_REVOKED,
+      CollectiveId: kycVerification.CollectiveId,
+      FromCollectiveId: kycVerification.RequestedByCollectiveId,
+      data: this.activityData(kycVerification),
+    });
+
+    return res;
+  }
+
+  protected async createRequestedActivity(kycVerification: ProviderKYCVerification) {
+    await Activity.create({
+      type: ActivityTypes.KYC_REQUESTED,
+      CollectiveId: kycVerification.CollectiveId,
+      FromCollectiveId: kycVerification.RequestedByCollectiveId,
+      data: this.activityData(kycVerification),
+    });
+  }
+
+  protected activityData(kycVerification: ProviderKYCVerification): Record<string, unknown> {
+    return {
+      provider: kycVerification.provider,
+      verifiedAt: kycVerification.verifiedAt,
+      revokedAt: kycVerification.revokedAt,
+    };
   }
 }
