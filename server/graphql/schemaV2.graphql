@@ -259,19 +259,10 @@ interface Account {
   isActive: Boolean
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -2916,19 +2907,10 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   isActive: Boolean
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -8911,19 +8893,10 @@ type Bot implements Account {
   isActive: Boolean
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -9884,19 +9857,10 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   isActive: Boolean!
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -11415,19 +11379,10 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   isActive: Boolean!
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -12662,19 +12617,10 @@ type Individual implements Account {
   isActive: Boolean
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -13562,7 +13508,7 @@ type Individual implements Account {
   newsletterOptIn: Boolean
 
   """
-  If the individual has money management, this will return the matching Host object
+  If the individual is a host account, this will return the matching Host object
   """
   host: Host
   hasSeenLatestChangelogEntry: Boolean
@@ -13888,19 +13834,10 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   isActive: Boolean
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -14860,6 +14797,16 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   If the organization is a host account, this will return the matching Host object
   """
   host: Host
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
+
+  """
+  Returns whether the account has hosting activated.
+  """
+  hasHosting: Boolean!
 }
 
 """
@@ -14981,19 +14928,10 @@ type Vendor implements Account & AccountWithContributions {
   isActive: Boolean
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -18899,19 +18837,10 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   isActive: Boolean!
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -20019,19 +19948,10 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   isActive: Boolean!
 
   """
-  Returns whether the account is setup to Host collectives.
-  """
-  isHost: Boolean! @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting instead.")
-
-  """
   Returns whether the account has money management activated.
   """
-  hasMoneyManagement: Boolean!
-
-  """
-  Returns whether the account has hosting activated.
-  """
-  hasHosting: Boolean!
+  isHost: Boolean!
+    @deprecated(reason: "2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.")
 
   """
   Returns true if the remote user is an admin of this account
@@ -22716,7 +22636,7 @@ type Mutation {
     Should the Organization have hosting capabilities
     """
     hasHosting: Boolean
-  ): Account!
+  ): Organization!
 
   """
   Add a new payment method to be used with an Order. Scope: "orders".
