@@ -54,9 +54,19 @@ const getCollectivesJoinCondition = (
     associationFields[association] && !includeChildrenAccounts && !(includeHostedAccounts && account.isHostAccount)
       ? associationFields[association]
       : `$${association}.id$`;
-  const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id) || [];
-  const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
-  let conditions: WhereOptions[] = [{ [field]: allTopAccountIds }];
+  const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id).filter(id => id !== account.id) || [];
+  // When hostedAccounts filter is provided with hostContext, exclude the host account from the initial condition
+  const allTopAccountIds =
+    limitToHostedAccountsIds.length && excludeHostAccounts
+      ? limitToHostedAccountsIds
+      : uniq([account.id, ...limitToHostedAccountsIds]);
+  const conditions: WhereOptions[] = [];
+
+  // If hostedAccounts was provided but became empty after filtering (e.g., INTERNAL context filtering out hosted collectives),
+  // return a condition that matches nothing
+  if (limitToHostedAccounts !== undefined && limitToHostedAccounts.length === 0 && !includeHostedAccounts) {
+    return { [`$${association}.id$`]: { [Op.in]: [] } };
+  }
 
   // Hosted accounts
   if (includeHostedAccounts && account.isHostAccount) {
@@ -68,6 +78,7 @@ const getCollectivesJoinCondition = (
 
     // Handle id filtering: either limit to specific hosted accounts, or exclude host accounts
     if (limitToHostedAccountsIds.length) {
+      // When hostedAccounts filter is provided, only include those specific accounts (excludes host)
       hostedAccountCondition[`$${association}.id$`] = { [Op.in]: limitToHostedAccountsIds };
     } else if (excludeHostAccounts) {
       // Exclude the host account and its children
@@ -77,7 +88,11 @@ const getCollectivesJoinCondition = (
       };
     }
 
-    conditions = [hostedAccountCondition];
+    conditions.push(hostedAccountCondition);
+  } else if (!includeHostedAccounts || !limitToHostedAccountsIds.length) {
+    // Only include initial condition when not using hosted accounts filtering
+    // or when hostedAccounts is not provided (to include the host account itself)
+    conditions.push({ [field]: allTopAccountIds });
   }
 
   // Children collectives
@@ -103,8 +118,7 @@ export const OrdersCollectionArgs = {
   hostContext: {
     type: GraphQLHostContext,
     description:
-      'If account is a host, select whether to include ALL, INTERNAL or HOSTED (default behavior is INTERNAL)',
-    defaultValue: 'INTERNAL',
+      'If account is a host, select whether to include ALL, INTERNAL or HOSTED accounts. When set (and `hostedAccounts` is not provided), this will automatically include children accounts (events/projects) of the selected accounts. If `hostedAccounts` is also provided, use `includeChildrenAccounts` to control children account inclusion.',
   },
   includeChildrenAccounts: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -256,17 +270,29 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
   let account, oppositeAccount, hostedAccounts, includeHostedAccounts, excludeHostAccounts;
 
+  // When hostContext is set (and hostedAccounts is not), automatically include children accounts
+  // If hostedAccounts is also provided, respect the includeChildrenAccounts flag
+  let shouldIncludeChildrenAccounts = args.includeChildrenAccounts;
+  if (!isNil(args.hostContext) && !args.hostedAccounts) {
+    shouldIncludeChildrenAccounts = true;
+  }
+
   switch (args.hostContext) {
     case 'ALL':
       includeHostedAccounts = true;
-      excludeHostAccounts = false;
+      // When hostedAccounts filter is provided, exclude the host account itself
+      excludeHostAccounts = !!args.hostedAccounts;
       break;
     case 'HOSTED':
       includeHostedAccounts = true;
       excludeHostAccounts = true;
       break;
     case 'INTERNAL':
+      includeHostedAccounts = false;
+      excludeHostAccounts = false;
+      break;
     default:
+      // When hostContext is not set, use default behavior
       includeHostedAccounts = false;
       excludeHostAccounts = false;
   }
@@ -287,9 +313,21 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     // Load hosted accounts
     if (args.hostedAccounts) {
       hostedAccounts = await fetchAccountsWithReferences(args.hostedAccounts, fetchAccountParams);
+
       hostedAccounts.forEach(hostedAccount => {
         if (hostedAccount.HostCollectiveId !== account.id || !account.isActive) {
           throw new Forbidden('You can only fetch orders from hosted accounts of the specified account');
+        }
+
+        // When hostContext is INTERNAL, validate that all accounts are the host account itself or its children
+        if (args.hostContext === 'INTERNAL') {
+          const isHostAccount = hostedAccount.id === account.id;
+          const isHostChildAccount = hostedAccount.ParentCollectiveId === account.id;
+          if (!isHostAccount && !isHostChildAccount) {
+            throw new Forbidden(
+              'You can only fetch orders from the host account or its children with host context set to INTERNAL',
+            );
+          }
         }
       });
     }
@@ -305,7 +343,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           'fromCollective',
           includeHostedAccounts,
           excludeHostAccounts,
-          args.includeChildrenAccounts,
+          shouldIncludeChildrenAccounts,
           hostedAccounts,
         ),
       );
@@ -343,7 +381,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           'collective',
           includeHostedAccounts,
           excludeHostAccounts,
-          args.includeChildrenAccounts,
+          shouldIncludeChildrenAccounts,
           hostedAccounts,
         ),
       );
