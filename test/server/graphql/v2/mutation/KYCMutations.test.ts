@@ -5,7 +5,12 @@ import sinon from 'sinon';
 
 import { manualKycProvider } from '../../../../../server/lib/kyc/providers/manual';
 import { KYCProviderName } from '../../../../../server/models/KYCVerification';
-import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeKYCVerification,
+  fakeOrganization,
+  fakePlatformSubscription,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/KYCMutations', () => {
@@ -45,8 +50,24 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
       },
     };
 
+    async function setupOrg(opts = {}) {
+      const org = await fakeOrganization({
+        ...opts,
+        isHostAccount: true,
+        data: {
+          isFirstPartyHost: true,
+        },
+      });
+      await fakePlatformSubscription({
+        CollectiveId: org.id,
+        plan: { features: { KYC: true } },
+      });
+
+      return org;
+    }
+
     it('returns error if user is not authenticated', async () => {
-      const org = await fakeOrganization();
+      const org = await setupOrg();
       const user = await fakeUser();
 
       const result = await graphqlQueryV2(mutation, {
@@ -61,10 +82,31 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
       expect(result.errors[0].message).to.equal('You need to be logged in to manage KYC.');
     });
 
+    it('returns error if org has no feature access', async () => {
+      const orgAdmin = await fakeUser();
+      const org = await fakeOrganization({ admin: orgAdmin });
+      const user = await fakeUser();
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          requestedByAccount: { slug: org.slug },
+          verifyAccount: { slug: user.collective.slug },
+          provider: 'MANUAL',
+          request: {
+            ...manualProviderArgs,
+          },
+        },
+        orgAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This feature is not supported for your account');
+    });
+
     it('returns error if user is not organization admin', async () => {
       const orgAdmin = await fakeUser();
       const otherUser = await fakeUser();
-      const org = await fakeOrganization({ admin: orgAdmin });
+      const org = await setupOrg({ admin: orgAdmin });
       const user = await fakeUser();
 
       const result = await graphqlQueryV2(
@@ -85,7 +127,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
 
     it('returns error if verify account does not exist', async () => {
       const orgAdmin = await fakeUser();
-      const org = await fakeOrganization({ admin: orgAdmin });
+      const org = await setupOrg({ admin: orgAdmin });
       const user = await fakeUser();
       await user.collective.destroy();
 
@@ -106,7 +148,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
     });
     it('returns error if request account does not exist', async () => {
       const orgAdmin = await fakeUser();
-      const org = await fakeOrganization({ admin: orgAdmin });
+      const org = await setupOrg({ admin: orgAdmin });
       await org.destroy();
       const user = await fakeUser();
 
@@ -129,7 +171,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
     it('returns error if provider request fails', async () => {
       sandbox.stub(manualKycProvider, 'request').rejects(new Error('Request failed'));
       const orgAdmin = await fakeUser();
-      const org = await fakeOrganization({ admin: orgAdmin });
+      const org = await setupOrg({ admin: orgAdmin });
       const user = await fakeUser();
 
       const result = await graphqlQueryV2(
@@ -150,7 +192,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
 
     it('calls provider with args', async () => {
       const orgAdmin = await fakeUser();
-      const org = await fakeOrganization({ admin: orgAdmin });
+      const org = await setupOrg({ admin: orgAdmin });
       const user = await fakeUser();
 
       const expected = await fakeKYCVerification({

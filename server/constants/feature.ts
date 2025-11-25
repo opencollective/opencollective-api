@@ -94,6 +94,7 @@ enum FEATURE {
   FUNDS_GRANTS_MANAGEMENT = 'FUNDS_GRANTS_MANAGEMENT',
   VENDORS = 'VENDORS',
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
+  KYC = 'KYC',
 }
 
 // features that can conditionally enabled/disabled based on subscription
@@ -115,6 +116,7 @@ export const CommercialFeatures = [
   FEATURE.RECEIVE_EXPENSES,
   FEATURE.ACCOUNT_MANAGEMENT,
   FEATURE.OFF_PLATFORM_TRANSACTIONS,
+  FEATURE.KYC,
 ] as const;
 
 /**
@@ -194,6 +196,10 @@ export const FeatureDetails: Record<CommercialFeaturesType, { label: string; doc
   },
   OFF_PLATFORM_TRANSACTIONS: {
     label: 'Synchronize Bank Accounts',
+    documentationUrl: null,
+  },
+  KYC: {
+    label: 'KYC',
     documentationUrl: null,
   },
 } as const;

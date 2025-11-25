@@ -1,5 +1,6 @@
 import { GraphQLNonNull } from 'graphql';
 
+import { checkFeatureAccess, FEATURE } from '../../../lib/allowed-features';
 import { getKYCProvider } from '../../../lib/kyc';
 import { KYCVerification } from '../../../models/KYCVerification';
 import { checkRemoteUserCanUseKYC } from '../../common/scope-check';
@@ -36,6 +37,8 @@ const KYCMutations = {
       if (!req.remoteUser.isAdminOfCollective(requestedByAccount)) {
         throw new Forbidden();
       }
+
+      await checkFeatureAccess(requestedByAccount, FEATURE.KYC);
 
       const verifyAccount = await fetchAccountWithReference(args.verifyAccount, { throwIfMissing: true });
 
