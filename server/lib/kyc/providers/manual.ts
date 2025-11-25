@@ -10,13 +10,26 @@ type ManualKYCRequest = {
 
 type ManualKYCVerification = KYCVerification<KYCProviderName.MANUAL>;
 
-class ManualKYCProvider extends KYCProvider<ManualKYCRequest> {
+class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerification> {
   constructor() {
     super(KYCProviderName.MANUAL);
   }
 
-  async request(req: KYCRequest, providerRequest: ManualKYCRequest): Promise<KYCVerification> {
-    const kycVerification = KYCVerification.create({
+  async request(req: KYCRequest, providerRequest: ManualKYCRequest): Promise<ManualKYCVerification> {
+    const existing = await KYCVerification.findOne({
+      where: {
+        CollectiveId: req.CollectiveId,
+        RequestedByCollectiveId: req.RequestedByCollectiveId,
+        provider: this.providerName,
+        status: KYCVerificationStatus.VERIFIED,
+      },
+    });
+
+    if (existing) {
+      throw new Error(`Account already verified with ${this.providerName} provider`);
+    }
+
+    const kycVerification = await KYCVerification.create<ManualKYCVerification>({
       CollectiveId: req.CollectiveId,
       RequestedByCollectiveId: req.RequestedByCollectiveId,
       data: {
@@ -26,10 +39,11 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest> {
           notes: providerRequest.notes ?? '',
         },
       },
-      provider: KYCProviderName.MANUAL,
+      provider: this.providerName,
       status: KYCVerificationStatus.VERIFIED,
       verifiedAt: new Date(),
     });
+
     return kycVerification;
   }
 }
