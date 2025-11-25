@@ -996,6 +996,7 @@ class Collective extends Model<
         plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
         hostFeePercent: undefined,
         platformFeePercent: undefined,
+        settings: { ...this.settings, canHostAccounts: false },
       };
       // hostFeePercent and platformFeePercent are not supposed to be set at this point
       // but we're dealing with legacy tests here
