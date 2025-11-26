@@ -24,6 +24,7 @@ import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/cons
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
+import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
 import { crypto } from '../../server/lib/encryption';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
@@ -48,6 +49,7 @@ import models, {
   Update,
   UploadedFile,
   VirtualCard,
+  VirtualCardRequest,
 } from '../../server/models';
 import AccountingCategory from '../../server/models/AccountingCategory';
 import Application, { ApplicationType } from '../../server/models/Application';
@@ -70,6 +72,7 @@ import User from '../../server/models/User';
 import UserToken, { TokenType } from '../../server/models/UserToken';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
 import { VirtualCardStatus } from '../../server/models/VirtualCard';
+import { VirtualCardRequestStatus } from '../../server/models/VirtualCardRequest';
 import { randEmail, randUrl } from '../stores';
 
 export { randEmail, sequelize };
@@ -1104,6 +1107,26 @@ export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttr
     },
     CollectiveId,
     HostCollectiveId,
+  });
+};
+
+export const fakeVirtualCardRequest = async (
+  virtualCardRequestData: Partial<InferCreationAttributes<VirtualCardRequest>> = {},
+) => {
+  const CollectiveId = virtualCardRequestData.CollectiveId || (await fakeCollective()).id;
+  const HostCollectiveId =
+    virtualCardRequestData.HostCollectiveId || (await models.Collective.getHostCollectiveId(CollectiveId));
+  return models.VirtualCardRequest.create({
+    purpose: randStr('purpose'),
+    notes: randStr('notes'),
+    status: VirtualCardRequestStatus.PENDING,
+    currency: 'USD',
+    spendingLimitAmount: randAmount(),
+    spendingLimitInterval: VirtualCardLimitIntervals.ALL_TIME,
+    ...virtualCardRequestData,
+    CollectiveId,
+    HostCollectiveId,
+    UserId: virtualCardRequestData.UserId || (await fakeUser()).id,
   });
 };
 
