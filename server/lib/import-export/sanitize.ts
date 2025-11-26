@@ -16,6 +16,7 @@ import * as ExpenseLib from '../../graphql/common/expenses';
 import * as OrdersLib from '../../graphql/common/orders';
 import { canSeeUpdate } from '../../graphql/common/update';
 import { Agreement, Collective, LegalDocument, ModelInstance, type ModelNames } from '../../models';
+import { KYCVerification } from '../../models/KYCVerification';
 import { IDENTIFIABLE_DATA_FIELDS } from '../../models/PayoutMethod';
 
 const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
@@ -318,6 +319,15 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
     twoFactorAuthRecoveryCodes: null,
   }),
   PlatformSubscription: () => {},
+  KYCVerification: kycVerification => {
+    return {
+      ...kycVerification,
+      data: {
+        ...kycVerification,
+        providerData: {},
+      },
+    } as unknown as KYCVerification;
+  },
 };
 
 export const getSanitizers = ({ isDev = false } = {}): Partial<Record<ModelNames, Sanitizer<ModelNames>>> => {
