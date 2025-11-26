@@ -7,7 +7,7 @@ import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op } from '../../../models';
-import { KYCVerification } from '../../../models/KYCVerification';
+import { KYCProviderName, KYCVerification } from '../../../models/KYCVerification';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
@@ -27,6 +27,7 @@ import { GraphQLKYCVerificationCollection } from '../query/collection/KYCVerific
 
 import { GraphQLContributorProfile } from './ContributorProfile';
 import { GraphQLHost } from './Host';
+import { GraphQLKYCStatus } from './KYCStatus';
 import { UserTwoFactorMethod as UserTwoFactorMethodObject } from './UserTwoFactorMethod';
 
 export const GraphQLIndividual = new GraphQLObjectType({
@@ -368,6 +369,39 @@ export const GraphQLIndividual = new GraphQLObjectType({
               });
             },
           };
+        },
+      },
+      kycStatus: {
+        type: new GraphQLNonNull(GraphQLKYCStatus),
+        description: 'Verified KYC status, if any',
+        args: {
+          requestedByAccount: {
+            description: 'If set, returns only KYC requests made by these accounts',
+            type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+          },
+        },
+        async resolve(account, args, req: Express.Request) {
+          checkRemoteUserCanUseKYC(req);
+          const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
+          const requestedByAccount = await fetchAccountWithReference(args.requestedByAccount, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          });
+
+          const isRequesterAdmin = req.remoteUser.isAdminOfCollective(requestedByAccount);
+          const hasAccess = isAccountAdmin || isRequesterAdmin;
+
+          if (!hasAccess) {
+            throw new Forbidden();
+          }
+
+          return Object.fromEntries(
+            Object.values(KYCProviderName).map(provider => [
+              provider,
+              () =>
+                req.loaders.KYCVerification.verifiedStatusByProvider(requestedByAccount.id, provider).load(account.id),
+            ]),
+          );
         },
       },
     };

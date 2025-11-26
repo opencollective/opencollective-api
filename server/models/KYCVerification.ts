@@ -47,6 +47,60 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   declare createdAt: Date;
   declare updatedAt: Date;
   declare deletedAt?: Date;
+
+  static get loaders() {
+    const byRequestedByCollectiveId = {
+      verifiedStatusByProvider: {},
+    };
+    function verifiedStatusByProvider(
+      RequestedByCollectiveId: number,
+      provider: KYCProviderName,
+    ): DataLoader<number, KYCVerification> {
+      if (byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId]) {
+        return byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId];
+      }
+
+      byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId] = new DataLoader<
+        number,
+        KYCVerification
+      >(async keys => {
+        const res: KYCVerification[] = await sequelize.query(
+          `
+          WITH verified_status AS (
+            SELECT 
+              "kyc".*,
+              RANK() OVER(PARTITION BY "kyc"."CollectiveId" ORDER BY "kyc"."verifiedAt" DESC) "_rank"
+            FROM "KYCVerifications" "kyc"
+            WHERE
+              "kyc"."status" = :status AND
+              "kyc"."provider" = :provider AND
+              "kyc"."RequestedByCollectiveId" = :RequestedByCollectiveId AND
+              "kyc"."CollectiveId" IN (:CollectiveId)              
+          ) SELECT * from verified_status WHERE "_rank" = 1;
+          
+        `,
+          {
+            type: sequelize.QueryTypes.SELECT,
+            model: KYCVerification,
+            mapToModel: true,
+            replacements: {
+              status: KYCVerificationStatus.VERIFIED,
+              provider,
+              RequestedByCollectiveId,
+              CollectiveId: keys,
+            },
+          },
+        );
+
+        return sortResultsSimple(keys, res, i => i.CollectiveId);
+      });
+
+      return byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId];
+    }
+    return {
+      verifiedStatusByProvider,
+    };
+  }
 }
 
 KYCVerification.init(

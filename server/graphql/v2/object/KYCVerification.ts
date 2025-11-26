@@ -27,9 +27,11 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
     },
     providerData: {
       type: new GraphQLNonNull(GraphQLKYCProviderData),
-      async resolve(kycVerification, _, req: Express.Request) {
-        const isRequesterAdmin = req.remoteUser?.isAdmin(kycVerification.RequestedByCollectiveId);
-        if (!isRequesterAdmin) {
+      resolve(kycVerification, _, req: Express.Request) {
+        const hasAccess =
+          req.remoteUser?.isAdmin(kycVerification.RequestedByCollectiveId) ||
+          req.remoteUser?.isAdmin(kycVerification.CollectiveId);
+        if (!hasAccess) {
           return null;
         }
         return kycVerification;
