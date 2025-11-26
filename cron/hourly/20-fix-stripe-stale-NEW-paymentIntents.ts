@@ -13,11 +13,6 @@ import { runCronJob } from '../utils';
 
 const PAGE_SIZE = 20;
 
-if (parseToBoolean(process.env.SKIP_STRIPE_STALE_NEW_PAYMENT_INTENTS)) {
-  console.log('Skipping because SKIP_STRIPE_STALE_NEW_PAYMENT_INTENTS is set.');
-  process.exit();
-}
-
 async function* staleStripeNewPaymentIntentOrdersPager() {
   const query = {
     include: [
@@ -95,5 +90,9 @@ async function run() {
 }
 
 if (require.main === module) {
+  if (parseToBoolean(process.env.SKIP_STRIPE_STALE_NEW_PAYMENT_INTENTS)) {
+    console.log('Skipping because SKIP_STRIPE_STALE_NEW_PAYMENT_INTENTS is set.');
+    process.exit();
+  }
   runCronJob('fix-stripe-stale-NEW-paymentIntents', run, 60 * 60);
 }

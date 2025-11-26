@@ -182,11 +182,13 @@ const program = new Command()
   .option('--concurrency <number>', 'Number of concurrent requests to S3', '3')
   .parse(process.argv);
 
-main(program.opts())
-  .then(() => {
-    process.exit(0);
-  })
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main(program.opts())
+    .then(() => {
+      process.exit(0);
+    })
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

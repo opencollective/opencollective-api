@@ -78,7 +78,7 @@ describe('submit-platform-subscription-bills', () => {
     const utilizations = [
       { activeCollectives: 0, expensesPaid: 5 },
       { activeCollectives: 5, expensesPaid: 2 },
-      { activeCollectives: 4, expensesPaid: 55 },
+      { activeCollectives: 4, expensesPaid: 100 },
       { activeCollectives: 20, expensesPaid: 120 },
       { activeCollectives: 30, expensesPaid: 230 },
     ];
@@ -142,19 +142,13 @@ describe('submit-platform-subscription-bills', () => {
     expect(activities).to.have.length(4);
     const org2Activity = activities.find(a => a.CollectiveId === organizations[2].id);
     expect(org2Activity.data).to.containSubset({
-      expense: { type: expenseTypes.PLATFORM_BILLING, CollectiveId: organizations[2].id, amount: 4500 },
+      expense: { type: expenseTypes.PLATFORM_BILLING, CollectiveId: organizations[2].id, amount: 8000 },
       items: [
         {
-          amount: 4000,
+          amount: 8000,
           currency: 'USD',
-          description: 'Base subscription Discover 5 - 01-Sep-2023 to 30-Sep-2023',
+          description: 'Base subscription Discover 10 - 01-Sep-2023 to 30-Sep-2023',
           incurredAt: '2023-09-30T23:59:59.999Z',
-        },
-        {
-          amount: 500,
-          currency: 'USD',
-          description: 'Additional Paid Expenses Utilization: 5',
-          incurredAt: '2023-09-01T00:00:00.000Z',
         },
       ],
       payoutMethod: { type: 'STRIPE' },
@@ -162,13 +156,13 @@ describe('submit-platform-subscription-bills', () => {
 
     expect(org2Activity.data.bill).to.containSubset({
       base: {
-        subscriptions: [{ amount: 4000, title: 'Discover 5' }],
-        total: 4000,
+        subscriptions: [{ amount: 8000, title: 'Discover 10' }],
+        total: 8000,
       },
       additional: {
-        total: 500,
-        amounts: { activeCollectives: 0, expensesPaid: 500 },
-        utilization: { activeCollectives: 0, expensesPaid: 5 },
+        total: 0,
+        amounts: { activeCollectives: 0, expensesPaid: 0 },
+        utilization: { activeCollectives: 0, expensesPaid: 0 },
       },
       billingPeriod: { month: 8, year: 2023 },
       dueDate: '2023-10-01T00:00:00.000Z',
@@ -176,23 +170,23 @@ describe('submit-platform-subscription-bills', () => {
         {
           period: [{ inclusive: true, value: '2023-08-09T00:00:00.000Z' }, { inclusive: true }],
           plan: {
-            id: 'discover-5',
+            id: 'discover-10',
             pricing: {
-              includedCollectives: 5,
-              includedExpensesPerMonth: 50,
+              includedCollectives: 10,
+              includedExpensesPerMonth: 100,
               pricePerAdditionalCollective: 1000,
               pricePerAdditionalExpense: 100,
-              pricePerMonth: 4000,
+              pricePerMonth: 8000,
             },
-            title: 'Discover 5',
+            title: 'Discover 10',
             type: 'Discover',
           },
         },
       ],
-      totalAmount: 4500,
+      totalAmount: 8000,
       utilization: {
         activeCollectives: 4,
-        expensesPaid: 55,
+        expensesPaid: 100,
       },
     });
   });
@@ -212,6 +206,6 @@ describe('submit-platform-subscription-bills', () => {
     expect(org2Body).to.contain('Your Open Collective platform subscription has been processed successfully.');
     expect(org2Body).to.contain('Billing Period');
     expect(org2Body).to.contain('8/2023');
-    expect(org2Body).to.contain('$45.00');
+    expect(org2Body).to.contain('$80.00');
   });
 });

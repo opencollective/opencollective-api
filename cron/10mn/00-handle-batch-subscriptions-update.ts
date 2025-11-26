@@ -16,11 +16,6 @@ import { CONTRIBUTION_PAUSED_MSG } from '../../server/paymentProviders/paypal/su
 import { isPaymentProviderWithExternalRecurring } from '../../server/paymentProviders/types';
 import { runCronJob } from '../utils';
 
-if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
-  console.log('Skipping because SKIP_BATCH_SUBSCRIPTION_UPDATE is set.');
-  process.exit();
-}
-
 const HostsCache = {};
 
 /**
@@ -249,5 +244,9 @@ export async function run() {
 }
 
 if (require.main === module) {
+  if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
+    console.log('Skipping because SKIP_BATCH_SUBSCRIPTION_UPDATE is set.');
+    process.exit();
+  }
   runCronJob('handle-batch-subscriptions-update', run, 60 * 60);
 }

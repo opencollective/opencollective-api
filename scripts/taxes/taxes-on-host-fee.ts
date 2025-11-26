@@ -230,10 +230,12 @@ program
     }
   });
 
-program
-  .parseAsync(process.argv)
-  .then(() => process.exit(0))
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  program
+    .parseAsync(process.argv)
+    .then(() => process.exit(0))
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

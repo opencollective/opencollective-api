@@ -12,12 +12,6 @@ import { runCronJob } from '../utils';
 
 // Only run on the first of the year
 const today = new Date();
-if (config.env === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the first of year, script aborted!');
-  process.exit();
-}
-
-process.env.PORT = 3066;
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const startDate = new Date(`${d.getFullYear() - 1}`);
@@ -290,5 +284,11 @@ const init = () => {
 };
 
 if (require.main === module) {
+  if (config.env === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
+    console.log('OC_ENV is production and today is not the first of year, script aborted!');
+    process.exit();
+  }
+
+  process.env.PORT = 3066;
   runCronJob('yearly-user-report', init, 23 * 60 * 60);
 }

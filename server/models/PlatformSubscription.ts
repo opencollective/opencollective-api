@@ -560,6 +560,11 @@ class PlatformSubscription extends Model<
               { extra: { failures }, domain: ENGINEERING_DOMAINS.OFF_PLATFORM_TRANSACTIONS },
             );
           }
+        } else if (feature === FEATURE.CHARGE_HOSTING_FEES) {
+          await collective.updateHostFeeAsSystem(0, {
+            transaction: opts?.transaction,
+            dropCustomHostedCollectivesFees: true,
+          });
         }
       }
 

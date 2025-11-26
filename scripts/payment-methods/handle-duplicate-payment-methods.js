@@ -53,12 +53,14 @@ async function run() {
   );
 }
 
-run()
-  .then(() => {
-    console.log('>>> Completed!');
-    process.exit();
-  })
-  .catch(err => {
-    console.error(err);
-    process.exit();
-  });
+if (require.main === module) {
+  run()
+    .then(() => {
+      console.log('>>> Completed!');
+      process.exit();
+    })
+    .catch(err => {
+      console.error(err);
+      process.exit();
+    });
+}

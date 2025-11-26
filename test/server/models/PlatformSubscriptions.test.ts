@@ -544,6 +544,78 @@ describe('server/models/PlatformSubscriptions', () => {
           });
         });
       });
+
+      describe('Host fee', () => {
+        it('removes the host fee when removing CHARGE_HOSTING_FEES feature', async () => {
+          const admin = await fakeUser();
+          const host = await fakeActiveHost({ admin, hostFeePercent: 10 });
+          const regularCollective = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 10,
+            approvedAt: new Date(),
+          });
+          const collectiveWithCustomHostFee = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 5,
+            approvedAt: new Date(),
+            data: { useCustomHostFee: true },
+          });
+          await PlatformSubscription.createSubscription(
+            host,
+            new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+            { title: 'A plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: true } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 10);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 5);
+
+          await PlatformSubscription.replaceCurrentSubscription(
+            host,
+            new Date(),
+            { title: 'A new plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: false } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 0);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 0);
+        });
+
+        it('is NOT removed when upgrading to a plan that also has the feature', async () => {
+          const admin = await fakeUser();
+          const host = await fakeActiveHost({ admin, hostFeePercent: 10 });
+          const regularCollective = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 10,
+            approvedAt: new Date(),
+          });
+          const collectiveWithCustomHostFee = await fakeCollective({
+            HostCollectiveId: host.id,
+            hostFeePercent: 5,
+            approvedAt: new Date(),
+            data: { useCustomHostFee: true },
+          });
+          await PlatformSubscription.createSubscription(
+            host,
+            new Date(Date.UTC(2016, 0, 1, 22, 1, 22, 1)),
+            { title: 'A plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: true } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 10);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 5);
+
+          await PlatformSubscription.replaceCurrentSubscription(
+            host,
+            new Date(),
+            { title: 'A new plan', features: { [FEATURE.CHARGE_HOSTING_FEES]: true } },
+            admin,
+          );
+
+          await expect(regularCollective.reload()).to.eventually.have.property('hostFeePercent', 10);
+          await expect(collectiveWithCustomHostFee.reload()).to.eventually.have.property('hostFeePercent', 5);
+        });
+      });
     });
   });
 
@@ -831,10 +903,10 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 5000,
-          subscriptions: [{ amount: 5000 }],
+          total: 6000,
+          subscriptions: [{ amount: 6000 }],
         },
-        totalAmount: 14000,
+        totalAmount: 15000,
       });
 
       const sub2 = await PlatformSubscription.replaceCurrentSubscription(
@@ -864,23 +936,23 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 21452,
+          total: 20258,
           subscriptions: [
             {
               title: 'Pro 20',
-              amount: 19194,
+              amount: 17548,
               startDate: sub2.startDate,
               endDate: sub2BillingEnd,
             },
             {
               title: 'Basic 5',
-              amount: 2258,
+              amount: 2710,
               startDate: sub1.startDate,
               endDate: sub1.endDate,
             },
           ],
         },
-        totalAmount: 21452,
+        totalAmount: 20258,
       });
     });
 
@@ -938,10 +1010,10 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 2742,
-          subscriptions: [{ amount: 2742 }],
+          total: 3290,
+          subscriptions: [{ amount: 3290 }],
         },
-        totalAmount: 11742,
+        totalAmount: 12290,
       });
     });
 
@@ -1009,10 +1081,10 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 2258,
-          subscriptions: [{ amount: 2258 }],
+          total: 2710,
+          subscriptions: [{ amount: 2710 }],
         },
-        totalAmount: 11258,
+        totalAmount: 11710,
       });
     });
   });

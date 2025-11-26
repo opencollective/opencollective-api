@@ -33,22 +33,6 @@ const isProduction = config.env === 'production';
 const KIND = process.env.KIND;
 const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
 
-// Only run on the 1th of the month
-if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
-  process.exit();
-} else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
-  console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
-  process.exit();
-} else if (!KIND && !DRY) {
-  console.log('KIND must be set when not running in dry mode.');
-  process.exit();
-}
-
-if (DRY) {
-  console.info('Running dry, changes are not going to be persisted to the DB.');
-}
-
 // return last payout method used for the last paid settlement if its was not manual or other.
 async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMethod> {
   const res = await Expense.findOne({
@@ -364,5 +348,21 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 }
 
 if (require.main === module) {
+  // Only run on the 1th of the month
+  if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
+    console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
+    process.exit();
+  } else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
+    console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
+    process.exit();
+  } else if (!KIND && !DRY) {
+    console.log('KIND must be set when not running in dry mode.');
+    process.exit();
+  }
+
+  if (DRY) {
+    console.info('Running dry, changes are not going to be persisted to the DB.');
+  }
+
   runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60);
 }
