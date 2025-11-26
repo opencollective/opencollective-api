@@ -22,6 +22,7 @@ describe('stripe/payment-intent', () => {
       const sandbox = createSandbox();
       beforeEach(() => {
         sandbox.stub(stripe.paymentIntents, 'update').callsFake((id, intent) => Promise.resolve({ id, ...intent }));
+        sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: randStr('cus_fake') }));
       });
       afterEach(sandbox.restore);
 
