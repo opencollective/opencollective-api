@@ -53,13 +53,13 @@ describe('server/lib/allowed-features', () => {
     });
 
     it('returns DISABLED + PRICING if feature is not available in current plan', async () => {
-      const host = await fakeActiveHost({ data: { features: { [FEATURE.RECEIVE_HOST_APPLICATIONS]: true } } });
+      const host = await fakeActiveHost({ data: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } } });
       await fakePlatformSubscription({
         CollectiveId: host.id,
-        plan: { features: { RECEIVE_HOST_APPLICATIONS: false } },
+        plan: { features: { CHART_OF_ACCOUNTS: false } },
       });
 
-      expect(await getFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
+      expect(await getFeatureAccess(host, FEATURE.CHART_OF_ACCOUNTS)).to.deep.eq({
         access: 'DISABLED',
         reason: 'PRICING',
       });
@@ -808,20 +808,14 @@ describe('server/lib/allowed-features', () => {
         const featuresMap = await getFeaturesAccessMap(user.collective);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          AGREEMENTS: { access: 'AVAILABLE', reason: null },
-          ALIPAY: { access: 'AVAILABLE', reason: null },
-          CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
-          CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-          EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
-          EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-          FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-          HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
-          PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
-          PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
-          RECEIVE_HOST_APPLICATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
-          TAX_FORMS: { access: 'AVAILABLE', reason: null },
-          TRANSFERWISE: { access: 'AVAILABLE', reason: null },
-          VENDORS: { access: 'AVAILABLE', reason: null },
+          AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         });
       });
     });

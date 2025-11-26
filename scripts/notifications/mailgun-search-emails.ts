@@ -83,12 +83,14 @@ const main = async () => {
   }
 };
 
-main()
-  .then(() => {
-    console.log('Done');
-    process.exit();
-  })
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => {
+      console.log('Done');
+      process.exit();
+    })
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

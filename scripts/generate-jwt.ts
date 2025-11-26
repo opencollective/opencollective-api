@@ -53,4 +53,6 @@ program.command('email <email> [env]').action(async email => {
   sequelize.close();
 });
 
-program.parse();
+if (require.main === module) {
+  program.parse();
+}

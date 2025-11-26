@@ -228,9 +228,11 @@ const main = async () => {
   console.log(`${countOfDuplicatedPaymentIntents[0].count} duplicated payment intents attached to orders left.`);
 };
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

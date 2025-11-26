@@ -148,11 +148,13 @@ const program = new Command()
   .option('--ignoreDeprecation', 'Ignore the deprecation block')
   .parse(process.argv);
 
-main(program.opts())
-  .then(() => {
-    process.exit(0);
-  })
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main(program.opts())
+    .then(() => {
+      process.exit(0);
+    })
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

@@ -8,7 +8,7 @@ import speakeasy from 'speakeasy';
 import request from 'supertest';
 
 import app from '../../../server/index';
-import * as auth from '../../../server/lib/auth.js';
+import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
 import { fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';

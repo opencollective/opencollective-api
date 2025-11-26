@@ -46,9 +46,11 @@ const checkSubscription = async (hostSlug: string, subscriptionId: string): Prom
   console.log('-------');
 };
 
-main()
-  .then(() => process.exit(0))
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

@@ -14,14 +14,6 @@ import models, { Collective, Expense, Op } from '../../server/models';
 import { Billing } from '../../server/models/PlatformSubscription';
 import { onlyExecuteInProdOnMondays, runCronJob } from '../utils';
 
-if (parseToBoolean(process.env.SKIP_OVERDUE_BILLING_NOTIFICATIONS)) {
-  console.log('Skipping because SKIP_OVERDUE_BILLING_NOTIFICATIONS is set.');
-  process.exit();
-} else if (config.env === 'production' && new Date().getDate() % 8 !== 0) {
-  console.log('OC_ENV is production and today is not a Monday, script aborted!');
-  process.exit();
-}
-
 /**
  * Find all organizations with overdue platform billing expenses
  * An expense is considered overdue if:
@@ -183,6 +175,14 @@ export async function run(): Promise<void> {
 }
 
 if (require.main === module) {
+  if (parseToBoolean(process.env.SKIP_OVERDUE_BILLING_NOTIFICATIONS)) {
+    console.log('Skipping because SKIP_OVERDUE_BILLING_NOTIFICATIONS is set.');
+    process.exit();
+  } else if (config.env === 'production' && new Date().getDate() % 8 !== 0) {
+    console.log('OC_ENV is production and today is not a Monday, script aborted!');
+    process.exit();
+  }
+
   // Only run on Mondays in production (since Heroku scheduler only has daily/hourly options)
   onlyExecuteInProdOnMondays();
 

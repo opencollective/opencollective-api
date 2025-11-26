@@ -90,11 +90,13 @@ const program = new Command()
   .option('--olderThan', 'Only delete files removed since more than X days', '60')
   .parse(process.argv);
 
-main(program.opts())
-  .then(() => {
-    process.exit(0);
-  })
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main(program.opts())
+    .then(() => {
+      process.exit(0);
+    })
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}
