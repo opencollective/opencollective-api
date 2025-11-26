@@ -903,10 +903,10 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 5000,
-          subscriptions: [{ amount: 5000 }],
+          total: 6000,
+          subscriptions: [{ amount: 6000 }],
         },
-        totalAmount: 14000,
+        totalAmount: 15000,
       });
 
       const sub2 = await PlatformSubscription.replaceCurrentSubscription(
@@ -936,23 +936,23 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 21452,
+          total: 20258,
           subscriptions: [
             {
               title: 'Pro 20',
-              amount: 19194,
+              amount: 17548,
               startDate: sub2.startDate,
               endDate: sub2BillingEnd,
             },
             {
               title: 'Basic 5',
-              amount: 2258,
+              amount: 2710,
               startDate: sub1.startDate,
               endDate: sub1.endDate,
             },
           ],
         },
-        totalAmount: 21452,
+        totalAmount: 20258,
       });
     });
 
@@ -1010,10 +1010,10 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 2742,
-          subscriptions: [{ amount: 2742 }],
+          total: 3290,
+          subscriptions: [{ amount: 3290 }],
         },
-        totalAmount: 11742,
+        totalAmount: 12290,
       });
     });
 
@@ -1081,10 +1081,10 @@ describe('server/models/PlatformSubscriptions', () => {
           expensesPaid: 60,
         },
         base: {
-          total: 2258,
-          subscriptions: [{ amount: 2258 }],
+          total: 2710,
+          subscriptions: [{ amount: 2710 }],
         },
-        totalAmount: 11258,
+        totalAmount: 11710,
       });
     });
   });

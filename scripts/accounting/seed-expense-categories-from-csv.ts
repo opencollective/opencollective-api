@@ -146,4 +146,6 @@ const main = async () => {
   program.parseAsync();
 };
 
-main();
+if (require.main === module) {
+  main();
+}
