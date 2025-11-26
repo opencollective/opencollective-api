@@ -1358,7 +1358,7 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
 ): Promise<KYCVerification<Provider>> {
   const status = opts.status || sample(Object.values(KYCVerificationStatus));
   const provider = opts['provider'] || sample(Object.values(KYCProviderName));
-  let providerData = opts?.data?.providerData;
+  let providerData = opts.data?.providerData;
   if (!providerData) {
     switch (provider) {
       case KYCProviderName.MANUAL:
