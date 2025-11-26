@@ -1,5 +1,5 @@
 import ActivityTypes from '../../../constants/activities';
-import { Activity } from '../../../models';
+import Activity from '../../../models/Activity';
 import { KYCProviderName, KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
 
 export type KYCRequest = {
@@ -18,6 +18,8 @@ export abstract class KYCProvider<
   }
 
   abstract request(req: KYCRequest, providerRequest: ProviderKYCRequest): Promise<ProviderKYCVerification>;
+  abstract getVerifiedName(kycVerification: ProviderKYCVerification): string;
+  abstract getVerifiedAddress(kycVerification: ProviderKYCVerification): string;
 
   async revoke(kycVerification: ProviderKYCVerification): Promise<ProviderKYCVerification> {
     const res = await kycVerification.update({

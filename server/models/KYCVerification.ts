@@ -1,6 +1,8 @@
+import DataLoader from 'dataloader';
 import { DataTypes, ForeignKey, InferAttributes, Model } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
+import { sortResultsSimple } from '../graphql/loaders/helpers';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
@@ -56,11 +58,15 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
       RequestedByCollectiveId: number,
       provider: KYCProviderName,
     ): DataLoader<number, KYCVerification> {
-      if (byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId]) {
-        return byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId];
+      if (byRequestedByCollectiveId.verifiedStatusByProvider[provider]?.[RequestedByCollectiveId]) {
+        return byRequestedByCollectiveId.verifiedStatusByProvider[provider][RequestedByCollectiveId];
       }
 
-      byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId] = new DataLoader<
+      if (!byRequestedByCollectiveId.verifiedStatusByProvider[provider]) {
+        byRequestedByCollectiveId.verifiedStatusByProvider[provider] = {};
+      }
+
+      byRequestedByCollectiveId.verifiedStatusByProvider[provider][RequestedByCollectiveId] = new DataLoader<
         number,
         KYCVerification
       >(async keys => {
@@ -95,7 +101,7 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
         return sortResultsSimple(keys, res, i => i.CollectiveId);
       });
 
-      return byRequestedByCollectiveId.verifiedStatusByProvider[RequestedByCollectiveId];
+      return byRequestedByCollectiveId.verifiedStatusByProvider[provider][RequestedByCollectiveId];
     }
     return {
       verifiedStatusByProvider,

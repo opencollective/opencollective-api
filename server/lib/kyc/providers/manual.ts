@@ -48,6 +48,22 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
 
     return kycVerification;
   }
+
+  getVerifiedName(kycVerification: ManualKYCVerification): string {
+    if (kycVerification.status === KYCVerificationStatus.VERIFIED) {
+      return kycVerification.data.providerData.legalName;
+    }
+
+    return null;
+  }
+
+  getVerifiedAddress(kycVerification: ManualKYCVerification): string {
+    if (kycVerification.status === KYCVerificationStatus.VERIFIED) {
+      return kycVerification.data.providerData.legalAddress;
+    }
+
+    return null;
+  }
 }
 
 const manualKycProvider = new ManualKYCProvider();
