@@ -7307,6 +7307,12 @@ type CommunityTransactionSummary {
   expenseCount: Int!
   contributionTotal: Amount!
   contributionCount: Int!
+  expenseTotalAcc: Amount!
+  expenseCountAcc: Int!
+  contributionTotalAcc: Amount!
+  contributionCountAcc: Int!
+  orderCount: Int!
+  orderCountAcc: Int!
 }
 
 """
@@ -7330,10 +7336,30 @@ type KYCVerificationCollection implements Collection {
 A KYC Verification
 """
 type KYCVerification {
+  """
+  Provider used to make this KYC verification
+  """
   provider: KYCProvider!
+
+  """
+  The account that requested the KYC verification
+  """
   requestedByAccount: Account!
+
+  """
+  The account that is verified
+  """
   account: Account!
+
+  """
+  Provider specific data
+  """
   providerData: KYCProviderData!
+
+  """
+  Verified KYC data
+  """
+  verifiedData: KYCVerifiedData!
   status: KYCVerificationStatus!
   requestedAt: DateTime!
   revokedAt: DateTime
@@ -7351,9 +7377,9 @@ Manual KYC data
 """
 type ManualKYCProviderData {
   """
-  Account legal name as verified by manual KYC
+  Notes added during manual verification
   """
-  legalName: String!
+  notes: String!
 
   """
   Account legal address as verified by manual KYC
@@ -7363,7 +7389,22 @@ type ManualKYCProviderData {
   """
   Account legal address as verified by manual KYC
   """
-  notes: String!
+  status: String!
+}
+
+"""
+Verified KYC data
+"""
+type KYCVerifiedData {
+  """
+  Account legal name as verified by KYC
+  """
+  legalName: String!
+
+  """
+  Account legal address as verified by KYC
+  """
+  legalAddress: String!
 }
 
 enum KYCVerificationStatus {
