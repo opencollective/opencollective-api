@@ -1358,13 +1358,21 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
 ): Promise<KYCVerification<Provider>> {
   const status = opts.status || sample(Object.values(KYCVerificationStatus));
   const provider = opts['provider'] || sample(Object.values(KYCProviderName));
-  let providerData = opts.data?.providerData;
+
+  const data = {
+    ...(status === KYCVerificationStatus.VERIFIED
+      ? {
+          legalName: randStr('legalName'),
+          legalAddress: randStr('legalAddress'),
+        }
+      : {}),
+    ...opts.data,
+  };
+  let providerData = opts['providerData'];
   if (!providerData) {
     switch (provider) {
       case KYCProviderName.MANUAL:
-        (providerData as KYCVerification<KYCProviderName.MANUAL>['data']['providerData']) = {
-          legalAddress: randStr('legalAddress'),
-          legalName: randStr('legalName'),
+        (providerData as KYCVerification<KYCProviderName.MANUAL>['providerData']) = {
           notes: randStr('notes'),
         };
         break;
@@ -1379,10 +1387,8 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
     provider,
     CollectiveId: collectiveId,
     RequestedByCollectiveId: requestedByCollectiveId,
-    data: {
-      ...opts.data,
-      providerData,
-    },
+    data,
+    providerData,
     verifiedAt: opts.verifiedAt ?? new Date(),
     revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
   });

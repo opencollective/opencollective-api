@@ -24,6 +24,11 @@ module.exports = {
         allowNull: false,
         defaultValue: Sequelize.literal(`'{}'`),
       },
+      providerData: {
+        type: Sequelize.JSONB,
+        allowNull: false,
+        defaultValue: Sequelize.literal(`'{}'`),
+      },
       provider: {
         type: Sequelize.TEXT,
         allowNull: false,
@@ -71,6 +76,9 @@ module.exports = {
         type: Sequelize.INTEGER,
       },
       data: {
+        type: Sequelize.JSONB,
+      },
+      providerData: {
         type: Sequelize.JSONB,
       },
       provider: {

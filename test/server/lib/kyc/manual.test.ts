@@ -67,10 +67,13 @@ describe('server/lib/kyc/manual', () => {
 
       expect(kycVerification).to.exist;
       expect(kycVerification.status).to.eql(KYCVerificationStatus.VERIFIED);
-      expect(kycVerification.data.providerData).to.eql({
+      expect(kycVerification.providerData).to.eql({
+        notes: 'notes',
+      });
+
+      expect(kycVerification.data).to.eql({
         legalName: 'Legal name',
         legalAddress: 'Legal address',
-        notes: 'notes',
       });
     });
   });

@@ -249,10 +249,12 @@ describe('server/graphql/v2/object/Individual', () => {
                 verifiedAt
                 providerData {
                   ... on ManualKYCProviderData {
-                    legalName
-                    legalAddress
                     notes
                   }
+                }
+                verifiedData {
+                  legalName
+                  legalAddress
                 }
               }
             }
@@ -298,11 +300,11 @@ describe('server/graphql/v2/object/Individual', () => {
         provider: KYCProviderName.MANUAL,
         status: KYCVerificationStatus.VERIFIED,
         data: {
-          providerData: {
-            legalName: 'Legal name 1',
-            legalAddress: 'Legal address 1',
-            notes: '',
-          },
+          legalName: 'Legal name 1',
+          legalAddress: 'Legal address 1',
+        },
+        providerData: {
+          notes: '',
         },
       });
 
@@ -312,11 +314,11 @@ describe('server/graphql/v2/object/Individual', () => {
         provider: KYCProviderName.MANUAL,
         status: KYCVerificationStatus.VERIFIED,
         data: {
-          providerData: {
-            legalName: 'Legal name 2',
-            legalAddress: 'Legal address 2',
-            notes: 'updated',
-          },
+          legalName: 'Legal name 2',
+          legalAddress: 'Legal address 2',
+        },
+        providerData: {
+          notes: 'updated',
         },
       });
 
@@ -326,11 +328,11 @@ describe('server/graphql/v2/object/Individual', () => {
         provider: KYCProviderName.MANUAL,
         status: KYCVerificationStatus.VERIFIED,
         data: {
-          providerData: {
-            legalName: 'Legal name other org',
-            legalAddress: 'Legal address 2',
-            notes: 'updated',
-          },
+          legalName: 'Legal name other org',
+          legalAddress: 'Legal address 2',
+        },
+        providerData: {
+          notes: 'updated',
         },
       });
 
@@ -340,8 +342,8 @@ describe('server/graphql/v2/object/Individual', () => {
         user,
       );
       expect(result.errors).to.not.exist;
-      expect(result.data.account.kycStatus.manual.providerData.legalName).to.equal('Legal name 2');
-      expect(result.data.account.kycStatus.manual.providerData.legalAddress).to.equal('Legal address 2');
+      expect(result.data.account.kycStatus.manual.verifiedData.legalName).to.equal('Legal name 2');
+      expect(result.data.account.kycStatus.manual.verifiedData.legalAddress).to.equal('Legal address 2');
       expect(result.data.account.kycStatus.manual.providerData.notes).to.equal('updated');
     });
 

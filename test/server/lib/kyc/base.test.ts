@@ -6,16 +6,6 @@ import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-h
 import { resetTestDB } from '../../../utils';
 
 class TestProvider extends KYCProvider<unknown> {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getVerifiedName(kycVerification: KYCVerification<KYCProviderName>): string {
-    throw new Error('Method not implemented.');
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getVerifiedAddress(kycVerification: KYCVerification<KYCProviderName>): string {
-    throw new Error('Method not implemented.');
-  }
-
   constructor() {
     super('test' as KYCProviderName);
   }

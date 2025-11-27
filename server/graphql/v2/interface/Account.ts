@@ -26,6 +26,7 @@ import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
 import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
 import { GraphQLHostApplicationCollection } from '../collection/HostApplicationCollection';
+import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
 import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
 import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -92,7 +93,6 @@ import {
   ExpensesCollectionQueryArgs,
   ExpensesCollectionQueryResolver,
 } from '../query/collection/ExpensesCollectionQuery';
-import { GraphQLKYCVerificationCollection } from '../query/collection/KYCVerificationCollection';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionGroupCollectionArgs,

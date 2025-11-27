@@ -18,8 +18,6 @@ export abstract class KYCProvider<
   }
 
   abstract request(req: KYCRequest, providerRequest: ProviderKYCRequest): Promise<ProviderKYCVerification>;
-  abstract getVerifiedName(kycVerification: ProviderKYCVerification): string;
-  abstract getVerifiedAddress(kycVerification: ProviderKYCVerification): string;
 
   async revoke(kycVerification: ProviderKYCVerification): Promise<ProviderKYCVerification> {
     const res = await kycVerification.update({

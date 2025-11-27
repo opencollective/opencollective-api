@@ -32,12 +32,12 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
     const kycVerification = await KYCVerification.create<ManualKYCVerification>({
       CollectiveId: req.CollectiveId,
       RequestedByCollectiveId: req.RequestedByCollectiveId,
+      providerData: {
+        notes: providerRequest.notes ?? '',
+      },
       data: {
-        providerData: {
-          legalAddress: providerRequest.legalAddress,
-          legalName: providerRequest.legalName,
-          notes: providerRequest.notes ?? '',
-        },
+        legalAddress: providerRequest.legalAddress,
+        legalName: providerRequest.legalName,
       },
       provider: this.providerName,
       status: KYCVerificationStatus.VERIFIED,
@@ -47,22 +47,6 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
     await this.createRequestedActivity(kycVerification);
 
     return kycVerification;
-  }
-
-  getVerifiedName(kycVerification: ManualKYCVerification): string {
-    if (kycVerification.status === KYCVerificationStatus.VERIFIED) {
-      return kycVerification.data.providerData.legalName;
-    }
-
-    return null;
-  }
-
-  getVerifiedAddress(kycVerification: ManualKYCVerification): string {
-    if (kycVerification.status === KYCVerificationStatus.VERIFIED) {
-      return kycVerification.data.providerData.legalAddress;
-    }
-
-    return null;
   }
 }
 

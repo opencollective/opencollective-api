@@ -11,21 +11,25 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
   description: 'A KYC Verification',
   fields: () => ({
     provider: {
+      description: 'Provider used to make this KYC verification',
       type: new GraphQLNonNull(GraphQLKYCProvider),
     },
     requestedByAccount: {
+      description: 'The account that requested the KYC verification',
       type: new GraphQLNonNull(GraphQLAccount),
       resolve(kycVerification: KYCVerification, _, req: Express.Request) {
         return req.loaders.Collective.byId.load(kycVerification.RequestedByCollectiveId);
       },
     },
     account: {
+      description: 'The account that is verified',
       type: new GraphQLNonNull(GraphQLAccount),
       resolve(kycVerification: KYCVerification, _, req: Express.Request) {
         return req.loaders.Collective.byId.load(kycVerification.CollectiveId);
       },
     },
     providerData: {
+      description: 'Provider specific data',
       type: new GraphQLNonNull(GraphQLKYCProviderData),
       resolve(kycVerification, _, req: Express.Request) {
         const hasAccess =
@@ -35,6 +39,19 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
           return null;
         }
         return kycVerification;
+      },
+    },
+    verifiedData: {
+      description: 'Verified KYC data',
+      type: new GraphQLNonNull(GraphQLKYCVerifiedData),
+      resolve(kycVerification, _, req: Express.Request) {
+        const hasAccess =
+          req.remoteUser?.isAdmin(kycVerification.RequestedByCollectiveId) ||
+          req.remoteUser?.isAdmin(kycVerification.CollectiveId);
+        if (!hasAccess) {
+          return null;
+        }
+        return kycVerification.data;
       },
     },
     status: {
@@ -55,15 +72,30 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
   }),
 });
 
+const GraphQLKYCVerifiedData = new GraphQLObjectType({
+  name: 'KYCVerifiedData',
+  description: 'Verified KYC data',
+  fields: () => ({
+    legalName: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Account legal name as verified by KYC',
+    },
+    legalAddress: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Account legal address as verified by KYC',
+    },
+  }),
+});
+
 const GraphQLManualKYCProviderData = new GraphQLObjectType({
   name: 'ManualKYCProviderData',
   description: 'Manual KYC data',
   fields: () => ({
-    legalName: {
+    notes: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'Account legal name as verified by manual KYC',
+      description: 'Notes added during manual verification',
       resolve(kycVerification: KYCVerification<KYCProviderName.MANUAL>) {
-        return kycVerification.data.providerData.legalName;
+        return kycVerification.providerData.notes;
       },
     },
     legalAddress: {
@@ -73,7 +105,7 @@ const GraphQLManualKYCProviderData = new GraphQLObjectType({
         return kycVerification.data.providerData.legalAddress;
       },
     },
-    notes: {
+    status: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Account legal address as verified by manual KYC',
       resolve(kycVerification: KYCVerification<KYCProviderName.MANUAL>) {

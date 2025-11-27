@@ -29,7 +29,6 @@ import Expense from '../../models/Expense';
 import { KYCProviderName } from '../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
-import { getKYCProvider } from '../kyc';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 import { formatCurrency } from '../utils';
 
@@ -517,12 +516,11 @@ export const checkExpensesBatch = async (
           continue;
         }
         // TODO match kyc fields with expense details
-        const provider = getKYCProvider(kycVerification.provider);
         addBooleanCheck(checks, true, {
           scope: Scope.USER,
           level: Level.MEDIUM,
           message: `User has KYC Verification with provider '${kycVerification.provider}'`,
-          details: `Verified name: ${provider.getVerifiedName(kycVerification)}, verified address: ${provider.getVerifiedAddress(kycVerification)} `,
+          details: `Verified name: ${kycVerification.data.legalName}, verified address: ${kycVerification.data.legalAddress} `,
         });
       }
 

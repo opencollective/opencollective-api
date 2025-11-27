@@ -322,11 +322,12 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   KYCVerification: kycVerification => {
     return {
       ...kycVerification,
+      providerData: {} as KYCVerification['providerData'],
       data: {
-        ...kycVerification,
-        providerData: {},
+        legalName: 'redacted',
+        legalAddress: 'redacted',
       },
-    } as unknown as KYCVerification;
+    };
   },
 };
 

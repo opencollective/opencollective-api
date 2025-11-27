@@ -13,6 +13,7 @@ import { getContextPermission, PERMISSION_TYPE } from '../../common/context-perm
 import { checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { Forbidden } from '../../errors';
+import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
 import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
 import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -23,7 +24,6 @@ import {
 } from '../input/AccountReferenceInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
-import { GraphQLKYCVerificationCollection } from '../query/collection/KYCVerificationCollection';
 
 import { GraphQLContributorProfile } from './ContributorProfile';
 import { GraphQLHost } from './Host';
