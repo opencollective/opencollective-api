@@ -281,7 +281,7 @@ export async function signup(req: express.Request, res: express.Response) {
         { transaction },
       );
       const collective = await user.createCollective(
-        { name: sanitizedEmail.split('@')[0], data: { requiresProfileCompletion: true, isSuspended: true } },
+        { data: { requiresProfileCompletion: true, isSuspended: true } },
         transaction,
       );
       await user.update({ CollectiveId: collective.id }, { transaction });
