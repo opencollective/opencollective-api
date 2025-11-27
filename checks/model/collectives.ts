@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
 import { runAllChecksThenExit } from './_utils';
@@ -49,7 +50,37 @@ async function checkActiveApprovedAtInconsistency() {
   }
 }
 
-export const checks = [checkDeletedUsers, checkActiveApprovedAtInconsistency];
+async function checkNonActiveHostOrganizations({ fix = false } = {}) {
+  const results = await sequelize.query(
+    `
+    SELECT COUNT(*) as count FROM "Collectives"
+    WHERE "deletedAt" is null
+      AND "isHostAccount" is true
+      AND "isActive" is FALSE
+      AND type = 'ORGANIZATION';
+    `,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    const message = `Host Organizations must be active, found ${results[0].count} inactive ones.`;
+    if (fix) {
+      logger.warn(`Fixing: ${message}`);
+      await sequelize.query(`
+        UPDATE "Collectives"
+        SET "isActive" = true
+        WHERE "deletedAt" is null
+          AND "isHostAccount" is true
+          AND "isActive" is FALSE
+          AND type = 'ORGANIZATION';
+      `);
+    } else {
+      throw new Error(message);
+    }
+  }
+}
+
+export const checks = [checkDeletedUsers, checkActiveApprovedAtInconsistency, checkNonActiveHostOrganizations];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);
