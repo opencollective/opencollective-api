@@ -98,20 +98,6 @@ const GraphQLManualKYCProviderData = new GraphQLObjectType({
         return kycVerification.providerData.notes;
       },
     },
-    legalAddress: {
-      type: new GraphQLNonNull(GraphQLString),
-      description: 'Account legal address as verified by manual KYC',
-      resolve(kycVerification: KYCVerification<KYCProviderName.MANUAL>) {
-        return kycVerification.data.providerData.legalAddress;
-      },
-    },
-    status: {
-      type: new GraphQLNonNull(GraphQLString),
-      description: 'Account legal address as verified by manual KYC',
-      resolve(kycVerification: KYCVerification<KYCProviderName.MANUAL>) {
-        return kycVerification.data.providerData.notes;
-      },
-    },
   }),
 });
 
