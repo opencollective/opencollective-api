@@ -1,11 +1,15 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import sinon from 'sinon';
+import speakeasy from 'speakeasy';
 
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import emailLib from '../../../../../server/lib/email';
+import { crypto } from '../../../../../server/lib/encryption';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
-import { fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 const createOrgMutation = gql`
@@ -165,6 +169,238 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(secondCall.args[2].loginLink).to.include(`next=/dashboard/${createdOrg.slug}`);
 
       sendEmailspy.restore();
+    });
+  });
+
+  describe('editOrganizationMoneyManagementAndHosting', () => {
+    const mutation = gql`
+      mutation EditOrganizationMoneyManagementAndHosting(
+        $organization: AccountReferenceInput!
+        $hasMoneyManagement: Boolean
+        $hasHosting: Boolean
+      ) {
+        editOrganizationMoneyManagementAndHosting(
+          organization: $organization
+          hasMoneyManagement: $hasMoneyManagement
+          hasHosting: $hasHosting
+        ) {
+          id
+          legacyId
+          hasMoneyManagement
+          hasHosting
+        }
+      }
+    `;
+
+    let adminUser, orgWithAdmin, twoFAUser, orgFor2FA, secretFor2FA;
+
+    beforeEach(async () => {
+      adminUser = await fakeUser();
+      orgWithAdmin = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: adminUser,
+        HostCollectiveId: null,
+        settings: {
+          canHostAccounts: false,
+        },
+      });
+
+      // User with 2FA enabled
+      twoFAUser = await fakeUser({}, {}, { enable2FA: true });
+      orgFor2FA = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: twoFAUser,
+        HostCollectiveId: null,
+        settings: {
+          canHostAccounts: false,
+        },
+      });
+      secretFor2FA = crypto.decrypt(twoFAUser.twoFactorAuthToken);
+    });
+
+    it('requires authentication', async () => {
+      const result = await utils.graphqlQueryV2(mutation, {
+        organization: { legacyId: orgWithAdmin.id },
+        hasMoneyManagement: true,
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You need to be logged in/);
+    });
+
+    it('requires admin privileges', async () => {
+      const randomUser = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: true },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('activates money management with 2FA', async () => {
+      const totp = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp}` },
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.true;
+      const org = await models.Collective.findByPk(orgFor2FA.id);
+      expect(org.hasMoneyManagement()).to.be.true;
+      // Activity logged
+      const activity = await models.Activity.findOne({
+        where: { CollectiveId: org.id, type: 'activated.moneyManagement' },
+      });
+      expect(activity).to.exist;
+    });
+
+    it('requires 2FA when enabled on user', async () => {
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
+        twoFAUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two-factor authentication required');
+      expect(result.errors[0].extensions.code).to.equal('2FA_REQUIRED');
+    });
+
+    it('deactivates money management (only when hosting not active)', async () => {
+      // First activate money management
+      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
+      );
+      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: false },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp2}` },
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.false;
+      const org = await models.Collective.findByPk(orgFor2FA.id);
+      expect(org.hasMoneyManagement()).to.be.false;
+      const activity = await models.Activity.findOne({
+        where: { CollectiveId: org.id, type: 'deactivated.moneyManagement' },
+      });
+      expect(activity).to.exist;
+    });
+
+    it('does not activate hosting if money management is disabled', async () => {
+      const totp = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp}` },
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editOrganizationMoneyManagementAndHosting.hasHosting).to.be.false;
+      const org = await models.Collective.findByPk(orgFor2FA.id);
+      expect(org.hasHosting()).to.be.false;
+    });
+
+    it('activates hosting only after money management active', async () => {
+      // Activate money management
+      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
+      );
+      // Activate hosting
+      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp2}` },
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.editOrganizationMoneyManagementAndHosting.hasHosting).to.be.true;
+      const org = await models.Collective.findByPk(orgFor2FA.id);
+      expect(org.hasHosting()).to.be.true;
+      const activity = await models.Activity.findOne({
+        where: { CollectiveId: org.id, type: 'activated.hosting' },
+      });
+      expect(activity).to.exist;
+    });
+
+    it('fails to deactivate money management while hosting active', async () => {
+      // Activate money management & hosting
+      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
+      );
+      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp2}` },
+      );
+      const totp3 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: false },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp3}` },
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Can't deactive money management/);
+    });
+
+    it('fails to deactivate hosting while still hosting collectives', async () => {
+      // Activate money management & hosting
+      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
+      );
+      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp2}` },
+      );
+      // Create a hosted collective
+      await fakeCollective({ HostCollectiveId: orgFor2FA.id });
+      const totp3 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const result = await utils.graphqlQueryV2(
+        mutation,
+        { organization: { legacyId: orgFor2FA.id }, hasHosting: false },
+        twoFAUser,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${totp3}` },
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You can't deactivate hosting while still hosting/);
     });
   });
 });

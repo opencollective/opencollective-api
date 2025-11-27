@@ -694,7 +694,8 @@ export async function activateCollectiveAsHost(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-  return collective.becomeHost(req.remoteUser);
+  // This is now equivalent to activate "Money Management"
+  return collective.activateMoneyManagement(req.remoteUser);
 }
 
 export async function deactivateCollectiveAsHost(_, args, req) {
@@ -713,7 +714,15 @@ export async function deactivateCollectiveAsHost(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-  return collective.deactivateAsHost();
+  // This is expected as a combination of deactivateHosting and deactivateMoneyManagement
+  if (collective.hasHosting()) {
+    await collective.deactivateHosting(req.remoteUser);
+  }
+  if (collective.hasMoneyManagement()) {
+    await collective.deactivateMoneyManagement(req.remoteUser);
+  }
+
+  return collective;
 }
 
 export async function activateBudget(_, args, req) {
