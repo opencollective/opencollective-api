@@ -7380,16 +7380,6 @@ type ManualKYCProviderData {
   Notes added during manual verification
   """
   notes: String!
-
-  """
-  Account legal address as verified by manual KYC
-  """
-  legalAddress: String!
-
-  """
-  Account legal address as verified by manual KYC
-  """
-  status: String!
 }
 
 """
