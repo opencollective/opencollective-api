@@ -2,7 +2,14 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order-status';
-import { fakeActiveHost, fakeCollective, fakeEvent, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeAccountingCategory,
+  fakeActiveHost,
+  fakeCollective,
+  fakeEvent,
+  fakeOrder,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const ordersQuery = gql`
@@ -13,6 +20,7 @@ const ordersQuery = gql`
     $includeChildrenAccounts: Boolean
     $hostedAccounts: [AccountReferenceInput]
     $includeHostedAccounts: Boolean
+    $accountingCategory: [String]
   ) {
     orders(
       account: $account
@@ -21,11 +29,15 @@ const ordersQuery = gql`
       includeChildrenAccounts: $includeChildrenAccounts
       hostedAccounts: $hostedAccounts
       includeHostedAccounts: $includeHostedAccounts
+      accountingCategory: $accountingCategory
     ) {
       totalCount
       nodes {
         id
         legacyId
+        accountingCategory {
+          code
+        }
         toAccount {
           id
           legacyId
@@ -647,6 +659,103 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(fromAccountIds).to.include(host.id);
       expect(fromAccountIds).to.include(hostedCollective.id);
       expect(fromAccountIds).to.include(childAccount.id);
+    });
+  });
+
+  describe('accountingCategory filter', () => {
+    let collective, category1, category2, orderWithCategory1, orderWithCategory2, orderWithoutCategory;
+
+    before(async () => {
+      collective = await fakeCollective();
+
+      // Create accounting categories
+      category1 = await fakeAccountingCategory({
+        CollectiveId: collective.host.id,
+        code: 'CATEGORY-001',
+        kind: 'CONTRIBUTION',
+      });
+
+      category2 = await fakeAccountingCategory({
+        CollectiveId: collective.host.id,
+        code: 'CATEGORY-002',
+        kind: 'CONTRIBUTION',
+      });
+
+      // Create orders with different accounting categories
+      orderWithCategory1 = await fakeOrder({
+        CollectiveId: collective.id,
+        status: OrderStatuses.PAID,
+        AccountingCategoryId: category1.id,
+      });
+
+      orderWithCategory2 = await fakeOrder({
+        CollectiveId: collective.id,
+        status: OrderStatuses.PAID,
+        AccountingCategoryId: category2.id,
+      });
+
+      // Create an order without an accounting category
+      orderWithoutCategory = await fakeOrder({
+        CollectiveId: collective.id,
+        status: OrderStatuses.PAID,
+        AccountingCategoryId: null,
+      });
+    });
+
+    it('should return only orders with requested categories', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        accountingCategory: [category1.code],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(orderWithCategory1.id);
+      expect(result.data.orders.nodes[0].accountingCategory.code).to.eq(category1.code);
+    });
+
+    it('should return orders matching multiple categories when multiple codes are provided', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        accountingCategory: [category1.code, category2.code],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(2);
+      const orderIds = result.data.orders.nodes.map(node => node.legacyId);
+      expect(orderIds).to.include(orderWithCategory1.id);
+      expect(orderIds).to.include(orderWithCategory2.id);
+      expect(orderIds).to.not.include(orderWithoutCategory.id);
+    });
+
+    it('should return only orders without a category when passing __uncategorized__', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        accountingCategory: ['__uncategorized__'],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(orderWithoutCategory.id);
+      expect(result.data.orders.nodes[0].accountingCategory).to.be.null;
+    });
+
+    it('should return orders with category and uncategorized when both are requested', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        accountingCategory: [category1.code, '__uncategorized__'],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(2);
+      const orderIds = result.data.orders.nodes.map(node => node.legacyId);
+      expect(orderIds).to.include(orderWithCategory1.id);
+      expect(orderIds).to.include(orderWithoutCategory.id);
+      expect(orderIds).to.not.include(orderWithCategory2.id);
     });
   });
 });

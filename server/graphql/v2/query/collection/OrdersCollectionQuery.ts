@@ -3,12 +3,12 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, isNil, uniq } from 'lodash';
+import { compact, isEmpty, isNil, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { buildSearchConditions } from '../../../../lib/sql-search';
-import models, { Collective, Op, sequelize } from '../../../../models';
+import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
@@ -36,6 +36,7 @@ import {
 } from '../../input/PaymentMethodReferenceInput';
 import { getDatabaseIdFromTierReference, GraphQLTierReferenceInput } from '../../input/TierReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { UncategorizedValue } from '../../object/AccountingCategory';
 
 type OrderAssociation = 'fromCollective' | 'collective';
 
@@ -110,6 +111,10 @@ const getCollectivesJoinCondition = (
 export const OrdersCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
+  accountingCategory: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only return orders that match these accounting categories',
+  },
   includeHostedAccounts: {
     type: GraphQLBoolean,
     description: 'If account is a host, also include hosted accounts orders',
@@ -255,6 +260,14 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     { association: 'collective', required: true, attributes: [] },
     { model: models.Subscription, required: false, attributes: [] },
   ];
+
+  if (!isEmpty(args.accountingCategory)) {
+    const conditionals = uniq(args.accountingCategory).map(code => [
+      { '$accountingCategory.code$': code === UncategorizedValue ? null : code },
+    ]);
+    where[Op.and].push({ [Op.or]: conditionals });
+    include.push({ model: AccountingCategory, as: 'accountingCategory', required: false });
+  }
 
   // Check Pagination arguments
   if (args.limit <= 0) {
