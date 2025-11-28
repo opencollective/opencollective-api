@@ -225,9 +225,8 @@ export async function signup(req: express.Request, res: express.Response) {
     return;
   }
 
-  const sanitizedEmail = email.toLowerCase();
-  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
-  if (!isValidEmail(sanitizedEmail)) {
+  const sanitizedEmail = email?.toLowerCase()?.trim();
+  if (!sanitizedEmail || !isValidEmail(sanitizedEmail)) {
     res.status(400).send({
       error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
     });
@@ -247,6 +246,7 @@ export async function signup(req: express.Request, res: express.Response) {
   }
 
   // Check if OTP request already exists
+  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
   const otpSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
   if (otpSession) {
     res.status(401).send({
@@ -335,9 +335,8 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
     return;
   }
 
-  const sanitizedEmail = email.toLowerCase();
-  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
-  if (!isValidEmail(sanitizedEmail)) {
+  const sanitizedEmail = email?.toLowerCase()?.trim();
+  if (!sanitizedEmail || !isValidEmail(sanitizedEmail)) {
     res.status(400).send({
       error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
     });
@@ -357,6 +356,7 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
   }
 
   // Check if OTP request already exists
+  const otpSessionKey = `otp_signup_${sanitizedEmail}`;
   const existingSession: SignupRequestSession = await sessionCache.get(otpSessionKey);
   if (!sessionId || !existingSession || existingSession.sessionId !== sessionId) {
     res.status(401).send({
@@ -405,8 +405,8 @@ export async function resendEmailVerificationOTP(req: express.Request, res: expr
 
 export async function verifyEmail(req: express.Request, res: express.Response) {
   const { email, otp, sessionId } = req.body;
-  const sanitizedEmail = email.toLowerCase();
-  if (!isValidEmail(sanitizedEmail)) {
+  const sanitizedEmail = email?.toLowerCase()?.trim();
+  if (!sanitizedEmail || !isValidEmail(sanitizedEmail)) {
     res.status(400).send({
       error: { message: 'Invalid email address', type: 'INVALID_EMAIL' },
     });
