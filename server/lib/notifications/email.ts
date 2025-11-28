@@ -642,7 +642,10 @@ export const notifyByEmail = async (activity: Activity) => {
         get(activity, 'data.host.id') === PlatformConstants.FiscalHostOSCCollectiveId
       ) {
         break;
+      } else if (!['COLLECTIVE', 'FUND'].includes(activity.data.collective.type)) {
+        break;
       }
+
       // Normal case
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
       break;

@@ -548,7 +548,10 @@ const virtualCardMutations = {
 
       const virtualCard = await models.VirtualCard.findOne({
         where: { id: args.virtualCard.id },
-        include: [{ association: 'host', required: true }],
+        include: [
+          { association: 'host', required: true },
+          { association: 'collective', required: true },
+        ],
       });
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
