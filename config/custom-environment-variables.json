@@ -208,7 +208,8 @@
     "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT",
-    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER"
+    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER",
+    "useSimplifiedQuote": "TRANSFERWISE_USE_SIMPLIFIED_QUOTE"
   },
   "hyperwatch": {
     "enabled": "HYPERWATCH_ENABLED",
