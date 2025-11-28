@@ -134,12 +134,58 @@ async function checkPaidTransactionsWithHostCollectiveId() {
   }
 }
 
+async function checkWisePaidTransactions() {
+  const results = await sequelize.query(
+    `
+    WITH
+      d AS (
+        SELECT
+          e.id, e."createdAt", e.amount, e.currency, e.data #>> '{recipient,currency}' AS "recipientCurrency",
+          c.currency AS "collectiveCurrency",
+          t."amountInHostCurrency", t."hostCurrency", t."data" -> 'fxRates' AS "fxRates", e."data" -> 'quote' AS "quote"
+        FROM
+          "Expenses" e
+          INNER JOIN "Transactions" t
+          ON e.id = t."ExpenseId" AND t."deletedAt" IS NULL AND t.kind = 'EXPENSE' AND t.type = 'DEBIT'
+          INNER JOIN "Collectives" c
+          ON t."CollectiveId" = c.id AND c."deletedAt" IS NULL
+          INNER JOIN "Collectives" h
+          ON t."HostCollectiveId" = h.id AND h."deletedAt" IS NULL
+        WHERE e."deletedAt" IS NULL
+          AND e.data #>> '{recipient,currency}' != e.currency
+          AND e.currency != t."hostCurrency"
+          AND t."data" #>> '{expenseToHostFxRate}' IS NOT NULL
+          AND e."createdAt" >= '2025-10-01'
+        ORDER BY
+          e.id DESC
+        ),
+      summary AS (
+        SELECT
+          *,
+              ROUND(d.amount * ("fxRates" -> 'expenseToHost')::numeric) / "amountInHostCurrency" =
+              -1 AS "Requested Value in Host Currency matches the debited amount",
+              ROUND(d.amount * ("fxRates" -> 'expenseToPayoutMethod')::numeric) / (quote -> 'targetAmount')::numeric =
+              100 AS "User receives requested amount"
+        FROM d
+        )
+    SELECT count("Requested Value in Host Currency matches the debited amount") as request_value_matches, count("User receives requested amount") as "user_received_amount" FROM summary WHERE "Requested Value in Host Currency matches the debited amount" IS FALSE OR "User receives requested amount" IS FALSE
+    `,
+    { type: sequelize.QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].request_value_matches > 0 || results[0].user_received_amount > 0) {
+    // Not fixable
+    throw new Error('Found inconsistency in the amount sent or received in Wise paid expenses.');
+  }
+}
+
 export const checks = [
   checkDeletedCollectives,
   checkOrphanTransactions,
   checkUniqueUuid,
   checkUniqueTransactionGroup,
   checkPaidTransactionsWithHostCollectiveId,
+  checkWisePaidTransactions,
 ];
 
 if (!module.parent) {
