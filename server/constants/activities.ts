@@ -171,6 +171,10 @@ enum ActivityTypes {
   COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
   ORDER_PENDING_CRYPTO = 'order.pending.crypto',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
+
+  KYC_REQUESTED = 'kyc.requested',
+  KYC_REVOKED = 'kyc.revoked',
+  KYC_VERIFIED = 'kyc.verified',
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */

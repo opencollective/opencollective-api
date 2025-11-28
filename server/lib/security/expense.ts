@@ -26,6 +26,7 @@ import expenseType from '../../constants/expense-type';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
 import Expense from '../../models/Expense';
+import { KYCProviderName } from '../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
@@ -501,6 +502,27 @@ export const checkExpensesBatch = async (
           details: `Expense submitted by ${expense.User.collective.name} (${expense.User.collective.slug})`,
         },
       );
+
+      const kycVerifications = await Promise.all(
+        Object.values(KYCProviderName).map(provider =>
+          req.loaders.KYCVerification.verifiedStatusByProvider(
+            expense.HostCollectiveId || expense.CollectiveId,
+            provider,
+          ).load(expense.User.CollectiveId),
+        ),
+      );
+      for (const kycVerification of kycVerifications) {
+        if (!kycVerification) {
+          continue;
+        }
+        // TODO match kyc fields with expense details
+        addBooleanCheck(checks, true, {
+          scope: Scope.USER,
+          level: Level.MEDIUM,
+          message: `User has KYC Verification with provider '${kycVerification.provider}'`,
+          details: `Verified name: ${kycVerification.data.legalName}, verified address: ${kycVerification.data.legalAddress} `,
+        });
+      }
 
       // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
       const userIsHostAdmin = expense.User.isAdmin(expense.HostCollectiveId);

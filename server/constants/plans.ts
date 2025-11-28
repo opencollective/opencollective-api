@@ -274,6 +274,7 @@ const proFeatures: CommercialFeaturesType[] = [
   PlatformFeature.TAX_FORMS,
   PlatformFeature.OFF_PLATFORM_TRANSACTIONS,
   PlatformFeature.FUNDS_GRANTS_MANAGEMENT,
+  PlatformFeature.KYC,
 ] as const;
 
 const featuresForStarter = Object.fromEntries(
