@@ -1009,22 +1009,26 @@ Expense.init(
     paranoid: true,
     tableName: 'Expenses',
     hooks: {
-      async afterDestroy(expense: Expense) {
+      async afterDestroy(expense: Expense, options) {
         // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
         const promises = [
-          ExpenseItem.destroy({ where: { ExpenseId: expense.id } }),
-          models.Comment.destroy({ where: { ExpenseId: expense.id } }),
+          ExpenseItem.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
+          models.Comment.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
           models.TransactionsImportRow.update(
             { ExpenseId: null, status: 'PENDING' },
-            { where: { ExpenseId: expense.id } },
+            { where: { ExpenseId: expense.id }, transaction: options.transaction },
           ),
         ];
 
         if (expense.RecurringExpenseId) {
-          promises.push(RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId } }));
+          promises.push(
+            RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId }, transaction: options.transaction }),
+          );
         }
         if (expense.InvoiceFileId) {
-          promises.push(UploadedFile.destroy({ where: { id: expense.InvoiceFileId } }));
+          promises.push(
+            UploadedFile.destroy({ where: { id: expense.InvoiceFileId }, transaction: options.transaction }),
+          );
         }
 
         await Promise.all(promises);
