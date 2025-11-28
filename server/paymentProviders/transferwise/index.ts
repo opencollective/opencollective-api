@@ -37,6 +37,7 @@ import { centsAmountToFloat } from '../../lib/math';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
+import { parseToBoolean } from '../../lib/utils';
 import { Collective, ConnectedAccount, Expense, Op, PayoutMethod, sequelize, User } from '../../models';
 import {
   BalanceV4,
@@ -59,6 +60,8 @@ const PROVIDER_NAME = Service.TRANSFERWISE;
 
 const splitCSV = string => compact(split(string, /,\s*/));
 
+const useSimplifiedQuote = parseToBoolean(config.transferwise.useSimplifiedQuote);
+logger.debug(`TransferWise: Using ${useSimplifiedQuote ? 'simplified' : 'legacy'} quote flow`);
 const blockedCountries = splitCSV(config.transferwise.blockedCountries);
 const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
 const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
@@ -159,7 +162,7 @@ async function quoteExpense(
   };
 
   let expenseToPayoutMethodExchangeRate: number | null = null;
-  if (expense.host.data?.useLegacyWiseQuoting === false) {
+  if (useSimplifiedQuote) {
     if (expense.feesPayer === 'PAYEE') {
       // Customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
       assert(
