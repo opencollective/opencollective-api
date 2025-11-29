@@ -7416,6 +7416,7 @@ type KYCVerification {
   requestedAt: DateTime!
   revokedAt: DateTime
   verifiedAt: DateTime
+  permissions: KYCVerificationPermissions!
 }
 
 enum KYCProvider {
@@ -7455,6 +7456,16 @@ enum KYCVerificationStatus {
   FAILED
   REVOKED
   EXPIRED
+}
+
+"""
+KYC Verification permissions
+"""
+type KYCVerificationPermissions {
+  """
+  Whether this KYC Verification can be revoked by the logged in user
+  """
+  canRevokeKYCVerification: Boolean!
 }
 
 """
