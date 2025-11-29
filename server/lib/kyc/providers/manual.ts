@@ -26,7 +26,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
     });
 
     if (existing) {
-      throw new Error(`Account already verified with ${this.providerName} provider`);
+      throw new Error(`Account already verified with KYC provider`);
     }
 
     const kycVerification = await KYCVerification.create<ManualKYCVerification>({

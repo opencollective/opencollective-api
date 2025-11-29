@@ -25,7 +25,7 @@ type KycProviderData = {
   };
 };
 
-type KYCVerifiedData = {
+export type KYCVerifiedData = {
   legalName: string;
   legalAddress: string;
 };

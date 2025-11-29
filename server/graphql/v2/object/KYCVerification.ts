@@ -77,11 +77,11 @@ const GraphQLKYCVerifiedData = new GraphQLObjectType({
   description: 'Verified KYC data',
   fields: () => ({
     legalName: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
       description: 'Account legal name as verified by KYC',
     },
     legalAddress: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
       description: 'Account legal address as verified by KYC',
     },
   }),

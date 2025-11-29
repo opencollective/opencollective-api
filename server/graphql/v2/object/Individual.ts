@@ -341,7 +341,8 @@ export const GraphQLIndividual = new GraphQLObjectType({
             (await fetchAccountsIdsWithReference(args.requestedByAccounts, { throwIfMissing: true })) || [];
 
           const hasAccess =
-            isAccountAdmin || (requestedByAccountIds.length > 0 && requestedByAccountIds.every(req.remoteUser.isAdmin));
+            isAccountAdmin ||
+            (requestedByAccountIds.length > 0 && requestedByAccountIds.every(id => req.remoteUser.isAdmin(id)));
 
           if (!hasAccess) {
             throw new Forbidden();
