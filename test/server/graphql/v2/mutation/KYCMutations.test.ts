@@ -4,7 +4,7 @@ import { beforeEach } from 'mocha';
 import sinon from 'sinon';
 
 import { manualKycProvider } from '../../../../../server/lib/kyc/providers/manual';
-import { KYCProviderName } from '../../../../../server/models/KYCVerification';
+import { KYCProviderName, KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeKYCVerification,
   fakeOrganization,
@@ -230,6 +230,190 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.requestKYCVerification).to.exist;
+    });
+  });
+  describe('revokeKYCVerification', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+    const sandbox = sinon.createSandbox();
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    const mutation = gql`
+      mutation RevokeKYCVerification($kycVerification: KYCVerificationReferenceInput!) {
+        revokeKYCVerification(kycVerification: $kycVerification) {
+          status
+        }
+      }
+    `;
+
+    async function setupOrg(opts = {}) {
+      const org = await fakeOrganization({
+        ...opts,
+        isHostAccount: true,
+        data: {
+          isFirstPartyHost: true,
+        },
+      });
+      await fakePlatformSubscription({
+        CollectiveId: org.id,
+        plan: { features: { KYC: true } },
+      });
+
+      return org;
+    }
+
+    it('returns error if user is not authenticated', async () => {
+      const org = await setupOrg();
+
+      const kycVerification = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(mutation, {
+        kycVerification: kycVerification.id,
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage KYC.');
+    });
+
+    it('returns error if org has no feature access', async () => {
+      const orgAdmin = await fakeUser();
+      const org = await fakeOrganization({ admin: orgAdmin });
+
+      const kycVerification = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+      });
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          kycVerification: kycVerification.id,
+          status: KYCVerificationStatus.VERIFIED,
+        },
+        orgAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('This feature is not supported for your account');
+    });
+
+    it('returns error if user is not organization admin', async () => {
+      const otherUser = await fakeUser();
+      const org = await setupOrg();
+
+      const kycVerification = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          kycVerification: kycVerification.id,
+        },
+        otherUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
+    });
+
+    it('returns error if kyc verification does not exist', async () => {
+      const orgAdmin = await fakeUser();
+      const org = await setupOrg({ admin: orgAdmin });
+
+      const kycVerification = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+      await kycVerification.destroy();
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          kycVerification: kycVerification.id,
+        },
+        orgAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('KYC Verification not found');
+    });
+
+    it('individual cannot revoke own verification', async () => {
+      const orgAdmin = await fakeUser();
+      const user = await fakeUser();
+      const org = await setupOrg({ admin: orgAdmin });
+
+      const kycVerification = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        CollectiveId: user.collective.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          kycVerification: kycVerification.id,
+        },
+        user,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
+    });
+
+    it('revokes individual verification', async () => {
+      const orgAdmin = await fakeUser();
+      const user = await fakeUser();
+      const org = await setupOrg({ admin: orgAdmin });
+
+      const kycVerification = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        CollectiveId: user.collective.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          kycVerification: kycVerification.id,
+        },
+        orgAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.revokeKYCVerification.status).to.equal(KYCVerificationStatus.REVOKED);
+
+      await kycVerification.reload();
+      expect(kycVerification.status).to.eql(KYCVerificationStatus.REVOKED);
+    });
+
+    it('return error if provider revoke fails', async () => {
+      sandbox.stub(manualKycProvider, 'revoke').rejects(new Error('Revoke failed'));
+      const orgAdmin = await fakeUser();
+      const user = await fakeUser();
+      const org = await setupOrg({ admin: orgAdmin });
+
+      const kycVerification = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        CollectiveId: user.collective.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          kycVerification: kycVerification.id,
+        },
+        orgAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Revoke failed');
+
+      await kycVerification.reload();
+      expect(kycVerification.status).to.eql(KYCVerificationStatus.VERIFIED);
     });
   });
 });

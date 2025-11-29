@@ -7,6 +7,8 @@ import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
+import { GraphQLKYCVerificationPermissions } from './KYCVerificationPermissions';
+
 export const GraphQLKYCVerification = new GraphQLObjectType({
   name: 'KYCVerification',
   description: 'A KYC Verification',
@@ -74,6 +76,10 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
     verifiedAt: {
       type: GraphQLDateTime,
       resolve: ({ verifiedAt }) => verifiedAt,
+    },
+    permissions: {
+      type: new GraphQLNonNull(GraphQLKYCVerificationPermissions),
+      resolve: kycVerification => kycVerification,
     },
   }),
 });

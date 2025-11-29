@@ -85,6 +85,8 @@ const KYCMutations = {
         throw new Forbidden();
       }
 
+      await checkFeatureAccess(kycVerification.requestedByCollective, FEATURE.KYC);
+
       const provider = getKYCProvider(kycVerification.provider);
       return provider.revoke(kycVerification);
     },
