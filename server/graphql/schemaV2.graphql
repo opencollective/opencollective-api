@@ -7384,6 +7384,11 @@ A KYC Verification
 """
 type KYCVerification {
   """
+  Unique identifier for this KYC verification
+  """
+  id: String!
+
+  """
   Provider used to make this KYC verification
   """
   provider: KYCProvider!
@@ -23921,6 +23926,11 @@ type Mutation {
     """
     request: RequestKYCVerificationInput!
   ): KYCVerification!
+
+  """
+  Revoke the KYC Verification
+  """
+  revokeKYCVerification(kycVerification: KYCVerificationReferenceInput!): KYCVerification!
 }
 
 input CollectiveCreateInput {
@@ -26535,3 +26545,8 @@ input RequestManualKYCVerificationInput {
   legalAddress: String!
   notes: String
 }
+
+"""
+A reference to a KYC Verification
+"""
+scalar KYCVerificationReferenceInput
