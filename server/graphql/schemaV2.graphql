@@ -544,6 +544,11 @@ interface Account {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -3252,6 +3257,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -5850,6 +5860,11 @@ type PaymentMethod {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -7421,12 +7436,12 @@ type KYCVerifiedData {
   """
   Account legal name as verified by KYC
   """
-  legalName: String!
+  legalName: String
 
   """
   Account legal address as verified by KYC
   """
-  legalAddress: String!
+  legalAddress: String
 }
 
 enum KYCVerificationStatus {
@@ -9353,6 +9368,11 @@ type Bot implements Account {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -10339,6 +10359,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
@@ -11887,6 +11912,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -13147,6 +13177,11 @@ type Individual implements Account {
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
@@ -14427,6 +14462,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -15533,6 +15573,11 @@ type Vendor implements Account & AccountWithContributions {
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
@@ -16962,6 +17007,11 @@ type Query {
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
@@ -19471,6 +19521,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -20604,6 +20659,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
