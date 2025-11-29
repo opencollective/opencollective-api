@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import { DataTypes, ForeignKey, InferAttributes, Model } from 'sequelize';
+import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
@@ -48,6 +48,9 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   declare data: KYCVerifiedData;
   /** provider specific data */
   declare providerData: KYCData<Provider>;
+
+  declare public requestedByCollective?: Collective;
+  declare public getRequestedByCollective: BelongsToGetAssociationMixin<Collective>;
 
   declare verifiedAt?: Date;
   declare revokedAt?: Date;

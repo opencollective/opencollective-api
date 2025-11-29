@@ -22,6 +22,7 @@ export abstract class KYCProvider<
   async revoke(kycVerification: ProviderKYCVerification): Promise<ProviderKYCVerification> {
     const res = await kycVerification.update({
       status: KYCVerificationStatus.REVOKED,
+      revokedAt: new Date(),
     });
 
     await Activity.create({

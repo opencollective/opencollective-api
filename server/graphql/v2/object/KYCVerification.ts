@@ -4,12 +4,18 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { KYCProviderName, KYCVerification } from '../../../models/KYCVerification';
 import { GraphQLKYCProvider } from '../enum/KYCProvider';
 import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 export const GraphQLKYCVerification = new GraphQLObjectType({
   name: 'KYCVerification',
   description: 'A KYC Verification',
   fields: () => ({
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Unique identifier for this KYC verification',
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.KYC_VERIFICATION),
+    },
     provider: {
       description: 'Provider used to make this KYC verification',
       type: new GraphQLNonNull(GraphQLKYCProvider),

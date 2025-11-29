@@ -2,11 +2,13 @@ import { GraphQLNonNull } from 'graphql';
 
 import { checkFeatureAccess, FEATURE } from '../../../lib/allowed-features';
 import { getKYCProvider } from '../../../lib/kyc';
+import { Collective } from '../../../models';
 import { KYCVerification } from '../../../models/KYCVerification';
 import { checkRemoteUserCanUseKYC } from '../../common/scope-check';
-import { Forbidden } from '../../errors';
+import { Forbidden, NotFound } from '../../errors';
 import { GraphQLKYCProvider } from '../enum/KYCProvider';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLKYCVerificationReferenceInput } from '../input/KYCVerificationReferenceInput';
 import { GraphQLRequestKYCVerificationInput } from '../input/RequestKYCVerificationInput';
 import { GraphQLKYCVerification } from '../object/KYCVerification';
 
@@ -52,6 +54,39 @@ const KYCMutations = {
         },
         providerRequest,
       );
+    },
+  },
+  revokeKYCVerification: {
+    description: 'Revoke the KYC Verification',
+    type: new GraphQLNonNull(GraphQLKYCVerification),
+    args: {
+      kycVerification: { type: new GraphQLNonNull(GraphQLKYCVerificationReferenceInput) },
+    },
+    async resolve(_, args, req: Express.Request): Promise<KYCVerification> {
+      checkRemoteUserCanUseKYC(req);
+
+      const kycVerification = await KYCVerification.findOne({
+        where: {
+          id: args.kycVerification,
+        },
+        include: [
+          {
+            as: 'requestedByCollective',
+            model: Collective,
+          },
+        ],
+      });
+
+      if (!kycVerification) {
+        throw new NotFound('KYC Verification not found');
+      }
+
+      if (!req.remoteUser.isAdminOfCollective(kycVerification.requestedByCollective)) {
+        throw new Forbidden();
+      }
+
+      const provider = getKYCProvider(kycVerification.provider);
+      return provider.revoke(kycVerification);
     },
   },
 };
