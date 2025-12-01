@@ -3653,7 +3653,10 @@ class Collective extends Model<
       UserTokenId: userToken?.id,
       CollectiveId: this.id,
       HostCollectiveId: this.approvedAt ? this.HostCollectiveId : null,
-      data,
+      data: {
+        ...data,
+        collective: this.info,
+      },
     });
   };
 

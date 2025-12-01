@@ -475,16 +475,19 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    *  Safely destroy a user account to avoid email conflicts in the future
    *  Updates the user email before soft-deleting the account
    */
-  async safeDestroy() {
+  async safeDestroy({ transaction }: { transaction?: Transaction } = {}) {
     // Update user email in order to free up for future reuse
     // Split the email, username from host domain
     const splitedEmail = this.email.split('@');
     // Add the current timestamp to email username
     const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
-    return sequelize.transaction(async transaction => {
+
+    const destroyInTransaction = async transaction => {
       await this.update({ email: newEmail }, { transaction });
       return this.destroy({ transaction });
-    });
+    };
+
+    return transaction ? destroyInTransaction(transaction) : sequelize.transaction(destroyInTransaction);
   }
 
   /**

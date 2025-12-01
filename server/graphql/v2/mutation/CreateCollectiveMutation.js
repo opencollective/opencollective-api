@@ -205,7 +205,6 @@ async function createCollective(_, args, req) {
       if (!args.skipDefaultAdmin) {
         const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
         collective.generateCollectiveCreatedActivity(remoteUser, req.userToken, {
-          collective: collective.info,
           host: get(host, 'info'),
           hostPending: collective.approvedAt ? false : true,
           accountType: collective.type === 'FUND' ? 'fund' : 'collective',
