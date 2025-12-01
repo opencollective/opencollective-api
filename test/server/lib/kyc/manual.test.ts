@@ -32,7 +32,7 @@ describe('server/lib/kyc/manual', () => {
             notes: 'notes',
           },
         ),
-      ).to.eventually.be.rejectedWith('Account already verified with manual provider');
+      ).to.eventually.be.rejectedWith('Account already verified with this KYC provider');
     });
 
     it('it creates VERIFIED verification', async () => {
