@@ -7,6 +7,7 @@ import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { GraphQLOrderStatus, GraphQLTierAmountType, GraphQLTierInterval, GraphQLTierType } from '../enum';
 import { getTierFrequencyFromInterval, GraphQLTierFrequency } from '../enum/TierFrequency';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { GraphQLAccount } from '../interface/Account';
 import { getCollectionArgs } from '../interface/Collection';
 
 import { GraphQLAmount } from './Amount';
@@ -169,6 +170,13 @@ export const GraphQLTier = new GraphQLObjectType({
             totalCount: tierContributors.length,
             nodes: tierContributors.slice(offset, offset + limit),
           };
+        },
+      },
+      account: {
+        type: new GraphQLNonNull(GraphQLAccount),
+        description: 'The account that this tier belongs to',
+        resolve(tier, args, req) {
+          return req.loaders.Collective.byId.load(tier.CollectiveId);
         },
       },
       stats: {
