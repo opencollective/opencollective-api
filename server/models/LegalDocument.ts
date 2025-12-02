@@ -293,10 +293,6 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
     );
   };
 
-  isExpired = function () {
-    return this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED;
-  };
-
   /**
    * Returns true if the tax form is accessible by the host.
    */
