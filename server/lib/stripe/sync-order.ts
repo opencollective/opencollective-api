@@ -1,9 +1,9 @@
 import { omit } from 'lodash';
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 
 import OrderStatuses from '../../constants/order-status';
 import models from '../../models';
-import { paymentIntentFailed, paymentIntentSucceeded } from '../../paymentProviders/stripe/webhook';
+import { paymentIntentFailed } from '../../paymentProviders/stripe/webhook';
 import stripe from '../stripe';
 
 export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? } = {}) => {
@@ -12,11 +12,42 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
     logging?.(`Order ${order.id} has no paymentIntent`);
     return;
   }
-  const hostStripeAccount = await order.collective.getHostStripeAccount();
+  let hostStripeAccount;
+  try {
+    hostStripeAccount = await order.collective.getHostStripeAccount();
+  } catch (err) {
+    logging?.(`Host for ${order.id} has no stripe account`, err);
+    if (!IS_DRY) {
+      await order.update({
+        status: OrderStatuses.CANCELLED,
+      });
+    }
+    return;
+  }
   const stripeAccount = hostStripeAccount.username;
-  const paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, {
-    stripeAccount,
-  });
+  let paymentIntent: Stripe.Response<Stripe.PaymentIntent>;
+  try {
+    paymentIntent = await stripe.paymentIntents.retrieve(order.data.paymentIntent.id, {
+      stripeAccount,
+    });
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeError) {
+      // payment intent expired.
+      if (err.code === 'resource_missing') {
+        logging?.(`Order ${order.id} payment intent not found on stripe`, err);
+        if (!IS_DRY) {
+          await order.update({
+            status: OrderStatuses.CANCELLED,
+          });
+        }
+        return;
+      }
+    }
+
+    logging?.(`Unknown error retrieving payment intent ${order.data.paymentIntent.id} on stripe`, err);
+    return;
+  }
+
   logging?.(`Order ${order.id} paymentIntent status: ${paymentIntent.status}`);
 
   const charge = (paymentIntent as any).charges?.data?.[0] as Stripe.Charge;
@@ -36,14 +67,13 @@ export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? 
       return;
     }
 
-    logging?.(`Order ${order.id} is missing charge ${charge.id}, re-processing payment intent...`);
-    if (!IS_DRY) {
-      await paymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any);
-    }
+    logging?.(`Order ${order.id} is missing charge ${charge.id}`);
   } else if (charge?.status === 'failed') {
     logging?.(`Order ${order.id} has failed charge: ${charge.id}`);
     if (!IS_DRY) {
-      await paymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any);
+      await paymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any, {
+        skipNotify: true,
+      });
     }
   } else if (!charge && ['requires_payment_method', 'requires_source'].includes(paymentIntent.status)) {
     logging?.(`Order ${order.id} has no payment method`);
