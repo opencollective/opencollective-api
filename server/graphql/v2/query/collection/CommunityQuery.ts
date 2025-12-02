@@ -47,7 +47,7 @@ const buildSearchConditions = (
   } else if (parsed.type === 'id' || parsed.type === 'number') {
     return {
       joinClause: '',
-      whereClause: `AND ("CollectiveId" = :searchTerm OR "FromCollectiveId" = :searchTerm)`,
+      whereClause: `AND (cas."CollectiveId" = :searchTerm OR cas."FromCollectiveId" = :searchTerm)`,
       replacements: { searchTerm: parsed.term },
     };
   } else {
