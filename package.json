@@ -111,7 +111,7 @@
     "nodemailer": "7.0.11",
     "nordigen-node": "1.4.1",
     "p-map": "4.0.0",
-    "p-queue": "6.6.2",
+    "p-queue": "9.0.1",
     "passport": "0.7.0",
     "passport-github": "1.1.0",
     "paypal-adaptive": "0.4.2",
