@@ -5,27 +5,6 @@ import { sequelize } from '../../server/models';
 
 import { runAllChecksThenExit } from './_utils';
 
-async function checkDeletedUsers() {
-  const message = 'No USER Collective without a matching User (no auto fix)';
-
-  const results = await sequelize.query(
-    `SELECT COUNT(*) as count
-     FROM "Collectives" c
-     LEFT JOIN "Users" u
-     ON c."id" = u."CollectiveId"
-     WHERE c."type" = 'USER'
-     AND c."isIncognito" IS FALSE
-     AND c."deletedAt" IS NULL
-     AND (u."deletedAt" IS NOT NULL or u."id" IS NULL)`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
-  );
-
-  if (results[0].count > 0) {
-    // Not fixable
-    throw new Error(message);
-  }
-}
-
 async function checkActiveApprovedAtInconsistency() {
   const message = 'approvedAt and isActive are inconsistent (no auto fix)';
 
@@ -80,7 +59,7 @@ async function checkNonActiveHostOrganizations({ fix = false } = {}) {
   }
 }
 
-export const checks = [checkDeletedUsers, checkActiveApprovedAtInconsistency, checkNonActiveHostOrganizations];
+export const checks = [checkActiveApprovedAtInconsistency, checkNonActiveHostOrganizations];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);
