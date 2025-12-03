@@ -982,7 +982,7 @@ class Collective extends Model<
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  activateMoneyManagement = async function (remoteUser) {
+  activateMoneyManagement = async function (remoteUser, { force = true } = {}) {
     // Independent Collective deprecation: remove COLLECTIVE, and remove USER while we're at it
     if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
       throw new Error('This account type cannot become a host');
@@ -990,7 +990,7 @@ class Collective extends Model<
       throw new Error('This account is already attached to another host, please remove host first');
     }
 
-    if (!this.hasMoneyManagement()) {
+    if (!this.hasMoneyManagement() || force) {
       const updatedValues = {
         isHostAccount: true,
         plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
