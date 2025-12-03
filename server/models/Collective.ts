@@ -982,7 +982,7 @@ class Collective extends Model<
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  activateMoneyManagement = async function (remoteUser) {
+  activateMoneyManagement = async function (remoteUser, options?: { silent?: boolean }) {
     // Independent Collective deprecation: remove COLLECTIVE, and remove USER while we're at it
     if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
       throw new Error('This account type cannot become a host');
@@ -1011,23 +1011,25 @@ class Collective extends Model<
 
     await this.getOrCreateHostPaymentMethod();
 
-    if (this.type === 'ORGANIZATION' || this.type === 'USER') {
-      await Activity.create({
-        type: activities.ACTIVATED_MONEY_MANAGEMENT,
-        CollectiveId: this.id,
-        FromCollectiveId: this.id,
-        UserId: remoteUser.id,
-        data: { collective: this.info },
-      });
-      // TODO(hasMoneyManagement): remove with Independent Collective deprecation
-    } else if (this.type === CollectiveType.COLLECTIVE) {
-      await Activity.create({
-        type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
-        CollectiveId: this.id,
-        FromCollectiveId: this.id,
-        UserId: remoteUser.id,
-        data: { collective: this.info },
-      });
+    if (!options?.silent) {
+      if (this.type === 'ORGANIZATION' || this.type === 'USER') {
+        await Activity.create({
+          type: activities.ACTIVATED_MONEY_MANAGEMENT,
+          CollectiveId: this.id,
+          FromCollectiveId: this.id,
+          UserId: remoteUser?.id,
+          data: { collective: this.info },
+        });
+        // TODO(hasMoneyManagement): remove with Independent Collective deprecation
+      } else if (this.type === CollectiveType.COLLECTIVE) {
+        await Activity.create({
+          type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
+          CollectiveId: this.id,
+          FromCollectiveId: this.id,
+          UserId: remoteUser?.id,
+          data: { collective: this.info },
+        });
+      }
     }
 
     await this.activateBudget();
