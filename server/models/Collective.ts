@@ -982,7 +982,10 @@ class Collective extends Model<
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  activateMoneyManagement = async function (remoteUser, { force = true } = {}) {
+  activateMoneyManagement = async function (
+    remoteUser: User | null,
+    { force = true }: { force?: boolean } = {},
+  ): Promise<Collective> {
     // Independent Collective deprecation: remove COLLECTIVE, and remove USER while we're at it
     if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
       throw new Error('This account type cannot become a host');
@@ -1016,7 +1019,7 @@ class Collective extends Model<
         type: activities.ACTIVATED_MONEY_MANAGEMENT,
         CollectiveId: this.id,
         FromCollectiveId: this.id,
-        UserId: remoteUser.id,
+        UserId: remoteUser?.id,
         data: { collective: this.info },
       });
       // TODO(hasMoneyManagement): remove with Independent Collective deprecation
@@ -1025,7 +1028,7 @@ class Collective extends Model<
         type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
         CollectiveId: this.id,
         FromCollectiveId: this.id,
-        UserId: remoteUser.id,
+        UserId: remoteUser?.id,
         data: { collective: this.info },
       });
     }
