@@ -66,6 +66,10 @@ export default {
           'If true, the organization will be created as financially active, allowing the organization to receive contributions and pay for expenses. Defaults to false.',
         defaultValue: false,
       },
+      fiscalHostCapable: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+      },
     },
     resolve: async (_, args, req: express.Request) => {
       if (args.inviteMembers) {
@@ -158,11 +162,11 @@ export default {
       if (args.organization.currency) {
         await organization.setCurrency(args.organization.currency);
       }
-      if (args.financiallyActive) {
+      if (args.financiallyActive || args.fiscalHostCapable) {
         await organization.becomeHost(user);
         await organization.reload();
         const settings = organization.settings ? cloneDeep(organization.settings) : {};
-        set(settings, 'canHostAccounts', false);
+        set(settings, 'canHostAccounts', args.fiscalHostCapable);
         await organization.update({ settings });
       }
 
