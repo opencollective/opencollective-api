@@ -4627,7 +4627,6 @@ type Mutation {
     """
     email: String!
   ): UserDetails
-  editConnectedAccount(connectedAccount: ConnectedAccountInputType!): ConnectedAccountType
 
   """
   Updates all the core contributors (role = ADMIN or MEMBER) for this collective.
@@ -4979,14 +4978,6 @@ input CaptchaInputType {
   The captcha provider (HCAPTCHA, RECAPTCHA, or TURNSTILE)
   """
   provider: String!
-}
-
-"""
-Input type for ConnectedAccountInputType
-"""
-input ConnectedAccountInputType {
-  id: Int
-  settings: JSON
 }
 
 """

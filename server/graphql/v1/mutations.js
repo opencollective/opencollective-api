@@ -25,7 +25,6 @@ import {
   editCollective,
   unarchiveCollective,
 } from './mutations/collectives';
-import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { updateUserEmail } from './mutations/users';
@@ -33,13 +32,12 @@ import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CaptchaInputType,
   CollectiveInputType,
-  ConnectedAccountInputType,
   MemberInputType,
   NotificationInputType,
   StripeCreditCardDataInputType,
   UserInputType,
 } from './inputTypes';
-import { ConnectedAccountType, MemberType, NotificationType, PaymentMethodType, UserType } from './types';
+import { MemberType, NotificationType, PaymentMethodType, UserType } from './types';
 
 const mutations = {
   createCollective: {
@@ -192,15 +190,6 @@ const mutations = {
     resolve: async (_, { email }, req) => {
       await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
       return updateUserEmail(req.remoteUser, email);
-    },
-  },
-  editConnectedAccount: {
-    type: ConnectedAccountType,
-    args: {
-      connectedAccount: { type: new GraphQLNonNull(ConnectedAccountInputType) },
-    },
-    resolve(_, args, req) {
-      return editConnectedAccount(req, args.connectedAccount);
     },
   },
   editCoreContributors: {
