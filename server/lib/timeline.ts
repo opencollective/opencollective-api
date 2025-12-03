@@ -108,7 +108,7 @@ const makeTimelineQuery = async (
     return {
       [Op.or]: conditionals,
     };
-  } else if (collective.isHost && collective.type !== CollectiveType.COLLECTIVE) {
+  } else if ((await collective.hasHosting()) && collective.type !== CollectiveType.COLLECTIVE) {
     return {
       type: {
         [Op.in]: [
