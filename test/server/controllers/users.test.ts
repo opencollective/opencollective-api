@@ -346,6 +346,7 @@ describe('server/controllers/users', () => {
       const otpSessionKey = `otp_signup_${email}`;
       let otpSession = await sessionCache.get(otpSessionKey);
       expect(otpSession).to.exist;
+      const userId = otpSession.userId;
 
       let verifyResponse = await makeVerifyOtpRequest(email, '023456', responseData.sessionId, randIPV4());
       expect(verifyResponse._getStatusCode()).to.eql(403);
@@ -362,8 +363,12 @@ describe('server/controllers/users', () => {
       expect(verifyResponse._getStatusCode()).to.eql(403);
       otpSession = await sessionCache.get(otpSessionKey);
       expect(otpSession).to.be.undefined;
-      const user = await models.User.findOne({ where: { email } });
-      expect(user).to.be.null;
+      const user = await models.User.findByPk(userId, {
+        include: [{ model: models.Collective, as: 'collective', paranoid: false }],
+        paranoid: false,
+      });
+      expect(user.deletedAt).not.to.be.null;
+      expect(user.collective.deletedAt).not.to.be.null;
     });
   });
 });
