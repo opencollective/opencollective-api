@@ -22723,9 +22723,14 @@ type Mutation {
     captcha: CaptchaInputType
 
     """
-    If true, the organization will be created as financially active, allowing the organization to receive contributions and pay for expenses. Defaults to false.
+    If true, the organization will be created with Money Management activated, allowing the organization to receive contributions and pay for expenses. Defaults to false.
     """
     financiallyActive: Boolean = false
+
+    """
+    If true, the organization will be created with Hosting activated, allowing the organization to host Collectives and Funds. Defaults to false.
+    """
+    fiscalHostCapable: Boolean = false
   ): Organization
 
   """
@@ -22744,8 +22749,7 @@ type Mutation {
   ): Organization
 
   """
-  <<<<<<< HEAD
-    Convert an account to an Organization. Scope: "account".
+  Convert an account to an Organization. Scope: "account".
   """
   editOrganizationMoneyManagementAndHosting(
     """
@@ -22765,9 +22769,7 @@ type Mutation {
   ): Organization!
 
   """
-  =======
-  >>>>>>> main
-    Add a new payment method to be used with an Order. Scope: "orders".
+  Add a new payment method to be used with an Order. Scope: "orders".
   """
   addCreditCard(
     """
