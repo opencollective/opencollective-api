@@ -26,6 +26,7 @@ import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
 import { crypto } from '../../server/lib/encryption';
+import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
@@ -56,7 +57,7 @@ import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
-import { KYCProviderName, KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
+import { KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';

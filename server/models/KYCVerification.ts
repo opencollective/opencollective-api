@@ -3,13 +3,11 @@ import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, M
 import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
+import { getKYCProvider } from '../lib/kyc';
+import { KYCProviderName } from '../lib/kyc/providers';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
-
-export enum KYCProviderName {
-  MANUAL = 'manual',
-}
 
 export enum KYCVerificationStatus {
   PENDING = 'PENDING',
@@ -58,6 +56,11 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   declare createdAt: Date;
   declare updatedAt: Date;
   declare deletedAt?: Date;
+
+  async revoke() {
+    const provider = getKYCProvider(this.provider);
+    return provider.revoke(this);
+  }
 
   static get loaders() {
     const byRequestedByCollectiveId = {

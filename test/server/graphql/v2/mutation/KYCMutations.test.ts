@@ -3,8 +3,9 @@ import gql from 'fake-tag';
 import { beforeEach } from 'mocha';
 import sinon from 'sinon';
 
+import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import { manualKycProvider } from '../../../../../server/lib/kyc/providers/manual';
-import { KYCProviderName, KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
+import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeKYCVerification,
   fakeOrganization,

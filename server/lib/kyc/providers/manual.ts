@@ -1,6 +1,7 @@
-import { KYCProviderName, KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
+import { KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
 
 import { KYCProvider, KYCRequest } from './base';
+import { KYCProviderName } from '.';
 
 type ManualKYCRequest = {
   legalAddress: string;

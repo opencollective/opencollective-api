@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 
+import { KYCProviderName } from '../../../../server/lib/kyc/providers';
 import { KYCProvider } from '../../../../server/lib/kyc/providers/base';
-import { KYCProviderName, KYCVerification, KYCVerificationStatus } from '../../../../server/models/KYCVerification';
+import { KYCVerification, KYCVerificationStatus } from '../../../../server/models/KYCVerification';
 import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 

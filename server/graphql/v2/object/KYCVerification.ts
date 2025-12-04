@@ -1,7 +1,8 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString, GraphQLUnionType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { KYCProviderName, KYCVerification } from '../../../models/KYCVerification';
+import { KYCProviderName } from '../../../lib/kyc/providers';
+import { KYCVerification } from '../../../models/KYCVerification';
 import { GraphQLKYCProvider } from '../enum/KYCProvider';
 import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';

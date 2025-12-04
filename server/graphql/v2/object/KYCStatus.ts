@@ -1,6 +1,6 @@
 import { GraphQLObjectType } from 'graphql';
 
-import { KYCProviderName } from '../../../models/KYCVerification';
+import { KYCProviderName } from '../../../lib/kyc/providers';
 
 import { GraphQLKYCVerification } from './KYCVerification';
 

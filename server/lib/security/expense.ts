@@ -26,9 +26,9 @@ import expenseType from '../../constants/expense-type';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
 import Expense from '../../models/Expense';
-import { KYCProviderName } from '../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
+import { KYCProviderName } from '../kyc/providers';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 import { formatCurrency } from '../utils';
 

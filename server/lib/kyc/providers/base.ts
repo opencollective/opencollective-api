@@ -1,6 +1,8 @@
 import ActivityTypes from '../../../constants/activities';
 import Activity from '../../../models/Activity';
-import { KYCProviderName, KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
+import { KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
+
+import { KYCProviderName } from '.';
 
 export type KYCRequest = {
   CollectiveId: number;

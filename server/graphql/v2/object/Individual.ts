@@ -5,9 +5,10 @@ import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
+import { KYCProviderName } from '../../../lib/kyc/providers';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op } from '../../../models';
-import { KYCProviderName, KYCVerification } from '../../../models/KYCVerification';
+import { KYCVerification } from '../../../models/KYCVerification';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';

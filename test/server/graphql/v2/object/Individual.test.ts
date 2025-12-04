@@ -2,7 +2,8 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
-import { KYCProviderName, KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
+import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
+import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
   fakeCollective,

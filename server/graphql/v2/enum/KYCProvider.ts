@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-import { KYCProviderName } from '../../../models/KYCVerification';
+import { KYCProviderName } from '../../../lib/kyc/providers';
 
 export const GraphQLKYCProvider = new GraphQLEnumType({
   name: 'KYCProvider',
