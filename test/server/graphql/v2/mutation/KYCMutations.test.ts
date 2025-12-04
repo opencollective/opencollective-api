@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { beforeEach } from 'mocha';
 import sinon from 'sinon';
 
+import FEATURE from '../../../../../server/constants/feature';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import { manualKycProvider } from '../../../../../server/lib/kyc/providers/manual';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
@@ -52,6 +53,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         isHostAccount: true,
         data: {
           isFirstPartyHost: true,
+          features: { [FEATURE.KYC]: true },
         },
       });
 
@@ -247,6 +249,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         isHostAccount: true,
         data: {
           isFirstPartyHost: true,
+          features: { [FEATURE.KYC]: true },
         },
       });
 
