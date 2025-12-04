@@ -168,6 +168,9 @@ export default {
       }
       if (args.financiallyActive || args.fiscalHostCapable) {
         await organization.activateMoneyManagement(user);
+        if (args.fiscalHostCapable) {
+          await organization.activateHosting(user);
+        }
       }
 
       if (NEW_PRICING) {
