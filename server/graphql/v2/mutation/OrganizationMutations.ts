@@ -268,13 +268,6 @@ export default {
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
 
-      const shouldHaveMoneyManagement = args.hasMoneyManagement;
-      if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement()) {
-        await organization.activateMoneyManagement(req.remoteUser);
-      } else if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement()) {
-        await organization.deactivateMoneyManagement();
-      }
-
       const shouldHaveHosting = args.hasHosting;
       if (shouldHaveHosting === true && !organization.hasHosting()) {
         if (organization.hasMoneyManagement()) {
@@ -282,6 +275,13 @@ export default {
         }
       } else if (shouldHaveHosting === false && organization.hasHosting()) {
         await organization.deactivateHosting();
+      }
+
+      const shouldHaveMoneyManagement = args.hasMoneyManagement;
+      if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement()) {
+        await organization.activateMoneyManagement(req.remoteUser);
+      } else if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement()) {
+        await organization.deactivateMoneyManagement();
       }
 
       return organization;
