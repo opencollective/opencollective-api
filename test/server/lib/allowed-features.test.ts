@@ -251,6 +251,7 @@ describe('server/lib/allowed-features', () => {
         const host = await fakeActiveHost({
           data: {
             isFirstPartyHost: true,
+            features: { [FEATURE.KYC]: true },
           },
         });
         expect(await getFeatureAccess(host, FEATURE.KYC)).to.deep.eq({ access: 'AVAILABLE', reason: null });
