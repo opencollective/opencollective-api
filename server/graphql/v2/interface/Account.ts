@@ -14,6 +14,7 @@ import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { canSeeLegalName } from '../../../lib/user-permissions';
+import { isCollectiveDeletable } from '../../../lib/collectivelib';
 import models, { Collective, Op, PayoutMethod, sequelize } from '../../../models';
 import Application from '../../../models/Application';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -267,6 +268,10 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     deprecationReason: '2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.',
     description: 'Returns whether the account has money management activated.',
+  },
+  isDeletable: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account is deletable',
   },
   isAdmin: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -1246,6 +1251,13 @@ export const AccountFields = {
     description: 'Returns whether the account has money management activated.',
     resolve(collective: Collective) {
       return Boolean(collective.isHostAccount);
+    },
+  },
+  isDeletable: {
+    description: 'Whether this account is deletable',
+    type: new GraphQLNonNull(GraphQLBoolean),
+    resolve(collective: Collective) {
+      return isCollectiveDeletable(collective);
     },
   },
   isAdmin: {
