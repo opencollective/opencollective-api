@@ -186,6 +186,11 @@ const FeaturesAccess: Partial<
       CollectiveType.VENDOR,
     ],
   },
+  [FEATURE.KYC]: {
+    accountTypes: [CollectiveType.ORGANIZATION],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
+    optIn: true,
+  },
 } as const;
 
 /**

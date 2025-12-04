@@ -26,6 +26,7 @@ import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
 import { crypto } from '../../server/lib/encryption';
+import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
@@ -56,6 +57,7 @@ import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
+import { KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
@@ -1374,3 +1376,44 @@ export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
     data,
   );
 };
+
+export async function fakeKYCVerification<Provider extends KYCProviderName = KYCProviderName>(
+  opts: Partial<InferCreationAttributes<KYCVerification<Provider>>> = {},
+): Promise<KYCVerification<Provider>> {
+  const status = opts.status || sample(Object.values(KYCVerificationStatus));
+  const provider = opts['provider'] || sample(Object.values(KYCProviderName));
+
+  const data = {
+    ...(status === KYCVerificationStatus.VERIFIED
+      ? {
+          legalName: randStr('legalName'),
+          legalAddress: randStr('legalAddress'),
+        }
+      : {}),
+    ...opts.data,
+  };
+  let providerData = opts['providerData'];
+  if (!providerData) {
+    switch (provider) {
+      case KYCProviderName.MANUAL:
+        (providerData as KYCVerification<KYCProviderName.MANUAL>['providerData']) = {
+          notes: randStr('notes'),
+        };
+        break;
+    }
+  }
+
+  const collectiveId = opts.CollectiveId ?? (await fakeCollective()).id;
+  const requestedByCollectiveId = opts.RequestedByCollectiveId ?? (await fakeOrganization()).id;
+
+  return await KYCVerification.create<KYCVerification<Provider>>({
+    status,
+    provider,
+    CollectiveId: collectiveId,
+    RequestedByCollectiveId: requestedByCollectiveId,
+    data,
+    providerData,
+    verifiedAt: opts.verifiedAt ?? new Date(),
+    revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
+  });
+}

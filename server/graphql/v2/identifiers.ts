@@ -48,6 +48,7 @@ export const IDENTIFIER_TYPES = {
   VIRTUAL_CARD_REQUEST: 'virtual-card-request',
   TRANSACTIONS_IMPORT: 'transactions-import',
   TRANSACTIONS_IMPORT_ROW: 'transactions-import-row',
+  KYC_VERIFICATION: 'kyc-verification',
 } as const;
 
 export type IdentifierType = (typeof IDENTIFIER_TYPES)[keyof typeof IDENTIFIER_TYPES];

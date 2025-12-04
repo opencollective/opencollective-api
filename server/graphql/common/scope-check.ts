@@ -6,6 +6,13 @@ import { canUseFeature } from '../../lib/user-permissions';
 import Comment from '../../models/Comment';
 import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
 
+export const checkRemoteUserCanUseKYC = (req: Express.Request): void => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage KYC.');
+  }
+  enforceScope(req, 'kyc');
+};
+
 export const checkRemoteUserCanUseVirtualCards = (req: Express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage virtual cards.');
