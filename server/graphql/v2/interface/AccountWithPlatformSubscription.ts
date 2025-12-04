@@ -44,6 +44,6 @@ export const AccountWithPlatformSubscriptionFields = {
 
 export const GraphQLAccountWithPlatformSubscription = new GraphQLInterfaceType({
   name: 'AccountWithPlatformSubscription',
-  description: 'An account that can be hosted by a Host',
+  description: 'An account that can have a Platform Subscription',
   fields: () => AccountWithPlatformSubscriptionFields,
 });
