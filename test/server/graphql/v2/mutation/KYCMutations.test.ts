@@ -6,12 +6,7 @@ import sinon from 'sinon';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import { manualKycProvider } from '../../../../../server/lib/kyc/providers/manual';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
-import {
-  fakeKYCVerification,
-  fakeOrganization,
-  fakePlatformSubscription,
-  fakeUser,
-} from '../../../../test-helpers/fake-data';
+import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/KYCMutations', () => {
@@ -58,10 +53,6 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         data: {
           isFirstPartyHost: true,
         },
-      });
-      await fakePlatformSubscription({
-        CollectiveId: org.id,
-        plan: { features: { KYC: true } },
       });
 
       return org;
@@ -257,10 +248,6 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         data: {
           isFirstPartyHost: true,
         },
-      });
-      await fakePlatformSubscription({
-        CollectiveId: org.id,
-        plan: { features: { KYC: true } },
       });
 
       return org;

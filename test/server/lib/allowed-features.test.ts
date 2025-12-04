@@ -253,10 +253,6 @@ describe('server/lib/allowed-features', () => {
             isFirstPartyHost: true,
           },
         });
-        await fakePlatformSubscription({
-          CollectiveId: host.id,
-          plan: { features: { KYC: true } },
-        });
         expect(await getFeatureAccess(host, FEATURE.KYC)).to.deep.eq({ access: 'AVAILABLE', reason: null });
         const independentCollective = await fakeCollective({ isHostAccount: true, isActive: false });
         expect(await getFeatureAccess(independentCollective, FEATURE.KYC)).to.deep.eq({
