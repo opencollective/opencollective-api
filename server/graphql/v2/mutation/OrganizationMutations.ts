@@ -64,11 +64,14 @@ export default {
       financiallyActive: {
         type: GraphQLBoolean,
         description:
-          'If true, the organization will be created as financially active, allowing the organization to receive contributions and pay for expenses. Defaults to false.',
+          'If true, the organization will be created with Money Management activated, allowing the organization to receive contributions and pay for expenses. Defaults to false.',
         defaultValue: false,
       },
+      // TODO(hasHosting): rename this flag with appropriate future proof name
       fiscalHostCapable: {
         type: GraphQLBoolean,
+        description:
+          'If true, the organization will be created with Hosting activated, allowing the organization to host Collectives and Funds. Defaults to false.',
         defaultValue: false,
       },
     },
