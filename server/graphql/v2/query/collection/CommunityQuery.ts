@@ -5,6 +5,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql'
 import { isNil } from 'lodash';
 import { Sequelize } from 'sequelize';
 
+import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
 import { ifStr } from '../../../../lib/utils';
 import { Collective, sequelize } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
@@ -14,9 +15,50 @@ import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum/AccountType';
 import { GraphQLCommunityRelationType } from '../../enum/CommunityRelationType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import EmailAddress from '../../scalar/EmailAddress';
 
 const DEFAULT_LIMIT = 100;
+
+const buildSearchConditions = (
+  searchTerm: string,
+): { joinClause: string; whereClause: string; replacements: Record<string, string | number> } => {
+  const emptySearchConditions = { joinClause: '', whereClause: '', replacements: {} };
+  if (!searchTerm) {
+    return emptySearchConditions;
+  }
+
+  const parsed = parseSearchTerm(searchTerm);
+  if (!parsed.term) {
+    return emptySearchConditions;
+  }
+
+  if (parsed.type === 'email') {
+    return {
+      joinClause: `INNER JOIN "Users" u ON u."CollectiveId" = fc.id AND u."deletedAt" IS NULL AND u."email" = LOWER(:searchTerm)`,
+      whereClause: '',
+      replacements: { searchTerm: parsed.term },
+    };
+  } else if (parsed.type === 'slug') {
+    const sanitizedSlug = sanitizeSearchTermForILike(parsed.term);
+    return {
+      joinClause: '',
+      whereClause: `AND fc."slug" ILIKE :searchTermPattern`,
+      replacements: { searchTermPattern: `%${sanitizedSlug}%` },
+    };
+  } else if (parsed.type === 'id' || parsed.type === 'number') {
+    return {
+      joinClause: '',
+      whereClause: `AND (cas."CollectiveId" = :searchTerm OR cas."FromCollectiveId" = :searchTerm)`,
+      replacements: { searchTerm: parsed.term },
+    };
+  } else {
+    const sanitizedTerm = sanitizeSearchTermForILike(parsed.term);
+    return {
+      joinClause: `LEFT JOIN "Users" u ON u."CollectiveId" = fc.id AND u."deletedAt" IS NULL`,
+      whereClause: `AND (fc."name" ILIKE :searchTermPattern OR fc.slug ILIKE :searchTermPattern OR u."email" ILIKE :searchTermPattern)`,
+      replacements: { searchTermPattern: `%${sanitizedTerm}%` },
+    };
+  }
+};
 
 type CommunitySummaryArgs = {
   limit: number;
@@ -24,38 +66,41 @@ type CommunitySummaryArgs = {
   type?: string[];
   HostCollectiveId?: number;
   CollectiveId?: number;
-  email?: string;
+  searchTerm?: string;
   relation?: string;
 };
 const getHostCommunity = async (replacements: CommunitySummaryArgs) => {
   const isAdmin = 'relation' in replacements && replacements.relation.includes('ADMIN');
+  const searchConditions = buildSearchConditions(replacements.searchTerm);
 
   const baseQuery = `
     FROM "CommunityActivitySummary" cas
-    INNER JOIN "Collectives" c ON c.id = cas."FromCollectiveId"
-    ${ifStr('email' in replacements, `INNER JOIN "Users" u ON u."CollectiveId" = c.id AND u."deletedAt" IS NULL AND u."email" = LOWER(:email)`)}
+    INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
+    ${searchConditions.joinClause}
     ${ifStr(isAdmin, `INNER JOIN "Members" m ON m."CollectiveId" = cas."CollectiveId" AND m."MemberCollectiveId" = "FromCollectiveId" AND m.role = 'ADMIN' AND m."deletedAt" IS NULL`)}
     WHERE
-      c."deletedAt" IS NULL
+      fc."deletedAt" IS NULL
       ${ifStr('HostCollectiveId' in replacements, `AND cas."HostCollectiveId" = :HostCollectiveId`)}
       ${ifStr('CollectiveId' in replacements, `AND cas."CollectiveId" = :CollectiveId`)}
-      ${ifStr('type' in replacements, `AND c.type IN (:type)`)}
+      ${ifStr('type' in replacements, `AND fc.type IN (:type)`)}
       ${ifStr('relation' in replacements && replacements.relation.length > 0, `AND cas."relations" @> :relation`)}
+      ${searchConditions.whereClause}
     `;
 
+  const allReplacements = { ...replacements, ...searchConditions.replacements };
   const nodes = await sequelize.query(
-    `SELECT c.* ${baseQuery} GROUP BY cas."FromCollectiveId", c.id ORDER BY c.name LIMIT :limit OFFSET :offset`,
+    `SELECT fc.* ${baseQuery} GROUP BY cas."FromCollectiveId", fc.id ORDER BY fc.name LIMIT :limit OFFSET :offset`,
     {
-      replacements,
       model: Collective,
       mapToModel: true,
+      replacements: allReplacements,
     },
   );
 
   const totalCount = async () =>
     (sequelize as Sequelize)
-      .query<{ totalCount: number }>(`SELECT COUNT(DISTINCT c.id) AS "totalCount" ${baseQuery}`, {
-        replacements,
+      .query<{ totalCount: number }>(`SELECT COUNT(DISTINCT fc.id) AS "totalCount" ${baseQuery}`, {
+        replacements: allReplacements,
         raw: true,
         type: sequelize.QueryTypes.SELECT,
         plain: true,
@@ -78,12 +123,9 @@ const CommunityQuery = {
       description: 'Host context filter',
     },
     type: { type: new GraphQLList(GraphQLAccountType) },
-    email: {
-      type: EmailAddress,
-      description: 'Admin only. To filter on the email address of a member, useful to check if a member exists.',
-    },
     searchTerm: {
       type: GraphQLString,
+      description: 'Admin only. Search by email address or name of a member.',
     },
     relation: {
       type: new GraphQLList(new GraphQLNonNull(GraphQLCommunityRelationType)),
@@ -143,11 +185,11 @@ const CommunityQuery = {
     if (args.relation && args.relation.length > 0) {
       replacements.relation = JSON.stringify(args.relation);
     }
-    if (args.email) {
+    if (args.searchTerm) {
       if (req.remoteUser?.isAdminOfCollective(account) || req.remoteUser?.isAdminOfCollective(host)) {
-        replacements.email = args.email.toLowerCase();
+        replacements.searchTerm = args.searchTerm;
       } else {
-        throw new BadRequest('Only admins can lookup for members using the "email" argument');
+        throw new BadRequest('Only admins can lookup for members using the "searchTerm" argument');
       }
       // TODO: Before returning the result, double check if the remoteUser has access to see the result email
     }

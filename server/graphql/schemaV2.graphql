@@ -545,6 +545,11 @@ interface Account {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -3234,6 +3239,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -5809,6 +5819,11 @@ type PaymentMethod {
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
@@ -9236,6 +9251,11 @@ type Bot implements Account {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -10203,6 +10223,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
@@ -11732,6 +11757,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -12975,6 +13005,11 @@ type Individual implements Account {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -14197,6 +14232,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -15296,6 +15336,11 @@ type Vendor implements Account & AccountWithContributions {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -16332,9 +16377,8 @@ type Query {
     type: [AccountType]
 
     """
-    Admin only. To filter on the email address of a member, useful to check if a member exists.
+    Admin only. Search by email address or name of a member.
     """
-    email: EmailAddress
     searchTerm: String
     relation: [CommunityRelationType!]
     limit: Int! = 100
@@ -16703,6 +16747,11 @@ type Query {
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
@@ -19215,6 +19264,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
 
     """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
+
+    """
     If account is a host, also include hosted accounts orders
     """
     includeHostedAccounts: Boolean @deprecated(reason: "2025-11-20: Please use hostContext instead")
@@ -20329,6 +20383,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The offset to use to fetch
     """
     offset: Int! = 0
+
+    """
+    Only return orders that match these accounting categories
+    """
+    accountingCategory: [String]
 
     """
     If account is a host, also include hosted accounts orders
