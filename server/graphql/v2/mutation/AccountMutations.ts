@@ -45,6 +45,8 @@ import { GraphQLAccount } from '../interface/Account';
 import { GraphQLIndividual } from '../object/Individual';
 import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey';
 
+const { COLLECTIVE, FUND, ORGANIZATION } = CollectiveType;
+
 const GraphQLAddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
   name: 'AddTwoFactorAuthTokenToIndividualResponse',
   description: 'Response for the addTwoFactorAuthTokenToIndividual mutation',
@@ -97,7 +99,7 @@ const accountMutations = {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden('You need to be logged in as an Admin of the account to duplicate it.');
-      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
+      } else if (![COLLECTIVE, FUND].includes(account.type)) {
         throw new ValidationFailed(`${account.type} accounts cannot be duplicated.`);
       }
 
@@ -337,7 +339,7 @@ const accountMutations = {
         throw new ValidationFailed('Cannot find the host of this account');
       } else if (!req.remoteUser.isAdminOfCollective(account.host)) {
         throw new Unauthorized();
-      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
+      } else if (![COLLECTIVE, FUND].includes(account.type)) {
         throw new ValidationFailed(
           'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
         );
@@ -968,6 +970,11 @@ const accountMutations = {
         throw new Forbidden();
       }
 
+      // Disallow if not Collective or Fund
+      if (![COLLECTIVE, FUND].includes(account.type)) {
+        throw new Error('Mutation only available to COLLECTIVEs and FUNDs.');
+      }
+
       // Disallow if Hosted
       if (account.HostCollectiveId && account.approvedAt) {
         throw new Error("Can't convert an hosted Collective.");
@@ -975,7 +982,7 @@ const accountMutations = {
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
-      await account.update({ type: CollectiveType.ORGANIZATION });
+      await account.update({ type: ORGANIZATION });
 
       if (args.legalName) {
         await account.update({ legalName: args.legalName });
