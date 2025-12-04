@@ -6,7 +6,7 @@ import roles from '../../../../server/constants/roles';
 import models from '../../../../server/models';
 import paypalAdaptive from '../../../../server/paymentProviders/paypal/adaptiveGateway';
 import paypalMock from '../../../mocks/paypal';
-import { fakeOrganization, fakeTransaction } from '../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeOrganization, fakeTransaction } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, admin, user, collective, paypalPaymentMethod;
@@ -32,13 +32,14 @@ describe('server/graphql/v1/paymentMethods', () => {
   });
 
   beforeEach(async () => {
-    host = await models.Collective.create({
+    host = await fakeActiveHost({
+      admin,
       name: 'open source collective',
       type: 'ORGANIZATION',
       currency: 'USD',
     });
-    await host.addUserWithRole(admin, roles.ADMIN);
-    await host.becomeHost(admin);
+
+    await host.activateMoneyManagement(admin);
   });
 
   beforeEach(() =>

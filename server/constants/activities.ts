@@ -19,6 +19,7 @@ enum ActivityTypes {
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
+  COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
   // Freezing collectives
   COLLECTIVE_FROZEN = 'collective.frozen',
@@ -146,12 +147,17 @@ enum ActivityTypes {
   // Reports
   COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
   // Host
-  ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
-  ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
-  DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
+  ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host', // deprecated
+  ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent', // deprecated
+  DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host', // deprecated
+  // Money Management
+  ACTIVATED_MONEY_MANAGEMENT = 'activated.moneyManagement',
+  DEACTIVATED_MONEY_MANAGEMENT = 'deactivated.moneyManagement',
+  // Hosting
+  ACTIVATED_HOSTING = 'activated.hosting',
+  DEACTIVATED_HOSTING = 'deactivated.hosting',
 
   // Agreements
-
   AGREEMENT_CREATED = 'agreement.created',
   AGREEMENT_EDITED = 'agreement.edited',
   AGREEMENT_DELETED = 'agreement.deleted',
@@ -224,9 +230,13 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_UNFROZEN,
     ActivityTypes.COLLECTIVE_UNHOSTED,
     ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
-    ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST,
-    ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST,
-    ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
+    ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST, // deprecated
+    ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST, // deprecated
+    ActivityTypes.ACTIVATED_MONEY_MANAGEMENT,
+    ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT,
+    ActivityTypes.ACTIVATED_HOSTING,
+    ActivityTypes.DEACTIVATED_HOSTING,
+    ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT, // deprecated
     ActivityTypes.COLLECTIVE_TRANSACTION_CREATED, // TODO: Should not be here. See https://github.com/opencollective/opencollective/issues/5903
     ActivityTypes.COLLECTIVE_EDITED,
     ActivityTypes.COLLECTIVE_DELETED,

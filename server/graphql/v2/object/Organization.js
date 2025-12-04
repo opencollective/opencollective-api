@@ -1,4 +1,4 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
@@ -55,6 +55,20 @@ export const GraphQLOrganization = new GraphQLObjectType({
           if (collective.isHostAccount) {
             return collective;
           }
+        },
+      },
+      hasMoneyManagement: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the account has money management activated.',
+        resolve(collective) {
+          return collective.hasMoneyManagement();
+        },
+      },
+      hasHosting: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the account has hosting activated.',
+        resolve(collective) {
+          return collective.hasHosting();
         },
       },
     };
