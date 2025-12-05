@@ -34,7 +34,7 @@ class Application extends Model<InferAttributes<Application>, InferCreationAttri
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
-  declare public data: JSON;
+  declare public data: Record<string, unknown>;
 
   declare public createdByUser: NonAttribute<User>;
   declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
