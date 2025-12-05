@@ -4715,16 +4715,6 @@ type Mutation {
   claimPaymentMethod(code: String!, user: UserInputType): PaymentMethodType!
 
   """
-  Removes the payment method
-  """
-  removePaymentMethod(
-    """
-    ID of the payment method to remove
-    """
-    id: Int!
-  ): PaymentMethodType!
-
-  """
   Edits (by replacing) the admin-level webhooks for a collective.
   """
   editWebhooks(
@@ -4738,31 +4728,6 @@ type Mutation {
     """
     notifications: [NotificationInputType]
   ): [NotificationType]
-
-  """
-  Register user-level webhooks for a collective.
-  """
-  createWebhook(
-    """
-    Slug of the collective the webhook is created for.
-    """
-    collectiveSlug: String!
-
-    """
-    The notification object.
-    """
-    notification: NotificationInputType
-  ): NotificationType
-
-  """
-  Deletes a notification by ID.
-  """
-  deleteNotification(
-    """
-    ID of the notification to delete.
-    """
-    id: Int!
-  ): NotificationType
 
   """
   Activate a collective as Host.
@@ -4780,26 +4745,6 @@ type Mutation {
   deactivateCollectiveAsHost(
     """
     ID of the collective (Organization or User)
-    """
-    id: Int!
-  ): CollectiveInterface
-
-  """
-  Activate budget (For Host Organizations only)
-  """
-  activateBudget(
-    """
-    ID of the "collective" (Host Organization)
-    """
-    id: Int!
-  ): CollectiveInterface
-
-  """
-  Deactivate budget (For Host Organizations only)
-  """
-  deactivateBudget(
-    """
-    ID of the "collective" (Host Organization)
     """
     id: Int!
   ): CollectiveInterface
