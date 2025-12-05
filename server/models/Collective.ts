@@ -8,7 +8,6 @@ import slugify from 'limax';
 import {
   cloneDeep,
   defaults,
-  difference,
   differenceBy,
   differenceWith,
   get,
@@ -2870,48 +2869,6 @@ class Collective extends Model<
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
     });
-  };
-
-  // edit the tiers of this collective (create/update/remove)
-  editTiers = function (tiers?: Array<any>) {
-    // All kind of accounts can have Tiers
-
-    if (!tiers) {
-      return this.getTiers();
-    }
-
-    return <Promise<Array<any>>>this.getTiers()
-      .then(oldTiers => {
-        // remove the tiers that are not present anymore in the updated collective
-        const diff = difference(
-          oldTiers.map(t => t.id),
-          tiers.map(t => t.id),
-        );
-        if (diff.length > 0) {
-          return Tier.destroy({ where: { id: { [Op.in]: diff } } });
-        }
-      })
-      .then(() => {
-        return Promise.all(
-          tiers.map(tier => {
-            if (tier.amountType === 'FIXED') {
-              tier.presets = null;
-              tier.minimumAmount = null;
-            }
-            if (tier.invoiceTemplate) {
-              tier.data = { ...tier.data, invoiceTemplate: tier.invoiceTemplate };
-            }
-            if (tier.id) {
-              return Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
-            } else {
-              tier.CollectiveId = this.id;
-              tier.currency = tier.currency || this.currency;
-              return Tier.create(tier);
-            }
-          }),
-        );
-      })
-      .then(() => this.getTiers());
   };
 
   // Where `this` collective is a type == ORGANIZATION collective.

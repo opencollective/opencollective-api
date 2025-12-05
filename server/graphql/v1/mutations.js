@@ -226,19 +226,6 @@ const mutations = {
     },
     resolve: editPublicMessage,
   },
-  updatePaymentMethod: {
-    type: PaymentMethodType,
-    description: 'Update a payment method',
-    deprecationReason: '2024-07-16: Please use updateOrder from GraphQLV2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      name: { type: GraphQLString },
-      monthlyLimitPerMember: { type: GraphQLInt },
-    },
-    resolve: async (_, args, req) => {
-      return paymentMethodsMutation.updatePaymentMethod(args, req);
-    },
-  },
   replaceCreditCard: {
     type: PaymentMethodType,
     description: 'Replace a payment method',
