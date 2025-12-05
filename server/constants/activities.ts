@@ -21,6 +21,7 @@ enum ActivityTypes {
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
   COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
+  ORGANIZATION_CONVERTED_TO_COLLECTIVE = 'organization.convertedToCollective',
   // Freezing collectives
   COLLECTIVE_FROZEN = 'collective.frozen',
   COLLECTIVE_UNFROZEN = 'collective.unfrozen',

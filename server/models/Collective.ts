@@ -1022,15 +1022,6 @@ class Collective extends Model<
         UserId: remoteUser?.id,
         data: { collective: this.info },
       });
-      // TODO(hasMoneyManagement): remove with Independent Collective deprecation
-    } else if (this.type === CollectiveType.COLLECTIVE) {
-      await Activity.create({
-        type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
-        CollectiveId: this.id,
-        FromCollectiveId: this.id,
-        UserId: remoteUser?.id,
-        data: { collective: this.info },
-      });
     }
 
     await this.activateBudget();
