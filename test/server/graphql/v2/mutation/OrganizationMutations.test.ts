@@ -4,6 +4,7 @@ import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import MemberRoles from '../../../../../server/constants/roles';
 import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
@@ -401,6 +402,199 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You can't deactivate hosting while still hosting/);
+    });
+  });
+
+  describe('convertOrganizationToCollective', () => {
+    const convertOrganizationToCollectiveMutation = gql`
+      mutation ConvertOrganizationToCollective($organization: AccountReferenceInput!) {
+        convertOrganizationToCollective(organization: $organization) {
+          id
+          legacyId
+          type
+          slug
+          name
+        }
+      }
+    `;
+
+    it('requires authentication', async () => {
+      const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+
+      const result = await utils.graphqlQueryV2(convertOrganizationToCollectiveMutation, {
+        organization: { legacyId: organization.id },
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You need to be logged in/);
+    });
+
+    it('requires admin privileges', async () => {
+      const adminUser = await fakeUser();
+      const randomUser = await fakeUser();
+      const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: adminUser });
+
+      const result = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        randomUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/forbidden/);
+    });
+
+    it('successfully converts an organization to a collective', async () => {
+      const user = await fakeUser();
+      const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: user });
+
+      expect(organization.type).to.equal(CollectiveType.ORGANIZATION);
+
+      const result = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertOrganizationToCollective.type).to.equal('COLLECTIVE');
+
+      // Verify in database
+      await organization.reload();
+      expect(organization.type).to.equal(CollectiveType.COLLECTIVE);
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: {
+          UserId: user.id,
+          type: 'organization.convertedToCollective',
+          CollectiveId: organization.id,
+        },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.data.collective).to.exist;
+    });
+
+    it('allows root users to convert any organization', async () => {
+      const adminUser = await fakeUser();
+      const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: adminUser });
+      const rootUser = await fakeUser({ data: { isRoot: true } });
+
+      const platform = await models.Collective.findByPk(1);
+      await models.Member.create({
+        MemberCollectiveId: rootUser.CollectiveId,
+        CollectiveId: platform.id,
+        role: MemberRoles.ADMIN,
+        CreatedByUserId: rootUser.id,
+      });
+
+      const result = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        rootUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertOrganizationToCollective.type).to.equal('COLLECTIVE');
+
+      await organization.reload();
+      expect(organization.type).to.equal(CollectiveType.COLLECTIVE);
+    });
+
+    it('rejects conversion if account is not an organization', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE, admin: user });
+
+      const result = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Mutation only available to ORGANIZATION/);
+    });
+
+    it('rejects conversion if organization has hosting activated', async () => {
+      const user = await fakeUser();
+      const organization = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: user,
+        HostCollectiveId: null,
+      });
+
+      // Activate money management and hosting
+      await organization.activateMoneyManagement(user);
+      await organization.activateHosting();
+
+      const result = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Organization should not have Hosting activated/);
+    });
+
+    it('rejects conversion if organization has money management activated', async () => {
+      const user = await fakeUser();
+      const organization = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: user,
+        HostCollectiveId: null,
+      });
+
+      // Activate money management only
+      await organization.activateMoneyManagement(user);
+
+      const result = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Organization should not have Money Management activated/);
+    });
+
+    it('enforces 2FA when enabled on account', async () => {
+      const secret = speakeasy.generateSecret({ length: 64 });
+      const encryptedToken = crypto.encrypt(secret.base32).toString();
+      const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
+
+      const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: user });
+
+      // Try without 2FA token
+      const resultWithout2FA = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        user,
+      );
+
+      expect(resultWithout2FA.errors).to.exist;
+      expect(resultWithout2FA.errors[0].extensions.code).to.equal('2FA_REQUIRED');
+
+      // Try with valid 2FA token
+      const twoFactorAuthenticatorCode = speakeasy.totp({
+        algorithm: 'SHA1',
+        encoding: 'base32',
+        secret: secret.base32,
+      });
+
+      const resultWith2FA = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
+        },
+      );
+
+      expect(resultWith2FA.errors).to.not.exist;
+      expect(resultWith2FA.data.convertOrganizationToCollective.type).to.equal('COLLECTIVE');
     });
   });
 });
