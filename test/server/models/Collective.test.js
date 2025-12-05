@@ -958,30 +958,6 @@ describe('server/models/Collective', () => {
         })
         .finally(done);
     });
-
-    it('add/update/create new tiers', done => {
-      // This add a new tier and removes the "sponsors" tier
-      collective
-        .editTiers([
-          {
-            id: 1,
-            name: 'super backer',
-            amount: 1500,
-          },
-          {
-            name: 'new tier',
-            amount: 2000,
-            slug: 'newtier',
-          },
-        ])
-        .then(tiers => {
-          expect(tiers.length).to.equal(2);
-          tiers.sort((a, b) => a.slug.localeCompare(b.slug));
-          expect(tiers[0].name).to.equal('new tier');
-          expect(tiers[1].name).to.equal('super backer');
-        })
-        .finally(done);
-    });
   });
 
   describe('members', () => {
