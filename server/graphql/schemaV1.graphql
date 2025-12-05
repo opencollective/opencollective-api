@@ -2229,6 +2229,7 @@ type Collective implements CollectiveInterface {
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
+    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -2514,6 +2515,7 @@ type Event implements CollectiveInterface {
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
+    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -2799,6 +2801,7 @@ type Fund implements CollectiveInterface {
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
+    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -3084,6 +3087,7 @@ type Organization implements CollectiveInterface {
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
+    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -3369,6 +3373,7 @@ type Project implements CollectiveInterface {
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
+    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -3949,6 +3954,7 @@ type User implements CollectiveInterface {
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
+    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -4236,6 +4242,7 @@ type Vendor implements CollectiveInterface {
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
+    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -4639,12 +4646,6 @@ type Mutation {
   """
   editPublicMessage(FromCollectiveId: Int!, CollectiveId: Int!, message: String): [Member]
     @deprecated(reason: "2021-01-27: Please use editPublicMessage from GraphQLV2")
-
-  """
-  Update a payment method
-  """
-  updatePaymentMethod(id: Int!, name: String, monthlyLimitPerMember: Int): PaymentMethodType
-    @deprecated(reason: "2024-07-16: Please use updateOrder from GraphQLV2")
 
   """
   Replace a payment method
