@@ -21,7 +21,7 @@ program.option('--limit <number>', 'Limit the number of accounts to process', pa
 program.option('--offset <number>', 'Offset for pagination', parseInt);
 program.option('--slug <string>', 'The slug of the collective to convert');
 
-const main = async (options: { isDryRun: boolean; limit?: number; offset?: number; slug?: string }) => {
+export const main = async (options: { isDryRun: boolean; limit?: number; offset?: number; slug?: string }) => {
   const { count, rows: collectives } = await Collective.findAndCountAll({
     order: [['id', 'ASC']],
     limit: options.limit,
