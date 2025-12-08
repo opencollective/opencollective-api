@@ -15,6 +15,7 @@ import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import HostApplication from './HostApplication';
+import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
@@ -95,6 +96,7 @@ const models = {
   UserToken,
   UserTwoFactorMethod,
   PlatformSubscription,
+  KYCVerification,
   VirtualCard,
   VirtualCardRequest,
 } as const;
@@ -352,6 +354,10 @@ VirtualCardRequest.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'vi
 
 // PlatformSubscription
 PlatformSubscription.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// KYCVerification
+KYCVerification.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+KYCVerification.belongsTo(Collective, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
 
 export default models;
 

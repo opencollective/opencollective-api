@@ -17,6 +17,7 @@ import goCardlessMutations from './GoCardlessMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
 import individualMutations from './IndividualMutations';
+import kycMutations from './KYCMutations';
 import { legalDocumentsMutations } from './LegalDocumentsMutations';
 import memberInvitationMutations from './MemberInvitationMutations';
 import memberMutations from './MemberMutations';
@@ -84,6 +85,7 @@ const mutation = {
   ...vendorMutations,
   ...platformSubscriptionMutations,
   sendSurveyResponse: sendSurveyResponseMutation,
+  ...kycMutations,
 };
 
 export default mutation;

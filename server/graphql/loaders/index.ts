@@ -35,6 +35,7 @@ import {
   TransactionsImportRow,
   UploadedFile,
 } from '../../models';
+import { KYCVerification } from '../../models/KYCVerification';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
@@ -1222,6 +1223,10 @@ export const generateLoaders = req => {
     PlatformSubscription: {
       ...context.loaders.PlatformSubscription,
       ...PlatformSubscription.loaders,
+    },
+    KYCVerification: {
+      ...context.loaders.KYCVerification,
+      ...KYCVerification.loaders,
     },
     ExpenseItem: {
       ...context.loaders.ExpenseItem,
