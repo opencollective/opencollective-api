@@ -47,13 +47,7 @@ export const main = async (options: { isDryRun: boolean; limit?: number; offset?
       logger.info(`Converting ${collective.slug} (id: ${collective.id}) from ${collective.type} to ORGANIZATION...`);
 
       if (!options.isDryRun) {
-        await collective.update({
-          type: CollectiveType.ORGANIZATION,
-          data: {
-            ...collective.data,
-            canHostAccount: false,
-          },
-        });
+        await collective.update({ type: CollectiveType.ORGANIZATION });
         await collective.activateMoneyManagement(null, { force: true, silent: true });
         await models.Activity.create({
           type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
