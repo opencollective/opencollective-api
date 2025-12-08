@@ -54,7 +54,7 @@ const main = async (options: { isDryRun: boolean; limit?: number; offset?: numbe
             canHostAccount: false,
           },
         });
-        await collective.activateMoneyManagement(null, { silent: true });
+        await collective.activateMoneyManagement(null, { force: true, silent: true });
         await models.Activity.create({
           type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
           UserId: null,

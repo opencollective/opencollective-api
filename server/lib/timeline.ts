@@ -108,7 +108,7 @@ const makeTimelineQuery = async (
     return {
       [Op.or]: conditionals,
     };
-  } else if (collective.isHost && collective.type !== CollectiveType.COLLECTIVE) {
+  } else if ((await collective.hasHosting()) && collective.type !== CollectiveType.COLLECTIVE) {
     return {
       type: {
         [Op.in]: [
@@ -120,6 +120,11 @@ const makeTimelineQuery = async (
           ActivityTypes.COLLECTIVE_UNFROZEN,
           ActivityTypes.COLLECTIVE_UNHOSTED,
           ActivityTypes.COLLECTIVE_APPLY,
+          // New
+          ActivityTypes.ACTIVATED_MONEY_MANAGEMENT,
+          ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT,
+          ActivityTypes.ACTIVATED_HOSTING,
+          ActivityTypes.DEACTIVATED_HOSTING,
         ],
       },
       [Op.or]: [
@@ -193,6 +198,18 @@ const makeTimelineQuery = async (
         ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
         ActivityTypes.CONVERSATION_COMMENT_CREATED,
         ActivityTypes.UPDATE_COMMENT_CREATED,
+      ],
+    );
+  }
+
+  // New
+  if (classes.includes(ActivityClasses.COLLECTIVE)) {
+    types.push(
+      ...[
+        ActivityTypes.ACTIVATED_MONEY_MANAGEMENT,
+        ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT,
+        ActivityTypes.ACTIVATED_HOSTING,
+        ActivityTypes.DEACTIVATED_HOSTING,
       ],
     );
   }

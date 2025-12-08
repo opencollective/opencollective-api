@@ -93,7 +93,7 @@ const sanitizeSearchTermForTSQuery = term => {
 /**
  * Removes special ILIKE characters like `%
  */
-const sanitizeSearchTermForILike = term => {
+export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
@@ -450,12 +450,25 @@ export const searchCollectivesInDB = async (
  */
 export const parseSearchTerm = (
   fullSearchTerm: string,
-): {
-  type: 'text' | 'slug' | 'email' | 'id' | 'number' | 'text';
-  term: string | number;
-  isFloat?: boolean;
-  words?: number;
-} => {
+):
+  | {
+      type: 'email' | 'slug';
+      term: string;
+    }
+  | {
+      type: 'text';
+      term: string | number;
+      words?: number;
+    }
+  | {
+      type: 'id';
+      term: number;
+    }
+  | {
+      type: 'number';
+      term: number;
+      isFloat?: boolean;
+    } => {
   const searchTerm = trimSearchTerm(fullSearchTerm);
   if (!searchTerm) {
     return { type: 'text', term: '' };
@@ -548,7 +561,10 @@ export const buildSearchConditions = (
     }
   }
 
-  if (dataFields?.length && (parsedTerm.words === 1 || (parsedTerm.type === 'number' && !parsedTerm.isFloat))) {
+  if (
+    dataFields?.length &&
+    ((parsedTerm.type === 'text' && parsedTerm.words === 1) || (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+  ) {
     conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
   }
 

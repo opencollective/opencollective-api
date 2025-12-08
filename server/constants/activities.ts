@@ -21,6 +21,7 @@ enum ActivityTypes {
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
   COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
+  ORGANIZATION_CONVERTED_TO_COLLECTIVE = 'organization.convertedToCollective',
   // Freezing collectives
   COLLECTIVE_FROZEN = 'collective.frozen',
   COLLECTIVE_UNFROZEN = 'collective.unfrozen',
@@ -177,6 +178,10 @@ enum ActivityTypes {
   COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
   ORDER_PENDING_CRYPTO = 'order.pending.crypto',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
+
+  KYC_REQUESTED = 'kyc.requested',
+  KYC_REVOKED = 'kyc.revoked',
+  KYC_VERIFIED = 'kyc.verified',
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */

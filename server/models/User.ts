@@ -484,6 +484,10 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
     const destroyInTransaction = async transaction => {
       await this.update({ email: newEmail }, { transaction });
+      const collective = await Collective.findByPk(this.CollectiveId, { transaction });
+      if (collective) {
+        await collective.destroy({ transaction });
+      }
       return this.destroy({ transaction });
     };
 

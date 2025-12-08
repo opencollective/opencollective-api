@@ -5,6 +5,7 @@ import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
+import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { PlatformSubscriptionTiers } from '../../../constants/plans';
 import roles from '../../../constants/roles';
@@ -27,11 +28,14 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { GraphQLIndividualCreateInput } from '../input/IndividualCreateInput';
 import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import { GraphQLOrganizationCreateInput } from '../input/OrganizationCreateInput';
+import { GraphQLCollective } from '../object/Collective';
 import { GraphQLOrganization } from '../object/Organization';
 
 const DEFAULT_ORGANIZATION_SETTINGS = {
   features: { conversations: true },
 };
+
+const { COLLECTIVE, ORGANIZATION } = CollectiveType;
 
 const NEW_PRICING = parseToBoolean(config.features?.newPricing);
 
@@ -60,11 +64,16 @@ export default {
       captcha: {
         type: CaptchaInputType,
       },
-      // TODO(hasMoneyManagement): rename this flag with appropriate future proof name
-      financiallyActive: {
+      hasMoneyManagement: {
         type: GraphQLBoolean,
         description:
-          'If true, the organization will be created as financially active, allowing the organization to receive contributions and pay for expenses. Defaults to false.',
+          'If true, the organization will be created with Money Management activated, allowing the organization to receive contributions and pay for expenses. Defaults to false.',
+        defaultValue: false,
+      },
+      hasHosting: {
+        type: GraphQLBoolean,
+        description:
+          'If true, the organization will be created with Hosting activated, allowing the organization to host Collectives and Funds. Defaults to false.',
         defaultValue: false,
       },
     },
@@ -74,7 +83,7 @@ export default {
       }
 
       const organizationData = {
-        type: CollectiveType.ORGANIZATION,
+        type: ORGANIZATION,
         slug: args.organization.slug.toLowerCase(),
         ...pick(args.organization, ['name', 'legalName', 'description', 'countryISO']),
         isActive: false,
@@ -159,8 +168,11 @@ export default {
       if (args.organization.currency) {
         await organization.setCurrency(args.organization.currency);
       }
-      if (args.financiallyActive) {
+      if (args.hasMoneyManagement || args.hasHosting) {
         await organization.activateMoneyManagement(user);
+        if (args.hasHosting) {
+          await organization.activateHosting(user);
+        }
       }
 
       if (NEW_PRICING) {
@@ -204,7 +216,7 @@ export default {
       checkRemoteUserCanUseAccount(req);
 
       const organization = await fetchAccountWithReference(args.organization, { throwIfMissing: true });
-      if (!organization || organization.type !== CollectiveType.ORGANIZATION) {
+      if (!organization || organization.type !== ORGANIZATION) {
         throw new ValidationFailed('Organization not found');
       }
 
@@ -256,23 +268,73 @@ export default {
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
 
+      const shouldHaveHosting = args.hasHosting;
       const shouldHaveMoneyManagement = args.hasMoneyManagement;
+
+      // Activate Money Management first, so Hosting can be properly activated
       if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement()) {
         await organization.activateMoneyManagement(req.remoteUser);
-      } else if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement()) {
-        await organization.deactivateMoneyManagement();
+      }
+      if (shouldHaveHosting === true && !organization.hasHosting() && organization.hasMoneyManagement()) {
+        await organization.activateHosting(req.remoteUser);
       }
 
-      const shouldHaveHosting = args.hasHosting;
-      if (shouldHaveHosting === true && !organization.hasHosting()) {
-        if (organization.hasMoneyManagement()) {
-          await organization.activateHosting();
-        }
-      } else if (shouldHaveHosting === false && organization.hasHosting()) {
-        await organization.deactivateHosting();
+      // Deactivate Hosting first, so Money Management can be properly deactivated
+      if (shouldHaveHosting === false && organization.hasHosting()) {
+        await organization.deactivateHosting(req.remoteUser);
+      }
+      if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement()) {
+        await organization.deactivateMoneyManagement(req.remoteUser);
       }
 
       return organization;
+    },
+  },
+  convertOrganizationToCollective: {
+    type: new GraphQLNonNull(GraphQLCollective),
+    description: 'Convert an Organization to a Collective. Scope: "account".',
+    args: {
+      organization: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Account to convert.',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+
+      const organization = await fetchAccountWithReference(args.organization, {
+        loaders: req.loaders,
+        throwIfMissing: true,
+      });
+
+      if (!req.remoteUser.isAdminOfCollective(organization) && !req.remoteUser.isRoot()) {
+        throw new Forbidden();
+      }
+
+      if (organization.type !== ORGANIZATION) {
+        throw new Error('Mutation only available to ORGANIZATION.');
+      } else if (organization.hasHosting()) {
+        throw new Error('Organization should not have Hosting activated.');
+      } else if (organization.hasMoneyManagement()) {
+        throw new Error('Organization should not have Money Management activated.');
+      }
+
+      await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
+
+      const collective = await organization.update({ type: COLLECTIVE });
+
+      await models.Activity.create({
+        type: activities.ORGANIZATION_CONVERTED_TO_COLLECTIVE,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: collective.id,
+        FromCollectiveId: collective.id,
+        data: {
+          collective: collective.minimal,
+        },
+      });
+
+      return collective;
     },
   },
 };
