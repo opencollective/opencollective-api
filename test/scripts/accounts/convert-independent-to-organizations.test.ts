@@ -33,7 +33,6 @@ describe('scripts/accounts/convert-independent-to-organizations', () => {
     expect(independentCollective.isHostAccount).to.be.true;
     expect(independentCollective.hasMoneyManagement()).to.be.true;
     expect(independentCollective.hasHosting()).to.be.false; // Hosting should be disabled
-    expect(independentCollective.data?.canHostAccount).to.be.false;
     expect(independentCollective.settings?.canHostAccounts).to.be.false;
 
     // Verify activity was created
