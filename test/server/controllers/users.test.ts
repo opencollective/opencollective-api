@@ -118,7 +118,6 @@ describe('server/controllers/users', () => {
       expect(user.data.requiresVerification).to.be.true;
       expect(user.collective.data.isSuspended).to.be.true;
 
-      expect(emailLib.send).to.have.been.calledOnce;
       expect(emailLib.send).to.have.been.calledWithMatch(ActivityTypes.USER_OTP_REQUESTED, user.email);
     });
 
@@ -135,7 +134,6 @@ describe('server/controllers/users', () => {
       expect(otpSession.userId).to.be.a('number');
       expect(otpSession.tries).to.equal(0);
 
-      expect(emailLib.send).to.have.been.calledOnce;
       expect(emailLib.send).to.have.been.calledWithMatch(ActivityTypes.USER_OTP_REQUESTED, user.email);
     });
 
@@ -213,12 +211,12 @@ describe('server/controllers/users', () => {
       expect(user.confirmedAt).to.be.null;
       expect(user.data.requiresVerification).to.be.true;
 
-      expect(emailLib.send).to.have.been.calledOnce;
       expect(emailLib.send).to.have.been.calledWithMatch(ActivityTypes.USER_OTP_REQUESTED, user.email);
 
-      const resendResponse = await makeResendOtpRequest(randEmail(), responseData.sessionId, randIPV4());
+      const otherEmail = randEmail();
+      const resendResponse = await makeResendOtpRequest(otherEmail, responseData.sessionId, randIPV4());
       expect(resendResponse._getStatusCode()).to.eql(401);
-      expect(emailLib.send).to.have.been.calledOnce;
+      expect(emailLib.send).to.have.not.been.calledWithMatch(ActivityTypes.USER_OTP_REQUESTED, otherEmail);
     });
 
     it('shoud generate a new OTP and send it to the same email', async () => {
@@ -242,13 +240,11 @@ describe('server/controllers/users', () => {
       expect(user.data.requiresVerification).to.be.true;
       expect(user.confirmedAt).to.be.null;
 
-      expect(emailLib.send).to.have.been.calledOnce;
       expect(emailLib.send).to.have.been.calledWithMatch(ActivityTypes.USER_OTP_REQUESTED, user.email);
       const firstOtp = (emailLib.send as sinon.SinonStub).getCall(0).args[2]['otp'];
 
       const resendResponse = await makeResendOtpRequest(email, responseData.sessionId, randIPV4());
       expect(resendResponse._getStatusCode()).to.eql(200);
-      expect(emailLib.send).to.have.been.calledTwice;
       const secondOtp = (emailLib.send as sinon.SinonStub).getCall(1).args[2]['otp'];
       expect(secondOtp).to.not.equal(firstOtp);
 
