@@ -3,7 +3,6 @@ import { URLSearchParams } from 'url';
 import { pick } from 'lodash';
 
 import { activities } from '../../../constants';
-import ORDER_STATUS from '../../../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
@@ -11,7 +10,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op } from '../../../models';
 import GiftCard from '../../../paymentProviders/opencollective/giftcard';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { Forbidden, ValidationFailed } from '../../errors';
+import { Forbidden } from '../../errors';
 
 /** Create a Payment Method through a collective(organization or user)
  *
@@ -172,56 +171,6 @@ export async function claimPaymentMethod(args, req) {
 const PaymentMethodPermissionError = new Forbidden(
   "This payment method does not exist or you don't have the permission to edit it.",
 );
-
-export async function removePaymentMethod(paymentMethodId, req) {
-  if (!req.remoteUser) {
-    throw PaymentMethodPermissionError;
-  }
-
-  // Try to load payment method. Throw permission error if it doesn't exist
-  // to prevent attackers from guessing which id is valid and which one is not
-  const paymentMethod = await models.PaymentMethod.findByPk(paymentMethodId, {
-    include: [{ model: models.Collective, required: true }],
-  });
-  if (!paymentMethod || !req.remoteUser.isAdmin(paymentMethod.CollectiveId)) {
-    throw PaymentMethodPermissionError;
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, paymentMethod.Collective);
-
-  // Block the removal if the payment method has subscriptions linked
-  const subscriptions = await paymentMethod.getOrders({
-    where: { status: { [Op.or]: [ORDER_STATUS.ACTIVE, ORDER_STATUS.ERROR] } },
-    include: [
-      {
-        model: models.Subscription,
-        where: { isActive: true },
-        required: true,
-      },
-    ],
-  });
-
-  if (subscriptions.length > 0) {
-    throw new ValidationFailed('The payment method has active subscriptions', 'PM.Remove.HasActiveSubscriptions');
-  }
-
-  return paymentMethod.destroy();
-}
-
-/** Update payment method with given args */
-export async function updatePaymentMethod(args, req) {
-  const allowedFields = ['name', 'monthlyLimitPerMember'];
-  const paymentMethod = await models.PaymentMethod.findByPk(args.id, {
-    include: [{ model: models.Collective, required: true }],
-  });
-  if (!paymentMethod || !req.remoteUser || !req.remoteUser.isAdminOfCollective(paymentMethod.Collective)) {
-    throw PaymentMethodPermissionError;
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, paymentMethod.Collective, { onlyAskOnLogin: true });
-
-  return paymentMethod.update(pick(args, allowedFields));
-}
 
 /** Update payment method with given args */
 export async function replaceCreditCard(args, req) {
