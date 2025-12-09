@@ -983,7 +983,7 @@ class Collective extends Model<
   // this Payment Method will be used for "Add Funds"
   activateMoneyManagement = async function (
     remoteUser: User | null,
-    { force = true }: { force?: boolean } = {},
+    { force = false, silent = false }: { force?: boolean; silent?: boolean } = {},
   ): Promise<Collective> {
     // Independent Collective deprecation: remove COLLECTIVE, and remove USER while we're at it
     if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
@@ -1013,7 +1013,7 @@ class Collective extends Model<
 
     await this.getOrCreateHostPaymentMethod();
 
-    if (this.type === 'ORGANIZATION' || this.type === 'USER') {
+    if (!silent && (this.type === 'ORGANIZATION' || this.type === 'USER')) {
       await Activity.create({
         type: activities.ACTIVATED_MONEY_MANAGEMENT,
         CollectiveId: this.id,
