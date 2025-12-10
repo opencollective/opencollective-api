@@ -184,6 +184,11 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
                   ActivityTypes.SUBSCRIPTION_ACTIVATED,
                 ],
               },
+              UserId && {
+                UserId,
+                CollectiveId: account.id,
+                type: [ActivityTypes.ACTIVATED_HOSTING, ActivityTypes.DEACTIVATED_HOSTING],
+              },
               {
                 HostCollectiveId,
                 FromCollectiveId: account.id,
