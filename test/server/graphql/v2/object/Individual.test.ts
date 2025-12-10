@@ -201,35 +201,36 @@ describe('server/graphql/v2/object/Individual', () => {
       expect(result.errors[0].message).to.equal('You need to be logged in to manage KYC.');
     });
 
-    it('returns error if user is not the individual', async () => {
-      const other = await fakeUser();
+    it('returns error if user is the individual', async () => {
       const user = await fakeUser();
 
-      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, other);
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
     });
 
     it('returns individual kyc verifications', async () => {
+      const admin = await fakeUser();
       const user = await fakeUser();
-      const other = await fakeUser();
+      const org = await fakeOrganization({ admin });
 
       await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
         CollectiveId: user.CollectiveId,
         status: KYCVerificationStatus.REVOKED,
       });
 
       await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
         CollectiveId: user.CollectiveId,
         status: KYCVerificationStatus.FAILED,
       });
 
-      await fakeKYCVerification({
-        CollectiveId: other.CollectiveId,
-        status: KYCVerificationStatus.FAILED,
-      });
-
-      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      const result = await graphqlQueryV2(
+        query,
+        { slug: user.collective.slug, requestedByAccounts: [{ slug: org.slug }] },
+        admin,
+      );
       expect(result.errors).to.not.exist;
       expect(result.data.account.kycVerifications.totalCount).to.eql(2);
     });
@@ -276,15 +277,14 @@ describe('server/graphql/v2/object/Individual', () => {
       expect(result.errors[0].message).to.equal('You need to be logged in to manage KYC.');
     });
 
-    it('returns error if user is not the individual', async () => {
-      const other = await fakeUser();
+    it('returns error if user is the individual', async () => {
       const user = await fakeUser();
       const org = await fakeOrganization();
 
       const result = await graphqlQueryV2(
         query,
         { slug: user.collective.slug, requestedByAccount: { slug: org.slug } },
-        other,
+        user,
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
@@ -292,7 +292,8 @@ describe('server/graphql/v2/object/Individual', () => {
 
     it('returns latest verification status per provider', async () => {
       const user = await fakeUser();
-      const org = await fakeOrganization();
+      const admin = await fakeUser();
+      const org = await fakeOrganization({ admin });
       const otherOrg = await fakeOrganization();
 
       await fakeKYCVerification({
@@ -340,7 +341,7 @@ describe('server/graphql/v2/object/Individual', () => {
       const result = await graphqlQueryV2(
         query,
         { slug: user.collective.slug, requestedByAccount: { slug: org.slug } },
-        user,
+        admin,
       );
       expect(result.errors).to.not.exist;
       expect(result.data.account.kycStatus.manual.verifiedData.legalName).to.equal('Legal name 2');
@@ -350,8 +351,9 @@ describe('server/graphql/v2/object/Individual', () => {
 
     it('returns null for missing verification status', async () => {
       const user = await fakeUser();
+      const admin = await fakeUser();
       const org = await fakeOrganization();
-      const otherOrg = await fakeOrganization();
+      const otherOrg = await fakeOrganization({ admin });
 
       await fakeKYCVerification({
         CollectiveId: user.collective.id,
@@ -363,7 +365,7 @@ describe('server/graphql/v2/object/Individual', () => {
       const result = await graphqlQueryV2(
         query,
         { slug: user.collective.slug, requestedByAccount: { slug: otherOrg.slug } },
-        user,
+        admin,
       );
       expect(result.errors).to.not.exist;
       expect(result.data.account.kycStatus.manual).to.be.null;
@@ -371,8 +373,8 @@ describe('server/graphql/v2/object/Individual', () => {
 
     it('returns null for revoked verification status', async () => {
       const user = await fakeUser();
-      const org = await fakeOrganization();
-      const otherOrg = await fakeOrganization();
+      const admin = await fakeUser();
+      const org = await fakeOrganization({ admin });
 
       await fakeKYCVerification({
         CollectiveId: user.collective.id,
@@ -383,8 +385,8 @@ describe('server/graphql/v2/object/Individual', () => {
 
       const result = await graphqlQueryV2(
         query,
-        { slug: user.collective.slug, requestedByAccount: { slug: otherOrg.slug } },
-        user,
+        { slug: user.collective.slug, requestedByAccount: { slug: org.slug } },
+        admin,
       );
       expect(result.errors).to.not.exist;
       expect(result.data.account.kycStatus.manual).to.be.null;
