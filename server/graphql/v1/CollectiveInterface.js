@@ -1306,6 +1306,7 @@ const CollectiveFields = () => {
     },
     tiers: {
       type: new GraphQLList(TierType),
+      deprecationReason: '2025-12-05: Will be deleted soon. Use GraphQL v2',
       args: {
         id: { type: GraphQLInt },
         slug: { type: GraphQLString },

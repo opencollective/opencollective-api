@@ -173,6 +173,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'showSetupGuide',
   'showInitialOverviewSubscriptionCard',
   'canHostAccounts', // Whether this account can host other accounts
+  'kyc',
 ];
 
 /**
