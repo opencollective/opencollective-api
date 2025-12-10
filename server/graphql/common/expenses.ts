@@ -285,13 +285,13 @@ const isAdminOfCollectiveWithPermissivePayoutMethodPermissions = async (
   return Boolean(loosePermissionsPolicy);
 };
 
-const isAdminOfCollectiveAndExpenseIsAVirtualCard = async (
+const isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated = async (
   req: express.Request,
   expense: Expense,
 ): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.type !== ExpenseType.CHARGE) {
+  } else if (expense.type !== ExpenseType.CHARGE || isManuallyCreatedCharge(expense)) {
     return false;
   } else {
     return isCollectiveAdmin(req, expense);
@@ -385,7 +385,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
     isAdminOfCollectiveWithPermissivePayoutMethodPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
-    isAdminOfCollectiveAndExpenseIsAVirtualCard, // Virtual cards are created by the collective admins
+    isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated, // Virtual cards are created by the collective admins, but manually created ones are managed by host admins
   ]);
 };
 
@@ -524,6 +524,14 @@ export const canSeeExpenseTransactionImportRow: ExpensePermissionEvaluator = asy
   }
 };
 
+/**
+ * Checks if an expense is a manually created virtual card charge
+ * (created through the bank transactions import tool)
+ */
+export const isManuallyCreatedCharge = (expense: Expense): boolean => {
+  return expense.type === ExpenseType.CHARGE && expense.data?.isManualVirtualCardCharge === true;
+};
+
 /** Checks if the user can verify or resend a draft */
 export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense): Promise<boolean> => {
   if (!validateExpenseScope(req)) {
@@ -546,12 +554,6 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   }
 
@@ -797,12 +799,6 @@ export const canEditExpenseTags: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
@@ -832,12 +828,6 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (
     ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
@@ -870,15 +860,30 @@ export const canPayExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
+  if (!(await canMarkAsPaid(req, expense, options))) {
     return false;
   } else if (expense.type === ExpenseType.CHARGE) {
+    // Can never pay charges, even manually created ones. Charges are meant to represent a payment that happened elsewhere
+    // already, so it makes no sense to pay them again.
+    return false;
+  } else {
+    return true;
+  }
+};
+
+/**
+ * Whether use can mark the expense as paid, adding a transaction in the ledger WITHOUT triggering
+ * and actual payment on 3rd party provider. This matches canPayExpense's permissions, with one exception:
+ * host admins can mark as paid manually created virtual card charges.
+ */
+export const canMarkAsPaid: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!validateExpenseScope(req, options)) {
+    return false;
+  } else if (expense.type === ExpenseType.CHARGE && !isManuallyCreatedCharge(expense)) {
     return false;
   } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
@@ -904,16 +909,17 @@ export const canApprove: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (expense.type === ExpenseType.CHARGE) {
-    return false;
-  } else if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
+    // Allow host admins to approve manually created virtual card charges
+    if (isManuallyCreatedCharge(expense) && (await isHostAdmin(req, expense))) {
+      // Continue with normal approval flow for manually created charges
+    } else {
+      return false;
+    }
+  }
+
+  if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         `Can not approve expense in current status (${expense.status})`,
@@ -991,12 +997,6 @@ export const canReject: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
@@ -1086,12 +1086,6 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!['REJECTED'].includes(expense.status)) {
     if (options?.throw) {
@@ -1128,12 +1122,6 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if ([ExpenseType.CHARGE, ExpenseType.PLATFORM_BILLING, ExpenseType.SETTLEMENT].includes(expense.type)) {
     return false;
@@ -1165,12 +1153,6 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
@@ -1218,12 +1200,6 @@ export const canEditExpenseAccountingCategory = async (
   options = { throw: false },
 ): Promise<boolean> => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
@@ -1288,12 +1264,6 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (expense.status !== 'PAID') {
     if (options?.throw) {
@@ -1303,15 +1273,22 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else if (expense.type === ExpenseType.CHARGE && !req.remoteUser?.isRoot()) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Can not mark this type of expense as unpaid',
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
-      );
+  } else if (expense.type === ExpenseType.CHARGE) {
+    // Allow host admins to mark manually created virtual card charges as unpaid
+    if (isManuallyCreatedCharge(expense)) {
+      // Continue with normal flow - host admins will be checked below
+    } else if (!req.remoteUser?.isRoot()) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not mark this type of expense as unpaid',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
+        );
+      }
+      return false;
     }
-    return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+  }
+
+  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden(
         'User cannot mark expenses as unpaid',
@@ -1319,13 +1296,11 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else {
-    if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
-      return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
-    }
-
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+  } else if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   }
+
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
 };
 
 /**
@@ -1337,12 +1312,6 @@ export const canComment: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
@@ -1385,12 +1354,6 @@ export const canUnschedulePayment: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
     if (options?.throw) {
@@ -1410,12 +1373,6 @@ export const canPutOnHold: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (expense.status !== 'APPROVED' || expense.onHold === true) {
     if (options?.throw) {
@@ -1440,12 +1397,6 @@ export const canReleaseHold: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!expense.onHold) {
     if (options?.throw) {
@@ -1530,7 +1481,7 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
 };
 
 export const markAsPaidWithStripe = async (req: express.Request, expense: Expense): Promise<Expense> => {
-  if (!(await canPayExpense(req, expense))) {
+  if (!(await canMarkAsPaid(req, expense))) {
     throw new Forbidden("You don't have permission to pay this expense");
   }
 
@@ -2399,6 +2350,11 @@ export async function createExpense(
 
   // Expense data
   const data = { recipient, taxes };
+
+  // Set flag for manually created virtual card charges
+  if (expenseData.type === ExpenseType.CHARGE) {
+    data['isManualVirtualCardCharge'] = true;
+  }
   if (expenseData.customData) {
     validateExpenseCustomData(expenseData.customData);
     data['customData'] = expenseData.customData;
@@ -3808,7 +3764,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     ) {
       throw new Forbidden(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
     }
-    if (!(await canPayExpense(req, expense))) {
+
+    const permissionFn = forceManual ? canMarkAsPaid : canPayExpense;
+    if (!(await permissionFn(req, expense))) {
       throw new Forbidden("You don't have permission to pay this expense");
     }
     const host = await expense.collective.getHostCollective({ loaders: req.loaders });
