@@ -158,7 +158,7 @@ const model: OauthModel = {
     debug('model.getRefreshToken', refreshToken);
     const token = await UserToken.findOne({ where: { refreshToken } });
     if (!token) {
-      throw new InvalidTokenError('Invalid refresh token');
+      throw new InvalidGrantError('Invalid refresh token');
     }
 
     return (await dbTokenToOAuthToken(token)) as RefreshToken;

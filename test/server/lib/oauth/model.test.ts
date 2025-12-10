@@ -106,7 +106,7 @@ describe('server/lib/oauth/model', () => {
     });
 
     it('throws if the token does not exist', async () => {
-      await expect(OAuthModel.getRefreshToken('not-a-token')).to.be.rejectedWith(InvalidTokenError);
+      await expect(OAuthModel.getRefreshToken('not-a-token')).to.be.rejectedWith(InvalidGrantError);
     });
   });
 
