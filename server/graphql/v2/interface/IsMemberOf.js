@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, invert, isNil, isUndefined } from 'lodash';
+import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { buildSearchConditions } from '../../../lib/sql-search';
@@ -34,6 +34,10 @@ export const IsMemberOfFields = {
       isArchived: {
         type: GraphQLBoolean,
         description: 'Filter on archived collectives',
+      },
+      isFrozen: {
+        type: GraphQLBoolean,
+        description: 'Filter on (not) frozen collectives',
       },
       includeIncognito: {
         type: GraphQLBoolean,
@@ -78,12 +82,20 @@ export const IsMemberOfFields = {
 
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
       const collectiveConditions = {};
+      const collectiveDataConditions = [];
 
       if (!isNil(args.isApproved)) {
         collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
       }
       if (!isNil(args.isArchived)) {
         collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
+      }
+      if (!isNil(args.isFrozen)) {
+        collectiveDataConditions.push(
+          args.isFrozen
+            ? { features: { ALL: false } }
+            : { [Op.or]: [{ features: { ALL: true } }, { features: { ALL: null } }, { features: null }] },
+        );
       }
 
       // We don't want to apply the other filters for fetching the existing roles
@@ -110,9 +122,9 @@ export const IsMemberOfFields = {
 
       if (args.hostFeesStructure) {
         if (args.hostFeesStructure === HOST_FEE_STRUCTURE.DEFAULT) {
-          collectiveConditions.data = { useCustomHostFee: { [Op.not]: true } };
+          collectiveDataConditions.push({ useCustomHostFee: { [Op.not]: true } });
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.CUSTOM_FEE) {
-          collectiveConditions.data = { useCustomHostFee: true };
+          collectiveDataConditions.push({ useCustomHostFee: true });
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
           throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
         }
@@ -141,6 +153,10 @@ export const IsMemberOfFields = {
 
       if (searchTermConditions.length) {
         where[Op.or] = searchTermConditions;
+      }
+
+      if (!isEmpty(collectiveDataConditions)) {
+        collectiveConditions.data = { [Op.and]: collectiveDataConditions };
       }
 
       const order = [];
@@ -193,6 +209,7 @@ export const IsMemberOfFields = {
         limit: args.limit,
         offset: args.offset,
         order,
+        logging: true,
         include: [
           {
             model: models.Collective,
