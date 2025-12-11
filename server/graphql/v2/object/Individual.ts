@@ -337,13 +337,11 @@ export const GraphQLIndividual = new GraphQLObjectType({
         async resolve(account, args, req: Express.Request) {
           checkRemoteUserCanUseKYC(req);
 
-          const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
           const requestedByAccountIds =
             (await fetchAccountsIdsWithReference(args.requestedByAccounts, { throwIfMissing: true })) || [];
 
           const hasAccess =
-            isAccountAdmin ||
-            (requestedByAccountIds.length > 0 && requestedByAccountIds.every(id => req.remoteUser.isAdmin(id)));
+            requestedByAccountIds.length > 0 && requestedByAccountIds.every(id => req.remoteUser.isAdmin(id));
 
           if (!hasAccess) {
             throw new Forbidden();
@@ -384,14 +382,13 @@ export const GraphQLIndividual = new GraphQLObjectType({
         },
         async resolve(account, args, req: Express.Request) {
           checkRemoteUserCanUseKYC(req);
-          const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
           const requestedByAccount = await fetchAccountWithReference(args.requestedByAccount, {
             throwIfMissing: true,
             loaders: req.loaders,
           });
 
           const isRequesterAdmin = req.remoteUser.isAdminOfCollective(requestedByAccount);
-          const hasAccess = isAccountAdmin || isRequesterAdmin;
+          const hasAccess = isRequesterAdmin;
 
           if (!hasAccess) {
             throw new Forbidden();
