@@ -339,11 +339,11 @@ export const GraphQLIndividual = new GraphQLObjectType({
 
           const requestedByAccountIds =
             (await fetchAccountsIdsWithReference(args.requestedByAccounts, { throwIfMissing: true })) || [];
-
-          const hasAccess =
-            requestedByAccountIds.length > 0 && requestedByAccountIds.every(id => req.remoteUser.isAdmin(id));
-
-          if (!hasAccess) {
+          const isAdminOfRequestedByAccounts = requestedByAccountIds?.every(id => req.remoteUser.isAdmin(id));
+          if (
+            (requestedByAccountIds.length > 0 && !isAdminOfRequestedByAccounts) ||
+            (requestedByAccountIds.length === 0 && !req.remoteUser.isAdminOfCollective(account))
+          ) {
             throw new Forbidden();
           }
 
