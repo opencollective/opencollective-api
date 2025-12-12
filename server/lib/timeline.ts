@@ -108,7 +108,7 @@ const makeTimelineQuery = async (
     return {
       [Op.or]: conditionals,
     };
-  } else if ((await collective.hasHosting()) && collective.type !== CollectiveType.COLLECTIVE) {
+  } else if (await collective.hasHosting()) {
     return {
       type: {
         [Op.in]: [
@@ -120,11 +120,6 @@ const makeTimelineQuery = async (
           ActivityTypes.COLLECTIVE_UNFROZEN,
           ActivityTypes.COLLECTIVE_UNHOSTED,
           ActivityTypes.COLLECTIVE_APPLY,
-          // New
-          ActivityTypes.ACTIVATED_MONEY_MANAGEMENT,
-          ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT,
-          ActivityTypes.ACTIVATED_HOSTING,
-          ActivityTypes.DEACTIVATED_HOSTING,
         ],
       },
       [Op.or]: [
@@ -210,6 +205,8 @@ const makeTimelineQuery = async (
         ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT,
         ActivityTypes.ACTIVATED_HOSTING,
         ActivityTypes.DEACTIVATED_HOSTING,
+        ActivityTypes.ORGANIZATION_CONVERTED_TO_COLLECTIVE,
+        ActivityTypes.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
       ],
     );
   }

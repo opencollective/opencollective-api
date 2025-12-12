@@ -989,7 +989,7 @@ const accountMutations = {
       }
 
       if (args.hasMoneyManagement === true) {
-        await account.activateMoneyManagement(req.remoteUser);
+        await account.activateMoneyManagement(req.remoteUser, { silent: true });
       }
 
       await models.Activity.create({
