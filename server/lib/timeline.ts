@@ -21,12 +21,7 @@ const CREATED_AT_HORIZON = { [Op.gt]: Sequelize.literal("NOW() - INTERVAL '6 mon
 
 const makeTimelineQuery = async (
   collective: Collective,
-  classes: ActivityClasses[] = [
-    ActivityClasses.EXPENSES,
-    ActivityClasses.CONTRIBUTIONS,
-    ActivityClasses.VIRTUAL_CARDS,
-    ActivityClasses.ACTIVITIES_UPDATES,
-  ],
+  classes: ActivityClasses[],
 ): Promise<WhereOptions<InferAttributes<Activity, { omit: never }>>> => {
   if (collective.type === CollectiveType.USER) {
     const user = await collective.getUser();
@@ -228,10 +223,10 @@ debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
 /**
  * Updates an existing cached timeline feed and trim it to the limit.
  */
-const updateFeed = async (collective: Collective, sinceId: number) => {
+const updateFeed = async (collective: Collective, classes: ActivityClasses[], sinceId: number) => {
   const cacheKey = `timeline-${collective.slug}`;
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
-  const where = await makeTimelineQuery(collective);
+  const where = await makeTimelineQuery(collective, classes);
   where['id'] = { [Op.gt]: sinceId };
 
   debug('Fetching %d activities since #%s for %s', PAGE_SIZE, sinceId, collective.slug);
@@ -260,11 +255,11 @@ const updateFeed = async (collective: Collective, sinceId: number) => {
   }
 };
 
-const createNewFeed = async (collective: Collective) => {
+const createNewFeed = async (collective: Collective, classes: ActivityClasses[]) => {
   const cacheKey = `timeline-${collective.slug}`;
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
 
-  const where = await makeTimelineQuery(collective);
+  const where = await makeTimelineQuery(collective, classes);
   let result = [];
   let lastId = null;
   let total = 0;
@@ -351,7 +346,7 @@ export const getCollectiveFeed = async ({
 
     await cache.set(lockKey, true, 120);
     // If we don't have a cache, generate it asynchronously
-    createNewFeed(collective).finally(() => cache.delete(lockKey));
+    createNewFeed(collective, classes).finally(() => cache.delete(lockKey));
     return null;
   }
 
@@ -378,7 +373,7 @@ export const getCollectiveFeed = async ({
     }
     const activity = JSON.parse(latest) as SerializedActivity;
     debug(`Updating timeline for ${collective.slug} from id ${activity.id}`);
-    await updateFeed(collective, activity.id);
+    await updateFeed(collective, classes, activity.id);
   }
 
   const idsToLoad = [];
