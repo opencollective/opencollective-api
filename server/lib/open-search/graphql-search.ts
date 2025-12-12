@@ -41,6 +41,7 @@ export type GraphQLSearchParams = {
   account: Collective;
   host: Collective;
   useTopHits: boolean;
+  usePersonalization: boolean;
 };
 
 /**
@@ -52,8 +53,16 @@ export const getOpenSearchQueryId = (
   account: Collective,
   searchTerm: string,
   useTopHits: boolean,
+  usePersonalization: boolean,
 ) => {
-  return `${user?.id || 'public'}-host_${host?.id || 'all'}-account_${account?.id || 'all'}-${searchTerm}-${useTopHits ? 'top_hits' : 'separated_hits'}`;
+  return [
+    user ? `user-${user.id}` : 'users-all',
+    host ? `host-${host.id}` : 'hosts-all',
+    account ? `account-${account.id}` : 'accounts-all',
+    useTopHits ? `top-hits` : 'separated-hits',
+    usePersonalization ? `personalized` : 'no-personalization',
+    searchTerm ? `search-${searchTerm}` : '*',
+  ].join('_');
 };
 
 type GraphQLSearchIndexStrategy = {
@@ -171,6 +180,7 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         ...baseSearchParams,
         index,
         useTopHits: baseSearchParams.useTopHits,
+        usePersonalization: baseSearchParams.usePersonalization,
         indexParams: strategy.prepareArguments ? strategy.prepareArguments(args) : args,
         forbidPrivate: getForbidPrivate(req, strategy),
         offset,

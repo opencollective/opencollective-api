@@ -97,6 +97,7 @@ const buildQuery = (
   remoteUser: User | null,
   account: Collective,
   host: Collective,
+  usePersonalization: boolean,
 ): {
   query: QueryContainer;
   /** All fields for which the search term was used. Does not include account constraints */
@@ -109,6 +110,7 @@ const buildQuery = (
   const fetchedIndexes = new Set<OpenSearchIndexName>();
   const adminOfAccountIds = !remoteUser ? [] : remoteUser.getAdministratedCollectiveIds();
   const isRoot = remoteUser && remoteUser.isRoot();
+  const userId = remoteUser?.id || null;
 
   const query: QueryContainer = {
     /* eslint-disable camelcase */
@@ -134,6 +136,12 @@ const buildQuery = (
         searchableFields.forEach(field => searchedFields.add(field));
         fetchedIndexes.add(index);
 
+        // Get personalization filters if enabled
+        const personalizationFilters =
+          usePersonalization && remoteUser && adapter.getPersonalizationFilters
+            ? adapter.getPersonalizationFilters(userId, adminOfAccountIds, isRoot)
+            : null;
+
         // Build the query for this index
         return [
           // Public fields
@@ -143,6 +151,7 @@ const buildQuery = (
                 { term: { _index: formatIndexNameForOpenSearch(index) } },
                 ...(permissions.default === 'PUBLIC' ? [] : [permissions.default]),
                 ...getIndexConditions(index, indexParams),
+                ...(personalizationFilters || []),
               ],
               minimum_should_match: 1,
               should: [
@@ -205,6 +214,7 @@ export const openSearchMultiIndexGlobalSearch = async (
     limit = 50,
     offset = 0,
     user,
+    usePersonalization = true,
   }: {
     account?: Collective;
     host?: Collective;
@@ -212,10 +222,18 @@ export const openSearchMultiIndexGlobalSearch = async (
     limit?: number;
     offset?: number;
     user?: User;
+    usePersonalization?: boolean;
   } = {},
 ) => {
   const client = getOpenSearchClient({ throwIfUnavailable: true });
-  const { query, searchedFields, indexes } = buildQuery(searchTerm, requestedIndexes, user, account, host);
+  const { query, searchedFields, indexes } = buildQuery(
+    searchTerm,
+    requestedIndexes,
+    user,
+    account,
+    host,
+    usePersonalization,
+  );
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
@@ -272,6 +290,7 @@ export const openSearchSingleIndexSearch = async (
     limit = 50,
     offset = 0,
     user,
+    usePersonalization = true,
   }: {
     account?: Collective;
     host?: Collective;
@@ -279,10 +298,11 @@ export const openSearchSingleIndexSearch = async (
     limit?: number;
     offset?: number;
     user?: User;
+    usePersonalization?: boolean;
   } = {},
 ) => {
   const client = getOpenSearchClient({ throwIfUnavailable: true });
-  const { query, searchedFields, indexes } = buildQuery(searchTerm, [request], user, account, host);
+  const { query, searchedFields, indexes } = buildQuery(searchTerm, [request], user, account, host, usePersonalization);
 
   // Due to permissions, we may end up searching on no index at all (e.g. trying to search for comments while unauthenticated)
   if (indexes.size === 0) {
