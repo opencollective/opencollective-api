@@ -139,7 +139,7 @@ const accountMutations = {
           throwIfMissing: true,
         });
 
-        const isKeyEditableByHostAdmins = ['expenseTypes', 'canHostAccounts'].includes(args.key);
+        const isKeyEditableByHostAdmins = ['expenseTypes'].includes(args.key);
         const permissionMethod = isKeyEditableByHostAdmins ? 'isAdminOfCollectiveOrHost' : 'isAdminOfCollective';
         if (!req.remoteUser[permissionMethod](account)) {
           throw new Forbidden();
@@ -168,15 +168,6 @@ const accountMutations = {
           const budgetSection = args.value.sections?.find(s => s.section === 'budget');
           if (budgetSection && !budgetSection.isEnabled) {
             throw new Forbidden();
-          }
-        }
-
-        if (args.key === 'canHostAccounts' && args.value === false) {
-          const hostedCollectives = await account.getHostedCollectivesCount();
-          if (hostedCollectives >= 1) {
-            throw new Error(
-              `You can't deactivate hosting while still hosting ${hostedCollectives} collectives. Please contact support: support@opencollective.com.`,
-            );
           }
         }
 
