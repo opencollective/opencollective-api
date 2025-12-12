@@ -68,7 +68,7 @@ export const GraphQLOrganization = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         description: 'Returns whether the account has hosting activated.',
         resolve(collective) {
-          return collective.hasHosting();
+          return collective.hasHosting;
         },
       },
     };

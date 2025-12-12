@@ -124,6 +124,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'disablePublicExpenseSubmission',
   'disablePaypalPayouts',
   'bitcoin',
+  'budget',
   'categories',
   'collectivePage',
   'crowdfundingRedesign',
@@ -172,7 +173,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'exportedHostedCollectivesFieldSets',
   'showSetupGuide',
   'showInitialOverviewSubscriptionCard',
-  'canHostAccounts', // Whether this account can host other accounts
   'kyc',
 ];
 
@@ -286,6 +286,8 @@ export const collectiveSlugReservedList = [
   'submitted-expenses',
   'faq',
   'fund',
+  'fiscal-host',
+  'fiscal-hosts',
   'gift-card',
   'gift-cards',
   'gift-cards-next',

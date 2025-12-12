@@ -508,22 +508,24 @@ describe('server/lib/allowed-features', () => {
           const host = await fakeActiveHost({
             plan: 'start-plan-2021',
             data: { features: { [FEATURE.RECEIVE_HOST_APPLICATIONS]: true } },
+            hasHosting: true,
           });
           expect(await getFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'AVAILABLE',
             reason: null,
           });
-          const notOpted = await fakeActiveHost({ plan: 'start-plan-2021' });
+          const notOpted = await fakeActiveHost({ hasHosting: true, plan: 'start-plan-2021' });
           expect(await getFeatureAccess(notOpted, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'DISABLED',
             reason: 'OPT_IN',
           });
-          const org = await fakeOrganization({ plan: 'start-plan-2021' });
+          const org = await fakeOrganization({ hasHosting: true, plan: 'start-plan-2021' });
           expect(await getFeatureAccess(org, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'UNSUPPORTED',
             reason: 'ACCOUNT_TYPE',
           });
           const flagOverride = await fakeActiveHost({
+            hasHosting: true,
             plan: 'start-plan-2021',
             settings: { apply: true },
           });
@@ -536,7 +538,7 @@ describe('server/lib/allowed-features', () => {
 
       describe('with the new pricing', () => {
         it('is AVAILABLE for active hosts if opted in, DISABLED if not, UNSUPPORTED for others', async () => {
-          const host = await fakeActiveHost({ settings: { apply: true } });
+          const host = await fakeActiveHost({ hasHosting: true, settings: { apply: true } });
           await fakePlatformSubscription({
             CollectiveId: host.id,
             plan: { features: { RECEIVE_HOST_APPLICATIONS: true } },
@@ -548,7 +550,7 @@ describe('server/lib/allowed-features', () => {
         });
 
         it('is DISABLED if not opted in', async () => {
-          const host = await fakeActiveHost();
+          const host = await fakeActiveHost({ hasHosting: true });
           await fakePlatformSubscription({
             CollectiveId: host.id,
             plan: { features: { RECEIVE_HOST_APPLICATIONS: true } },
@@ -559,8 +561,8 @@ describe('server/lib/allowed-features', () => {
           });
         });
 
-        it('is UNSUPPORTED for independent collectives', async () => {
-          const org = await fakeCollective({ isHostAccount: true, isActive: true });
+        it('is UNSUPPORTED for organizations without hosting', async () => {
+          const org = await fakeActiveHost({ hasHosting: false });
           expect(await getFeatureAccess(org, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'UNSUPPORTED',
             reason: 'ACCOUNT_TYPE',
@@ -895,6 +897,7 @@ describe('server/lib/allowed-features', () => {
           plan: 'start-plan-2021',
           type: CollectiveType.ORGANIZATION,
           countryISO: 'US',
+          hasHosting: true,
         });
         const featuresMap = await getFeaturesAccessMap(hostOrg);
         expect(featuresMap).to.deep.equal({

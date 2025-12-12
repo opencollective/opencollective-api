@@ -294,7 +294,7 @@ export const fakeCollective = async (
     collectiveData.CreatedByUserId = (await fakeUser()).id;
   }
   if (collectiveData.HostCollectiveId === undefined) {
-    collectiveData.HostCollectiveId = (await fakeHost()).id;
+    collectiveData.HostCollectiveId = (await fakeActiveHost({ hasHosting: true })).id;
   }
 
   const collectiveSequelizeParams = Object.assign({}, sequelizeParams);

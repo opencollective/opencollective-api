@@ -135,6 +135,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       id: PlatformConstants.FiscalHostOSCCollectiveId,
       plan: 'start-plan-2021',
       settings: { apply: true },
+      hasHosting: true,
     });
   });
 
@@ -170,10 +171,11 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeHost({
+      host = await fakeActiveHost({
         plan: 'start-plan-2021',
         admin: hostAdmin,
         currency: 'USD',
+        hasHosting: true,
         settings: { apply: true },
       });
       collective = await fakeCollective({

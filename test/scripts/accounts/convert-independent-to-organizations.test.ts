@@ -32,8 +32,7 @@ describe('scripts/accounts/convert-independent-to-organizations', () => {
     expect(independentCollective.type).to.equal(CollectiveType.ORGANIZATION);
     expect(independentCollective.isHostAccount).to.be.true;
     expect(independentCollective.hasMoneyManagement()).to.be.true;
-    expect(independentCollective.hasHosting()).to.be.false; // Hosting should be disabled
-    expect(independentCollective.settings?.canHostAccounts).to.be.false;
+    expect(independentCollective.hasHosting).to.be.false; // Hosting should be disabled
 
     // Verify activity was created
     const activity = await models.Activity.findOne({
@@ -87,7 +86,7 @@ describe('scripts/accounts/convert-independent-to-organizations', () => {
     await independentCollective.reload();
     expect(independentCollective.type).to.equal(CollectiveType.ORGANIZATION);
     expect(independentCollective.hasMoneyManagement()).to.be.true;
-    expect(independentCollective.hasHosting()).to.be.false;
+    expect(independentCollective.hasHosting).to.be.false;
 
     // Verify hosted collective was NOT converted
     await hostedCollective.reload();

@@ -715,7 +715,7 @@ export async function deactivateCollectiveAsHost(_, args, req) {
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   // This is expected as a combination of deactivateHosting and deactivateMoneyManagement
-  if (collective.hasHosting()) {
+  if (collective.hasHosting) {
     await collective.deactivateHosting(req.remoteUser);
   }
   if (collective.hasMoneyManagement()) {

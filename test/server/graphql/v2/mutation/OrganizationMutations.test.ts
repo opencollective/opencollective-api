@@ -203,9 +203,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         type: CollectiveType.ORGANIZATION,
         admin: adminUser,
         HostCollectiveId: null,
-        settings: {
-          canHostAccounts: false,
-        },
+        hasHosting: false,
       });
 
       // User with 2FA enabled
@@ -214,9 +212,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         type: CollectiveType.ORGANIZATION,
         admin: twoFAUser,
         HostCollectiveId: null,
-        settings: {
-          canHostAccounts: false,
-        },
+        hasHosting: false,
       });
       secretFor2FA = crypto.decrypt(twoFAUser.twoFactorAuthToken);
     });
@@ -312,7 +308,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editOrganizationMoneyManagementAndHosting.hasHosting).to.be.false;
       const org = await models.Collective.findByPk(orgFor2FA.id);
-      expect(org.hasHosting()).to.be.false;
+      expect(org.hasHosting).to.be.false;
     });
 
     it('activates hosting only after money management active', async () => {
@@ -337,7 +333,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editOrganizationMoneyManagementAndHosting.hasHosting).to.be.true;
       const org = await models.Collective.findByPk(orgFor2FA.id);
-      expect(org.hasHosting()).to.be.true;
+      expect(org.hasHosting).to.be.true;
       const activity = await models.Activity.findOne({
         where: { CollectiveId: org.id, type: 'activated.hosting' },
       });
