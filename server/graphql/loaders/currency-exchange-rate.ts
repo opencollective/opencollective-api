@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
 
 import { SupportedCurrency } from '../../constants/currencies';
-import { loadFxRatesMap } from '../../lib/currency';
+import { getDateKeyForFxRateMap, loadFxRatesMap } from '../../lib/currency';
 
 interface CurrencyFxRateRequest {
   fromCurrency: SupportedCurrency;
@@ -14,12 +14,14 @@ export const generateFxRateLoader = (): DataLoader<CurrencyFxRateRequest, number
     async (requestedCurrencies: CurrencyFxRateRequest[]) => {
       const fxRates = await loadFxRatesMap(requestedCurrencies);
       return requestedCurrencies.map(
-        request => fxRates[request.date || 'latest'][request.fromCurrency][request.toCurrency],
+        request => fxRates[getDateKeyForFxRateMap(request.date)][request.fromCurrency][request.toCurrency],
       );
     },
     {
       // Since the argument is an object, we need a custom serializer to be able to use it in the cache
-      cacheKeyFn: arg => `${arg.fromCurrency}-${arg.toCurrency}`,
+      cacheKeyFn: arg => {
+        return `${arg.fromCurrency}-${arg.toCurrency}-${getDateKeyForFxRateMap(arg.date)}`;
+      },
     },
   );
 };

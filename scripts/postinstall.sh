@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+PG_HOST=${PG_HOST:-"localhost"}
+
 set -e
 
 if [ "$OC_ENV" = "ci" ]; then
@@ -28,7 +30,7 @@ else
   echo ""
   exit 1
 fi
-if psql -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
+if psql -h $PG_HOST -U postgres -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
   echo "✓ opencollective_dvl exists"
 else
   echo "- restoring opencollective_dvl";
@@ -36,6 +38,12 @@ else
 fi
 echo "- running migration if any"
 PG_DATABASE=opencollective_dvl npm run db:migrate
+
+UNAME=$(uname -a)
+if [[ $UNAME =~ "Darwin" && $UNAME =~ "arm64" ]]; then
+  echo "✓ Running on Apple Silicon (arm64), installing sharp for arm64"
+  npm install --os=darwin --cpu=arm64 --ignore-scripts --no-save sharp
+fi
 
 echo ""
 echo "You can now start the Open Collective API server by running:"

@@ -2,12 +2,21 @@
 import { expect } from 'chai';
 import config from 'config';
 import jwt from 'jsonwebtoken';
+import { createHash, randomBytes } from 'node:crypto';
 import { useFakeTimers } from 'sinon';
 import request from 'supertest';
 
 import { fakeApplication, fakeOAuthAuthorizationCode, fakeUser } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
+
+function generatePKCECodeVerifier() {
+  return randomBytes(32).toString('base64url');
+}
+
+async function calculatePKCECodeChallenge(codeVerifier: string): Promise<string> {
+  return createHash('sha256').update(codeVerifier).digest().toString('base64url');
+}
 
 describe('server/routes/oauth', () => {
   let expressApp, clock;
@@ -37,8 +46,8 @@ describe('server/routes/oauth', () => {
     const authorizeParams = new URLSearchParams({
       response_type: 'code',
       client_id: application.clientId,
-      client_secret: application.clientSecret,
       redirect_uri: application.callbackUrl,
+      scope: 'email account',
     });
 
     const authorizeResponse = await request(expressApp)
@@ -67,20 +76,26 @@ describe('server/routes/oauth', () => {
       });
 
     // Decode returned OAuth token
-    const oauthToken = tokenResponse.body.access_token;
-    expect(oauthToken).to.exist;
+    const oauthToken = tokenResponse.body;
+    expect(oauthToken).to.be.an('object');
+    expect(oauthToken.access_token).to.be.a('string');
+    expect(oauthToken.token_type).to.eq('Bearer');
+    expect(oauthToken.expires_in).to.eq(7776000);
+    // scope should be a string of scopes:
+    expect(oauthToken.scope).to.eq('email account');
 
-    const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
+    const decodedToken = jwt.verify(oauthToken.access_token, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
     expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());
     expect(decodedToken.access_token.startsWith('test_oauth_')).to.be.true;
     const iat = fakeNow.getTime() / 1000;
     expect(decodedToken.iat).to.eq(iat); // 1640995200
     expect(decodedToken.exp).to.eq(iat + 7776000); // 90 days
+    expect(decodedToken.scope).to.eq('oauth');
 
     // Test OAuth token with a real query
     const gqlRequestResult = await request(expressApp)
       .post('/graphql/v2')
-      .set('Authorization', `Bearer ${oauthToken}`)
+      .set('Authorization', `Bearer ${oauthToken.access_token}`)
       .accept('application/json')
       .send({
         query: '{ loggedInAccount { legacyId } }',
@@ -95,6 +110,7 @@ describe('server/routes/oauth', () => {
     it('must provide a client_id', async () => {
       const response = await request(expressApp).post('/oauth/authorize?response_type=code').expect(400);
       const body = response.body;
+      expect(body).to.be.an('object');
       expect(body.error).to.eq('invalid_request');
       expect(body.error_description).to.eq('Missing parameter: `client_id`');
     });
@@ -107,6 +123,7 @@ describe('server/routes/oauth', () => {
         .expect(400);
 
       const body = response.body;
+      expect(body).to.be.an('object');
       expect(body.error).to.eq('invalid_client');
       expect(body.error_description).to.eq('Invalid client');
     });
@@ -140,6 +157,55 @@ describe('server/routes/oauth', () => {
       // include an error code or other error information.""
       expect(response.body).to.be.empty;
       expect(response.get('www-authenticate')).to.eq('Bearer realm="service"');
+    });
+
+    it('correctly handles invalid response type', async () => {
+      const application = await fakeApplication({ type: 'oAuth' });
+      // Get authorization code
+      const authorizeParams = new URLSearchParams({
+        response_type: 'invalid',
+        client_id: application.clientId,
+      });
+
+      const authorizeResponse = await request(expressApp)
+        .post(`/oauth/authorize?${authorizeParams.toString()}`)
+        .set('Content-Type', `application/x-www-form-urlencoded`)
+        .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
+        .expect(400);
+
+      const body = authorizeResponse.body;
+      expect(body).to.be.an('object');
+      expect(body.error).to.eq('unsupported_response_type');
+    });
+
+    it('correctly handles denial of the authorization request', async () => {
+      const application = await fakeApplication({ type: 'oAuth' });
+      // Get authorization code
+      const authorizeParams = new URLSearchParams({
+        response_type: 'code',
+        client_id: application.clientId,
+        redirect_uri: application.callbackUrl,
+        scope: 'email account',
+        allowed: 'false',
+      });
+
+      const expectedRedirect = new URL(application.callbackUrl);
+      expectedRedirect.searchParams.set('error', 'access_denied');
+      expectedRedirect.searchParams.set('error_description', 'Access denied: user denied access to application');
+
+      // For some reason the error_description is encoded differently by URL
+      // SearchParams, but the result is effectively the same:
+      const expectedRedirectUrl = expectedRedirect.href.replaceAll('+', '%20');
+
+      const authorizeResponse = await request(expressApp)
+        .post(`/oauth/authorize?${authorizeParams.toString()}`)
+        .set('Content-Type', `application/x-www-form-urlencoded`)
+        .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
+        .expect(200);
+
+      const authorizeBody = authorizeResponse.body;
+      expect(authorizeBody).to.be.an('object');
+      expect(authorizeBody.redirect_uri).to.eq(expectedRedirectUrl);
     });
   });
 
@@ -340,6 +406,69 @@ describe('server/routes/oauth', () => {
       expect(response.body).to.deep.eq({
         error: 'invalid_request',
         error_description: 'Invalid request: `redirect_uri` is invalid',
+      });
+    });
+
+    describe('PKCE', async () => {
+      let authorization, validParams, codeVerifier, codeChallenge;
+
+      beforeEach(async () => {
+        codeVerifier = generatePKCECodeVerifier();
+        codeChallenge = await calculatePKCECodeChallenge(codeVerifier);
+
+        authorization = await fakeOAuthAuthorizationCode({
+          codeChallenge: codeChallenge,
+          codeChallengeMethod: 'S256',
+        });
+
+        validParams = {
+          grant_type: 'authorization_code',
+          code: authorization.code,
+          client_id: authorization.application.clientId,
+          client_secret: authorization.application.clientSecret,
+          redirect_uri: authorization.application.callbackUrl,
+          code_verifier: codeVerifier,
+        };
+      });
+
+      it('succeeds with a valid code_verifier', async () => {
+        await request(expressApp)
+          .post('/oauth/token')
+          .type(`application/x-www-form-urlencoded`)
+          .send({ ...validParams })
+          .expect(200);
+      });
+
+      it('must provide a code_verifier', async () => {
+        const response = await request(expressApp)
+          .post('/oauth/token')
+          .type(`application/x-www-form-urlencoded`)
+          .send({
+            grant_type: 'authorization_code',
+            code: authorization.code,
+            client_id: authorization.application.clientId,
+            client_secret: authorization.application.clientSecret,
+            redirect_uri: authorization.application.callbackUrl,
+          })
+          .expect(400);
+
+        expect(response.body).to.deep.eq({
+          error: 'invalid_grant',
+          error_description: 'Missing parameter: `code_verifier`',
+        });
+      });
+
+      it('must provide a code_verifier that matches the PKCE code challenge', async () => {
+        const response = await request(expressApp)
+          .post('/oauth/token')
+          .type(`application/x-www-form-urlencoded`)
+          .send({ ...validParams, code_verifier: 'not-valid' })
+          .expect(400);
+
+        expect(response.body).to.deep.eq({
+          error: 'invalid_grant',
+          error_description: 'Invalid grant: code verifier is invalid',
+        });
       });
     });
   });

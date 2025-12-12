@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, invert, isNil } from 'lodash';
+import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { buildSearchConditions } from '../../../lib/sql-search';
@@ -12,6 +12,7 @@ import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 
 export const IsMemberOfFields = {
   memberOf: {
@@ -33,6 +34,10 @@ export const IsMemberOfFields = {
       isArchived: {
         type: GraphQLBoolean,
         description: 'Filter on archived collectives',
+      },
+      isFrozen: {
+        type: GraphQLBoolean,
+        description: 'Filter on (not) frozen collectives',
       },
       includeIncognito: {
         type: GraphQLBoolean,
@@ -58,6 +63,10 @@ export const IsMemberOfFields = {
         type: GraphQLBoolean,
         description: 'Order the query by requested role order',
       },
+      tier: {
+        type: GraphQLTierReferenceInput,
+        description: 'Filter members by tier',
+      },
     },
     async resolve(collective, args, req) {
       // Check Pagination arguments
@@ -73,12 +82,20 @@ export const IsMemberOfFields = {
 
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
       const collectiveConditions = {};
+      const collectiveDataConditions = [];
 
       if (!isNil(args.isApproved)) {
         collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
       }
       if (!isNil(args.isArchived)) {
         collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
+      }
+      if (!isNil(args.isFrozen)) {
+        collectiveDataConditions.push(
+          args.isFrozen
+            ? { features: { ALL: false } }
+            : { [Op.or]: [{ features: { ALL: true } }, { features: { ALL: null } }, { features: null }] },
+        );
       }
 
       // We don't want to apply the other filters for fetching the existing roles
@@ -89,7 +106,7 @@ export const IsMemberOfFields = {
       }
       if (args.accountType && args.accountType.length > 0) {
         collectiveConditions.type = {
-          [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+          [Op.in]: [...new Set(args.accountType.map(value => AccountTypeToModelMapping[value]))],
         };
       }
       if (args.account) {
@@ -105,11 +122,23 @@ export const IsMemberOfFields = {
 
       if (args.hostFeesStructure) {
         if (args.hostFeesStructure === HOST_FEE_STRUCTURE.DEFAULT) {
-          collectiveConditions.data = { useCustomHostFee: { [Op.not]: true } };
+          collectiveDataConditions.push({ useCustomHostFee: { [Op.not]: true } });
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.CUSTOM_FEE) {
-          collectiveConditions.data = { useCustomHostFee: true };
+          collectiveDataConditions.push({ useCustomHostFee: true });
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
           throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
+        }
+      }
+
+      if (!isUndefined(args.tier)) {
+        if (args.tier) {
+          const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
+          if (tier.collectiveId !== collective.id) {
+            throw new ValidationFailed('Tier is not associated with this collective');
+          }
+          where.TierId = tier.id;
+        } else {
+          where.TierId = { [Op.is]: null };
         }
       }
 
@@ -124,6 +153,10 @@ export const IsMemberOfFields = {
 
       if (searchTermConditions.length) {
         where[Op.or] = searchTermConditions;
+      }
+
+      if (!isEmpty(collectiveDataConditions)) {
+        collectiveConditions.data = { [Op.and]: collectiveDataConditions };
       }
 
       const order = [];
@@ -176,6 +209,7 @@ export const IsMemberOfFields = {
         limit: args.limit,
         offset: args.offset,
         order,
+        logging: true,
         include: [
           {
             model: models.Collective,

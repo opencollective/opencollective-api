@@ -10,11 +10,18 @@ import { parseToBoolean } from './utils';
 
 export const isCaptchaSetup = (): boolean => {
   return (
-    config.captcha?.enabled && (config.hcaptcha?.secret || config.recaptcha?.secretKey || config.turnstile?.secretKey)
+    parseToBoolean(config.captcha?.enabled) &&
+    (config.hcaptcha?.secret || config.recaptcha?.secretKey || config.turnstile?.secretKey)
   );
 };
 
-export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_PROVIDERS }, reqIp: string) {
+type CaptchaArg = { token: string; provider: CAPTCHA_PROVIDERS };
+
+type VerifyResponse = {
+  success: boolean;
+};
+
+export async function checkCaptcha(captcha: CaptchaArg, reqIp: string) {
   const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
 
   if (!isCaptchaEnabled) {
@@ -26,7 +33,7 @@ export async function checkCaptcha(captcha: { token: string; provider: CAPTCHA_P
   if (!token) {
     throw new Error('You need to provide a valid captcha token');
   }
-  let response;
+  let response: VerifyResponse;
   if (provider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
     response = await hcaptcha.verify(config.hcaptcha.secret, token, reqIp, config.hcaptcha.sitekey);
   } else if (provider === CAPTCHA_PROVIDERS.RECAPTCHA && config.recaptcha && parseToBoolean(config.recaptcha.enable)) {

@@ -99,12 +99,13 @@ describe('server/graphql/v1/user', () => {
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.id,
+      username: 'stripeAccount',
     }),
   );
 
   describe('graphql.user.test.js', () => {
     describe('logged in user', () => {
-      const loggedInUserQuery = gqlV1/* GraphQL */ `
+      const loggedInUserQuery = gqlV1 /* GraphQL */ `
         query LoggedInUser {
           LoggedInUser {
             id

@@ -25,6 +25,19 @@ const debug = debugLib('stripe');
 
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 
+const validateRedirectUrl = redirect => {
+  let parsedRedirect;
+
+  try {
+    parsedRedirect = new URL(redirect);
+    if (parsedRedirect.origin !== config.host.website) {
+      throw new Error();
+    }
+  } catch {
+    throw new Error(`Invalid redirect url: ${redirect}`);
+  }
+};
+
 export default {
   // Payment Method types implemented using Stripe
   types: {
@@ -41,6 +54,10 @@ export default {
   oauth: {
     // Returns the redirectUrl to connect the Stripe Account to the Host Collective Id
     redirectUrl: async (remoteUser, CollectiveId, query) => {
+      if (query.redirect) {
+        validateRedirectUrl(query.redirect);
+      }
+
       // Since we pass the redirectUrl in clear to the frontend, we cannot pass the CollectiveId in the state query variable
       // It would be trivial to change that value and attach a Stripe Account to someone else's collective
       // That's why we encode the state in a JWT

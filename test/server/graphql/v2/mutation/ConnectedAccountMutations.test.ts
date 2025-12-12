@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { createSandbox, stub } from 'sinon';
 
+import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
 import * as PlaidConnect from '../../../../../server/lib/plaid/connect';
 import * as transferwise from '../../../../../server/lib/transferwise';
 import models from '../../../../../server/models';
@@ -36,7 +37,10 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
     beforeEach(async () => {
       user = await fakeUser();
       collective = await fakeCollective({
+        plan: 'start-plan-2021',
         admin: user.collective,
+        isHostAccount: true,
+        isActive: true,
       });
     });
 
@@ -174,6 +178,23 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(PlaidConnect.disconnectPlaidAccount).to.have.been.calledOnce;
+        const deletedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id);
+        expect(deletedAccount).to.be.null;
+      });
+
+      it('with GoCardless', async () => {
+        sandbox.stub(GoCardlessConnect, 'disconnectGoCardlessAccount').resolves();
+        const connectedAccount = await fakeConnectedAccount({ service: 'gocardless' });
+        await connectedAccount.collective.addUserWithRole(user, 'ADMIN');
+        const result = await graphqlQueryV2(
+          deleteConnectedAccountMutation,
+          { connectedAccount: { legacyId: connectedAccount.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(GoCardlessConnect.disconnectGoCardlessAccount).to.have.been.calledOnce;
         const deletedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id);
         expect(deletedAccount).to.be.null;
       });

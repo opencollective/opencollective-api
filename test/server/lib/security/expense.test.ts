@@ -3,14 +3,17 @@ import { pick } from 'lodash';
 
 import { CollectiveType } from '../../../../server/constants/collectives';
 import { Service } from '../../../../server/constants/connected-account';
+import OrderStatuses from '../../../../server/constants/order-status';
 import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
+  fakeExpenseAttachedFile,
   fakeOrder,
   fakePayoutMethod,
+  fakeUploadedFile,
   fakeUser,
   multiple,
   randStr,
@@ -58,8 +61,8 @@ describe('lib/security/expense', () => {
       expense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
 
       // Order Error rate
-      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: 'ERROR' });
-      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: 'PAID' });
+      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: OrderStatuses.ERROR });
+      await multiple(fakeOrder, 5, { CollectiveId: expense.CollectiveId, status: OrderStatuses.PAID });
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
     });
 
@@ -124,6 +127,25 @@ describe('lib/security/expense', () => {
 
       const checks = await checkExpense(vendorExpense, { req: makeRequest() as any });
       expect(snapshotChecks(checks)).to.matchTableSnapshot();
+    });
+
+    it('detects if the same file was attached to multiple expenses', async () => {
+      const expense = await fakeExpense();
+      const file1 = await fakeUploadedFile({ data: { s3SHA256: 'test' } });
+      await fakeExpenseAttachedFile({ ExpenseId: expense.id, url: file1.getDataValue('url') });
+
+      const otherExpense = await fakeExpense();
+      const file2 = await fakeUploadedFile({ data: { s3SHA256: 'test' } });
+      await fakeExpenseAttachedFile({ ExpenseId: otherExpense.id, url: file2.getDataValue('url') });
+
+      const checks = await checkExpense(otherExpense, { req: makeRequest() as any });
+      expect(checks).to.containSubset([
+        {
+          scope: 'ATTACHMENTS',
+          level: 'HIGH',
+          message: 'Same attachment uploaded to multiple expenses',
+        },
+      ]);
     });
   });
 });

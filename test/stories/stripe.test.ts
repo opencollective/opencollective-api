@@ -31,6 +31,7 @@ describe('stripe', () => {
         service: PAYMENT_METHOD_SERVICE.STRIPE,
         token: 'abc',
         CollectiveId: host.id,
+        username: 'stripeAccount',
       });
       const collective = await fakeCollective({
         HostCollectiveId: host.id,
@@ -58,6 +59,7 @@ describe('stripe', () => {
         paymentIntent = { id, ...params, ...options };
         return paymentIntent;
       });
+      sandbox.stub(stripe.customers, 'create').callsFake(() => ({ id: randStr('cus_fake') }));
 
       let paymentMethod;
       sandbox.stub(stripe.paymentMethods, 'retrieve').callsFake((id, options) => {

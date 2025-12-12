@@ -136,6 +136,12 @@ export const generateExpensesSecurityCheckLoader = req => {
         { fkField: 'UserId', modelName: 'User' },
         { fkField: 'PayoutMethodId', modelName: 'PayoutMethod' },
       ]);
+      await Promise.all(
+        expenses.map(async expense => {
+          expense.items = await req.loaders.Expense.items.load(expense.id);
+          expense.attachedFiles = await req.loaders.Expense.attachedFiles.load(expense.id);
+        }),
+      );
 
       return checkExpensesBatch(req, expenses);
     },

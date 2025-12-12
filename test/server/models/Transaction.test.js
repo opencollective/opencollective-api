@@ -54,6 +54,8 @@ describe('server/models/Transaction', () => {
 
   beforeEach(async () => {
     await utils.resetTestDB();
+
+    await utils.seedDefaultVendors();
     sandbox = createSandbox();
     user = await fakeUser({}, { name: 'User' });
     inc = await fakeHost({
@@ -548,45 +550,94 @@ describe('server/models/Transaction', () => {
     });
   });
 
-  describe('clearedAt date', () => {
+  describe('with separated fees transactions', () => {
     beforeEach(async () => {
       sandbox.stub(config.ledger, 'separatePaymentProcessorFees').value(true);
       await utils.seedDefaultVendors();
     });
 
-    it('automatically populates with the current date', async () => {
-      const transaction = await fakeTransaction({ amount: 1000 }, { createDoubleEntry: true });
-      expect(transaction.clearedAt).to.be.a('date');
+    describe('clearedAt date', () => {
+      it('automatically populates with the current date', async () => {
+        const transaction = await fakeTransaction({ amount: 1000 }, { createDoubleEntry: true });
+        expect(transaction.clearedAt).to.be.a('date');
+      });
+
+      it('propagates the informed clearedAt date to the related transactions', async () => {
+        const order = await fakeOrder({});
+        const transaction = await models.Transaction.createFromContributionPayload({
+          CreatedByUserId: order.CreatedByUserId,
+          FromCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          PaymentMethodId: order.PaymentMethodId,
+          type: 'CREDIT',
+          OrderId: order.id,
+          amount: 5000,
+          currency: 'USD',
+          hostCurrency: 'USD',
+          amountInHostCurrency: 5000,
+          hostCurrencyFxRate: 1,
+          hostFeeInHostCurrency: 250,
+          paymentProcessorFeeInHostCurrency: 175,
+          description: 'Monthly subscription to Webpack',
+          platformTipAmount: 500,
+          clearedAt: '2024-02-20T14:11:00.000Z',
+        });
+
+        const associatedTransactions = await models.Transaction.findAll({
+          where: { TransactionGroup: transaction.TransactionGroup },
+        });
+        expect(associatedTransactions).to.not.be.empty;
+        for (const t of associatedTransactions) {
+          expect(t.clearedAt.toISOString()).to.equal('2024-02-20T14:11:00.000Z');
+        }
+      });
     });
 
-    it('propagates the informed clearedAt date to the related transactions', async () => {
-      const order = await fakeOrder({});
-      const transaction = await models.Transaction.createFromContributionPayload({
-        CreatedByUserId: order.CreatedByUserId,
-        FromCollectiveId: order.FromCollectiveId,
-        CollectiveId: order.CollectiveId,
-        PaymentMethodId: order.PaymentMethodId,
-        type: 'CREDIT',
-        OrderId: order.id,
-        amount: 5000,
-        currency: 'USD',
-        hostCurrency: 'USD',
-        amountInHostCurrency: 5000,
-        hostCurrencyFxRate: 1,
-        hostFeeInHostCurrency: 250,
-        paymentProcessorFeeInHostCurrency: 175,
-        description: 'Monthly subscription to Webpack',
-        platformTipAmount: 500,
-        clearedAt: '2024-02-20T14:11:00.000Z',
+    it('does not debit from prepaid-balance if donation is made using Stripe or PayPal', async () => {
+      const otherCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        CreatedByUserId: user.id,
+        name: 'Other Collective',
+      });
+      const paymentMethod = await fakePaymentMethod({
+        CollectiveId: otherCollective.id,
+        service: 'stripe',
+        type: 'creditcard',
       });
 
-      const associatedTransactions = await models.Transaction.findAll({
-        where: { TransactionGroup: transaction.TransactionGroup },
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: otherCollective.id,
+        CollectiveId: collective.id,
+        currency: 'USD',
       });
-      expect(associatedTransactions).to.not.be.empty;
-      for (const t of associatedTransactions) {
-        expect(t.clearedAt.toISOString()).to.equal('2024-02-20T14:11:00.000Z');
-      }
+
+      const transactionPayload = {
+        CreatedByUserId: user.id,
+        FromCollectiveId: otherCollective.id,
+        CollectiveId: collective.id,
+        description: '$100 donation to Merveilles',
+        amount: 10000,
+        totalAmount: 10000,
+        amountInHostCurrency: 10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 200,
+        type: 'CREDIT',
+        createdAt: '2015-05-29T07:00:00.000Z',
+        PaymentMethodId: paymentMethod.id,
+        OrderId: order.id,
+        data: { platformTip: 0 },
+      };
+
+      await Transaction.createFromContributionPayload(transactionPayload);
+
+      const allTransactions = await Transaction.findAll({ where: { OrderId: order.id } });
+      utils.snapshotTransactions(allTransactions, {
+        columns: ['type', 'kind', 'CollectiveId', 'HostCollectiveId', 'amount'],
+      });
     });
   });
 });

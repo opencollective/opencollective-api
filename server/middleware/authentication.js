@@ -158,8 +158,9 @@ const _authenticateUserByJwt = async (req, res, next) => {
   Sentry.setUser(dbUserToSentryUser(user));
   const { earlyAccess = {} } = user.collective.settings || {};
   if (
-    earlyAccess.dashboard ||
-    (parseToBoolean(config.features.dashboard.redirect) && earlyAccess.dashboard !== false)
+    // Ignore redirect if profile completion is required
+    !user.collective?.data?.requiresProfileCompletion &&
+    (earlyAccess.dashboard || (parseToBoolean(config.features.dashboard.redirect) && earlyAccess.dashboard !== false))
   ) {
     setRedirectCookie(res);
   } else {
@@ -368,7 +369,21 @@ export async function checkPersonalToken(req, res, next) {
 
   if (apiKey || token) {
     const now = moment();
-    const personalToken = await models.PersonalToken.findOne({ where: { token: apiKey || token } });
+    const personalToken = await models.PersonalToken.findOne({
+      where: { token: apiKey || token },
+      include: [
+        {
+          association: 'user',
+          required: true,
+          include: [{ association: 'collective', required: true }],
+        },
+        {
+          association: 'collective',
+          required: true,
+        },
+      ],
+    });
+
     if (personalToken) {
       if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
         debug(`Expired Personal Token (Api Key): ${apiKey || token}`);
@@ -381,18 +396,16 @@ export async function checkPersonalToken(req, res, next) {
           await personalToken.update({ lastUsedAt: new Date() });
         }
       }
-      req.personalToken = personalToken;
-      const collectiveId = personalToken.CollectiveId;
-      if (collectiveId) {
-        req.loggedInAccount = await models.Collective.findByPk(collectiveId);
-        req.remoteUser = await models.User.findOne({
-          where: { CollectiveId: collectiveId },
-        });
 
-        if (req.remoteUser) {
-          await req.remoteUser.populateRoles();
-        }
+      req.personalToken = personalToken;
+      req.remoteUser = personalToken.user;
+
+      if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
+        next(new Unauthorized(`Invalid personal token for collective: ${apiKey || token}`));
+        return;
       }
+
+      await req.remoteUser.populateRoles();
       next();
     } else {
       clearRedirectCookie(res);

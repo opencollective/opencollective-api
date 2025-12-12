@@ -169,7 +169,7 @@ const IBANCurrencies = {
   ZAR: 'Rand',
   ZMW: 'Zambian Kwacha',
   ZWL: 'Zimbabwe Dollar',
-};
+} as const;
 
 export const SUPPORTED_CURRENCIES = [
   'USD',
@@ -393,7 +393,7 @@ export const ZERO_DECIMAL_CURRENCIES = [
   'XAF',
   'XOF',
   'XPF',
-];
+] as const;
 
 export const currencyFormats = {
   EUR: '€',
@@ -402,4 +402,4 @@ export const currencyFormats = {
   SEK: 'kr ',
   USD: '$',
   UYU: '$U ',
-};
+} as const;

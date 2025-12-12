@@ -113,6 +113,13 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canPayExpense(req, expense);
       },
     },
+    canMarkAsPaid: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can mark this expense as paid',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canMarkAsPaid(req, expense);
+      },
+    },
     canApprove: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can approve this expense',
@@ -248,7 +255,7 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditItemDescription),
     },
     editAccountingCategory: {
-      type: new GraphQLNonNull(GraphQLBoolean),
+      type: new GraphQLNonNull(GraphQLPermission),
       description: 'Whether the current user can edit the expense accounting category',
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpenseAccountingCategory),
     },
@@ -267,6 +274,10 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     pay: {
       type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canPayExpense),
+    },
+    markAsPaid: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsPaid),
     },
     approve: {
       type: new GraphQLNonNull(GraphQLPermission),

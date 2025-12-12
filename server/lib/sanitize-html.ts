@@ -1,9 +1,9 @@
 import config from 'config';
 import { truncate, uniq } from 'lodash';
-import prependHttp from 'prepend-http';
 import LibSanitize from 'sanitize-html';
 
 import { isValidUploadedImage } from './images';
+import { prependHttp } from './url-utils';
 
 interface AllowedContentType {
   /** Allows titles  supported by RichTextEditor (`h3` only) */

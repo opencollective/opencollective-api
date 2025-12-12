@@ -53,11 +53,11 @@ const CollectionArgs = {
 export const getCollectionArgs = ({ limit = 10, offset = 0 }) => ({
   limit: {
     ...CollectionArgs.limit,
-    defaultValue: limit || CollectionArgs.limit.defaultValue,
+    defaultValue: limit ?? CollectionArgs.limit.defaultValue,
   },
   offset: {
     ...CollectionArgs.offset,
-    defaultValue: offset || CollectionArgs.offset.defaultValue,
+    defaultValue: offset ?? CollectionArgs.offset.defaultValue,
   },
 });
 

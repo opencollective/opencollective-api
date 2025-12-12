@@ -70,7 +70,6 @@ export const templateNames = [
   'onboarding.noExpenses.opensource',
   'onboarding.noUpdates',
   'onboarding.day7',
-  'onboarding.day35.active',
   'onboarding.day35.inactive',
   'organization.collective.created',
   'organization.newmember',
@@ -85,6 +84,10 @@ export const templateNames = [
   'order.reminder.pendingFinancialContribution',
   'order.processing',
   'order.payment.failed',
+  'platform.billing.new.expense',
+  'platform.billing.overdue.reminder',
+  'platform.billing.additional.charges.notification',
+  'platform.billing.payment.confirmation',
   'report.platform',
   'report.platform.weekly',
   'subscription.canceled',
@@ -104,9 +107,11 @@ export const templateNames = [
   'user.new.token',
   'user.resetPassword',
   'user.yearlyreport',
-  'activated.collective.as.host',
-  'activated.collective.as.independent',
-  'deactivated.collective.as.host',
+  'user.otp.requested',
+  'activated.moneyManagement',
+  'deactivated.moneyManagement',
+  'activated.hosting',
+  'deactivated.hosting',
   'contribution.rejected',
   'virtualcard.charge.declined',
   'virtualcard.requested',
@@ -115,6 +120,7 @@ export const templateNames = [
   'expense.comment.created',
   'virtualcard.purchase',
   'connected_account.removed',
+  'platform.subscription.updated',
 ] as const;
 
 export type EmailTemplates = (typeof templateNames)[number];
@@ -135,6 +141,8 @@ const linkCollective = fs.readFileSync(`${templatesPath}/partials/link-collectiv
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
 const mthReportSubscription = fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
+const planDetails = fs.readFileSync(`${templatesPath}/partials/plan-details.hbs`, 'utf8');
+const subscriptionDetails = fs.readFileSync(`${templatesPath}/partials/subscription-details.hbs`, 'utf8');
 
 handlebars.registerPartial('header', header);
 handlebars.registerPartial('greeting', greeting);
@@ -149,6 +157,8 @@ handlebars.registerPartial('eventdata', eventdata);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
+handlebars.registerPartial('plan-details', planDetails);
+handlebars.registerPartial('subscription-details', subscriptionDetails);
 handlebars.registerHelper('idEncode', (id, type) => {
   return idEncode(id, type);
 });

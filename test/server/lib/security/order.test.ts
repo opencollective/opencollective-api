@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import type express from 'express';
 
+import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import {
   checkEmail,
@@ -33,11 +34,11 @@ describe('lib/security/order', () => {
         PaymentMethodId: pm.id,
         data: { reqIp: '127.0.0.1' },
       };
-      await multiple(fakeOrder, 4, { ...defaultOrderProps, status: 'ERROR' });
-      await multiple(fakeOrder, 1, { ...defaultOrderProps, status: 'PAID' });
+      await multiple(fakeOrder, 4, { ...defaultOrderProps, status: OrderStatuses.ERROR });
+      await multiple(fakeOrder, 1, { ...defaultOrderProps, status: OrderStatuses.PAID });
       // Add Noise
-      await multiple(fakeOrder, 5, { status: 'ERROR', PaymentMethodId: pm.id });
-      await multiple(fakeOrder, 5, { status: 'PAID', PaymentMethodId: pm.id });
+      await multiple(fakeOrder, 5, { status: OrderStatuses.ERROR, PaymentMethodId: pm.id });
+      await multiple(fakeOrder, 5, { status: OrderStatuses.PAID, PaymentMethodId: pm.id });
     });
     describe('getUserStats', () => {
       it('should return stats for existing user', async () => {
@@ -145,7 +146,7 @@ describe('lib/security/order', () => {
         });
         await multiple(fakeOrder, 4, {
           data: { reqIp: '1.1.1.1' },
-          status: 'ERROR',
+          status: OrderStatuses.ERROR,
           PaymentMethodId: pm.id,
         });
 
@@ -176,7 +177,11 @@ describe('lib/security/order', () => {
           name: '4242',
           data: { expYear: 2022, expMonth: 13, country: 'US' },
         });
-        await multiple(fakeOrder, 5, { status: 'ERROR', PaymentMethodId: pm.id, CreatedByUserId: remoteUser.id });
+        await multiple(fakeOrder, 5, {
+          status: OrderStatuses.ERROR,
+          PaymentMethodId: pm.id,
+          CreatedByUserId: remoteUser.id,
+        });
         await expect(orderFraudProtection({ remoteUser } as express.Request, {})).to.be.rejectedWith(
           'failed fraud protection',
         );

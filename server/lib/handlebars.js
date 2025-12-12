@@ -2,6 +2,9 @@ import handlebars from 'handlebars';
 import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
 import moment from 'moment-timezone';
 
+import { FeatureDetails } from '../constants/feature';
+import { freeFeatures } from '../constants/plans';
+
 import {
   capitalize,
   formatCurrency,
@@ -221,6 +224,7 @@ handlebars.registerHelper('formatOrderAmountWithInterval', order => {
   }
 });
 
+// eslint-disable-next-line no-console
 handlebars.registerHelper('debug', console.log);
 
 /**
@@ -250,6 +254,37 @@ handlebars.registerHelper('debug', console.log);
  */
 handlebars.registerHelper('escapeForSubject', str => {
   return str ? str.replaceAll(/[\r\n]/g, ' ') : '';
+});
+
+/**
+ * Returns feature details with label and documentation URL for platform features
+ */
+handlebars.registerHelper('getPlatformFeatureDetails', featureKey => {
+  return (
+    FeatureDetails[featureKey] || {
+      label: startCase(lowerCase(featureKey)),
+      documentationUrl: null,
+    }
+  );
+});
+
+/**
+ * Checks if a feature is NOT in the free features list
+ */
+handlebars.registerHelper('isFreeFeature', featureKey => {
+  return freeFeatures.includes(featureKey);
+});
+
+/**
+ * Checks if a plan has any premium (non-free) features enabled
+ */
+handlebars.registerHelper('hasPremiumFeatures', features => {
+  if (!features || typeof features !== 'object') {
+    return false;
+  }
+
+  // Check if any enabled feature is not in the free features list
+  return Object.keys(features).some(featureKey => features[featureKey] === true && !freeFeatures.includes(featureKey));
 });
 
 // Math operations

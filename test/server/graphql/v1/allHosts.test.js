@@ -51,14 +51,16 @@ describe('server/graphql/v1/allHosts', () => {
     await collective2.addHost(privateHost, user1, { shouldAutomaticallyApprove: true });
     await publicHost.createConnectedAccount({
       service: 'stripe',
+      username: 'stripeAccount',
     });
     await privateHost.createConnectedAccount({
       service: 'stripe',
+      username: 'stripeAccount',
     });
   });
 
   describe('hosts', () => {
-    const allHostsQuery = gqlV1/* GraphQL */ `
+    const allHostsQuery = gqlV1 /* GraphQL */ `
       query AllHosts($tags: [String], $currency: String) {
         allHosts(tags: $tags, currency: $currency) {
           total

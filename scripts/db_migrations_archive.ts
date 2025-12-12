@@ -20,41 +20,43 @@ const getMovedFilesList = (until: moment.Moment): string[] => {
 };
 
 // Main
-(async function () {
-  // Print a confirmation before starting the script
-  const movedFiles = getMovedFilesList(options.until);
-  if (movedFiles.length === 0) {
-    console.log('No migrations to archive');
+if (require.main === module) {
+  (async function () {
+    // Print a confirmation before starting the script
+    const movedFiles = getMovedFilesList(options.until);
+    if (movedFiles.length === 0) {
+      console.log('No migrations to archive');
+      process.exit(0);
+    }
+
+    movedFiles.forEach(file => console.log(`- ${file}`));
+    if (!(await confirm('You are about to archive the migrations listed above. Are you sure you want to continue?'))) {
+      process.exit(0);
+    }
+
+    // Step 1: run migrations to make sure we're up to date
+    console.log('Running migrations to make sure local DB is up to date...');
+    try {
+      execSync('npm run db:migrate', { stdio: 'inherit' });
+    } catch (e) {
+      console.error(e);
+      process.exit(1);
+    }
+
+    // Step 2: Dump database
+    try {
+      execSync('npm run db:dump:dev', { stdio: 'inherit' });
+    } catch (e) {
+      console.error(e);
+      process.exit(1);
+    }
+
+    // Step 3: move old migrations to `archives` folder
+    for (const file of movedFiles) {
+      fs.renameSync(`migrations/${file}`, `migrations/archives/${file}`);
+    }
+
+    console.log('Done!');
     process.exit(0);
-  }
-
-  movedFiles.forEach(file => console.log(`- ${file}`));
-  if (!(await confirm('You are about to archive the migrations listed above. Are you sure you want to continue?'))) {
-    process.exit(0);
-  }
-
-  // Step 1: run migrations to make sure we're up to date
-  console.log('Running migrations to make sure local DB is up to date...');
-  try {
-    execSync('npm run db:migrate', { stdio: 'inherit' });
-  } catch (e) {
-    console.error(e);
-    process.exit(1);
-  }
-
-  // Step 2: Dump database
-  try {
-    execSync('npm run db:dump:dev', { stdio: 'inherit' });
-  } catch (e) {
-    console.error(e);
-    process.exit(1);
-  }
-
-  // Step 3: move old migrations to `archives` folder
-  for (const file of movedFiles) {
-    fs.renameSync(`migrations/${file}`, `migrations/archives/${file}`);
-  }
-
-  console.log('Done!');
-  process.exit(0);
-})();
+  })();
+}

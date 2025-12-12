@@ -394,7 +394,7 @@ export function editCollective(_, args, req) {
           newCollectiveData.hostFeePercent !== undefined &&
           newCollectiveData.hostFeePercent !== collective.hostFeePercent
         ) {
-          return collective.updateHostFee(newCollectiveData.hostFeePercent, req.remoteUser);
+          return collective.updateHostFeeAsUser(newCollectiveData.hostFeePercent, req.remoteUser);
         }
       })
       .then(() => {
@@ -551,7 +551,7 @@ export async function archiveCollective(_, args, req) {
   }
 
   if (collective.isActive) {
-    const balance = await collective.getBalance();
+    const balance = await collective.getBalance({ includeChildren: true });
     if (balance > 0) {
       throw new Error('Cannot archive collective with balance > 0');
     }
@@ -694,7 +694,8 @@ export async function activateCollectiveAsHost(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-  return collective.becomeHost(req.remoteUser);
+  // This is now equivalent to activate "Money Management"
+  return collective.activateMoneyManagement(req.remoteUser);
 }
 
 export async function deactivateCollectiveAsHost(_, args, req) {
@@ -713,43 +714,13 @@ export async function deactivateCollectiveAsHost(_, args, req) {
 
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-  return collective.deactivateAsHost();
-}
-
-export async function activateBudget(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to activate budget.');
+  // This is expected as a combination of deactivateHosting and deactivateMoneyManagement
+  if (collective.hasHosting()) {
+    await collective.deactivateHosting(req.remoteUser);
+  }
+  if (collective.hasMoneyManagement()) {
+    await collective.deactivateMoneyManagement(req.remoteUser);
   }
 
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective)) {
-    throw new Unauthorized('You need to be logged in as an Admin.');
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-  return collective.activateBudget();
-}
-
-export async function deactivateBudget(_, args, req) {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to deactivate budget.');
-  }
-
-  const collective = await req.loaders.Collective.byId.load(args.id);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!req.remoteUser.isAdminOfCollective(collective)) {
-    throw new Unauthorized('You need to be logged in as an Admin.');
-  }
-
-  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
-
-  return collective.deactivateBudget();
+  return collective;
 }

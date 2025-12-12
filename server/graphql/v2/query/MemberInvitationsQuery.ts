@@ -1,14 +1,33 @@
 import { GraphQLList } from 'graphql';
 
-import models, { Op } from '../../../models';
-import { Forbidden, ValidationFailed } from '../../errors';
+import models, { Collective, Op, User } from '../../../models';
+import { ValidationFailed } from '../../errors';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
 
+/**
+ * Users can see the pending invitations for an account in 3 cases:
+ * - They're an admin of the profile
+ * - They're an admin of the host of the profile
+ * - The account has a pending application and user is an admin of the host
+ */
+const canViewMemberInvitationsForAccount = (account: Collective, remoteUser: User) => {
+  if (!account) {
+    return false;
+  } else if (remoteUser.isAdminOfCollectiveOrHost(account)) {
+    return true;
+  } else if (account.HostCollectiveId) {
+    // We're not looking at the `approvedAt` flag here on purpose
+    return remoteUser.isAdmin(account.HostCollectiveId);
+  }
+
+  return false;
+};
+
 const MemberInvitationsQuery = {
   type: new GraphQLList(GraphQLMemberInvitation),
-  description: '[AUTHENTICATED] Returns the pending invitations',
+  description: 'Returns the pending invitations, or null if not allowed.',
   args: {
     memberAccount: {
       type: GraphQLAccountReferenceInput,
@@ -27,7 +46,7 @@ const MemberInvitationsQuery = {
   },
   async resolve(collective, args, { remoteUser }) {
     if (!remoteUser) {
-      throw new Forbidden('Only collective admins can see pending invitations');
+      return null;
     }
 
     if (!(args.account || args.memberAccount || collective)) {
@@ -40,12 +59,12 @@ const MemberInvitationsQuery = {
       args.memberAccount && (await fetchAccountWithReference(args.memberAccount, { throwIfMissing: true }));
 
     // Must be an admin to see pending invitations
-    const isAdminOfAccount = account && remoteUser.isAdminOfCollective(account);
-    const isAdminOfMemberAccount = memberAccount && remoteUser.isAdminOfCollective(memberAccount);
+    const isAdminOfAccount = account && canViewMemberInvitationsForAccount(account, remoteUser);
+    const isAdminOfMemberAccount = memberAccount && canViewMemberInvitationsForAccount(memberAccount, remoteUser);
 
     // If not admin of account or member account throw forbidden
     if (!(isAdminOfAccount || isAdminOfMemberAccount)) {
-      new Forbidden('Only collective admins can see pending invitations');
+      return null;
     }
 
     const where = {};

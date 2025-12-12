@@ -98,8 +98,16 @@ const payoutMethodMutations = {
       if (await payoutMethod.canBeDeleted()) {
         await payoutMethod.destroy();
         return payoutMethod;
+      } else if (await payoutMethod.canBeArchived()) {
+        return payoutMethod.update({
+          isSaved: false,
+          data: {
+            ...payoutMethod.data,
+            ...(payoutMethod.data['isManualBankTransfer'] ? { isManualBankTransfer: false } : {}),
+          },
+        });
       } else {
-        return payoutMethod.update({ isSaved: false });
+        throw new Forbidden();
       }
     },
   },
@@ -152,7 +160,7 @@ const payoutMethodMutations = {
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
         });
-      } else {
+      } else if (await payoutMethod.canBeArchived()) {
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
         const newPayoutMethod = await models.PayoutMethod.create({
@@ -167,6 +175,8 @@ const payoutMethodMutations = {
           { where: { PayoutMethodId: payoutMethod.id, status: [ExpenseStatuses.PENDING, ExpenseStatuses.DRAFT] } },
         );
         return newPayoutMethod;
+      } else {
+        throw new Forbidden();
       }
     },
   },

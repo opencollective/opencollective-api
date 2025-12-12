@@ -32,7 +32,7 @@ describe('server/graphql/v1/zero-decimal-currencies', () => {
 
   describe('zero decimal currencies for stripe', () => {
     it('expense submission with zero decimal currencies', async () => {
-      const collectiveQuery = gqlV1/* GraphQL */ `
+      const collectiveQuery = gqlV1 /* GraphQL */ `
         query Collective($slug: String) {
           Collective(slug: $slug) {
             id

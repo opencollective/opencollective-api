@@ -12,7 +12,7 @@ export interface BasePaymentProviderService {
    */
   features: {
     recurring: boolean;
-    isRecurringManagedExternally: boolean;
+    isRecurringManagedExternally?: boolean;
     waitToCharge?: boolean;
   };
 
@@ -32,6 +32,7 @@ export interface BasePaymentProviderService {
     user?: User,
     reason?: string,
     refundKind?: RefundKind,
+    options?: { ignoreBalanceCheck?: boolean },
   ): Promise<Transaction>;
 
   /**
@@ -42,6 +43,7 @@ export interface BasePaymentProviderService {
     user?: User,
     reason?: string,
     refundKind?: RefundKind,
+    options?: { ignoreBalanceCheck?: boolean },
   ): Promise<Transaction>;
 
   getBalance?: (
@@ -80,7 +82,13 @@ export interface PaymentMethodServiceWithExternalRecurringManagement extends Bas
   /**
    * For external recurring management, use this method to define how resuming a subscription should be handled.
    */
-  resumeSubscription?: (order: Order, reason: string) => Promise<void>;
+  resumeSubscription?: (
+    order: Order,
+    reason: string,
+  ) => Promise<{
+    resumed: boolean;
+    shouldCancel: boolean;
+  }>;
 }
 
 export type PaymentProviderService =

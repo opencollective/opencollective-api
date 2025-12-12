@@ -12,11 +12,11 @@ import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { parseToBoolean } from './utils';
 
 export const getTransactionPdf = async (transaction, user) => {
-  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false || !config.host.pdfV2) {
+  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false || !config.host.pdf) {
     return;
   }
 
-  const pdfUrl = `${config.host.pdfV2}/receipts/transaction/${transaction.uuid}/receipt.pdf`;
+  const pdfUrl = `${config.host.pdf}/receipts/transaction/${transaction.uuid}/receipt.pdf`;
   const accessToken = user.jwt({}, TOKEN_EXPIRATION_PDF);
   const headers = {
     Authorization: `Bearer ${accessToken}`,
@@ -105,7 +105,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
 };
 
 export const getConsolidatedInvoicePdfs = async fromCollective => {
-  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false || !config.host.pdfV2) {
+  if (parseToBoolean(config.pdfService.fetchTransactionsReceipts) === false || !config.host.pdf) {
     return;
   }
 
@@ -168,11 +168,11 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
 };
 
 export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
-  if (!config.host.pdfV2) {
+  if (!config.host.pdf) {
     throw new Error('The PDF generation service is not available at this time');
   }
 
-  const pdfURL = new URL(`${config.host.pdfV2}/tax-forms/${formType}.pdf`);
+  const pdfURL = new URL(`${config.host.pdf}/tax-forms/${formType}.pdf`);
   const base64Values = Buffer.from(JSON.stringify(formData)).toString('base64');
   pdfURL.searchParams.set('formType', formType);
   pdfURL.searchParams.set('values', base64Values);

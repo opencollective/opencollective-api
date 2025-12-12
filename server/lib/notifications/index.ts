@@ -46,7 +46,9 @@ const dispatch = async (
       await notifyByEmail(activity);
     } catch (e) {
       if (!['ci', 'test', 'e2e'].includes(config.env)) {
-        console.error(e);
+        reportErrorToSentry(e, {
+          extra: { activityId: activity.id, onlyChannels, force },
+        });
       }
     }
   }

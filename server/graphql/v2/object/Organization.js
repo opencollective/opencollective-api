@@ -1,21 +1,26 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import {
+  AccountWithPlatformSubscriptionFields,
+  GraphQLAccountWithPlatformSubscription,
+} from '../interface/AccountWithPlatformSubscription';
 
 import { GraphQLHost } from './Host';
 
 export const GraphQLOrganization = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents an Organization account',
-  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions, GraphQLAccountWithPlatformSubscription],
   isTypeOf: collective => collective.type === 'ORGANIZATION',
   fields: () => {
     return {
       ...AccountFields,
       ...AccountWithContributionsFields,
+      ...AccountWithPlatformSubscriptionFields,
       email: {
         type: GraphQLString,
         deprecationReason: '2022-07-18: This field is deprecated and will return null',
@@ -34,7 +39,7 @@ export const GraphQLOrganization = new GraphQLObjectType({
             (await organization.isHost()) ||
             (checkScope(req, 'account') &&
               (req.remoteUser?.isAdmin(organization.id) ||
-                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, organization.id)));
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, organization.id)));
 
           if (canSeeLocation) {
             return location;
@@ -50,6 +55,20 @@ export const GraphQLOrganization = new GraphQLObjectType({
           if (collective.isHostAccount) {
             return collective;
           }
+        },
+      },
+      hasMoneyManagement: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the account has money management activated.',
+        resolve(collective) {
+          return collective.hasMoneyManagement();
+        },
+      },
+      hasHosting: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the account has hosting activated.',
+        resolve(collective) {
+          return collective.hasHosting();
         },
       },
     };

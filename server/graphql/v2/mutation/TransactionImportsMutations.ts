@@ -5,10 +5,14 @@ import { GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 import GraphQLUpload from 'graphql-upload/GraphQLUpload.js';
 import { isEmpty, keyBy, mapValues, omit, pick, truncate } from 'lodash';
 
+import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
+import { syncGoCardlessAccount } from '../../../lib/gocardless/sync';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
+import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import {
+  Collective,
   ConnectedAccount,
   Op,
   sequelize,
@@ -34,6 +38,10 @@ import { getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { getDatabaseIdFromOrderReference } from '../input/OrderReferenceInput';
 import { GraphQLTransactionsImportAssignmentInput } from '../input/TransactionsImportAssignmentInput';
+import {
+  fetchTransactionsImportWithReference,
+  GraphQLTransactionsImportReferenceInput,
+} from '../input/TransactionsImportReferenceInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
 import {
   GraphQLTransactionsImportRowUpdateInput,
@@ -44,6 +52,51 @@ import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 import { GraphQLTransactionsImportRow } from '../object/TransactionsImportRow';
 
 const transactionImportsMutations = {
+  syncTransactionsImport: {
+    type: new GraphQLNonNull(GraphQLTransactionsImport),
+    description: 'Manually request a sync for a transactions import (works for both Plaid and GoCardless)',
+    args: {
+      transactionImport: {
+        type: new GraphQLNonNull(GraphQLTransactionsImportReferenceInput),
+        description: 'The transactions import to sync',
+      },
+    },
+    resolve: async (_, args, req) => {
+      checkRemoteUserCanUseTransactions(req);
+      const transactionsImport = await fetchTransactionsImportWithReference(args.transactionImport, {
+        throwIfMissing: true,
+      });
+
+      if (!req.remoteUser.isAdmin(transactionsImport.CollectiveId)) {
+        throw new Unauthorized('You do not have permission to sync this import');
+      }
+
+      const connectedAccount = await transactionsImport.getConnectedAccount();
+      if (!connectedAccount) {
+        throw new Error('Connected account not found');
+      }
+
+      // Rate limiting based on the connected account ID
+      const rateLimiter = new RateLimit(`syncTransactionsImport:${connectedAccount.id}`, 2, 5 * 60);
+      if (!(await rateLimiter.registerCall())) {
+        throw new RateLimitExceeded(
+          'A sync was already requested for this account recently. Please wait a few minutes before trying again.',
+        );
+      }
+
+      if (transactionsImport.type === 'PLAID') {
+        // For Plaid, we request a sync which will trigger the webhook later
+        await requestPlaidAccountSync(connectedAccount);
+      } else if (transactionsImport.type === 'GOCARDLESS') {
+        // For GoCardless, we sync immediately
+        await syncGoCardlessAccount(connectedAccount, transactionsImport);
+      } else {
+        throw new Error(`Sync not supported for import type: ${transactionsImport.type}`);
+      }
+
+      return transactionsImport;
+    },
+  },
   createTransactionsImport: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
     description: 'Create a new import. To manually add transactions to it, use `importTransactions`.',
@@ -344,6 +397,7 @@ const transactionImportsMutations = {
                 'description',
                 'date',
                 'note',
+                'accountId',
               ]);
               if (row.amount) {
                 values.amount = getValueInCentsFromAmountInput(row.amount);
@@ -365,9 +419,17 @@ const transactionImportsMutations = {
                   loaders: req.loaders,
                   throwIfMissing: true,
                 });
-                const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-                if (collective.HostCollectiveId !== hostId) {
-                  throw new Unauthorized(`Expense not associated with the import: ${expense.id}`);
+                const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
+                  expense.CollectiveId,
+                  expense.FromCollectiveId,
+                ]);
+
+                const isValidCollective = (c: Collective | Error): c is Collective => c && !(c instanceof Error);
+                if (
+                  !(isValidCollective(collective) && collective.HostCollectiveId === hostId) &&
+                  !(isValidCollective(fromCollective) && fromCollective.HostCollectiveId === hostId)
+                ) {
+                  throw new Unauthorized(`This expense cannot be associated with the import: ${expense.id}`);
                 }
 
                 values['ExpenseId'] = expense.id;
@@ -378,8 +440,8 @@ const transactionImportsMutations = {
               }
 
               // For plaid imports, users can't change imported data
-              if (importType === 'PLAID') {
-                values = omit(values, ['amount', 'date', 'sourceId', 'description']);
+              if (importType === 'PLAID' || importType === 'GOCARDLESS') {
+                values = omit(values, ['amount', 'date', 'sourceId', 'description', 'accountId']);
               }
 
               const [updatedCount] = await TransactionsImportRow.update(values, { where, transaction });
@@ -452,6 +514,7 @@ const transactionImportsMutations = {
 
       const importId = idDecode(args.id, 'transactions-import');
       const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+
       if (!importInstance) {
         throw new NotFound('Import not found');
       } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
@@ -459,16 +522,19 @@ const transactionImportsMutations = {
       }
 
       let connectedAccount;
-      if (importInstance.type === 'PLAID' && importInstance.ConnectedAccountId) {
+
+      if (importInstance.ConnectedAccountId) {
         connectedAccount = await importInstance.getConnectedAccount({
           include: [{ association: 'collective', required: true }],
         });
-        if (!connectedAccount) {
-          throw new Error('Connected account not found');
+        if (connectedAccount) {
+          await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
+          if (importInstance.type === 'PLAID') {
+            await disconnectPlaidAccount(connectedAccount);
+          } else if (importInstance.type === 'GOCARDLESS') {
+            await disconnectGoCardlessAccount(connectedAccount);
+          }
         }
-
-        await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { alwaysAskForToken: true }); // To match the permissions in deleteConnectedAccount
-        await disconnectPlaidAccount(connectedAccount);
       }
 
       return sequelize.transaction(async transaction => {

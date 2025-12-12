@@ -34,8 +34,8 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
       const result = await sequelize.query(queries.join('UNION ALL'), {
         type: sequelize.QueryTypes.SELECT,
         replacements: {
-          userCollectiveIds: userCollectives.map(collective => collective.id),
-          otherCollectivesIds: otherCollectives.map(collective => collective.id),
+          userCollectiveIds: [...new Set(userCollectives.map(collective => collective.id))],
+          otherCollectivesIds: [...new Set(otherCollectives.map(collective => collective.id))],
         },
       });
 

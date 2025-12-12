@@ -43,7 +43,8 @@
     "error": {
       "detailed": "GRAPHQL_ERROR_DETAILED"
     },
-    "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG"
+    "resolverTimeDebugWarning": "GRAPHQL_RESOLVER_TIME_DEBUG",
+    "rejectOnMaxComplexity": "GRAPHQL_REJECT_ON_MAX_COMPLEXITY"
   },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",
@@ -69,7 +70,13 @@
     "level": "LOG_LEVEL",
     "accessLogs": "ACCESS_LOGS",
     "slowRequest": "SLOW_REQUEST",
-    "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD"
+    "slowRequestThreshold": "SLOW_REQUEST_THRESHOLD",
+    "slowMiddleware": "LOG_SLOW_MIDDLEWARE",
+    "slowMiddlewareThreshold": "LOG_SLOW_MIDDLEWARE_THRESHOLD"
+  },
+  "gocardless": {
+    "secretId": "GOCARDLESS_SECRET_ID",
+    "secretKey": "GOCARDLESS_SECRET_KEY"
   },
   "plaid": {
     "clientId": "PLAID_CLIENT_ID",
@@ -129,7 +136,7 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "pdfV2": "PDF_SERVICE_V2_URL",
+    "pdf": "PDF_SERVICE_URL",
     "rest": "REST_URL",
     "ml": "ML_SERVICE_URL"
   },
@@ -145,11 +152,15 @@
     },
     "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
     "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS",
-    "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR"
+    "userSignUpPerHour": "LIMIT_USER_SIGNUP_PER_HOUR",
+    "search": {
+      "concurrentRequests": "LIMIT_SEARCH_CONCURRENT_REQUESTS"
+    }
   },
   "slack": {
     "webhooks": {
-      "abuse": "SLACK_WEBHOOK_ABUSE"
+      "abuse": "SLACK_WEBHOOK_ABUSE",
+      "engineeringAlerts": "SLACK_WEBHOOK_ENGINEERING_ALERTS"
     }
   },
   "github": {
@@ -197,7 +208,8 @@
     "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT",
-    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER"
+    "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER",
+    "useSimplifiedQuote": "TRANSFERWISE_USE_SIMPLIFIED_QUOTE"
   },
   "hyperwatch": {
     "enabled": "HYPERWATCH_ENABLED",
@@ -257,16 +269,11 @@
   "opentelemetry": {
     "enabled": "OPENTELEMETRY_ENABLED"
   },
-  "statsd": {
-    "enabled": "STATSD_ENABLED",
-    "url": "STATSD_URL",
-    "port": "STATSD_PORT",
-    "prefix": "STATSD_PREFIX"
-  },
   "features": {
     "dashboard": {
       "redirect": "FEATURES_DASHBOARD_REDIRECT"
-    }
+    },
+    "newPricing": "NEW_PRICING"
   },
   "settlement": {
     "minimumAmountInUSD": "SETTLEMENT_MINIMUM_AMOUNT_IN_USD"

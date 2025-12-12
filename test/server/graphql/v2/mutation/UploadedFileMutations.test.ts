@@ -95,22 +95,24 @@ describe('server/graphql/v2/mutation/UploadedFileMutations', () => {
       expect(result.data.uploadFile[0].parsingResult).to.be.null;
       expect(result.data.uploadFile[0].file.name).to.eq('camera.png');
       expect(result.data.uploadFile[0].file.type).to.eq('image/png');
-      expect(result.data.uploadFile[0].file.size).to.eq(2918); // Initial was 3628, but we've stripped the metadata
+      expect(result.data.uploadFile[0].file.size).to.eq(2923); // Initial was 3628, but we've stripped the metadata
     });
 
     describe('with parseDocument', () => {
-      it('can only use the option with EXPENSE_ITEM, EXPENSE_ATTACHED_FILE and EXPENSE_INVOICE', async () => {
+      it('can only use the option with allowed kinds', async () => {
         const user = await fakeUser();
         const unsupportedKinds = SUPPORTED_FILE_KINDS.filter(
-          k => k !== 'EXPENSE_ITEM' && k !== 'EXPENSE_ATTACHED_FILE' && k !== 'EXPENSE_INVOICE',
+          k =>
+            k !== 'EXPENSE_ITEM' &&
+            k !== 'EXPENSE_ATTACHED_FILE' &&
+            k !== 'EXPENSE_INVOICE' &&
+            k !== 'RECEIPT_EMBEDDED_IMAGE',
         );
         for (const kind of unsupportedKinds) {
           const args = { files: [{ file: getMockFileUpload(), kind, parseDocument: true }] };
           const result = await graphqlQueryV2(uploadFileMutation, args, user);
           expect(result.errors).to.exist;
-          expect(result.errors[0].message).to.eq(
-            `This mutation only supports the following kinds: EXPENSE_ITEM, EXPENSE_ATTACHED_FILE, EXPENSE_INVOICE`,
-          );
+          expect(result.errors[0].message).to.eq(`This mutation does not support the kinds ${kind}`);
         }
       });
 

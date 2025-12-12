@@ -438,25 +438,36 @@ export const TransactionsCollectionResolver = async (
           : { [Op.lte]: lte };
 
     where.push(
-      sequelize.where(
-        sequelize.literal(
-          SequelizeUtils.formatNamedParameters(
-            `
+      host && host.currency === currency
+        ? sequelize.where(sequelize.fn('abs', sequelize.col('amountInHostCurrency')), operator) // If host currency matches, use amountInHostCurrency
+        : sequelize.where(
+            sequelize.literal(
+              SequelizeUtils.formatNamedParameters(
+                `
             CASE
-              WHEN "Transaction"."currency" = :currency THEN "Transaction"."amount"
-              WHEN "Transaction"."hostCurrency" = :currency THEN "Transaction"."amountInHostCurrency"
-              ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Transaction"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1) * "Transaction"."amount",
-                "Transaction"."amount"
+              WHEN "Transaction"."currency" = :currency THEN ABS("Transaction"."amount")
+              WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
+              ELSE ABS(
+                COALESCE(
+                  (SELECT rate FROM "CurrencyExchangeRates" 
+                    WHERE "from" = "Transaction"."currency" 
+                    AND "to" = :currency 
+                    -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
+                    AND "createdAt" <= COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")
+                    ORDER BY "createdAt" DESC
+                    LIMIT 1
+                  ) * "Transaction"."amount",
+                  "Transaction"."amount"
+                )
               )
             END
           `,
-            { currency },
-            'postgres',
+                { currency },
+                'postgres',
+              ),
+            ),
+            operator,
           ),
-        ),
-        operator,
-      ),
     );
   } else {
     if (args.minAmount) {
@@ -518,7 +529,7 @@ export const TransactionsCollectionResolver = async (
       paymentMethods.every(pm => req.remoteUser?.isAdmin(pm.CollectiveId)),
       new Forbidden("You need to be an admin of the payment method's collective to access this resource"),
     );
-    where.push({ PaymentMethodId: { [Op.in]: paymentMethods.map(pm => pm.id) } });
+    where.push({ PaymentMethodId: { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] } });
   } else if (args.paymentMethodService || args.paymentMethodType) {
     const paymentMethodTypeConditions = [];
     const paymentMethodServiceConditions = [];

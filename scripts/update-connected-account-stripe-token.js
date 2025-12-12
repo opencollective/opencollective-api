@@ -24,4 +24,6 @@ async function run() {
   await sequelize.close();
 }
 
-run();
+if (require.main === module) {
+  run();
+}

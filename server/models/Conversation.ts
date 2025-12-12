@@ -125,7 +125,7 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
    */
   getUsersFollowing = async function (): Promise<User[]> {
     const followers = await ConversationFollower.findAll({
-      include: ['user'],
+      include: [{ association: 'user', required: true }],
       where: { ConversationId: this.id, isActive: true },
     });
 

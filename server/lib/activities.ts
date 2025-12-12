@@ -1,5 +1,5 @@
 import config from 'config';
-import { lowerCase } from 'lodash';
+import { isNil, lowerCase } from 'lodash';
 
 import activities from '../constants/activities';
 import { TransactionTypes } from '../constants/transactions';
@@ -12,16 +12,14 @@ export default {
    * Formats an activity *FOR EXTERNAL USE* based on its type
    * This function strips out email addresses and shows only a subset of activities
    * because many of them aren't relevant externally (like USER_CREATED)
-   *
-   * @returns {Object} - { message: string }
    */
-  formatMessageForPublicChannel: (activity, format) => {
+  formatMessageForPublicChannel: (activity, format): { message: string; options?: Record<string, unknown> } => {
     const result = doFormatMessage(activity, format);
     return typeof result === 'string' ? { message: result } : result;
   },
 };
 
-const doFormatMessage = (activity, format) => {
+const doFormatMessage = (activity, format): string | { message: string; options: Record<string, unknown> } => {
   let userString = '',
     hostString = '';
   let collectiveName = '';
@@ -71,10 +69,16 @@ const doFormatMessage = (activity, format) => {
 
   // get transaction data
   if (activity.data.transaction) {
-    amount = Math.abs(activity.data.transaction.amount / 100);
-    recurringAmount = amount + (interval ? `/${interval}` : '');
-    ({ currency } = activity.data.transaction);
-    ({ description } = activity.data.transaction);
+    if (!isNil(activity.data.transaction?.amount)) {
+      amount = Math.abs(activity.data.transaction.amount / 100);
+      recurringAmount = amount + (interval ? `/${interval}` : '');
+    }
+    if (!isNil(activity.data.transaction?.currency)) {
+      currency = activity.data.transaction.currency;
+    }
+    if (!isNil(activity.data.transaction?.description)) {
+      description = activity.data.transaction.description;
+    }
   }
 
   // get expense data
@@ -222,7 +226,7 @@ const doFormatMessage = (activity, format) => {
       return `New comment on update by ${userString} on ${collective}`;
 
     case activities.EXPENSE_COMMENT_CREATED:
-      return `New comment on expense by ${userString} on ${collective}`;
+      return `New comment on expense ${description} (${collective}) by ${userString}`;
 
     case activities.CONVERSATION_COMMENT_CREATED:
       return `New comment in conversation by ${userString} on ${collective}`;

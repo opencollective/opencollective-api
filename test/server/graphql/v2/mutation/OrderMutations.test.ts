@@ -374,6 +374,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           service: PAYMENT_METHOD_SERVICE.STRIPE,
           token: 'abc',
           CollectiveId: host.id,
+          username: 'stripeAccount',
         });
 
         // Add OC Inc (for platform tips)
@@ -881,6 +882,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             service: PAYMENT_METHOD_SERVICE.STRIPE,
             token: 'abc',
             CollectiveId: hostWithVAT.id,
+            username: 'stripeAccount',
           });
 
           tierProduct = await fakeTier({
@@ -1611,7 +1613,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeActiveHost({ admin: hostAdmin, data: { isTrustedHost: true } });
+      host = await fakeActiveHost({ plan: 'start-plan-2021', admin: hostAdmin, data: { isTrustedHost: true } });
       const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
       const user = await fakeUser();
       const validAccountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
@@ -1860,7 +1862,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeHost({ admin: hostAdmin });
+      host = await fakeHost({ plan: 'start-plan-2021', admin: hostAdmin });
       const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
       const user = await fakeUser();
       const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
@@ -2837,7 +2839,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           const order = await fakeOrder(
             {
               interval: initialInterval,
-              subscription: { nextChargeDate },
+              subscription: {
+                nextChargeDate,
+                nextPeriodStart: moment(nextChargeDate).startOf(initialInterval).toDate(),
+              },
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,

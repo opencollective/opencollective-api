@@ -4,6 +4,18 @@ You need to have PostgreSQL > 16.x.
 
 ## Installation
 
+### Using the docker-compose file
+
+Simply run on of these:
+
+```bash
+# With docker-compose
+docker-compose -f docker-compose/db.yml up
+
+# With podman
+podman-compose -f docker-compose/db.yml up # Only start the DB
+```
+
 ### On macOS
 
 #### With Homebrew

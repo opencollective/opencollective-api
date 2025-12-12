@@ -12,16 +12,16 @@ Subject: Thank you for your contribution to {{{collective.name}}}
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} per {{interval}} to {{collective.name}}.
+    <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} per {{interval}} to {{collective.name}}.
        Your first payment was made on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Source Collective acknowledges your donation.</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
+    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} was received on {{moment transaction.createdAt}}.
       As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
   {{/if}}
 {{else}}
 
-<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
+<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} on {{moment order.createdAt}}.
   As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
 {{/if}}
 

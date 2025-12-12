@@ -75,7 +75,7 @@ export default {
    * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)
    * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
    */
-  canSeePrivateInfo: (req): DataLoader<number, boolean> => {
+  canSeePrivateProfileInfo: (req): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
       const remoteUser = req.remoteUser;
       if (!remoteUser) {
@@ -126,5 +126,104 @@ export default {
         );
       });
     });
+  },
+  /**
+   * To check if remoteUser has access to user's private location. `remoteUser` must either:
+   * - be the user himself
+   * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
+   */
+  canSeePrivateLocation: (req): DataLoader<number, boolean> => {
+    return new DataLoader(async (collectiveIds: number[]) => {
+      const remoteUser = req.remoteUser;
+      if (!remoteUser) {
+        return collectiveIds.map(() => false);
+      }
+
+      let administratedMembers = [];
+
+      // Aggregates all the profiles linked to users
+      const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
+      const otherAccountsCollectiveIds = uniqueCollectiveIds.filter(
+        collectiveId => collectiveId !== remoteUser.CollectiveId,
+      );
+
+      // Fetch all the admin memberships of `remoteUser` to collectives or collective's hosts
+      // that are linked to users`
+      if (otherAccountsCollectiveIds.length) {
+        await remoteUser.populateRoles();
+        const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
+        administratedMembers = await models.Member.findAll({
+          attributes: ['MemberCollectiveId'],
+          group: ['MemberCollectiveId'],
+          raw: true,
+          mapToModel: false,
+          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: { [Op.ne]: MemberRoles.FOLLOWER } },
+          include: {
+            association: 'collective',
+            required: true,
+            attributes: [],
+            where: { HostCollectiveId: adminOfCollectiveIds }, // `remoteUser` is an admin of the collective's host
+          },
+        });
+      }
+
+      // User must be self or directly administered by remoteUser
+      const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
+      return collectiveIds.map(collectiveId => {
+        return (
+          collectiveId === remoteUser.CollectiveId ||
+          req.remoteUser.isAdmin(collectiveId) ||
+          administratedMemberCollectiveIds.has(collectiveId)
+        );
+      });
+    });
+  },
+  communityStats: {
+    onHostContext: (): DataLoader<{ HostCollectiveId: number; FromCollectiveId: number }, Collective> =>
+      new DataLoader(
+        async HostCollectivePairs => {
+          const conditionals: Record<number, Set<number>> = {};
+          const keys = HostCollectivePairs.map(pair => `${pair.HostCollectiveId}-${pair.FromCollectiveId}`);
+          HostCollectivePairs.forEach(({ FromCollectiveId, HostCollectiveId }) => {
+            conditionals[HostCollectiveId] = conditionals[HostCollectiveId] || new Set();
+            conditionals[HostCollectiveId].add(FromCollectiveId);
+          });
+
+          const conditionalQuery = Object.entries(conditionals)
+            .map(([HostCollectiveId, FromCollectiveIds]) => {
+              return `(cas."HostCollectiveId" = ${HostCollectiveId} AND cas."FromCollectiveId" IN (${Array.from(
+                FromCollectiveIds,
+              ).join(',')}))`;
+            })
+            .join(' OR ');
+
+          const results: Collective[] = await sequelize.query(
+            `
+          SELECT
+            fc.*, JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") AS "associatedCollectives",
+            cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt" 
+          FROM
+            "CommunityActivitySummary" cas
+            INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
+            LEFT JOIN "Collectives" c ON c.id = cas."CollectiveId"
+          WHERE
+            fc."deletedAt" IS NULL
+            AND c."deletedAt" IS NULL
+            AND (${conditionalQuery}) 
+          GROUP BY fc.id, cas."HostCollectiveId"`,
+            {
+              model: Collective,
+              mapToModel: true,
+            },
+          );
+
+          return sortResultsSimple(
+            keys,
+            results,
+            result => `${result.dataValues['contextualHostCollectiveId']}-${result.id}`,
+          );
+        },
+        { cacheKeyFn: arg => `${arg.HostCollectiveId}-${arg.FromCollectiveId}` },
+      ),
   },
 };

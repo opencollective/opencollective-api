@@ -80,7 +80,7 @@ async function createCollective(_, args, req) {
         throw new ValidationFailed(`This host policy requires at least ${requiredAdmins} admins for this account.`);
       }
 
-      // Trigger automated Github approval when repository is on github.com (or using deprecated automateApprovaWithGithub argument )
+      // Trigger Github validation when repository is on github.com
       const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
       if (args.applicationData?.useGithubValidation) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
@@ -106,8 +106,7 @@ async function createCollective(_, args, req) {
               }
             }
           }
-          const { allValidationsPassed } = validatedRepositoryInfo || {};
-          shouldAutomaticallyApprove = allValidationsPassed || bypassGithubValidation;
+          shouldAutomaticallyApprove = bypassGithubValidation;
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
@@ -206,7 +205,6 @@ async function createCollective(_, args, req) {
       if (!args.skipDefaultAdmin) {
         const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
         collective.generateCollectiveCreatedActivity(remoteUser, req.userToken, {
-          collective: collective.info,
           host: get(host, 'info'),
           hostPending: collective.approvedAt ? false : true,
           accountType: collective.type === 'FUND' ? 'fund' : 'collective',

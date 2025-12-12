@@ -7,6 +7,13 @@ import { sequelize } from '../server/models';
 const CIPHER = config.dbEncryption.cipher;
 const SECRET_KEY = config.dbEncryption.secretKey;
 
+/**
+ * Change the DB encryption key by reencrypting the DB fields.
+ *
+ * @deprecated /!\ This script is not re-encrypting LegalDocuments data, and the lack of
+ * pagination would probably make it crash in production. It needs to be updated to work
+ * outside of dev environments.
+ */
 async function main(args) {
   if (!args.oldKey || !args.newKey) {
     console.error('You need to provide both old and new key.');
@@ -17,6 +24,10 @@ async function main(args) {
   }
   if (!args.force && SECRET_KEY && args.oldKey !== SECRET_KEY) {
     console.error('Your oldKey does not match the existing DB_ENCRYPTION_SECRET_KEY!');
+    process.exit(1);
+  }
+  if (!args.ignoreEnv && process.env.OC_ENV !== 'development') {
+    console.error('This script is not ready to be run in production environment (see comment in the code)');
     process.exit(1);
   }
   console.log(`Re-encrypting from cipher ${args.fromCipher} to cipher ${args.toCipher}...`);
@@ -88,6 +99,12 @@ function parseCommandLineArguments() {
   parser.add_argument('newKey', {
     help: 'The new key you want to reencrypt data with',
     action: 'store',
+  });
+  parser.add_argument('--ignore-env', {
+    help: 'Ignore the environment check',
+    default: false,
+    action: 'store_const',
+    const: true,
   });
   return parser.parse_args();
 }

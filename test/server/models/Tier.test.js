@@ -52,7 +52,7 @@ describe('server/models/Tier', () => {
       .then(() =>
         models.Tier.createMany(
           [
-            { type: 'TICKET', name: 'ticket 1', amount: 1000, maxQuantity: 10 },
+            { type: 'TICKET', name: 'ticket 1', amount: 1000 },
             { type: 'TIER', name: 'backer', amount: 500, interval: 'month' },
             {
               type: 'TIER',
@@ -76,17 +76,6 @@ describe('server/models/Tier', () => {
         }),
       ),
   );
-
-  it('checks available quantity', () =>
-    tiers[0]
-      .checkAvailableQuantity(2)
-      .then(available => {
-        expect(available).to.be.true;
-      })
-      .then(() => tiers[0].checkAvailableQuantity(12))
-      .then(available => {
-        expect(available).to.be.false;
-      }));
 
   describe('amount', () => {
     it('cannot have a negative value', () => {

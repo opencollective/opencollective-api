@@ -2,7 +2,7 @@
   "timeout": 20000,
   "extension": ["js", "ts"],
   "require": ["./test/setup-babel.js"],
-  "file": ["./server/env.js", "./test/setup.js"],
+  "file": ["./server/env.ts", "./test/setup.js"],
   "ignore": [
     "test/dbdumps/**",
     "test/mocks/**",
@@ -14,5 +14,6 @@
     "test/utils.js"
   ],
   "recursive": true,
-  "exit": true
+  "exit": true,
+  "slow": 500
 }

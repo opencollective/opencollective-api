@@ -1,7 +1,15 @@
 import { randomBytes } from 'crypto';
 
 import { isNil, merge } from 'lodash';
-import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import type {
+  Association,
+  BelongsToGetAssociationMixin,
+  CreationOptional,
+  ForeignKey,
+  InferAttributes,
+  InferCreationAttributes,
+  NonAttribute,
+} from 'sequelize';
 
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
@@ -27,6 +35,13 @@ class Application extends Model<InferAttributes<Application>, InferCreationAttri
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
   declare public data: JSON;
+
+  declare public createdByUser: NonAttribute<User>;
+  declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
+
+  declare static associations: {
+    createdByUser: Association<Application, User>;
+  };
 
   get info(): NonAttribute<Partial<Application>> {
     return {

@@ -1,7 +1,6 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
-import { get, pick } from 'lodash';
-import map from 'p-map';
+import { compact, get, pick } from 'lodash';
 import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
@@ -10,10 +9,6 @@ import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize, User } from '../models';
-import Expense from '../models/Expense';
-import MemberInvitation from '../models/MemberInvitation';
-import Order from '../models/Order';
-import PaymentMethod from '../models/PaymentMethod';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -73,6 +68,11 @@ export const getCollectiveAvatarUrl = (
   args: ImageUrlOpts = {},
 ): string => {
   const sections = [config.host.images, collectiveSlug];
+
+  // Allow direct link to localhost images in development
+  if (config.env === 'development' && image?.startsWith('http://localhost:')) {
+    return image;
+  }
 
   if (image) {
     sections.push(md5(image).substring(0, 7));
@@ -170,6 +170,10 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'expenseTypes',
   'exportedTransactionsFieldSets',
   'exportedHostedCollectivesFieldSets',
+  'showSetupGuide',
+  'showInitialOverviewSubscriptionCard',
+  'canHostAccounts', // Whether this account can host other accounts
+  'kyc',
 ];
 
 /**
@@ -184,11 +188,11 @@ export function filterCollectiveSettings(settings: Record<string, unknown> | nul
   const preparedSettings = { ...settings };
 
   if (preparedSettings.VAT) {
-    preparedSettings.VAT = pick(preparedSettings.VAT, ['number', 'type']);
+    preparedSettings.VAT = pick(preparedSettings.VAT, ['number', 'type', 'disabled']);
   }
 
   if (preparedSettings.GST) {
-    preparedSettings.GST = pick(preparedSettings.GST, ['number']);
+    preparedSettings.GST = pick(preparedSettings.GST, ['number', 'disabled']);
   }
 
   // Generate warnings for invalid settings
@@ -238,7 +242,7 @@ export function validateSettings(settings: any): string | boolean {
   }
 
   if (settings?.tos && !isURL(settings.tos)) {
-    return 'Enter a valid URL. The URL should have the format https://opencollective.com/';
+    return 'Enter a valid URL. The URL should have the format https://example.com/…';
   }
 
   return false;
@@ -457,70 +461,169 @@ export async function isCollectiveDeletable(collective) {
 }
 
 export async function deleteCollective(collective: Collective, remoteUser: User) {
-  let user;
+  let user: User;
   if (collective.type === USER) {
     user = await models.User.findOne({ where: { CollectiveId: collective.id } });
   }
 
-  const members = await Member.findAll({
-    where: {
-      [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
-    },
-  });
-  await map(members, (member: Member) => member.destroy(), { concurrency: 3 });
+  await sequelize.transaction(async transaction => {
+    await Member.destroy({
+      transaction,
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
+      },
+    });
 
-  const orders = await models.Order.findAll({
-    where: {
-      [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
-      status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
-    },
-  });
-  await map(orders, (order: Order) => order.destroy(), { concurrency: 3 });
+    await models.MemberInvitation.destroy({
+      transaction,
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
+      },
+    });
 
-  const expenses = await models.Expense.findAll({
-    where: {
-      [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
-      status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
-    },
-  });
-  await map(expenses, (expense: Expense) => expense.destroy(), { concurrency: 3 });
+    await models.LegalDocument.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
 
-  const tiers = await models.Tier.findAll({
-    where: { CollectiveId: collective.id },
-  });
-  await map(tiers, tier => tier.destroy(), { concurrency: 3 });
+    await models.Agreement.destroy({
+      transaction,
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { HostCollectiveId: collective.id }],
+      },
+    });
 
-  const paymentMethods = await models.PaymentMethod.findAll({
-    where: { CollectiveId: collective.id },
-  });
-  await map(paymentMethods, (paymentMethod: PaymentMethod) => paymentMethod.destroy(), {
-    concurrency: 3,
-  });
+    await models.Location.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
 
-  const connectedAccounts = await models.ConnectedAccount.findAll({
-    where: { CollectiveId: collective.id },
+    // Not deleting conversations FROM collective, as we may still want to surface them (with "incognito" as the poster)
+    await models.Conversation.destroy({ transaction, where: { CollectiveId: collective.id } });
+
+    // Not removing FromCollectiveId: we want to anonymize the poster, without removing the update
+    await models.Update.destroy({ transaction, where: { CollectiveId: collective.id } });
+
+    // Not removing FromCollectiveId: we want to anonymize the poster, without removing the comment
+    await models.Comment.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
+
+    await models.Application.destroy({
+      transaction,
+      where: {
+        [Op.or]: compact([user ? { CreatedByUserId: user.id } : null, { CollectiveId: collective.id }]),
+      },
+    });
+
+    await models.Order.destroy({
+      transaction,
+      where: {
+        [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
+        status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
+      },
+    });
+
+    // Expense associations are normally deleted through the afterDestroy hook, but hooks are not triggered when using .destroy()
+    // as the current version of Sequelize (6.37.7). We therefore call them one by one.
+    const expensesToDelete = await models.Expense.findAll({
+      transaction,
+      where: {
+        [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
+        status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
+      },
+    });
+
+    if (expensesToDelete.length > 0) {
+      await Promise.all(expensesToDelete.map(expense => expense.destroy({ transaction })));
+    }
+
+    await models.RecurringExpense.destroy({
+      transaction,
+      where: { [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }] },
+    });
+
+    const [, deletedTransactionsImports] = await models.TransactionsImport.update(
+      { deletedAt: new Date() },
+      {
+        transaction,
+        where: { CollectiveId: collective.id },
+        returning: ['id'],
+      },
+    );
+
+    if (deletedTransactionsImports.length > 0) {
+      await models.TransactionsImportRow.destroy({
+        transaction,
+        where: { TransactionsImportId: deletedTransactionsImports.map(ti => ti.id) },
+      });
+    }
+
+    await models.HostApplication.destroy({
+      transaction,
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { HostCollectiveId: collective.id }],
+      },
+    });
+
+    await models.Tier.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
+
+    await models.PaymentMethod.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
+
+    await models.PayoutMethod.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
+
+    await models.ConnectedAccount.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
+
+    await models.VirtualCard.destroy({
+      transaction,
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { HostCollectiveId: collective.id }],
+      },
+    });
+
+    await models.VirtualCardRequest.destroy({
+      transaction,
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { HostCollectiveId: collective.id }],
+      },
+    });
+
+    await models.PlatformSubscription.destroy({
+      transaction,
+      where: { CollectiveId: collective.id },
+    });
+
+    await models.PersonalToken.destroy({
+      transaction,
+      where: { [Op.or]: compact([user ? { UserId: user.id } : null, { CollectiveId: collective.id }]) },
+    });
+
+    await models.RequiredLegalDocument.destroy({
+      transaction,
+      where: { HostCollectiveId: collective.id },
+    });
+
+    await collective.destroy({ transaction });
+
+    // User-specific
+    if (user) {
+      await models.ConversationFollower.destroy({ transaction, where: { UserId: user.id } });
+      await user.safeDestroy({ transaction });
+    }
   });
-  await map(connectedAccounts, connectedAccount => connectedAccount.destroy(), { concurrency: 3 });
-
-  const memberInvitations = await models.MemberInvitation.findAll({
-    where: { CollectiveId: collective.id },
-  });
-  await map(memberInvitations, (memberInvitation: MemberInvitation) => memberInvitation.destroy(), {
-    concurrency: 3,
-  });
-
-  await collective.destroy();
-
-  if (user) {
-    // Update user email in order to free up for future reuse
-    // Split the email, username from host domain
-    const splitedEmail = user.email.split('@');
-    // Add the current timestamp to email username
-    const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
-    await user.update({ email: newEmail });
-
-    await user.destroy();
-  }
 
   await models.Activity.create({
     type: activities.COLLECTIVE_DELETED,

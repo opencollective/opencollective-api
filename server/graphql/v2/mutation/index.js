@@ -10,22 +10,25 @@ import conversationMutations from './ConversationMutations';
 import createCollectiveMutation from './CreateCollectiveMutation';
 import createEventMutation from './CreateEventMutation';
 import createFundMutation from './CreateFundMutation';
-import createOrganizationMutation from './CreateOrganizationMutation';
 import createProjectMutation from './CreateProjectMutation';
 import emojiReactionMutations from './EmojiReactionMutations';
 import expenseMutations from './ExpenseMutations';
+import goCardlessMutations from './GoCardlessMutations';
 import guestMutations from './GuestMutations';
 import hostApplicationMutations from './HostApplicationMutations';
 import individualMutations from './IndividualMutations';
+import kycMutations from './KYCMutations';
 import { legalDocumentsMutations } from './LegalDocumentsMutations';
 import memberInvitationMutations from './MemberInvitationMutations';
 import memberMutations from './MemberMutations';
 import oAuthAuthorizationMutations from './OAuthAuthorizationMutations';
 import orderMutations from './OrderMutations';
+import organizationMutations from './OrganizationMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import personalTokenMutations from './PersonalTokenMutations';
 import { plaidMutations } from './PlaidMutations';
+import platformSubscriptionMutations from './PlatformSubscriptionsMutations';
 import rootMutations from './RootMutations';
 import { sendSurveyResponseMutation } from './SendSurveyResponseMutation';
 import socialLinkMutations from './SocialLinkMutations';
@@ -43,7 +46,6 @@ const mutation = {
   createCollective: createCollectiveMutation,
   createEvent: createEventMutation,
   createFund: createFundMutation,
-  createOrganization: createOrganizationMutation,
   createProject: createProjectMutation,
   ...accountMutations,
   ...accountingCategoriesMutations,
@@ -62,9 +64,11 @@ const mutation = {
   ...memberMutations,
   ...oAuthAuthorizationMutations,
   ...orderMutations,
+  ...organizationMutations,
   ...paymentMethodMutations,
   ...payoutMethodMutations,
   ...plaidMutations,
+  ...goCardlessMutations,
   ...rootMutations,
   ...transactionMutations,
   ...transactionImportsMutations,
@@ -79,7 +83,9 @@ const mutation = {
   ...tagMutations,
   ...agreementMutations,
   ...vendorMutations,
+  ...platformSubscriptionMutations,
   sendSurveyResponse: sendSurveyResponseMutation,
+  ...kycMutations,
 };
 
 export default mutation;

@@ -183,7 +183,6 @@ export async function processOrderWithSubscription(order, options) {
         await handleRetryStatus(order, transaction);
       }
     } catch (error) {
-      console.log(`Error notifying order #${order.id} ${error}`);
       reportErrorToSentry(error, { severity: 'fatal', feature: FEATURE.RECURRING_CONTRIBUTIONS });
     } finally {
       await order.Subscription.save();

@@ -9,7 +9,6 @@ import type {
 import { TransactionsImportRowStatus } from '../graphql/v2/enum/TransactionsImportRowStatus';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-import Collective from './Collective';
 import Expense from './Expense';
 import Order from './Order';
 import TransactionsImport from './TransactionsImport';
@@ -19,7 +18,6 @@ class TransactionsImportRow extends Model<
   InferCreationAttributes<TransactionsImportRow>
 > {
   declare public id: CreationOptional<number>;
-  declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public TransactionsImportId: ForeignKey<TransactionsImport['id']>;
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public OrderId: ForeignKey<Order['id']>;
@@ -30,6 +28,7 @@ class TransactionsImportRow extends Model<
   declare public amount: number;
   declare public isUnique: boolean;
   declare public currency: string;
+  declare public accountId: string | null;
   declare public rawValue: Record<string, unknown>;
   declare public note: string | null;
   declare public createdAt: Date;
@@ -106,6 +105,10 @@ TransactionsImportRow.init(
           this.setDataValue('currency', val.toUpperCase());
         }
       },
+    },
+    accountId: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     isUnique: {
       type: DataTypes.BOOLEAN,

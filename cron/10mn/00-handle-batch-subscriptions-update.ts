@@ -16,11 +16,6 @@ import { CONTRIBUTION_PAUSED_MSG } from '../../server/paymentProviders/paypal/su
 import { isPaymentProviderWithExternalRecurring } from '../../server/paymentProviders/types';
 import { runCronJob } from '../utils';
 
-if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
-  console.log('Skipping because SKIP_BATCH_SUBSCRIPTION_UPDATE is set.');
-  process.exit();
-}
-
 const HostsCache = {};
 
 /**
@@ -170,7 +165,21 @@ export async function run() {
           if (!process.env.DRY) {
             const paymentMethodProvider = findPaymentMethodProvider(order.paymentMethod);
             if (isPaymentProviderWithExternalRecurring(paymentMethodProvider)) {
-              await paymentMethodProvider.resumeSubscription(order, order.data.messageForContributors);
+              const { resumed, shouldCancel } = await paymentMethodProvider.resumeSubscription(
+                order,
+                order.data.messageForContributors,
+              );
+              if (!resumed) {
+                if (shouldCancel) {
+                  await order.update({
+                    status: OrderStatuses.CANCELLED,
+                    data: { ...order.data, needsAsyncReactivation: false },
+                  });
+                  await order.Subscription.update({ isActive: false, deactivatedAt: new Date() });
+                }
+
+                continue;
+              }
             }
 
             logger.debug('Updating order');
@@ -235,5 +244,9 @@ export async function run() {
 }
 
 if (require.main === module) {
+  if (parseToBoolean(process.env.SKIP_BATCH_SUBSCRIPTION_UPDATE)) {
+    console.log('Skipping because SKIP_BATCH_SUBSCRIPTION_UPDATE is set.');
+    process.exit();
+  }
   runCronJob('handle-batch-subscriptions-update', run, 60 * 60);
 }

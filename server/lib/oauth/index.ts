@@ -1,12 +1,14 @@
 import url from 'url';
 
-import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-server';
+import OAuth2Server, { AccessDeniedError, UnauthorizedRequestError } from '@node-oauth/oauth2-server';
 import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
 import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
 import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
+import BearerTokenType from '@node-oauth/oauth2-server/lib/token-types/bearer-token-type';
 import { assign } from 'lodash';
 
 import * as auth from '../../lib/auth';
+import logger from '../logger';
 
 import model from './model';
 
@@ -19,20 +21,16 @@ class CustomTokenHandler extends TokenHandler {
   }
 
   getTokenType = function (model) {
-    return {
-      valueOf: () => {
-        const accessToken = model.user.jwt(
-          {
-            scope: 'oauth',
-            // eslint-disable-next-line camelcase
-            access_token: model.accessToken,
-          },
-          auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days,
-        );
+    const accessToken = model.user.jwt(
+      {
+        scope: 'oauth',
         // eslint-disable-next-line camelcase
-        return { access_token: accessToken };
+        access_token: model.accessToken,
       },
-    };
+      auth.TOKEN_EXPIRATION_SESSION_OAUTH, // 90 days,
+    );
+
+    return new BearerTokenType(accessToken, auth.TOKEN_EXPIRATION_SESSION_OAUTH, null, model.scope.join(' '));
   };
 }
 
@@ -62,7 +60,7 @@ class CustomOAuth2Server extends OAuth2Server {
     options = assign(
       {
         allowEmptyState: false,
-        authorizationCodeLifetime: 5 * 60, // 5 minutes. Update https://docs.opencollective.com/help/developers/oauth#users-are-redirected-back-to-your-site when changing this
+        authorizationCodeLifetime: 5 * 60, // 5 minutes. Update https://documentation.opencollective.com/development/oauth when changing this
       },
       this.options,
       options,
@@ -221,6 +219,26 @@ const handleResponse = function (req, res, response) {
  */
 
 const handleError = function (e, req, res, response, next) {
+  // https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.2.1
+  //
+  // This implementation is both correct and technically incorrect, in theory
+  // other error types should be redirected back, but untangling which error
+  // types are safe to redirect on is a bit complicated due to the internals of
+  // @node-oauth/oauth-server
+  //
+  // Theoretically we could always redirect unless the error is an instanceof
+  // InvalidRequestError or InvalidClientError, but I'm not certain that these
+  // are the only two error types that are non-redirectable.
+  //
+  // Therefore, we're only returning the redirect for the frontend if the error
+  // is explicitly the AccessDeniedError (i.e., user clicked "cancel")
+  if (e instanceof AccessDeniedError) {
+    res.set(response.headers);
+    res.status(response.status).send(response.body);
+    return;
+  }
+
+  logger.error(e);
   if (this.useErrorHandler === true) {
     next(e);
   } else {

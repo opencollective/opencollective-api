@@ -8,11 +8,12 @@
 import '../../env';
 
 import { ApolloServerPlugin } from '@apollo/server';
-import Sentry, { SeverityLevel } from '@sentry/node';
+import * as Sentry from '@sentry/node';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { get, isEmpty, isEqual, pick } from 'lodash';
 
+import { ENGINEERING_DOMAINS } from '../../constants/engineering-domains';
 import FEATURE from '../../constants/feature';
 import { User } from '../../models';
 import logger from '../logger';
@@ -21,13 +22,14 @@ import { safeJsonStringify, sanitizeObjectForJSON } from '../safe-json-stringify
 import { checkIfSentryConfigured, HandlerType, redactSensitiveDataFromRequest } from './init';
 
 export type CaptureErrorParams = {
-  severity?: SeverityLevel;
+  severity?: Sentry.SeverityLevel;
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;
   breadcrumbs?: Sentry.Breadcrumb[];
   user?: Sentry.User | User;
   handler?: HandlerType | `${HandlerType}`;
   feature?: FEATURE;
+  domain?: ENGINEERING_DOMAINS;
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
@@ -96,7 +98,18 @@ const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError, params
 };
 
 const withScopeFromCaptureErrorParams = (
-  { severity = 'error', tags, handler, extra, user, breadcrumbs, feature, requestPath, req }: CaptureErrorParams = {},
+  {
+    severity = 'error',
+    tags,
+    handler,
+    extra,
+    user,
+    breadcrumbs,
+    feature,
+    domain,
+    requestPath,
+    req,
+  }: CaptureErrorParams = {},
   callback: (scope: Sentry.Scope) => void,
 ) => {
   Sentry.withScope(scope => {
@@ -108,6 +121,9 @@ const withScopeFromCaptureErrorParams = (
     }
     if (feature) {
       scope.setTag('feature', feature);
+    }
+    if (domain) {
+      scope.setTag('engineering-domain', domain);
     }
     if (requestPath) {
       scope.setTag('requestPath', requestPath);
@@ -148,6 +164,7 @@ const simplifyReq = req =>
   !req
     ? undefined
     : pick(req, [
+        'ip',
         'method',
         'url',
         'isGraphQL',
@@ -286,7 +303,7 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
               {
                 category: 'query-path',
                 message: err.path.join(' > '),
-                level: 'debug' as SeverityLevel,
+                level: 'debug' as Sentry.SeverityLevel,
               },
             ],
           });

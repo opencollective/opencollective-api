@@ -41,11 +41,6 @@ const csvFields = [
 
 const startTime = new Date();
 
-if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.env.OFFCYCLE) {
-  console.log('Skipping because SKIP_CHARGE_RECURRING_CONTRIBUTIONS is set.');
-  process.exit();
-}
-
 /** Run the script with parameters read from the command line */
 async function run(options) {
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
@@ -204,5 +199,9 @@ function parseCommandLineArguments() {
 
 /** Kick off the script with all the user selected options */
 if (require.main === module) {
+  if (parseToBoolean(process.env.SKIP_CHARGE_RECURRING_CONTRIBUTIONS) && !process.env.OFFCYCLE) {
+    console.log('Skipping because SKIP_CHARGE_RECURRING_CONTRIBUTIONS is set.');
+    process.exit();
+  }
   runCronJob('charge-recurring-contributions', () => run(parseCommandLineArguments()), 60 * 60);
 }

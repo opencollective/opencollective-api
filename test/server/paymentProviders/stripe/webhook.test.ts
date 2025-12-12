@@ -6,19 +6,23 @@ import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
 import { Service } from '../../../../server/constants/connected-account';
+import ExpenseStatuses from '../../../../server/constants/expense-status';
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
-import models from '../../../../server/models';
+import * as transactions from '../../../../server/lib/transactions';
+import models, { Collective, Expense } from '../../../../server/models';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeConnectedAccount,
+  fakeExpense,
   fakeOrder,
   fakePaymentMethod,
   fakeTransaction,
@@ -923,6 +927,99 @@ describe('webhook', () => {
       });
 
       expect(paymentMethod).to.not.exist;
+    });
+  });
+
+  describe('expense', () => {
+    let fromCollectiveHost: Collective;
+    let fromCollective: Collective;
+    let payee: Collective;
+    let expense: Expense;
+    let event;
+    beforeEach(async () => {
+      fromCollectiveHost = await fakeActiveHost();
+      fromCollective = await fakeCollective({
+        HostCollectiveId: fromCollectiveHost.id,
+      });
+      await fakeConnectedAccount({
+        CollectiveId: fromCollectiveHost.id,
+        service: 'stripe',
+        username: 'testUserName',
+        token: 'faketoken',
+      });
+
+      payee = await fakeCollective();
+
+      expense = await fakeExpense({
+        status: ExpenseStatuses.APPROVED,
+        Collective: payee.id,
+        FromCollectiveId: fromCollective.id,
+        currency: 'USD',
+        amount: 100e2,
+        description: 'A expense to be paid with stripe',
+        data: { paymentIntent: { id: randStr('pi_fake') } },
+      });
+
+      sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+        type: 'us_bank_account',
+        us_bank_account: {
+          name: 'Test Bank',
+          last4: '1234',
+        },
+      });
+
+      sandbox.stub(transactions, 'createTransactionsFromPaidStripeExpense').resolves();
+
+      event = {
+        data: {
+          object: {
+            id: expense.data.paymentIntent.id,
+            payment_method: randStr('pm_fake'),
+            latest_charge: {
+              amount: 100e2,
+              amount_captured: 100e2,
+              amount_refunded: 0,
+              application_fee: null,
+              application_fee_amount: null,
+            },
+          },
+        },
+      };
+    });
+
+    describe('paymentIntentSucceeded', () => {
+      it('marks expense as PAID', async () => {
+        await webhook.paymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PAID);
+      });
+    });
+
+    describe('paymentIntentProcessing', () => {
+      it('marks expense as PROGRESSING', async () => {
+        await webhook.paymentIntentProcessing(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.PROCESSING);
+      });
+    });
+
+    describe('paymentIntentFailed', () => {
+      it('marks expense as ERROR if expense was processing', async () => {
+        await webhook.paymentIntentProcessing(event);
+        await webhook.paymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.ERROR);
+      });
+
+      it('keeps expense status if payment failed immediately', async () => {
+        await webhook.paymentIntentFailed(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+      });
     });
   });
 });

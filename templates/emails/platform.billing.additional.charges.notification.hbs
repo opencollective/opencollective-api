@@ -1,0 +1,139 @@
+Subject: Additional charges notice for your Open Collective platform subscription
+
+{{> header noContentPadding=true}}
+
+<style>
+  .billing-container {
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: {{theme.colors.neutral.[50]}};
+    padding: 30px 20px;
+    border-radius: 16px;
+  }
+  
+  .email-header {
+    text-align: center;
+    margin: -30px -20px 32px -20px;
+    padding: 48px 20px;
+    background-color: {{theme.colors.blue.[900]}};
+    border-radius: 16px 16px 0 0;
+    position: relative;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    margin-bottom: 50px;
+  }
+  
+  .email-header h1 {
+    color: {{theme.colors.neutral.[50]}};
+    font-size: 26px;
+    font-weight: bold;
+  }
+
+  .email-header p {
+    color: {{theme.colors.neutral.[50]}};
+    font-size: 16px;
+    margin: 0;
+    opacity: 0.9;
+  }
+
+  .additional-charges-section {
+    text-align: left;
+  }
+
+  .info-section {
+    background-color: {{theme.colors.neutral.[100]}};
+    border: 1px solid {{theme.colors.neutral.[200]}};
+    padding: 20px;
+    border-radius: 8px;
+    margin: 0;
+    margin-bottom: 32px;
+  }
+
+  .info-section h4 {
+    color: {{theme.colors.gray.[700]}};
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .info-section p {
+    margin: 8px 0;
+    color: {{theme.colors.gray.[700]}};
+    line-height: 1.5;
+    text-align: left;
+  }
+
+  .last-section {
+    margin-top: 40px;
+    padding-top: 30px;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+  }
+
+  .btn {
+    white-space: nowrap;
+  }
+
+  @media screen and (max-width: 600px) {
+    .billing-container {
+      padding: 20px 10px !important;
+    }
+  }
+</style>
+
+<center>
+  <div class="billing-container">
+    <div class="email-header">
+      <h1>📊 Additional Charges Notice</h1>
+    </div>
+    
+    <div class="additional-charges-section">
+      <p>Your organization, <strong>{{collective.name}}</strong>, has exceeded the capacity of your current platform subscription for the first time.</p>
+      
+      <p><strong>Since this is happening for the first time, we want to let you know that this will incur additional charges.</strong></p>
+      
+      <p style="margin-bottom: 8px;">Your current plan (<strong>{{subscription.plan.title}}</strong>) includes:</p>
+      <ul style="text-align: left; margin-top: 0; margin-bottom: 16px;">
+        <li>{{subscription.plan.pricing.includedCollectives}} active monthly collectives (each additional collective costs {{currency subscription.plan.pricing.pricePerAdditionalCollective currency="USD"}})</li>
+        <li>{{subscription.plan.pricing.includedExpensesPerMonth}} paid expenses (each additional expense costs {{currency subscription.plan.pricing.pricePerAdditionalExpense currency="USD"}})</li>
+      </ul>
+      
+      <p style="margin-bottom: 8px;">Your current utilization is:</p>
+      <ul style="text-align: left; margin-top: 0;">
+        {{#ifCond currentUtilization.activeCollectives '>' subscription.plan.pricing.includedCollectives}}
+        <li><strong>{{currentUtilization.activeCollectives}} active monthly collectives</strong> - {{subtract currentUtilization.activeCollectives subscription.plan.pricing.includedCollectives}} more than the capacity of your subscription</li>
+        {{else}}
+        <li><strong>{{currentUtilization.activeCollectives}} active monthly collectives</strong> - this is within the capacity of your subscription</li>
+        {{/ifCond}}
+        
+        {{#ifCond currentUtilization.expensesPaid '>' subscription.plan.pricing.includedExpensesPerMonth}}
+        <li><strong>{{currentUtilization.expensesPaid}} paid expenses</strong> - {{subtract currentUtilization.expensesPaid subscription.plan.pricing.includedExpensesPerMonth}} more than the capacity of your subscription</li>
+        {{else}}
+        <li><strong>{{currentUtilization.expensesPaid}} paid expenses</strong> - this is within the capacity of your subscription</li>
+        {{/ifCond}}
+      </ul>
+    </div>
+
+    <div class="last-section">
+      <div class="info-section">
+        <h4>Track Utilization</h4>
+        <p>You can monitor your platform utilization at any time:</p>
+        <ul style="text-align: left; margin: 0;">
+          <li>View your current utilization</li>
+          <li>View your billing history and upcoming charges</li>
+          <li>Upgrade to a plan that better suits your needs</li>
+        </ul>
+      </div>
+      <a href="{{config.host.website}}/dashboard/{{collective.slug}}/platform-subscription" class="btn blue">
+        Manage Platform Subscription
+      </a>
+      
+      <p style="margin-top: 20px; font-size: 14px; color: #666;">
+        Questions about your billing? <a href="https://opencollective.com/contact">Contact our support team</a>
+      </p>
+    </div>
+  </div>
+</center>
+
+{{> footer}}

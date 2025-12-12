@@ -5,6 +5,7 @@ import logger from '../server/lib/logger';
 import { lockUntilOrThrow } from '../server/lib/mutex';
 import { closeRedisClient } from '../server/lib/redis';
 import { CaptureErrorParams, reportErrorToSentry, Sentry } from '../server/lib/sentry';
+import { sleep } from '../server/lib/utils';
 import { sequelize } from '../server/models';
 
 /**
@@ -53,6 +54,8 @@ export const runCronJob = async (
 
   const isNotTest = process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'ci' && config.env !== 'e2e';
   if (isNotTest) {
+    // Wait for 5 seconds before for async notifications to be sent before we close connections.
+    await sleep(5000);
     await closeRedisClient();
     await sequelize.close();
     await Sentry.close(10e3);

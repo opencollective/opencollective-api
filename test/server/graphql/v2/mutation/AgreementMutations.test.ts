@@ -120,7 +120,7 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
 
     it('adds an agreement to a collective', async () => {
       const adminUser = await fakeUser();
-      const host = await fakeHost({ admin: adminUser });
+      const host = await fakeHost({ plan: 'start-plan-2021', admin: adminUser });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const expiresAt = new Date();
       const result = await graphqlQueryV2(
@@ -128,7 +128,7 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
         {
           host: { legacyId: host.id },
           account: { legacyId: collective.id },
-          title: '  Test agreement   ',
+          title: '  Test agreement',
           notes: '  Test notes   ',
           expiresAt,
         },
@@ -208,7 +208,7 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
 
     it('edits an agreement', async () => {
       const adminUser = await fakeUser();
-      const host = await fakeHost({ admin: adminUser });
+      const host = await fakeHost({ plan: 'start-plan-2021', admin: adminUser });
       const collective = await fakeCollective();
 
       const agreement = await Agreement.create({

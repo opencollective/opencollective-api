@@ -43,6 +43,7 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import PlatformConstants from '../../constants/platform';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
@@ -106,6 +107,30 @@ import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
 const debug = debugLib('expenses');
+
+const loadHostForExpense = async (req: express.Request, expense: Expense): Promise<Collective | null> => {
+  if (expense.host) {
+    return expense.host;
+  } else if (expense.HostCollectiveId) {
+    expense.host = await req.loaders.Collective.byId.load(expense.HostCollectiveId);
+    return expense.host;
+  } else if (expense.collective?.host) {
+    return expense.collective.host;
+  } else if (expense.collective) {
+    if (expense.collective.HostCollectiveId) {
+      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      return expense.collective.host;
+    }
+  } else {
+    expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+    if (expense.collective && expense.collective.HostCollectiveId) {
+      expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+      return expense.collective.host;
+    }
+  }
+
+  return null;
+};
 
 const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   expense.fromCollective = expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
@@ -193,6 +218,14 @@ const isCollectiveOrHostAccountant = async (req: express.Request, expense: Expen
   }
 };
 
+const isPlatformAdmin = async (req: express.Request): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  return req.remoteUser.isAdminOfPlatform();
+};
+
 const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -252,13 +285,13 @@ const isAdminOfCollectiveWithPermissivePayoutMethodPermissions = async (
   return Boolean(loosePermissionsPolicy);
 };
 
-const isAdminOfCollectiveAndExpenseIsAVirtualCard = async (
+const isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated = async (
   req: express.Request,
   expense: Expense,
 ): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.type !== ExpenseType.CHARGE) {
+  } else if (expense.type !== ExpenseType.CHARGE || isManuallyCreatedCharge(expense)) {
     return false;
   } else {
     return isCollectiveAdmin(req, expense);
@@ -352,7 +385,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
     isAdminOfCollectiveWithPermissivePayoutMethodPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
-    isAdminOfCollectiveAndExpenseIsAVirtualCard, // Virtual cards are created by the collective admins
+    isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated, // Virtual cards are created by the collective admins, but manually created ones are managed by host admins
   ]);
 };
 
@@ -404,8 +437,16 @@ export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (re
 
   // Preload host and collective, we'll need them for permissions checks
   expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-  if (expense.collective?.HostCollectiveId && !expense.collective.host) {
+  if (!expense.collective) {
+    return false;
+  } else if (expense.collective.HostCollectiveId && !expense.collective.host) {
     expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+  }
+
+  // Check if the feature is available for the host
+  const host = await loadHostForExpense(req, expense);
+  if (!(await hasFeature(host, FEATURE.EXPENSE_SECURITY_CHECKS, { loaders: req.loaders }))) {
+    return false;
   }
 
   // Only trusted hosts can use security checks
@@ -483,6 +524,14 @@ export const canSeeExpenseTransactionImportRow: ExpensePermissionEvaluator = asy
   }
 };
 
+/**
+ * Checks if an expense is a manually created virtual card charge
+ * (created through the bank transactions import tool)
+ */
+export const isManuallyCreatedCharge = (expense: Expense): boolean => {
+  return expense.type === ExpenseType.CHARGE && expense.data?.isManualVirtualCardCharge === true;
+};
+
 /** Checks if the user can verify or resend a draft */
 export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense): Promise<boolean> => {
   if (!validateExpenseScope(req)) {
@@ -505,12 +554,6 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   }
 
@@ -549,7 +592,7 @@ export const canEditTitle: ExpensePermissionEvaluator = async (req, expense, opt
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
   }
@@ -581,7 +624,7 @@ export const canEditType: ExpensePermissionEvaluator = async (req, expense, opti
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   }
@@ -598,6 +641,14 @@ export const canEditPaidBy: ExpensePermissionEvaluator = async (req, expense, op
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else if ([ExpenseType.CHARGE, ExpenseType.PLATFORM_BILLING, ExpenseType.SETTLEMENT].includes(expense.type)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not edit paid by for ${expense.type} expenses`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
+      );
     }
     return false;
   } else if (expense.status === ExpenseStatus.DRAFT) {
@@ -625,8 +676,17 @@ export const canEditPayee: ExpensePermissionEvaluator = async (req, expense, opt
     }
     return false;
   } else if (expense.status === ExpenseStatus.DRAFT) {
+    if (expense.RecurringExpenseId) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not edit payee for a recurring draft',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+        );
+      }
+      return false;
+    }
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
-  } else if (expense.status === ExpenseStatus.PENDING) {
+  } else if (expense.status === ExpenseStatus.PENDING || expense.status === ExpenseStatus.APPROVED) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
 
@@ -645,7 +705,9 @@ export const canEditPayoutMethod: ExpensePermissionEvaluator = async (req, expen
     }
     return false;
   } else if (
-    [ExpenseStatus.DRAFT, ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE].includes(expense.status as ExpenseStatus)
+    [ExpenseStatus.DRAFT, ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED].includes(
+      expense.status as ExpenseStatus,
+    )
   ) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
@@ -672,7 +734,7 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
   } else if (expense.status === ExpenseStatus.PENDING) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   }
@@ -737,12 +799,6 @@ export const canEditExpenseTags: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
@@ -772,12 +828,6 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (
     ['DRAFT', 'PENDING', 'INVITE_DECLINED'].includes(expense.status) &&
@@ -810,13 +860,30 @@ export const canPayExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
+  if (!(await canMarkAsPaid(req, expense, options))) {
+    return false;
+  } else if (expense.type === ExpenseType.CHARGE) {
+    // Can never pay charges, even manually created ones. Charges are meant to represent a payment that happened elsewhere
+    // already, so it makes no sense to pay them again.
+    return false;
+  } else {
+    return true;
+  }
+};
+
+/**
+ * Whether use can mark the expense as paid, adding a transaction in the ledger WITHOUT triggering
+ * and actual payment on 3rd party provider. This matches canPayExpense's permissions, with one exception:
+ * host admins can mark as paid manually created virtual card charges.
+ */
+export const canMarkAsPaid: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
+    return false;
+  } else if (expense.type === ExpenseType.CHARGE && !isManuallyCreatedCharge(expense)) {
     return false;
   } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
@@ -842,14 +909,17 @@ export const canApprove: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
-  } else if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
+  } else if (expense.type === ExpenseType.CHARGE) {
+    // Allow host admins to approve manually created virtual card charges
+    if (isManuallyCreatedCharge(expense) && (await isHostAdmin(req, expense))) {
+      // Continue with normal approval flow for manually created charges
+    } else {
+      return false;
+    }
+  }
+
+  if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         `Can not approve expense in current status (${expense.status})`,
@@ -927,12 +997,6 @@ export const canReject: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
@@ -947,7 +1011,16 @@ export const canReject: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.type === ExpenseType.CHARGE) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot reject charge expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE);
+    }
+    return false;
   } else {
+    if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+      return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
+    }
+
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
@@ -1013,12 +1086,6 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!['REJECTED'].includes(expense.status)) {
     if (options?.throw) {
@@ -1055,12 +1122,8 @@ export const canUnapprove: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
+    return false;
+  } else if ([ExpenseType.CHARGE, ExpenseType.PLATFORM_BILLING, ExpenseType.SETTLEMENT].includes(expense.type)) {
     return false;
   } else if (
     ![ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED, ExpenseStatus.ERROR].includes(expense.status as ExpenseStatus)
@@ -1090,12 +1153,6 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
@@ -1121,6 +1178,14 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
       );
     }
     return false;
+  } else if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        `Can not mark platform expense as incomplete`,
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
   }
 
   return true;
@@ -1135,17 +1200,29 @@ export const canEditExpenseAccountingCategory = async (
   options = { throw: false },
 ): Promise<boolean> => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden(
         'User cannot edit accounting categories for expenses',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
+    return false;
+  }
+
+  const host = await loadHostForExpense(req, expense);
+  if (!host) {
+    if (options?.throw) {
+      throw new Forbidden('Collective does not have a host', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  }
+
+  if (!(await hasFeature(host, FEATURE.CHART_OF_ACCOUNTS, { loaders: req.loaders }))) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Collective does not have accounting categories enabled',
         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
       );
     }
@@ -1187,12 +1264,6 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (expense.status !== 'PAID') {
     if (options?.throw) {
@@ -1203,14 +1274,21 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
     }
     return false;
   } else if (expense.type === ExpenseType.CHARGE) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Can not mark this type of expense as unpaid',
-        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
-      );
+    // Allow host admins to mark manually created virtual card charges as unpaid
+    if (isManuallyCreatedCharge(expense)) {
+      // Continue with normal flow - host admins will be checked below
+    } else if (!req.remoteUser?.isRoot()) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'Can not mark this type of expense as unpaid',
+          EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
+        );
+      }
+      return false;
     }
-    return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+  }
+
+  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden(
         'User cannot mark expenses as unpaid',
@@ -1218,16 +1296,11 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
       );
     }
     return false;
-  } else if (
-    expense.type === ExpenseType.SETTLEMENT &&
-    expense.FromCollectiveId === PlatformConstants.PlatformCollectiveId &&
-    req.remoteUser.isRoot()
-  ) {
-    // Allow platform admins to mark settlements as unpaid
-    return true;
-  } else {
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+  } else if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+    return remoteUserMeetsOneCondition(req, expense, [isPlatformAdmin], options);
   }
+
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
 };
 
 /**
@@ -1239,12 +1312,6 @@ export const canComment: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
@@ -1287,12 +1354,6 @@ export const canUnschedulePayment: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
     if (options?.throw) {
@@ -1312,12 +1373,6 @@ export const canPutOnHold: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (expense.status !== 'APPROVED' || expense.onHold === true) {
     if (options?.throw) {
@@ -1325,6 +1380,11 @@ export const canPutOnHold: ExpensePermissionEvaluator = async (
         'Only approved expenses that are not on hold can be put on hold',
         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
       );
+    }
+    return false;
+  } else if ([ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+    if (options?.throw) {
+      throw new Forbidden(`Can not put platform expense on hold`, EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
     return false;
   }
@@ -1337,12 +1397,6 @@ export const canReleaseHold: ExpensePermissionEvaluator = async (
   options = { throw: false },
 ) => {
   if (!validateExpenseScope(req, options)) {
-    if (options?.throw) {
-      throw new Forbidden(
-        'Your current token is missing the necessary scope',
-        EXPENSE_PERMISSION_ERROR_CODES.INVALID_SCOPE,
-      );
-    }
     return false;
   } else if (!expense.onHold) {
     if (options?.throw) {
@@ -1424,6 +1478,14 @@ export const rejectExpense = async (req: express.Request, expense: Expense): Pro
   const updatedExpense = await expense.update({ status: 'REJECTED', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
   return updatedExpense;
+};
+
+export const markAsPaidWithStripe = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (!(await canMarkAsPaid(req, expense))) {
+    throw new Forbidden("You don't have permission to pay this expense");
+  }
+
+  return await expense.update({ lastEditedById: req.remoteUser?.id });
 };
 
 export const declineInvitedExpense = async (
@@ -1584,10 +1646,12 @@ export const scheduleExpenseForPayment = async (
 
   // If Wise, add expense to a new batch group
   if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
     await paymentProviders.transferwise.scheduleExpenseForPayment(expense, options.transferDetails, req.remoteUser);
   }
   // If PayPal, check if host is connected to PayPal
   else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
+    await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
     await host.getAccountForPaymentProvider(Service.PAYPAL);
   }
 
@@ -1607,6 +1671,8 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
   // If Wise, add expense to a new batch group
   const payoutMethod = await expense.getPayoutMethod();
   if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const host = await loadHostForExpense(req, expense);
+    await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
     await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
   }
 
@@ -1657,20 +1723,35 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
   }
 };
 
-const checkExpenseType = (
+const checkExpenseType = async (
   newType: ExpenseType,
+  fromAccount: Collective,
   account: Collective,
   parent: Collective | null,
   host: Collective | null,
   existingExpense: Expense | null = null,
   remoteUser: User | null = null,
-): void => {
+  req: express.Request,
+): Promise<void> => {
   // Prevent changing the type in certain cases
   if (existingExpense && newType && existingExpense.type !== newType) {
     if (existingExpense.type === ExpenseType.CHARGE) {
       throw new ValidationFailed('Cannot change the type for this expense');
     } else if (newType === ExpenseType.CHARGE) {
       throw new ValidationFailed('Cannot manually change the type of an expense to "Charge"');
+    } else if (newType === ExpenseType.SETTLEMENT) {
+      throw new ValidationFailed('Cannot manually change the type of an expense to "Settlement"');
+    } else if (newType === ExpenseType.PLATFORM_BILLING) {
+      throw new ValidationFailed('Cannot manually change the type of an expense to "Platform billing"');
+    }
+  }
+
+  // Settlements are only allowed for platform admins
+  if (!existingExpense && [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(newType)) {
+    if (!remoteUser?.isAdminOfPlatform()) {
+      throw new ValidationFailed('Only platform admins can create platform expenses');
+    } else if (fromAccount.id !== PlatformConstants.PlatformCollectiveId) {
+      throw new ValidationFailed('Platform expenses can only be created for the platform account');
     }
   }
 
@@ -1695,7 +1776,8 @@ const checkExpenseType = (
 
   // Fallback on default values
   if (newType === ExpenseType.GRANT) {
-    // TODO: enforce this to resolve https://github.com/opencollective/opencollective/issues/5395
+    await checkFeatureAccess(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, { loaders: req.loaders });
+    // TODO: enforce a check based on supportedExpenseTypes to resolve https://github.com/opencollective/opencollective/issues/5395
   }
 };
 
@@ -2101,6 +2183,12 @@ export async function createExpense(
     throw new ValidationFailed('Collective not found');
   }
 
+  // Load the payee profile
+  const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
+  if (!fromCollective) {
+    throw new ValidationFailed('Payee not found');
+  }
+
   // If the collective has public expense submission disabled, only members can create expenses
   const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
   if (
@@ -2127,7 +2215,16 @@ export async function createExpense(
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData.type, itemsData, taxes);
-  checkExpenseType(expenseData.type, collective, collective.parent, collective.host, null, remoteUser);
+  await checkExpenseType(
+    expenseData.type,
+    fromCollective,
+    collective,
+    collective.parent,
+    collective.host,
+    null,
+    remoteUser,
+    req,
+  );
 
   let accountingCategorySource: 'submitter' | 'prediction' = 'submitter';
   if (expenseData.accountingCategory) {
@@ -2160,9 +2257,7 @@ export async function createExpense(
     );
   }
 
-  // Load the payee profile
-  const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
-
+  // Check payee
   if (fromCollective.type === CollectiveType.VENDOR) {
     const host = await collective.getHostCollective();
     assert(
@@ -2170,8 +2265,11 @@ export async function createExpense(
       new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
     );
     const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+    const isVendorVisibleByCollective = fromCollective.data?.visibleToAccountIds?.includes(collective.id);
     assert(
-      publicVendorPolicy || remoteUser.isAdminOfCollective(fromCollective),
+      publicVendorPolicy ||
+        remoteUser.isAdminOfCollective(fromCollective) ||
+        (isVendorVisibleByCollective && remoteUser.isAdminOfCollective(collective)),
       new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
     );
   } else if (!remoteUser.isAdminOfCollective(fromCollective)) {
@@ -2205,6 +2303,13 @@ export async function createExpense(
     fromCollective.type === CollectiveType.VENDOR
       ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
       : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+
+  if (
+    payoutMethod?.type === PayoutMethodTypes.STRIPE &&
+    ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expenseData.type)
+  ) {
+    throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
+  }
 
   // Create and validate TransferWise recipient
   let recipient;
@@ -2245,6 +2350,11 @@ export async function createExpense(
 
   // Expense data
   const data = { recipient, taxes };
+
+  // Set flag for manually created virtual card charges
+  if (expenseData.type === ExpenseType.CHARGE) {
+    data['isManualVirtualCardCharge'] = true;
+  }
   if (expenseData.customData) {
     validateExpenseCustomData(expenseData.customData);
     data['customData'] = expenseData.customData;
@@ -2260,18 +2370,6 @@ export async function createExpense(
     data['isNewExpenseFlow'] = true;
   }
 
-  let status = ExpenseStatus.PENDING;
-
-  // Auto-approve expenses for host vendor expenses if the user is admin of both the vendor and the host
-  if (
-    remoteUser.isAdminOfCollectiveOrHost(collective) &&
-    remoteUser.isAdminOfCollective(fromCollective) &&
-    fromCollective.type === CollectiveType.VENDOR &&
-    collective.isHostAccount
-  ) {
-    status = ExpenseStatus.APPROVED;
-  }
-
   const expense = await sequelize.transaction(async t => {
     let invoiceFileId: number;
     if (expenseData.type === ExpenseType.INVOICE && expenseData.invoiceFile) {
@@ -2285,7 +2383,7 @@ export async function createExpense(
         ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
         currency: expenseCurrency,
         tags: expenseData.tags,
-        status,
+        status: ExpenseStatus.PENDING,
         CollectiveId: collective.id,
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,
@@ -2621,13 +2719,27 @@ export async function editExpenseDraft(
 
   const currency = expenseData.currency || existingExpense.currency;
   const items =
-    (await prepareExpenseItemInputs(req, currency, expenseData.items, { isEditing: true })) || existingExpense.items;
+    (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
+      isEditing: true,
+    })) || existingExpense.items;
 
-  const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
-  const invoiceFile =
-    (expenseData.type || existingExpense.type) === ExpenseType.INVOICE
-      ? await prepareInvoiceFile(req, expenseData.invoiceFile)
-      : null;
+  const attachedFiles =
+    (await prepareAttachedFiles(req, expenseData.attachedFiles)) || existingExpense.data.attachedFiles;
+
+  const existingInvoiceFileUrl = existingExpense.data.invoiceFile?.['url'];
+
+  let invoiceFileUrl: string =
+    (expenseData.type || existingExpense.type) === ExpenseType.INVOICE ? existingInvoiceFileUrl : null;
+  if (expenseData.invoiceFile !== undefined) {
+    const newInvoiceFile =
+      (expenseData.type || existingExpense.type) === ExpenseType.INVOICE
+        ? await prepareInvoiceFile(req, expenseData.invoiceFile)
+        : null;
+
+    if (newInvoiceFile) {
+      invoiceFileUrl = newInvoiceFile.getDataValue('url');
+    }
+  }
 
   const newExpenseValues = {
     ...pick(expenseData, DRAFT_EXPENSE_FIELDS),
@@ -2638,13 +2750,17 @@ export async function editExpenseDraft(
       items,
       taxes: expenseData.tax,
       attachedFiles: attachedFiles,
-      invoiceFile: invoiceFile ? { url: invoiceFile.getDataValue('url') } : null,
+      invoiceFile: invoiceFileUrl ? { url: invoiceFileUrl } : null,
     },
   };
 
   await checkLockedFields(existingExpense, expenseData);
 
-  if (args.expense.payee && isDifferentInvitedPayee(existingExpense, args.expense.payee)) {
+  if (
+    args.expense.payee &&
+    isDifferentInvitedPayee(existingExpense, args.expense.payee) &&
+    !existingExpense.RecurringExpenseId
+  ) {
     const payee = args.expense.payee as { email: string; name?: string };
     if (payee.email) {
       payee.email = payee.email.toLowerCase();
@@ -2766,6 +2882,8 @@ export async function editExpense(
 
   if (!expense) {
     throw new NotFound('Expense not found');
+  } else if (expense.data?.isLocked) {
+    throw new ValidationFailed('This expense is currently being processed, please try again later');
   }
 
   const { collective } = expense;
@@ -2798,13 +2916,25 @@ export async function editExpense(
   // Check if 2FA is enforced on any of the account remote user is admin of, unless it's a paid credit card charge
   // since we strictly limit the fields that can be updated in that case
   if (req.remoteUser && !isPaidCreditCardCharge) {
-    const accountsFor2FA = [expense.fromCollective, collective, host].filter(Boolean);
+    const accountsFor2FA = [expenseData.fromCollective, expense.fromCollective, collective, host].filter(Boolean);
     await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
   }
 
+  // Load the payee profile
+  const fromCollective = expenseData.fromCollective || expense.fromCollective;
+
   // When changing the type, we must make sure that the new type is allowed
   if (expenseData.type && expenseData.type !== expense.type) {
-    checkExpenseType(expenseData.type, collective, collective.parent, collective.host, expense, remoteUser);
+    await checkExpenseType(
+      expenseData.type,
+      fromCollective,
+      collective,
+      collective.parent,
+      collective.host,
+      expense,
+      remoteUser,
+      req,
+    );
   }
 
   // Let submitter customize the currency
@@ -2834,8 +2964,7 @@ export async function editExpense(
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
-  // Load the payee profile
-  const fromCollective = expenseData.fromCollective || expense.fromCollective;
+  // Check payee
   if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
     if (!options?.skipPermissionCheck && !remoteUser.isAdminOfCollective(fromCollective)) {
       throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
@@ -2909,7 +3038,7 @@ export async function editExpense(
     }
   }
 
-  const updatedExpense = await sequelize.transaction(async transaction => {
+  const updatedExpense: Expense = await sequelize.transaction(async transaction => {
     // Update payout method if we get new data from one of the param for it
     if (
       !isPaidCreditCardCharge &&
@@ -2921,6 +3050,13 @@ export async function editExpense(
         fromCollective.type === CollectiveType.VENDOR
           ? await fromCollective.getPayoutMethods().then(first)
           : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+
+      if (
+        payoutMethod?.type === PayoutMethodTypes.STRIPE &&
+        ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expenseType)
+      ) {
+        throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
+      }
 
       // Reset fees payer when changing the payout method and the new one doesn't support it
       if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
@@ -3057,7 +3193,10 @@ export async function editExpense(
 
   if (!options?.skipActivity) {
     const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
-    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, { notifyCollective });
+    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, {
+      notifyCollective,
+      previousData: { status: previousStatus },
+    });
   }
 
   try {
@@ -3108,7 +3247,7 @@ async function payExpenseWithPayPalAdaptive(
 
   if (expense.currency !== expense.collective.currency) {
     throw new Error(
-      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
+      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts: https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-paypal',
     );
   }
 
@@ -3462,19 +3601,25 @@ export const checkHasBalanceToPayExpense = async (
   if (expense.feesPayer === 'PAYEE') {
     assert(
       models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
-      'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
+      'Putting the payment processor fees on the payee is only supported for bank accounts, manual payouts and stripe at the moment',
     );
-    assert(
-      expense.currency === expense.collective.currency,
-      'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
-    );
+
+    if (payoutMethodType !== PayoutMethodTypes.STRIPE) {
+      assert(
+        expense.currency === expense.collective.currency,
+        'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
+      );
+    }
   }
 
   if (forceManual) {
     assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
     const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
     const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
-    if (balanceInHostCurrency < totalAmountPaidInHostCurrency) {
+    if (
+      ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type) &&
+      balanceInHostCurrency < totalAmountPaidInHostCurrency
+    ) {
       throw new Error(
         `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
           balanceInHostCurrency,
@@ -3537,8 +3682,10 @@ export const checkHasBalanceToPayExpense = async (
     }
   };
 
-  // Check base balance before fees
-  assertMinExpectedBalance(expense.amount);
+  if (![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+    // Check base balance before fees
+    assertMinExpectedBalance(expense.amount);
+  }
 
   const { feesInHostCurrency, feesInCollectiveCurrency, feesInExpenseCurrency } = await getExpenseFees(expense, host, {
     fees: manualFees,
@@ -3556,9 +3703,11 @@ export const checkHasBalanceToPayExpense = async (
     throw new Error(`Expense fee payer "${expense.feesPayer}" not supported yet`);
   }
 
-  // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
-  // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
-  assertMinExpectedBalance(totalAmountToPay, feesInExpenseCurrency.paymentProcessorFee);
+  if (![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type)) {
+    // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
+    // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
+    assertMinExpectedBalance(totalAmountToPay, feesInExpenseCurrency.paymentProcessorFee);
+  }
 
   return { feesInCollectiveCurrency, feesInExpenseCurrency, feesInHostCurrency, totalAmountToPay };
 };
@@ -3615,7 +3764,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     ) {
       throw new Forbidden(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
     }
-    if (!(await canPayExpense(req, expense))) {
+
+    const permissionFn = forceManual ? canMarkAsPaid : canPayExpense;
+    if (!(await permissionFn(req, expense))) {
       throw new Forbidden("You don't have permission to pay this expense");
     }
     const host = await expense.collective.getHostCollective({ loaders: req.loaders });
@@ -3687,9 +3838,11 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
         });
       } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+        await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
+
         if (expense.collective.currency !== host.currency) {
           throw new Error(
-            'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
+            'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-paypal',
           );
         }
 
@@ -3721,6 +3874,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         if (host.settings?.transferwise?.ott === true) {
           throw new Error('You cannot pay this expense directly without Scheduling it for payment first.');
         }
+        await checkFeatureAccess(host, FEATURE.TRANSFERWISE, { loaders: req.loaders });
+
         const connectedAccount = await host.getAccountForPaymentProvider(Service.TRANSFERWISE, {
           CreatedByUserId: remoteUser.id,
           fallbackToNonUserAccount: true,

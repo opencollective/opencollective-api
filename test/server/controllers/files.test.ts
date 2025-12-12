@@ -52,6 +52,7 @@ describe('server/controllers/files', () => {
   let hostAdmin: User;
   let otherUser: User;
   let expenseItemUploadedFile: UploadedFile;
+  let expenseItemUploadedFileWrongKind: UploadedFile;
   let expenseAttachedUploadedFile: UploadedFile;
   let uploadedFile: UploadedFile;
   let expense: Expense;
@@ -94,6 +95,12 @@ describe('server/controllers/files', () => {
       fileType: 'application/pdf',
     });
 
+    expenseItemUploadedFileWrongKind = await fakeUploadedFile({
+      kind: 'EXPENSE_ITEM',
+      CreatedByUserId: submitter.id,
+      fileType: 'application/pdf',
+    });
+
     expenseAttachedUploadedFile = await fakeUploadedFile({
       kind: 'EXPENSE_ATTACHED_FILE',
       CreatedByUserId: submitter.id,
@@ -129,6 +136,12 @@ describe('server/controllers/files', () => {
       CreatedByUserId: submitter.id,
       ExpenseId: expense.id,
       url: expenseAttachedUploadedFile.getDataValue('url'),
+    });
+
+    await fakeExpenseAttachedFile({
+      CreatedByUserId: submitter.id,
+      ExpenseId: expense.id,
+      url: expenseItemUploadedFileWrongKind.getDataValue('url'),
     });
 
     draftExpenseItemUploadedFile = await fakeUploadedFile({
@@ -215,6 +228,26 @@ describe('server/controllers/files', () => {
 
       expect(response._getStatusCode()).to.eql(307);
       expect(response._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+    });
+
+    it('should redirect to resource if user has access to expense attached file - wrong type', async () => {
+      const actualUrl = expenseItemUploadedFileWrongKind.getDataValue('url');
+      sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+
+      const otherUserResponse = await makeRequest(expenseItemUploadedFileWrongKind.id, otherUser);
+      expect(otherUserResponse._getStatusCode()).to.eql(403);
+
+      const submitterResponse = await makeRequest(expenseItemUploadedFileWrongKind.id, submitter);
+      expect(submitterResponse._getStatusCode()).to.eql(307);
+      expect(submitterResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+
+      const hostAdminResponse = await makeRequest(expenseItemUploadedFileWrongKind.id, hostAdmin);
+      expect(hostAdminResponse._getStatusCode()).to.eql(307);
+      expect(hostAdminResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
+
+      const collectiveAdminResponse = await makeRequest(expenseItemUploadedFileWrongKind.id, collectiveAdmin);
+      expect(collectiveAdminResponse._getStatusCode()).to.eql(307);
+      expect(collectiveAdminResponse._getRedirectUrl()).to.eql(`${actualUrl}?signed`);
     });
 
     it('should redirect to resource if user has access to expense item', async () => {

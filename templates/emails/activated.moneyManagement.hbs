@@ -1,0 +1,30 @@
+Subject: Money Management Activated — Welcome!
+
+{{> header}}
+
+<p>{{> greeting}}</p>
+
+<p>Congratulations! Your organization has now activated money management. Here's everything you need to get started.</p>
+
+<h3>Get Started</h3>
+<p>
+Visit your <a href="https://opencollective.com/dashboard/{{collective.slug}}">Dashboard</a> and explore the platform. In your dashboard, you will find a checklist to guide you through the things you need to do to set up your account.
+</p>
+
+{{#unless collective.plan}}
+<h3>Your Current Tier</h3>
+<p>
+You are currently on the <strong>Discover Tier</strong>. This grants you basic access to the platform and includes 1 active monthly collective and 10 expenses. Visit our <a href="https://opencollective.com/pricing">pricing page</a> to learn more about our tiers and plans. Visit your <a href="https://opencollective.com/dashboard/{{collective.slug}}/platform-subscription">platform payments page</a> to upgrade to a tier and a package that best suits your needs.
+</p>
+{{/unless}}
+
+<h3>Get Support</h3>
+<p>
+Join our <a href="https://discord.opencollective.com">Discord community</a> and connect to other fiscal hosts in the #hosts channel. Explore our <a href="https://documentation.opencollective.com">documentation</a> for detailed guides and best practices.
+</p>
+
+<p>Best,</p>
+
+<p>The Open Collective Team</p>
+
+{{> footer}}

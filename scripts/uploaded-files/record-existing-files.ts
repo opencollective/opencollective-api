@@ -84,42 +84,46 @@ const main = async options => {
 
     // Iterate on fields
     for (const kind in simpleFields) {
-      const { model, field, UserIdField } = simpleFields[kind];
-      logger.info(`Migrating ${model['tableName']}.${field}...`);
-      const hasDeletedAt = Boolean(model['options']['paranoid']);
-      const urlField = prepareFieldNameForSQL(field);
-      const records = await sequelize.query(
-        ` SELECT
-          MIN(id) AS id,
-          ${urlField} as "url",
-          ${UserIdField ? `MIN("${UserIdField}")` : 'NULL'} AS "UserId",
-          ${hasDeletedAt ? 'MIN("deletedAt")' : 'NULL'} AS "deletedAt"
-        FROM "${model['tableName']}" model
-        WHERE ${urlField} IS NOT NULL
-        AND ${urlField} ILIKE 'https://%.s3%.amazonaws.com/%'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM "UploadedFiles" uploaded_file
-          WHERE uploaded_file."url" = model.${urlField}
-        )
-        GROUP BY ${urlField} -- It's an anti-pattern, but in practice we have multiple records with the same URL (e.g. there are 3 collectives with the avatar https://opencollective-production.s3.us-west-1.amazonaws.com/1b4efc60-897d-11ea-a8b1-f7f3041d4994.jpg)
-      `,
-        {
-          type: sequelize.QueryTypes.SELECT,
-        },
-      );
+      const definition = simpleFields[kind];
+      const { model, UserIdField } = definition;
+      const allFields = Array.isArray(definition.field) ? definition.field : [definition.field];
+      for (const fieldStr of allFields) {
+        logger.info(`Migrating ${model['tableName']}.${fieldStr}...`);
+        const hasDeletedAt = Boolean(model['options']['paranoid']);
+        const urlField = prepareFieldNameForSQL(fieldStr);
+        const records = await sequelize.query(
+          ` SELECT
+            MIN(id) AS id,
+            ${urlField} as "url",
+            ${UserIdField ? `MIN("${UserIdField}")` : 'NULL'} AS "UserId",
+            ${hasDeletedAt ? 'MIN("deletedAt")' : 'NULL'} AS "deletedAt"
+          FROM "${model['tableName']}" model
+          WHERE ${urlField} IS NOT NULL
+          AND ${urlField} ILIKE 'https://%.s3%.amazonaws.com/%'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "UploadedFiles" uploaded_file
+            WHERE uploaded_file."url" = model.${urlField}
+          )
+          GROUP BY ${urlField} -- It's an anti-pattern, but in practice we have multiple records with the same URL (e.g. there are 3 collectives with the avatar https://opencollective-production.s3.us-west-1.amazonaws.com/1b4efc60-897d-11ea-a8b1-f7f3041d4994.jpg)
+        `,
+          {
+            type: sequelize.QueryTypes.SELECT,
+          },
+        );
 
-      // Process files concurrently, but limit the number of concurrent requests to S3
-      logger.info(`Found ${records.length} records for ${model['tableName']} to migrate...`);
-      const queue = new PQueue({ concurrency });
-      records.forEach((record, recordIdx) =>
-        queue.add(() => {
-          const fileAttributes = { CreatedByUserId: record['UserId'], deletedAt: record['deletedAt'] };
-          return recordFile(kind as FileKind, record['url'], fileAttributes, `(${recordIdx + 1}/${records.length})`);
-        }),
-      );
+        // Process files concurrently, but limit the number of concurrent requests to S3
+        logger.info(`Found ${records.length} records for ${model['tableName']} to migrate...`);
+        const queue = new PQueue({ concurrency });
+        records.forEach((record, recordIdx) =>
+          queue.add(() => {
+            const fileAttributes = { CreatedByUserId: record['UserId'], deletedAt: record['deletedAt'] };
+            return recordFile(kind as FileKind, record['url'], fileAttributes, `(${recordIdx + 1}/${records.length})`);
+          }),
+        );
 
-      await queue.onIdle();
+        await queue.onIdle();
+      }
     }
   }
 
@@ -127,12 +131,15 @@ const main = async options => {
   if (!options['onlySimple']) {
     const richTextFields = pickBy(FileFieldsDefinition, value => value.fieldType === 'richText');
     for (const kind in richTextFields) {
-      const { model, field, UserIdField } = richTextFields[kind];
-      logger.info(`Migrating ${model['tableName']}.${field}...`);
-      const hasDeletedAt = Boolean(model['options']['paranoid']);
-      const textField = prepareFieldNameForSQL(field);
-      const records = await sequelize.query(
-        ` WITH all_images AS (
+      const definition = richTextFields[kind];
+      const { model, UserIdField } = definition;
+      const allFields = Array.isArray(definition.field) ? definition.field : [definition.field];
+      for (const fieldStr of allFields) {
+        logger.info(`Migrating ${model['tableName']}.${fieldStr}...`);
+        const hasDeletedAt = Boolean(model['options']['paranoid']);
+        const textField = prepareFieldNameForSQL(fieldStr);
+        const records = await sequelize.query(
+          ` WITH all_images AS (
           SELECT
             (regexp_matches(${textField}, 'src="(https://opencollective-production\.s3\.us-west-1\.amazonaws\.com/[^"]+)', 'g'))[1] as "url",
             ${UserIdField ? `"${UserIdField}"` : 'NULL'} AS "UserId",
@@ -148,22 +155,23 @@ const main = async options => {
         )
         GROUP BY "url"
       `,
-        {
-          type: sequelize.QueryTypes.SELECT,
-        },
-      );
+          {
+            type: sequelize.QueryTypes.SELECT,
+          },
+        );
 
-      // Process files concurrently, but limit the number of concurrent requests to S3
-      logger.info(`Found ${records.length} records for ${model['tableName']} to migrate...`);
-      const queue = new PQueue({ concurrency });
-      records.forEach((record, recordIdx) =>
-        queue.add(() => {
-          const fileAttributes = { CreatedByUserId: record['UserId'], deletedAt: record['deletedAt'] };
-          return recordFile(kind as FileKind, record['url'], fileAttributes, `(${recordIdx + 1}/${records.length})`);
-        }),
-      );
+        // Process files concurrently, but limit the number of concurrent requests to S3
+        logger.info(`Found ${records.length} records for ${model['tableName']} to migrate...`);
+        const queue = new PQueue({ concurrency });
+        records.forEach((record, recordIdx) =>
+          queue.add(() => {
+            const fileAttributes = { CreatedByUserId: record['UserId'], deletedAt: record['deletedAt'] };
+            return recordFile(kind as FileKind, record['url'], fileAttributes, `(${recordIdx + 1}/${records.length})`);
+          }),
+        );
 
-      await queue.onIdle();
+        await queue.onIdle();
+      }
     }
   }
 };
@@ -174,11 +182,13 @@ const program = new Command()
   .option('--concurrency <number>', 'Number of concurrent requests to S3', '3')
   .parse(process.argv);
 
-main(program.opts())
-  .then(() => {
-    process.exit(0);
-  })
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main(program.opts())
+    .then(() => {
+      process.exit(0);
+    })
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

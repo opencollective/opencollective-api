@@ -10,11 +10,12 @@ import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeComment,
   fakeExpense,
-  fakeHost,
   fakeMember,
+  fakeProject,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
@@ -24,10 +25,10 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
 
   before(async () => {
     await utils.resetTestDB();
-    admin = await fakeUser();
-    hostAdmin = await fakeUser();
-    expenseSubmitter = await fakeUser();
-    host = await fakeHost({ admin: hostAdmin.collective });
+    admin = await fakeUser(undefined, { name: 'The Collective Admin' });
+    hostAdmin = await fakeUser(undefined, { name: 'The Host Admin' });
+    expenseSubmitter = await fakeUser(undefined, { name: 'The Expense Submitter' });
+    host = await fakeActiveHost({ name: 'Test Host', admin: hostAdmin.collective });
     collective = await fakeCollective({ admin: admin.collective, HostCollectiveId: host.id });
     expense = await fakeExpense({
       FromCollectiveId: expenseSubmitter.CollectiveId,
@@ -68,7 +69,31 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
     });
 
     it('creates a comment & sends an email', async () => {
-      const result = await utils.graphqlQueryV2(createCommentMutation, { comment: validCommentData }, expenseSubmitter);
+      const parentCollective = await fakeCollective({
+        name: 'The P@rent Collective',
+        admin: admin,
+        HostCollectiveId: host.id,
+      });
+      const project = await fakeProject({
+        name: 'The Pr0ject',
+        ParentCollectiveId: parentCollective.id,
+        HostCollectiveId: host.id,
+      });
+      const anotherProjectAdmin = await fakeUser();
+      await project.addUserWithRole(anotherProjectAdmin, roles.ADMIN);
+      const payee = await fakeUser(undefined, { name: 'The Payee' });
+      const expense = await fakeExpense({
+        FromCollectiveId: payee.CollectiveId,
+        UserId: expenseSubmitter.id,
+        CollectiveId: project.id,
+        description: 'Test expense mutations',
+      });
+      const commentData = {
+        ...validCommentData,
+        expense: { legacyId: expense.id },
+      };
+
+      const result = await utils.graphqlQueryV2(createCommentMutation, { comment: commentData }, anotherProjectAdmin);
       utils.expectNoErrorsFromResult(result);
       const createdComment = result.data.createComment;
       expect(createdComment.html).to.equal('<p>This is the <strong>comment</strong></p>');
@@ -79,13 +104,26 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       });
       expect(activity).to.exist;
       expect(activity.data.CommentId).to.equal(idDecode(createdComment.id, 'comment'));
+      expect(activity.data.expense.description).to.equal(expense.description);
+      expect(activity.data.collective.name).to.equal(project.name);
+      expect(activity.data.fromCollective.name).to.equal(payee.collective.name);
+      expect(activity.FromCollectiveId).to.equal(anotherProjectAdmin.CollectiveId);
 
       // Sends an email
-      await utils.waitForCondition(() => sendEmailSpy.callCount === 2);
-      expect(sendEmailSpy.callCount).to.equal(2);
-      const expectedTitle = `${collective.name}: New comment on expense ${expense.description} by ${expenseSubmitter.collective.name}`;
-      assert.calledWithMatch(sendEmailSpy, admin.email, expectedTitle);
+      await utils.waitForCondition(() => sendEmailSpy.callCount === 4);
+      expect(sendEmailSpy.callCount).to.equal(4);
+      const expectedTitle = `${project.name}: New comment on expense ${expense.description} by ${anotherProjectAdmin.collective.name}`;
       assert.calledWithMatch(sendEmailSpy, hostAdmin.email, expectedTitle);
+      assert.calledWithMatch(sendEmailSpy, admin.email, expectedTitle);
+      assert.calledWithMatch(sendEmailSpy, expenseSubmitter.email, expectedTitle);
+      assert.calledWithMatch(sendEmailSpy, payee.email, expectedTitle);
+
+      // General fields
+      expect(sendEmailSpy.args[0][2]).to.include('Expense Info');
+      expect(sendEmailSpy.args[0][3].text).to.include('Fiscal Host: Test Host');
+      expect(sendEmailSpy.args[0][3].text).to.include('Collective: The P@rent Collective → The Pr0ject');
+      expect(sendEmailSpy.args[0][3].text).to.include('Payee: The Payee');
+      expect(sendEmailSpy.args[0][3].text).to.include('Status: Pending');
     });
 
     it('creates private notes without notifying users out of context', async () => {

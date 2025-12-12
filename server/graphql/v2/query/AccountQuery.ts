@@ -1,7 +1,9 @@
+import type Express from 'express';
 import { GraphQLBoolean, GraphQLString } from 'graphql';
 
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github';
 import models from '../../../models';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -61,6 +63,13 @@ export const buildAccountQuery = ({ objectType }) => ({
       } else {
         return null;
       }
+    }
+
+    if (await req.loaders.Collective.canSeePrivateLocation.load(collective.id)) {
+      allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, collective.id);
+    }
+    if (await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id)) {
+      allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, collective.id);
     }
 
     return collective;

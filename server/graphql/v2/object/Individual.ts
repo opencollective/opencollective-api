@@ -1,24 +1,34 @@
 import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { uniqBy } from 'lodash';
+import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
+import { KYCProviderName } from '../../../lib/kyc/providers';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op } from '../../../models';
+import { KYCVerification } from '../../../models/KYCVerification';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkScope } from '../../common/scope-check';
+import { checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
+import { Forbidden } from '../../errors';
+import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
 import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
 import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import {
+  fetchAccountsIdsWithReference,
+  fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
+} from '../input/AccountReferenceInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
 import { GraphQLContributorProfile } from './ContributorProfile';
 import { GraphQLHost } from './Host';
+import { GraphQLKYCStatus } from './KYCStatus';
 import { UserTwoFactorMethod as UserTwoFactorMethodObject } from './UserTwoFactorMethod';
 
 export const GraphQLIndividual = new GraphQLObjectType({
@@ -29,6 +39,10 @@ export const GraphQLIndividual = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
+      company: {
+        type: GraphQLString,
+        description: 'Company slugs the user is part of.',
+      },
       email: {
         type: GraphQLString,
         description: 'Email for the account. For authenticated user: scope: "email".',
@@ -38,7 +52,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'email')) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.email;
             }
@@ -49,6 +63,15 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(account) {
           return Boolean(account.data?.isGuest);
+        },
+      },
+      requiresProfileCompletion: {
+        type: GraphQLBoolean,
+        async resolve(account: Collective, _, req) {
+          const user = await req.loaders.User.byCollectiveId.load(account.id);
+          if (req.remoteUser?.id === user.id) {
+            return Boolean(account.data?.requiresProfileCompletion);
+          }
         },
       },
       isFollowingConversation: {
@@ -81,12 +104,13 @@ export const GraphQLIndividual = new GraphQLObjectType({
             (await individual.isHost()) ||
             (checkScope(req, 'account') &&
               (req.remoteUser?.isAdmin(individual.id) ||
-                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, individual.id)));
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, individual.id)));
 
           if (!canSeeLocation) {
             return null;
           }
 
+          let location;
           // For incognito profiles, we retrieve the location from the main user profile
           if (individual.isIncognito) {
             if (!checkScope(req, 'incognito')) {
@@ -94,11 +118,18 @@ export const GraphQLIndividual = new GraphQLObjectType({
             }
             const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
             if (mainProfile) {
-              return req.loaders.Location.byCollectiveId.load(mainProfile.id);
+              location = await req.loaders.Location.byCollectiveId.load(mainProfile.id);
             }
           }
 
-          return req.loaders.Location.byCollectiveId.load(individual.id);
+          location = location || (await req.loaders.Location.byCollectiveId.load(individual.id));
+          if (!location && individual.countryISO) {
+            location = { country: individual.countryISO };
+            if (individual.address) {
+              location.address = individual.address;
+            }
+          }
+          return location;
         },
       },
       hasTwoFactorAuth: {
@@ -118,7 +149,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           } else if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'account')) {
             return null;
           } else {
-            if (await req.loaders.Collective.canSeePrivateInfo.load(userCollective.id)) {
+            if (await req.loaders.Collective.canSeePrivateProfileInfo.load(userCollective.id)) {
               const user = await req.loaders.User.byCollectiveId.load(userCollective.id);
               return user?.newsletterOptIn;
             }
@@ -291,6 +322,85 @@ export const GraphQLIndividual = new GraphQLObjectType({
             });
           });
           return uniqBy(contributorProfiles, 'account.id');
+        },
+      },
+      kycVerifications: {
+        type: new GraphQLNonNull(GraphQLKYCVerificationCollection),
+        description: 'KYC Verification requests to this account',
+        args: {
+          ...CollectionArgs,
+          requestedByAccounts: {
+            description: 'If set, returns only KYC requests made by these accounts',
+            type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
+          },
+        },
+        async resolve(account, args, req: Express.Request) {
+          checkRemoteUserCanUseKYC(req);
+
+          const requestedByAccountIds =
+            (await fetchAccountsIdsWithReference(args.requestedByAccounts, { throwIfMissing: true })) || [];
+
+          const hasAccess =
+            requestedByAccountIds.length > 0 && requestedByAccountIds.every(id => req.remoteUser.isAdmin(id));
+
+          if (!hasAccess) {
+            throw new Forbidden();
+          }
+
+          const where: WhereOptions<KYCVerification> = {
+            ...(requestedByAccountIds.length > 0 ? { RequestedByCollectiveId: requestedByAccountIds } : {}),
+            CollectiveId: account.id,
+          };
+
+          return {
+            limit: args.limit,
+            offset: args.offset,
+            async totalCount() {
+              return await KYCVerification.count({
+                where,
+              });
+            },
+            async nodes() {
+              return await KYCVerification.findAll({
+                where,
+                limit: args.limit,
+                offset: args.offset,
+                order: [['id', 'DESC']],
+              });
+            },
+          };
+        },
+      },
+      kycStatus: {
+        type: new GraphQLNonNull(GraphQLKYCStatus),
+        description: 'Verified KYC status, if any',
+        args: {
+          requestedByAccount: {
+            description: 'If set, returns only KYC requests made by these accounts',
+            type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+          },
+        },
+        async resolve(account, args, req: Express.Request) {
+          checkRemoteUserCanUseKYC(req);
+          const requestedByAccount = await fetchAccountWithReference(args.requestedByAccount, {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          });
+
+          const isRequesterAdmin = req.remoteUser.isAdminOfCollective(requestedByAccount);
+          const hasAccess = isRequesterAdmin;
+
+          if (!hasAccess) {
+            throw new Forbidden();
+          }
+
+          return Object.fromEntries(
+            Object.values(KYCProviderName).map(provider => [
+              provider,
+              () =>
+                req.loaders.KYCVerification.verifiedStatusByProvider(requestedByAccount.id, provider).load(account.id),
+            ]),
+          );
         },
       },
     };

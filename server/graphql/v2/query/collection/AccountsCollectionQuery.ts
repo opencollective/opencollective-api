@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
@@ -94,6 +95,30 @@ const AccountsCollectionQuery = {
       type: GraphQLAmountRangeInput,
       description: 'Filter by the balance of the account and its children accounts (events and projects)',
     },
+    plan: {
+      type: new GraphQLList(GraphQLString),
+      description: 'Filter by the plan slug of the account',
+    },
+    isPlatformSubscriber: {
+      type: GraphQLBoolean,
+      description: 'Filter accounts that are subscribers to the platform',
+    },
+    isVerified: {
+      type: GraphQLBoolean,
+      description: 'Filter accounts that are verified',
+    },
+    isFirstPartyHost: {
+      type: GraphQLBoolean,
+      description: 'Filter accounts that are first party hosts',
+    },
+    lastTransactionFrom: {
+      type: GraphQLDateTime,
+      description: 'Filter accounts that have a last transaction after this date',
+    },
+    lastTransactionTo: {
+      type: GraphQLDateTime,
+      description: 'Filter accounts that have a last transaction before this date',
+    },
   },
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
@@ -124,6 +149,12 @@ const AccountsCollectionQuery = {
       consolidatedBalance: args.consolidatedBalance,
       isRoot: req.remoteUser?.isRoot() || false,
       onlyOpenHosts: args.onlyOpenToApplications ? true : null,
+      plan: args.plan,
+      isPlatformSubscriber: args.isPlatformSubscriber,
+      isVerified: args.isVerified,
+      isFirstPartyHost: args.isFirstPartyHost,
+      lastTransactionFrom: args.lastTransactionFrom,
+      lastTransactionTo: args.lastTransactionTo,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

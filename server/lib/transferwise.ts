@@ -12,6 +12,7 @@ import { cloneDeep, isNull, omitBy, pick, set, startCase, toUpper } from 'lodash
 import moment from 'moment';
 
 import ActivityTypes from '../constants/activities';
+import { SUPPORTED_CURRENCIES } from '../constants/currencies';
 import { TransferwiseError } from '../graphql/errors';
 import { Activity, ConnectedAccount } from '../models';
 import {
@@ -93,6 +94,7 @@ const parseError = (
     code = `transferwise.error.validation`;
   }
 
+  // eslint-disable-next-line custom-errors/no-unthrown-errors
   return new TransferwiseError(message, code, {
     tracing: pick(error.response?.headers, ['x-trace-id', 'cf-ray']),
   });
@@ -101,7 +103,9 @@ const parseError = (
 export async function getToken(connectedAccount: ConnectedAccount, refresh = false): Promise<string> {
   // OAuth token, require us to refresh every 12 hours
   const checkTokenIsExpired = connectedAccount => {
-    if (refresh) {
+    if (!isProduction && connectedAccount.refreshToken === null) {
+      return false;
+    } else if (refresh) {
       return true;
     } else if (connectedAccount.isNewRecord) {
       return false;
@@ -547,6 +551,15 @@ export const getExchangeRates = async (
   source: string,
   target: string,
 ): Promise<Array<ExchangeRate>> => {
+  if (
+    typeof source !== 'string' ||
+    typeof target !== 'string' ||
+    !(SUPPORTED_CURRENCIES as readonly string[]).includes(source) ||
+    !(SUPPORTED_CURRENCIES as readonly string[]).includes(target)
+  ) {
+    throw new Error('Invalid source or target currency');
+  }
+
   return requestDataAndThrowParsedError(
     axiosClient.get,
     `/v1/rates?source=${source}&target=${target}`,

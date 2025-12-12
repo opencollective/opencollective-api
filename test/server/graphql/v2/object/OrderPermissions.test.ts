@@ -2,8 +2,10 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { omit } from 'lodash';
 
+import FEATURE from '../../../../../server/constants/feature';
 import OrderStatuses from '../../../../../server/constants/order-status';
-import { fakeCollective, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import { PlatformSubscription } from '../../../../../server/models';
+import { fakeCollective, fakeOrder, fakePlatformSubscription, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const orderQuery = gql`
@@ -12,6 +14,7 @@ const orderQuery = gql`
       id
       permissions {
         canResume
+        canUpdateAccountingCategory
       }
     }
   }
@@ -101,6 +104,43 @@ describe('server/graphql/v2/object/OrderPermissions', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.order.permissions.canResume).to.be.false;
+    });
+  });
+
+  describe('canUpdateAccountingCategory', () => {
+    it('is true if the user is an admin of the host when using a legacy plan', async () => {
+      const host = await collective.getHost();
+      await host.update({ plan: 'start-plan-2021' });
+      const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, hostAdmin);
+      expect(result.data.order.permissions.canUpdateAccountingCategory).to.be.true;
+    });
+
+    it('is true if the user is an admin of the host when using a new plan', async () => {
+      const host = await collective.getHost();
+      await host.update({ plan: null });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+      });
+      const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, hostAdmin);
+      expect(result.data.order.permissions.canUpdateAccountingCategory).to.be.true;
+    });
+
+    it('is false if the collective does not have the accounting categories feature in its pricing', async () => {
+      const host = await collective.getHost();
+      await PlatformSubscription.destroy({ where: { CollectiveId: host.id } });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: false } },
+      });
+
+      const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, hostAdmin);
+      expect(result.data.order.permissions.canUpdateAccountingCategory).to.be.false;
+    });
+
+    it('is false if the user is not an admin of the host', async () => {
+      const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, collectiveAdmin);
+      expect(result.data.order.permissions.canUpdateAccountingCategory).to.be.false;
     });
   });
 });

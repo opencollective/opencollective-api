@@ -2,12 +2,11 @@ import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
-import { OrderItem } from 'sequelize';
+import { OrderItem, Sequelize } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
-import orderStatus from '../../constants/order-status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
   getBalances,
@@ -21,12 +20,14 @@ import { ifStr } from '../../lib/utils';
 import {
   Collective,
   ConnectedAccount,
-  Expense,
+  ExpenseAttachedFile,
+  ExpenseItem,
   Member,
   Models,
   Op,
   Order,
   PaymentMethod,
+  PlatformSubscription,
   sequelize,
   SocialLink,
   Subscription,
@@ -34,7 +35,7 @@ import {
   TransactionsImportRow,
   UploadedFile,
 } from '../../models';
-import { ExpenseStatus } from '../../models/Expense';
+import { KYCVerification } from '../../models/KYCVerification';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
@@ -55,6 +56,7 @@ import {
 import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import { generateSearchLoaders } from './search';
+import { generateTierAvailableQuantityLoader } from './tiers';
 import * as transactionLoaders from './transactions';
 import {
   generateOffPlatformTransactionsStatsLoader,
@@ -110,6 +112,12 @@ export const generateLoaders = req => {
       byUrl: new DataLoader(async (urls: string[]) => {
         const files = await UploadedFile.findAll({ where: { url: urls } });
         return sortResultsSimple(urls, files, file => file.getDataValue('url'));
+      }),
+      byChecksum: new DataLoader(async (checksums: string[]) => {
+        const files = await UploadedFile.findAll({
+          where: { data: { s3SHA256: { [Op.in]: checksums } } },
+        });
+        return sortResultsArray(checksums, files, file => file.data.s3SHA256);
       }),
     },
     Conversation: {
@@ -454,7 +462,8 @@ export const generateLoaders = req => {
         return sortResults(ids, results, 'CollectiveId', []) as ConnectedAccount[][];
       }),
 
-      canSeePrivateInfo: collectiveLoaders.canSeePrivateInfo(req),
+      canSeePrivateProfileInfo: collectiveLoaders.canSeePrivateProfileInfo(req),
+      canSeePrivateLocation: collectiveLoaders.canSeePrivateLocation(req),
 
       childrenIds: new DataLoader<number, number[]>(ids =>
         Collective.findAll({
@@ -462,9 +471,15 @@ export const generateLoaders = req => {
           raw: true,
           where: { ParentCollectiveId: { [Op.in]: ids } },
           attributes: ['ParentCollectiveId', 'id'],
-        }).then(results => {
-          const groupedResults = groupBy(results, 'ParentCollectiveId');
-          return ids.map(id => groupedResults[id]?.map(result => result.id) || []);
+        }).then((results: { ParentCollectiveId: number; id: number }[]) => {
+          const groupedResults = new Map<number, Set<number>>();
+          for (const result of results) {
+            const existingSet = groupedResults.get(result.ParentCollectiveId) || new Set<number>();
+            existingSet.add(result.id);
+            groupedResults.set(result.ParentCollectiveId, existingSet);
+          }
+
+          return ids.map(id => Array.from(groupedResults.get(id) || []));
         }),
       ),
 
@@ -478,7 +493,46 @@ export const generateLoaders = req => {
             }[],
         ),
       ),
-
+      moneyManaged: new DataLoader<number, { CollectiveId?: number; value: number; currency: string }>(async ids => {
+        const results = await (sequelize as Sequelize).query<{ HostCollectiveId: number; sum: number; rate: number }>(
+          `
+          SELECT
+            cbc."HostCollectiveId",
+            SUM(cbc.balance),
+            cbc."hostCurrency",
+            (
+              SELECT rate
+              FROM "CurrencyExchangeRates"
+              WHERE "from" = "hostCurrency"
+                AND "to" = 'USD'
+              ORDER BY "createdAt" DESC
+              LIMIT 1
+            ) AS "rate"
+          FROM "CollectiveBalanceCheckpoint" cbc
+          INNER JOIN "Collectives" c ON c."id" = cbc."HostCollectiveId"
+          WHERE cbc."HostCollectiveId" IN (:ids)
+            AND cbc."hostCurrency" = c."currency"
+          GROUP BY
+            cbc."HostCollectiveId", cbc."hostCurrency";
+        `,
+          {
+            type: sequelize.QueryTypes.SELECT,
+            replacements: { ids },
+          },
+        );
+        return sortResultsSimple(ids, results, r => r.HostCollectiveId).map(result =>
+          result
+            ? {
+                CollectiveId: result.HostCollectiveId,
+                value: result.sum * result.rate,
+                currency: 'USD',
+              }
+            : { value: 0, currency: 'USD' },
+        );
+      }),
+      communityStats: {
+        onHostContext: collectiveLoaders.communityStats.onHostContext(),
+      },
       // // Collective - Stats
       stats: {
         backers: new DataLoader<number, Partial<Record<CollectiveType, number>> & Record<'all' | 'id', number>>(
@@ -528,34 +582,6 @@ export const generateLoaders = req => {
 
             return sortResults(ids, results, 'CollectiveId') as Array<
               Partial<Record<CollectiveType, number>> & Record<'all' | 'id', number>
-            >;
-          },
-        ),
-        expenses: new DataLoader<number, Partial<Record<ExpenseStatus, number>> & { CollectiveId: number }>(
-          async ids => {
-            const rows = (await Expense.findAll({
-              attributes: [
-                'CollectiveId',
-                'status',
-                [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count'],
-              ],
-              where: { CollectiveId: { [Op.in]: ids } },
-              group: ['CollectiveId', 'status'],
-              raw: true,
-            })) as unknown as { CollectiveId: number; status: ExpenseStatus; count: number }[];
-            const rowsGroupedByCollective = groupBy(rows, 'CollectiveId');
-            const results = Object.keys(rowsGroupedByCollective).map(CollectiveId => {
-              const stats: Partial<Record<ExpenseStatus, number>> = {};
-              rowsGroupedByCollective[CollectiveId].map(stat => {
-                stats[stat.status] = stat.count;
-              });
-              return {
-                CollectiveId: Number(CollectiveId),
-                ...stats,
-              };
-            });
-            return sortResults(ids, results, 'CollectiveId') as Array<
-              Partial<Record<ExpenseStatus, number>> & { CollectiveId: number }
             >;
           },
         ),
@@ -766,37 +792,7 @@ export const generateLoaders = req => {
     },
     Tier: {
       ...context.loaders.Tier,
-      availableQuantity: new DataLoader(tierIds =>
-        sequelize
-          .query(
-            `
-          SELECT t.id, (t."maxQuantity" - COALESCE(SUM(o.quantity), 0)) AS "availableQuantity"
-          FROM "Tiers" t
-          LEFT JOIN "Orders" o ON o."TierId" = t.id AND o."deletedAt" IS NULL AND o."processedAt" IS NOT NULL AND o."status" NOT IN (?)
-          WHERE t.id IN (?)
-          AND t."maxQuantity" IS NOT NULL
-          AND t."deletedAt" IS NULL
-          GROUP BY t.id
-        `,
-            {
-              replacements: [
-                [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED],
-                tierIds,
-              ],
-              type: sequelize.QueryTypes.SELECT,
-            },
-          )
-          .then(results => {
-            return tierIds.map(tierId => {
-              const result = results.find(({ id }) => id === tierId);
-              if (result) {
-                return result.availableQuantity > 0 ? result.availableQuantity : 0;
-              } else {
-                return null;
-              }
-            });
-          }),
-      ),
+      availableQuantity: generateTierAvailableQuantityLoader(),
       // Tier - totalDistinctOrders
       totalDistinctOrders: new DataLoader<number, number>(ids =>
         Order.findAll({
@@ -1031,9 +1027,9 @@ export const generateLoaders = req => {
       findByMembership: new DataLoader<string, Order[]>(combinedKeys =>
         Order.findAll({
           where: {
-            CollectiveId: { [Op.in]: combinedKeys.map(k => k.split(':')[0]) },
+            CollectiveId: { [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[0]))] },
             FromCollectiveId: {
-              [Op.in]: combinedKeys.map(k => k.split(':')[1]),
+              [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[1]))],
             },
           },
           order: [['createdAt', 'DESC']],
@@ -1068,9 +1064,9 @@ export const generateLoaders = req => {
       transactions: new DataLoader<string, Transaction[]>(combinedKeys =>
         Transaction.findAll({
           where: {
-            CollectiveId: { [Op.in]: combinedKeys.map(k => k.split(':')[0]) },
+            CollectiveId: { [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[0]))] },
             FromCollectiveId: {
-              [Op.in]: combinedKeys.map(k => k.split(':')[1]),
+              [Op.in]: [...new Set(combinedKeys.map(k => k.split(':')[1]))],
             },
           },
           order: [['createdAt', 'DESC']],
@@ -1120,8 +1116,8 @@ export const generateLoaders = req => {
             [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
           ],
           where: {
-            FromCollectiveId: { [Op.in]: keys.map(k => k.FromCollectiveId) },
-            CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
+            FromCollectiveId: { [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))] },
+            CollectiveId: { [Op.in]: [...new Set(keys.map(k => k.CollectiveId))] },
             type: TransactionTypes.CREDIT,
           },
           group: ['FromCollectiveId', 'CollectiveId'],
@@ -1146,13 +1142,18 @@ export const generateLoaders = req => {
           where: {
             [Op.or]: {
               FromCollectiveId: {
-                [Op.in]: keys.map(k => k.FromCollectiveId),
+                // Deduplicated Ids
+                [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))],
               },
               UsingGiftCardFromCollectiveId: {
-                [Op.in]: keys.map(k => k.FromCollectiveId),
+                // Deduplicated Ids
+                [Op.in]: [...new Set(keys.map(k => k.FromCollectiveId))],
               },
             },
-            CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
+            CollectiveId: {
+              // Deduplicated Ids
+              [Op.in]: [...new Set(keys.map(k => k.CollectiveId))],
+            },
             type: TransactionTypes.CREDIT,
             kind: { [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'] },
             RefundTransactionId: null,
@@ -1219,12 +1220,35 @@ export const generateLoaders = req => {
         return sortResultsSimple(orderIds, rows, result => result['OrderId']);
       }),
     },
+    PlatformSubscription: {
+      ...context.loaders.PlatformSubscription,
+      ...PlatformSubscription.loaders,
+    },
+    KYCVerification: {
+      ...context.loaders.KYCVerification,
+      ...KYCVerification.loaders,
+    },
+    ExpenseItem: {
+      ...context.loaders.ExpenseItem,
+      byUrl: new DataLoader(async (urls: string[]) => {
+        const items = await ExpenseItem.findAll({ where: { url: urls } });
+        return sortResultsSimple(urls, items, file => file.getDataValue('url'));
+      }),
+    },
+    ExpenseAttachedFile: {
+      ...context.loaders.ExpenseAttachedFile,
+      byUrl: new DataLoader(async (urls: string[]) => {
+        const files = await ExpenseAttachedFile.findAll({ where: { url: urls } });
+        return sortResultsSimple(urls, files, file => file.getDataValue('url'));
+      }),
+    },
 
     // Non-model loaders
     Contributors: {
       forCollectiveId: contributorsLoaders.forCollectiveId(),
       totalContributedToHost: contributorsLoaders.generateTotalContributedToHost(),
     },
+
     search: generateSearchLoaders(req),
   };
 

@@ -677,19 +677,6 @@ describe('server/models/Collective', () => {
     });
   });
 
-  it('creates an organization and populates logo image', async () => {
-    let collective = await models.Collective.create({
-      name: 'Open Collective',
-      type: 'ORGANIZATION',
-      website: 'https://opencollective.com',
-    });
-    // Make sure clearbit image is fetched (done automatically and async in normal conditions)
-    await collective.findImage(true);
-    // Fetch back the collective from the database
-    collective = await models.Collective.findByPk(collective.id);
-    expect(collective.image).to.equal('https://logo.clearbit.com/opencollective.com');
-  });
-
   it('creates an organization with an admin user', async () => {
     sendEmailSpy.resetHistory();
     await models.Collective.createOrganization({ name: 'Coinbase' }, user1);
@@ -968,30 +955,6 @@ describe('server/models/Collective', () => {
           );
           expect(new Date(backer.firstDonation).getTime()).to.equal(new Date(transactions[2].createdAt).getTime());
           expect(new Date(backer.lastDonation).getTime()).to.equal(new Date(transactions[3].createdAt).getTime());
-        })
-        .finally(done);
-    });
-
-    it('add/update/create new tiers', done => {
-      // This add a new tier and removes the "sponsors" tier
-      collective
-        .editTiers([
-          {
-            id: 1,
-            name: 'super backer',
-            amount: 1500,
-          },
-          {
-            name: 'new tier',
-            amount: 2000,
-            slug: 'newtier',
-          },
-        ])
-        .then(tiers => {
-          expect(tiers.length).to.equal(2);
-          tiers.sort((a, b) => a.slug.localeCompare(b.slug));
-          expect(tiers[0].name).to.equal('new tier');
-          expect(tiers[1].name).to.equal('super backer');
         })
         .finally(done);
     });

@@ -16,16 +16,18 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
+import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
 import PlatformConstants from '../constants/platform';
 import { RefundKind } from '../constants/refund-kind';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
 import { getFxRate } from '../lib/currency';
+import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry } from '../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { getPaymentProcessorFeeVendor, getTaxVendor } from '../lib/transactions';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
@@ -73,6 +75,12 @@ export type TransactionData = {
   dispute?: Stripe.Dispute;
   expenseToHostFxRate?: number;
   feesPayer?: Expense['feesPayer'];
+  fxRates?: {
+    expenseToHost?: number;
+    collectiveToHost?: number;
+    expenseToCollective?: number;
+    expenseToPayoutMethod?: number;
+  };
   hasPlatformTip?: boolean;
   hostFeeMigration?: string;
   hostFeeSharePercent?: number;
@@ -179,6 +187,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     kind?: string;
     isDebt?: boolean;
   }) => Promise<Transaction[]>;
+
   declare getOppositeTransaction: () => Promise<Transaction | null>;
   declare getPaymentProcessorFeeTransaction: () => Promise<Transaction | null>;
   declare getTaxTransaction: () => Promise<Transaction | null>;
@@ -206,7 +215,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         return Transaction.create(transaction) as Promise<Transaction>;
       }),
     ).catch(error => {
-      console.error(error);
+      logger.error(error);
       reportErrorToSentry(error);
     });
   }
@@ -220,7 +229,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         return Transaction.createDoubleEntry(transaction) as Promise<Transaction>;
       }),
     ).catch(error => {
-      console.error(error);
+      logger.error(error);
       reportErrorToSentry(error);
     });
   }
@@ -323,7 +332,10 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
    * and we should move paymentProcessorFee, platformFee, hostFee to the Order model
    *
    */
-  static async createDoubleEntry(transaction: TransactionCreationAttributes): Promise<Transaction> {
+  static async createDoubleEntry(
+    transaction: TransactionCreationAttributes,
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+  ): Promise<Transaction> {
     // Force transaction type based on amount sign
     if (transaction.amount > 0) {
       transaction.type = CREDIT;
@@ -333,7 +345,18 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       throw new Error('Transaction type must be set when amount is 0');
     }
 
-    if (transaction.kind === EXPENSE && transaction.type === CREDIT && !transaction.isRefund) {
+    if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
+      transaction.PaymentMethod = await PaymentMethod.findByPk(transaction.PaymentMethodId);
+    }
+
+    if (
+      transaction.kind === EXPENSE &&
+      transaction.type === CREDIT &&
+      !transaction.isRefund &&
+      // Expenses paid with stripe are accounted by the receiving end, so it's allowed to be initiated here as
+      // a credit to the host receiving the expense payment.
+      transaction.PaymentMethod?.service !== PAYMENT_METHOD_SERVICE.STRIPE
+    ) {
       throw new Error('Transaction kind=EXPENSE should be initiated as a DEBIT transaction.');
     } else if (transaction.kind === CONTRIBUTION && transaction.type === DEBIT && !transaction.isRefund) {
       throw new Error('Transaction kind=CONTRIBUTION should be initiated as a CREDIT transaction.');
@@ -348,7 +371,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     if (!transaction.isRefund) {
       if (transaction.data?.platformTip) {
         // Separate donation transaction and remove platformTip from the main transaction
-        const result = await Transaction.createPlatformTipTransactions(transaction);
+        const result = await Transaction.createPlatformTipTransactions(transaction, { sequelizeTransaction });
         // Transaction was modified by createPlatformTipTransactions, we get it from the result
         if (result && result.transaction) {
           transaction = result.transaction;
@@ -357,13 +380,16 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
 
       // Create Host Fee Transaction
       if (transaction.hostFeeInHostCurrency) {
-        const result = await Transaction.createHostFeeTransactions(transaction);
+        const result = await Transaction.createHostFeeTransactions(transaction, null, { sequelizeTransaction });
         if (result) {
           if (result.hostFeeTransaction) {
-            await Transaction.createHostFeeShareTransactions({
-              transaction: result.transaction,
-              hostFeeTransaction: result.hostFeeTransaction,
-            });
+            await Transaction.createHostFeeShareTransactions(
+              {
+                transaction: result.transaction,
+                hostFeeTransaction: result.hostFeeTransaction,
+              },
+              { sequelizeTransaction },
+            );
           }
           // Transaction was modified by createHostFeeTransaction, we get it from the result
           if (result.transaction) {
@@ -375,7 +401,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
 
     // Create Tax transaction
     if (transaction.taxAmount && parseToBoolean(config.ledger.separateTaxes) === true) {
-      const result = await Transaction.createTaxTransactions(transaction);
+      const result = await Transaction.createTaxTransactions(transaction, null, { sequelizeTransaction });
       if (result) {
         // Transaction was modified by createTaxTransactions, we get it from the result
         transaction = result.transaction;
@@ -387,7 +413,9 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       transaction.paymentProcessorFeeInHostCurrency &&
       parseToBoolean(config.ledger.separatePaymentProcessorFees) === true
     ) {
-      const result = await Transaction.createPaymentProcessorFeeTransactions(transaction);
+      const result = await Transaction.createPaymentProcessorFeeTransactions(transaction, null, {
+        sequelizeTransaction,
+      });
       if (result) {
         // Transaction was modified by paymentProcessorFeeTransactions, we get it from the result
         transaction = result.transaction;
@@ -396,7 +424,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
 
     // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
     if (transaction.FromCollectiveId === transaction.CollectiveId) {
-      return Transaction.create(transaction) as Promise<Transaction>;
+      return Transaction.create(transaction, { transaction: sequelizeTransaction }) as Promise<Transaction>;
     }
 
     if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -404,7 +432,9 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
     }
 
-    const fromCollective = await Collective.findByPk(transaction.FromCollectiveId);
+    const fromCollective = await Collective.findByPk(transaction.FromCollectiveId, {
+      transaction: sequelizeTransaction,
+    });
     const fromCollectiveHost = await fromCollective.getHostCollective();
 
     let oppositeTransaction = {
@@ -436,11 +466,21 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         transaction,
       );
 
+      let HostCollectiveId = fromCollectiveHost.id;
+      // Exception: Contributors that are also hosted collectives
+      // We should not assign HostCollectiveId when contributing with PayPal or Stripe,
+      // since this money does not comes out of their hosted balance.
+      if (
+        transaction.PaymentMethod &&
+        transaction.kind === TransactionKind.CONTRIBUTION &&
+        [PAYMENT_METHOD_SERVICE.STRIPE, PAYMENT_METHOD_SERVICE.PAYPAL].includes(transaction.PaymentMethod.service)
+      ) {
+        HostCollectiveId = null;
+      }
+
       oppositeTransaction = {
         ...oppositeTransaction,
-        // TODO: credit card transactions (and similar) should not be marked with the HostCollectiveId
-        //       only Collective to Collective (and such) should be
-        HostCollectiveId: fromCollectiveHost.id,
+        HostCollectiveId,
         hostCurrency,
         hostCurrencyFxRate,
         amount: -Math.round(transaction.netAmountInCollectiveCurrency),
@@ -464,7 +504,11 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
 
       // Handle Host Fee when paying an Expense between Hosts
       // TODO: This should not be part of `createDoubleEntry`, maybe `createTransactionsFromPaidExpense`?
-      if (oppositeTransaction.kind === 'EXPENSE' && !oppositeTransaction.isRefund) {
+      if (
+        transaction.PaymentMethod?.service !== PAYMENT_METHOD_SERVICE.STRIPE && // stripe case handled at in contribution flow
+        oppositeTransaction.kind === 'EXPENSE' &&
+        !oppositeTransaction.isRefund
+      ) {
         const collective = await Collective.findByPk(transaction.CollectiveId);
         const collectiveHost = await collective.getHostCollective();
         if (collectiveHost.id !== fromCollectiveHost.id) {
@@ -477,7 +521,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
             hostFeePercent,
           );
           if (oppositeTransaction.hostFeeInHostCurrency) {
-            await Transaction.createHostFeeTransactions(oppositeTransaction);
+            await Transaction.createHostFeeTransactions(oppositeTransaction, null, { sequelizeTransaction });
           }
         }
       }
@@ -488,25 +532,28 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     // We first record the negative transaction
     // and only then we can create the transaction to add money somewhere else
     if (transaction.type === DEBIT) {
-      const t = await Transaction.create(transaction);
-      await Transaction.create(oppositeTransaction);
+      const t = await Transaction.create(transaction, { transaction: sequelizeTransaction });
+      await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
       return t;
     } else {
-      await Transaction.create(oppositeTransaction);
-      return Transaction.create(transaction);
+      await Transaction.create(oppositeTransaction, { transaction: sequelizeTransaction });
+      return Transaction.create(transaction, { transaction: sequelizeTransaction });
     }
   }
 
   /**
    * Record a debt transaction and its associated settlement
    */
-  static async createPlatformTipDebtTransactions({
-    platformTipTransaction,
-    transaction,
-  }: {
-    platformTipTransaction: Transaction;
-    transaction: TransactionCreationAttributes;
-  }): Promise<Transaction> {
+  static async createPlatformTipDebtTransactions(
+    {
+      platformTipTransaction,
+      transaction,
+    }: {
+      platformTipTransaction: Transaction;
+      transaction: TransactionCreationAttributes;
+    },
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+  ): Promise<Transaction> {
     if (platformTipTransaction.type === DEBIT) {
       throw new Error('createPlatformTipDebtTransactions must be given a CREDIT transaction');
     }
@@ -543,11 +590,17 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       paymentProcessorFeeInHostCurrency: 0,
     };
 
-    const platformTipDebtTransaction = await Transaction.createDoubleEntry(platformTipDebtTransactionData);
+    const platformTipDebtTransaction = await Transaction.createDoubleEntry(platformTipDebtTransactionData, {
+      sequelizeTransaction,
+    });
 
     // Create settlement
     const settlementStatus = TransactionSettlementStatus.OWED;
-    await TransactionSettlement.createForTransaction(platformTipDebtTransaction, settlementStatus);
+    await TransactionSettlement.createForTransaction(
+      platformTipDebtTransaction,
+      settlementStatus,
+      sequelizeTransaction,
+    );
 
     return platformTipDebtTransaction;
   }
@@ -558,7 +611,10 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
    * @param {Collective} The host
    * @param {boolean} Whether tip has been collected already (no debt needed)
    */
-  static async createPlatformTipTransactions(transaction: TransactionCreationAttributes): Promise<void | {
+  static async createPlatformTipTransactions(
+    transaction: TransactionCreationAttributes,
+    { sequelizeTransaction },
+  ): Promise<void | {
     transaction: TransactionCreationAttributes;
     platformTipTransaction: Transaction;
     platformTipDebtTransaction: Transaction | null;
@@ -618,14 +674,19 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       },
     };
 
-    const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData);
+    const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData, {
+      sequelizeTransaction,
+    });
 
     let platformTipDebtTransaction;
     if (!transaction.data.isPlatformRevenueDirectlyCollected) {
-      platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({
-        platformTipTransaction,
-        transaction,
-      });
+      platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions(
+        {
+          platformTipTransaction,
+          transaction,
+        },
+        { sequelizeTransaction },
+      );
     }
 
     // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
@@ -673,6 +734,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   static async createHostFeeTransactions(
     transaction: TransactionCreationAttributes,
     data?: TransactionData,
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
   ): Promise<{ transaction: TransactionCreationAttributes; hostFeeTransaction: Transaction } | void> {
     if (!transaction.hostFeeInHostCurrency) {
       return;
@@ -715,7 +777,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       data,
     };
 
-    const hostFeeTransaction = await Transaction.createDoubleEntry(hostFeeTransactionData);
+    const hostFeeTransaction = await Transaction.createDoubleEntry(hostFeeTransactionData, { sequelizeTransaction });
 
     // Reset the original host fee because we're now accounting for this value in a separate set of transactions
     transaction.hostFeeInHostCurrency = 0;
@@ -727,6 +789,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   static async createPaymentProcessorFeeTransactions(
     transaction: TransactionCreationAttributes,
     data: Record<string, unknown> | null = null,
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
   ): Promise<{
     /** The original transaction, potentially modified if a payment processor fees was set */
     transaction: TransactionCreationAttributes;
@@ -783,7 +846,9 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       data,
     };
 
-    const paymentProcessorFeeTransaction = await Transaction.createDoubleEntry(paymentProcessorFeeTransactionData);
+    const paymentProcessorFeeTransaction = await Transaction.createDoubleEntry(paymentProcessorFeeTransactionData, {
+      sequelizeTransaction,
+    });
 
     // Reset the original processor fee because we're now accounting for this value in a separate set of transactions
     transaction.paymentProcessorFeeInHostCurrency = 0;
@@ -799,6 +864,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   static async createTaxTransactions(
     transaction: TransactionCreationAttributes,
     data: Record<string, unknown> | null = null,
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
   ): Promise<{
     /** The original transaction, potentially modified if a payment processor fees was set */
     transaction: TransactionCreationAttributes;
@@ -869,7 +935,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       data: { ...data, ...pick(transaction.data, ['tax']) },
     };
 
-    const taxTransaction = await Transaction.createDoubleEntry(taxTransactionData);
+    const taxTransaction = await Transaction.createDoubleEntry(taxTransactionData, { sequelizeTransaction });
 
     // For expenses, tax needs to be added on top
     // amount: -10000, taxAmount: -2000 -> amount: -12000, taxAmount: 0
@@ -884,13 +950,16 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     return { transaction, taxTransaction };
   }
 
-  static async createHostFeeShareTransactions({
-    transaction,
-    hostFeeTransaction,
-  }: {
-    transaction: Transaction | TransactionCreationAttributes;
-    hostFeeTransaction: Transaction;
-  }): Promise<{
+  static async createHostFeeShareTransactions(
+    {
+      transaction,
+      hostFeeTransaction,
+    }: {
+      transaction: Transaction | TransactionCreationAttributes;
+      hostFeeTransaction: Transaction;
+    },
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+  ): Promise<{
     hostFeeShareTransaction: Transaction;
     hostFeeShareDebtTransaction: Transaction;
   } | void> {
@@ -951,21 +1020,29 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       clearedAt: hostFeeTransaction.clearedAt || hostFeeTransaction.createdAt,
     };
 
-    const hostFeeShareTransaction = await Transaction.createDoubleEntry(hostFeeShareTransactionData);
+    const hostFeeShareTransaction = await Transaction.createDoubleEntry(hostFeeShareTransactionData, {
+      sequelizeTransaction,
+    });
 
     let hostFeeShareDebtTransaction;
     if (!transaction.data.isPlatformRevenueDirectlyCollected) {
-      hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions({ hostFeeShareTransaction });
+      hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
+        { hostFeeShareTransaction },
+        { sequelizeTransaction },
+      );
     }
 
     return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
   }
 
-  static async createHostFeeShareDebtTransactions({
-    hostFeeShareTransaction,
-  }: {
-    hostFeeShareTransaction: Transaction;
-  }): Promise<Transaction> {
+  static async createHostFeeShareDebtTransactions(
+    {
+      hostFeeShareTransaction,
+    }: {
+      hostFeeShareTransaction: Transaction;
+    },
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+  ): Promise<Transaction> {
     if (hostFeeShareTransaction.type === DEBIT) {
       throw new Error('createHostFeeShareDebtTransactions must be given a CREDIT transaction');
     }
@@ -999,11 +1076,17 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
       paymentProcessorFeeInHostCurrency: 0,
     };
 
-    const hostFeeShareDebtTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtTransactionData);
+    const hostFeeShareDebtTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtTransactionData, {
+      sequelizeTransaction,
+    });
 
     // Create settlement
     const settlementStatus = TransactionSettlementStatus.OWED;
-    await TransactionSettlement.createForTransaction(hostFeeShareDebtTransaction, settlementStatus);
+    await TransactionSettlement.createForTransaction(
+      hostFeeShareDebtTransaction,
+      settlementStatus,
+      sequelizeTransaction,
+    );
 
     return hostFeeShareDebtTransaction;
   }
@@ -1057,7 +1140,9 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     }
     if (!host) {
       // throw new Error(`transaction.HostCollectiveId should always bet set`);
-      console.warn(`transaction.HostCollectiveId should always bet set`);
+      reportMessageToSentry(`transaction.HostCollectiveId should always bet set`, {
+        extra: { transaction: transaction.info },
+      });
       const collective = await Collective.findByPk(transaction.CollectiveId);
       host = await collective.getHostCollective();
     }
@@ -1107,10 +1192,6 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
           return Activity.create(activityPayload, { transaction: options?.sequelizeTransaction });
         })
         .catch(err => {
-          console.error(
-            `Error creating activity of type ${activities.COLLECTIVE_TRANSACTION_CREATED} for transaction ID ${transaction.id}`,
-            err,
-          );
           reportErrorToSentry(err);
         })
     );

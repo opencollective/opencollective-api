@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
 import Channels from '../../constants/channels';
 import { CollectiveType } from '../../constants/collectives';
+import ExpenseType from '../../constants/expense-type';
 import PlatformConstants from '../../constants/platform';
 import MemberRoles from '../../constants/roles';
 import { TransactionKind } from '../../constants/transaction-kind';
@@ -104,16 +105,18 @@ export const notify = {
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions,
   ): Promise<void> {
+    const cleanUsersArray = compact(users); // Remove any possible null or empty user in the array
+    if (cleanUsersArray.length === 0) {
+      return;
+    }
+
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
-      UserId: users.map(u => (typeof u === 'number' ? u : u.id)),
+      UserId: cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id)),
       attributes: ['id'],
     });
-
-    // Remove any possible null or empty user in the array
-    const cleanUsersArray = compact(users);
 
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
@@ -122,7 +125,7 @@ export const notify = {
         ...options,
         isTransactional,
       });
-    } else if (cleanUsersArray.length > 0) {
+    } else {
       const queue = new PQueue({ concurrency: 50 });
       for (const userOrUserId of cleanUsersArray) {
         const isUserId = typeof userOrUserId === 'number';
@@ -139,8 +142,10 @@ export const notify = {
     }
   },
 
-  /** Notifies admins of Collective based on activity.CollectiveId, options.collective or options.collectiveId.
-   *  Alternatively, other roles can also be notified using options.role.
+  /**
+   * Notifies admins of Collective based on activity.CollectiveId, options.collective or options.collectiveId.
+   * Alternatively, other roles can also be notified using options.role.
+   * @returns The list of user IDs notified
    */
   async collective(
     activity: Partial<Activity>,
@@ -149,7 +154,7 @@ export const notify = {
       collectiveId?: number;
       role?: Array<roles>;
     },
-  ): Promise<void> {
+  ): Promise<number[]> {
     const collectiveId = options?.collectiveId || activity.CollectiveId;
     const collective = options?.collective || (await models.Collective.findByPk(collectiveId));
     const isVendor = collective?.type === CollectiveType.VENDOR;
@@ -159,7 +164,7 @@ export const notify = {
       if (email) {
         await emailLib.send(options?.template || activity.type, email, activity.data, options);
       }
-      return;
+      return [];
     }
 
     const role = options?.role || [roles.ADMIN];
@@ -176,6 +181,7 @@ export const notify = {
         });
 
     await notify.users(users, activity, { ...options, collective });
+    return users.map(user => user.id);
   },
 };
 
@@ -211,6 +217,10 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
     case ActivityTypes.USER_CARD_CLAIMED:
       await notify.user(activity);
+      break;
+
+    case ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED:
+      await notify.collective(activity);
       break;
 
     case ActivityTypes.TAXFORM_INVALIDATED:
@@ -390,11 +400,22 @@ export const notifyByEmail = async (activity: Activity) => {
       const notifyHostAdminsOnly = activity.data.comment.type === CommentType.PRIVATE_NOTE;
       const { collective } = await populateCommentActivity(activity);
       const HostCollectiveId = await collective.getHostCollectiveId();
+      const payeeCollectiveId = activity.data.expense?.FromCollectiveId;
+      const payee = payeeCollectiveId ? await models.Collective.findByPk(payeeCollectiveId) : null;
       if (HostCollectiveId) {
         const hostCollective = await models.Collective.findByPk(HostCollectiveId);
         activity.data.hostCollective = hostCollective.info;
       }
-      activity.data.expense = await models.Expense.findByPk(activity.ExpenseId);
+      if (collective.ParentCollectiveId) {
+        const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
+        activity.data.parentCollective = parentCollective.info;
+      }
+      if (payee) {
+        activity.data.payee = payee?.info;
+      }
+      activity.data.expense = await models.Expense.findByPk(activity.ExpenseId, {
+        include: [{ association: 'fromCollective' }],
+      });
       activity.data.expense = activity.data.expense.info;
       activity.data.UserId = activity.data.expense.UserId;
       activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
@@ -404,22 +425,32 @@ export const notifyByEmail = async (activity: Activity) => {
       };
 
       // Notify the admins of the host (if any)
+      const notifiedUserIds: Set<number> = new Set();
       if (HostCollectiveId) {
-        await notify.collective(activity, {
-          from: config.email.noReply,
-          collectiveId: HostCollectiveId,
-          exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
-          customEmailHeaders,
-        });
+        const host = await models.Collective.findByPk(HostCollectiveId);
+        if (host) {
+          const activityForHost = cloneDeep(activity);
+          activityForHost.data.recipientName = host.name || host.slug;
+          const notifiedHostAdminsUserIds = await notify.collective(activityForHost, {
+            from: config.email.noReply,
+            collectiveId: HostCollectiveId,
+            exclude: [activityForHost.UserId, activityForHost.data.UserId], // Don't notify the person who commented nor the expense author
+            customEmailHeaders,
+          });
+          notifiedHostAdminsUserIds.forEach(userId => notifiedUserIds.add(userId));
+        }
       }
 
       if (!notifyHostAdminsOnly) {
         // Notify the admins of the collective
-        await notify.collective(activity, {
+        const activityForCollective = cloneDeep(activity);
+        activityForCollective.data.recipientName = collective.name || collective.slug;
+        const notifiedCollectiveAdminsUserIds = await notify.collective(activityForCollective, {
           from: config.email.noReply,
           exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
           customEmailHeaders,
         });
+        notifiedCollectiveAdminsUserIds.forEach(userId => notifiedUserIds.add(userId));
 
         // Notify the author of the expense
         if (activity.UserId !== activity.data.UserId) {
@@ -428,6 +459,24 @@ export const notifyByEmail = async (activity: Activity) => {
             from: config.email.noReply,
             customEmailHeaders,
           });
+          notifiedUserIds.add(activity.data.UserId);
+        }
+
+        // Notify the payee
+        if (
+          payee &&
+          payee.type === CollectiveType.USER &&
+          payeeCollectiveId !== activity.FromCollectiveId // Payee is not the commenter
+        ) {
+          const user = await payee.getUser();
+          // Make sure payee hasn't been notified as part of other roles
+          if (user && !notifiedUserIds.has(payeeCollectiveId)) {
+            await notify.user(activity, {
+              user,
+              from: config.email.noReply,
+              customEmailHeaders,
+            });
+          }
         }
       }
 
@@ -484,19 +533,26 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_PAID:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      await notify.user(activity, {
-        from: config.email.noReply,
-        userId: activity.data.expense.UserId,
-      });
-      if (get(activity, 'data.host.id')) {
+
+      // Use dedicated template for platform billing expenses
+      if (activity.data.expense.type === ExpenseType.PLATFORM_BILLING) {
+        // Send platform billing payment confirmation to organization admins
         await notify.collective(activity, {
-          collectiveId: activity.data.host.id,
-          template: 'collective.expense.paid.for.host',
+          template: 'platform.billing.payment.confirmation',
         });
+      } else {
+        // Standard expense payment notification to the expense submitter
+        await notify.user(activity, {
+          from: config.email.noReply,
+          userId: activity.data.expense.UserId,
+        });
+        if (get(activity, 'data.host.id')) {
+          await notify.collective(activity, {
+            collectiveId: activity.data.host.id,
+            template: 'collective.expense.paid.for.host',
+          });
+        }
       }
       break;
 
@@ -586,29 +642,39 @@ export const notifyByEmail = async (activity: Activity) => {
         get(activity, 'data.host.id') === PlatformConstants.FiscalHostOSCCollectiveId
       ) {
         break;
+      } else if (!['COLLECTIVE', 'FUND'].includes(activity.data.collective.type)) {
+        break;
       }
+
       // Normal case
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
       break;
 
-    case ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST:
+    case ActivityTypes.ACTIVATED_MONEY_MANAGEMENT:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        template: 'activated.collective.as.host',
+        template: 'activated.moneyManagement',
       });
       break;
 
-    case ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT:
+    case ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        template: 'activated.collective.as.independent',
+        template: 'deactivated.moneyManagement',
       });
       break;
 
-    case ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST:
+    case ActivityTypes.ACTIVATED_HOSTING:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        template: 'deactivated.collective.as.host',
+        template: 'activated.hosting',
+      });
+      break;
+
+    case ActivityTypes.DEACTIVATED_HOSTING:
+      await notify.collective(activity, {
+        collectiveId: activity.data.collective.id,
+        template: 'deactivated.hosting',
       });
       break;
 

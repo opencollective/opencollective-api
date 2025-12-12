@@ -2,6 +2,7 @@ import { GraphQLIndividual } from '../object/Individual';
 
 import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
 import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
+import CommunityQuery from './collection/CommunityQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
@@ -23,10 +24,12 @@ import HostApplicationQuery from './HostApplicationQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
 import MemberInvitationsQuery from './MemberInvitationsQuery';
+import OffPlatformTransactionsInstitutionsQuery from './OffPlatformTransactionsInstitutionsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
+import platformSubscriptionTiers from './PlatformSubscriptionTiers';
 import ProjectQuery from './ProjectQuery';
 import SearchQuery from './SearchQuery';
 import TierQuery from './TierQuery';
@@ -44,6 +47,7 @@ const query = {
   application: ApplicationQuery,
   collective: CollectiveQuery,
   conversation: ConversationQuery,
+  community: CommunityQuery,
   currencyExchangeRate: CurrencyExchangeRateQuery,
   event: EventQuery,
   expense: ExpenseQuery,
@@ -74,6 +78,7 @@ const query = {
   virtualCardRequest: VirtualCardRequestQuery,
   virtualCardRequests: VirtualCardRequestsCollectionQuery,
   hostApplication: HostApplicationQuery,
+  offPlatformTransactionsInstitutions: OffPlatformTransactionsInstitutionsQuery,
   loggedInAccount: {
     type: GraphQLIndividual,
     resolve(_, args, req) {
@@ -94,6 +99,7 @@ const query = {
       }
     },
   },
+  platformSubscriptionTiers,
 };
 
 export default query;

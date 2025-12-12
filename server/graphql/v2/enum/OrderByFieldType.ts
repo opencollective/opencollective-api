@@ -8,11 +8,13 @@ export enum ORDER_BY_PSEUDO_FIELDS {
   HOST_RANK = 'HOST_RANK',
   RANK = 'RANK',
   HOSTED_COLLECTIVES_COUNT = 'HOSTED_COLLECTIVES_COUNT',
+  MONEY_MANAGED = 'MONEY_MANAGED',
   MEMBER_COUNT = 'MEMBER_COUNT',
   TOTAL_CONTRIBUTED = 'TOTAL_CONTRIBUTED',
   STARTS_AT = 'STARTS_AT',
   ENDS_AT = 'ENDS_AT',
   UNHOSTED_AT = 'UNHOSTED_AT',
+  LAST_TRANSACTION_CREATED_AT = 'LAST_TRANSACTION_CREATED_AT',
 }
 
 export const GraphQLOrderByFieldType = new GraphQLEnumType({
@@ -39,6 +41,13 @@ export const GraphQLOrderByFieldType = new GraphQLEnumType({
     },
     UNHOSTED_AT: {
       description: 'Order by the date the collective was unhosted',
+    },
+    MONEY_MANAGED: {
+      description: 'Order by the total amount managed by the Organization on the platform',
+    },
+    LAST_TRANSACTION_CREATED_AT: {
+      description:
+        'Order by the date of the last transaction. Using CollectiveTransactionStats.LatestTransactionCreatedAt.',
     },
   },
 });

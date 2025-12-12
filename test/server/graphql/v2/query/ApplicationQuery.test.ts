@@ -23,7 +23,7 @@ const applicationQuery = gql`
   }
 `;
 
-describe('server/graphql/v2/query/AccountQuery', () => {
+describe('server/graphql/v2/query/ApplicationQuery', () => {
   let userOwningTheToken, application, userToken;
 
   before(async () => {

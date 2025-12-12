@@ -25,6 +25,7 @@
 | GRAPHQL_CACHE_TTL                             | .graphql.cache.ttl                                 | GraphQL cache TTL                                                                  |
 | GRAPHQL_CACHE_MIN_EXECUTION_TIME_TO_CACHE     | .graphql.cache.minExecutionTimeToCache             | Minimum execution time to cache GraphQL queries                                    |
 | GRAPHQL_ERROR_DETAILED                        | .graphql.error.detailed                            | Enable detailed GraphQL errors                                                     |
+| GRAPHQL_REJECT_ON_MAX_COMPLEXITY              | .graphql.rejectOnMaxComplexity                     | Whether to throw an error when the query exceeds max complexity                    |
 | GRAPHQL_RESOLVER_TIME_DEBUG                   | .graphql.resolverTimeDebugWarning                  | Enable GraphQL resolver time debug warnings                                        |
 | MEMCACHE_SERVERS                              | .memcache.servers                                  | Memcache servers                                                                   |
 | MEMCACHE_USERNAME                             | .memcache.username                                 | Memcache username                                                                  |
@@ -42,6 +43,10 @@
 | ACCESS_LOGS                                   | .log.accessLogs                                    | Enable access logs                                                                 |
 | SLOW_REQUEST                                  | .log.slowRequest                                   | Enable slow request logging                                                        |
 | SLOW_REQUEST_THRESHOLD                        | .log.slowRequestThreshold                          | Slow request threshold                                                             |
+| LOG_SLOW_MIDDLEWARE                           | .log.slowMiddleware                                | Enable slow middleware logging                                                     |
+| LOG_SLOW_MIDDLEWARE_THRESHOLD                 | .log.slowMiddlewareThreshold                       | Slow middleware threshold (in milliseconds)                                        |
+| GOCARDLESS_SECRET_ID                          | .gocardless.secretId                               | GoCardless secret ID                                                               |
+| GOCARDLESS_SECRET_KEY                         | .gocardless.secretKey                              | GoCardless secret key                                                              |
 | PLAID_CLIENT_ID                               | .plaid.clientId                                    | Plaid client ID                                                                    |
 | PLAID_SECRET                                  | .plaid.secret                                      | Plaid secret                                                                       |
 | PLAID_ENV                                     | .plaid.env                                         | Plaid environment                                                                  |
@@ -79,7 +84,7 @@
 | IMAGES_URL                                    | .host.images                                       | Images URL                                                                         |
 | FRONTEND_URL                                  | .host.frontend                                     | URL of the frontend service                                                        |
 | WEBSITE_URL                                   | .host.website                                      | Website URL                                                                        |
-| PDF_SERVICE_V2_URL                            | .host.pdfV2                                        | PDF service V2 URL                                                                 |
+| PDF_SERVICE_URL                               | .host.pdf                                          | PDF service V2 URL                                                                 |
 | REST_URL                                      | .host.rest                                         | REST service URL                                                                   |
 | ORDERS_LIMIT_ACCOUNT                          | .limits.ordersPerHour.perAccount                   | Orders limit per account                                                           |
 | ORDERS_LIMIT_ACCOUNT_COLLECTIVE               | .limits.ordersPerHour.perAccountForCollective      | Orders limit per account for collective                                            |
@@ -91,6 +96,7 @@
 | ORDERS_LIMIT_SKIP_CLEAN_SLUGS                 | .limits.skipCleanOrdersLimitSlugs                  | Skip clean orders limit slugs                                                      |
 | ORDERS_LIMIT_ENABLED_MASKS                    | .limits.enabledMasks                               | Enabled masks for orders limit                                                     |
 | SLACK_WEBHOOK_ABUSE                           | .slack.webhooks.abuse                              | Slack abuse webhook URL                                                            |
+| SLACK_WEBHOOK_ENGINEERING_ALERTS              | .slack.webhooks.engineeringAlerts                  | Slack engineering alerts webhook URL                                               |
 | GITHUB_CLIENT_ID                              | .github.clientID                                   | GitHub client ID                                                                   |
 | GITHUB_CLIENT_SECRET                          | .github.clientSecret                               | GitHub client secret                                                               |
 | FIXER_ACCESS_KEY                              | .fixer.accessKey                                   | Fixer access key                                                                   |
@@ -146,9 +152,6 @@
 | FRAUD_PROTECTION_SUSPEND_ASSET                | .fraud.enforceSuspendedAsset                       | Enforce suspended asset for fraud protection                                       |
 | GITBOOK_API_KEY                               | .gitbook.apiKey                                    | GitBook API key                                                                    |
 | OPENTELEMETRY_ENABLED                         | .opentelemetry.enabled                             | Enable OpenTelemetry                                                               |
-| STATSD_ENABLED                                | .statsd.enabled                                    | Enable StatsD                                                                      |
-| STATSD_URL                                    | .statsd.url                                        | StatsD URL                                                                         |
-| STATSD_PORT                                   | .statsd.port                                       | StatsD port                                                                        |
-| STATSD_PREFIX                                 | .statsd.prefix                                     | StatsD prefix                                                                      |
 | FEATURES_DASHBOARD_REDIRECT                   | .features.dashboard.redirect                       | Dashboard redirect feature                                                         |
 | SETTLEMENT_MINIMUM_AMOUNT_IN_USD              | .settlement.minimumAmountInUSD                     | Minimum settlement amount in USD                                                   |
+| NEW_PRICING                                   | .features.newPricing                               | New pricing feature                                                                |

@@ -7,7 +7,7 @@ import PlatformConstants from '../../../../../server/constants/platform';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import models from '../../../../../server/models';
 import { plaidItemPublicTokenExchangeResponse, plaidLinkTokenCreateResponse } from '../../../../mocks/plaid';
-import { fakeActiveHost, fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakePlatformSubscription, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/PlaidMutations', () => {
@@ -57,12 +57,16 @@ describe('server/graphql/v2/mutation/PlaidMutations', () => {
         remoteUser,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You do not have permission to connect a Plaid account');
+      expect(result.errors[0].message).to.equal('Off-platform transactions are not enabled for this account');
     });
 
     it('should generate a Plaid Link token', async () => {
       const remoteUser = await fakeUser({ data: { isRoot: true } });
       const host = await fakeActiveHost({ admin: remoteUser });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { OFF_PLATFORM_TRANSACTIONS: true } },
+      });
       await platform.addUserWithRole(remoteUser, 'ADMIN');
       const result = await graphqlQueryV2(
         GENERATE_PLAID_LINK_TOKEN_MUTATION,

@@ -1,8 +1,10 @@
 import assert from 'assert';
 
 import { get, groupBy, memoize, round, set, sumBy, truncate, uniq } from 'lodash';
-import { Order } from 'sequelize';
+import { Order, Transaction as SequelizeTransaction } from 'sequelize';
+import Stripe from 'stripe';
 
+import { SupportedCurrency } from '../constants/currencies';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
 import TierType from '../constants/tiers';
@@ -18,6 +20,7 @@ import Tier from '../models/Tier';
 import Transaction, { TransactionData } from '../models/Transaction';
 
 import { getFxRate } from './currency';
+import { calcFee } from './payments';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { ADDED_FUNDS, CONTRIBUTION, EXPENSE } = TransactionKind;
@@ -126,6 +129,9 @@ export const computeExpenseAmounts = async (
   fees: FEES_IN_HOST_CURRENCY,
 ) => {
   const fxRates = { expenseToHost: expenseToHostFxRate, collectiveToHost: undefined, expenseToCollective: undefined };
+  if (expense.data?.expenseToPayoutMethodExchangeRate) {
+    fxRates['expenseToPayoutMethod'] = expense.data.expenseToPayoutMethodExchangeRate;
+  }
 
   // Adapt all FX rates based on what we received from the provider
   if (expense.collective.currency === hostCurrency) {
@@ -137,8 +143,14 @@ export const computeExpenseAmounts = async (
     // Or the expense has the same currency as its collective and we need to convert it to the host currency
     fxRates.collectiveToHost = expenseToHostFxRate;
     fxRates.expenseToCollective = 1;
-  } else {
-    // Or we're in a tricky situation where we have neither the currency of the host or the currency of the collective
+  }
+  // Or we're in a tricky situation where we have neither the currency of the host or the currency of the collective
+  else {
+    // TODO: Multi-currency expenses where the expense currency is different from both the collective
+    // and the host currency are not supported yet
+    // fxRates.collectiveToHost = await getFxRate(expense.collective.currency, hostCurrency as SupportedCurrency);
+    // fxRates.expenseToCollective = await getFxRate(expense.currency, expense.collective.currency as SupportedCurrency);
+    // fxRates.expenseToHost = await getFxRate(expense.currency, hostCurrency as SupportedCurrency);
     throw new Error(
       'Multi-currency expenses are not supported for collectives that have a different currency than their hosts',
     );
@@ -176,6 +188,72 @@ export const computeExpenseAmounts = async (
   };
 };
 
+export async function createTransactionsFromPaidStripeExpense(
+  expense: Expense,
+  balanceTransaction: Stripe.BalanceTransaction,
+  charge: Stripe.Charge,
+  { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+) {
+  const paymentMethod = await expense.getPaymentMethod({ transaction: sequelizeTransaction });
+  const payee =
+    expense.fromCollective ||
+    (await Collective.findByPk(expense.FromCollectiveId, { transaction: sequelizeTransaction }));
+
+  // host in this context is the host of the collective getting paid for the expense.
+  // expense.HostCollectiveId -> host of the collective paying the expense.
+  // expense.fromCollectiveId.HostCollectiveId -> host of the payee (receiving the expense money).
+  const payeeHost =
+    payee.host || (await Collective.findByPk(payee.HostCollectiveId, { transaction: sequelizeTransaction }));
+
+  const balanceTransactionToPayeeCurrencyRate = await getFxRate(
+    balanceTransaction.currency as SupportedCurrency,
+    payee.currency,
+    new Date(),
+  );
+
+  const balanceTransactionToHostCurrencyRate = await getFxRate(
+    balanceTransaction.currency.toUpperCase() as SupportedCurrency,
+    payeeHost.currency,
+  );
+
+  const hostFeeInHostCurrency =
+    calcFee(balanceTransaction.amount - balanceTransaction.fee, payee.hostFeePercent || 0) *
+    balanceTransactionToHostCurrencyRate;
+  const data = {
+    charge,
+    feesPayer: 'PAYEE' as const,
+  };
+
+  const transaction = {
+    netAmountInCollectiveCurrency:
+      (balanceTransaction.amount - balanceTransaction.fee) * balanceTransactionToPayeeCurrencyRate,
+    amountInHostCurrency: balanceTransaction.amount * balanceTransactionToHostCurrencyRate,
+    hostCurrency: payeeHost.currency,
+    hostCurrencyFxRate: balanceTransactionToHostCurrencyRate / balanceTransactionToPayeeCurrencyRate,
+    paymentProcessorFeeInHostCurrency: toNegative(balanceTransaction.fee),
+    hostFeeInHostCurrency,
+    platformFeeInHostCurrency: 0,
+    ExpenseId: expense.id,
+    type: CREDIT,
+    kind: EXPENSE,
+    amount: balanceTransactionToPayeeCurrencyRate * balanceTransaction.amount,
+    currency: payee.currency,
+    description: expense.description,
+    CreatedByUserId: expense.UserId,
+    CollectiveId: expense.FromCollectiveId,
+    FromCollectiveId: expense.CollectiveId,
+    HostCollectiveId: payeeHost.id,
+    PaymentMethodId: paymentMethod?.id,
+    PaymentMethod: paymentMethod,
+    PayoutMethodId: expense.PayoutMethodId,
+    taxAmount: 0,
+    clearedAt: new Date(balanceTransaction.available_on),
+    data,
+  };
+
+  return await models.Transaction.createDoubleEntry(transaction, { sequelizeTransaction });
+}
+
 /**
  * A function to create transactions for a given expense that is agnostic of the payout method
  *
@@ -190,10 +268,11 @@ export async function createTransactionsFromPaidExpense(
   expenseToHostFxRateConfig: number | 'auto',
   /** Will be stored in transaction.data */
   transactionData: TransactionData & { clearedAt?: Date } = null,
+  { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
 ) {
   fees = { ...DEFAULT_FEES, ...fees };
   if (!expense.collective) {
-    expense.collective = await models.Collective.findByPk(expense.CollectiveId);
+    expense.collective = await models.Collective.findByPk(expense.CollectiveId, { transaction: sequelizeTransaction });
   }
 
   // Use the supplied FX rate or fetch a new one for the time of payment
@@ -212,7 +291,7 @@ export async function createTransactionsFromPaidExpense(
     };
   }
 
-  const paymentMethod = await expense.getPaymentMethod();
+  const paymentMethod = await expense.getPaymentMethod({ transaction: sequelizeTransaction });
   const { clearedAt, ...data } = transactionData || {};
 
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
@@ -248,6 +327,7 @@ export async function createTransactionsFromPaidExpense(
     data: {
       ...data,
       ...expenseDataForTransaction,
+      fxRates: processedAmounts.fxRates,
     },
   };
 
@@ -258,10 +338,10 @@ export async function createTransactionsFromPaidExpense(
     transaction.amount += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
     transaction.amountInHostCurrency += processedAmounts.paymentProcessorFee.inHostCurrency;
     transaction.netAmountInCollectiveCurrency += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
-    transaction.data = set(transaction.data || {}, 'feesPayer', 'PAYEE');
+    transaction.data['feesPayer'] = 'PAYEE';
   }
 
-  return models.Transaction.createDoubleEntry(transaction);
+  return models.Transaction.createDoubleEntry(transaction, { sequelizeTransaction });
 }
 
 export async function createTransactionsForManuallyPaidExpense(

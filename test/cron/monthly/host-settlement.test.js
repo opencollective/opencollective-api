@@ -3,14 +3,18 @@ import moment from 'moment';
 import sinon, { useFakeTimers } from 'sinon';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import PlatformConstants, { PLATFORM_MIGRATION_DATE } from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { createRefundTransaction } from '../../../server/lib/payments';
 import { getTaxesSummary } from '../../../server/lib/transactions';
 import models, { sequelize } from '../../../server/models';
+import { ExpenseType } from '../../../server/models/Expense';
+import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeConnectedAccount,
+  fakeExpense,
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
@@ -25,7 +29,14 @@ import * as utils from '../../utils';
 describe('cron/monthly/host-settlement', () => {
   const lastMonth = moment.utc().subtract(1, 'month').startOf('month');
 
-  let gbpHost, eurHost, eurCollective, gphHostSettlementExpense, eurHostSettlementExpense;
+  let gbpHost,
+    eurHost,
+    newHost,
+    eurCollective,
+    gphHostSettlementExpense,
+    eurHostSettlementExpense,
+    newHostSettlementExpense,
+    ocStripePayoutMethod;
 
   before(async () => {
     await utils.resetTestDB();
@@ -35,6 +46,8 @@ describe('cron/monthly/host-settlement', () => {
       slug: randStr('platform-'),
       CreatedByUserId: user.id,
     });
+    await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+    ocStripePayoutMethod = (await oc.getPayoutMethods()).find(pm => pm.type === PayoutMethodTypes.STRIPE);
 
     // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
     await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
@@ -49,10 +62,11 @@ describe('cron/monthly/host-settlement', () => {
       CollectiveId: oc.id,
       type: 'BANK_ACCOUNT',
     };
-    await fakePayoutMethod({
+    const defaultBankAccountPayoutMethod = await fakePayoutMethod({
       ...payoutProto,
       id: 2955,
     });
+
     await fakePayoutMethod({
       ...payoutProto,
       id: 2956,
@@ -67,6 +81,19 @@ describe('cron/monthly/host-settlement', () => {
       data: { plan: { pricePerCollective: 100 } },
     });
     await fakeConnectedAccount({ CollectiveId: gbpHost.id, service: 'transferwise' });
+    const gbpHostBankPaymentMethod = await fakePaymentMethod({
+      type: PAYMENT_METHOD_TYPE.BANK_TRANSFER,
+      service: PAYMENT_METHOD_SERVICE.WISE,
+      CollectiveId: gbpHost.id,
+    });
+    await fakeExpense({
+      CollectiveId: gbpHost.id,
+      FromCollectiveId: oc.id,
+      type: ExpenseType.SETTLEMENT,
+      status: 'PAID',
+      PayoutMethodId: defaultBankAccountPayoutMethod.id,
+      PaymentMethodId: gbpHostBankPaymentMethod.id,
+    });
 
     const socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
     const transactionProps = {
@@ -217,6 +244,7 @@ describe('cron/monthly/host-settlement', () => {
       settings: { VAT: { type: 'OWN' } },
       admin: eurHostAdmin,
     });
+    await fakeConnectedAccount({ CollectiveId: eurHost.id, service: 'transferwise' });
 
     eurCollective = await fakeCollective({
       HostCollectiveId: eurHost.id,
@@ -241,6 +269,24 @@ describe('cron/monthly/host-settlement', () => {
     await order.markAsPaid(eurHostAdmin);
     clock.restore();
 
+    const newHostAdmin = await fakeUser();
+    newHost = await fakeHost({
+      name: 'new-host',
+      admin: newHostAdmin,
+    });
+    clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] }); // Manually setting today's date
+    const newOrder = await fakeOrder({
+      description: 'Contribution with tip + host fee',
+      CollectiveId: newHost.id,
+      currency: 'USD',
+      status: 'PENDING',
+      platformTipAmount: 300e2,
+      taxAmount: 210e2,
+      totalAmount: 1510e2,
+    });
+    await newOrder.markAsPaid(newHostAdmin);
+    clock.restore();
+
     // ---- Trigger settlement ----
     await invoicePlatformFees();
 
@@ -250,11 +296,19 @@ describe('cron/monthly/host-settlement', () => {
     eurHostSettlementExpense = (await eurHost.getExpenses())[0];
     expect(eurHostSettlementExpense).to.exist;
     eurHostSettlementExpense.items = await eurHostSettlementExpense.getItems();
+
+    newHostSettlementExpense = (await newHost.getExpenses())[0];
+    expect(newHostSettlementExpense).to.exist;
+    newHostSettlementExpense.items = await newHostSettlementExpense.getItems();
   });
 
   // Resync DB to make sure we're not touching other tests
   after(async () => {
     await utils.resetTestDB();
+  });
+
+  it('should use stripe payout method by default for new host', () => {
+    expect(newHostSettlementExpense).to.have.property('PayoutMethodId', ocStripePayoutMethod.id);
   });
 
   it('should invoice the host in its own currency', () => {

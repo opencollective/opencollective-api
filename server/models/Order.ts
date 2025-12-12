@@ -85,6 +85,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare data: {
     hostFeePercent?: number;
     paymentProcessorFee?: number;
+    paymentProcessorFeeInHostCurrency?: number;
     memo?: string;
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
@@ -98,6 +99,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     isBalanceTransfer?: boolean;
     isGuest?: boolean;
     isPendingContribution?: boolean;
+    isManualContribution?: boolean;
     closedReason?: string;
     taxRemovedFromMigration?: OrderTax;
     taxAmountRemovedFromMigration?: number;
@@ -114,6 +116,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     };
     platformTip?: number;
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
+    reqIp?: string;
   };
 
   declare taxAmount?: number;

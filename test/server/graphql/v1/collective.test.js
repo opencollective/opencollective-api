@@ -20,7 +20,7 @@ import {
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-const collectiveQuery = gqlV1/* GraphQL */ `
+const collectiveQuery = gqlV1 /* GraphQL */ `
   query Collective($slug: String) {
     Collective(slug: $slug) {
       id
@@ -36,7 +36,7 @@ describe('server/graphql/v1/collective', () => {
 
   it('should display a nice error message if collective is not found', async () => {
     // Given the following query
-    const collectiveQuery = gqlV1/* GraphQL */ `
+    const collectiveQuery = gqlV1 /* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug) {
           id
@@ -53,7 +53,7 @@ describe('server/graphql/v1/collective', () => {
 
   it("won't generate an error if told not to", async () => {
     // Given the following query
-    const collectiveQuery = gqlV1/* GraphQL */ `
+    const collectiveQuery = gqlV1 /* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug, throwIfMissing: false) {
           id
@@ -118,7 +118,7 @@ describe('server/graphql/v1/collective', () => {
     }
 
     // When the following query is executed
-    const collectiveQuery = gqlV1/* GraphQL */ `
+    const collectiveQuery = gqlV1 /* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug) {
           id
@@ -231,7 +231,7 @@ describe('server/graphql/v1/collective', () => {
     await event.update({ type: 'EVENT', ParentCollectiveId: collective.id });
 
     // When the following query is executed
-    const query = gqlV1/* GraphQL */ `
+    const query = gqlV1 /* GraphQL */ `
       query Collective($slug: String) {
         Collective(slug: $slug) {
           slug
@@ -254,130 +254,6 @@ describe('server/graphql/v1/collective', () => {
     expect(result.data.Collective.host.slug).to.equal(hostCollective.slug);
     expect(result.data.Collective.path).to.equal('/brusselstogether-collective/events/meetup-5');
     expect(result.data.Collective.host.path).to.equal('/brusselstogether');
-  });
-
-  it('gets the expense stats across all hosted collectives', async () => {
-    // Given a user
-    const { user } = await store.newUser('user');
-    await user.populateRoles();
-    // And given a host
-    const { hostCollective } = await store.newHost('brusselstogether', 'EUR', 5);
-    // And given two collectives under the above host
-    const { collective } = await store.newCollectiveInHost('brusselstogether collective', 'EUR', hostCollective, null, {
-      isActive: true,
-    });
-    const { veganizerbxl } = await store.newCollectiveInHost('veganizerbxl', 'EUR', hostCollective, null, {
-      isActive: true,
-    });
-
-    // And given a helper to create data for expenses
-    const d = (amount, description, cid) => ({
-      amount,
-      description,
-      currency: 'EUR',
-      legacyPayoutMethod: 'manual',
-      collective: { id: cid },
-      items: [{ url: store.randUrl(), amount }],
-    });
-
-    // And given that we add some expenses to brussels together:
-    await store.createPaidExpense(user, d(2000, 'Pizza', collective.id));
-    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
-    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
-    await store.createPaidExpense(user, d(1000, 'Lunch', collective.id));
-    await store.createPaidExpense(user, d(2000, 'Tickets', collective.id));
-    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
-    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
-    await store.createRejectedExpense(user, d(50000, '10 T-Shirts', collective.id));
-
-    // And given that we add some expenses for the collective veganizerbxl
-    await store.createPaidExpense(user, d(2000, 'Vegan Pizza', veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, 'Vegan Lunch', veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, 'Vegan Lunch', veganizerbxl.id));
-    await store.createPaidExpense(user, d(1000, 'Vegan Treats', veganizerbxl.id));
-    await store.createPaidExpense(user, d(2000, 'Tickets', veganizerbxl.id));
-    await store.createApprovedExpense(user, d(50000, 'Vegan stuff', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan thing', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan biscuit', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan stuff', veganizerbxl.id));
-    await store.createRejectedExpense(user, d(50000, 'Non vegan t-shirts', veganizerbxl.id));
-
-    // When the following query is executed
-    const collectiveQuery = gqlV1/* GraphQL */ `
-      query Collective($slug: String) {
-        Collective(slug: $slug) {
-          id
-          slug
-          stats {
-            collectives {
-              all
-              hosted
-              memberOf
-            }
-            expenses {
-              pending
-              approved
-              paid
-            }
-          }
-          collectives {
-            total
-            collectives {
-              id
-              slug
-              stats {
-                expenses {
-                  all
-                  paid
-                  pending
-                  rejected
-                  approved
-                }
-              }
-            }
-          }
-        }
-      }
-    `;
-
-    const result = await utils.graphqlQuery(collectiveQuery, {
-      slug: 'brusselstogether',
-    });
-    result.errors && console.error(result.errors);
-    expect(result.errors).to.not.exist;
-
-    const collectives = result.data.Collective.collectives.collectives;
-    expect(result.data.Collective.stats.collectives.all).to.equal(2);
-    expect(result.data.Collective.stats.collectives.hosted).to.equal(2);
-    expect(result.data.Collective.stats.collectives.memberOf).to.equal(0);
-    expect(collectives.sort((a, b) => a.id - b.id)).to.deep.equal([
-      {
-        id: collective.id,
-        slug: 'brusselstogether-collective',
-        stats: {
-          expenses: {
-            all: 8,
-            paid: 5,
-            pending: 0,
-            rejected: 3,
-            approved: 0,
-          },
-        },
-      },
-      {
-        id: veganizerbxl.id,
-        slug: 'veganizerbxl',
-        stats: {
-          expenses: {
-            all: 10,
-            paid: 5,
-            pending: 0,
-            rejected: 4,
-            approved: 1,
-          },
-        },
-      },
-    ]);
   });
 
   it('gets the members by type with stats, transactions and orders', async () => {
@@ -452,7 +328,7 @@ describe('server/graphql/v1/collective', () => {
     });
 
     // When the query is performed
-    const collectiveQuery = gqlV1/* GraphQL */ `
+    const collectiveQuery = gqlV1 /* GraphQL */ `
       query Collective($slug: String, $type: String) {
         Collective(slug: $slug) {
           members(type: $type, limit: 10, offset: 0) {
@@ -544,7 +420,7 @@ describe('server/graphql/v1/collective', () => {
   });
 
   describe('allMembers query', () => {
-    const allMembersQuery = gqlV1/* GraphQL */ `
+    const allMembersQuery = gqlV1 /* GraphQL */ `
       query AllMembers(
         $collectiveSlug: String
         $memberCollectiveSlug: String
@@ -817,7 +693,7 @@ describe('server/graphql/v1/collective', () => {
         .withArgs('USD', 'EUR')
         .resolves(1 / 1.1);
 
-      const query = gqlV1/* GraphQL */ `
+      const query = gqlV1 /* GraphQL */ `
         query TotalCollectiveContributions($slug: String, $type: String) {
           Collective(slug: $slug) {
             id
@@ -864,7 +740,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('edits legalName', async () => {
       const user = await fakeUser();
-      const editCollectiveMutation = gqlV1/* GraphQL */ `
+      const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -880,7 +756,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('edits social links', async () => {
       const user = await fakeUser();
-      const editCollectiveMutation = gqlV1/* GraphQL */ `
+      const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -938,7 +814,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('updates social links', async () => {
       const user = await fakeUser();
-      const editCollectiveMutation = gqlV1/* GraphQL */ `
+      const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -1006,7 +882,7 @@ describe('server/graphql/v1/collective', () => {
         HostCollectiveId: hostCollective.id,
       };
 
-      const editCollectiveMutation = gqlV1/* GraphQL */ `
+      const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -1031,7 +907,7 @@ describe('server/graphql/v1/collective', () => {
 
     it('check edit activity is created after', async () => {
       const user = await fakeUser(null, { legalName: 'Old Legal Name' });
-      const editCollectiveMutation = gqlV1/* GraphQL */ `
+      const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
@@ -1057,7 +933,7 @@ describe('server/graphql/v1/collective', () => {
     });
   });
   describe('edits member public message', () => {
-    const editPublicMessageMutation = gqlV1/* GraphQL */ `
+    const editPublicMessageMutation = gqlV1 /* GraphQL */ `
       mutation EditPublicMessage($fromCollectiveId: Int!, $collectiveId: Int!, $message: String) {
         editPublicMessage(FromCollectiveId: $fromCollectiveId, CollectiveId: $collectiveId, message: $message) {
           id
@@ -1205,7 +1081,7 @@ describe('server/graphql/v1/collective', () => {
   });
 
   describe('contributors', () => {
-    const contributorsQuery = gqlV1/* GraphQL */ `
+    const contributorsQuery = gqlV1 /* GraphQL */ `
       query Collective($slug: String!) {
         Collective(slug: $slug) {
           id

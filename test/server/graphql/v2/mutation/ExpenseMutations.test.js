@@ -8,6 +8,7 @@ import speakeasy from 'speakeasy';
 
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
+import FEATURE from '../../../../../server/constants/feature';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -40,6 +41,7 @@ import {
   fakeOrganization,
   fakePaymentMethod,
   fakePayoutMethod,
+  fakePlatformSubscription,
   fakeRecurringExpense,
   fakeTransaction,
   fakeTransactionsImport,
@@ -502,23 +504,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
-    });
-
-    it('automatically approves if host admin submits as VENDOR to the host', async () => {
-      const hostAdmin = await fakeUser();
-      const host = await fakeActiveHost({ admin: hostAdmin });
-      const vendor = await fakeCollective({ type: 'VENDOR', ParentCollectiveId: host.id });
-      const expenseData = { ...getValidExpenseData(), payee: { legacyId: vendor.id } };
-
-      const result = await graphqlQueryV2(
-        createExpenseMutation,
-        { expense: expenseData, account: { legacyId: host.id } },
-        hostAdmin,
-      );
-
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.createExpense.status).to.equal('APPROVED');
     });
 
     it('does not automatically approves if host admin submits as VENDOR to a collective', async () => {
@@ -1521,6 +1506,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const collectiveAdmin = await fakeUser();
         await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
         const newAccountingCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
           kind: 'EXPENSE',
@@ -1553,6 +1542,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       it('can reset the accounting category by passing null', async () => {
         const expense = await fakeExpense({ status: 'APPROVED' });
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
         const accountingCategory = await fakeAccountingCategory({ CollectiveId: expense.collective.HostCollectiveId });
         await expense.update({ AccountingCategoryId: accountingCategory.id });
         const result = await graphqlQueryV2(
@@ -1573,6 +1566,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const expense = await fakeExpense({ status: 'APPROVED' });
         await expense.collective.addUserWithRole(collectiveAdmin, 'ADMIN');
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
 
         const initialCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
@@ -1627,6 +1624,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const hostAdmin = await fakeUser();
         const expense = await fakeExpense({ status: 'APPROVED' });
         await expense.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+        await fakePlatformSubscription({
+          CollectiveId: expense.collective.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
 
         const initialCategory = await fakeAccountingCategory({
           CollectiveId: expense.collective.HostCollectiveId,
@@ -1674,6 +1675,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           status: 'APPROVED',
           CollectiveId: collective.id,
           HostCollectiveId: host.id,
+        });
+        await fakePlatformSubscription({
+          CollectiveId: expense.HostCollectiveId,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
         });
         const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
         const result = await graphqlQueryV2(
@@ -1923,6 +1928,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const adminUser = await fakeUser();
         const host = await fakeActiveHost();
         const collective = await fakeCollective({ admin: adminUser.collective, HostCollectiveId: host.id });
+        await fakePlatformSubscription({
+          CollectiveId: host.id,
+          plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+        });
         const expense = await fakeExpense({ data: { valuesByRole: null }, CollectiveId: collective.id });
         const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'EXPENSE' });
         const updatedExpenseData = {
@@ -3634,16 +3643,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       await seedDefaultVendors();
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeCollective({
+      host = await fakeActiveHost({
         name: 'OSC',
         admin: hostAdmin.collective,
-        plan: 'network-host-plan',
         currency: 'USD',
+        settings: { features: { paypalPayouts: true } },
+      });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { [FEATURE.PAYPAL_PAYOUTS]: true, [FEATURE.TRANSFERWISE]: true } },
       });
       collective = await fakeCollective({
         name: 'Babel',
         HostCollectiveId: host.id,
-        admin: collectiveAdmin.collective,
+        admin: collectiveAdmin,
         currency: 'USD',
       });
       await hostAdmin.populateRoles();
@@ -3984,7 +3997,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const host = await fakeCollective({
           name: 'OC EU',
           admin: hostAdmin.collective,
-          plan: 'network-host-plan',
           currency: 'EUR',
         });
         const collective = await fakeCollective({
@@ -4146,14 +4158,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
           // Updates the collective balance and pay the expense
           const estimatedPayPalFees = 1000;
-          await fakeTransaction({
-            type: 'CREDIT',
-            CollectiveId: collective.id,
-            amount: expense.amount + estimatedPayPalFees,
-          });
+          await addFunds(fromUser, host, collective, expense.amount + estimatedPayPalFees);
 
           const mutationParams = { expenseId: expense.id, action: 'PAY' };
           const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+
           expect(callPaypal.firstCall.args[0]).to.equal('pay');
           expect(callPaypal.firstCall.args[1].currencyCode).to.equal(expense.currency);
           expect(callPaypal.firstCall.args[1].memo).to.include('Reimbursement from');
@@ -5291,13 +5300,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       hostAdmin = await fakeUser();
       user = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeCollective({
+      host = await fakeActiveHost({
         admin: hostAdmin.collective,
         settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 50000 } },
       });
+      await fakePlatformSubscription({
+        CollectiveId: host.id,
+        plan: { features: { [FEATURE.PAYPAL_PAYOUTS]: true, [FEATURE.TRANSFERWISE]: true } },
+      });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
       await hostAdmin.populateRoles();
-      await host.update({ plan: 'network-host-plan' });
       await addFunds(user, host, collective, 15000000);
       await fakeConnectedAccount({
         CollectiveId: host.id,
@@ -5398,6 +5410,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
       });
 
+      result1.errors && console.error(result1.errors);
       expect(result1.errors).to.not.exist;
       expect(result1.data.processExpense.status).to.eq('PROCESSING');
 
@@ -5604,7 +5617,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const expenseInput = cloneDeep(invoice);
       expenseInput.items[0].url = expenseExpenseItemUploadedFile.url;
       expenseInput.invoiceFile = { url: invoiceUploadedFile.url };
-      console.log('expenseInput', expenseInput);
       const result = await graphqlQueryV2(
         draftExpenseAndInviteUserMutation,
         { expense: expenseInput, account: { legacyId: collective.id } },

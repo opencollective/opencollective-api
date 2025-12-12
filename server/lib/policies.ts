@@ -1,15 +1,7 @@
-import { get, isUndefined } from 'lodash';
+import { get } from 'lodash';
 
 import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 import { Collective, User } from '../models';
-
-export const hasPolicy = async (collective, policy: POLICIES): Promise<boolean> => {
-  let account = collective;
-  if (collective?.ParentCollectiveId) {
-    account = await collective.getParentCollective();
-  }
-  return !isUndefined(get(account, ['data', 'policies', policy]));
-};
 
 export const getPolicy = async <T extends POLICIES>(
   collective,

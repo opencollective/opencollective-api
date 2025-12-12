@@ -32,7 +32,7 @@ import sequelize from '../../../lib/sequelize';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
-import models, { Collective, Op, TransactionsImportRow } from '../../../models';
+import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
@@ -58,6 +58,7 @@ import {
 } from '../enum';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
+import GraphQLHostContext from '../enum/HostContext';
 import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
@@ -90,6 +91,10 @@ import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInp
 import { GraphQLTransactionsImportRowOrderInput } from '../input/TransactionsImportRowOrderInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
+import {
+  AccountWithPlatformSubscriptionFields,
+  GraphQLAccountWithPlatformSubscription,
+} from '../interface/AccountWithPlatformSubscription';
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
@@ -99,6 +104,7 @@ import { GraphQLHostExpensesReports } from './HostExpensesReport';
 import { GraphQLHostMetrics } from './HostMetrics';
 import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
+import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPaymentMethod } from './PaymentMethod';
@@ -140,13 +146,21 @@ const getTimeUnit = numberOfDays => {
 export const GraphQLHost = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
-  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions, GraphQLAccountWithPlatformSubscription],
   // Due to overlap between our Organization and Host types, we cannot use isTypeOf here
   // isTypeOf: account => account.isHostAccount,
   fields: () => {
     return {
       ...AccountFields,
       ...AccountWithContributionsFields,
+      ...AccountWithPlatformSubscriptionFields,
+      location: {
+        ...AccountFields.location,
+        async resolve(host, _, req) {
+          // Hosts locations are always public
+          return req.loaders.Location.byCollectiveId.load(host.id);
+        },
+      },
       accountingCategories: {
         type: new GraphQLNonNull(GraphQLAccountingCategoryCollection),
         description: 'List of accounting categories for this host',
@@ -425,8 +439,40 @@ export const GraphQLHost = new GraphQLObjectType({
           };
         },
       },
+      hostStats: {
+        type: new GraphQLNonNull(GraphQLHostStats),
+        args: {
+          hostContext: {
+            type: GraphQLHostContext,
+            defaultValue: 'ALL',
+          },
+        },
+        async resolve(host, args) {
+          let collectiveIds: number[];
+
+          const allHostedCollectiveIds = (await host.getHostedCollectives({ attributes: ['id'], raw: true })).map(
+            ({ id }) => id,
+          );
+
+          if (args.hostContext === 'ALL') {
+            collectiveIds = allHostedCollectiveIds;
+          } else {
+            const hostInternalChildren = (await host.getChildren({ attributes: ['id'], raw: true })).map(
+              ({ id }) => id,
+            );
+            const hostInternalIds = [host.id, ...hostInternalChildren];
+            if (args.hostContext === 'INTERNAL') {
+              collectiveIds = hostInternalIds;
+            } else if (args.hostContext === 'HOSTED') {
+              collectiveIds = allHostedCollectiveIds.filter(collectiveId => !hostInternalIds.includes(collectiveId));
+            }
+          }
+          return { host, collectiveIds };
+        },
+      },
       hostMetrics: {
         type: new GraphQLNonNull(GraphQLHostMetrics),
+        deprecationReason: '2025-06-24: Low performance query, see if `hostStats` is sufficient',
         args: {
           account: {
             type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
@@ -569,7 +615,7 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('CREDIT_CARD');
             if (
               parseToBoolean(config.stripe.paymentIntentEnabled) ||
-              hasFeature(collective, FEATURE.STRIPE_PAYMENT_INTENT)
+              (await hasFeature(collective, FEATURE.STRIPE_PAYMENT_INTENT, { loaders: req.loaders }))
             ) {
               supportedPaymentMethods.push(PaymentMethodLegacyTypeEnum.PAYMENT_INTENT);
             }
@@ -581,7 +627,18 @@ export const GraphQLHost = new GraphQLObjectType({
 
           // bank transfer = manual in host settings
           if (get(collective, 'settings.paymentMethods.manual', null)) {
-            supportedPaymentMethods.push('BANK_TRANSFER');
+            // these accounts do not have a structured bank detail in the payment instructions
+            if (get(collective, 'settings.paymentMethods.manual.legacy', false)) {
+              supportedPaymentMethods.push('BANK_TRANSFER');
+            } else {
+              const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+              const hasManualBankTransferMethod = payoutMethods.some(
+                c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
+              );
+              if (hasManualBankTransferMethod) {
+                supportedPaymentMethods.push('BANK_TRANSFER');
+              }
+            }
           }
 
           return supportedPaymentMethods;
@@ -626,8 +683,12 @@ export const GraphQLHost = new GraphQLObjectType({
         type: new GraphQLList(GraphQLPayoutMethodType),
         description: 'The list of payout methods this Host accepts for its expenses',
         async resolve(host, _, req) {
-          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(host.id);
-          const supportedPayoutMethods = [PayoutMethodTypes.ACCOUNT_BALANCE, PayoutMethodTypes.BANK_ACCOUNT];
+          const connectedAccounts: ConnectedAccount[] = await req.loaders.Collective.connectedAccounts.load(host.id);
+          const supportedPayoutMethods = [
+            PayoutMethodTypes.ACCOUNT_BALANCE,
+            PayoutMethodTypes.BANK_ACCOUNT,
+            PayoutMethodTypes.STRIPE,
+          ];
 
           // Check for PayPal
           if (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) {
@@ -1476,6 +1537,15 @@ export const GraphQLHost = new GraphQLObjectType({
             const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
               throwIfMissing: true,
             });
+            const parentAccounts = await Collective.findAll({
+              where: {
+                id: visibleToAccountIds,
+                ParentCollectiveId: { [Op.ne]: null },
+              },
+              attributes: ['ParentCollectiveId'],
+            });
+
+            const accountIds = compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
             findArgs.where[Op.and] = [
               sequelize.literal(`
                     data#>'{visibleToAccountIds}' IS NULL 
@@ -1488,7 +1558,7 @@ export const GraphQLHost = new GraphQLObjectType({
                       EXISTS (
                         SELECT v FROM (
                           SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(${sequelize.escape(visibleToAccountIds)})
+                        ) WHERE v = ANY(${sequelize.escape(accountIds)})
                       )  
                     )
               `),
@@ -1622,7 +1692,7 @@ export const GraphQLHost = new GraphQLObjectType({
 
           if (args.accountType && args.accountType.length > 0) {
             where.type = {
-              [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+              [Op.in]: [...new Set(args.accountType.map(value => AccountTypeToModelMapping[value]))],
             };
           }
 
@@ -1827,7 +1897,7 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see its legal documents');
           }
 
-          if (args.type.length > 1 || args.type[0] !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
+          if (args.type?.length > 1 || args.type?.[0] !== LEGAL_DOCUMENT_TYPE.US_TAX_FORM) {
             throw new Error('Only US_TAX_FORM is supported for now');
           }
 
@@ -1848,9 +1918,9 @@ export const GraphQLHost = new GraphQLObjectType({
             where['requestStatus'] = args.status;
           }
 
-          if (args.accounts && args.accounts.length > 0) {
-            const accountIds = await fetchAccountsIdsWithReference(args.accounts, { throwIfMissing: true });
-            where['CollectiveId'] = uniq([...where['CollectiveId'], ...accountIds]);
+          if (args.account && args.account.length > 0) {
+            const accountIds = await fetchAccountsIdsWithReference(args.account, { throwIfMissing: true });
+            where['CollectiveId'] = uniq(accountIds);
           }
 
           if (args.requestedAtFrom) {

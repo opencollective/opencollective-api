@@ -3,7 +3,7 @@ import { GraphQLLocale } from 'graphql-scalars';
 import { isEmpty, pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
-import PlatformConstants from '../../../constants/platform';
+import { hasFeature } from '../../../lib/allowed-features';
 import { connectPlaidAccount, generatePlaidLinkToken, refreshPlaidSubAccounts } from '../../../lib/plaid/connect';
 import { requestPlaidAccountSync } from '../../../lib/plaid/sync';
 import RateLimit from '../../../lib/rate-limit';
@@ -94,15 +94,11 @@ export const plaidMutations = {
     resolve: async (_, args, req: Express.Request) => {
       checkRemoteUserCanUseTransactions(req);
 
-      // Check if user is an admin of any third party host or platform
-      const allowedIds = [
-        ...PlatformConstants.FirstPartyHostCollectiveIds,
-        ...PlatformConstants.AllPlatformCollectiveIds,
-        PlatformConstants.OCICollectiveId,
-      ];
-
-      if (!req.remoteUser.isRoot() && !allowedIds.some(id => req.remoteUser.isAdmin(id))) {
-        throw new Forbidden('You do not have permission to connect a Plaid account');
+      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollective(host)) {
+        throw new Forbidden('You do not have permission to connect a Plaid account for this host');
+      } else if (!(await hasFeature(host, 'OFF_PLATFORM_TRANSACTIONS', { loaders: req.loaders }))) {
+        throw new Forbidden('Off-platform transactions are not enabled for this account');
       }
 
       const rateLimiter = new RateLimit(`generatePlaidLinkToken:${req.remoteUser.id}`, 10, 60);
@@ -112,14 +108,9 @@ export const plaidMutations = {
         );
       }
 
-      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
-      if (!req.remoteUser.isAdminOfCollective(host)) {
-        throw new Forbidden('You do not have permission to connect a Plaid account for this host');
-      }
-
       const params: Parameters<typeof generatePlaidLinkToken>[1] = {
         products: ['auth', 'transactions'],
-        countries: isEmpty(args.countries) ? [host.countryISO || 'US'] : args.countries,
+        countries: isEmpty(args.countries) ? ['US'] : args.countries,
         locale: args.locale || 'en',
         accountSelectionEnabled: args.accountSelectionEnabled,
       };
@@ -204,6 +195,7 @@ export const plaidMutations = {
   syncPlaidAccount: {
     type: new GraphQLNonNull(GraphQLTransactionsImport),
     description: 'Manually request a sync for Plaid account',
+    deprecationReason: '2025-07-23: Use `syncTransactionsImport` instead',
     args: {
       connectedAccount: {
         type: new GraphQLNonNull(GraphQLConnectedAccountReferenceInput),

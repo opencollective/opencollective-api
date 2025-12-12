@@ -17,6 +17,7 @@ import sinon, { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
+import PlatformConstants from '../server/constants/platform';
 import { generateLoaders, Loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
@@ -31,7 +32,7 @@ import models, { sequelize, UserToken } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
-import { randStr } from './test-helpers/fake-data';
+import { fakeActiveHost, randStr } from './test-helpers/fake-data';
 
 jsonData.application = {
   name: 'client',
@@ -129,8 +130,16 @@ export const makeRequest = (
   res: { cookie: () => void };
   query?: string;
   variables?: Record<string, unknown>;
+  method: string;
+  baseUrl: string;
+  ip: string;
+  params: Record<string, string>;
 } => {
   return {
+    method: 'GET',
+    baseUrl: '/',
+    ip: '127.0.0.1',
+    params: {},
     remoteUser,
     jwtPayload,
     body: { query },
@@ -767,4 +776,13 @@ export const getMockFileUpload = (
   });
 
   return file;
+};
+
+export const getOrCreatePlatformAccount = async () => {
+  let platform = await models.Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+  if (!platform) {
+    platform = await fakeActiveHost({ id: PlatformConstants.PlatformCollectiveId, name: 'OfiTest Platform Account' });
+  }
+
+  return platform;
 };

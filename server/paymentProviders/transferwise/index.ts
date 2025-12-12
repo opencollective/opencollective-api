@@ -19,6 +19,7 @@ import {
   round,
   set,
   split,
+  toLower,
   toNumber,
 } from 'lodash';
 import moment from 'moment';
@@ -36,6 +37,7 @@ import { centsAmountToFloat } from '../../lib/math';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
+import { parseToBoolean } from '../../lib/utils';
 import { Collective, ConnectedAccount, Expense, Op, PayoutMethod, sequelize, User } from '../../models';
 import {
   BalanceV4,
@@ -58,6 +60,8 @@ const PROVIDER_NAME = Service.TRANSFERWISE;
 
 const splitCSV = string => compact(split(string, /,\s*/));
 
+const useSimplifiedQuote = parseToBoolean(config.transferwise.useSimplifiedQuote);
+logger.debug(`TransferWise: Using ${useSimplifiedQuote ? 'simplified' : 'legacy'} quote flow`);
 const blockedCountries = splitCSV(config.transferwise.blockedCountries);
 const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
 const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
@@ -142,7 +146,6 @@ async function quoteExpense(
 
   expense.collective = expense.collective || (await Collective.findByPk(expense.CollectiveId));
   expense.host = expense.host || (await expense.collective.getHostCollective());
-  const hasMultiCurrency = expense.currency !== expense.collective.currency;
   const targetCurrency = payoutMethod.unfilteredData.currency as string;
   const quoteParams = {
     profileId: connectedAccount.data.id,
@@ -158,39 +161,68 @@ async function quoteExpense(
     ),
   };
 
-  if (hasMultiCurrency) {
-    assert(
-      expense.collective.currency === expense.host.currency,
-      'For multi-currency expenses, the host currency must be the same as the collective currency',
-    );
-    assert(
-      expense.currency === targetCurrency,
-      'For multi-currency expenses, the payout currency must be the same as the expense currency',
-    );
-    quoteParams['targetCurrency'] = expense.currency;
-    quoteParams['targetAmount'] = expense.amount / 100;
-  } else if (expense.feesPayer === 'PAYEE') {
-    // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
-    assert(
-      expense.host.currency === expense.currency,
-      'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
-    );
-    quoteParams['sourceAmount'] = expense.amount / 100;
-  } else {
-    const targetAmount = expense.amount;
-    // Convert Expense amount to targetCurrency
-    if (targetCurrency !== expense.currency) {
-      const [exchangeRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
-      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * exchangeRate.rate);
+  let expenseToPayoutMethodExchangeRate: number | null = null;
+  if (useSimplifiedQuote) {
+    if (expense.feesPayer === 'PAYEE') {
+      // Customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
+      assert(
+        expense.host.currency === expense.currency,
+        'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
+      );
+      quoteParams['sourceAmount'] = expense.amount / 100;
     } else {
-      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
+      assert(
+        expense.collective.currency === expense.host.currency || expense.currency === expense.collective.currency,
+        'The host currency must be the same as the collective currency, or the expense currency must match the collective currency',
+      );
+      const targetAmount = expense.amount;
+      // Convert Expense amount to targetCurrency
+      if (targetCurrency !== expense.currency) {
+        const [wiseRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
+        expenseToPayoutMethodExchangeRate = wiseRate.rate;
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * expenseToPayoutMethodExchangeRate);
+      } else {
+        expenseToPayoutMethodExchangeRate = 1;
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
+      }
+    }
+  } else {
+    const hasMultiCurrency = expense.currency !== expense.collective.currency;
+    if (hasMultiCurrency) {
+      assert(
+        expense.collective.currency === expense.host.currency,
+        'For multi-currency expenses, the host currency must be the same as the collective currency',
+      );
+      assert(
+        expense.currency === targetCurrency,
+        'For multi-currency expenses, the payout currency must be the same as the expense currency',
+      );
+      quoteParams['targetCurrency'] = expense.currency;
+      quoteParams['targetAmount'] = expense.amount / 100;
+    } else if (expense.feesPayer === 'PAYEE') {
+      // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
+      assert(
+        expense.host.currency === expense.currency,
+        'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
+      );
+      quoteParams['sourceAmount'] = expense.amount / 100;
+    } else {
+      const targetAmount = expense.amount;
+      // Convert Expense amount to targetCurrency
+      if (targetCurrency !== expense.currency) {
+        const [wiseRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
+        expenseToPayoutMethodExchangeRate = wiseRate.rate;
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * expenseToPayoutMethodExchangeRate);
+      } else {
+        quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
+      }
     }
   }
 
   const quote = await transferwise.createQuote(connectedAccount, quoteParams);
   const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
   const expenseDataQuote = { ...omit(quote, ['paymentOptions']), paymentOption };
-  await expense.update({ data: { ...expense.data, quote: expenseDataQuote } });
+  await expense.update({ data: { ...expense.data, quote: expenseDataQuote, expenseToPayoutMethodExchangeRate } });
   return expenseDataQuote;
 }
 
@@ -579,10 +611,10 @@ async function getAvailableCurrencies(
   let currencyBlockList = [];
   if (ignoreBlockedCurrencies) {
     currencyBlockList = blockedCurrencies;
-    if (connectedAccount.data?.type === 'business') {
+    if (toLower(connectedAccount.data?.type) === 'business') {
       currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForBusinessProfiles];
     }
-    if (connectedAccount.data?.details?.companyType === 'NON_PROFIT_CORPORATION') {
+    if (connectedAccount.data?.firstLevelCategory === 'CHARITY_NON_PROFIT') {
       currencyBlockList = [...currencyBlockList, ...blockedCurrenciesForNonProfits];
     }
     if (connectedAccount.data?.blockedCurrencies) {
@@ -609,7 +641,7 @@ function validatePayoutMethod(connectedAccount: ConnectedAccount, payoutMethod: 
     throw new Error(`Sorry, this host's business profile can not create a transaction to ${currency}`);
   }
   if (
-    connectedAccount.data?.details?.companyType === 'NON_PROFIT_CORPORATION' &&
+    connectedAccount.data?.firstLevelCategory === 'CHARITY_NON_PROFIT' &&
     blockedCurrenciesForNonProfits.includes(currency)
   ) {
     throw new Error(`Sorry, this host's non profit corporation can not create a transaction to ${currency}`);

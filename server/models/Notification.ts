@@ -1,7 +1,6 @@
 import debugLib from 'debug';
 import { compact, defaults, isNil, keys, pick, pickBy, reject, uniq } from 'lodash';
 import moment from 'moment';
-import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
 
@@ -9,7 +8,7 @@ import ActivityTypes, { ActivitiesPerClass, ActivityClasses, TransactionalActivi
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
-import { getRootDomain } from '../lib/url-utils';
+import { getRootDomain, prependHttp } from '../lib/url-utils';
 
 import Collective from './Collective';
 import User from './User';

@@ -8,6 +8,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
@@ -116,7 +117,7 @@ const HostApplicationMutations = {
       let validatedRepositoryInfo: ValidatedRepositoryInfo,
         shouldAutomaticallyApprove = false;
 
-      // Trigger automated Github approval when repository is on github.com
+      // Trigger Github validation when repository is on github.com
       const repositoryUrl = args.applicationData?.repositoryUrl;
       if (args.applicationData?.useGithubValidation) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
@@ -138,8 +139,7 @@ const HostApplicationMutations = {
               }
             }
           }
-          const { allValidationsPassed } = validatedRepositoryInfo || {};
-          shouldAutomaticallyApprove = Boolean(allValidationsPassed || bypassGithubValidation);
+          shouldAutomaticallyApprove = Boolean(bypassGithubValidation);
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
@@ -215,6 +215,9 @@ const HostApplicationMutations = {
       } else if (account.approvedAt) {
         throw new ValidationFailed('This collective application has already been approved');
       }
+
+      // Check feature access for RECEIVE_HOST_APPLICATIONS
+      await checkFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS, { loaders: req.loaders });
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });

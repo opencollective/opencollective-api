@@ -1,14 +1,14 @@
 import { URLSearchParams } from 'url';
 
 import config from 'config';
-import debug from 'debug';
 import fetch from 'node-fetch';
+
+import { reportErrorToSentry } from './sentry';
 
 const turnstileVerifyUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const turnstileSecretKey = config.turnstile?.secretKey;
-const turnstileDebug = debug('turnstile');
 
-async function turnstileVerify(turnstileToken, remoteIp) {
+async function turnstileVerify(turnstileToken, remoteIp): Promise<{ success: boolean }> {
   const method = 'POST';
 
   const body = new URLSearchParams();
@@ -18,11 +18,10 @@ async function turnstileVerify(turnstileToken, remoteIp) {
 
   try {
     const response = await fetch(turnstileVerifyUrl, { method, body });
-    const result = await response.json();
-    turnstileDebug(result);
-    return result;
+    return response.json();
   } catch (err) {
-    turnstileDebug(err);
+    reportErrorToSentry(err);
+    return { success: false };
   }
 }
 

@@ -2,6 +2,7 @@
  * This file contains the logic to bind the OpenSearch functionality to the GraphQL API.
  */
 
+import express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFieldConfigArgumentMap,
@@ -17,7 +18,6 @@ import { keyBy, mapKeys, mapValues } from 'lodash';
 import OAuthScopes from '../../constants/oauth-scopes';
 import { checkScope } from '../../graphql/common/scope-check';
 import { FieldsToGraphQLFieldConfigArgumentMap } from '../../graphql/common/typescript-helpers';
-import { SearchResult } from '../../graphql/loaders/search';
 import { GraphQLAccountCollection } from '../../graphql/v2/collection/AccountCollection';
 import { CommentCollection } from '../../graphql/v2/collection/CommentCollection';
 import { GraphQLExpenseCollection } from '../../graphql/v2/collection/ExpenseCollection';
@@ -28,24 +28,32 @@ import { GraphQLTransactionCollection } from '../../graphql/v2/collection/Transa
 import { GraphQLUpdateCollection } from '../../graphql/v2/collection/UpdateCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../graphql/v2/enum';
 import { idEncode } from '../../graphql/v2/identifiers';
+import { getCollectionArgs } from '../../graphql/v2/interface/Collection';
 import type { SearchQueryAccountsResolverArgs } from '../../graphql/v2/object/SearchResponse';
 import { Collective, User } from '../../models';
 
 import { OpenSearchIndexName, OpenSearchIndexParams } from './constants';
 
-type GraphQLSearchParams = {
+export type GraphQLSearchParams = {
   requestId: string;
   searchTerm: string;
-  limit: number;
+  defaultLimit: number;
   account: Collective;
   host: Collective;
+  useTopHits: boolean;
 };
 
 /**
  * Returns a unique identifier for the OpenSearch query, which can be used to batch multiple queries together.
  */
-export const getOpenSearchQueryId = (user: User | null, host: Collective, account: Collective, searchTerm: string) => {
-  return `${user?.id || 'public'}-host_${host?.id || 'all'}-account_${account?.id || 'all'}-${searchTerm}`;
+export const getOpenSearchQueryId = (
+  user: User | null,
+  host: Collective,
+  account: Collective,
+  searchTerm: string,
+  useTopHits: boolean,
+) => {
+  return `${user?.id || 'public'}-host_${host?.id || 'all'}-account_${account?.id || 'all'}-${searchTerm}-${useTopHits ? 'top_hits' : 'separated_hits'}`;
 };
 
 type GraphQLSearchIndexStrategy = {
@@ -136,7 +144,10 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
   const strategy = GraphQLSearchResultsStrategy[index];
   return {
     description: `Search results for ${name}`,
-    args: strategy.args,
+    args: {
+      ...getCollectionArgs({ offset: 0, limit: 0 }),
+      ...strategy.args,
+    },
     type: new GraphQLObjectType({
       name: `SearchResults${name}`,
       fields: {
@@ -149,16 +160,27 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         },
       },
     }),
-    resolve: async (baseSearchParams: GraphQLSearchParams, args, req) => {
-      const indexParams = strategy.prepareArguments ? strategy.prepareArguments(args) : args;
-      const forbidPrivate = getForbidPrivate(req, strategy);
-      const fullSearchParams = { ...baseSearchParams, index, indexParams, forbidPrivate };
-      const result = (await req.loaders.search.load(fullSearchParams)) as SearchResult | null;
+    resolve: async (baseSearchParams: GraphQLSearchParams, args, req: express.Request) => {
+      if (args.offset !== 0 && baseSearchParams.useTopHits) {
+        throw new Error('Paginating with `offset` is not supported when `useTopHits` is true');
+      }
+
+      const limit = args.limit || baseSearchParams.defaultLimit;
+      const offset = args.offset;
+      const result = await req.loaders.search.load({
+        ...baseSearchParams,
+        index,
+        useTopHits: baseSearchParams.useTopHits,
+        indexParams: strategy.prepareArguments ? strategy.prepareArguments(args) : args,
+        forbidPrivate: getForbidPrivate(req, strategy),
+        offset,
+        limit,
+      });
 
       if (!result || result.count === 0) {
         return {
           maxScore: 0,
-          collection: { totalCount: 0, offset: 0, limit: baseSearchParams.limit, nodes: () => [] },
+          collection: { totalCount: 0, offset, limit, nodes: () => [] },
           highlights: {},
         };
       }
@@ -176,8 +198,8 @@ const buildSearchResultsType = (index: OpenSearchIndexName, name: string, collec
         highlights,
         collection: {
           totalCount: result.count,
-          offset: 0,
-          limit: baseSearchParams.limit,
+          offset,
+          limit,
           nodes: async () => {
             const entries = await strategy.loadMany(req, result.hits.map(getSQLIdFromHit));
             return entries.filter(Boolean); // Entries in OpenSearch may have been deleted in the DB

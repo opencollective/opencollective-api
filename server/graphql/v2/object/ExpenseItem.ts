@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import moment from 'moment';
 
 import type { UploadedFile } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -37,7 +38,7 @@ const GraphQLExpenseItem = new GraphQLObjectType({
             source: item.expenseCurrencyFxRateSource,
             fromCurrency: item.currency,
             toCurrency: expense.currency,
-            date: item.incurredAt,
+            date: moment.min(moment(item.incurredAt), moment(item.updatedAt)).toDate(), // For items that are added with a future date, the FX rate must be submission date (no future FX rates)
             isApproximate: item.expenseCurrencyFxRateSource !== 'USER', // The rate can only be trusted if it was set by the user
           };
         }

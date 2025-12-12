@@ -1,4 +1,5 @@
 import type { Loaders } from '../graphql/loaders';
+import type { MiddlewareTimingTracker } from '../lib/middleware-timing';
 import type { PersonalToken, User, UserToken } from '../models';
 
 declare global {
@@ -6,6 +7,11 @@ declare global {
     export interface Request {
       remoteUser?: User;
       isGraphQL?: boolean;
+      startAt: Date;
+      endAt: Date;
+      cacheKey?: string;
+      cacheSlug?: string;
+      apiKey?: string;
       jwtPayload?: {
         sessionId?: string;
         scope?: string;
@@ -25,6 +31,14 @@ declare global {
       loaders: Loaders;
       rawBody?: string;
       params: Record<string, string>;
+      method: string;
+      baseUrl: string;
+      ip: string;
+      middlewareTimingTracker?: MiddlewareTimingTracker;
+    }
+
+    export interface Response {
+      servedFromGraphqlCache?: boolean;
     }
   }
 }

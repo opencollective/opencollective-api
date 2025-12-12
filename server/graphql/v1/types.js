@@ -23,7 +23,6 @@ import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
-import { reportMessageToSentry } from '../../lib/sentry';
 import { sanitizeStripeError } from '../../lib/stripe';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
@@ -136,8 +135,6 @@ export const UserType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         resolve(user, args, req) {
           if (!user.CollectiveId) {
-            console.error('>>> user', user.id, 'does not have a CollectiveId', user.CollectiveId);
-            reportMessageToSentry(`User does not have a CollectiveId`, { extra: { user: user.info } });
             return null;
           }
           return req.loaders.Collective.byId.load(user.CollectiveId);
@@ -162,7 +159,7 @@ export const UserType = new GraphQLObjectType({
           if (
             req.remoteUser &&
             user.CollectiveId && // We sometimes pass an empty object as `user`
-            (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))
+            (await req.loaders.Collective.canSeePrivateProfileInfo.load(user.CollectiveId))
           ) {
             return user.email;
           }
@@ -245,6 +242,15 @@ export const UserType = new GraphQLObjectType({
         async resolve(user, args, req) {
           if (req.remoteUser?.id === user.id) {
             return Boolean(user.passwordHash);
+          }
+        },
+      },
+      requiresProfileCompletion: {
+        type: GraphQLBoolean,
+        async resolve(user, _, req) {
+          if (req.remoteUser?.id === user.id) {
+            const account = await req.loaders.Collective.byId.load(user.CollectiveId);
+            return Boolean(account.data?.requiresProfileCompletion);
           }
         },
       },
@@ -1405,7 +1411,6 @@ export const OrderType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         async resolve(order, args, req) {
           if (!order.FromCollectiveId) {
-            console.warn('There is no FromCollectiveId for order', order.id);
             return null;
           }
 
@@ -1471,24 +1476,6 @@ export const OrderType = new GraphQLObjectType({
         type: DateString,
         resolve(order) {
           return order.updatedAt;
-        },
-      },
-      // TODO: two fields below (isPastDue & isSubscriptionActive) an possibly be combined as one
-      // Leaving them separate for now to make it easy for logged in vs logged out data
-      isPastDue: {
-        description: 'Whether this subscription is past due or not',
-        type: GraphQLBoolean,
-        deprecationReason: '2024-12-13: Not used, so we stop returning it.',
-        resolve() {
-          return null;
-        },
-      },
-      // Note this field is public
-      isSubscriptionActive: {
-        description: 'If there is a subscription, is it active?',
-        type: GraphQLBoolean,
-        resolve(order) {
-          return order.getSubscription().then(s => (s ? s.isActive : null));
         },
       },
       status: {

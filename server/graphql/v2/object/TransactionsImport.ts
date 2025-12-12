@@ -15,6 +15,7 @@ import { GraphQLFileInfo } from '../interface/FileInfo';
 import { GraphQLConnectedAccount } from './ConnectedAccount';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPlaidAccount } from './PlaidAccount';
+import { GraphQLTransactionsImportAccount } from './TransactionsImportAccount';
 import { GraphQLTransactionsImportAssignment } from './TransactionsImportAssignment';
 
 export const GraphQLTransactionsImport = new GraphQLObjectType({
@@ -83,7 +84,37 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     plaidAccounts: {
       type: new GraphQLList(GraphQLPlaidAccount),
       description: 'List of available accounts for the import',
+      deprecationReason: '2025-07-02: Please use the generic accounts field instead.',
       resolve: (importInstance: TransactionsImport) => importInstance.data?.plaid?.availableAccounts || null,
+    },
+    institutionId: {
+      type: GraphQLString,
+      description: 'Institution ID (for Gocardless only)',
+      resolve: (importInstance: TransactionsImport) => importInstance.data?.gocardless?.institution?.id,
+    },
+    institutionAccounts: {
+      type: new GraphQLList(GraphQLTransactionsImportAccount),
+      description: 'List of available accounts for the import',
+      resolve: async (importInstance: TransactionsImport) => {
+        if (importInstance.type === 'PLAID') {
+          return (
+            importInstance.data?.plaid?.availableAccounts?.map(account => ({
+              id: account.accountId,
+              name: account.name,
+              subtype: account.subtype,
+              type: account.type,
+              mask: account.mask,
+            })) || []
+          );
+        } else if (importInstance.type === 'GOCARDLESS') {
+          return importInstance.data?.gocardless?.accountsMetadata?.map(account => ({
+            id: account.id,
+            name: account.name || 'Unknown Account',
+          }));
+        }
+
+        return [];
+      },
     },
     assignments: {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionsImportAssignment))),
@@ -109,7 +140,6 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     rows: {
       type: new GraphQLNonNull(GraphQLTransactionsImportRowCollection),
       description: 'List of rows in the import',
-      deprecationReason: '2025-04-29: Please use `host.offPlatformTransactions` instead.',
       args: {
         ...getCollectionArgs({ limit: 100 }),
         status: {
@@ -155,8 +185,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
 
         // Filter by plaid account id
         if (args.accountId?.length) {
-          // eslint-disable-next-line camelcase
-          where[Op.and].push({ rawValue: { account_id: { [Op.in]: args.accountId } } });
+          where[Op.and].push({ accountId: { [Op.in]: args.accountId } });
         }
 
         return {

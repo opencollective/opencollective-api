@@ -57,7 +57,7 @@ export async function editPublicMessage(
 export async function processInviteMembersInput(
   collective: Collective,
   inviteMemberInputs: [{ memberAccount?; memberInfo?; role; description?; since? }],
-  options: { skipDefaultAdmin?; transaction?; supportedRoles?: [string]; user? },
+  options: { skipDefaultAdmin?; transaction?; supportedRoles?: string[]; user? },
 ) {
   if (inviteMemberInputs.length > 30) {
     throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
@@ -77,7 +77,10 @@ export async function processInviteMembersInput(
         transaction: options.transaction,
       });
       if (!user) {
-        const userData = pick(inviteMember.memberInfo, ['name', 'email']);
+        const userData = {
+          ...pick(inviteMember.memberInfo, ['name', 'email']),
+          data: { requiresProfileCompletion: true },
+        };
         user = await models.User.createUserWithCollective(userData, options.transaction);
       }
       memberAccount = await models.Collective.findByPk(user.CollectiveId, { transaction: options.transaction });

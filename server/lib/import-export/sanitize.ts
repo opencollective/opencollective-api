@@ -16,6 +16,7 @@ import * as ExpenseLib from '../../graphql/common/expenses';
 import * as OrdersLib from '../../graphql/common/orders';
 import { canSeeUpdate } from '../../graphql/common/update';
 import { Agreement, Collective, LegalDocument, ModelInstance, type ModelNames } from '../../models';
+import { KYCVerification } from '../../models/KYCVerification';
 import { IDENTIFIABLE_DATA_FIELDS } from '../../models/PayoutMethod';
 
 const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
@@ -117,7 +118,8 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   },
   Collective: async (collective, req) => {
     req.loaders.Collective.byId.prime(collective.id, collective); // Store the collective in the cache for later row resolvers
-    const canSeePrivateInfo = await req.loaders.Collective.canSeePrivateInfo.load(collective.id);
+    const canSeePrivateProfileInfo = await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id);
+    const canSeePrivateLocation = await req.loaders.Collective.canSeePrivateLocation.load(collective.id);
     const publicDataFields = [
       'features',
       'policies',
@@ -132,12 +134,15 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
       'stripeNotPlatformTipEligibleHostFeePercent',
       'paypalNotPlatformTipEligibleHostFeePercent',
     ];
-    const privateDataFields = ['address', 'replyToEmail', 'vendorInfo'];
     return {
-      legalName: canSeePrivateInfo ? collective.legalName : null,
-      CreatedByUserId: !collective.isIncognito || canSeePrivateInfo ? collective.CreatedByUserId : null,
-      location: canSeePrivateInfo ? collective.location : null,
-      data: pick(collective.data, canSeePrivateInfo ? [...publicDataFields, ...privateDataFields] : privateDataFields),
+      legalName: canSeePrivateProfileInfo ? collective.legalName : null,
+      CreatedByUserId: !collective.isIncognito || canSeePrivateProfileInfo ? collective.CreatedByUserId : null,
+      location: canSeePrivateLocation ? collective.location : null,
+      data: pick(collective.data, [
+        ...publicDataFields,
+        ...(canSeePrivateProfileInfo ? ['address', 'replyToEmail', 'vendorInfo'] : []),
+        ...(canSeePrivateLocation ? ['address'] : []),
+      ]),
     };
   },
   Comment: async (comment, req) => {
@@ -186,8 +191,8 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
     if (!collective) {
       return null;
     } else if (!collective.hasPublicLocation()) {
-      const canSeePrivateInfo = await req.loaders.Collective.canSeePrivateInfo.load(collective.id);
-      if (!canSeePrivateInfo) {
+      const canSeePrivateLocation = await req.loaders.Collective.canSeePrivateLocation.load(collective.id);
+      if (!canSeePrivateLocation) {
         return null;
       }
     }
@@ -313,6 +318,17 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
     yubikeyDeviceId: null,
     twoFactorAuthRecoveryCodes: null,
   }),
+  PlatformSubscription: () => {},
+  KYCVerification: kycVerification => {
+    return {
+      ...kycVerification,
+      providerData: {} as KYCVerification['providerData'],
+      data: {
+        legalName: 'redacted',
+        legalAddress: 'redacted',
+      },
+    };
+  },
 };
 
 export const getSanitizers = ({ isDev = false } = {}): Partial<Record<ModelNames, Sanitizer<ModelNames>>> => {

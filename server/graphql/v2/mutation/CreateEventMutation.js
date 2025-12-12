@@ -5,7 +5,7 @@ import { v4 as uuid } from 'uuid';
 
 import roles from '../../../constants/roles';
 import { canUseSlug } from '../../../lib/collectivelib';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
@@ -51,6 +51,12 @@ async function createEvent(_, args, req) {
     throw new Error(`The slug '${eventData.slug}' is already taken. Please use another slug for the Event.`);
   }
 
+  if (args.event.privateInstructions) {
+    eventData.data = {
+      privateInstructions: args.event.privateInstructions,
+    };
+  }
+
   // Validate now to avoid uploading images if the collective is invalid
   const event = models.Collective.build(eventData);
   await event.validate();
@@ -60,7 +66,13 @@ async function createEvent(_, args, req) {
   event.image = avatar?.url ?? event.image;
   event.backgroundImage = banner?.url ?? event.backgroundImage;
 
-  await event.save();
+  await sequelize.transaction(async transaction => {
+    await event.save({ transaction });
+    if (args.event.location) {
+      await event.setLocation(args.event.location, transaction);
+    }
+  });
+
   event.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
   return event;
 }

@@ -7,6 +7,7 @@
 // to use in loops and repeated tests.
 
 import config from 'config';
+import deepmerge from 'deepmerge';
 import { get, kebabCase, padStart, sample } from 'lodash';
 import moment from 'moment';
 import type { CreateOptions, InferCreationAttributes } from 'sequelize';
@@ -23,7 +24,9 @@ import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/cons
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
+import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
 import { crypto } from '../../server/lib/encryption';
+import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
@@ -37,6 +40,8 @@ import models, {
   Notification,
   PaypalProduct,
   PersonalToken,
+  PlatformSubscription,
+  RequiredLegalDocument,
   sequelize,
   Subscription,
   Tier,
@@ -45,18 +50,21 @@ import models, {
   Update,
   UploadedFile,
   VirtualCard,
+  VirtualCardRequest,
 } from '../../server/models';
 import AccountingCategory from '../../server/models/AccountingCategory';
 import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
-import LegalDocument, { LEGAL_DOCUMENT_SERVICE } from '../../server/models/LegalDocument';
+import { KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
+import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
 import PaymentMethod from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { Billing } from '../../server/models/PlatformSubscription';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import SocialLink, { SocialLinkType } from '../../server/models/SocialLink';
 import { AssetType } from '../../server/models/SuspendedAsset';
@@ -66,13 +74,18 @@ import User from '../../server/models/User';
 import UserToken, { TokenType } from '../../server/models/UserToken';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
 import { VirtualCardStatus } from '../../server/models/VirtualCard';
+import { VirtualCardRequestStatus } from '../../server/models/VirtualCardRequest';
 import { randEmail, randUrl } from '../stores';
 
 export { randEmail, sequelize };
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);
-export const multiple = (fn, n, ...args) => Promise.all([...Array(n).keys()].map(() => fn(...args)));
+export const multiple = <T extends (...args: any[]) => Promise<any>>(
+  fn: T,
+  n: number,
+  ...args: Parameters<T>
+): Promise<Array<Awaited<ReturnType<T>>>> => Promise.all([...Array(n).keys()].map(() => fn(...args)));
 export const fakeOpenCollectiveS3URL = ({ key = randStr(), bucket = config.aws.s3.bucket } = {}) => {
   if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
     return `${config.aws.s3.endpoint}/${bucket}/${key}`;
@@ -96,6 +109,10 @@ const optionally = async (fn, probability = 0.5) => (Math.random() < probability
 export const randArray = (generateFunc, min = 1, max = 1) => {
   const arrayLength = randNumber(min, max);
   return [...Array(arrayLength)].map((_, idx) => generateFunc(idx, arrayLength));
+};
+
+export const randIPV4 = () => {
+  return [randNumber(1, 255), randNumber(1, 255), randNumber(1, 255), randNumber(1, 255)].join('.');
 };
 
 /**
@@ -240,6 +257,17 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
   return host;
 };
 
+/** Create a fake vendor */
+export const fakeVendor = async (vendorData: Parameters<typeof fakeCollective>[0] = {}) => {
+  return fakeCollective({
+    type: CollectiveType.VENDOR,
+    name: randStr('Test Vendor '),
+    slug: randStr('vendor-'),
+    ParentCollectiveId: vendorData.ParentCollectiveId || (await fakeHost()).id,
+    ...vendorData,
+  });
+};
+
 /** Create a fake host application */
 export const fakeHostApplication = async (data: Partial<InferCreationAttributes<HostApplication>> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
@@ -257,7 +285,7 @@ export const fakeHostApplication = async (data: Partial<InferCreationAttributes<
  */
 export const fakeCollective = async (
   collectiveData: Partial<InferCreationAttributes<Collective>> & {
-    admin?: User | { id: number; CreatedByUserId: number };
+    admin?: User | { id: number; CreatedByUserId: number } | User[] | { id: number; CreatedByUserId: number }[];
   } = {},
   sequelizeParams: CreateOptions = {},
 ) => {
@@ -293,6 +321,10 @@ export const fakeCollective = async (
     collectiveSequelizeParams,
   );
 
+  if (collective.isHostAccount && !collective.HostCollectiveId && collectiveData.HostCollectiveId === undefined) {
+    await collective.update({ HostCollectiveId: collective.id });
+  }
+
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
   if (collective.host) {
     try {
@@ -311,16 +343,20 @@ export const fakeCollective = async (
   }
   if (collectiveData.admin) {
     try {
-      const admin = collectiveData.admin;
-      const isUser = admin instanceof models.User;
-      await models.Member.create(
-        {
-          CollectiveId: collective.id,
-          MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
-          role: roles.ADMIN,
-          CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
-        },
-        sequelizeParams,
+      const admins = Array.isArray(collectiveData.admin) ? collectiveData.admin : [collectiveData.admin];
+      await Promise.all(
+        admins.map(admin => {
+          const isUser = admin instanceof models.User;
+          return models.Member.create(
+            {
+              CollectiveId: collective.id,
+              MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
+              role: roles.ADMIN,
+              CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
+            },
+            sequelizeParams,
+          );
+        }),
       );
     } catch {
       // Ignore if host is already linked
@@ -461,6 +497,17 @@ export const fakePayoutMethod = async ({
         currency: 'EUR',
         type: 'iban',
         details: { iban: 'DE1237812738192OK' },
+        ...data,
+      };
+    } else if (type === PayoutMethodTypes.STRIPE) {
+      return {
+        stripeAccountId: 'stripeAccountId',
+        connectedAccountId: 'connectedAccountId',
+        ...data,
+      };
+    } else if (type === PayoutMethodTypes.CREDIT_CARD) {
+      return {
+        token: 'token',
         ...data,
       };
     } else {
@@ -735,6 +782,7 @@ export const fakeOrder = async (
   }
 
   if (withTransactions) {
+    const transactionGroup = uuid();
     order.transactions = await Promise.all([
       fakeTransaction({
         OrderId: order.id,
@@ -745,6 +793,7 @@ export const fakeOrder = async (
         HostCollectiveId: collective.HostCollectiveId,
         amount: order.totalAmount,
         PaymentMethodId: order.PaymentMethodId,
+        TransactionGroup: transactionGroup,
       }),
       fakeTransaction({
         OrderId: order.id,
@@ -754,6 +803,7 @@ export const fakeOrder = async (
         FromCollectiveId: order.CollectiveId,
         amount: -order.totalAmount,
         PaymentMethodId: order.PaymentMethodId,
+        TransactionGroup: transactionGroup,
       }),
     ]);
   }
@@ -836,13 +886,14 @@ export const fakeConnectedAccount = async (
   sequelizeParams: Record<string, unknown> = {},
 ) => {
   const CollectiveId = connectedAccountData.CollectiveId || (await fakeCollective({}, sequelizeParams)).id;
-  const service = sample(['github', 'twitter', 'stripe', 'transferwise']);
+  const service = connectedAccountData.service || sample(['github', 'twitter', 'stripe', 'transferwise']);
 
   const connectedAccount = await models.ConnectedAccount.create(
     {
       service,
       clientId: randStr('client-id-'),
       token: randStr('token-'),
+      username: service === 'stripe' ? randStr('username-') : undefined,
       ...connectedAccountData,
       CollectiveId,
     },
@@ -996,6 +1047,14 @@ export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<Pa
   });
 };
 
+export const fakeRequiredLegalDocument = async (data: Partial<InferCreationAttributes<RequiredLegalDocument>> = {}) => {
+  return models.RequiredLegalDocument.create({
+    ...data,
+    documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+    HostCollectiveId: data.HostCollectiveId || (await fakeCollective().then(c => c.id)),
+  });
+};
+
 export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<LegalDocument>> = {}) => {
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
@@ -1053,6 +1112,26 @@ export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttr
   });
 };
 
+export const fakeVirtualCardRequest = async (
+  virtualCardRequestData: Partial<InferCreationAttributes<VirtualCardRequest>> = {},
+) => {
+  const CollectiveId = virtualCardRequestData.CollectiveId || (await fakeCollective()).id;
+  const HostCollectiveId =
+    virtualCardRequestData.HostCollectiveId || (await models.Collective.getHostCollectiveId(CollectiveId));
+  return models.VirtualCardRequest.create({
+    purpose: randStr('purpose'),
+    notes: randStr('notes'),
+    status: VirtualCardRequestStatus.PENDING,
+    currency: 'USD',
+    spendingLimitAmount: randAmount(),
+    spendingLimitInterval: VirtualCardLimitIntervals.ALL_TIME,
+    ...virtualCardRequestData,
+    CollectiveId,
+    HostCollectiveId,
+    UserId: virtualCardRequestData.UserId || (await fakeUser()).id,
+  });
+};
+
 export const fakePaypalProduct = async (data: Partial<InferCreationAttributes<PaypalProduct>> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
   const collective = await models.Collective.findByPk(CollectiveId);
@@ -1080,7 +1159,16 @@ export const fakePaypalPlan = async (data: Record<string, unknown> = {}) => {
   });
 };
 
-export const fakeApplication = async (data: Record<string, unknown> = {}): Promise<any> => {
+export const fakePlatformSubscription = async (data: Partial<InferCreationAttributes<PlatformSubscription>> = {}) => {
+  const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+  return models.PlatformSubscription.create({
+    period: [{ value: new Date(), inclusive: true }, null],
+    ...data,
+    CollectiveId,
+  });
+};
+
+export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   let CollectiveId;
   let CreatedByUserId;
   if (data.user) {
@@ -1201,3 +1289,131 @@ export const fakeSuspendedAsset = async (
     reason: data.reason || 'for the sake of this test',
   });
 };
+
+export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
+  const dueDateMoment = moment(data.dueDate || '2025-08-01');
+  const totalAmount = data.totalAmount || randAmount(100, 100000);
+  return deepmerge(
+    {
+      dueDate: dueDateMoment.toISOString(),
+      additional: {
+        total: 0,
+        amounts: {
+          expensesPaid: 0,
+          activeCollectives: 0,
+        },
+        utilization: {
+          expensesPaid: 0,
+          activeCollectives: 0,
+        },
+      },
+      baseAmount: totalAmount,
+      totalAmount: totalAmount,
+      utilization: {
+        expensesPaid: 1,
+        activeCollectives: 3,
+      },
+      collectiveId: 11004,
+      billingPeriod: {
+        year: 2025,
+        month: 6,
+      },
+      subscriptions: [
+        {
+          id: 35,
+          plan: {
+            type: 'Basic',
+            title: 'Plan title',
+            pricing: {
+              pricePerMonth: totalAmount,
+              includedCollectives: 10,
+              includedExpensesPerMonth: 10,
+              pricePerAdditionalExpense: 100,
+              pricePerAdditionalCollective: 100,
+            },
+          },
+          period: [
+            {
+              value: dueDateMoment.subtract(1, 'month').startOf('month').toISOString(),
+              inclusive: true,
+            },
+            {
+              value: dueDateMoment.subtract(1, 'month').endOf('month').toISOString(),
+              inclusive: false,
+            },
+          ],
+          createdAt: '2025-08-07T10:39:20.321Z',
+          updatedAt: '2025-08-15T12:36:09.922Z',
+        },
+        {
+          id: 1,
+          plan: {
+            type: 'Basic',
+            title: 'Plan title',
+            pricing: {
+              pricePerMonth: 1000,
+              includedCollectives: 10,
+              includedExpensesPerMonth: 10,
+              pricePerAdditionalExpense: 100,
+              pricePerAdditionalCollective: 100,
+            },
+          },
+          period: [
+            {
+              value: '2024-08-06T00:00:00.000Z',
+              inclusive: true,
+            },
+            {
+              value: '2025-07-06T00:00:00.000Z',
+              inclusive: false,
+            },
+          ],
+          createdAt: '2025-08-06T15:51:51.122Z',
+          updatedAt: '2025-08-06T15:51:51.122Z',
+        },
+      ],
+    },
+    data,
+  );
+};
+
+export async function fakeKYCVerification<Provider extends KYCProviderName = KYCProviderName>(
+  opts: Partial<InferCreationAttributes<KYCVerification<Provider>>> = {},
+): Promise<KYCVerification<Provider>> {
+  const status = opts.status || sample(Object.values(KYCVerificationStatus));
+  const provider = opts['provider'] || sample(Object.values(KYCProviderName));
+
+  const data = {
+    ...(status === KYCVerificationStatus.VERIFIED
+      ? {
+          legalName: randStr('legalName'),
+          legalAddress: randStr('legalAddress'),
+        }
+      : {}),
+    ...opts.data,
+  };
+  let providerData = opts['providerData'];
+  if (!providerData) {
+    switch (provider) {
+      case KYCProviderName.MANUAL:
+        (providerData as KYCVerification<KYCProviderName.MANUAL>['providerData']) = {
+          notes: randStr('notes'),
+        };
+        break;
+    }
+  }
+
+  const collectiveId = opts.CollectiveId ?? (await fakeCollective()).id;
+  const requestedByCollectiveId = opts.RequestedByCollectiveId ?? (await fakeOrganization()).id;
+
+  return await KYCVerification.create<KYCVerification<Provider>>({
+    status,
+    provider,
+    CollectiveId: collectiveId,
+    RequestedByCollectiveId: requestedByCollectiveId,
+    data,
+    providerData,
+    verifiedAt: opts.verifiedAt ?? new Date(),
+    revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
+  });
+}

@@ -1,7 +1,9 @@
 import { GraphQLNonNull } from 'graphql';
 import { get, pick } from 'lodash';
 
+import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
+import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { canUseSlug } from '../../../lib/collectivelib';
 import models from '../../../models';
@@ -63,10 +65,11 @@ async function createFund(_, args, req) {
     host = await fetchAccountWithReference(args.host, { loaders: req.loaders });
     if (!host) {
       throw new ValidationFailed('Host Not Found');
-    }
-    if (!host.isHostAccount) {
+    } else if (!host.isHostAccount) {
       throw new ValidationFailed('Host account is not activated as Host.');
     }
+
+    await checkFeatureAccess(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, { loaders: req.loaders });
   }
 
   // Validate now to avoid uploading images if the collective is invalid

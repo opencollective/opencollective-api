@@ -6,8 +6,6 @@ import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribut
 import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
-import { maxInteger } from '../constants/math';
-import orderStatus from '../constants/order-status';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
@@ -120,33 +118,6 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
         });
       });
     });
-  };
-
-  availableQuantity = function () {
-    if (!this.maxQuantity) {
-      return Promise.resolve(maxInteger);
-    }
-
-    return Order.sum('quantity', {
-      where: {
-        TierId: this.id,
-        status: { [Op.notIn]: [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED] },
-        processedAt: { [Op.ne]: null },
-      },
-    }).then(usedQuantity => {
-      debug('availableQuantity', 'usedQuantity:', usedQuantity, 'maxQuantity', this.maxQuantity);
-      if (this.maxQuantity && usedQuantity) {
-        return this.maxQuantity - usedQuantity;
-      } else if (this.maxQuantity) {
-        return this.maxQuantity;
-      } else {
-        return maxInteger; // GraphQL doesn't like infinity
-      }
-    });
-  };
-
-  checkAvailableQuantity = function (quantityNeeded = 1) {
-    return this.availableQuantity().then(available => available - quantityNeeded >= 0);
   };
 
   setCurrency = async function (currency) {

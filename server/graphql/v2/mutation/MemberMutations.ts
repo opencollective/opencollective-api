@@ -371,16 +371,38 @@ const memberMutations = {
       // Remove member
       let members, invitations;
       if (args.isInvitation) {
-        members = await models.MemberInvitation.destroy({
+        invitations = await models.MemberInvitation.destroy({
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
           // @ts-expect-error returning does not exist on destroy type, but works since this is really a bulk update to set deletedAt
           returning: true,
         });
       } else {
-        invitations = await models.Member.destroy({
-          where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
-          // @ts-expect-error returning does not exist on destroy type, but works since this is really a bulk update to set deletedAt
-          returning: true,
+        members = await sequelize.transaction(async transaction => {
+          [, members] = await models.Member.update(
+            { deletedAt: new Date() },
+            {
+              where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+              transaction,
+              returning: true,
+            },
+          );
+
+          if (members.length > 0) {
+            const users = await models.User.findAll({
+              where: { CollectiveId: members.map(member => member.MemberCollectiveId) },
+              attributes: ['id'],
+              transaction,
+            });
+
+            if (users.length > 0) {
+              await models.PersonalToken.destroy({
+                where: { UserId: users.map(user => user.id), CollectiveId: account.id },
+                transaction,
+              });
+            }
+          }
+
+          return members;
         });
       }
       if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {

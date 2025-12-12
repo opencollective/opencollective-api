@@ -15,6 +15,7 @@ import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import HostApplication from './HostApplication';
+import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
@@ -28,6 +29,7 @@ import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
 import PaypalProduct from './PaypalProduct';
 import PersonalToken from './PersonalToken';
+import PlatformSubscription from './PlatformSubscription';
 import RecurringExpense from './RecurringExpense';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import SocialLink from './SocialLink';
@@ -93,6 +95,8 @@ const models = {
   User,
   UserToken,
   UserTwoFactorMethod,
+  PlatformSubscription,
+  KYCVerification,
   VirtualCard,
   VirtualCardRequest,
 } as const;
@@ -348,6 +352,13 @@ VirtualCardRequest.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: '
 VirtualCardRequest.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 VirtualCardRequest.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' });
 
+// PlatformSubscription
+PlatformSubscription.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+
+// KYCVerification
+KYCVerification.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+KYCVerification.belongsTo(Collective, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
+
 export default models;
 
 export { sequelize, Op };
@@ -387,6 +398,7 @@ export {
   PaypalPlan,
   PaypalProduct,
   PersonalToken,
+  PlatformSubscription,
   RecurringExpense,
   RequiredLegalDocument,
   SocialLink,

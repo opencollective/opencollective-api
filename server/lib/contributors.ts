@@ -137,7 +137,7 @@ const contributorsQuery = `
     AND m."deletedAt" IS NULL
     AND m."role" != 'FOLLOWER'
     AND c."deletedAt" IS NULL
-    AND (transactions."ExpenseId" IS NULL OR e."type" != 'SETTLEMENT')
+    AND (transactions."ExpenseId" IS NULL OR (e."type" != 'SETTLEMENT' AND e."type" != 'PLATFORM_BILLING'))
   GROUP BY
     c.id
   ORDER BY

@@ -31,7 +31,7 @@ import {
   fakeUser,
   fakeVirtualCard,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+import { getOrCreatePlatformAccount, graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
 const APPLY_TO_HOST_MUTATION = gql`
   mutation ApplyToHost(
@@ -126,13 +126,15 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
   before(async () => {
     await resetTestDB();
-    platform = await fakeCollective({ id: PlatformConstants.PlatformCollectiveId });
+    platform = await getOrCreatePlatformAccount();
     hostAdminOSC = await fakeUser();
     hostOSC = await fakeActiveHost({
       admin: hostAdminOSC,
       name: 'Open Source Collective',
       slug: 'opensource',
       id: PlatformConstants.FiscalHostOSCCollectiveId,
+      plan: 'start-plan-2021',
+      settings: { apply: true },
     });
   });
 
@@ -168,7 +170,12 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeHost({ admin: hostAdmin, currency: 'USD' });
+      host = await fakeHost({
+        plan: 'start-plan-2021',
+        admin: hostAdmin,
+        currency: 'USD',
+        settings: { apply: true },
+      });
       collective = await fakeCollective({
         HostCollectiveId: host.id,
         admin: collectiveAdmin,

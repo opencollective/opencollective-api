@@ -270,11 +270,8 @@ const loadAllAccountsFromArgs = async (
   const [accounts, fromAccounts, host, createdByAccount] = await Promise.all([
     getAccountsPromise(),
     getFromAccountPromise(),
-    ...[args.host, args.createdByAccount].map(reference => {
-      if (reference) {
-        return fetchAccountWithReference(reference, fetchAccountParams);
-      }
-    }),
+    args.host && fetchAccountWithReference(args.host, fetchAccountParams),
+    args.createdByAccount && fetchAccountWithReference(args.createdByAccount, fetchAccountParams),
   ]);
 
   return { fromAccounts, accounts, host, createdByAccount };
@@ -300,7 +297,7 @@ export const ExpensesCollectionQueryResolver = async (
     const fromAccountIds = fromAccounts.map(account => account.id);
     if (args.includeChildrenExpenses) {
       const childIds = await req.loaders.Collective.childrenIds.loadMany(fromAccountIds);
-      fromAccountIds.push(...childIds.filter(result => typeof result === 'number'));
+      fromAccountIds.push(...childIds.flat().filter(result => typeof result === 'number'));
     }
     where['FromCollectiveId'] = fromAccountIds;
   }
@@ -371,19 +368,6 @@ export const ExpensesCollectionQueryResolver = async (
     );
   }
 
-  if (!isNil(args.chargeHasReceipts)) {
-    where[Op.and].push(
-      { type: ExpenseType.CHARGE },
-      sequelize.where(
-        sequelize.literal(
-          `NOT EXISTS (SELECT id from "ExpenseItems" ei WHERE ei."ExpenseId" = "Expense".id and ei.url IS NULL AND ei."deletedAt" IS NULL)`,
-        ),
-        Op.eq,
-        args.chargeHasReceipts,
-      ),
-    );
-  }
-
   if (!isEmpty(args.virtualCards)) {
     where[Op.and].push({
       [Op.or]: [{ type: { [Op.ne]: ExpenseType.CHARGE } }, { VirtualCardId: args.virtualCards.map(vc => vc.id) }],
@@ -403,56 +387,6 @@ export const ExpensesCollectionQueryResolver = async (
     where['tags'] = { [Op.contains]: args.tag || args.tags };
   } else if (args.tag === null || args.tags === null) {
     where['tags'] = { [Op.is]: null };
-  }
-
-  if (args.amount?.gte || args.amount?.lte) {
-    if (args.amount.gte && args.amount.lte) {
-      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
-    }
-    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
-    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
-    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
-    const operator =
-      args.amount.gte && args.amount.lte
-        ? gte === lte
-          ? { [Op.eq]: gte }
-          : { [Op.between]: [gte, lte] }
-        : args.amount.gte
-          ? { [Op.gte]: gte }
-          : { [Op.lte]: lte };
-
-    where[Op.and].push(
-      sequelize.where(
-        sequelize.literal(
-          SequelizeUtils.formatNamedParameters(
-            `
-            CASE
-              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = :currency
-                AND "Expense"."data" #>> '{quote,targetCurrency}' = "Expense"."currency"
-                THEN 1.0 / ("Expense"."data" #> '{quote,rate}')::NUMERIC
-              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
-                AND "Expense"."data" #>> '{quote,targetCurrency}' = :currency
-                THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
-              ELSE COALESCE(
-                (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = "Expense"."currency" AND "to" = :currency AND date_trunc('day', "createdAt") = date_trunc('day', COALESCE("Expense"."incurredAt", "Expense"."createdAt")) ORDER BY "createdAt" DESC LIMIT 1),
-                1
-              )
-            END * "Expense"."amount" 
-          `,
-            { currency },
-            'postgres',
-          ),
-        ),
-        operator,
-      ),
-    );
-  } else {
-    if (args.minAmount) {
-      where['amount'] = { [Op.gte]: args.minAmount };
-    }
-    if (args.maxAmount) {
-      where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
-    }
   }
 
   if (args.dateFrom) {
@@ -486,7 +420,11 @@ export const ExpensesCollectionQueryResolver = async (
     }
   }
 
-  if (args.status) {
+  /*
+   * Please notice that updateFilterConditionsForReadyToPay will query the DB with existing conditionals,
+   * for performance reasons, we should make sure that complex conditionals are added after this function is called.
+   */
+  if (args.status && args.status.length > 0) {
     if (args.status.includes('ON_HOLD') && args.status.length === 1) {
       where['onHold'] = true;
     } else if (args.status.includes('READY_TO_PAY')) {
@@ -511,6 +449,76 @@ export const ExpensesCollectionQueryResolver = async (
       where[Op.and].push({ [Op.or]: userClause });
     } else {
       where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
+    }
+  }
+
+  if (!isNil(args.chargeHasReceipts)) {
+    where[Op.and].push(
+      { type: ExpenseType.CHARGE },
+      sequelize.where(
+        sequelize.literal(
+          `NOT EXISTS (SELECT id from "ExpenseItems" ei WHERE ei."ExpenseId" = "Expense".id and ei.url IS NULL AND ei."deletedAt" IS NULL)`,
+        ),
+        Op.eq,
+        args.chargeHasReceipts,
+      ),
+    );
+  }
+
+  if (args.amount?.gte || args.amount?.lte) {
+    if (args.amount.gte && args.amount.lte) {
+      assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
+    }
+    const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
+    const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
+    const operator =
+      args.amount.gte && args.amount.lte
+        ? gte === lte
+          ? { [Op.eq]: gte }
+          : { [Op.between]: [gte, lte] }
+        : args.amount.gte
+          ? { [Op.gte]: gte }
+          : { [Op.lte]: lte };
+
+    where[Op.and].push(
+      sequelize.where(
+        sequelize.literal(
+          SequelizeUtils.formatNamedParameters(
+            `
+            CASE
+              WHEN "Expense".currency = :currency THEN 1.0
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = :currency
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = "Expense"."currency"
+                THEN 1.0 / ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              WHEN "Expense"."data" #>> '{quote,sourceCurrency}' = "Expense"."currency"
+                AND "Expense"."data" #>> '{quote,targetCurrency}' = :currency
+                THEN ("Expense"."data" #> '{quote,rate}')::NUMERIC
+              ELSE COALESCE(
+                (SELECT rate FROM "CurrencyExchangeRates"
+                  WHERE "from" = "Expense"."currency"
+                  AND "to" = :currency
+                  -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
+                  AND "createdAt" <= COALESCE("Expense"."incurredAt", "Expense"."createdAt")
+                  ORDER BY "createdAt" DESC
+                  LIMIT 1),
+                1
+              )
+            END * "Expense"."amount" 
+          `,
+            { currency },
+            'postgres',
+          ),
+        ),
+        operator,
+      ),
+    );
+  } else {
+    if (args.minAmount) {
+      where['amount'] = { [Op.gte]: args.minAmount };
+    }
+    if (args.maxAmount) {
+      where['amount'] = { ...where['amount'], [Op.lte]: args.maxAmount };
     }
   }
 

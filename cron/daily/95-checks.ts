@@ -1,8 +1,12 @@
 import '../../server/env';
 
+import config from 'config';
+
 import { checkAllModels } from '../../checks/model';
 import email from '../../server/lib/email';
 import logger from '../../server/lib/logger';
+import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
+import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../../server/lib/slack';
 import { runCronJob } from '../utils';
 
 const recipients = 'ops@opencollective.com';
@@ -17,6 +21,19 @@ async function run() {
   const { errors } = await checkAllModels();
 
   if (errors.length > 0) {
+    // Post on Slack
+    if (config.slack.webhooks.engineeringAlerts) {
+      try {
+        await slackLib.postMessageToOpenCollectiveSlack(
+          [failureMessage, ...errors.map(msg => `- ${msg}`), '', `${fixMessage} ${fixCommand}`].join('\n'),
+          OPEN_COLLECTIVE_SLACK_CHANNEL.ENGINEERING_ALERTS,
+        );
+      } catch (error) {
+        reportErrorToSentry(error, { handler: HandlerType.CRON, extra: { errors } });
+      }
+    }
+
+    // Send email
     logger.info('Sending checks report to ops@opencollective.com');
     const html = `${failureMessage}<br>\n<br>\n${errors
       .map(msg => `<li> ${msg}`)

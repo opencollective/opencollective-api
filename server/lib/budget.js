@@ -16,7 +16,7 @@ const DEFAULT_BUDGET_VERSION = 'v2';
 
 const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
 
-async function sumTransactionsInCurrency(results, currency) {
+export async function sumTransactionsInCurrency(results, currency) {
   let total = 0;
 
   for (const result of Object.values(results)) {
@@ -901,6 +901,7 @@ export async function getYearlyBudgets(collectiveIds) {
             AND t."type" = 'CREDIT'
             AND t."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
             AND t."deletedAt" IS NULL
+            AND t."isInternal" IS FALSE
             AND t."RefundTransactionId" IS NULL
             AND t."createdAt" > (current_date - INTERVAL '12 months')
           GROUP BY t."CollectiveId", t."hostCurrency"

@@ -339,4 +339,6 @@ Examples (defaults to root user postgres):
 `,
 );
 
-program.parse();
+if (require.main === module) {
+  program.parse();
+}

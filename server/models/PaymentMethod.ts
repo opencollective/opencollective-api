@@ -509,9 +509,6 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
   }
 
   if (this.monthlyLimitPerMember && !user) {
-    console.error(
-      '>>> this payment method has a monthly limit. Please provide a user to be able to compute their balance.',
-    );
     reportMessageToSentry(
       `This payment method has a monthly limit. Please provide a user to be able to compute their balance.`,
       { extra: { paymentMethod: this.info } },

@@ -14,9 +14,18 @@ import {
   fakeEvent,
   fakeExpense,
   fakeHost,
+  fakeHostApplication,
+  fakePayoutMethod,
+  fakePersonalToken,
+  fakePlatformSubscription,
+  fakeRequiredLegalDocument,
   fakeTransaction,
+  fakeTransactionsImport,
+  fakeTransactionsImportRow,
   fakeUpdate,
   fakeUser,
+  fakeVirtualCard,
+  fakeVirtualCardRequest,
 } from '../test-helpers/fake-data';
 import { resetTestDB } from '../utils';
 
@@ -117,8 +126,8 @@ describe('sql/ban-collectives', () => {
     expect(result).to.deep.eqInAnyOrder({
       nb_deleted_oauth_authorization_codes: 0,
       nb_deleted_user_tokens: 0,
-      deleted_profiles_ids: [collective.id, event.id],
-      nb_deleted_profiles: 2,
+      deleted_collectives_ids: [collective.id, event.id],
+      nb_deleted_collectives: 2,
       nb_deleted_recurring_expenses: 0,
       deleted_users: 0,
       nb_deleted_agreements: 0,
@@ -142,6 +151,14 @@ describe('sql/ban-collectives', () => {
       nb_deleted_transaction_settlements: 1, // For the platform tip debt
       nb_deleted_transactions: 8, // First contrib = 6 transactions (2 x contribution + 2 x tip + 2 x tip debt), second contrib "hostedTransaction" = 2 transactions
       nb_deleted_transactions_imports: 0,
+      nb_deleted_transactions_import_rows: 0,
+      nb_deleted_host_applications: 0,
+      nb_deleted_payout_methods: 0,
+      nb_deleted_virtual_cards: 0,
+      nb_deleted_virtual_card_requests: 0,
+      nb_deleted_platform_subscriptions: 0,
+      nb_deleted_personal_tokens: 0,
+      nb_deleted_required_legal_documents: 0,
     });
 
     // User/user-data should not be deleted (we banned the collective)
@@ -180,7 +197,7 @@ describe('sql/ban-collectives', () => {
     expect(result).to.deep.eqInAnyOrder({
       nb_deleted_oauth_authorization_codes: 0,
       nb_deleted_user_tokens: 0,
-      nb_deleted_profiles: 1,
+      nb_deleted_collectives: 1,
       nb_deleted_recurring_expenses: 0,
       deleted_users: 1,
       nb_deleted_agreements: 0,
@@ -201,10 +218,18 @@ describe('sql/ban-collectives', () => {
       nb_deleted_orders: 0,
       nb_deleted_notifications: 0,
       nb_deleted_users: 1,
-      deleted_profiles_ids: [user.collective.id],
       nb_deleted_transaction_settlements: 1, // For the platform tip debt
       nb_deleted_transactions: 6, // this one does not includes the hosted transactions
       nb_deleted_transactions_imports: 0,
+      nb_deleted_transactions_import_rows: 0,
+      nb_deleted_host_applications: 0,
+      nb_deleted_payout_methods: 0,
+      nb_deleted_virtual_cards: 0,
+      nb_deleted_virtual_card_requests: 0,
+      nb_deleted_platform_subscriptions: 0,
+      nb_deleted_personal_tokens: 0,
+      nb_deleted_required_legal_documents: 0,
+      deleted_collectives_ids: [user.collective.id],
     });
 
     await expect(user).to.be.softDeleted;
@@ -232,7 +257,7 @@ describe('sql/ban-collectives', () => {
     expect(result).to.deep.eqInAnyOrder({
       nb_deleted_oauth_authorization_codes: 0,
       nb_deleted_user_tokens: 0,
-      nb_deleted_profiles: 3,
+      nb_deleted_collectives: 3,
       nb_deleted_recurring_expenses: 0,
       deleted_users: 2,
       nb_deleted_agreements: 0,
@@ -256,7 +281,15 @@ describe('sql/ban-collectives', () => {
       nb_deleted_transaction_settlements: 0,
       nb_deleted_transactions: 0,
       nb_deleted_transactions_imports: 0,
-      deleted_profiles_ids: [user1.collective.id, user2.collective.id, collective.id],
+      nb_deleted_transactions_import_rows: 0,
+      nb_deleted_host_applications: 0,
+      nb_deleted_payout_methods: 0,
+      nb_deleted_virtual_cards: 0,
+      nb_deleted_virtual_card_requests: 0,
+      nb_deleted_platform_subscriptions: 0,
+      nb_deleted_personal_tokens: 0,
+      nb_deleted_required_legal_documents: 0,
+      deleted_collectives_ids: [user1.collective.id, user2.collective.id, collective.id],
     });
 
     const updatedUser1 = await user1.reload({ paranoid: false });
@@ -289,5 +322,194 @@ describe('sql/ban-collectives', () => {
     });
 
     await expect(expense).to.be.softDeleted;
+  });
+
+  it('deletes host applications when banning collective', async () => {
+    const collective = await fakeCollective();
+    const host = await fakeHost();
+    const hostApplication = await fakeHostApplication({
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+    });
+    const otherHostApplication = await fakeHostApplication(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(hostApplication).to.be.softDeleted;
+    await expect(otherHostApplication).to.not.be.softDeleted;
+  });
+
+  it('deletes host applications when banning host', async () => {
+    const collective = await fakeCollective();
+    const host = await fakeHost();
+    const hostApplication = await fakeHostApplication({
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+    });
+    const otherHostApplication = await fakeHostApplication(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [host.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(hostApplication).to.be.softDeleted;
+    await expect(otherHostApplication).to.not.be.softDeleted;
+  });
+
+  it('deletes payout methods when banning collective', async () => {
+    const collective = await fakeCollective();
+    const payoutMethod = await fakePayoutMethod({ CollectiveId: collective.id });
+    const otherPayoutMethod = await fakePayoutMethod(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(payoutMethod).to.be.softDeleted;
+    await expect(otherPayoutMethod).to.not.be.softDeleted;
+  });
+
+  it('deletes virtual cards when banning collective', async () => {
+    const collective = await fakeCollective();
+    const virtualCard = await fakeVirtualCard({ CollectiveId: collective.id });
+    const otherVirtualCard = await fakeVirtualCard(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(virtualCard).to.be.softDeleted;
+    await expect(otherVirtualCard).to.not.be.softDeleted;
+  });
+
+  it('deletes virtual cards when banning host', async () => {
+    const collective = await fakeCollective();
+    const host = collective.host || (await fakeHost());
+    const virtualCard = await fakeVirtualCard({
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+    });
+    const otherVirtualCard = await fakeVirtualCard(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [host.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(virtualCard).to.be.softDeleted;
+    await expect(otherVirtualCard).to.not.be.softDeleted;
+  });
+
+  it('deletes virtual card requests when banning collective', async () => {
+    const collective = await fakeCollective();
+    const host = await fakeHost();
+    const user = await fakeUser();
+    const virtualCardRequest = await fakeVirtualCardRequest({
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      UserId: user.id,
+    });
+    const otherVirtualCardRequest = await fakeVirtualCardRequest({
+      CollectiveId: (await fakeCollective()).id,
+      HostCollectiveId: host.id,
+      UserId: user.id,
+    });
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(virtualCardRequest).to.be.softDeleted;
+    await expect(otherVirtualCardRequest).to.not.be.softDeleted;
+  });
+
+  it('deletes platform subscriptions when banning collective', async () => {
+    const collective = await fakeCollective();
+    const platformSubscription = await fakePlatformSubscription({
+      CollectiveId: collective.id,
+    });
+    const otherPlatformSubscription = await fakePlatformSubscription(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(platformSubscription).to.be.softDeleted;
+    await expect(otherPlatformSubscription).to.not.be.softDeleted;
+  });
+
+  it('deletes personal tokens when banning collective', async () => {
+    const user = await fakeUser();
+    const collective = await fakeCollective();
+    const personalToken = await fakePersonalToken({
+      user,
+      CollectiveId: collective.id,
+    });
+    const otherPersonalToken = await fakePersonalToken(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+    await expect(personalToken).to.be.softDeleted;
+    await expect(otherPersonalToken).to.not.be.softDeleted;
+  });
+
+  it('deletes personal tokens when banning user', async () => {
+    const user = await fakeUser();
+    const personalToken = await fakePersonalToken({ user });
+    const otherPersonalToken = await fakePersonalToken(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [user.collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(personalToken).to.be.softDeleted;
+    await expect(otherPersonalToken).to.not.be.softDeleted;
+  });
+
+  it('deletes required legal documents when banning host', async () => {
+    const host = await fakeHost();
+    const requiredLegalDocument = await fakeRequiredLegalDocument({
+      HostCollectiveId: host.id,
+    });
+    const otherRequiredLegalDocument = await fakeRequiredLegalDocument(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [host.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(requiredLegalDocument).to.be.softDeleted;
+    await expect(otherRequiredLegalDocument).to.not.be.softDeleted;
+  });
+
+  it('deletes transactions import rows when banning collective', async () => {
+    const collective = await fakeCollective();
+    const transactionsImport = await fakeTransactionsImport({
+      CollectiveId: collective.id,
+    });
+    const transactionsImportRow = await fakeTransactionsImportRow({
+      TransactionsImportId: transactionsImport.id,
+      CollectiveId: collective.id,
+    });
+    const otherTransactionsImportRow = await fakeTransactionsImportRow(); // Should not be deleted
+
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(transactionsImportRow).to.be.softDeleted;
+    await expect(otherTransactionsImportRow).to.not.be.softDeleted;
   });
 });

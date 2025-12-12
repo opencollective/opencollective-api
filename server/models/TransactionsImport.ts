@@ -8,11 +8,15 @@ import type {
   InferAttributes,
   InferCreationAttributes,
   Transaction as SequelizeTransaction,
+  WhereOptions,
 } from 'sequelize';
 import { z } from 'zod';
 
 import ActivityTypes from '../constants/activities';
+import { Service } from '../constants/connected-account';
 import { formatZodError } from '../lib/errors';
+import { disconnectGoCardlessAccount } from '../lib/gocardless/connect';
+import { disconnectPlaidAccount } from '../lib/plaid/connect';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Activity from './Activity';
@@ -39,7 +43,7 @@ type CreationAttributes = InferCreationAttributes<
   }
 >;
 
-export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID'] as const;
+export const TransactionsImportTypes = ['CSV', 'MANUAL', 'PLAID', 'GOCARDLESS'] as const;
 
 const settingsSchema = z
   .object({
@@ -70,6 +74,21 @@ const dataSchema = z
             }),
           )
           .optional(),
+      })
+      .optional(),
+    gocardless: z
+      .object({
+        requisition: z.object({ id: z.string(), accounts: z.array(z.string()) }),
+        institution: z.object({
+          id: z.string(),
+          name: z.string(),
+        }),
+        accountsMetadata: z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+          }),
+        ),
       })
       .optional(),
   })
@@ -105,6 +124,7 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
   declare public importRows?: TransactionsImportRow[];
   declare public getImportRows: HasManyGetAssociationsMixin<TransactionsImportRow>;
   declare public createImportRow: HasManyCreateAssociationMixin<TransactionsImportRow>;
+  declare public connectedAccount?: ConnectedAccount;
   declare public getConnectedAccount: BelongsToGetAssociationMixin<ConnectedAccount>;
 
   static async createWithActivity(
@@ -139,6 +159,46 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
     } else {
       return sequelize.transaction(runWithTransaction);
     }
+  }
+
+  static async disconnectAll(
+    collective: Collective,
+    { transaction = undefined }: { transaction?: SequelizeTransaction } = {},
+  ): Promise<{
+    disconnected: TransactionsImport[];
+    failures: Array<{ import: TransactionsImport; error: Error }>;
+  }> {
+    const disconnected = [];
+    const failures = [];
+    const imports = await TransactionsImport.findAll({
+      where: { CollectiveId: collective.id },
+      include: [{ association: 'connectedAccount', required: true }],
+      transaction,
+    });
+
+    for (const importInstance of imports) {
+      // Disconnect the provider
+      try {
+        if (importInstance.connectedAccount.service === Service.PLAID) {
+          await disconnectPlaidAccount(importInstance.connectedAccount);
+        } else if (importInstance.connectedAccount.service === Service.GOCARDLESS) {
+          await disconnectGoCardlessAccount(importInstance.connectedAccount);
+        }
+
+        await importInstance.connectedAccount.destroy({ transaction });
+        disconnected.push(importInstance);
+      } catch (error) {
+        failures.push({
+          import: importInstance,
+          error: { message: error.message, name: error.name },
+        });
+      }
+
+      // Unlink the import from the connected account
+      await importInstance.update({ ConnectedAccountId: null }, { transaction });
+    }
+
+    return { disconnected, failures };
   }
 
   async addRows(data, { transaction = undefined } = {}) {
@@ -178,9 +238,17 @@ class TransactionsImport extends Model<InferAttributes<TransactionsImport>, Crea
     }
   }
 
-  async getAllSourceIds(): Promise<Set<string>> {
-    const rows = await this.getImportRows({ attributes: ['sourceId'], raw: true });
+  async getAllSourceIds({ where }: { where?: WhereOptions<TransactionsImportRow> } = {}): Promise<Set<string>> {
+    const rows = await this.getImportRows({ where, attributes: ['sourceId'], raw: true });
     return new Set(rows.map(row => row.sourceId));
+  }
+
+  async getLastSyncedTransactionDate(): Promise<Date | null> {
+    const lastSyncedTransaction = (await TransactionsImportRow.max('date', {
+      where: { TransactionsImportId: this.id },
+    })) as string;
+
+    return lastSyncedTransaction ? new Date(lastSyncedTransaction) : null;
   }
 }
 

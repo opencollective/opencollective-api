@@ -71,7 +71,7 @@ const fixerNock = function () {
 };
 /* eslint-enable camelcase */
 
-const createGiftCardsMutation = gqlV1/* GraphQL */ `
+const createGiftCardsMutation = gqlV1 /* GraphQL */ `
   mutation CreateGiftCards(
     $amount: Int
     $monthlyLimitPerMember: Int
@@ -111,7 +111,7 @@ const createGiftCardsMutation = gqlV1/* GraphQL */ `
   }
 `;
 
-const claimPaymentMethodMutation = gqlV1/* GraphQL */ `
+const claimPaymentMethodMutation = gqlV1 /* GraphQL */ `
   mutation ClaimPaymentMethod($user: UserInputType, $code: String!) {
     claimPaymentMethod(user: $user, code: $code) {
       id

@@ -14,32 +14,28 @@ import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
 import {
-  activateBudget,
   activateCollectiveAsHost,
   archiveCollective,
   createCollective,
   createCollectiveFromGithub,
-  deactivateBudget,
   deactivateCollectiveAsHost,
   deleteCollective,
   editCollective,
   unarchiveCollective,
 } from './mutations/collectives';
-import { editConnectedAccount } from './mutations/connectedAccounts';
-import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
+import { editWebhooks } from './mutations/notifications';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { updateUserEmail } from './mutations/users';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CaptchaInputType,
   CollectiveInputType,
-  ConnectedAccountInputType,
   MemberInputType,
   NotificationInputType,
   StripeCreditCardDataInputType,
   UserInputType,
 } from './inputTypes';
-import { ConnectedAccountType, MemberType, NotificationType, PaymentMethodType, UserType } from './types';
+import { MemberType, NotificationType, PaymentMethodType, UserType } from './types';
 
 const mutations = {
   createCollective: {
@@ -194,15 +190,6 @@ const mutations = {
       return updateUserEmail(req.remoteUser, email);
     },
   },
-  editConnectedAccount: {
-    type: ConnectedAccountType,
-    args: {
-      connectedAccount: { type: new GraphQLNonNull(ConnectedAccountInputType) },
-    },
-    resolve(_, args, req) {
-      return editConnectedAccount(req, args.connectedAccount);
-    },
-  },
   editCoreContributors: {
     type: CollectiveInterfaceType,
     description: 'Updates all the core contributors (role = ADMIN or MEMBER) for this collective.',
@@ -238,19 +225,6 @@ const mutations = {
       message: { type: GraphQLString },
     },
     resolve: editPublicMessage,
-  },
-  updatePaymentMethod: {
-    type: PaymentMethodType,
-    description: 'Update a payment method',
-    deprecationReason: '2024-07-16: Please use updateOrder from GraphQLV2',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-      name: { type: GraphQLString },
-      monthlyLimitPerMember: { type: GraphQLInt },
-    },
-    resolve: async (_, args, req) => {
-      return paymentMethodsMutation.updatePaymentMethod(args, req);
-    },
   },
   replaceCreditCard: {
     type: PaymentMethodType,
@@ -362,19 +336,6 @@ const mutations = {
     },
     resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req),
   },
-  removePaymentMethod: {
-    type: new GraphQLNonNull(PaymentMethodType),
-    description: 'Removes the payment method',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the payment method to remove',
-      },
-    },
-    resolve: async (_, args, req) => {
-      return paymentMethodsMutation.removePaymentMethod(args.id, req);
-    },
-  },
   editWebhooks: {
     type: new GraphQLList(NotificationType),
     description: 'Edits (by replacing) the admin-level webhooks for a collective.',
@@ -390,36 +351,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return editWebhooks(args, req);
-    },
-  },
-  createWebhook: {
-    type: NotificationType,
-    description: 'Register user-level webhooks for a collective.',
-    args: {
-      collectiveSlug: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'Slug of the collective the webhook is created for.',
-      },
-      notification: {
-        type: NotificationInputType,
-        description: 'The notification object.',
-      },
-    },
-    resolve(_, args, req) {
-      return createWebhook(args, req);
-    },
-  },
-  deleteNotification: {
-    type: NotificationType,
-    description: 'Deletes a notification by ID.',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the notification to delete.',
-      },
-    },
-    resolve(_, args, req) {
-      return deleteNotification(args, req);
     },
   },
   activateCollectiveAsHost: {
@@ -446,32 +377,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return deactivateCollectiveAsHost(_, args, req);
-    },
-  },
-  activateBudget: {
-    type: CollectiveInterfaceType,
-    description: 'Activate budget (For Host Organizations only)',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the "collective" (Host Organization)',
-      },
-    },
-    resolve(_, args, req) {
-      return activateBudget(_, args, req);
-    },
-  },
-  deactivateBudget: {
-    type: CollectiveInterfaceType,
-    description: 'Deactivate budget (For Host Organizations only)',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-        description: 'ID of the "collective" (Host Organization)',
-      },
-    },
-    resolve(_, args, req) {
-      return deactivateBudget(_, args, req);
     },
   },
 };

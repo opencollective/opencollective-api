@@ -46,16 +46,14 @@ const IGNORED_HOSTS = [
   'access2perspectives',
   'foundation',
   // Transactions search API is not enabled
-  'blackqueerlife',
-  'bruijnlogistics',
-  'cct',
-  'kragelund-developments',
-  'lucy-parsons-labs',
-  'madeinjlm',
-  'osgeo-foundation',
-  'ppy',
-  'proofing-future',
-  'secdsm',
+  'bruijnlogistics', // Checked again on 2025-06-11, still not enabled
+  'kragelund-developments', // Checked again on 2025-06-11, still not enabled
+  'lucy-parsons-labs', // Checked again on 2025-06-11, still not enabled
+  'madeinjlm', // Checked again on 2025-06-11, still not enabled
+  'osgeo-foundation', // Checked again on 2025-06-11, still not enabled
+  'ppy', // Checked again on 2025-06-11, still not enabled
+  'proofing-future', // Checked again on 2025-06-11, still not enabled
+  'secdsm', // Checked again on 2025-06-11, still not enabled
 ];
 
 /**
@@ -271,16 +269,22 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
     let currentPage = 1;
     let totalPages;
     let transactions;
+    let fullResponse;
 
     logger.info(`Fetching transactions between ${fromDate.format('YYYY-MM-DD')} and ${toDate.format('YYYY-MM-DD')}...`);
     do {
       // Fetch all (paginated) transactions from PayPal for this date range
       try {
-        ({ transactions, currentPage, totalPages } = await listPayPalTransactions(host, fromDate, toDate, {
-          transactionStatus: 'S', // Successful transactions
-          fields: 'transaction_info',
-          currentPage,
-        }));
+        ({ fullResponse, transactions, currentPage, totalPages } = await listPayPalTransactions(
+          host,
+          fromDate,
+          toDate,
+          {
+            transactionStatus: 'S', // Successful transactions
+            fields: 'transaction_info',
+            currentPage,
+          },
+        ));
         if (ONLY_CHECK_PAYPAL) {
           return;
         }
@@ -294,6 +298,15 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         } else {
           throw e;
         }
+      }
+
+      if (!transactions) {
+        reportMessageToSentry(`Empty response from PayPal sync job`, {
+          extra: { fullResponse, fromDate, toDate, currentPage, totalPages },
+          feature: FEATURE.PAYPAL_DONATIONS,
+          severity: 'warning',
+        });
+        return;
       }
 
       const filteredTransactions = transactions.filter(t =>

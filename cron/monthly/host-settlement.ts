@@ -14,9 +14,10 @@ import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
+import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
 import { CommentType } from '../../server/models/Comment';
-import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
+import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
@@ -32,17 +33,64 @@ const isProduction = config.env === 'production';
 const KIND = process.env.KIND;
 const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
 
-// Only run on the 1th of the month
-if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
-  process.exit();
-} else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
-  console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
-  process.exit();
+// return last payout method used for the last paid settlement if its was not manual or other.
+async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMethod> {
+  const res = await Expense.findOne({
+    where: {
+      CollectiveId: host.id,
+      type: ExpenseType.SETTLEMENT,
+      status: ExpenseStatus.PAID,
+    },
+    attributes: [],
+    include: [
+      {
+        model: PayoutMethod,
+        attributes: ['type'],
+        paranoid: false, // even if it was deleted at some point, we just want to know the type used
+      },
+      {
+        model: PaymentMethod,
+        as: 'paymentMethod',
+        attributes: ['type'],
+        paranoid: false, // even if it was deleted at some point, we just want to know the type used
+      },
+    ],
+    order: [['createdAt', 'desc']],
+  });
+
+  if (!res) {
+    return null;
+  }
+
+  return res.PayoutMethod;
 }
 
-if (DRY) {
-  console.info('Running dry, changes are not going to be persisted to the DB.');
+function isValidHostPayoutMethodType(
+  host: Collective,
+  hostConnectedAccounts: ConnectedAccount[],
+  payoutMethodType: PayoutMethodTypes,
+): boolean {
+  switch (payoutMethodType) {
+    case PayoutMethodTypes.PAYPAL: {
+      if (hostConnectedAccounts?.find(c => c.service === 'paypal') && !host.settings?.['disablePaypalPayouts']) {
+        return true;
+      }
+      break;
+    }
+    case PayoutMethodTypes.BANK_ACCOUNT: {
+      if (hostConnectedAccounts?.find(c => c.service === 'transferwise')) {
+        return true;
+      }
+      break;
+    }
+
+    case PayoutMethodTypes.OTHER:
+    case PayoutMethodTypes.STRIPE: {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
@@ -190,16 +238,27 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       where: { deletedAt: null },
     });
 
-    let payoutMethod = payoutMethods[PayoutMethodTypes.OTHER]?.[0] || settlementBankAccountPayoutMethod;
-    if (connectedAccounts?.find(c => c.service === 'transferwise') && settlementBankAccountPayoutMethod) {
-      payoutMethod = settlementBankAccountPayoutMethod;
-    } else if (
-      connectedAccounts?.find(c => c.service === 'paypal') &&
-      !host.settings?.disablePaypalPayouts &&
-      payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
-    ) {
-      payoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
-    }
+    const lastPayoutMethod = await getLastPaidSettlementManagedPayoutMethod(host);
+    const payoutMethod = [
+      lastPayoutMethod?.type,
+      PayoutMethodTypes.STRIPE,
+      PayoutMethodTypes.BANK_ACCOUNT,
+      PayoutMethodTypes.PAYPAL,
+      PayoutMethodTypes.OTHER,
+    ]
+      .filter(Boolean)
+      .filter(type => isValidHostPayoutMethodType(host, connectedAccounts, type))
+      .map(type => {
+        if (type === lastPayoutMethod?.type && payoutMethods[type]?.some(pm => pm.id === lastPayoutMethod.id)) {
+          return lastPayoutMethod;
+        }
+
+        if (type === PayoutMethodTypes.BANK_ACCOUNT) {
+          return settlementBankAccountPayoutMethod;
+        }
+        return payoutMethods[type]?.[0];
+      })
+      .find(Boolean);
 
     if (!payoutMethod) {
       throw new Error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
@@ -238,6 +297,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     };
     if (DRY) {
       console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
+      console.debug(`PayoutMethod: ${payoutMethod.id} - ${payoutMethod.type}`);
       console.debug(`Items:\n${json2csv(items)}\n`);
     } else {
       // Create the Expense
@@ -288,5 +348,21 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 }
 
 if (require.main === module) {
+  // Only run on the 1th of the month
+  if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
+    console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
+    process.exit();
+  } else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
+    console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
+    process.exit();
+  } else if (!KIND && !DRY) {
+    console.log('KIND must be set when not running in dry mode.');
+    process.exit();
+  }
+
+  if (DRY) {
+    console.info('Running dry, changes are not going to be persisted to the DB.');
+  }
+
   runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60);
 }

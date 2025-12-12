@@ -2,6 +2,7 @@ import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } fr
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { AccountImagesInputFields } from './AccountCreateInputImageFields';
+import { GraphQLLocationInput } from './LocationInput';
 
 export const GraphQLEventCreateInput = new GraphQLInputObjectType({
   name: 'EventCreateInput',
@@ -11,6 +12,8 @@ export const GraphQLEventCreateInput = new GraphQLInputObjectType({
     description: { type: GraphQLString },
     tags: { type: new GraphQLList(GraphQLString) },
     settings: { type: GraphQLJSON },
+    location: { type: GraphQLLocationInput },
+    privateInstructions: { type: GraphQLString },
     startsAt: {
       description: 'The Event start date and time',
       type: new GraphQLNonNull(GraphQLDateTime),

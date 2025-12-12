@@ -15,6 +15,8 @@ import pgConnectionString from 'pg-connection-string';
 import format from 'pg-format';
 import createSubscriber from 'pg-listen';
 
+import logger from './logger';
+
 /** Load a dump file into the current database.
  *
  * This operation is very useful for at least two situations: 1) setup
@@ -102,9 +104,9 @@ export async function createDatabaseQuery(client, database, owner) {
   const exists = await client.query('SELECT 1 FROM pg_database WHERE datname=$1', [database]);
   if (!exists.rowCount) {
     await client.query(format('CREATE DATABASE %s OWNER %s;', database, owner));
-    console.log(`database ${database} created`);
+    logger.info(`database ${database} created`);
   } else {
-    console.log('database already exists');
+    logger.info('database already exists');
   }
 }
 
@@ -126,9 +128,9 @@ export async function dropDatabaseQuery(client, database) {
        WHERE datname = '${database}';`,
     );
     await client.query(format('DROP DATABASE %s;', database));
-    console.log(`database ${database} dropped`);
+    logger.info(`database ${database} dropped`);
   } else {
-    console.log('database did not exist');
+    logger.info('database did not exist');
   }
 }
 

@@ -24,7 +24,7 @@
     "maxSyncDelay": 5000
   },
   "maintenancedb": {
-    "url": "postgres://127.0.0.1:5432/postgres"
+    "url": "postgres://postgres@127.0.0.1:5432/postgres"
   },
   "keys": {
     "opencollective": {
@@ -94,7 +94,8 @@
       "email": {
         "perHourPerUser": 150,
         "perHourPerIp": 50
-      }
+      },
+      "concurrentRequests": 10
     },
     "userSigninAttemptsPerHourPerIp": 50,
     "userSignUpPerHour": 3,
@@ -115,7 +116,9 @@
     "level": "info",
     "accessLogs": false,
     "slowRequest": false,
-    "slowRequestThreshold": 1000
+    "slowRequestThreshold": 1000,
+    "slowMiddleware": false,
+    "slowMiddlewareThreshold": 1000
   },
   "aws": {
     "s3": {
@@ -196,7 +199,8 @@
     "blockedCurrenciesForNonProfits": "INR",
     "currenciesThatRequireReference": "RUB",
     "blockedCountries": "SS, SD, BI, CF, TD, CG, CD, SO, CU, IR, VE, SY, KP, AF, ER, IQ, LY, MM, YE, RU, BY",
-    "useTransferRefundHandler": false
+    "useTransferRefundHandler": false,
+    "useSimplifiedQuote": true
   },
   "hyperwatch": {
     "enabled": false,
@@ -277,12 +281,6 @@
   "plaid": {
     "env": "sandbox"
   },
-  "statsd": {
-    "enabled": false,
-    "url": "localhost",
-    "port": 8125,
-    "prefix": ""
-  },
   "webauthn": {
     "rpName": "[Test] Open Collective",
     "rpId": "localhost",
@@ -291,7 +289,8 @@
   "features": {
     "dashboard": {
       "redirect": false
-    }
+    },
+    "newPricing": false
   },
   "performance": {
     "hostsWithManyTransactions": [],

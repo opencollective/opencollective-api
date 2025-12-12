@@ -28,6 +28,13 @@ export const GraphQLProject = new GraphQLObjectType({
           }
         },
       },
+      location: {
+        ...AccountFields.location,
+        async resolve(project, _, req) {
+          // Projects locations are always public
+          return req.loaders.Location.byCollectiveId.load(project.id);
+        },
+      },
     };
   },
 });

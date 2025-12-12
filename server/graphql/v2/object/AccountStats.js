@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, has, intersection, memoize, pick, sortBy, sumBy } from 'lodash';
 import moment from 'moment';
+import assert from 'node:assert';
 
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { getCollectiveIds } from '../../../lib/budget';
@@ -799,7 +800,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
           const results = await sequelize.query(
             `
             SELECT
-              DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
+              DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt")) AS "date",
               (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
               ABS(SUM(t."amount")) as "amount",
               t."currency"
@@ -812,8 +813,8 @@ export const GraphQLAccountStats = new GraphQLObjectType({
               AND o."FromCollectiveId" NOT IN (:collectiveIds)
               AND t."type" = 'CREDIT'
               AND t."kind" = 'CONTRIBUTION'
-              ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
-              ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
+              ${dateFrom ? `AND COALESCE(t."clearedAt", t."createdAt") >= :startDate` : ``}
+              ${dateTo ? `AND COALESCE(t."clearedAt", t."createdAt") <= :endDate` : ``}
             GROUP BY "date", "label", t."currency"
             ORDER BY "date", ABS(SUM(t."amount")) DESC
             `,
@@ -837,6 +838,17 @@ export const GraphQLAccountStats = new GraphQLObjectType({
               label: result.label,
             })),
           };
+        },
+      },
+      managedAmount: {
+        type: GraphQLAmount,
+        description:
+          'The total amount managed by the account, including all its children accounts (events and projects), calculated using existing balance checkpoint. This is not a real-time value and may not reflect the current state of the account.',
+        resolve: async (account, _args, req) => {
+          assert(req.remoteUser.isRoot());
+
+          const result = await req.loaders.Collective.moneyManaged.load(account.id);
+          return pick(result, ['value', 'currency']);
         },
       },
     };

@@ -2,12 +2,14 @@
  * Functions related to search
  */
 
+import assert from 'assert';
+
 import config from 'config';
 import slugify from 'limax';
-import { get, isEmpty, toString, words } from 'lodash';
+import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import isEmail from 'validator/lib/isEmail';
 
-import { RateLimitExceeded } from '../graphql/errors';
+import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import {
   AmountRangeInputType,
@@ -91,7 +93,7 @@ const sanitizeSearchTermForTSQuery = term => {
 /**
  * Removes special ILIKE characters like `%
  */
-const sanitizeSearchTermForILike = term => {
+export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
@@ -149,6 +151,7 @@ const getSortSubQuery = (
 ) => {
   const sortSubQueries = {
     [ORDER_BY_PSEUDO_FIELDS.ACTIVITY]: `COALESCE(transaction_stats."count", 0)`,
+    [ORDER_BY_PSEUDO_FIELDS.LAST_TRANSACTION_CREATED_AT]: `COALESCE(transaction_stats."LatestTransactionCreatedAt", '2015-11-23')`,
     [ORDER_BY_PSEUDO_FIELDS.RANK]: `
       CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
         1
@@ -186,6 +189,10 @@ const getSortSubQuery = (
             AND hosted."isActive" = TRUE
             AND hosted."type" IN ('COLLECTIVE', 'FUND'))
           ]
+    `,
+    [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: `
+      COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
+      * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
     `,
     [ORDER_BY_PSEUDO_FIELDS.BALANCE]: CONSOLIDATED_BALANCE_SUBQUERY,
   };
@@ -246,6 +253,12 @@ export const searchCollectivesInDB = async (
     types?: string[];
     consolidatedBalance?: AmountRangeInputType;
     isRoot?: boolean;
+    isPlatformSubscriber?: boolean;
+    plan?: string[];
+    isVerified?: boolean;
+    isFirstPartyHost?: boolean;
+    lastTransactionFrom?: Date;
+    lastTransactionTo?: Date;
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -289,6 +302,19 @@ export const searchCollectivesInDB = async (
       'AND (c."type" != \'VENDOR\' OR (c."type" = \'VENDOR\' AND c."ParentCollectiveId" = :includeVendorsForHostId)) ';
   } else if (!types) {
     dynamicConditions += 'AND c."type" != \'VENDOR\' ';
+  }
+
+  if (!isNil(args.isPlatformSubscriber)) {
+    dynamicConditions += `AND EXISTS (SELECT 1 FROM "PlatformSubscriptions" WHERE "CollectiveId" = c.id AND period @> NOW() AND "deletedAt" IS NULL) `;
+  }
+
+  if (!isUndefined(args.plan)) {
+    if (args.plan?.includes('LEGACY')) {
+      assert(args.plan.length === 1, new BadRequest('If plan includes LEGACY, it must be the only value'));
+      dynamicConditions += `AND c."plan" IS NOT NULL `;
+    } else {
+      dynamicConditions += args.plan === null ? `AND c."plan" IS NULL` : `AND c."plan" IN (:plan) `;
+    }
   }
 
   if (vendorVisibleToAccountIds) {
@@ -350,6 +376,27 @@ export const searchCollectivesInDB = async (
     dynamicConditions += searchTermConditions.sqlConditions;
   }
 
+  if (!isNil(args.isVerified) || !isNil(args.isFirstPartyHost)) {
+    const verifiedConditions = [];
+    if (!isNil(args.isVerified)) {
+      verifiedConditions.push(`(c."data" ->> 'isVerified')::boolean IS ${args.isVerified ? 'TRUE' : 'FALSE'}`);
+    }
+    if (!isNil(args.isFirstPartyHost)) {
+      verifiedConditions.push(
+        `(c."data" ->> 'isFirstPartyHost')::boolean IS ${args.isFirstPartyHost ? 'TRUE' : 'FALSE'}`,
+      );
+    }
+    if (verifiedConditions.length > 0) {
+      dynamicConditions += `AND (${verifiedConditions.join(' OR ')}) `;
+    }
+  }
+  if (args.lastTransactionFrom) {
+    dynamicConditions += `AND transaction_stats."LatestTransactionCreatedAt" >= :lastTransactionFrom `;
+  }
+  if (args.lastTransactionTo) {
+    dynamicConditions += `AND transaction_stats."LatestTransactionCreatedAt" <= :lastTransactionTo `;
+  }
+
   // Build the query
   const result = await sequelize.query(
     `
@@ -388,6 +435,9 @@ export const searchCollectivesInDB = async (
         isHost,
         currency: args.currency,
         includeVendorsForHostId,
+        plan: args.plan,
+        lastTransactionFrom: args.lastTransactionFrom,
+        lastTransactionTo: args.lastTransactionTo,
       },
     },
   );
@@ -400,12 +450,25 @@ export const searchCollectivesInDB = async (
  */
 export const parseSearchTerm = (
   fullSearchTerm: string,
-): {
-  type: 'text' | 'slug' | 'email' | 'id' | 'number' | 'text';
-  term: string | number;
-  isFloat?: boolean;
-  words?: number;
-} => {
+):
+  | {
+      type: 'email' | 'slug';
+      term: string;
+    }
+  | {
+      type: 'text';
+      term: string | number;
+      words?: number;
+    }
+  | {
+      type: 'id';
+      term: number;
+    }
+  | {
+      type: 'number';
+      term: number;
+      isFloat?: boolean;
+    } => {
   const searchTerm = trimSearchTerm(fullSearchTerm);
   if (!searchTerm) {
     return { type: 'text', term: '' };
@@ -498,7 +561,10 @@ export const buildSearchConditions = (
     }
   }
 
-  if (dataFields?.length && (parsedTerm.words === 1 || (parsedTerm.type === 'number' && !parsedTerm.isFloat))) {
+  if (
+    dataFields?.length &&
+    ((parsedTerm.type === 'text' && parsedTerm.words === 1) || (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+  ) {
     conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
   }
 

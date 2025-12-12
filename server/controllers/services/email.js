@@ -1,4 +1,3 @@
-import prependHttp from 'prepend-http';
 import sanitizeHtml from 'sanitize-html';
 
 import { checkCaptcha } from '../../lib/check-captcha';
@@ -6,6 +5,7 @@ import emailLib from '../../lib/email';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
+import { prependHttp } from '../../lib/url-utils';
 import models from '../../models';
 
 export const unsubscribe = async (req, res, next) => {

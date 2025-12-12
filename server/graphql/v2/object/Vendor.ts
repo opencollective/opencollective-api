@@ -89,6 +89,15 @@ export const GraphQLVendor = new GraphQLObjectType({
           return req.loaders.Collective.byId.loadMany(visibleToAccountIds);
         },
       },
+      location: {
+        ...AccountFields.location,
+        async resolve(vendor, _, req) {
+          // Vendors locations are always public
+          if (req.remoteUser?.isAdmin(vendor.ParentCollectiveId)) {
+            return req.loaders.Location.byCollectiveId.load(vendor.id);
+          }
+        },
+      },
     };
   },
 });

@@ -18,7 +18,7 @@ const hasTemplate = (templateName: string): templateName is (typeof templateName
 };
 
 async function processCollective(collective: Collective, template: string) {
-  logger.info('-', collective.slug);
+  logger.info(`- ${collective.slug}`);
 
   // Exclude Funds from onboarding, Funds MVP, remove me after migration to FUND type
   if (get(collective, 'settings.fund') === true) {
@@ -42,7 +42,7 @@ async function processCollective(collective: Collective, template: string) {
     }
   }
 
-  logger.info(`>>> Sending ${template} email to the ${recipients.length} admin(s) of`, collective.slug);
+  logger.info(`>>> Sending ${template} email to the ${recipients.length} admin(s) of ${collective.slug}`);
   const data = { collective: collective.info, recipientName: collective.name || collective.legalName };
   return pMap(recipients, recipient =>
     emailLib.send(template, recipient, data, emailOptions).catch(e => {

@@ -35,7 +35,11 @@ const loadCommentedEntity = async (
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
     entity = (await loaders.Expense.byId.load(commentValues.ExpenseId)) as Expense;
     if (entity) {
+      entity.fromCollective = await loaders.Collective.byId.load(entity.FromCollectiveId);
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      activityData.fromCollective = entity.fromCollective.activity;
+      activityData.collective = entity.collective.activity;
+      activityData.expense = entity.info;
       if (!entity.collective) {
         return [null, activityType, activityData];
       }
@@ -83,6 +87,7 @@ const loadCommentedEntity = async (
   return [entity, activityType, activityData];
 };
 
+/* eslint-disable custom-errors/no-unthrown-errors */
 const getCommentPermissionsError = async (req, commentedEntity, commentType) => {
   if (commentedEntity instanceof Expense) {
     if (!(await canCommentExpense(req, commentedEntity))) {
@@ -111,6 +116,7 @@ const getCommentPermissionsError = async (req, commentedEntity, commentType) => 
     }
   }
 };
+/* eslint-enable custom-errors/no-unthrown-errors */
 
 export async function canSeeComment(req, comment: Comment): Promise<boolean> {
   const [entity] = await loadCommentedEntity(comment, req.loaders);

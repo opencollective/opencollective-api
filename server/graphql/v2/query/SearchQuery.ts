@@ -1,9 +1,10 @@
 import config from 'config';
 import express from 'express';
-import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import { v7 as uuidV7 } from 'uuid';
 
 import { isOpenSearchConfigured } from '../../../lib/open-search/client';
-import { getOpenSearchQueryId } from '../../../lib/open-search/graphql-search';
+import { getOpenSearchQueryId, GraphQLSearchParams } from '../../../lib/open-search/graphql-search';
 import RateLimit from '../../../lib/rate-limit';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -33,6 +34,12 @@ const SearchQuery = {
       type: GraphQLAccountReferenceInput,
       description: 'Limit the scope of the search to this host and its hosted accounts',
     },
+    useTopHits: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description:
+        'Set this to true if you are displaying all the results in the same list, and want a consistent sorting order across different types. (!) Paginating wih `offset` will not be supported',
+      defaultValue: false,
+    },
     timeout: {
       type: new GraphQLNonNull(GraphQLInt),
       description:
@@ -45,7 +52,13 @@ const SearchQuery = {
       defaultValue: 10,
     },
   },
-  async resolve(_: void, { searchTerm, ...args }, req: express.Request) {
+  async resolve(
+    _: void,
+    { searchTerm, useTopHits, ...args },
+    req: express.Request,
+  ): Promise<{
+    results: GraphQLSearchParams;
+  }> {
     const { remoteUser } = req;
     if (
       config.env === 'production' &&
@@ -67,11 +80,12 @@ const SearchQuery = {
     // Parse arguments
     const host = args.host && (await fetchAccountWithReference(args.host));
     const account = args.account && (await fetchAccountWithReference(args.account));
-    const limit = args.defaultLimit;
+    const defaultLimit = args.defaultLimit;
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`
-    const requestId = getOpenSearchQueryId(remoteUser, host, account, searchTerm);
-    return { results: { requestId, limit, searchTerm, account, host } };
+    const resolverId = uuidV7(); // To distinguish in case multiple search queries are made with aliases
+    const requestId = `${resolverId}-${getOpenSearchQueryId(remoteUser, host, account, searchTerm, useTopHits)}`;
+    return { results: { requestId, defaultLimit, searchTerm, account, host, useTopHits } };
   },
 };
 

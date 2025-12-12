@@ -5,7 +5,7 @@ import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
-const VIEWS = ['CollectiveOrderStats', 'ExpenseTagStats'];
+const VIEWS = ['CollectiveOrderStats', 'ExpenseTagStats', 'CommunityHostTransactionSummary'];
 
 const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions', 'CollectiveTagStats'];
 

@@ -10,15 +10,17 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import { cloneDeep, isEqual, isNull, omitBy, pick, set } from 'lodash';
+import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import POLICIES from '../../../constants/policies';
+import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
 import { crypto } from '../../../lib/encryption';
 import { canEditPolicy } from '../../../lib/policies';
+import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
@@ -40,9 +42,10 @@ import {
   GraphQLUserTwoFactorMethodReferenceInput,
 } from '../input/UserTwoFactorMethodReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
-import { GraphQLHost } from '../object/Host';
 import { GraphQLIndividual } from '../object/Individual';
 import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey';
+
+const { COLLECTIVE, FUND, ORGANIZATION } = CollectiveType;
 
 const GraphQLAddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
   name: 'AddTwoFactorAuthTokenToIndividualResponse',
@@ -96,7 +99,7 @@ const accountMutations = {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden('You need to be logged in as an Admin of the account to duplicate it.');
-      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
+      } else if (![COLLECTIVE, FUND].includes(account.type)) {
         throw new ValidationFailed(`${account.type} accounts cannot be duplicated.`);
       }
 
@@ -136,7 +139,7 @@ const accountMutations = {
           throwIfMissing: true,
         });
 
-        const isKeyEditableByHostAdmins = ['expenseTypes'].includes(args.key);
+        const isKeyEditableByHostAdmins = ['expenseTypes', 'canHostAccounts'].includes(args.key);
         const permissionMethod = isKeyEditableByHostAdmins ? 'isAdminOfCollectiveOrHost' : 'isAdminOfCollective';
         if (!req.remoteUser[permissionMethod](account)) {
           throw new Forbidden();
@@ -168,27 +171,42 @@ const accountMutations = {
           }
         }
 
-        const settings = account.settings ? cloneDeep(account.settings) : {};
+        if (args.key === 'canHostAccounts' && args.value === false) {
+          const hostedCollectives = await account.getHostedCollectivesCount();
+          if (hostedCollectives >= 1) {
+            throw new Error(
+              `You can't deactivate hosting while still hosting ${hostedCollectives} collectives. Please contact support: support@opencollective.com.`,
+            );
+          }
+        }
+
+        const previousSettings = account.settings ? account.settings : {};
+        const settings = cloneDeep(previousSettings);
         set(settings, args.key, args.value);
 
-        const previousData = { settings: { [args.key]: account.data?.[args.key] } };
         const updatedAccount = await account.update({ settings }, { transaction });
-        await models.Activity.create(
-          {
-            type: activities.COLLECTIVE_EDITED,
-            UserId: req.remoteUser.id,
-            UserTokenId: req.userToken?.id,
-            CollectiveId: account.id,
-            FromCollectiveId: account.id,
-            HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-            data: {
-              collective: updatedAccount.minimal,
-              previousData,
-              newData: { settings: { [args.key]: args.value } },
+        purgeCacheForCollective(account.slug); // Some settings affect the collective page
+
+        // Ignore some activities like dismissing the setup guide that polute the activity log without adding much value
+        const ignoreActivity = args.key.startsWith('showSetupGuide.');
+        if (!ignoreActivity) {
+          await models.Activity.create(
+            {
+              type: activities.COLLECTIVE_EDITED,
+              UserId: req.remoteUser.id,
+              UserTokenId: req.userToken?.id,
+              CollectiveId: account.id,
+              FromCollectiveId: account.id,
+              HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+              data: {
+                collective: updatedAccount.minimal,
+                previousData: { settings: pick(previousSettings, [args.key]) },
+                newData: { settings: pick(settings, [args.key]) },
+              },
             },
-          },
-          { transaction },
-        );
+            { transaction },
+          );
+        }
 
         return updatedAccount;
       });
@@ -321,7 +339,7 @@ const accountMutations = {
         throw new ValidationFailed('Cannot find the host of this account');
       } else if (!req.remoteUser.isAdminOfCollective(account.host)) {
         throw new Unauthorized();
-      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
+      } else if (![COLLECTIVE, FUND].includes(account.type)) {
         throw new ValidationFailed(
           'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
         );
@@ -630,7 +648,7 @@ const accountMutations = {
     },
   },
   editAccount: {
-    type: new GraphQLNonNull(GraphQLHost),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: 'Edit key properties of an account. Scope: "account".',
     args: {
       account: {
@@ -653,28 +671,124 @@ const accountMutations = {
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
+      const previousData: Partial<Collective> = {};
+      const newData: Partial<Collective> = {};
+      const updateParams: Parameters<typeof account.update>[0] = {};
       for (const key of Object.keys(args.account)) {
         switch (key) {
-          // If ever implementing name/slug change here, make sure to protect them with `canUseSlug`/`containsProtectedBrandName`!
           case 'currency': {
-            const previousData = { currency: account.currency };
-            await account.setCurrency(args.account[key]);
-            await models.Activity.create({
-              type: activities.COLLECTIVE_EDITED,
-              UserId: req.remoteUser.id,
-              UserTokenId: req.userToken?.id,
-              CollectiveId: account.id,
-              FromCollectiveId: account.id,
-              HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-              data: {
-                collective: account.minimal,
-                previousData,
-                newData: { currency: args.account[key] },
-              },
-            });
+            previousData['currency'] = account.currency;
+            newData['currency'] = args.account.currency;
+            await account.updateCurrency(args.account.currency, req.remoteUser);
+            break;
+          }
+          case 'hostFeePercent': {
+            if (args.account.hostFeePercent !== undefined && args.account.hostFeePercent !== account.hostFeePercent) {
+              previousData['hostFeePercent'] = account.hostFeePercent;
+              newData['hostFeePercent'] = args.account.hostFeePercent;
+              await account.updateHostFeeAsUser(args.account.hostFeePercent, req.remoteUser);
+            }
+            break;
+          }
+          case 'settings': {
+            previousData['settings'] = pick(account.settings, keys(args.account.settings));
+            newData['settings'] = args.account.settings;
+            const settings = defaultsDeep(cloneDeep(args.account.settings), cloneDeep(account.settings));
+            updateParams.settings = settings;
+            break;
+          }
+          case 'legalName':
+          case 'description':
+          case 'longDescription':
+          case 'company':
+          case 'address':
+          case 'timezone':
+          case 'image':
+          case 'startsAt':
+          case 'endsAt': {
+            if (args.account[key] !== account[key]) {
+              previousData[key] = account[key];
+              newData[key] = args.account[key];
+              updateParams[key] = args.account[key];
+            }
+            break;
+          }
+          case 'name':
+            if (args.account[key] !== account[key]) {
+              if (!req.remoteUser.isAdminOfAnyPlatformAccount() && containsProtectedBrandName(args.account.name)) {
+                throw new Error(`The name '${args.account.name}' is not allowed.`);
+              }
+              previousData[key] = account[key];
+              newData[key] = args.account[key];
+              updateParams[key] = args.account[key];
+              if (account.data?.requiresProfileCompletion) {
+                updateParams.data = { ...account.data, requiresProfileCompletion: false };
+                updateParams.slug = await Collective.generateSlug([args.account.name], true);
+                previousData.slug = account.slug;
+                newData.slug = updateParams.slug;
+              }
+            }
+            break;
+          case 'slug':
+            if (args.account[key] !== account[key]) {
+              if (!collectivelib.canUseSlug(args.account.slug, req.remoteUser)) {
+                throw new Error(`The slug '${args.account.slug}' is not allowed.`);
+              }
+              previousData[key] = account[key];
+              newData[key] = args.account[key];
+              updateParams[key] = args.account[key];
+            }
+            break;
+          case 'tags': {
+            if (!isEqual(args.account.tags, account.tags)) {
+              previousData['tags'] = account.tags;
+              newData['tags'] = args.account.tags;
+              updateParams.tags = args.account.tags;
+            }
+            break;
+          }
+          case 'location': {
+            const location = await account.getLocation();
+            if (!isEqual(args.account.location, location)) {
+              previousData['location'] = location;
+              newData['location'] = args.account.location;
+              await account.setLocation(args.account.location);
+            }
+            break;
+          }
+          case 'privateInstructions': {
+            if (args.account.privateInstructions !== account.data?.privateInstructions) {
+              previousData['data.privateInstructions'] = account.data?.privateInstructions;
+              newData['data.privateInstructions'] = args.account.privateInstructions;
+              account.data = { ...account.data, privateInstructions: args.account.privateInstructions };
+              await account.save();
+            }
+            break;
+          }
+          case 'socialLinks': {
+            await account.updateSocialLinks(args.account.socialLinks);
+            break;
           }
         }
       }
+
+      if (!isEmpty(updateParams)) {
+        await account.update(updateParams);
+      }
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: {
+          collective: account.minimal,
+          previousData,
+          newData,
+        },
+      });
 
       return account;
     },
@@ -827,6 +941,70 @@ const accountMutations = {
       await req.remoteUser.update({ twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
 
       return recoveryCodesArray;
+    },
+  },
+  convertAccountToOrganization: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Convert an account to an Organization. Scope: "account".',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Account to convert.',
+      },
+      hasMoneyManagement: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Should the Organization have money management capabilities',
+      },
+      legalName: {
+        type: GraphQLString,
+        description: 'Legal name of the Organization.',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+
+      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
+        throw new Forbidden();
+      }
+
+      // Disallow if not Collective or Fund
+      if (![COLLECTIVE, FUND].includes(account.type)) {
+        throw new Error('Mutation only available to COLLECTIVEs and FUNDs.');
+      }
+
+      // Disallow if Hosted
+      if (account.HostCollectiveId && account.approvedAt) {
+        throw new Error("Can't convert an hosted Collective.");
+      }
+
+      await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
+
+      await account.update({ type: ORGANIZATION });
+
+      if (args.legalName) {
+        await account.update({ legalName: args.legalName });
+      }
+
+      if (args.hasMoneyManagement === true) {
+        await account.activateMoneyManagement(req.remoteUser, { silent: true });
+      }
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: {
+          collective: account.minimal,
+        },
+      });
+
+      return account;
     },
   },
 };

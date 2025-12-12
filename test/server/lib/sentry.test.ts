@@ -1,5 +1,4 @@
 import { BaseContext, GraphQLRequestContext } from '@apollo/server';
-import Sentry from '@sentry/node';
 import { expect } from 'chai';
 import config from 'config';
 import sinon from 'sinon';
@@ -25,10 +24,10 @@ describe('server/lib/sentry', () => {
       req.query = 'query { test }';
       req.variables = { test: 'test' };
 
+      const captureExceptionSpy = sandbox.spy(SentryLib.Sentry, 'captureException');
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
         request: req,
       } as unknown as GraphQLRequestContext<BaseContext>);
-      const captureExceptionSpy = sandbox.spy(Sentry, 'captureException');
       context['didEncounterErrors']({
         operation: {},
         errors: [{ message: 'Test error 1' }, { message: 'Test error 2' }],
@@ -48,7 +47,7 @@ describe('server/lib/sentry', () => {
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
         request: req,
       } as unknown as GraphQLRequestContext<BaseContext>);
-      const captureExceptionSpy = sandbox.spy(Sentry, 'captureException');
+      const captureExceptionSpy = sandbox.spy(SentryLib.Sentry, 'captureException');
       context['didEncounterErrors']({
         operation: {},
         errors: [{ extensions: { code: 'IGNORED' } }, { path: ['account'], message: 'No collective found' }],

@@ -3,13 +3,14 @@ import crypto from 'crypto';
 import config from 'config';
 import Hashids from 'hashids/cjs';
 
+import logger from '../../lib/logger';
 import { BadRequest } from '../errors';
 
 const alphabet = '1234567890abcdefghijklmnopqrstuvwxyz';
 
 let salt = config.keys.opencollective.hashidSalt;
 if (!salt) {
-  console.warn('Please define HASHID_SALT to get permanent public ids.');
+  logger.warn('Please define HASHID_SALT to get permanent public ids.');
   salt = crypto.randomBytes(64).toString('hex');
 }
 
@@ -47,6 +48,7 @@ export const IDENTIFIER_TYPES = {
   VIRTUAL_CARD_REQUEST: 'virtual-card-request',
   TRANSACTIONS_IMPORT: 'transactions-import',
   TRANSACTIONS_IMPORT_ROW: 'transactions-import-row',
+  KYC_VERIFICATION: 'kyc-verification',
 } as const;
 
 export type IdentifierType = (typeof IDENTIFIER_TYPES)[keyof typeof IDENTIFIER_TYPES];
@@ -88,12 +90,15 @@ export const idEncode = (integer: number, type: IdentifierType): string => {
 };
 
 export const idDecode = (string: string, type: IdentifierType): number => {
-  const [decoded] = getInstance(type).decode(string.split('-').join(''));
-  if (decoded === undefined) {
+  try {
+    const [decoded] = getInstance(type).decode(string.split('-').join(''));
+    if (decoded === undefined) {
+      throw new Error('No returned value from hashids');
+    }
+    return Number(decoded);
+  } catch {
     throw new BadRequest(`Invalid ${type} id: ${string}`);
   }
-
-  return Number(decoded);
 };
 
 /**

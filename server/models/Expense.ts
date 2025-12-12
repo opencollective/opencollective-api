@@ -12,6 +12,7 @@ import {
   NonAttribute,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
+import Stripe from 'stripe';
 import validator from 'validator';
 
 import ActivityTypes from '../constants/activities';
@@ -47,6 +48,7 @@ import ExpenseItem from './ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
+import { Billing } from './PlatformSubscription';
 import RecurringExpense from './RecurringExpense';
 import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
@@ -120,6 +122,9 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       receiver?: string;
       purpose?: string;
     };
+    paymentIntent?: Stripe.PaymentIntent;
+    previousPaymentIntents?: Stripe.PaymentIntent[];
+    bill?: Billing;
   };
 
   declare public currency: SupportedCurrency;
@@ -183,7 +188,10 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     type: ActivityTypes,
     user: User | { id: number } | null = null,
     data:
-      | ({ notifyCollective?: boolean; ledgerTransaction?: Transaction; notify?: boolean } & Record<string, unknown>)
+      | ({ notifyCollective?: boolean; ledgerTransaction?: Transaction; notify?: boolean; draftKey?: string } & Record<
+          string,
+          unknown
+        >)
       | null = {},
   ) {
     const submittedByUser = await this.getSubmitterUser();
@@ -194,7 +202,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     }
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
-    const items = this.items || this.data?.items || (await this.getItems());
+    const items: Array<{ url?: string } & Record<string, unknown>> =
+      this.items || this.data?.items || (await this.getItems());
 
     let transaction;
     if (data?.ledgerTransaction) {
@@ -203,6 +212,23 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       transaction = await Transaction.findOne({
         where: { type: 'DEBIT', kind: 'EXPENSE', ExpenseId: this.id },
         order: [['id', 'DESC']],
+      });
+    }
+
+    const protectedUrls = {};
+    for (const item of items || []) {
+      if (!item.url) {
+        continue;
+      }
+
+      const uploadedFile = await UploadedFile.getFromURL(item.url);
+      if (!uploadedFile) {
+        continue;
+      }
+
+      protectedUrls[item.url] = UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(uploadedFile, {
+        expenseId: this.id,
+        draftKey: data.draftKey,
       });
     }
 
@@ -215,7 +241,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
       ExpenseId: this.id,
       TransactionId: transaction?.id,
       data: {
-        ...pick(this.data, 'payee'),
+        ...pick(this.data, ['payee', 'bill']),
         ...pick(data, [
           'isManualPayout',
           'error',
@@ -230,6 +256,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           'notifyCollective',
           'reference',
           'estimatedDelivery',
+          'previousData',
         ]),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
@@ -249,7 +276,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
             currency: item.currency,
             expenseCurrencyFxRate: item.expenseCurrencyFxRate,
             expenseCurrencyFxRateSource: item.expenseCurrencyFxRateSource,
-            url: item.url,
+            url: protectedUrls[item.url] || item.url,
           })),
       },
     });
@@ -982,22 +1009,26 @@ Expense.init(
     paranoid: true,
     tableName: 'Expenses',
     hooks: {
-      async afterDestroy(expense: Expense) {
+      async afterDestroy(expense: Expense, options) {
         // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
         const promises = [
-          ExpenseItem.destroy({ where: { ExpenseId: expense.id } }),
-          models.Comment.destroy({ where: { ExpenseId: expense.id } }),
+          ExpenseItem.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
+          models.Comment.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
           models.TransactionsImportRow.update(
             { ExpenseId: null, status: 'PENDING' },
-            { where: { ExpenseId: expense.id } },
+            { where: { ExpenseId: expense.id }, transaction: options.transaction },
           ),
         ];
 
         if (expense.RecurringExpenseId) {
-          promises.push(RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId } }));
+          promises.push(
+            RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId }, transaction: options.transaction }),
+          );
         }
         if (expense.InvoiceFileId) {
-          promises.push(UploadedFile.destroy({ where: { id: expense.InvoiceFileId } }));
+          promises.push(
+            UploadedFile.destroy({ where: { id: expense.InvoiceFileId }, transaction: options.transaction }),
+          );
         }
 
         await Promise.all(promises);

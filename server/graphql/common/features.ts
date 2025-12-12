@@ -5,7 +5,7 @@ import { QueryOptions } from 'sequelize';
 import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
-import { hasFeature, isFeatureAllowedForCollectiveType, isFeatureBlockedForAccount } from '../../lib/allowed-features';
+import { getFeatureAccess, isFeatureBlockedForAccount } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
 import { Collective, sequelize } from '../../models';
 
@@ -197,9 +197,12 @@ export const getFeatureStatusResolver =
   async (collective: Collective, _, req): Promise<FEATURE_STATUS> => {
     if (!collective) {
       return FEATURE_STATUS.UNSUPPORTED;
-    } else if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
+    }
+
+    const { access } = await getFeatureAccess(collective, feature, { loaders: req?.loaders });
+    if (access === 'UNSUPPORTED') {
       return FEATURE_STATUS.UNSUPPORTED;
-    } else if (!hasFeature(collective, feature)) {
+    } else if (access === 'DISABLED') {
       return FEATURE_STATUS.DISABLED;
     }
 
@@ -236,7 +239,6 @@ export const getFeatureStatusResolver =
         return checkIsActiveIfExistsInDB(
           `SELECT 1 FROM "ConnectedAccounts" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "service" = 'transferwise'`,
           { replacements: { CollectiveId: collective.id } },
-          FEATURE_STATUS.DISABLED,
         );
       case FEATURE.EVENTS:
         return checkIsActiveIfExistsInDB(

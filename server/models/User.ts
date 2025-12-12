@@ -4,7 +4,7 @@ import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, isEmpty, pick, uniq } from 'lodash';
-import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
@@ -30,12 +30,13 @@ import Order from './Order';
 const debug = debugLib('models:User');
 
 type UserData = {
-  creationRequest?: { ip: string };
-  lastSignInRequest?: { ip: string };
+  creationRequest?: { ip: string; userAgent: string };
+  lastSignInRequest?: { ip: string; userAgent: string };
   features?: Record<FEATURE, boolean>;
   limits?: {
     draftExpenses?: 'bypass';
   };
+  requiresVerification?: boolean;
 };
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
@@ -471,6 +472,29 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   /**
+   *  Safely destroy a user account to avoid email conflicts in the future
+   *  Updates the user email before soft-deleting the account
+   */
+  async safeDestroy({ transaction }: { transaction?: Transaction } = {}) {
+    // Update user email in order to free up for future reuse
+    // Split the email, username from host domain
+    const splitedEmail = this.email.split('@');
+    // Add the current timestamp to email username
+    const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
+
+    const destroyInTransaction = async transaction => {
+      await this.update({ email: newEmail }, { transaction });
+      const collective = await Collective.findByPk(this.CollectiveId, { transaction });
+      if (collective) {
+        await collective.destroy({ transaction });
+      }
+      return this.destroy({ transaction });
+    };
+
+    return transaction ? destroyInTransaction(transaction) : sequelize.transaction(destroyInTransaction);
+  }
+
+  /**
    * Static Methods
    */
   static createMany = (users, defaultValues = {}) => {
@@ -491,18 +515,11 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return User.findOne({ where: { email: email.toLowerCase() }, transaction });
   };
 
-  static createUserWithCollective = async (userData, transaction = undefined) => {
-    if (!userData) {
-      return Promise.reject(new Error('Cannot create a user: no user data provided'));
+  createCollective = async function (userData, transaction?: Transaction) {
+    if (this.CollectiveId) {
+      return Promise.reject(new Error('User already has a collective'));
     }
-
     const sequelizeParams = transaction ? { transaction } : undefined;
-    debug('createUserWithCollective', userData);
-    const cleanUserData = pick(userData, ['email', 'newsletterOptIn']);
-    const user = await User.create(cleanUserData, sequelizeParams);
-
-    // If user doesn't provide a name, set it to "incognito". If we cannot
-    // slugify it (for example name="------") then fallback on "user".
     let collectiveName = userData.name;
     if (!collectiveName || collectiveName.trim().length === 0) {
       collectiveName = 'incognito';
@@ -525,11 +542,24 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       hostFeePercent: userData.hostFeePercent,
       isActive: false,
       isHostAccount: Boolean(userData.isHostAccount),
-      CreatedByUserId: userData.CreatedByUserId || user.id,
-      data: { UserId: user.id },
+      CreatedByUserId: userData.CreatedByUserId || this.id,
+      data: { ...(userData.data || {}), UserId: this.id },
       settings: userData.settings,
     };
-    user.collective = await Collective.create(userCollectiveData, sequelizeParams);
+    return await Collective.create(userCollectiveData, sequelizeParams);
+  };
+
+  static createUserWithCollective = async (userData, transaction?: Transaction) => {
+    if (!userData) {
+      return Promise.reject(new Error('Cannot create a user: no user data provided'));
+    }
+
+    const sequelizeParams = transaction ? { transaction } : undefined;
+    debug('createUserWithCollective', userData);
+    const cleanUserData = pick(userData, ['email', 'newsletterOptIn']);
+    const user = await User.create(cleanUserData, sequelizeParams);
+
+    user.collective = await user.createCollective(userData, transaction);
 
     if (userData.location) {
       await user.collective.setLocation(userData.location, transaction);

@@ -24,7 +24,6 @@ tempStripe.js
 .envrc
 
 !.env.development
-!.env.test
 
 # IDE files
 jsconfig.json
@@ -33,6 +32,7 @@ typings
 # VSCode
 .history
 .vscode
+.cursor
 # JetBrains
 .idea/
 *.iml

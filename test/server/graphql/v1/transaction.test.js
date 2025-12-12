@@ -49,7 +49,7 @@ describe('server/graphql/v1/transaction', () => {
   describe('return collective.transactions', () => {
     it('when given a collective slug (case insensitive)', async () => {
       const limit = 40;
-      const collectiveQuery = gqlV1/* GraphQL */ `
+      const collectiveQuery = gqlV1 /* GraphQL */ `
         query Collective($slug: String, $limit: Int) {
           Collective(slug: $slug) {
             id
@@ -91,7 +91,7 @@ describe('server/graphql/v1/transaction', () => {
 
   describe('return transactions', () => {
     it('returns one transaction by id', async () => {
-      const transactionQuery = gqlV1/* GraphQL */ `
+      const transactionQuery = gqlV1 /* GraphQL */ `
         query Transaction($id: Int) {
           Transaction(id: $id) {
             id
@@ -122,7 +122,7 @@ describe('server/graphql/v1/transaction', () => {
     });
 
     it('returns one transaction by uuid', async () => {
-      const transactionQuery = gqlV1/* GraphQL */ `
+      const transactionQuery = gqlV1 /* GraphQL */ `
         query Transaction($uuid: String) {
           Transaction(uuid: $uuid) {
             id
@@ -157,7 +157,7 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with filter on type', async () => {
       const limit = 100;
-      const allTransactionsQuery = gqlV1/* GraphQL */ `
+      const allTransactionsQuery = gqlV1 /* GraphQL */ `
         query AllTransactions($collectiveId: Int!, $limit: Int, $offset: Int, $type: String) {
           allTransactions(CollectiveId: $collectiveId, limit: $limit, offset: $offset, type: $type) {
             id
@@ -176,7 +176,7 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with dateFrom', async () => {
       // Given the followin query
-      const allTransactionsQuery = gqlV1/* GraphQL */ `
+      const allTransactionsQuery = gqlV1 /* GraphQL */ `
         query AllTransactions(
           $collectiveId: Int!
           $limit: Int
@@ -210,7 +210,7 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with dateTo', async () => {
       // Given the followin query
-      const allTransactionsQuery = gqlV1/* GraphQL */ `
+      const allTransactionsQuery = gqlV1 /* GraphQL */ `
         query AllTransactions(
           $collectiveId: Int!
           $limit: Int
@@ -245,7 +245,7 @@ describe('server/graphql/v1/transaction', () => {
     it('with pagination', async () => {
       const limit = 20;
       const offset = 0;
-      const allTransactionsQuery = gqlV1/* GraphQL */ `
+      const allTransactionsQuery = gqlV1 /* GraphQL */ `
         query AllTransactions($collectiveId: Int!, $limit: Int, $offset: Int) {
           allTransactions(CollectiveId: $collectiveId, limit: $limit, offset: $offset) {
             id
