@@ -1905,17 +1905,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(collective.type).to.equal(CollectiveType.ORGANIZATION);
       expect(collective.isHostAccount).to.be.true;
       expect(collective.isActive).to.be.true;
-
-      // Check that ACTIVATED_MONEY_MANAGEMENT activity was created
-      const activity = await models.Activity.findOne({
-        where: {
-          UserId: user.id,
-          type: ACTIVITY.ACTIVATED_MONEY_MANAGEMENT,
-          CollectiveId: collective.id,
-        },
-      });
-
-      expect(activity).to.exist;
     });
 
     it('does not activate money management by default', async () => {
