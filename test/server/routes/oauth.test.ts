@@ -472,4 +472,314 @@ describe('server/routes/oauth', () => {
       });
     });
   });
+
+  describe('refresh token', () => {
+    let application, user, originalToken, refreshTokenParams;
+
+    beforeEach(async () => {
+      // Create application and user
+      application = await fakeApplication();
+      user = application.createdByUser;
+
+      // Get an initial access token with authorization code flow
+      const authorizeParams = new URLSearchParams({
+        response_type: 'code',
+        client_id: application.clientId,
+        redirect_uri: application.callbackUrl,
+        scope: 'email account',
+      });
+
+      const authorizeResponse = await request(expressApp)
+        .post(`/oauth/authorize?${authorizeParams.toString()}`)
+        .set('Content-Type', `application/x-www-form-urlencoded`)
+        .set('Authorization', `Bearer ${user.jwt()}`)
+        .expect(200);
+
+      const redirectUri = new URL(authorizeResponse.body['redirect_uri']);
+      const code = redirectUri.searchParams.get('code');
+
+      const tokenResponse = await request(expressApp)
+        .post(`/oauth/token`)
+        .type(`application/x-www-form-urlencoded`)
+        .send({
+          grant_type: 'authorization_code',
+          code,
+          client_id: application.clientId,
+          client_secret: application.clientSecret,
+          redirect_uri: application.callbackUrl,
+        })
+        .expect(200);
+
+      originalToken = tokenResponse.body;
+
+      refreshTokenParams = {
+        grant_type: 'refresh_token',
+        refresh_token: originalToken.refresh_token,
+        client_id: application.clientId,
+        client_secret: application.clientSecret,
+      };
+    });
+
+    it('successfully exchanges a refresh token for a new access token', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send(refreshTokenParams)
+        .expect(200);
+
+      const newToken = response.body;
+      expect(newToken).to.be.an('object');
+      expect(newToken.access_token).to.be.a('string');
+      expect(newToken.access_token).to.not.eq(originalToken.access_token); // New access token
+      expect(newToken.refresh_token).to.be.a('string');
+      expect(newToken.token_type).to.eq('Bearer');
+      expect(newToken.expires_in).to.eq(7776000); // 90 days
+      expect(newToken.scope).to.eq('email account');
+
+      // Verify the new access token is valid by making a GraphQL request
+      const gqlRequestResult = await request(expressApp)
+        .post('/graphql/v2')
+        .set('Authorization', `Bearer ${newToken.access_token}`)
+        .accept('application/json')
+        .send({
+          query: '{ loggedInAccount { legacyId } }',
+        });
+
+      const jsonResponse = JSON.parse(gqlRequestResult.res.text);
+      expect(jsonResponse.data.loggedInAccount.legacyId).to.eq(user.CollectiveId);
+    });
+
+    it('invalidates the old access token after refresh', async () => {
+      // First, verify the original token works
+      let gqlRequestResult = await request(expressApp)
+        .post('/graphql/v2')
+        .set('Authorization', `Bearer ${originalToken.access_token}`)
+        .accept('application/json')
+        .send({
+          query: '{ loggedInAccount { legacyId } }',
+        });
+
+      let jsonResponse = JSON.parse(gqlRequestResult.res.text);
+      expect(jsonResponse.data.loggedInAccount.legacyId).to.eq(user.CollectiveId);
+
+      // Use refresh token to get a new access token
+      await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send(refreshTokenParams)
+        .expect(200);
+
+      // Now the old token should be invalid
+      gqlRequestResult = await request(expressApp)
+        .post('/graphql/v2')
+        .set('Authorization', `Bearer ${originalToken.access_token}`)
+        .accept('application/json')
+        .send({
+          query: '{ loggedInAccount { legacyId } }',
+        })
+        .expect(200);
+
+      jsonResponse = JSON.parse(gqlRequestResult.res.text);
+      expect(jsonResponse.data.loggedInAccount).to.be.null; // User should not be authenticated
+    });
+
+    it('invalidates the old refresh token after use', async () => {
+      // First refresh should succeed
+      await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send(refreshTokenParams)
+        .expect(200);
+
+      // Second attempt with the same refresh token should fail
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send(refreshTokenParams)
+        .expect(400);
+
+      expect(response.body).to.deep.eq({
+        error: 'invalid_grant',
+        error_description: 'Invalid refresh token',
+      });
+    });
+
+    it('requires a valid refresh token', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send({
+          ...refreshTokenParams,
+          refresh_token: 'invalid_refresh_token',
+        })
+        .expect(400);
+
+      expect(response.body).to.deep.eq({
+        error: 'invalid_grant',
+        error_description: 'Invalid refresh token',
+      });
+    });
+
+    it('requires client_id', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send({
+          ...refreshTokenParams,
+          client_id: null,
+        })
+        .expect(400);
+
+      expect(response.body).to.deep.eq({
+        error: 'invalid_client',
+        error_description: 'Invalid client: cannot retrieve client credentials',
+      });
+    });
+
+    it('requires valid client_id', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send({
+          ...refreshTokenParams,
+          client_id: 'invalid_client_id',
+        })
+        .expect(400);
+
+      expect(response.body).to.deep.eq({
+        error: 'invalid_client',
+        error_description: 'Invalid client',
+      });
+    });
+
+    it('requires client_secret', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send({
+          ...refreshTokenParams,
+          client_secret: null,
+        })
+        .expect(400);
+
+      expect(response.body).to.deep.eq({
+        error: 'invalid_client',
+        error_description: 'Invalid client: cannot retrieve client credentials',
+      });
+    });
+
+    it('requires valid client_secret', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send({
+          ...refreshTokenParams,
+          client_secret: 'invalid_secret',
+        })
+        .expect(400);
+
+      expect(response.body).to.deep.eq({
+        error: 'invalid_client',
+        error_description: 'Invalid client credentials',
+      });
+    });
+
+    it('preserves the original scope when refreshing', async () => {
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send(refreshTokenParams)
+        .expect(200);
+
+      const newToken = response.body;
+      expect(newToken.scope).to.eq('email account');
+
+      // Verify the JWT has the correct scope
+      const decodedToken = jwt.verify(newToken.access_token, config.keys.opencollective.jwtSecret) as jwt.JwtPayload;
+      expect(decodedToken.scope).to.eq('oauth');
+    });
+
+    it('issues a new refresh token on each refresh', async () => {
+      const firstRefreshResponse = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send(refreshTokenParams)
+        .expect(200);
+
+      const firstNewToken = firstRefreshResponse.body;
+      expect(firstNewToken.refresh_token).to.not.eq(originalToken.refresh_token);
+
+      // Use the new refresh token
+      const secondRefreshResponse = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send({
+          ...refreshTokenParams,
+          refresh_token: firstNewToken.refresh_token,
+        })
+        .expect(200);
+
+      const secondNewToken = secondRefreshResponse.body;
+      expect(secondNewToken.refresh_token).to.not.eq(firstNewToken.refresh_token);
+      expect(secondNewToken.access_token).to.not.eq(firstNewToken.access_token);
+    });
+
+    it('rejects expired refresh tokens', async () => {
+      // Manually expire the refresh token in the database
+      const models = (await import('../../../server/models')).default;
+      const userToken = await models.UserToken.findOne({
+        where: { refreshToken: originalToken.refresh_token },
+      });
+      await userToken.update({ refreshTokenExpiresAt: new Date(Date.now() - 1000000) });
+
+      const response = await request(expressApp)
+        .post('/oauth/token')
+        .type(`application/x-www-form-urlencoded`)
+        .send(refreshTokenParams)
+        .expect(400);
+
+      expect(response.body).to.deep.eq({
+        error: 'invalid_grant',
+        error_description: 'Invalid grant: refresh token has expired',
+      });
+    });
+
+    it('can use a refresh token multiple times if a new one is issued each time', async () => {
+      let currentRefreshToken = originalToken.refresh_token;
+
+      // Perform 3 refresh cycles
+      for (let i = 0; i < 3; i++) {
+        const response = await request(expressApp)
+          .post('/oauth/token')
+          .type(`application/x-www-form-urlencoded`)
+          .send({
+            grant_type: 'refresh_token',
+            refresh_token: currentRefreshToken,
+            client_id: application.clientId,
+            client_secret: application.clientSecret,
+          })
+          .expect(200);
+
+        const newToken = response.body;
+        expect(newToken.access_token).to.be.a('string');
+        expect(newToken.refresh_token).to.be.a('string');
+        expect(newToken.refresh_token).to.not.eq(currentRefreshToken);
+
+        // Verify the new access token works
+        const gqlRequestResult = await request(expressApp)
+          .post('/graphql/v2')
+          .set('Authorization', `Bearer ${newToken.access_token}`)
+          .accept('application/json')
+          .send({
+            query: '{ loggedInAccount { legacyId } }',
+          });
+
+        const jsonResponse = JSON.parse(gqlRequestResult.res.text);
+        expect(jsonResponse.data.loggedInAccount.legacyId).to.eq(user.CollectiveId);
+
+        // Update for next iteration
+        currentRefreshToken = newToken.refresh_token;
+      }
+    });
+  });
 });

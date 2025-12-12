@@ -4,6 +4,7 @@ import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttrib
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Application from './Application';
 import User from './User';
 
 export enum TokenType {
@@ -28,6 +29,8 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   declare public lastUsedAt: CreationOptional<Date>;
 
   declare public user?: NonAttribute<User>;
+  declare public application?: NonAttribute<Application>;
+
   declare public client?: NonAttribute<OAuth2Server.Client>;
 
   hasScope(scope): boolean {
@@ -113,7 +116,7 @@ UserToken.init(
     defaultScope: {
       include: [
         { association: 'user', required: true },
-        { association: 'client', required: true },
+        { association: 'application', required: true },
       ],
     },
   },

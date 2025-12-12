@@ -333,7 +333,7 @@ User.hasMany(UserToken, { foreignKey: 'UserId' });
 User.hasMany(UserTwoFactorMethod);
 
 // UserToken
-UserToken.belongsTo(Application, { foreignKey: 'ApplicationId', as: 'client' });
+UserToken.belongsTo(Application, { foreignKey: 'ApplicationId', as: 'application' });
 UserToken.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 
 // UserTwoFactorMethod

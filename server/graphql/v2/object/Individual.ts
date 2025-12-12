@@ -201,7 +201,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
             return {
               id: row.id,
               account: collective,
-              application: row.client,
+              application: row.application,
               expiresAt: row.accessTokenExpiresAt,
               createdAt: row.createdAt,
               updatedAt: row.updatedAt,
