@@ -221,10 +221,19 @@ const EMPTY_FLAG = 'EMPTY';
 debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
 
 /**
+ * Generates a cache key that includes the collective slug and activity classes.
+ * Classes are sorted to ensure consistent cache keys regardless of input order.
+ */
+const getCacheKey = (collectiveSlug: string, classes: ActivityClasses[]): string => {
+  const sortedClasses = [...classes].sort().join('-');
+  return `timeline-${collectiveSlug}-${sortedClasses || 'none'}`;
+};
+
+/**
  * Updates an existing cached timeline feed and trim it to the limit.
  */
 const updateFeed = async (collective: Collective, classes: ActivityClasses[], sinceId: number) => {
-  const cacheKey = `timeline-${collective.slug}`;
+  const cacheKey = getCacheKey(collective.slug, classes);
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
   const where = await makeTimelineQuery(collective, classes);
   where['id'] = { [Op.gt]: sinceId };
@@ -256,7 +265,7 @@ const updateFeed = async (collective: Collective, classes: ActivityClasses[], si
 };
 
 const createNewFeed = async (collective: Collective, classes: ActivityClasses[]) => {
-  const cacheKey = `timeline-${collective.slug}`;
+  const cacheKey = getCacheKey(collective.slug, classes);
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
 
   const where = await makeTimelineQuery(collective, classes);
@@ -333,7 +342,7 @@ export const getCollectiveFeed = async ({
 
   const cache = await makeRedisProvider(RedisInstanceType.TIMELINE);
   // Check if timeline cache exists
-  const cacheKey = `timeline-${collective.slug}`;
+  const cacheKey = getCacheKey(collective.slug, classes);
   const cacheExists = await redis.exists(cacheKey);
   if (!cacheExists) {
     const lockKey = `${cacheKey}-semaphore`;
