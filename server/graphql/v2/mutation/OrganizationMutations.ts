@@ -275,12 +275,12 @@ export default {
       if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement()) {
         await organization.activateMoneyManagement(req.remoteUser);
       }
-      if (shouldHaveHosting === true && !organization.hasHosting() && organization.hasMoneyManagement()) {
+      if (shouldHaveHosting === true && !organization.hasHosting && organization.hasMoneyManagement()) {
         await organization.activateHosting(req.remoteUser);
       }
 
       // Deactivate Hosting first, so Money Management can be properly deactivated
-      if (shouldHaveHosting === false && organization.hasHosting()) {
+      if (shouldHaveHosting === false && organization.hasHosting) {
         await organization.deactivateHosting(req.remoteUser);
       }
       if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement()) {
@@ -313,7 +313,7 @@ export default {
 
       if (organization.type !== ORGANIZATION) {
         throw new Error('Mutation only available to ORGANIZATION.');
-      } else if (organization.hasHosting()) {
+      } else if (organization.hasHosting) {
         throw new Error('Organization should not have Hosting activated.');
       } else if (organization.hasMoneyManagement()) {
         throw new Error('Organization should not have Money Management activated.');
