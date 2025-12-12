@@ -32,7 +32,6 @@ import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../c
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
-import { idDecode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
 import { GraphQLDuplicateAccountDataTypeInput } from '../input/DuplicateAccountDataTypeInput';
@@ -382,7 +381,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request) {
       checkRemoteUserCanUseAccount(req);
 
-      const account = await fetchAccountWithReference(args.account);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
@@ -422,7 +421,7 @@ const accountMutations = {
     ): Promise<Record<string, unknown>> {
       checkRemoteUserCanUseAccount(req);
 
-      const account = await fetchAccountWithReference(args.account);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
@@ -553,7 +552,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
-      const account = await fetchAccountWithReference(args.account);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
@@ -659,11 +658,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
-      const id = idDecode(args.account.id, 'account');
-      const account = await req.loaders.Collective.byId.load(id);
-      if (!account) {
-        throw new NotFound('Account Not Found');
-      }
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
         throw new Forbidden();
@@ -810,11 +805,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
-      const id = args.account.legacyId || idDecode(args.account.id, 'account');
-      const account = await req.loaders.Collective.byId.load(id);
-      if (!account) {
-        throw new NotFound('Account Not Found');
-      }
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       // Check host only policies
       const previousPolicies = account.data?.policies || {};
@@ -867,11 +858,7 @@ const accountMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
 
-      const id = args.account.legacyId || idDecode(args.account.id, 'account');
-      const account = await req.loaders.Collective.byId.load(id);
-      if (!account) {
-        throw new NotFound('Account Not Found');
-      }
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be logged in as an Admin of the account.');
