@@ -4,7 +4,9 @@ import sinon from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import MemberRoles from '../../../../../server/constants/roles';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
@@ -536,6 +538,60 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/Organization should not have Hosting activated/);
+    });
+
+    it('rejects conversion if organization has a non-zero balance', async () => {
+      const user = await fakeUser();
+      const organization = await fakeCollective({
+        type: CollectiveType.ORGANIZATION,
+        admin: user,
+        HostCollectiveId: null,
+      });
+
+      // Create a transaction to give the organization a non-zero balance
+      const host = await fakeCollective({ type: CollectiveType.ORGANIZATION });
+      const order = await models.Order.create({
+        CollectiveId: organization.id,
+        FromCollectiveId: user.CollectiveId,
+        CreatedByUserId: user.id,
+        totalAmount: 1000,
+        currency: 'USD',
+        status: OrderStatuses.PAID,
+      });
+      await models.Transaction.create({
+        CollectiveId: organization.id,
+        HostCollectiveId: host.id,
+        OrderId: order.id,
+        amount: 1000, // cents
+        currency: 'USD',
+        type: 'CREDIT',
+        CreatedByUserId: user.id,
+        description: 'Test deposit',
+        isRefund: false,
+        kind: TransactionKind.CONTRIBUTION,
+        amountInHostCurrency: 1000,
+        netAmountInCollectiveCurrency: 0,
+        netAmountInHostCurrency: 0,
+        platformFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        hostCurrency: 'USD',
+      });
+
+      await organization.reload();
+
+      // Assert the balance is exactly 1000
+      const balance = await organization.getBalance();
+      expect(balance).to.equal(1000);
+
+      const result = await utils.graphqlQueryV2(
+        convertOrganizationToCollectiveMutation,
+        { organization: { legacyId: organization.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Organization should have a zero balance/);
     });
 
     it('rejects conversion if organization has money management activated', async () => {

@@ -317,6 +317,8 @@ export default {
         throw new Error('Organization should not have Hosting activated.');
       } else if (organization.hasMoneyManagement()) {
         throw new Error('Organization should not have Money Management activated.');
+      } else if ((await organization.getBalance()) !== 0) {
+        throw new Error('Organization should have a zero balance.');
       }
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
