@@ -366,6 +366,10 @@ const accountFieldsDefinition = () => ({
         type: GraphQLBoolean,
         description: 'Filter on archived collectives',
       },
+      isFrozen: {
+        type: GraphQLBoolean,
+        description: 'Filter on (not) frozen collectives',
+      },
       accountType: {
         type: new GraphQLList(GraphQLAccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
