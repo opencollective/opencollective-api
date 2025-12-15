@@ -25,7 +25,7 @@ type KycProviderData = {
 
 type KYCVerifiedData = {
   legalName: string;
-  legalAddress: string;
+  legalAddress?: string;
 };
 
 type KYCData<Provider extends KYCProviderName = KYCProviderName> = Provider extends keyof KycProviderData

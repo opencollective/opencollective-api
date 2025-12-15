@@ -520,7 +520,9 @@ export const checkExpensesBatch = async (
           scope: Scope.USER,
           level: Level.MEDIUM,
           message: `User has KYC Verification with provider '${kycVerification.provider}'`,
-          details: `Verified name: ${kycVerification.data.legalName}, verified address: ${kycVerification.data.legalAddress} `,
+          details: `Verified name: ${kycVerification.data.legalName}${
+            kycVerification.data.legalAddress ? `, verified address: ${kycVerification.data.legalAddress}` : ''
+          }`,
         });
       }
 

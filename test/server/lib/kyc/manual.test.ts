@@ -77,5 +77,26 @@ describe('server/lib/kyc/manual', () => {
         legalAddress: 'Legal address',
       });
     });
+
+    it('it creates VERIFIED verification without legal address', async () => {
+      const org = await fakeOrganization();
+      const user = await fakeUser();
+
+      const kycVerification = await manualKycProvider.request(
+        {
+          CollectiveId: org.id,
+          RequestedByCollectiveId: user.collective.id,
+        },
+        {
+          legalName: 'Legal name',
+          notes: 'notes',
+        },
+      );
+
+      expect(kycVerification).to.exist;
+      expect(kycVerification.status).to.eql(KYCVerificationStatus.VERIFIED);
+      expect(kycVerification.data.legalName).to.eql('Legal name');
+      expect(kycVerification.data.legalAddress).to.be.undefined;
+    });
   });
 });
