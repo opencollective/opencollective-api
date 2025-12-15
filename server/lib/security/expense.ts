@@ -503,27 +503,28 @@ export const checkExpensesBatch = async (
         },
       );
 
-      const kycVerifications = await Promise.all(
-        Object.values(KYCProviderName).map(provider =>
-          req.loaders.KYCVerification.verifiedStatusByProvider(
-            expense.HostCollectiveId || expense.CollectiveId,
-            provider,
-          ).load(expense.User.CollectiveId),
-        ),
-      );
-      for (const kycVerification of kycVerifications) {
-        if (!kycVerification) {
-          continue;
+      // KYC Verification Check: only for individual payees
+      const payeeCollective =
+        expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
+      if (payeeCollective?.type === CollectiveType.USER) {
+        const kycVerifications = await Promise.all(
+          Object.values(KYCProviderName).map(provider =>
+            req.loaders.KYCVerification.verifiedStatusByProvider(expense.HostCollectiveId, provider).load(
+              payeeCollective.id,
+            ),
+          ),
+        );
+        for (const kycVerification of kycVerifications) {
+          if (!kycVerification) {
+            continue;
+          }
+          addBooleanCheck(checks, true, {
+            scope: Scope.PAYEE,
+            level: Level.PASS,
+            message: `Payee has KYC Verification with '${kycVerification.provider}' provider`,
+            details: kycVerification.data.legalName,
+          });
         }
-        // TODO match kyc fields with expense details
-        addBooleanCheck(checks, true, {
-          scope: Scope.USER,
-          level: Level.MEDIUM,
-          message: `User has KYC Verification with provider '${kycVerification.provider}'`,
-          details: `Verified name: ${kycVerification.data.legalName}${
-            kycVerification.data.legalAddress ? `, verified address: ${kycVerification.data.legalAddress}` : ''
-          }`,
-        });
       }
 
       // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
