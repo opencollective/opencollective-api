@@ -26775,7 +26775,7 @@ input RequestKYCVerificationInput {
 
 input RequestManualKYCVerificationInput {
   legalName: String!
-  legalAddress: String!
+  legalAddress: String
   notes: String
 }
 
