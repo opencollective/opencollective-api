@@ -4,8 +4,8 @@ import { KYCProvider, KYCRequest } from './base';
 import { KYCProviderName } from '.';
 
 type ManualKYCRequest = {
-  legalAddress: string;
   legalName: string;
+  legalAddress?: string;
   notes?: string;
 };
 
@@ -38,8 +38,8 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
         notes: providerRequest.notes ?? '',
       },
       data: {
-        legalAddress: providerRequest.legalAddress,
         legalName: providerRequest.legalName,
+        ...(providerRequest.legalAddress ? { legalAddress: providerRequest.legalAddress } : {}),
       },
       provider: this.providerName,
       status: KYCVerificationStatus.VERIFIED,

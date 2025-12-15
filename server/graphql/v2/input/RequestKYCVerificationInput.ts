@@ -7,7 +7,7 @@ const GraphQLRequestManualKYCVerificationInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(GraphQLString),
     },
     legalAddress: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
     },
     notes: {
       type: GraphQLString,
