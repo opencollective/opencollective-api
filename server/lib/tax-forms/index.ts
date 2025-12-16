@@ -4,8 +4,9 @@ import { get } from 'lodash';
 import {
   TAX_FORM_IGNORED_EXPENSE_STATUSES,
   TAX_FORM_IGNORED_EXPENSE_TYPES,
-  US_TAX_FORM_THRESHOLD,
   US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
+  US_TAX_FORM_THRESHOLD_POST_2026,
+  US_TAX_FORM_THRESHOLD_PRE_2026,
 } from '../../constants/tax-form';
 import { Collective, Expense } from '../../models';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
@@ -15,8 +16,14 @@ export const getTaxFormsS3Bucket = (): string => {
   return get(config, 'taxForms.aws.s3.bucket');
 };
 
-export const amountsRequireTaxForm = (paypalTotal: number, otherTotal: number): boolean => {
-  return otherTotal >= US_TAX_FORM_THRESHOLD || paypalTotal >= US_TAX_FORM_THRESHOLD_FOR_PAYPAL;
+export const amountsRequireTaxForm = (paypalTotal: number, otherTotal: number, year: number): boolean => {
+  if (paypalTotal >= US_TAX_FORM_THRESHOLD_FOR_PAYPAL) {
+    return true;
+  } else if (year >= 2026) {
+    return otherTotal >= US_TAX_FORM_THRESHOLD_POST_2026;
+  } else {
+    return otherTotal >= US_TAX_FORM_THRESHOLD_PRE_2026;
+  }
 };
 
 export const expenseMightBeSubjectToTaxForm = (expense: Expense): boolean => {

@@ -1,9 +1,13 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { differenceBy, times } from 'lodash';
+import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { US_TAX_FORM_THRESHOLD } from '../../../../../server/constants/tax-form';
+import {
+  US_TAX_FORM_THRESHOLD_POST_2026,
+  US_TAX_FORM_THRESHOLD_PRE_2026,
+} from '../../../../../server/constants/tax-form';
 import * as libcurrency from '../../../../../server/lib/currency';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
@@ -20,6 +24,9 @@ import {
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+
+const US_TAX_FORM_THRESHOLD =
+  moment().get('year') >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
 
 const expensesQuery = gql`
   query Expenses(

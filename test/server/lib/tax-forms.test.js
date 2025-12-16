@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import expenseTypes from '../../../server/constants/expense-type';
-import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
+import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../server/constants/tax-form';
 import SQLQueries from '../../../server/lib/queries';
 import models from '../../../server/models';
 import {
@@ -26,6 +26,7 @@ const { RECEIPT, INVOICE } = expenseTypes;
 const { RequiredLegalDocument, LegalDocument, Collective, User, Expense } = models;
 
 const YEAR = moment().year();
+const US_TAX_FORM_THRESHOLD = YEAR >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
 
 describe('server/lib/tax-forms', () => {
   // globals to be set in the before hooks.

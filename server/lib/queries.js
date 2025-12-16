@@ -777,20 +777,21 @@ const getTotalNumberOfDonors = () => {
  *
  * @argument {Object[]} results - The results of a tax form query.
  */
-const getTaxFormsOverTheLimit = (results, idKey) => {
+const getTaxFormsOverTheLimit = (results, idKey, year = undefined) => {
   // Group results in a map like Map<idKey, { paypalTotal, otherTotal }>
   const groupedResults = new Map();
   for (const result of results) {
-    const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0 };
+    const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0, year: undefined };
     const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
     groupResult[totalKey] += result.total;
+    groupResult.year = result.year;
     groupedResults.set(result[idKey], groupResult);
   }
 
   // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
   const resultSet = new Set();
   groupedResults.forEach((groupResult, id) => {
-    if (amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal)) {
+    if (amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, year || groupResult.year)) {
       resultSet.add(id);
     }
   });
@@ -808,6 +809,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       analyzed_expenses."FromCollectiveId",
       analyzed_expenses.id as "expenseId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      EXTRACT('year' FROM analyzed_expenses."incurredAt") AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -969,7 +971,7 @@ const getTaxFormsRequiredForAccounts = async ({
     },
   );
 
-  return getTaxFormsOverTheLimit(results, 'collectiveId');
+  return getTaxFormsOverTheLimit(results, 'collectiveId', year);
 };
 
 const serializeCollectivesResult = JSON.stringify;
