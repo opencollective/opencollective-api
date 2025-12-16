@@ -58,7 +58,7 @@ async function createCollective(_, args, req) {
       };
 
       if (!isProd && args.testPayload) {
-        collectiveData.data = args.testPayload.data;
+        collectiveData['data'] = args.testPayload.data;
       }
 
       if (!canUseSlug(collectiveData.slug, remoteUser)) {
@@ -91,10 +91,10 @@ async function createCollective(_, args, req) {
           const bypassGithubValidation = !isProd && remoteUser.email.match(/.*test.*@opencollective.com$/);
 
           if (!bypassGithubValidation) {
-            const githubAccount = await models.ConnectedAccount.findOne(
-              { where: { CollectiveId: remoteUser.CollectiveId, service: 'github' } },
-              { transaction },
-            );
+            const githubAccount = await models.ConnectedAccount.findOne({
+              where: { CollectiveId: remoteUser.CollectiveId, service: 'github' },
+              transaction,
+            });
             if (githubAccount) {
               // In e2e/CI environment, checkGithubAdmin will be stubbed
               await github.checkGithubAdmin(githubHandle, githubAccount.token);
