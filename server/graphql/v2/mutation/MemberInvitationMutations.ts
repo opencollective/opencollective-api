@@ -1,7 +1,9 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
+import type express from 'express';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
+import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
@@ -9,15 +11,19 @@ import MemberRoles from '../../../constants/roles';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
+import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { Forbidden, Unauthorized } from '../../errors';
+import { BadRequest, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLMemberRole } from '../enum';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLInviteMemberInput } from '../input/InviteMemberInput';
 import {
   fetchMemberInvitationWithReference,
   GraphQLMemberInvitationReferenceInput,
 } from '../input/MemberInvitationReferenceInput';
 import { GraphQLMemberInvitation } from '../object/MemberInvitation';
+
+const INVITABLE_ROLES = [roles.ADMIN, roles.ACCOUNTANT, roles.COMMUNITY_MANAGER, roles.MEMBER];
 
 const memberInvitationMutations = {
   inviteMember: {
@@ -71,6 +77,42 @@ const memberInvitationMutations = {
       return models.MemberInvitation.invite(account, memberParams);
     },
   },
+  inviteMembers: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLMemberInvitation))),
+    description: 'Creates and invites admins to an existing Account. Scope: "account".',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description:
+          'Reference to the account to invite admins to, must be an Organization, Collective, Fund, Event or Project.',
+      },
+      members: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLInviteMemberInput))),
+        description: 'List of members to invite as admins.',
+      },
+    },
+    resolve: async (_, args, req: express.Request) => {
+      checkRemoteUserCanUseAccount(req);
+
+      if (!args.members || !args.members.length) {
+        throw new BadRequest('No members to invite provided');
+      }
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      if (account.type === CollectiveType.USER) {
+        throw new Forbidden('You can only invite admins to an Organization or a Collective.');
+      }
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Forbidden('You need to be an Admin of the provided account in order to invite members.');
+      }
+
+      // Enforce 2FA for invite actions
+      await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+      return await processInviteMembersInput(account, args.members, {
+        supportedRoles: INVITABLE_ROLES,
+        user: req.remoteUser,
+      });
+    },
+  },
   editMemberInvitation: {
     type: GraphQLMemberInvitation,
     description: 'Edit an existing member invitation of the Collective. Scope: "account".',
@@ -106,11 +148,7 @@ const memberInvitationMutations = {
         throw new Unauthorized('Only admins can edit members.');
       }
 
-      if (
-        ![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER, MemberRoles.COMMUNITY_MANAGER].includes(
-          args.role,
-        )
-      ) {
+      if (!INVITABLE_ROLES.includes(args.role)) {
         throw new Forbidden('You can only edit accountants, admins, members, or community managers.');
       }
 
@@ -149,7 +187,7 @@ const memberInvitationMutations = {
       const invitation = await fetchMemberInvitationWithReference(args.invitation, { throwIfMissing: true });
 
       if (!req.remoteUser.isAdmin(invitation.MemberCollectiveId)) {
-        return new Forbidden('Only an admin of the invited account can reply to the invitation');
+        throw new Forbidden('Only an admin of the invited account can reply to the invitation');
       }
 
       if (args.accept) {
