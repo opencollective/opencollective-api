@@ -992,7 +992,6 @@ class Collective extends Model<
     if (!this.hasMoneyManagement() || force) {
       const updatedValues = {
         isHostAccount: true,
-        hasHosting: false,
         plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
         hostFeePercent: undefined,
         platformFeePercent: undefined,
@@ -1102,7 +1101,7 @@ class Collective extends Model<
     const settings = this.settings ? cloneDeep(this.settings) : {};
     unset(settings, 'paymentMethods.manual');
 
-    await this.update({ isHostAccount: false, hasHosting: false, plan: null, settings });
+    await this.update({ isHostAccount: false, plan: null, settings });
 
     await PayoutMethod.destroy({
       where: {
