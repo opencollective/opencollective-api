@@ -50,6 +50,13 @@ export default [
       'require-atomic-updates': 'off',
       camelcase: 'error',
       'n/no-unsupported-features/node-builtins': 'off',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ObjectExpression > Property[key.name='logging'][value.value=true]",
+          message: 'Using `logging: true` in Sequelize queries is forbidden.',
+        },
+      ],
     },
   },
   // Disable some rules for migrations
