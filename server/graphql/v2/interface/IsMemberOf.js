@@ -209,7 +209,6 @@ export const IsMemberOfFields = {
         limit: args.limit,
         offset: args.offset,
         order,
-        logging: true,
         include: [
           {
             model: models.Collective,
