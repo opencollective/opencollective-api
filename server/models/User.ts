@@ -542,6 +542,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       hostFeePercent: userData.hostFeePercent,
       isActive: false,
       isHostAccount: Boolean(userData.isHostAccount),
+      hasHosting: userData.hasHosting,
       CreatedByUserId: userData.CreatedByUserId || this.id,
       data: { ...(userData.data || {}), UserId: this.id },
       settings: userData.settings,

@@ -550,6 +550,7 @@ describe('server/models/Collective', () => {
         slug: 'temporaryHost',
         currency: 'EUR',
         CreatedByUserId: user1.id,
+        hasHosting: true,
       });
       await models.Member.create({
         CollectiveId: temporaryHost.id,

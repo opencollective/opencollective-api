@@ -156,7 +156,6 @@ type Settings = {
   budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
-  canHostAccounts?: boolean;
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
@@ -333,6 +332,7 @@ class Collective extends Model<
   declare public monthlySpending: number;
   declare public deactivatedAt: Date;
   declare public isHostAccount: boolean;
+  declare public hasHosting: boolean;
   declare public plan: string;
 
   declare public createdAt: CreationOptional<Date>;
@@ -495,6 +495,7 @@ class Collective extends Model<
       updatedAt: this.updatedAt,
       isActive: this.isActive,
       isHostAccount: this.isHostAccount,
+      hasHosting: this.hasHosting,
       slug: this.slug,
       tiers: (this as any).tiers,
       type: this.type,
@@ -975,10 +976,6 @@ class Collective extends Model<
     return this.isHostAccount;
   };
 
-  hasHosting = function () {
-    return this.isHostAccount && this.settings?.canHostAccounts !== false;
-  };
-
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
   activateMoneyManagement = async function (
@@ -998,7 +995,6 @@ class Collective extends Model<
         plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
         hostFeePercent: undefined,
         platformFeePercent: undefined,
-        settings: { ...this.settings, canHostAccounts: false },
       };
       // hostFeePercent and platformFeePercent are not supposed to be set at this point
       // but we're dealing with legacy tests here
@@ -1078,7 +1074,7 @@ class Collective extends Model<
 
   /** @deprecated: use deactivateMoneyManagement or deactivateHosting separately */
   deactivateAsHost = async function () {
-    if (this.hasHosting()) {
+    if (this.hasHosting) {
       await this.deactivateHosting();
     }
 
@@ -1094,7 +1090,7 @@ class Collective extends Model<
    * deactivating it as a host.
    */
   deactivateMoneyManagement = async function (remoteUser = null) {
-    if (this.hasHosting()) {
+    if (this.hasHosting) {
       throw new Error(`Can't deactive money management with hosting activated.`);
     }
 
@@ -1137,10 +1133,7 @@ class Collective extends Model<
       throw new Error(`Can't active hosting without money management.`);
     }
 
-    const settings = this.settings ? cloneDeep(this.settings) : {};
-    set(settings, 'canHostAccounts', true);
-
-    await this.update({ settings });
+    await this.update({ hasHosting: true });
 
     await Activity.create({
       type: activities.ACTIVATED_HOSTING,
@@ -1171,10 +1164,7 @@ class Collective extends Model<
       { hooks: false, where: { HostCollectiveId: this.id, isActive: false } },
     );
 
-    const settings = this.settings ? cloneDeep(this.settings) : {};
-    set(settings, 'canHostAccounts', false);
-
-    await this.update({ settings });
+    await this.update({ hasHosting: false });
 
     await Activity.create({
       type: activities.DEACTIVATED_HOSTING,
@@ -2693,6 +2683,7 @@ class Collective extends Model<
       hostFeePercent: null,
       platformFeePercent: null,
       isHostAccount: false,
+      hasHosting: false,
       plan: null,
       data: omit(
         this.data,
@@ -4132,6 +4123,11 @@ Collective.init(
     },
 
     isHostAccount: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+
+    hasHosting: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },

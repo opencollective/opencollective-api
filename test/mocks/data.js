@@ -10,6 +10,7 @@ export default {
     location: { address: 'Paradize street\nSan Francisco CA 94100\nUSA' },
     currency: 'USD',
     isHostAccount: true,
+    hasHosting: true,
     settings: { apply: true },
   },
   user1: {

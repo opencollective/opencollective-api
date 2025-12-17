@@ -229,11 +229,7 @@ const checkFeatureAccessParty = (
       case FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS:
         return collective.type === CollectiveType.ORGANIZATION && collective.isHostAccount;
       case FEATURE_ACCESS_PARTY.HOSTS:
-        return (
-          collective.isHostAccount &&
-          collective.settings?.canHostAccounts !== false &&
-          collective.type === CollectiveType.ORGANIZATION
-        );
+        return collective.isHostAccount && collective.hasHosting && collective.type === CollectiveType.ORGANIZATION;
     }
   });
 };
