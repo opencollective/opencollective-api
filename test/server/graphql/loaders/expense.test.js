@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
+import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../../server/constants/tax-form';
 import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
@@ -14,7 +15,8 @@ import {
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
-const US_TAX_FORM_THRESHOLD = 600e2;
+const US_TAX_FORM_THRESHOLD =
+  moment().get('year') >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
 
 /** Create a fake host */
 const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
