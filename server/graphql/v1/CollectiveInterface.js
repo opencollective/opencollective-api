@@ -353,6 +353,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       children: { type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)) },
       type: { type: GraphQLString },
       isActive: { type: GraphQLBoolean },
+      hasHosting: { type: GraphQLBoolean },
       name: { type: GraphQLString },
       legalName: { type: GraphQLString },
       company: { type: GraphQLString },
