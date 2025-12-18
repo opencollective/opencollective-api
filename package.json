@@ -99,7 +99,7 @@
     "helmet": "8.1.0",
     "html-to-text": "9.0.5",
     "ics": "3.8.1",
-    "jsonwebtoken": "9.0.2",
+    "jsonwebtoken": "9.0.3",
     "juice": "11.0.3",
     "limax": "4.2.1",
     "lodash": "4.17.21",
