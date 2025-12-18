@@ -714,6 +714,12 @@ const CollectiveFields = () => {
         return collective.isActive;
       },
     },
+    hasHosting: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve(collective) {
+        return collective.hasHosting;
+      },
+    },
     name: {
       type: GraphQLString,
       resolve(collective) {
