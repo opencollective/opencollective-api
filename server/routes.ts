@@ -2,7 +2,7 @@ import http from 'http';
 
 import { ApolloServer } from '@apollo/server';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
-import { expressMiddleware } from '@as-integrations/express4';
+import { expressMiddleware } from '@as-integrations/express5';
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import config from 'config';
 import type express from 'express';
@@ -50,15 +50,15 @@ export default async (app: express.Application) => {
   /**
    * Extract GraphQL API Key
    */
-  app.use('/graphql/:version?/:apiKey?', (req, res, next) => {
+  app.use('/graphql{/:version}{/:apiKey}', (req, res, next) => {
     req.isGraphQL = true; // Helps identify that the request is handled by GraphQL
     req.apiKey = req.params.apiKey;
     next();
   });
 
-  app.use('*', withTiming('checkPersonalToken', authentication.checkPersonalToken));
+  app.use(withTiming('checkPersonalToken', authentication.checkPersonalToken));
 
-  app.use('*', withTiming('authorizeClient', authentication.authorizeClient));
+  app.use(withTiming('authorizeClient', authentication.authorizeClient));
 
   /**
    * Sign In related features
@@ -79,7 +79,7 @@ export default async (app: express.Application) => {
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
    * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
    */
-  app.use('*', withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
+  app.use(withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
 
   // OAuth server (after authentication/JWT handling, at least for authorize)
   app['oauth'] = oauth;
@@ -342,7 +342,7 @@ export default async (app: express.Application) => {
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
-  app.post('/webhooks/paypal/:hostId?', paypalWebhook);
+  app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
   app.post('/webhooks/plaid', plaidWebhook);
   app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
   app.delete(
@@ -373,12 +373,20 @@ export default async (app: express.Application) => {
   /**
    * Generic OAuth (ConnectedAccounts)
    */
-  app.get('/connected-accounts/:service(github|transferwise)', noCache, authentication.authenticateService); // backward compatibility
-  app.get(
-    '/connected-accounts/:service(github|stripe|paypal|transferwise)/oauthUrl',
-    noCache,
-    authentication.authenticateService,
-  );
+  app.get('/connected-accounts/:service', noCache, (req, res, next) => {
+    const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
+    if (!oauthServiceAllowlist.has(req.params.service)) {
+      return next(new errors.NotFound('Service not supported'));
+    }
+    return authentication.authenticateService(req, res, next);
+  }); // backward compatibility
+  app.get('/connected-accounts/:service/oauthUrl', noCache, (req, res, next) => {
+    const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
+    if (!oauthServiceAllowlist.has(req.params.service)) {
+      return next(new errors.NotFound('Service not supported'));
+    }
+    return authentication.authenticateService(req, res, next);
+  });
   app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */

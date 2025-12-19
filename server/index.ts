@@ -38,7 +38,12 @@ async function startExpressServer(workerId) {
   /**
    * Start server
    */
-  const server = expressApp.listen(config.port, () => {
+  const server = expressApp.listen(config.port, error => {
+    if (error) {
+      logger.error('Failed to start Express server', error);
+      reportErrorToSentry(error);
+      return;
+    }
     const host = os.hostname();
     logger.info(
       'Open Collective API listening at http://%s:%s in %s environment. Worker #%s',

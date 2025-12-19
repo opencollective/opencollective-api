@@ -19,6 +19,8 @@ import { createRedisClient, RedisInstanceType } from './redis';
 
 export default async function setupExpress(app: express.Application) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
+  // Keep Express 4 query parsing behavior (extended) for compatibility in v5.
+  app.set('query parser', 'extended');
 
   app.use(
     helmet({
