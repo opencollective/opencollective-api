@@ -354,6 +354,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       type: { type: GraphQLString },
       isActive: { type: GraphQLBoolean },
       hasHosting: { type: GraphQLBoolean },
+      hasMoneyManagement: { type: GraphQLBoolean },
       name: { type: GraphQLString },
       legalName: { type: GraphQLString },
       company: { type: GraphQLString },
@@ -719,6 +720,12 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(GraphQLBoolean),
       resolve(collective) {
         return collective.hasHosting;
+      },
+    },
+    hasMoneyManagement: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve(collective) {
+        return collective.hasMoneyManagement;
       },
     },
     name: {
