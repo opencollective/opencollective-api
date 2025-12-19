@@ -38,12 +38,7 @@ async function startExpressServer(workerId) {
   /**
    * Start server
    */
-  const server = expressApp.listen(config.port, error => {
-    if (error) {
-      logger.error('Failed to start Express server', error);
-      reportErrorToSentry(error);
-      return;
-    }
+  const server = expressApp.listen(config.port, () => {
     const host = os.hostname();
     logger.info(
       'Open Collective API listening at http://%s:%s in %s environment. Worker #%s',
@@ -52,6 +47,10 @@ async function startExpressServer(workerId) {
       config.env,
       workerId,
     );
+  });
+  server.on('error', error => {
+    logger.error('Failed to start Express server', error);
+    reportErrorToSentry(error);
   });
 
   server.timeout = 25000; // sets timeout to 25 seconds

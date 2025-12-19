@@ -52,7 +52,8 @@ export default async (app: express.Application) => {
    */
   app.use('/graphql{/:version}{/:apiKey}', (req, res, next) => {
     req.isGraphQL = true; // Helps identify that the request is handled by GraphQL
-    req.apiKey = req.params.apiKey;
+    const params = req.params as Record<string, string | undefined>;
+    req.apiKey = params.apiKey;
     next();
   });
 
