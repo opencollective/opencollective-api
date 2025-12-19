@@ -135,6 +135,8 @@ import VirtualCard from './VirtualCard';
 
 const debug = debugLib('models:Collective');
 
+const { ORGANIZATION } = CollectiveType;
+
 type Goal = {
   type: string;
   amount: number;
@@ -982,11 +984,8 @@ class Collective extends Model<
     remoteUser: User | null,
     { force = false, silent = false }: { force?: boolean; silent?: boolean } = {},
   ): Promise<Collective> {
-    // Independent Collective deprecation: remove COLLECTIVE, and remove USER while we're at it
-    if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
-      throw new Error('This account type cannot become a host');
-    } else if (this.HostCollectiveId && this.HostCollectiveId !== this.id) {
-      throw new Error('This account is already attached to another host, please remove host first');
+    if (this.type !== ORGANIZATION) {
+      throw new Error('This account type cannot activate "Money Management".');
     }
 
     if (!this.hasMoneyManagement() || force) {
@@ -1009,7 +1008,7 @@ class Collective extends Model<
 
     await this.getOrCreateHostPaymentMethod();
 
-    if (!silent && (this.type === 'ORGANIZATION' || this.type === 'USER')) {
+    if (!silent) {
       await Activity.create({
         type: activities.ACTIVATED_MONEY_MANAGEMENT,
         CollectiveId: this.id,
@@ -1129,8 +1128,12 @@ class Collective extends Model<
   };
 
   activateHosting = async function (remoteUser = null) {
+    if (this.type !== ORGANIZATION) {
+      throw new Error('This account type cannot activate "Fiscal Hosting".');
+    }
+
     if (!this.hasMoneyManagement()) {
-      throw new Error(`Can't active hosting without money management.`);
+      throw new Error(`Can't activate "Fiscal Hosting" without "Money Management".`);
     }
 
     await this.update({ hasHosting: true });
