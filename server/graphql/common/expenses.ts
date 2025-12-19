@@ -75,6 +75,7 @@ import Expense, {
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
+import type PayoutMethod from '../../models/PayoutMethod';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
@@ -1781,7 +1782,12 @@ const checkExpenseType = async (
   }
 };
 
-export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction?) => {
+export const getPayoutMethodFromExpenseData = async (
+  expenseData,
+  remoteUser,
+  fromCollective,
+  dbTransaction?,
+): Promise<PayoutMethod | null> => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
       const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
@@ -2299,9 +2305,9 @@ export async function createExpense(
   }
 
   // Get or create payout method
-  const payoutMethod =
+  const payoutMethod: PayoutMethod | null =
     fromCollective.type === CollectiveType.VENDOR
-      ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
+      ? first((await fromCollective.getPayoutMethods({ where: { isSaved: true } })) as PayoutMethod[]) || null
       : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
   if (
@@ -3021,7 +3027,7 @@ export async function editExpense(
     }
   }
 
-  let payoutMethod = await expense.getPayoutMethod();
+  let payoutMethod: PayoutMethod | null = await expense.getPayoutMethod();
   let feesPayer = expense.feesPayer;
   const previousStatus = expense.status;
 
@@ -3048,7 +3054,7 @@ export async function editExpense(
     ) {
       payoutMethod =
         fromCollective.type === CollectiveType.VENDOR
-          ? await fromCollective.getPayoutMethods().then(first)
+          ? first((await fromCollective.getPayoutMethods()) as PayoutMethod[]) || null
           : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
       if (

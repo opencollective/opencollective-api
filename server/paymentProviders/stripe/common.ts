@@ -261,7 +261,19 @@ export async function resolvePaymentMethodForOrder(
       stripeAccount: hostStripeAccount,
     });
 
-    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id'));
+    if ('deleted' in customer && customer.deleted) {
+      throw new Error('Stripe customer was deleted');
+    }
+
+    const activeCustomer = customer as Stripe.Customer;
+    const paymentMethodId =
+      (typeof activeCustomer.default_source === 'string'
+        ? activeCustomer.default_source
+        : activeCustomer.default_source?.id) || get(activeCustomer, 'sources.data[0].id');
+
+    if (!paymentMethodId) {
+      throw new Error('Stripe customer has no default payment source');
+    }
 
     return {
       id: paymentMethodId,

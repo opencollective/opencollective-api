@@ -699,5 +699,5 @@ export const checkExpense = async (expense: Expense, { req }: { req?: Request } 
   });
   expense.items = await req.loaders.Expense.items.load(expense.id);
   expense.attachedFiles = await req.loaders.Expense.attachedFiles.load(expense.id);
-  return checkExpensesBatch(req, [expense]).then(first);
+  return checkExpensesBatch(req, [expense]).then(checks => first(checks) || []);
 };
