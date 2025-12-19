@@ -80,7 +80,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
         .resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
     });
     beforeEach(async () => {
-      host = await fakeCollective({ isHostAccount: true });
+      host = await fakeCollective({ hasMoneyManagement: true });
       await fakeConnectedAccount({
         CollectiveId: host.id,
         service: 'transferwise',
@@ -235,7 +235,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       getQuote = sandbox.stub(transferwiseLib, 'getQuote');
 
       await utils.seedDefaultVendors();
-      host = await fakeActiveHost({ isHostAccount: true, currency: 'USD', name: 'Fiscal Host' });
+      host = await fakeActiveHost({ hasMoneyManagement: true, currency: 'USD', name: 'Fiscal Host' });
       await fakeConnectedAccount({
         CollectiveId: host.id,
         service: 'transferwise',

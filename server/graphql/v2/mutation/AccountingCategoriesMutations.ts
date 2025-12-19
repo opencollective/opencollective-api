@@ -49,7 +49,7 @@ export default {
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser?.isAdminOfCollective(account)) {
         throw new Forbidden('You must be logged in as an admin of this account to edit its accounting categories');
-      } else if (!account.isHostAccount) {
+      } else if (!account.hasMoneyManagement) {
         throw new ValidationFailed('Accounting categories can only be set at the host level');
       } else if (args.categories.length > 120) {
         throw new ValidationFailed('You can only create up to 100 accounting categories at once');

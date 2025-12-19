@@ -279,7 +279,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (isHost) {
-    dynamicConditions += `AND c."isHostAccount" IS TRUE AND c."type" = 'ORGANIZATION' `;
+    dynamicConditions += `AND c."hasMoneyManagement" IS TRUE AND c."type" = 'ORGANIZATION' `;
     if (args.onlyOpenHosts) {
       dynamicConditions += ` AND c."settings" #>> '{apply}' IS NOT NULL AND (c."settings" #>> '{apply}') != 'false'`;
     }

@@ -51,7 +51,7 @@ const getCollectivesJoinCondition = (
   const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
   const field =
     // Foreign Key columns should only be used in isolation. When querying for associated data, it is more performant to also query for the associated id
-    associationFields[association] && !includeChildrenAccounts && !(hostContext && account.isHostAccount)
+    associationFields[association] && !includeChildrenAccounts && !(hostContext && account.hasMoneyManagement)
       ? associationFields[association]
       : `$${association}.id$`;
   const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id).filter(id => id !== account.id) || [];
@@ -59,7 +59,7 @@ const getCollectivesJoinCondition = (
   let conditions = [{ [field]: allTopAccountIds }];
   let shouldQueryForChildAccounts = includeChildrenAccounts;
 
-  if (hostContext && account.isHostAccount) {
+  if (hostContext && account.hasMoneyManagement) {
     // Skip specifically querying for children when using host context unless you specify specific account ids, since all children collectives also have the HostCollectiveId
     if (!limitToHostedAccountsIds.length) {
       shouldQueryForChildAccounts = false;
@@ -405,7 +405,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     include.push(paymentMethodInclude);
   }
 
-  const isHostAdmin = account?.isHostAccount && req.remoteUser?.isAdminOfCollective(account);
+  const isHostAdmin = account?.hasMoneyManagement && req.remoteUser?.isAdminOfCollective(account);
 
   // Add search filter
   const searchTermConditions = buildSearchConditions(args.searchTerm, {

@@ -13,7 +13,7 @@ import models, { Collective, Op, sequelize } from '../../server/models';
 
 const getAllHostsWithPaypalAccounts = () => {
   return models.Collective.findAll({
-    where: { isHostAccount: true },
+    where: { hasMoneyManagement: true },
     group: [sequelize.col('Collective.id')],
     include: [
       {

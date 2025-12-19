@@ -50,7 +50,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
     async function setupOrg(opts = {}) {
       const org = await fakeOrganization({
         ...opts,
-        isHostAccount: true,
+        hasMoneyManagement: true,
         data: {
           isFirstPartyHost: true,
           features: { [FEATURE.KYC]: true },
@@ -246,7 +246,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
     async function setupOrg(opts = {}) {
       const org = await fakeOrganization({
         ...opts,
-        isHostAccount: true,
+        hasMoneyManagement: true,
         data: {
           isFirstPartyHost: true,
           features: { [FEATURE.KYC]: true },

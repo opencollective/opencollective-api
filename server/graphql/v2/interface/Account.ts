@@ -446,7 +446,7 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseType))),
     description: 'The list of expense types supported by this account',
     async resolve(collective: Collective, _, req) {
-      const host = collective.isHostAccount
+      const host = collective.hasMoneyManagement
         ? collective
         : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
       const parent =
@@ -1302,7 +1302,7 @@ export const AccountFields = {
     deprecationReason: '2025-11-21: use hasMoneyManagement or hasHosting on the Organization object instead.',
     description: 'Returns whether the account has money management activated.',
     resolve(collective: Collective) {
-      return Boolean(collective.isHostAccount);
+      return Boolean(collective.hasMoneyManagement);
     },
   },
   isAdmin: {

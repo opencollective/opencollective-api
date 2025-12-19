@@ -30,8 +30,8 @@ describe('scripts/accounts/convert-independent-to-organizations', () => {
     // Reload and verify conversion
     await independentCollective.reload();
     expect(independentCollective.type).to.equal(CollectiveType.ORGANIZATION);
-    expect(independentCollective.isHostAccount).to.be.true;
-    expect(independentCollective.hasMoneyManagement()).to.be.true;
+    expect(independentCollective.hasMoneyManagement).to.be.true;
+    expect(independentCollective.hasMoneyManagement).to.be.true;
     expect(independentCollective.hasHosting).to.be.false; // Hosting should be disabled
 
     // Verify activity was created
@@ -85,7 +85,7 @@ describe('scripts/accounts/convert-independent-to-organizations', () => {
     // Verify independent collective was converted
     await independentCollective.reload();
     expect(independentCollective.type).to.equal(CollectiveType.ORGANIZATION);
-    expect(independentCollective.hasMoneyManagement()).to.be.true;
+    expect(independentCollective.hasMoneyManagement).to.be.true;
     expect(independentCollective.hasHosting).to.be.false;
 
     // Verify hosted collective was NOT converted

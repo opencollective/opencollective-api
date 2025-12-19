@@ -31,7 +31,7 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
     sendMessage = sandbox.spy(emailLib, 'sendMessage');
   });
   beforeEach(async () => {
-    host = await fakeCollective({ isHostAccount: true });
+    host = await fakeCollective({ hasMoneyManagement: true });
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',

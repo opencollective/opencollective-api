@@ -34,7 +34,7 @@ async function checkNonActiveHostOrganizations({ fix = false } = {}) {
     `
     SELECT COUNT(*) as count FROM "Collectives"
     WHERE "deletedAt" is null
-      AND "isHostAccount" is true
+      AND "hasMoneyManagement" is true
       AND "isActive" is FALSE
       AND type = 'ORGANIZATION';
     `,
@@ -49,7 +49,7 @@ async function checkNonActiveHostOrganizations({ fix = false } = {}) {
         UPDATE "Collectives"
         SET "isActive" = true
         WHERE "deletedAt" is null
-          AND "isHostAccount" is true
+          AND "hasMoneyManagement" is true
           AND "isActive" is FALSE
           AND type = 'ORGANIZATION';
       `);

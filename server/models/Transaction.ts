@@ -512,7 +512,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         const collective = await Collective.findByPk(transaction.CollectiveId);
         const collectiveHost = await collective.getHostCollective();
         if (collectiveHost.id !== fromCollectiveHost.id) {
-          const hostFeePercent = fromCollective.isHostAccount ? 0 : fromCollective.hostFeePercent;
+          const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
           const taxAmountInHostCurrency = Math.round((transaction.taxAmount || 0) * hostCurrencyFxRate);
           oppositeTransaction.hostFeeInHostCurrency = calcFee(
             oppositeTransaction.amountInHostCurrency +
@@ -1105,7 +1105,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     // Retrieve Host
     const collective = await Collective.findByPk(transaction.CollectiveId);
     const host = await collective.getHostCollective();
-    transaction.HostCollectiveId = collective.isHostAccount ? collective.id : host.id;
+    transaction.HostCollectiveId = collective.hasMoneyManagement ? collective.id : host.id;
     if (!transaction.HostCollectiveId) {
       throw new Error(
         `Cannot create transaction: Collective with id '${transaction.CollectiveId}' doesn't have a Host`,

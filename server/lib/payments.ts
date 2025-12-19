@@ -1351,7 +1351,7 @@ export const getHostFeePercent = async (
   }
 
   // No Host Fee for money going to an host itself
-  if (collective.isHostAccount) {
+  if (collective.hasMoneyManagement) {
     return 0;
   }
 

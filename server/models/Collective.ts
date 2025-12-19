@@ -333,7 +333,7 @@ class Collective extends Model<
   declare public tags: Array<string>;
   declare public monthlySpending: number;
   declare public deactivatedAt: Date;
-  declare public isHostAccount: boolean;
+  declare public hasMoneyManagement: boolean;
   declare public hasHosting: boolean;
   declare public plan: string;
 
@@ -496,7 +496,7 @@ class Collective extends Model<
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       isActive: this.isActive,
-      isHostAccount: this.isHostAccount,
+      hasMoneyManagement: this.hasMoneyManagement,
       hasHosting: this.hasHosting,
       slug: this.slug,
       tiers: (this as any).tiers,
@@ -974,10 +974,6 @@ class Collective extends Model<
     }
   };
 
-  hasMoneyManagement = function () {
-    return this.isHostAccount;
-  };
-
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
   activateMoneyManagement = async function (
@@ -988,9 +984,9 @@ class Collective extends Model<
       throw new Error('This account type cannot activate "Money Management".');
     }
 
-    if (!this.hasMoneyManagement() || force) {
+    if (!this.hasMoneyManagement || force) {
       const updatedValues = {
-        isHostAccount: true,
+        hasMoneyManagement: true,
         plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
         hostFeePercent: undefined,
         platformFeePercent: undefined,
@@ -1077,7 +1073,7 @@ class Collective extends Model<
       await this.deactivateHosting();
     }
 
-    if (this.hasMoneyManagement()) {
+    if (this.hasMoneyManagement) {
       await this.deactivateMoneyManagement();
     }
 
@@ -1100,7 +1096,7 @@ class Collective extends Model<
     const settings = this.settings ? cloneDeep(this.settings) : {};
     unset(settings, 'paymentMethods.manual');
 
-    await this.update({ isHostAccount: false, plan: null, settings });
+    await this.update({ hasMoneyManagement: false, plan: null, settings });
 
     await PayoutMethod.destroy({
       where: {
@@ -1132,8 +1128,8 @@ class Collective extends Model<
       throw new Error('This account type cannot activate "Fiscal Hosting".');
     }
 
-    if (!this.hasMoneyManagement()) {
-      throw new Error(`Can't activate "Fiscal Hosting" without "Money Management".`);
+    if (!this.hasMoneyManagement) {
+      throw new Error(`Can't active hosting without money management.`);
     }
 
     await this.update({ hasHosting: true });
@@ -1293,7 +1289,7 @@ class Collective extends Model<
     ) {
       return true;
     } else if (this.type === CollectiveType.ORGANIZATION) {
-      return this.isHostAccount && this.isActive;
+      return this.hasMoneyManagement && this.isActive;
     } else {
       return false;
     }
@@ -1308,7 +1304,7 @@ class Collective extends Model<
    */
   activateBudget = async function () {
     if (
-      !this.isHostAccount ||
+      !this.hasMoneyManagement ||
       ![CollectiveType.ORGANIZATION].includes(this.type) ||
       (this.HostCollectiveId && this.HostCollectiveId !== this.id)
     ) {
@@ -1376,7 +1372,7 @@ class Collective extends Model<
    * Returns true if Collective is a host account open to applications.
    */
   canApply = async function () {
-    return Boolean(this.isHostAccount && this.settings?.apply);
+    return Boolean(this.hasMoneyManagement && this.settings?.apply);
   };
 
   /**
@@ -2363,7 +2359,7 @@ class Collective extends Model<
   addHost = async function (hostCollective, creatorUser, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
-    } else if (this.isHostAccount) {
+    } else if (this.hasMoneyManagement) {
       throw new Error(`This collective already is a host`);
     }
 
@@ -2685,7 +2681,7 @@ class Collective extends Model<
       approvedAt: null,
       hostFeePercent: null,
       platformFeePercent: null,
-      isHostAccount: false,
+      hasMoneyManagement: false,
       hasHosting: false,
       plan: null,
       data: omit(
@@ -2699,7 +2695,7 @@ class Collective extends Model<
       const newHostCollective = await Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
         throw new Error('Host not found');
-      } else if (!newHostCollective.isHostAccount) {
+      } else if (!newHostCollective.hasMoneyManagement) {
         // TODO(hasHosting): sinply throw error if account doesn't have hosting activated
         // throw new Error(`{${newHostCollective.name}} is not activated as Host`);
         if (remoteUser.isAdminOfCollective(newHostCollective)) {
@@ -3184,7 +3180,7 @@ class Collective extends Model<
   };
 
   isHost = function ({ transaction = undefined }: { transaction?: SequelizeTransaction } = {}) {
-    if (this.isHostAccount) {
+    if (this.hasMoneyManagement) {
       return Promise.resolve(true);
     }
 
@@ -3346,7 +3342,7 @@ class Collective extends Model<
 
   getHostedCollectivesCount = function () {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
     return Collective.count({
@@ -3361,7 +3357,7 @@ class Collective extends Model<
 
   getTotalAddedFunds = async function () {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
 
@@ -3409,7 +3405,7 @@ class Collective extends Model<
 
   getTotalTransferwisePayouts = async function () {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
 
@@ -3452,7 +3448,7 @@ class Collective extends Model<
 
   getTotalBankTransfers = async function () {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
 
@@ -3528,7 +3524,7 @@ class Collective extends Model<
    * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
   getHostMetrics = async function (from, to, collectiveIds) {
-    if (!this.isHostAccount || !this.isActive || this.type !== CollectiveType.ORGANIZATION) {
+    if (!this.hasMoneyManagement || !this.isActive || this.type !== CollectiveType.ORGANIZATION) {
       return null;
     }
     from = from ? moment(from) : null;
@@ -3620,7 +3616,7 @@ class Collective extends Model<
   };
 
   async findOrCreatePaymentMethod(paymentMethodService, paymentMethodType) {
-    const host = this.isHostAccount ? this : await this.getHostCollective();
+    const host = this.hasMoneyManagement ? this : await this.getHostCollective();
     const attributes = {
       CollectiveId: this.id,
       service: paymentMethodService,
@@ -4125,7 +4121,7 @@ Collective.init(
       allowNull: true,
     },
 
-    isHostAccount: {
+    hasMoneyManagement: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },

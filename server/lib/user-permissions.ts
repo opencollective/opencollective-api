@@ -41,5 +41,5 @@ export const canUseFeature = (account: User | Collective, feature: FEATURE): boo
  * for the payees of expenses they have to treat). See `PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO`.
  */
 export const canSeeLegalName = (user: User | null, account: Collective | null): boolean => {
-  return account?.isHostAccount || Boolean(user?.isAdminOfCollective(account));
+  return account?.hasMoneyManagement || Boolean(user?.isAdminOfCollective(account));
 };

@@ -873,7 +873,7 @@ describe('server/graphql/v1/collective', () => {
         {},
         {
           type: 'ORGANIZATION',
-          isHostAccount: true,
+          hasMoneyManagement: true,
         },
       );
 

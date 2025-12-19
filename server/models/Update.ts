@@ -183,7 +183,7 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.notificationAudience || 'ALL';
     const audiencesForHostedAccounts = ['ALL', 'COLLECTIVE_ADMINS'];
-    return Boolean(this.collective.isHostAccount && audiencesForHostedAccounts.includes(audience));
+    return Boolean(this.collective.hasMoneyManagement && audiencesForHostedAccounts.includes(audience));
   };
 
   getTargetMembersRoles = function (notificationAudience, channel?: UpdateChannel) {

@@ -91,7 +91,7 @@ export const connectPlaidAccount = async (
   // Permissions check
   if (!remoteUser.isAdminOfCollective(host)) {
     throw new Error('You must be an admin of the host to connect a Plaid account to it');
-  } else if (!host.isHostAccount) {
+  } else if (!host.hasMoneyManagement) {
     throw new Error('You can only connect a Plaid account to a host account');
   }
 

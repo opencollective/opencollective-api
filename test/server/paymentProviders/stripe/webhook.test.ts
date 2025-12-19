@@ -110,7 +110,7 @@ describe('webhook', () => {
     let order, user, paymentMethod;
 
     beforeEach(async () => {
-      const collective = await fakeCollective({ isHostAccount: true });
+      const collective = await fakeCollective({ hasMoneyManagement: true });
       paymentMethod = await fakePaymentMethod({
         service: PAYMENT_METHOD_SERVICE.STRIPE,
         type: PAYMENT_METHOD_TYPE.CREDITCARD,

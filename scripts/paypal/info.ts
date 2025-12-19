@@ -62,7 +62,7 @@ const checkExpense = async expenseId => {
 
 const printAllHostsWithPaypalAccounts = async () => {
   const hosts = await models.Collective.findAll({
-    where: { isHostAccount: true },
+    where: { hasMoneyManagement: true },
     group: [sequelize.col('Collective.id')],
     include: [
       {

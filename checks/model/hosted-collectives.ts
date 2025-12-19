@@ -14,7 +14,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
      WHERE "isActive" IS TRUE
      AND "deletedAt" IS NULL
      AND "hostFeePercent" IS NULL
-     AND "isHostAccount" IS FALSE
+     AND "hasMoneyManagement" IS FALSE
      AND "ParentCollectiveId" IS NULL
      AND "HostCollectiveId" IS NOT NULL
      AND "type" NOT IN ('ORGANIZATION', 'USER')`,
@@ -34,7 +34,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
          AND "Collectives"."isActive" IS TRUE
          AND "Collectives"."deletedAt" IS NULL
          AND "Collectives"."hostFeePercent" IS NULL
-         AND "Collectives"."isHostAccount" IS FALSE
+         AND "Collectives"."hasMoneyManagement" IS FALSE
          AND "Collectives"."ParentCollectiveId" IS NULL
          AND "Collectives"."HostCollectiveId" IS NOT NULL
          AND "Collectives"."type" NOT IN ('ORGANIZATION', 'USER')`,

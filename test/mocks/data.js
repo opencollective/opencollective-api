@@ -9,7 +9,7 @@ export default {
     twitterHandle: 'wwcode',
     location: { address: 'Paradize street\nSan Francisco CA 94100\nUSA' },
     currency: 'USD',
-    isHostAccount: true,
+    hasMoneyManagement: true,
     hasHosting: true,
     settings: { apply: true },
   },

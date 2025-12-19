@@ -160,7 +160,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLHost,
         description: 'If the individual is a host account, this will return the matching Host object',
         resolve(collective) {
-          if (collective.isHostAccount) {
+          if (collective.hasMoneyManagement) {
             return collective;
           }
         },

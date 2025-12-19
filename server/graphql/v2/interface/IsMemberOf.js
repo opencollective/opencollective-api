@@ -117,7 +117,7 @@ export const IsMemberOfFields = {
         collectiveConditions.isIncognito = false;
       }
       if (!isNil(args.isHostAccount)) {
-        collectiveConditions.isHostAccount = args.isHostAccount;
+        collectiveConditions.hasMoneyManagement = args.isHostAccount;
       }
 
       if (args.hostFeesStructure) {

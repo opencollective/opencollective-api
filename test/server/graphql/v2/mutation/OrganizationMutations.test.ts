@@ -249,7 +249,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.true;
       const org = await models.Collective.findByPk(orgFor2FA.id);
-      expect(org.hasMoneyManagement()).to.be.true;
+      expect(org.hasMoneyManagement).to.be.true;
       // Activity logged
       const activity = await models.Activity.findOne({
         where: { CollectiveId: org.id, type: 'activated.moneyManagement' },
@@ -289,7 +289,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.false;
       const org = await models.Collective.findByPk(orgFor2FA.id);
-      expect(org.hasMoneyManagement()).to.be.false;
+      expect(org.hasMoneyManagement).to.be.false;
       const activity = await models.Activity.findOne({
         where: { CollectiveId: org.id, type: 'deactivated.moneyManagement' },
       });

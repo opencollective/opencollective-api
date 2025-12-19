@@ -66,7 +66,7 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
           return false;
         }
 
-        const host = collective.isHostAccount
+        const host = collective.hasMoneyManagement
           ? collective
           : collective.host ||
             (collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId)));

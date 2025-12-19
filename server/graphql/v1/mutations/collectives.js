@@ -718,7 +718,7 @@ export async function deactivateCollectiveAsHost(_, args, req) {
   if (collective.hasHosting) {
     await collective.deactivateHosting(req.remoteUser);
   }
-  if (collective.hasMoneyManagement()) {
+  if (collective.hasMoneyManagement) {
     await collective.deactivateMoneyManagement(req.remoteUser);
   }
 

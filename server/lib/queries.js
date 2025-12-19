@@ -63,7 +63,7 @@ const getHosts = async args => {
         AND c."deletedAt" IS NULL
         AND c."isActive" = TRUE
         AND c."type" IN ('COLLECTIVE', 'FUND')
-      WHERE hosts."deletedAt" IS NULL AND hosts."isHostAccount" = TRUE ${hostConditions}
+      WHERE hosts."deletedAt" IS NULL AND hosts."hasMoneyManagement" = TRUE ${hostConditions}
       GROUP BY hosts.id
       HAVING count(c.id) >= $minNbCollectivesHosted
     ) SELECT c.*, (SELECT COUNT(*) FROM all_hosts) AS __hosts_count__, SUM(all_hosts.count) as __members_count__
@@ -253,7 +253,7 @@ export const usersToNotifyForUpdateSQLQuery = `
     INNER JOIN "Collectives" mc ON mc."id" = m."CollectiveId"
     INNER JOIN collective c ON m."MemberCollectiveId" = c.id
     WHERE :includeHostedAccounts = TRUE
-    AND c."isHostAccount" = TRUE
+    AND c."hasMoneyManagement" = TRUE
     AND m."role" = 'HOST'
     AND m."deletedAt" IS NULL
     AND mc."isActive" IS TRUE

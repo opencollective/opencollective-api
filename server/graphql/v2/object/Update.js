@@ -97,7 +97,7 @@ const GraphQLUpdate = new GraphQLObjectType({
             membersStats = await update.getAudienceMembersStats(audience, UpdateChannel.EMAIL);
           }
 
-          if (update.collective.isHostAccount && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
+          if (update.collective.hasMoneyManagement && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
             hostedCollectivesCount = await update.collective.getHostedCollectivesCount();
           }
 

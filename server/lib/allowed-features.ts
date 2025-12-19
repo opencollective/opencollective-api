@@ -221,15 +221,17 @@ const checkFeatureAccessParty = (
       case FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS:
         return collective.isActive;
       case FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES:
-        return collective.type === CollectiveType.COLLECTIVE && collective.isHostAccount && collective.isActive;
+        return collective.type === CollectiveType.COLLECTIVE && collective.hasMoneyManagement && collective.isActive;
       case FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS:
-        return collective.isHostAccount && collective.data?.isFirstPartyHost;
+        return collective.hasMoneyManagement && collective.data?.isFirstPartyHost;
       case FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS:
         return PlatformConstants.CurrentPlatformCollectiveIds.includes(collective.id);
       case FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS:
-        return collective.type === CollectiveType.ORGANIZATION && collective.isHostAccount;
+        return collective.type === CollectiveType.ORGANIZATION && collective.hasMoneyManagement;
       case FEATURE_ACCESS_PARTY.HOSTS:
-        return collective.isHostAccount && collective.hasHosting && collective.type === CollectiveType.ORGANIZATION;
+        return (
+          collective.hasMoneyManagement && collective.hasHosting && collective.type === CollectiveType.ORGANIZATION
+        );
     }
   });
 };
@@ -243,7 +245,7 @@ const loadPLatformSubscription = (collectiveId: number, loaders?: Loaders) => {
 };
 
 const loadHost = async (collective: Collective, loaders?: Loaders): Promise<Collective | null> => {
-  if (collective.isHostAccount) {
+  if (collective.hasMoneyManagement) {
     return collective;
   } else if (!collective.HostCollectiveId || !collective.isActive) {
     return null;
