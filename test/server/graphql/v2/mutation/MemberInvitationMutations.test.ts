@@ -9,7 +9,7 @@ import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeMemberInvitation, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeMemberInvitation, fakeOrganization, fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let collectiveAdminUser, collective;
@@ -169,6 +169,183 @@ describe('MemberInvitationMutations', () => {
       expect(sendEmailSpy.callCount).to.equal(0);
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('You can only invite users.');
+    });
+  });
+
+  describe('inviteMembers', () => {
+    const inviteMembersMutation = gql`
+      mutation InviteMembers($account: AccountReferenceInput!, $members: [InviteMemberInput!]!) {
+        inviteMembers(account: $account, members: $members) {
+          id
+          role
+          description
+          since
+        }
+      }
+    `;
+
+    it('should invite multiple members to an organization', async () => {
+      const organization = await fakeOrganization({ admin: collectiveAdminUser });
+      const user1 = await fakeUser();
+      const user2 = await fakeUser();
+      const user3 = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(organization.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberAccount: { id: idEncode(user1.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+              role: roles.ADMIN,
+              description: 'Admin user 1',
+            },
+            {
+              memberAccount: { id: idEncode(user2.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+              role: roles.MEMBER,
+              description: 'Member user 2',
+            },
+            {
+              memberAccount: { id: idEncode(user3.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+              role: roles.ACCOUNTANT,
+              description: 'Accountant user 3',
+            },
+          ],
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.inviteMembers).to.exist;
+    });
+
+    it('should throw an error if no members are provided', async () => {
+      const organization = await fakeOrganization({ admin: collectiveAdminUser });
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(organization.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [],
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('No members to invite provided');
+    });
+
+    it('should not allow inviting admins to a user account', async () => {
+      const userCollective = collectiveAdminUser.collective;
+      const invitedUser = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(userCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberAccount: { id: idEncode(invitedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+              role: roles.ADMIN,
+            },
+          ],
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('You can only invite admins to an Organization or a Collective.');
+    });
+
+    it('must be authenticated as an admin of the account', async () => {
+      const organization = await fakeOrganization({ admin: collectiveAdminUser });
+      const randomUser = await fakeUser();
+      const invitedUser = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(organization.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberAccount: { id: idEncode(invitedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+              role: roles.ADMIN,
+            },
+          ],
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(
+        'You need to be an Admin of the provided account in order to invite members.',
+      );
+    });
+
+    it('can only invite with valid roles (admin, accountant, community manager, member)', async () => {
+      sendEmailSpy.resetHistory();
+      const organization = await fakeOrganization({ admin: collectiveAdminUser });
+      const validRoles = [roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER, roles.ACCOUNTANT];
+
+      for (const role of validRoles) {
+        const invitedUser = await fakeUser();
+        const result = await utils.graphqlQueryV2(
+          inviteMembersMutation,
+          {
+            account: { id: idEncode(organization.id, IDENTIFIER_TYPES.ACCOUNT) },
+            members: [
+              {
+                memberAccount: { id: idEncode(invitedUser.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+                role,
+                description: `Invited as ${role}`,
+              },
+            ],
+          },
+          collectiveAdminUser,
+        );
+
+        await utils.waitForCondition(() => sendEmailSpy.callCount);
+        expect(result.errors).to.not.exist;
+        expect(result.data.inviteMembers).to.exist;
+        sendEmailSpy.resetHistory();
+      }
+    });
+
+    it('should invite a new user using memberInfo (email and name)', async () => {
+      sendEmailSpy.resetHistory();
+      const organization = await fakeOrganization({ admin: collectiveAdminUser });
+      const newUserEmail = 'invited-admin@example.com';
+      const newUserName = 'New User';
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(organization.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberInfo: {
+                email: newUserEmail,
+                name: newUserName,
+              },
+              role: roles.ADMIN,
+              description: 'New admin invited by email',
+            },
+          ],
+        },
+        collectiveAdminUser,
+      );
+      await utils.waitForCondition(() => sendEmailSpy.callCount);
+      expect(result.errors).to.not.exist;
+      expect(result.data.inviteMembers).to.exist;
+
+      const user = await models.User.findOne({ where: { email: newUserEmail } });
+      expect(user).to.exist;
+      expect(await user.name).to.equal(newUserName);
+
+      expect(sendEmailSpy.callCount).to.equal(1);
+      console.log(sendEmailSpy.args);
+      expect(sendEmailSpy.args[0][0]).to.equal(newUserEmail);
+      sendEmailSpy.resetHistory();
     });
   });
 
