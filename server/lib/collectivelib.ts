@@ -95,6 +95,9 @@ export const getCollectiveBackgroundImageUrl = (
   if (!backgroundImage) {
     return null;
   }
+  if (config.env === 'development' && backgroundImage?.startsWith('http://localhost:')) {
+    return backgroundImage;
+  }
 
   const sections = [config.host.images, collectiveSlug];
 
