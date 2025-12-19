@@ -373,15 +373,16 @@ export default async (app: express.Application) => {
   /**
    * Generic OAuth (ConnectedAccounts)
    */
+  const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
+
+  // backward compatibility
   app.get('/connected-accounts/:service', noCache, (req, res, next) => {
-    const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
     if (!oauthServiceAllowlist.has(req.params.service)) {
       return next(new errors.NotFound('Service not supported'));
     }
     return authentication.authenticateService(req, res, next);
-  }); // backward compatibility
+  });
   app.get('/connected-accounts/:service/oauthUrl', noCache, (req, res, next) => {
-    const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
     if (!oauthServiceAllowlist.has(req.params.service)) {
       return next(new errors.NotFound('Service not supported'));
     }
