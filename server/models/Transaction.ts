@@ -1819,8 +1819,8 @@ Transaction.prototype.getRefundTransaction = function (): Promise<Transaction | 
 Transaction.prototype.hasPlatformTip = function (): boolean {
   return Boolean(
     this.data?.hasPlatformTip &&
-      this.kind !== TransactionKind.PLATFORM_TIP &&
-      this.kind !== TransactionKind.PLATFORM_TIP_DEBT,
+    this.kind !== TransactionKind.PLATFORM_TIP &&
+    this.kind !== TransactionKind.PLATFORM_TIP_DEBT,
   );
 };
 
