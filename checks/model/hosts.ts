@@ -13,7 +13,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
      FROM "Collectives"
      WHERE "deletedAt" IS NULL
      AND "hostFeePercent" IS NULL
-     AND "isHostAccount" IS TRUE
+     AND "hasMoneyManagement" IS TRUE
      AND "type" IN ('ORGANIZATION', 'USER')`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
@@ -28,7 +28,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
          SET "hostFeePercent" = 0
          WHERE "deletedAt" IS NULL
          AND "hostFeePercent" IS NULL
-         AND "isHostAccount" IS TRUE
+         AND "hasMoneyManagement" IS TRUE
          AND "type" IN ('ORGANIZATION', 'USER')`,
       );
     }
@@ -111,7 +111,7 @@ async function checkHostActive({ fix = false } = {}) {
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
-     WHERE "isHostAccount" IS TRUE
+     WHERE "hasMoneyManagement" IS TRUE
      AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
      AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
      AND "isActive" IS FALSE
@@ -127,7 +127,7 @@ async function checkHostActive({ fix = false } = {}) {
       await sequelize.query(
         `UPDATE "Collectives"
          SET "isActive" = TRUE
-         WHERE "isHostAccount" IS TRUE
+         WHERE "hasMoneyManagement" IS TRUE
          AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
          AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
          AND "isActive" IS FALSE

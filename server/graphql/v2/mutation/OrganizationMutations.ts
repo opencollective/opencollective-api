@@ -272,10 +272,10 @@ export default {
       const shouldHaveMoneyManagement = args.hasMoneyManagement;
 
       // Activate Money Management first, so Hosting can be properly activated
-      if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement()) {
+      if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement) {
         await organization.activateMoneyManagement(req.remoteUser);
       }
-      if (shouldHaveHosting === true && !organization.hasHosting && organization.hasMoneyManagement()) {
+      if (shouldHaveHosting === true && !organization.hasHosting && organization.hasMoneyManagement) {
         await organization.activateHosting(req.remoteUser);
       }
 
@@ -283,7 +283,7 @@ export default {
       if (shouldHaveHosting === false && organization.hasHosting) {
         await organization.deactivateHosting(req.remoteUser);
       }
-      if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement()) {
+      if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement) {
         await organization.deactivateMoneyManagement(req.remoteUser);
       }
 
@@ -315,7 +315,7 @@ export default {
         throw new Error('Mutation only available to ORGANIZATION.');
       } else if (organization.hasHosting) {
         throw new Error('Organization should not have Hosting activated.');
-      } else if (organization.hasMoneyManagement()) {
+      } else if (organization.hasMoneyManagement) {
         throw new Error('Organization should not have Money Management activated.');
       } else if ((await organization.getBalance()) !== 0) {
         throw new Error('Organization should have a zero balance.');

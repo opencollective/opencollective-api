@@ -480,7 +480,7 @@ describe('server/models/Collective', () => {
         hostFeePercent: 0,
         type: 'ORGANIZATION',
         currency: 'EUR',
-        isHostAccount: true,
+        hasMoneyManagement: true,
         CreatedByUserId: user1.id,
       });
       await models.Member.create({
@@ -569,7 +569,7 @@ describe('server/models/Collective', () => {
       expect(pendingCollective.isActive).to.equal(false);
       expect(pendingCollective.HostCollectiveId).to.equal(temporaryHost.id);
       await temporaryHost.deactivateAsHost();
-      expect(temporaryHost.isHostAccount).to.be.false;
+      expect(temporaryHost.hasMoneyManagement).to.be.false;
       await pendingCollective.reload();
       expect(pendingCollective.HostCollectiveId).to.be.null;
     });
@@ -910,7 +910,7 @@ describe('server/models/Collective', () => {
     it('is true for users and organizations (even if host)', async () => {
       shouldBeUsableAsPayout(await fakeCollective({ type: 'USER' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION' }));
-      shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', isHostAccount: true }));
+      shouldBeUsableAsPayout(await fakeCollective({ type: 'ORGANIZATION', hasMoneyManagement: true }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'COLLECTIVE' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'EVENT' }));
       shouldBeUsableAsPayout(await fakeCollective({ type: 'PROJECT' }));
@@ -1188,7 +1188,7 @@ describe('server/models/Collective', () => {
     beforeEach(async () => {
       await utils.resetTestDB();
 
-      collective = await fakeCollective({ isHostAccount: true });
+      collective = await fakeCollective({ hasMoneyManagement: true });
       order = await fakeOrder({ status: 'PAID', PaymentMethodId: null, totalAmount: 100000, processedAt: new Date() });
       await fakeTransaction({
         amount: 100000,
@@ -1230,7 +1230,7 @@ describe('server/models/Collective', () => {
     beforeEach(async () => {
       await utils.resetTestDB();
 
-      collective = await fakeCollective({ isHostAccount: true });
+      collective = await fakeCollective({ hasMoneyManagement: true });
       paymentMethod = await fakePaymentMethod({
         service: 'opencollective',
         type: 'host',
@@ -1283,7 +1283,7 @@ describe('server/models/Collective', () => {
     beforeEach(async () => {
       await utils.resetTestDB();
 
-      collective = await fakeCollective({ isHostAccount: true });
+      collective = await fakeCollective({ hasMoneyManagement: true });
       payoutMethod = await fakePayoutMethod({
         type: PayoutMethodTypes.BANK_ACCOUNT,
       });
@@ -1467,7 +1467,7 @@ describe('server/models/Collective', () => {
   describe('policies', () => {
     let collective;
     beforeEach(async () => {
-      collective = await fakeCollective({ isHostAccount: true });
+      collective = await fakeCollective({ hasMoneyManagement: true });
     });
 
     it('should set policies', async () => {

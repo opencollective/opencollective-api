@@ -91,7 +91,7 @@ const ActivitiesCollectionQuery = {
       }
 
       // Include all activities related to the account's hosted collectives
-      if (args.includeHostedAccounts && account.isHostAccount) {
+      if (args.includeHostedAccounts && account.hasMoneyManagement) {
         accountOrConditions.push({ HostCollectiveId: account.id });
       }
     }

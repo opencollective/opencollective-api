@@ -1884,7 +1884,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       const user = await fakeUser();
       const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
 
-      expect(collective.isHostAccount).to.be.false;
+      expect(collective.hasMoneyManagement).to.be.false;
 
       const result = await graphqlQueryV2(
         convertAccountToOrganizationMutation,
@@ -1903,7 +1903,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       // Verify in database
       await collective.reload();
       expect(collective.type).to.equal(CollectiveType.ORGANIZATION);
-      expect(collective.isHostAccount).to.be.true;
+      expect(collective.hasMoneyManagement).to.be.true;
       expect(collective.isActive).to.be.true;
     });
 
@@ -1911,7 +1911,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       const user = await fakeUser();
       const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
 
-      expect(collective.isHostAccount).to.be.false;
+      expect(collective.hasMoneyManagement).to.be.false;
 
       const result = await graphqlQueryV2(
         convertAccountToOrganizationMutation,
@@ -1927,7 +1927,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       // Verify in database
       await collective.reload();
-      expect(collective.isHostAccount).to.be.false;
+      expect(collective.hasMoneyManagement).to.be.false;
     });
 
     it('allows root users to convert any account', async () => {

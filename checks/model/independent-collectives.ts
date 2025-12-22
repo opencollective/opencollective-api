@@ -14,7 +14,7 @@ async function checkIsActive({ fix = false } = {}) {
      WHERE "isActive" IS FALSE
      AND "approvedAt" IS NOT NULL
      AND "deletedAt" IS NULL
-     AND "isHostAccount" IS TRUE
+     AND "hasMoneyManagement" IS TRUE
      AND "type" = 'COLLECTIVE'`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
@@ -30,7 +30,7 @@ async function checkIsActive({ fix = false } = {}) {
          WHERE "isActive" IS FALSE
          AND "approvedAt" IS NOT NULL
          AND "deletedAt" IS NULL
-         AND "isHostAccount" IS TRUE
+         AND "hasMoneyManagement" IS TRUE
          AND "type" = 'COLLECTIVE'`,
       );
     }
@@ -46,7 +46,7 @@ async function checkHasHostCollectiveId({ fix = false } = {}) {
      WHERE "HostCollectiveId" IS NULL
      AND "approvedAt" IS NOT NULL
      AND "deletedAt" IS NULL
-     AND "isHostAccount" IS TRUE
+     AND "hasMoneyManagement" IS TRUE
      AND "type" = 'COLLECTIVE'`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
   );
@@ -62,7 +62,7 @@ async function checkHasHostCollectiveId({ fix = false } = {}) {
          WHERE "isActive" IS FALSE
          AND "approvedAt" IS NOT NULL
          AND "deletedAt" IS NULL
-         AND "isHostAccount" IS TRUE
+         AND "hasMoneyManagement" IS TRUE
          AND "type" = 'COLLECTIVE'`,
       );
     }
@@ -77,7 +77,7 @@ async function checkApprovedAt({ fix = false } = {}) {
      FROM "Collectives"
      WHERE "approvedAt" IS NULL
      AND "deletedAt" IS NULL
-     AND "isHostAccount" IS TRUE
+     AND "hasMoneyManagement" IS TRUE
      AND "HostCollectiveId" = "id"
      AND "type" = 'COLLECTIVE'`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
@@ -93,7 +93,7 @@ async function checkApprovedAt({ fix = false } = {}) {
          SET "approvedAt" = NOW(), "updatedAt" = NOW()
          WHERE "approvedAt" IS NULL
          AND "deletedAt" IS NULL
-         AND "isHostAccount" IS TRUE
+         AND "hasMoneyManagement" IS TRUE
          AND "HostCollectiveId" = "id"
          AND "type" = 'COLLECTIVE'`,
       );
@@ -102,13 +102,13 @@ async function checkApprovedAt({ fix = false } = {}) {
 }
 
 async function checkIsHostAccount({ fix = false } = {}) {
-  const message = 'Non-Independent Collectives with isHostAccount=TRUE';
+  const message = 'Non-Independent Collectives with hasMoneyManagement=TRUE';
 
   const results = await sequelize.query(
     `SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "deletedAt" IS NULL
-     AND "isHostAccount" IS TRUE
+     AND "hasMoneyManagement" IS TRUE
      AND "HostCollectiveId" != "id"
      AND "type" = 'COLLECTIVE'`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
@@ -121,9 +121,9 @@ async function checkIsHostAccount({ fix = false } = {}) {
       logger.warn(`Fixing: ${message}`);
       await sequelize.query(
         `UPDATE "Collectives"
-         SET "isHostAccount" = FALSE, "updatedAt" = NOW()
+         SET "hasMoneyManagement" = FALSE, "updatedAt" = NOW()
          WHERE "deletedAt" IS NULL
-         AND "isHostAccount" IS TRUE
+         AND "hasMoneyManagement" IS TRUE
          AND "HostCollectiveId" != "id"
          AND "type" = 'COLLECTIVE'`,
       );
@@ -139,7 +139,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
      FROM "Collectives"
      WHERE ("hostFeePercent" IS NULL OR "hostFeePercent" > 0)
      AND "deletedAt" IS NULL
-     AND "isHostAccount" IS TRUE
+     AND "hasMoneyManagement" IS TRUE
      AND "HostCollectiveId" = "id"
      AND "type" = 'COLLECTIVE'`,
     { type: sequelize.QueryTypes.SELECT, raw: true },
@@ -155,7 +155,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
          SET "hostFeePercent" = 0, "updatedAt" = NOW()
          WHERE ("hostFeePercent" IS NULL OR "hostFeePercent" > 0)
          AND "deletedAt" IS NULL
-         AND "isHostAccount" IS TRUE
+         AND "hasMoneyManagement" IS TRUE
          AND "HostCollectiveId" = "id"
          AND "type" = 'COLLECTIVE'`,
       );

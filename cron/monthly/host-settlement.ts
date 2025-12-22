@@ -118,7 +118,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       SELECT c.*
       FROM "Collectives" c
       INNER JOIN "Transactions" t ON t."HostCollectiveId" = c.id AND t."deletedAt" IS NULL
-      WHERE c."isHostAccount" IS TRUE
+      WHERE c."hasMoneyManagement" IS TRUE
       AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
       AND c.id NOT IN (:ignoreSettlementForIds) -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
       GROUP BY c.id

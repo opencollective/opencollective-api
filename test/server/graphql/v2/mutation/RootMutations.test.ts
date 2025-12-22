@@ -284,7 +284,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     });
 
     it('prevents converting host accounts (even if they are USER type)', async () => {
-      const host = await fakeUser(undefined, { isHostAccount: true });
+      const host = await fakeUser(undefined, { hasMoneyManagement: true });
       const result = await callEditAccountTypeMutation({ account: { legacyId: host.collective.id } }, rootUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Cannot change type of host account');

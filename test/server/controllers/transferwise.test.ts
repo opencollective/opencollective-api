@@ -26,9 +26,9 @@ describe('server/controllers/transferwise', () => {
   beforeEach(async () => {
     sandbox.restore();
     remoteUser = await fakeUser();
-    host = await fakeCollective({ isHostAccount: true, admin: remoteUser.collective });
+    host = await fakeCollective({ hasMoneyManagement: true, admin: remoteUser.collective });
     await remoteUser.populateRoles();
-    const collective = await fakeCollective({ isHostAccount: false, HostCollectiveId: host.id });
+    const collective = await fakeCollective({ hasMoneyManagement: false, HostCollectiveId: host.id });
     const payoutMethod = await fakePayoutMethod({
       type: PayoutMethodTypes.BANK_ACCOUNT,
       data: {

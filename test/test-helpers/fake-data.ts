@@ -235,7 +235,7 @@ export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = 
     name: randStr('Test Host '),
     slug: randStr('host-'),
     HostCollectiveId: null,
-    isHostAccount: true,
+    hasMoneyManagement: true,
     ...hostData,
   });
 };
@@ -247,7 +247,7 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     name: randStr('Test Host '),
     slug: randStr('host-'),
     HostCollectiveId: null,
-    isHostAccount: true,
+    hasMoneyManagement: true,
     isActive: true,
     approvedAt: new Date(),
     ...hostData,
@@ -306,8 +306,8 @@ export const fakeCollective = async (
   const collective = await models.Collective.create(
     {
       type,
-      name: collectiveData.isHostAccount ? randStr('Test Host ') : randStr('Test Collective '),
-      slug: collectiveData.isHostAccount ? randStr('host-') : randStr('collective-'),
+      name: collectiveData.hasMoneyManagement ? randStr('Test Host ') : randStr('Test Collective '),
+      slug: collectiveData.hasMoneyManagement ? randStr('host-') : randStr('collective-'),
       description: randStr('Description '),
       currency: 'USD',
       twitterHandle: randStr('twitter'),
@@ -321,7 +321,7 @@ export const fakeCollective = async (
     collectiveSequelizeParams,
   );
 
-  if (collective.isHostAccount && !collective.HostCollectiveId && collectiveData.HostCollectiveId === undefined) {
+  if (collective.hasMoneyManagement && !collective.HostCollectiveId && collectiveData.HostCollectiveId === undefined) {
     await collective.update({ HostCollectiveId: collective.id });
   }
 
@@ -369,8 +369,8 @@ export const fakeCollective = async (
 export const fakeOrganization = (organizationData: Record<string, unknown> = {}) => {
   return fakeCollective({
     HostCollectiveId: null,
-    name: organizationData.isHostAccount ? randStr('Test Host ') : randStr('Test Organization '),
-    slug: organizationData.isHostAccount ? randStr('host-') : randStr('org-'),
+    name: organizationData.hasMoneyManagement ? randStr('Test Host ') : randStr('Test Organization '),
+    slug: organizationData.hasMoneyManagement ? randStr('host-') : randStr('org-'),
     ...organizationData,
     type: CollectiveType.ORGANIZATION,
   });

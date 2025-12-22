@@ -88,7 +88,7 @@ export const checkReceiveFinancialContributions = async (collective, req, { igno
 };
 
 const checkVirtualCardFeatureStatus = async account => {
-  if (account.isHostAccount) {
+  if (account.hasMoneyManagement) {
     if (get(account.settings, 'features.virtualCards')) {
       return checkIsActiveIfExistsInDB(
         'SELECT 1 FROM "VirtualCards" WHERE "HostCollectiveId" = :CollectiveId AND "deletedAt" IS NULL',

@@ -133,7 +133,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
   before(async () => {
     hostAdmin = await fakeUser();
-    host = await fakeCollective({ isHostAccount: true, admin: hostAdmin });
+    host = await fakeCollective({ hasMoneyManagement: true, admin: hostAdmin });
     connectedAccount = await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
@@ -159,7 +159,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       },
       hash: 'user-account',
     });
-    collective = await fakeCollective({ isHostAccount: false, HostCollectiveId: host.id });
+    collective = await fakeCollective({ hasMoneyManagement: false, HostCollectiveId: host.id });
     payoutMethod = await fakePayoutMethod({
       type: PayoutMethodTypes.BANK_ACCOUNT,
       data: {

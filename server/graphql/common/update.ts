@@ -122,7 +122,7 @@ const canSeeUpdateForFinancialContributors = (req, collective): Promise<boolean>
 };
 
 const canSeeUpdateForCollectiveAdmins = async (req, collective): Promise<boolean> => {
-  if (!collective.isHostAccount) {
+  if (!collective.hasMoneyManagement) {
     return req.remoteUser.isAdminOfCollectiveOrHost(collective);
   }
 

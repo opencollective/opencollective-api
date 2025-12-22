@@ -123,7 +123,7 @@ const transactionImportsMutations = {
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be an admin of the account to create an import');
-      } else if (!account.isHostAccount) {
+      } else if (!account.hasMoneyManagement) {
         throw new Error('Only host accounts can have imports');
       }
 

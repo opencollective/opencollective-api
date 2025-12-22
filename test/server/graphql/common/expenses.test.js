@@ -163,7 +163,11 @@ describe('server/graphql/common/expenses', () => {
     });
 
     // A self-hosted collective
-    const selfHostedCollective = await fakeCollective({ isHostAccount: true, isActive: true, HostCollectiveId: null });
+    const selfHostedCollective = await fakeCollective({
+      hasMoneyManagement: true,
+      isActive: true,
+      HostCollectiveId: null,
+    });
     await selfHostedCollective.update({ HostCollectiveId: selfHostedCollective.id });
     selfHostedCollective.host = selfHostedCollective;
     contexts.selfHosted = await prepareContext({

@@ -179,7 +179,7 @@ export const generateLoaders = req => {
         ConnectedAccount.findAll({
           attributes: ['id', 'username'],
           where: { username: { [Op.in]: ids }, service: Service.STRIPE },
-          include: [{ model: Collective, as: 'collective', where: { isHostAccount: true } }],
+          include: [{ model: Collective, as: 'collective', where: { hasMoneyManagement: true } }],
         }).then(results => {
           const resultsById = {};
           for (const result of results) {

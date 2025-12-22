@@ -69,7 +69,7 @@ describe('server/lib/allowed-features', () => {
       it('is AVAILABLE for active hosts, UNSUPPORTED otherwise', async () => {
         const host = await fakeActiveHost();
         expect(await getFeatureAccess(host, FEATURE.ALIPAY)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const inactiveHost = await fakeCollective({ isHostAccount: true, isActive: false });
+        const inactiveHost = await fakeCollective({ hasMoneyManagement: true, isActive: false });
         expect(await getFeatureAccess(inactiveHost, FEATURE.ALIPAY)).to.deep.eq({
           access: 'UNSUPPORTED',
           reason: 'ACCOUNT_TYPE',
@@ -233,7 +233,7 @@ describe('server/lib/allowed-features', () => {
       it('is AVAILABLE for hosts, UNSUPPORTED for others', async () => {
         const host = await fakeActiveHost();
         expect(await getFeatureAccess(host, FEATURE.HOST_DASHBOARD)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const independentCollective = await fakeCollective({ isHostAccount: true, isActive: false });
+        const independentCollective = await fakeCollective({ hasMoneyManagement: true, isActive: false });
         expect(await getFeatureAccess(independentCollective, FEATURE.HOST_DASHBOARD)).to.deep.eq({
           access: 'UNSUPPORTED',
           reason: 'ACCOUNT_TYPE',
@@ -255,7 +255,7 @@ describe('server/lib/allowed-features', () => {
           },
         });
         expect(await getFeatureAccess(host, FEATURE.KYC)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const independentCollective = await fakeCollective({ isHostAccount: true, isActive: false });
+        const independentCollective = await fakeCollective({ hasMoneyManagement: true, isActive: false });
         expect(await getFeatureAccess(independentCollective, FEATURE.KYC)).to.deep.eq({
           access: 'UNSUPPORTED',
           reason: 'ACCOUNT_TYPE',
@@ -307,7 +307,7 @@ describe('server/lib/allowed-features', () => {
         it('is supported for independent collectives', async () => {
           const collective = await fakeCollective({
             plan: 'start-plan-2021',
-            isHostAccount: true,
+            hasMoneyManagement: true,
             isActive: true,
             data: { features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: true } },
           });
@@ -349,7 +349,7 @@ describe('server/lib/allowed-features', () => {
 
         it('is supported for independent collectives', async () => {
           const collective = await fakeCollective({
-            isHostAccount: true,
+            hasMoneyManagement: true,
             isActive: true,
           });
           await fakePlatformSubscription({
@@ -464,7 +464,11 @@ describe('server/lib/allowed-features', () => {
           access: 'AVAILABLE',
           reason: null,
         });
-        const inactiveHost = await fakeCollective({ plan: 'start-plan-2021', isHostAccount: true, isActive: false });
+        const inactiveHost = await fakeCollective({
+          plan: 'start-plan-2021',
+          hasMoneyManagement: true,
+          isActive: false,
+        });
         expect(await getFeatureAccess(inactiveHost, FEATURE.RECEIVE_EXPENSES)).to.deep.eq({
           access: 'AVAILABLE',
           reason: null,
@@ -489,7 +493,7 @@ describe('server/lib/allowed-features', () => {
           access: 'AVAILABLE',
           reason: null,
         });
-        const inactiveHost = await fakeHost({ plan: 'start-plan-2021', isHostAccount: true, isActive: false });
+        const inactiveHost = await fakeHost({ plan: 'start-plan-2021', hasMoneyManagement: true, isActive: false });
         expect(await getFeatureAccess(inactiveHost, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)).to.deep.eq({
           access: 'AVAILABLE',
           reason: null,
@@ -704,7 +708,7 @@ describe('server/lib/allowed-features', () => {
         it('is AVAILABLE for active hosts', async () => {
           const host = await fakeActiveHost({ plan: 'start-plan-2021' });
           expect(await getFeatureAccess(host, FEATURE.TRANSFERWISE)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-          const inactiveHost = await fakeCollective({ isHostAccount: true, isActive: false });
+          const inactiveHost = await fakeCollective({ hasMoneyManagement: true, isActive: false });
           expect(await getFeatureAccess(inactiveHost, FEATURE.TRANSFERWISE)).to.deep.eq({
             access: 'UNSUPPORTED',
             reason: 'ACCOUNT_TYPE',
@@ -829,7 +833,7 @@ describe('server/lib/allowed-features', () => {
       });
 
       it('for a HOST user', async () => {
-        const user = await fakeUser({}, { plan: 'start-plan-2021', isHostAccount: true, countryISO: 'US' });
+        const user = await fakeUser({}, { plan: 'start-plan-2021', hasMoneyManagement: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(user.collective);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
@@ -974,7 +978,7 @@ describe('server/lib/allowed-features', () => {
       it('for a self-hosted collective', async () => {
         const selfHosted = await fakeCollective({
           plan: 'start-plan-2021',
-          isHostAccount: true,
+          hasMoneyManagement: true,
           isActive: true,
           countryISO: 'US',
         });

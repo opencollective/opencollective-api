@@ -26,6 +26,7 @@ export const IsMemberOfFields = {
       isHostAccount: {
         type: GraphQLBoolean,
         description: 'Filter on whether the account is a host or not',
+        deprecationReason: '2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.',
       },
       isApproved: {
         type: GraphQLBoolean,
@@ -117,7 +118,7 @@ export const IsMemberOfFields = {
         collectiveConditions.isIncognito = false;
       }
       if (!isNil(args.isHostAccount)) {
-        collectiveConditions.isHostAccount = args.isHostAccount;
+        collectiveConditions.hasMoneyManagement = args.isHostAccount;
       }
 
       if (args.hostFeesStructure) {

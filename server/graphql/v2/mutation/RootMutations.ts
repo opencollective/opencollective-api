@@ -123,7 +123,7 @@ export default {
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
 
-      if (account.isHostAccount) {
+      if (account.hasMoneyManagement) {
         throw new Error('Cannot change type of host account');
       } else if (account.type !== CollectiveType.USER) {
         throw new Error('editAccountType only works on individual profiles');

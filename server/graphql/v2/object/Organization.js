@@ -52,7 +52,7 @@ export const GraphQLOrganization = new GraphQLObjectType({
         type: GraphQLHost,
         description: 'If the organization is a host account, this will return the matching Host object',
         resolve(collective) {
-          if (collective.isHostAccount) {
+          if (collective.hasMoneyManagement) {
             return collective;
           }
         },
@@ -61,7 +61,7 @@ export const GraphQLOrganization = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         description: 'Returns whether the account has money management activated.',
         resolve(collective) {
-          return collective.hasMoneyManagement();
+          return collective.hasMoneyManagement;
         },
       },
       hasHosting: {

@@ -125,7 +125,7 @@ async function createCollective(_, args, req) {
         if (!host) {
           throw new ValidationFailed('Host Not Found');
         }
-        if (!host.isHostAccount) {
+        if (!host.hasMoneyManagement) {
           throw new ValidationFailed('Host account is not activated as Host.');
         }
       }

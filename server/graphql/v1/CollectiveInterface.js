@@ -354,6 +354,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       type: { type: GraphQLString },
       isActive: { type: GraphQLBoolean },
       hasHosting: { type: GraphQLBoolean },
+      hasMoneyManagement: { type: GraphQLBoolean },
       name: { type: GraphQLString },
       legalName: { type: GraphQLString },
       company: { type: GraphQLString },
@@ -721,6 +722,12 @@ const CollectiveFields = () => {
         return collective.hasHosting;
       },
     },
+    hasMoneyManagement: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve(collective) {
+        return collective.hasMoneyManagement;
+      },
+    },
     name: {
       type: GraphQLString,
       resolve(collective) {
@@ -1031,7 +1038,7 @@ const CollectiveFields = () => {
           const ParentCollectiveId = collective.ParentCollectiveId;
           const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
           // In the future, we should make it possible to directly read the approvedAt of the event
-          return parentCollective && (parentCollective.isHostAccount || parentCollective.isApproved());
+          return parentCollective && (parentCollective.hasMoneyManagement || parentCollective.isApproved());
         } else {
           return collective.isApproved();
         }
@@ -1442,7 +1449,7 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
       description: 'The list of expense types supported by this account',
       async resolve(collective, _, req) {
-        const host = collective.isHostAccount
+        const host = collective.hasMoneyManagement
           ? collective
           : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
         const parent =

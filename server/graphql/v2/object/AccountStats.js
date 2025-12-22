@@ -500,7 +500,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLAmount),
         deprecationReason: '2023-03-01: This field will be removed soon, please use totalMoneyManaged',
         async resolve(collective) {
-          if (collective.isHostAccount) {
+          if (collective.hasMoneyManagement) {
             return {
               value: await queries.getTotalAnnualBudgetForHost(collective.id),
               currency: collective.currency,
