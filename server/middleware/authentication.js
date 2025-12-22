@@ -45,7 +45,10 @@ const debug = debugLib('auth');
  * decodes the token (expected behaviour).
  */
 const parseJwt = req => {
-  let token = req.params.access_token || req.query.access_token || req.body.access_token;
+  const params = req.params || {};
+  const query = req.query || {};
+  const body = req.body || {};
+  let token = params.access_token || query.access_token || body.access_token;
   if (!token) {
     token = getBearerTokenFromRequestHeaders(req) || getBearerTokenFromCookie(req);
   }
@@ -274,7 +277,7 @@ export const authenticateService = async (req, res, next) => {
   }
 
   const { service } = req.params;
-  const { context } = req.query;
+  const { context } = req.query || {};
   const opts = { callbackURL: getOAuthCallbackUrl(req) };
 
   if (service === 'github') {
@@ -457,7 +460,9 @@ export function authorizeClient(req, res, next) {
     return;
   }
 
-  const apiKey = req.get('Api-Key') || req.query.apiKey || req.query.api_key || req.body.api_key;
+  const query = req.query || {};
+  const body = req.body || {};
+  const apiKey = req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
   if (apiKey === config.keys.opencollective.apiKey) {
     debug(`Valid API key: ${apiKey}`);
     next();

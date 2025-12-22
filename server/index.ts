@@ -48,6 +48,10 @@ async function startExpressServer(workerId) {
       workerId,
     );
   });
+  server.on('error', error => {
+    logger.error('Failed to start Express server', error);
+    reportErrorToSentry(error);
+  });
 
   server.timeout = 25000; // sets timeout to 25 seconds
   expressApp['__server__'] = server;
