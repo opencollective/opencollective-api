@@ -8,6 +8,7 @@ interface CollectiveInterface {
   children: [CollectiveInterface]!
   type: String
   isActive: Boolean
+  hasHosting: Boolean
   name: String
   legalName: String
   company: String

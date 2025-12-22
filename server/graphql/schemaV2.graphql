@@ -7421,6 +7421,11 @@ type KYCVerification {
   account: Account!
 
   """
+  The user who added this account to the KYC verification list
+  """
+  createdByUser: Account
+
+  """
   Provider specific data
   """
   providerData: KYCProviderData!

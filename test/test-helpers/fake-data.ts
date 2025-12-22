@@ -1413,6 +1413,7 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
     RequestedByCollectiveId: requestedByCollectiveId,
     data,
     providerData,
+    CreatedByUserId: opts.CreatedByUserId ?? (await fakeUser()).id,
     verifiedAt: opts.verifiedAt ?? new Date(),
     revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
   });

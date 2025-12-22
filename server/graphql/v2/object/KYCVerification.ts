@@ -37,6 +37,16 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
         return req.loaders.Collective.byId.load(kycVerification.CollectiveId);
       },
     },
+    createdByUser: {
+      description: 'The user who added this account to the KYC verification list',
+      type: GraphQLAccount,
+      resolve(kycVerification: KYCVerification, _, req: Express.Request) {
+        if (kycVerification.CreatedByUserId) {
+          return req.loaders.Collective.byId.load(kycVerification.CreatedByUserId);
+        }
+        return null;
+      },
+    },
     providerData: {
       description: 'Provider specific data',
       type: new GraphQLNonNull(GraphQLKYCProviderData),
