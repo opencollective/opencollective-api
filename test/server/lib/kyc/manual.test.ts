@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import { KYCProviderName } from '../../../../server/lib/kyc/providers';
 import { manualKycProvider } from '../../../../server/lib/kyc/providers/manual';
+import { Activity } from '../../../../server/models';
 import { KYCVerificationStatus } from '../../../../server/models/KYCVerification';
 import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
@@ -26,6 +28,8 @@ describe('server/lib/kyc/manual', () => {
           {
             CollectiveId: user.collective.id,
             RequestedByCollectiveId: org.id,
+            CreatedByUserId: user.id,
+            UserTokenId: null,
           },
           {
             legalName: 'Legal name',
@@ -58,6 +62,8 @@ describe('server/lib/kyc/manual', () => {
         {
           CollectiveId: org.id,
           RequestedByCollectiveId: user.collective.id,
+          CreatedByUserId: user.id,
+          UserTokenId: null,
         },
         {
           legalName: 'Legal name',
@@ -68,6 +74,7 @@ describe('server/lib/kyc/manual', () => {
 
       expect(kycVerification).to.exist;
       expect(kycVerification.status).to.eql(KYCVerificationStatus.VERIFIED);
+      expect(kycVerification.CreatedByUserId).to.equal(user.id);
       expect(kycVerification.providerData).to.eql({
         notes: 'notes',
       });
@@ -76,6 +83,17 @@ describe('server/lib/kyc/manual', () => {
         legalName: 'Legal name',
         legalAddress: 'Legal address',
       });
+
+      const activity = await Activity.findOne({
+        where: {
+          type: ActivityTypes.KYC_REQUESTED,
+          CollectiveId: org.id,
+          FromCollectiveId: user.collective.id,
+        },
+      });
+      expect(activity).to.exist;
+      expect(activity.UserId).to.equal(user.id);
+      expect(activity.UserTokenId).to.equal(null);
     });
   });
 });

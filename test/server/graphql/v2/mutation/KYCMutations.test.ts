@@ -35,6 +35,13 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         ) {
           status
           provider
+          createdByUser {
+            id
+            legacyId
+            name
+            slug
+            type
+          }
         }
       }
     `;
@@ -193,6 +200,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         RequestedByCollectiveId: org.id,
         CollectiveId: user.collective.id,
         provider: KYCProviderName.MANUAL,
+        CreatedByUserId: orgAdmin.id,
       });
 
       const kycProviderStub = sandbox.stub(manualKycProvider, 'request').resolves(expected);
@@ -210,6 +218,8 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         orgAdmin,
       );
 
+      result.errors && console.error(result.errors);
+
       expect(kycProviderStub).to.have.been.calledWithMatch(
         {
           CollectiveId: user.collective.id,
@@ -224,6 +234,8 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.requestKYCVerification).to.exist;
+      expect(result.data.requestKYCVerification.createdByUser).to.exist;
+      expect(result.data.requestKYCVerification.createdByUser.legacyId).to.equal(orgAdmin.id);
     });
   });
   describe('revokeKYCVerification', () => {

@@ -8,6 +8,7 @@ import { KYCProviderName } from '../lib/kyc/providers';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
+import User from './User';
 
 export enum KYCVerificationStatus {
   PENDING = 'PENDING',
@@ -39,6 +40,7 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare RequestedByCollectiveId: ForeignKey<Collective['id']>;
+  declare CreatedByUserId: ForeignKey<User['id']>;
 
   declare provider: Provider;
   declare status: KYCVerificationStatus;
@@ -57,9 +59,9 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   declare updatedAt: Date;
   declare deletedAt?: Date;
 
-  async revoke() {
+  async revoke(userId: number, userTokenId: number | null) {
     const provider = getKYCProvider(this.provider);
-    return provider.revoke(this);
+    return provider.revoke(this, userId, userTokenId);
   }
 
   static get loaders() {
@@ -138,6 +140,11 @@ KYCVerification.init(
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Collectives' },
       allowNull: false,
+    },
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Users' },
+      allowNull: true,
     },
     data: {
       type: DataTypes.JSONB,

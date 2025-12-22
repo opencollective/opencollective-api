@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 
+import ActivityTypes from '../../../../server/constants/activities';
 import { KYCProviderName } from '../../../../server/lib/kyc/providers';
 import { KYCProvider } from '../../../../server/lib/kyc/providers/base';
+import Activity from '../../../../server/models/Activity';
 import { KYCVerification, KYCVerificationStatus } from '../../../../server/models/KYCVerification';
 import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
@@ -33,10 +35,22 @@ describe('server/lib/kyc/base', () => {
         status: KYCVerificationStatus.VERIFIED,
       });
 
-      await testProvider.revoke(kycVerification);
+      await testProvider.revoke(kycVerification, user.id, null);
 
       await kycVerification.reload();
       expect(kycVerification.status).to.equal(KYCVerificationStatus.REVOKED);
+
+      const activity = await Activity.findOne({
+        where: {
+          type: ActivityTypes.KYC_REVOKED,
+          CollectiveId: kycVerification.CollectiveId,
+          FromCollectiveId: kycVerification.RequestedByCollectiveId,
+          HostCollectiveId: kycVerification.RequestedByCollectiveId,
+        },
+      });
+      expect(activity).to.exist;
+      expect(activity.UserId).to.equal(user.id);
+      expect(activity.UserTokenId).to.equal(null);
     });
   });
 });

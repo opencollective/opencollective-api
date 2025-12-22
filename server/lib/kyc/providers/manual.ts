@@ -33,6 +33,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
     const kycVerification = await KYCVerification.create<ManualKYCVerification>({
       CollectiveId: req.CollectiveId,
       RequestedByCollectiveId: req.RequestedByCollectiveId,
+      CreatedByUserId: req.CreatedByUserId,
       providerData: {
         notes: providerRequest.notes ?? '',
       },
@@ -45,7 +46,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
       verifiedAt: new Date(),
     });
 
-    await this.createRequestedActivity(kycVerification);
+    await this.createRequestedActivity(kycVerification, req.UserTokenId);
 
     return kycVerification;
   }

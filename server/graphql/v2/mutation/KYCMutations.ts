@@ -51,6 +51,8 @@ const KYCMutations = {
         {
           RequestedByCollectiveId: requestedByAccount.id,
           CollectiveId: verifyAccount.id,
+          CreatedByUserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
         },
         providerRequest,
       );
@@ -87,7 +89,7 @@ const KYCMutations = {
 
       await checkFeatureAccess(kycVerification.requestedByCollective, FEATURE.KYC);
 
-      return await kycVerification.revoke();
+      return await kycVerification.revoke(req.remoteUser.id, req.userToken?.id);
     },
   },
 };
