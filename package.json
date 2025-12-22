@@ -81,7 +81,7 @@
     "deepmerge": "4.3.1",
     "dotenv": "17.2.3",
     "errorhandler": "1.5.2",
-    "express": "4.22.1",
+    "express": "5.2.1",
     "express-basic-auth": "1.2.1",
     "express-session": "1.18.2",
     "express-ws": "5.0.2",
