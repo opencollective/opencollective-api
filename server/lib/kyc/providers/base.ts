@@ -7,6 +7,8 @@ import { KYCProviderName } from '.';
 export type KYCRequest = {
   CollectiveId: number;
   RequestedByCollectiveId: number;
+  CreatedByUserId: number;
+  UserTokenId: number | null;
 };
 
 export abstract class KYCProvider<
@@ -21,7 +23,11 @@ export abstract class KYCProvider<
 
   abstract request(req: KYCRequest, providerRequest: ProviderKYCRequest): Promise<ProviderKYCVerification>;
 
-  async revoke(kycVerification: ProviderKYCVerification): Promise<ProviderKYCVerification> {
+  async revoke(
+    kycVerification: ProviderKYCVerification,
+    userId: number,
+    userTokenId: number | null,
+  ): Promise<ProviderKYCVerification> {
     const res = await kycVerification.update({
       status: KYCVerificationStatus.REVOKED,
       revokedAt: new Date(),
@@ -31,17 +37,23 @@ export abstract class KYCProvider<
       type: ActivityTypes.KYC_REVOKED,
       CollectiveId: kycVerification.CollectiveId,
       FromCollectiveId: kycVerification.RequestedByCollectiveId,
+      HostCollectiveId: kycVerification.RequestedByCollectiveId,
+      UserId: userId,
+      UserTokenId: userTokenId,
       data: this.activityData(kycVerification),
     });
 
     return res;
   }
 
-  protected async createRequestedActivity(kycVerification: ProviderKYCVerification) {
+  protected async createRequestedActivity(kycVerification: ProviderKYCVerification, userTokenId: number) {
     await Activity.create({
       type: ActivityTypes.KYC_REQUESTED,
       CollectiveId: kycVerification.CollectiveId,
       FromCollectiveId: kycVerification.RequestedByCollectiveId,
+      HostCollectiveId: kycVerification.RequestedByCollectiveId,
+      UserTokenId: userTokenId,
+      UserId: kycVerification.CreatedByUserId,
       data: this.activityData(kycVerification),
     });
   }
