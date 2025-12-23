@@ -31,7 +31,7 @@ export const MAX_RETRIES = 6;
 export async function ordersWithPendingCharges({ limit, startDate, limitedToOrderIds = undefined } = {}) {
   return models.Order.findAndCountAll({
     where: {
-      status: { [Op.not]: status.PAUSED },
+      status: { [Op.notIn]: [status.PAUSED, status.PROCESSING] },
       SubscriptionId: { [Op.ne]: null },
       deletedAt: null,
       ...(limitedToOrderIds && { id: { [Op.in]: limitedToOrderIds } }),
@@ -130,7 +130,7 @@ export async function processOrderWithSubscription(order, options) {
     } else {
       try {
         transaction = await processOrder(order);
-        orderProcessedStatus = 'success';
+        orderProcessedStatus = transaction ? 'success' : 'processing';
       } catch (error) {
         if (error.stripeResponse && error.stripeResponse.paymentIntent) {
           creditCardNeedsConfirmation = true;
@@ -153,7 +153,11 @@ export async function processOrderWithSubscription(order, options) {
         if (order.Subscription.chargeNumber !== null) {
           order.Subscription.chargeNumber += 1;
         }
+
         order.status = status.ACTIVE;
+      }
+
+      if (orderProcessedStatus === 'success' || orderProcessedStatus === 'processing') {
         // TODO: we should consolidate on error and remove latestError
         order.data = omit(order.data, ['error', 'latestError']);
       }
@@ -180,7 +184,9 @@ export async function processOrderWithSubscription(order, options) {
           await createPaymentCreditCardConfirmationActivity(order);
         }
       } else {
-        await handleRetryStatus(order, transaction);
+        if (orderProcessedStatus !== 'processing') {
+          await handleRetryStatus(order, transaction);
+        }
       }
     } catch (error) {
       reportErrorToSentry(error, { severity: 'fatal', feature: FEATURE.RECURRING_CONTRIBUTIONS });
@@ -246,11 +252,19 @@ export async function handleRetryStatus(order, transaction) {
  *   1. success: Increment date by 1 month for monthly or 1 year for
  *      yearly subscriptions
  *   2. failure: Two days after today.
+ *   3. processing: No change
  */
 export function getNextChargeAndPeriodStartDates(status, order) {
   const initial = order.Subscription.nextPeriodStart || order.Subscription.createdAt;
   let nextChargeDate = moment(initial);
   const response = {};
+
+  if (status === 'processing') {
+    return {
+      nextPeriodStart: initial,
+      nextChargeDate: order.Subscription.nextChargeDate,
+    };
+  }
 
   if (status === 'new' || status === 'success') {
     if (order.Subscription.interval === intervals.MONTH) {
@@ -292,7 +306,11 @@ export function getNextChargeAndPeriodStartDates(status, order) {
  * 'success'.
  */
 export function getChargeRetryCount(status, order) {
-  return status === 'success' || status === 'updated' ? 0 : order.Subscription.chargeRetryCount + 1;
+  return status === 'success' || status === 'updated'
+    ? 0
+    : status === 'processing'
+      ? order.Subscription.chargeRetryCount
+      : order.Subscription.chargeRetryCount + 1;
 }
 
 /** Cancel subscription
