@@ -52,6 +52,7 @@ import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService'
 import { GraphQLExpenseDirection } from '../enum/ExpenseDirection';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLHostApplicationStatus } from '../enum/HostApplicationStatus';
+import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
@@ -1135,6 +1136,10 @@ const accountFieldsDefinition = () => ({
     description: 'KYC Verification requests made by this account',
     args: {
       ...CollectionArgs,
+      status: {
+        type: new GraphQLList(new GraphQLNonNull(GraphQLKYCVerificationStatus)),
+        description: 'If set, returns only verification requests with this status',
+      },
       accounts: {
         type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
         description: 'If set, returns only verification requests made to these accounts',
@@ -1157,6 +1162,10 @@ const accountFieldsDefinition = () => ({
         ...(accountIds.length > 0 ? { CollectiveId: accountIds } : {}),
         RequestedByCollectiveId: account.id,
       };
+
+      if (args.status?.length > 0) {
+        where['status'] = { [Op.in]: args.status };
+      }
 
       return {
         limit: args.limit,
