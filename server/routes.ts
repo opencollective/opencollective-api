@@ -19,7 +19,13 @@ import LegalDocumentsController from './controllers/legal-documents';
 import * as email from './controllers/services/email';
 import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
-import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import {
+  mailgunWebhook,
+  paypalWebhook,
+  plaidWebhook,
+  stripeWebhook,
+  transferwiseWebhook,
+} from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -345,6 +351,9 @@ export default async (app: express.Application) => {
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
   app.post('/webhooks/plaid', plaidWebhook);
+  // Expense email creation inbox route. Needs to come before the sanitizer middleware.
+  app.all('/webhooks/mailgun', mailgunWebhook);
+
   app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
   app.delete(
     '/connected-accounts/:service/disconnect/:collectiveId',
