@@ -245,6 +245,8 @@ export function validateSettings(settings: any): string | boolean {
     return 'Enter a valid URL. The URL should have the format https://example.com/…';
   }
 
+  // TODO: Validate customApplyForm
+
   return false;
 }
 

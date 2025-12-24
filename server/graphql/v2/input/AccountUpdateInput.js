@@ -51,6 +51,7 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
           tos: { type: GraphQLString, description: 'Terms of Service for this account.' },
           VAT: { type: GraphQLJSON },
           GST: { type: GraphQLJSON },
+          customApplyForm: { type: GraphQLJSON },
         }),
       }),
       description: 'Settings for the account.',
