@@ -42,7 +42,7 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
       type: GraphQLAccount,
       resolve(kycVerification: KYCVerification, _, req: Express.Request) {
         if (kycVerification.CreatedByUserId) {
-          return req.loaders.Collective.byId.load(kycVerification.CreatedByUserId);
+          return req.loaders.Collective.byUserId.load(kycVerification.CreatedByUserId);
         }
         return null;
       },
