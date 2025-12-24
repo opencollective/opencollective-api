@@ -3774,8 +3774,12 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       throw new Forbidden('Multi-currency expenses are not enabled for this collective');
     }
 
+    const payoutMethod = await expense.getPayoutMethod();
+    const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
     if (expense.legacyPayoutMethod === 'donation') {
       throw new Error('"In kind" donations are not supported anymore');
+    } else if (payoutMethodType === PayoutMethodTypes.STRIPE) {
+      throw new Error('Use "MARK_AS_PAID_WITH_STRIPE" action to mark the expense as paid with Stripe');
     }
 
     // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
@@ -3785,8 +3789,6 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
 
     const totalAmountPaidInHostCurrency = args.totalAmountPaidInHostCurrency;
     const paymentProcessorFeeInHostCurrency = args.paymentProcessorFeeInHostCurrency || 0;
-    const payoutMethod = await expense.getPayoutMethod();
-    const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
     const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
       forceManual,
       totalAmountPaidInHostCurrency,
@@ -3821,7 +3823,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     }
 
     try {
-      if (forceManual || expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
+      if (forceManual || [PayoutMethodTypes.OTHER, PayoutMethodTypes.CREDIT_CARD].includes(payoutMethodType)) {
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
@@ -3913,6 +3915,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
           clearedAt: args.clearedAt,
         });
+      } else {
+        throw new Error(`Unsupported payout method type for payments: ${payoutMethodType}`);
       }
     } catch (error) {
       if (use2FARollingLimit) {
