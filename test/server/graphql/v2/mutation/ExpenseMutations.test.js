@@ -48,6 +48,7 @@ import {
   fakeTransactionsImportRow,
   fakeUploadedFile,
   fakeUser,
+  fakeVendor,
   fakeVirtualCard,
   multiple,
   randStr,
@@ -3991,6 +3992,75 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           where: { MemberCollectiveId: expense.FromCollectiveId, CollectiveId: collective.id, role: 'CONTRIBUTOR' },
         });
         expect(membership).to.exist;
+      });
+
+      it('Records payment processor fee when provided without forceManual', async () => {
+        // This test verifies that paymentProcessorFeeInHostCurrency is recorded
+        // even when forceManual is false (or omitted), which was previously a bug
+        const paymentProcessorFeeInHostCurrency = 1000;
+        const totalAmountPaidInHostCurrency = 50000;
+        const expenseAmount = totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency;
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const payee = await fakeVendor({
+          name: 'Heroku',
+          ParentCollectiveId: collective.HostCollectiveId,
+          HostCollectiveId: collective.HostCollectiveId,
+        });
+        const expense = await fakeExpense({
+          amount: expenseAmount,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          FromCollectiveId: payee.id,
+          feesPayer: 'COLLECTIVE',
+        });
+
+        // Updates the collective balance and pay the expense
+        const initialBalance = await collective.getBalanceWithBlockedFunds();
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: totalAmountPaidInHostCurrency });
+        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + totalAmountPaidInHostCurrency);
+
+        emailSendMessageSpy.resetHistory();
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'PAY',
+          paymentParams: {
+            paymentProcessorFeeInHostCurrency,
+            totalAmountPaidInHostCurrency,
+            feesPayer: 'COLLECTIVE',
+            forceManual: false, // Explicitly set to false
+          },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('PAID');
+        expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance);
+
+        // Check transactions - the payment processor fee should be recorded
+        const expenseTransactions = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id },
+          order: [['id', 'DESC']],
+        });
+
+        await preloadAssociationsForTransactions(expenseTransactions, SNAPSHOT_COLUMNS);
+        snapshotTransactions(expenseTransactions, { columns: SNAPSHOT_COLUMNS });
+
+        const debitTransaction = expenseTransactions.find(({ type, kind }) => type === 'DEBIT' && kind === 'EXPENSE');
+        expect(debitTransaction).to.exist;
+        expect(debitTransaction.currency).to.equal(expense.currency);
+        expect(debitTransaction.hostCurrency).to.equal(host.currency);
+
+        // Check if separate payment processor fee transaction was created (when separatePaymentProcessorFees is enabled)
+        const paymentProcessorFeeTransactions = expenseTransactions.filter(
+          ({ kind }) => kind === TransactionKind.PAYMENT_PROCESSOR_FEE,
+        );
+
+        expect(paymentProcessorFeeTransactions.length).to.equal(2);
+        const paymentProcessorFeeDebit = paymentProcessorFeeTransactions.find(({ type }) => type === 'DEBIT');
+        expect(paymentProcessorFeeDebit).to.exist;
+        expect(Math.abs(paymentProcessorFeeDebit.amountInHostCurrency)).to.equal(paymentProcessorFeeInHostCurrency);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(0);
       });
 
       it('Pays the expense manually (Collective currency != Host currency)', async () => {

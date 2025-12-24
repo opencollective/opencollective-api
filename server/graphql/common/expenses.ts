@@ -3821,7 +3821,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     }
 
     try {
-      if (forceManual) {
+      if (forceManual || expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
@@ -3910,14 +3910,6 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         }
         // This will detect that payoutMethodType=ACCOUNT_BALANCE and set service=opencollective AND type=collective
         await expense.setAndSavePaymentMethodIfMissing();
-        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
-          clearedAt: args.clearedAt,
-        });
-      } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
-        const paymentMethod = args.paymentMethodService
-          ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
-          : null;
-        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
           clearedAt: args.clearedAt,
         });
