@@ -3774,12 +3774,8 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       throw new Forbidden('Multi-currency expenses are not enabled for this collective');
     }
 
-    const payoutMethod = await expense.getPayoutMethod();
-    const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
     if (expense.legacyPayoutMethod === 'donation') {
       throw new Error('"In kind" donations are not supported anymore');
-    } else if (payoutMethodType === PayoutMethodTypes.STRIPE) {
-      throw new Error('Use "MARK_AS_PAID_WITH_STRIPE" action to mark the expense as paid with Stripe');
     }
 
     // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
@@ -3787,22 +3783,10 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       await expense.update({ feesPayer: args.feesPayer });
     }
 
-    // Compute amounts
-    let totalAmountPaidInHostCurrency = args.totalAmountPaidInHostCurrency;
-    if (
-      !totalAmountPaidInHostCurrency &&
-      (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other')
-    ) {
-      // A totalAmountPaidInHostCurrency should always be provided, but some legacy tests don't. Adding a log
-      // to see if there's a case for this in prod.
-      reportMessageToSentry('Manual payExpense called without totalAmountPaidInHostCurrency', {
-        req,
-        extra: { expenseId },
-      });
-      totalAmountPaidInHostCurrency = expense.amount;
-    }
-
+    const totalAmountPaidInHostCurrency = args.totalAmountPaidInHostCurrency;
     const paymentProcessorFeeInHostCurrency = args.paymentProcessorFeeInHostCurrency || 0;
+    const payoutMethod = await expense.getPayoutMethod();
+    const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
     const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
       forceManual,
       totalAmountPaidInHostCurrency,
@@ -3837,7 +3821,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     }
 
     try {
-      if (forceManual || [PayoutMethodTypes.OTHER, PayoutMethodTypes.CREDIT_CARD].includes(payoutMethodType)) {
+      if (forceManual) {
         const paymentMethod = args.paymentMethodService
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
@@ -3929,8 +3913,20 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
           clearedAt: args.clearedAt,
         });
-      } else {
-        throw new Error(`Unsupported payout method type for payments: ${payoutMethodType}`);
+      } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
+        const paymentMethod = args.paymentMethodService
+          ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
+          : null;
+        await expense.update({ PaymentMethodId: paymentMethod?.id || null });
+
+        // Hotfix for missing payment processor fees with manual payouts; we should consolidate this with the
+        // `forceManual` flag case above, as they end up doing the same thing.
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency =
+          feesInHostCurrency.paymentProcessorFeeInHostCurrency || args.paymentProcessorFeeInHostCurrency || 0;
+
+        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
+          clearedAt: args.clearedAt,
+        });
       }
     } catch (error) {
       if (use2FARollingLimit) {
