@@ -3787,7 +3787,21 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       await expense.update({ feesPayer: args.feesPayer });
     }
 
-    const totalAmountPaidInHostCurrency = args.totalAmountPaidInHostCurrency;
+    // Compute amounts
+    let totalAmountPaidInHostCurrency = args.totalAmountPaidInHostCurrency;
+    if (
+      !totalAmountPaidInHostCurrency &&
+      (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other')
+    ) {
+      // A totalAmountPaidInHostCurrency should always be provided, but some legacy tests don't. Adding a log
+      // to see if there's a case for this in prod.
+      reportMessageToSentry('Manual payExpense called without totalAmountPaidInHostCurrency', {
+        req,
+        extra: { expenseId },
+      });
+      totalAmountPaidInHostCurrency = expense.amount;
+    }
+
     const paymentProcessorFeeInHostCurrency = args.paymentProcessorFeeInHostCurrency || 0;
     const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
       forceManual,
