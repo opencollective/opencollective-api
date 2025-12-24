@@ -3918,6 +3918,12 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
           ? await host.findOrCreatePaymentMethod(args.paymentMethodService, PAYMENT_METHOD_TYPE.MANUAL)
           : null;
         await expense.update({ PaymentMethodId: paymentMethod?.id || null });
+
+        // Hotfix for missing payment processor fees with manual payouts; we should consolidate this with the
+        // `forceManual` flag case above, as they end up doing the same thing.
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency =
+          feesInHostCurrency.paymentProcessorFeeInHostCurrency || args.paymentProcessorFeeInHostCurrency || 0;
+
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', {
           clearedAt: args.clearedAt,
         });
