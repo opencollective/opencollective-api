@@ -200,8 +200,10 @@ export default {
           const results: Collective[] = await sequelize.query(
             `
           SELECT
-            fc.*, JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") AS "associatedCollectives",
-            cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt" 
+            fc.*,
+            JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") FILTER (WHERE c."type" IN ('COLLECTIVE', 'FUND', 'PROJECT', 'EVENT')) AS "associatedCollectives",
+            JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") FILTER (WHERE c."type" = 'ORGANIZATION') AS "associatedOrganizations",
+            cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt"
           FROM
             "CommunityActivitySummary" cas
             INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
@@ -209,7 +211,7 @@ export default {
           WHERE
             fc."deletedAt" IS NULL
             AND c."deletedAt" IS NULL
-            AND (${conditionalQuery}) 
+            AND (${conditionalQuery})
           GROUP BY fc.id, cas."HostCollectiveId"`,
             {
               model: Collective,

@@ -5,7 +5,7 @@ import { compact, flatten, uniq } from 'lodash';
 import type { Sequelize } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
-import { Activity, Op, sequelize } from '../../../models';
+import { Activity, Collective, Op, sequelize } from '../../../models';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { GraphQLCommunityRelationType } from '../enum/CommunityRelationType';
 import { GraphQLAccount } from '../interface/Account';
@@ -52,8 +52,8 @@ const GraphQLCommunityTransactionSummary = new GraphQLObjectType({
   }),
 });
 
-const GraphQLCommunityAssociatedCollective = new GraphQLObjectType({
-  name: 'CommunityAssociatedCollective',
+const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
+  name: 'CommunityAssociatedAccount',
   fields: () => ({
     account: {
       type: GraphQLAccount,
@@ -69,17 +69,30 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
   fields: () => {
     return {
       associatedCollectives: {
-        type: new GraphQLList(GraphQLCommunityAssociatedCollective),
+        type: new GraphQLList(GraphQLCommunityAssociatedAccount),
         async resolve(account, _, req: express.Request) {
           if (account.dataValues.associatedCollectives) {
-            return Promise.all(
-              uniq(Object.keys(account.dataValues.associatedCollectives)).map(collectiveId =>
-                req.loaders.Collective.byId.load(collectiveId).then(collective => ({
-                  account: collective,
-                  relations: account.dataValues.associatedCollectives[collectiveId],
-                })),
-              ),
-            );
+            const collectiveIds = Object.keys(account.dataValues.associatedCollectives);
+            const collectives = await req.loaders.Collective.byId.loadMany(collectiveIds);
+            const validCollectives = collectives.filter(collective => collective instanceof Collective);
+            return validCollectives.map(collective => ({
+              account: collective,
+              relations: account.dataValues.associatedCollectives[collective.id],
+            }));
+          }
+        },
+      },
+      associatedOrganizations: {
+        type: new GraphQLList(GraphQLCommunityAssociatedAccount),
+        async resolve(account, _, req: express.Request) {
+          if (account.dataValues.associatedOrganizations) {
+            const organizationIds = Object.keys(account.dataValues.associatedOrganizations);
+            const organizations = await req.loaders.Collective.byId.loadMany(organizationIds);
+            const validOrganizations = organizations.filter(organization => organization instanceof Collective);
+            return validOrganizations.map(organization => ({
+              account: organization,
+              relations: account.dataValues.associatedOrganizations[organization.id],
+            }));
           }
         },
       },
