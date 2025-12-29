@@ -3019,6 +3019,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -7332,7 +7333,8 @@ type TransactionsAmountGroup {
 }
 
 type CommunityStats {
-  associatedCollectives: [CommunityAssociatedCollective]
+  associatedCollectives: [CommunityAssociatedAccount]
+  associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
   transactionSummary: [CommunityTransactionSummary!]!
   lastInteractionAt: DateTime
@@ -7350,7 +7352,7 @@ type CommunityStats {
   ): ActivityCollection
 }
 
-type CommunityAssociatedCollective {
+type CommunityAssociatedAccount {
   account: Account
   relations: [CommunityRelationType]
 }
@@ -9168,6 +9170,7 @@ type Bot implements Account {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -10167,6 +10170,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -11724,6 +11728,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -12997,6 +13002,7 @@ type Individual implements Account {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -13917,6 +13923,31 @@ type Individual implements Account {
     """
     requestedByAccount: AccountReferenceInput!
   ): KYCStatus!
+
+  """
+  Expenses related to this individual through activities (e.g., expenses they approved or paid)
+  """
+  relatedExpenses(
+    """
+    The activity type to filter by (e.g., COLLECTIVE_EXPENSE_APPROVED, COLLECTIVE_EXPENSE_PAID)
+    """
+    activityType: [ActivityType!]!
+
+    """
+    Optional: Filter expenses by host
+    """
+    host: AccountReferenceInput
+
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): ExpenseCollection!
 }
 
 """
@@ -14286,6 +14317,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -15415,6 +15447,7 @@ type Vendor implements Account & AccountWithContributions {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -19372,6 +19405,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -20518,6 +20552,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
