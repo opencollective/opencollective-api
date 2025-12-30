@@ -3,7 +3,7 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, isEmpty, isNil, uniq } from 'lodash';
+import { cloneDeep, compact, isEmpty, isNil, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
@@ -252,8 +252,8 @@ export const OrdersCollectionArgs = {
     description: 'Return orders only for this host',
   },
   createdBy: {
-    type: GraphQLAccountReferenceInput,
-    description: 'Return only orders created by this user',
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'Return only orders created by these users',
   },
 };
 
@@ -395,16 +395,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
     where['PaymentMethodId'] = { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] };
-  }
-
-  // Filter by user who created the order
-  if (args.createdBy) {
-    const createdByAccount = await fetchAccountWithReference(args.createdBy, fetchAccountParams);
-    const createdByUser = await models.User.findOne({ where: { CollectiveId: createdByAccount.id } });
-    if (!createdByUser) {
-      throw new NotFound('User not found for the specified createdBy account');
-    }
-    where['CreatedByUserId'] = createdByUser.id;
   }
 
   // Filter on payment method service/type
@@ -598,6 +588,23 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
+  // Store the current where/include as it will be used to fetch createdByUsers (before applying createdBy filter)
+  const baseWhere = cloneDeep(where);
+  const baseInclude = cloneDeep(include);
+
+  if (!isEmpty(args.createdBy)) {
+    const createdByAccounts = await fetchAccountsWithReferences(args.createdBy, fetchAccountParams);
+    const createdByUsers = await models.User.findAll({
+      attributes: ['id'],
+      where: { CollectiveId: { [Op.in]: createdByAccounts.map(a => a.id) } },
+      raw: true,
+    });
+    if (createdByUsers.length === 0) {
+      throw new NotFound('No users found for the specified createdBy accounts');
+    }
+    where['CreatedByUserId'] = { [Op.in]: createdByUsers.map(u => u.id) };
+  }
+
   let order: Order;
   if (args.orderBy.field === 'lastChargedAt') {
     order = [
@@ -612,6 +619,33 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
+    createdByUsers: async () => {
+      const userIds = await models.Order.findAll({
+        attributes: [[sequelize.fn('DISTINCT', sequelize.col('Order.CreatedByUserId')), 'CreatedByUserId']],
+        where: baseWhere,
+        include: baseInclude,
+        raw: true,
+      }).then(results => results.map(r => r.CreatedByUserId).filter(id => id !== null));
+
+      if (userIds.length === 0) {
+        return [];
+      }
+
+      const users = await models.User.findAll({
+        attributes: ['CollectiveId'],
+        where: { id: { [Op.in]: userIds } },
+        raw: true,
+      });
+
+      const collectiveIds = users.map(u => u.CollectiveId).filter(id => id !== null);
+      if (collectiveIds.length === 0) {
+        return [];
+      }
+
+      return models.Collective.findAll({
+        where: { id: { [Op.in]: collectiveIds } },
+      });
+    },
   };
 };
 

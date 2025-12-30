@@ -691,6 +691,11 @@ interface Account {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -2084,6 +2089,11 @@ type OrderCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Order]
+
+  """
+  The accounts that created the orders in this collection, regardless of pagination
+  """
+  createdByUsers: [Account]
 }
 
 """
@@ -3019,6 +3029,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -3410,6 +3421,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -6007,6 +6023,11 @@ type PaymentMethod {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection
 }
 
@@ -7332,7 +7353,8 @@ type TransactionsAmountGroup {
 }
 
 type CommunityStats {
-  associatedCollectives: [CommunityAssociatedCollective]
+  associatedCollectives: [CommunityAssociatedAccount]
+  associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
   transactionSummary: [CommunityTransactionSummary!]!
   lastInteractionAt: DateTime
@@ -7350,7 +7372,7 @@ type CommunityStats {
   ): ActivityCollection
 }
 
-type CommunityAssociatedCollective {
+type CommunityAssociatedAccount {
   account: Account
   relations: [CommunityRelationType]
 }
@@ -9168,6 +9190,7 @@ type Bot implements Account {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -9559,6 +9582,11 @@ type Bot implements Account {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -10167,6 +10195,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -10558,6 +10587,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -11724,6 +11758,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -12115,6 +12150,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -12997,6 +13037,7 @@ type Individual implements Account {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -13388,6 +13429,11 @@ type Individual implements Account {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -14286,6 +14332,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -14677,6 +14724,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -15415,6 +15467,7 @@ type Vendor implements Account & AccountWithContributions {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -15806,6 +15859,11 @@ type Vendor implements Account & AccountWithContributions {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -17239,6 +17297,11 @@ type Query {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   organization(
     """
@@ -19372,6 +19435,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -19763,6 +19827,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
@@ -20518,6 +20587,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Filter on whether the account is a host or not
     """
     isHostAccount: Boolean
+      @deprecated(reason: "2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.")
 
     """
     Filter on (un)approved collectives
@@ -20909,6 +20979,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Return only orders created by these users
+    """
+    createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
     direction: ExpenseDirection
