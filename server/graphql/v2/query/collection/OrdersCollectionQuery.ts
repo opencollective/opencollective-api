@@ -251,6 +251,10 @@ export const OrdersCollectionArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Return orders only for this host',
   },
+  createdBy: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return only orders created by this user',
+  },
 };
 
 export const OrdersCollectionResolver = async (args, req: express.Request) => {
@@ -391,6 +395,16 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
     where['PaymentMethodId'] = { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] };
+  }
+
+  // Filter by user who created the order
+  if (args.createdBy) {
+    const createdByAccount = await fetchAccountWithReference(args.createdBy, fetchAccountParams);
+    const createdByUser = await models.User.findOne({ where: { CollectiveId: createdByAccount.id } });
+    if (!createdByUser) {
+      throw new NotFound('User not found for the specified createdBy account');
+    }
+    where['CreatedByUserId'] = createdByUser.id;
   }
 
   // Filter on payment method service/type
