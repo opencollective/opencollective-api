@@ -4,6 +4,7 @@ import { differenceBy, times } from 'lodash';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
+import ActivityTypes from '../../../../../server/constants/activities';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
   US_TAX_FORM_THRESHOLD_PRE_2026,
@@ -13,6 +14,7 @@ import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
+  fakeActivity,
   fakeCollective,
   fakeExpense,
   fakeHost,
@@ -38,6 +40,7 @@ const expensesQuery = gql`
     $customData: JSON
     $chargeHasReceipts: Boolean
     $includeChildrenExpenses: Boolean = false
+    $activity: ExpenseActivityFilter
   ) {
     expenses(
       fromAccount: $fromAccount
@@ -48,6 +51,7 @@ const expensesQuery = gql`
       customData: $customData
       chargeHasReceipts: $chargeHasReceipts
       includeChildrenExpenses: $includeChildrenExpenses
+      activity: $activity
     ) {
       totalCount
       totalAmount {
@@ -470,6 +474,242 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       if (missingExpenses.length) {
         throw new Error(`Missing expenses: ${missingExpenses.map(e => JSON.stringify(e['info']))}`);
       }
+    });
+  });
+
+  describe('Activity filter', () => {
+    let user1, user2, user3, expenseCreator, collective, expense1, expense2, expense3, expense4, expense5;
+
+    before(async () => {
+      user1 = await fakeUser();
+      user2 = await fakeUser();
+      user3 = await fakeUser();
+      expenseCreator = await fakeUser();
+      collective = await fakeCollective();
+
+      expense1 = await fakeExpense({ CollectiveId: collective.id, UserId: expenseCreator.id, status: 'PENDING' });
+      expense2 = await fakeExpense({ CollectiveId: collective.id, UserId: expenseCreator.id, status: 'PENDING' });
+      expense3 = await fakeExpense({ CollectiveId: collective.id, UserId: expenseCreator.id, status: 'PENDING' });
+      expense4 = await fakeExpense({ CollectiveId: collective.id, UserId: expenseCreator.id, status: 'PENDING' });
+      expense5 = await fakeExpense({ CollectiveId: collective.id, UserId: expenseCreator.id, status: 'PENDING' });
+
+      // User1 interacts with expense1 (approved)
+      await fakeActivity({
+        ExpenseId: expense1.id,
+        UserId: user1.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+      });
+
+      // User1 interacts with expense2 (rejected)
+      await fakeActivity({
+        ExpenseId: expense2.id,
+        UserId: user1.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+      });
+
+      // User2 interacts with expense1 (updated)
+      await fakeActivity({
+        ExpenseId: expense1.id,
+        UserId: user2.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+      });
+
+      // User2 interacts with expense3 (approved)
+      await fakeActivity({
+        ExpenseId: expense3.id,
+        UserId: user2.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+      });
+
+      // User3 interacts with expense4 (approved)
+      await fakeActivity({
+        ExpenseId: expense4.id,
+        UserId: user3.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+      });
+
+      // Expense2: rejected by user1, then later approved by user2, then paid
+      await fakeActivity({
+        ExpenseId: expense2.id,
+        UserId: user2.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+      });
+      await fakeActivity({
+        ExpenseId: expense2.id,
+        UserId: user2.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_PAID,
+      });
+
+      // Expense5: rejected by user2
+      await fakeActivity({
+        ExpenseId: expense5.id,
+        UserId: user2.id,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+      });
+    });
+
+    it('Returns all expenses that user1 interacted with', async () => {
+      const queryParams = {
+        account: { legacyId: collective.id },
+        activity: { individual: { legacyId: user1.collective.id } },
+      };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(2);
+      const expenseIds = result.data.expenses.nodes.map(e => e.legacyId);
+      expect(expenseIds).to.include(expense1.id);
+      expect(expenseIds).to.include(expense2.id);
+      expect(expenseIds).to.not.include(expense3.id);
+      expect(expenseIds).to.not.include(expense4.id);
+      expect(expenseIds).to.not.include(expense5.id);
+    });
+
+    it('Returns all expenses that user2 interacted with', async () => {
+      const queryParams = {
+        account: { legacyId: collective.id },
+        activity: { individual: { legacyId: user2.collective.id } },
+      };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      // user2 should have interacted with: expense1 (updated), expense2 (approved+paid), expense3 (approved), expense5 (rejected)
+      const expenseIds = result.data.expenses.nodes.map(e => e.legacyId);
+      expect(expenseIds).to.include(expense1.id); // Updated by user2
+      expect(expenseIds).to.include(expense2.id); // Approved and paid by user2
+      expect(expenseIds).to.include(expense3.id); // Approved by user2
+      expect(expenseIds).to.include(expense5.id); // Rejected by user2
+      // Verify we get at least the 4 expected expenses
+      // (may be more if there are auto-created activities we're not accounting for)
+      expect(result.data.expenses.totalCount).to.be.at.least(4);
+      // expense4 should NOT be included as it only has user3's approval
+      expect(expenseIds).to.not.include(expense4.id);
+    });
+
+    it('Returns all expenses that have been rejected (even if later approved/paid)', async () => {
+      const queryParams = {
+        account: { legacyId: collective.id },
+        activity: { type: ['COLLECTIVE_EXPENSE_REJECTED'] },
+      };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(2);
+      const expenseIds = result.data.expenses.nodes.map(e => e.legacyId);
+      expect(expenseIds).to.include(expense2.id); // Rejected then approved/paid
+      expect(expenseIds).to.include(expense5.id); // Rejected
+      expect(expenseIds).to.not.include(expense1.id);
+      expect(expenseIds).to.not.include(expense3.id);
+      expect(expenseIds).to.not.include(expense4.id);
+    });
+
+    it('Returns all expenses approved by user2', async () => {
+      const queryParams = {
+        account: { legacyId: collective.id },
+        activity: {
+          individual: { legacyId: user2.collective.id },
+          type: ['COLLECTIVE_EXPENSE_APPROVED'],
+        },
+      };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(2);
+      const expenseIds = result.data.expenses.nodes.map(e => e.legacyId);
+      expect(expenseIds).to.include(expense2.id);
+      expect(expenseIds).to.include(expense3.id);
+      expect(expenseIds).to.not.include(expense1.id);
+      expect(expenseIds).to.not.include(expense4.id);
+      expect(expenseIds).to.not.include(expense5.id);
+    });
+
+    it('Returns all expenses approved by user3', async () => {
+      const queryParams = {
+        account: { legacyId: collective.id },
+        activity: {
+          individual: { legacyId: user3.collective.id },
+          type: ['COLLECTIVE_EXPENSE_APPROVED'],
+        },
+      };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense4.id);
+    });
+
+    it('Returns expenses filtered by multiple activity types', async () => {
+      const queryParams = {
+        account: { legacyId: collective.id },
+        activity: {
+          type: ['COLLECTIVE_EXPENSE_APPROVED', 'COLLECTIVE_EXPENSE_REJECTED'],
+        },
+      };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      expect(result.errors).to.not.exist;
+      // Should include expenses with APPROVED or REJECTED activities:
+      // expense1 (approved by user1), expense2 (rejected+approved), expense3 (approved), expense4 (approved), expense5 (rejected)
+      const expenseIds = result.data.expenses.nodes.map(e => e.legacyId);
+      expect(expenseIds).to.include(expense1.id); // Approved by user1
+      expect(expenseIds).to.include(expense2.id); // Rejected by user1, approved by user2
+      expect(expenseIds).to.include(expense3.id); // Approved by user2
+      expect(expenseIds).to.include(expense4.id); // Approved by user3
+      expect(expenseIds).to.include(expense5.id); // Rejected by user2
+      // Verify we get at least the 5 expected expenses
+      // (may be more if there are auto-created activities we're not accounting for)
+      expect(result.data.expenses.totalCount).to.be.at.least(5);
+    });
+
+    describe('Error checks', () => {
+      it('Throws error when individual account is not found', async () => {
+        const queryParams = {
+          account: { legacyId: collective.id },
+          activity: { individual: { legacyId: 999999 } },
+        };
+        const result = await graphqlQueryV2(expensesQuery, queryParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('Account Not Found');
+      });
+
+      it('Throws error when individual account is not a user account', async () => {
+        const nonUserCollective = await fakeCollective();
+        const queryParams = {
+          account: { legacyId: collective.id },
+          activity: { individual: { legacyId: nonUserCollective.id } },
+        };
+        const result = await graphqlQueryV2(expensesQuery, queryParams);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User not found');
+      });
+
+      it('Throws error when activity type is invalid', async () => {
+        const queryParams = {
+          account: { legacyId: collective.id },
+          activity: { type: ['INVALID_ACTIVITY_TYPE'] },
+        };
+        const result = await graphqlQueryV2(expensesQuery, queryParams);
+        expect(result.errors).to.exist;
+        // GraphQL validation error happens before resolver
+        expect(result.errors[0].message).to.include('Variable "$activity" got invalid value');
+      });
+
+      it('Throws error when multiple invalid activity types are provided', async () => {
+        const queryParams = {
+          account: { legacyId: collective.id },
+          activity: { type: ['INVALID_TYPE_1', 'INVALID_TYPE_2'] },
+        };
+        const result = await graphqlQueryV2(expensesQuery, queryParams);
+        expect(result.errors).to.exist;
+        // GraphQL validation error happens before resolver
+        expect(result.errors[0].message).to.include('Variable "$activity" got invalid value');
+      });
+
+      it('Throws error when activity type is not an expense-related activity', async () => {
+        const queryParams = {
+          account: { legacyId: collective.id },
+          activity: { type: ['COLLECTIVE_CREATED'] },
+        };
+        const result = await graphqlQueryV2(expensesQuery, queryParams);
+        expect(result.errors).to.exist;
+        // This should reach the resolver and throw the custom error
+        expect(result.errors[0].message).to.include('Invalid activity type');
+        expect(result.errors[0].message).to.include('collective.created');
+      });
     });
   });
 

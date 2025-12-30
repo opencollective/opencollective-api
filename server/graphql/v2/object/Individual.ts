@@ -1,27 +1,22 @@
 import type { Request } from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { sum, uniqBy } from 'lodash';
+import { uniqBy } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
-import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
-import { SupportedCurrency } from '../../../constants/currencies';
 import { KYCProviderName } from '../../../lib/kyc/providers';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Collective, Op, sequelize } from '../../../models';
-import Expense from '../../../models/Expense';
+import models, { Collective, Op } from '../../../models';
 import { KYCVerification } from '../../../models/KYCVerification';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseKYC, checkScope, enforceScope } from '../../common/scope-check';
+import { checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
-import { Forbidden, NotFound } from '../../errors';
-import { GraphQLExpenseCollection } from '../collection/ExpenseCollection';
+import { Forbidden } from '../../errors';
 import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
 import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
 import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
-import { GraphQLActivityType } from '../enum/ActivityType';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
@@ -406,183 +401,6 @@ export const GraphQLIndividual = new GraphQLObjectType({
                 req.loaders.KYCVerification.verifiedStatusByProvider(requestedByAccount.id, provider).load(account.id),
             ]),
           );
-        },
-      },
-      relatedExpenses: {
-        type: new GraphQLNonNull(GraphQLExpenseCollection),
-        description: 'Expenses related to this individual through activities (e.g., expenses they approved or paid)',
-        args: {
-          activityType: {
-            type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLActivityType))),
-            description: 'The activity type to filter by (e.g., COLLECTIVE_EXPENSE_APPROVED, COLLECTIVE_EXPENSE_PAID)',
-          },
-          host: {
-            type: GraphQLAccountReferenceInput,
-            description: 'Optional: Filter expenses by host',
-          },
-          ...CollectionArgs,
-        },
-        async resolve(individual: Collective, args, req: Request) {
-          enforceScope(req, 'expenses');
-
-          const { activityType, host, limit, offset } = args;
-
-          const allowedActivityTypes = new Set([
-            ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
-            ActivityTypes.COLLECTIVE_EXPENSE_DELETED,
-            ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
-            ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
-            ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
-            ActivityTypes.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED,
-            ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
-            ActivityTypes.COLLECTIVE_EXPENSE_MOVED,
-            ActivityTypes.COLLECTIVE_EXPENSE_PAID,
-            ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,
-            ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
-            ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
-            ActivityTypes.COLLECTIVE_EXPENSE_PUT_ON_HOLD,
-            ActivityTypes.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD,
-            ActivityTypes.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
-            ActivityTypes.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT,
-            ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
-            ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
-            ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DECLINED,
-            ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
-            ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
-          ]);
-
-          const invalidActivityTypes = activityType.filter(type => !allowedActivityTypes.has(type));
-          if (invalidActivityTypes.length > 0) {
-            throw new Forbidden(`Invalid activity type: ${invalidActivityTypes.join(', ')}`);
-          }
-
-          if (individual.isIncognito) {
-            return { nodes: [], totalCount: 0, limit, offset };
-          }
-
-          const user = await req.loaders.User.byCollectiveId.load(individual.id);
-          if (!user) {
-            throw new NotFound('User not found');
-          }
-
-          let expenseIds: number[];
-          if (host) {
-            const hostAccount = await fetchAccountWithReference(host, {
-              throwIfMissing: true,
-              loaders: req.loaders,
-            });
-
-            const result = await sequelize.query<{ ExpenseId: number }>(
-              `
-              SELECT DISTINCT "Activity"."ExpenseId"
-              FROM "Activities" AS "Activity"
-              INNER JOIN "Expenses" AS "Expense" ON "Activity"."ExpenseId" = "Expense"."id"
-              INNER JOIN "Collectives" AS "Collective" ON "Expense"."CollectiveId" = "Collective"."id"
-              WHERE "Activity"."UserId" = :UserId
-                AND "Activity"."type" = :activityType
-                AND "Activity"."ExpenseId" IS NOT NULL
-                AND (
-                  "Expense"."HostCollectiveId" = :HostCollectiveId
-                  OR (
-                    "Expense"."HostCollectiveId" IS NULL
-                    AND "Collective"."HostCollectiveId" = :HostCollectiveId
-                    AND "Collective"."approvedAt" IS NOT NULL
-                  )
-                )
-              `,
-              {
-                type: sequelize.QueryTypes.SELECT,
-                replacements: {
-                  UserId: user.id,
-                  activityType,
-                  HostCollectiveId: hostAccount.id,
-                },
-              },
-            );
-
-            expenseIds = result.map(r => r.ExpenseId);
-          } else {
-            const result = await sequelize.query<{ ExpenseId: number }>(
-              `
-              SELECT DISTINCT "ExpenseId"
-              FROM "Activities"
-              WHERE "UserId" = :UserId
-                AND "type" = :activityType
-                AND "ExpenseId" IS NOT NULL
-              `,
-              {
-                type: sequelize.QueryTypes.SELECT,
-                replacements: {
-                  UserId: user.id,
-                  activityType,
-                },
-              },
-            );
-
-            expenseIds = result.map(r => r.ExpenseId);
-          }
-
-          if (expenseIds.length === 0) {
-            return { nodes: [], totalCount: 0, limit, offset };
-          }
-
-          // Fetch the actual Expense objects
-          const fetchNodes = () => {
-            return Expense.findAll({
-              where: { id: { [Op.in]: expenseIds } },
-              order: [['createdAt', 'DESC']],
-              limit,
-              offset,
-            });
-          };
-
-          const fetchTotalCount = () => {
-            return Expense.count({
-              where: { id: { [Op.in]: expenseIds } },
-            });
-          };
-
-          const fetchTotalAmount = async () => {
-            const query = (await Expense.findAll({
-              attributes: [
-                [sequelize.col('"Expense"."currency"'), 'expenseCurrency'],
-                [sequelize.fn('SUM', sequelize.col('amount')), 'amount'],
-              ],
-              where: { id: { [Op.in]: expenseIds } },
-              group: ['expenseCurrency'],
-              raw: true,
-            })) as unknown as { expenseCurrency: string; amount: number }[];
-
-            const amountsByCurrency = query.map(result => ({
-              currency: result.expenseCurrency,
-              value: result.amount,
-            }));
-
-            return {
-              amountsByCurrency,
-              amount: async ({ currency = 'USD' }) => {
-                const values = await req.loaders.CurrencyExchangeRate.convert.loadMany(
-                  amountsByCurrency.map(v => ({
-                    amount: v.value,
-                    fromCurrency: v.currency as SupportedCurrency,
-                    toCurrency: currency as SupportedCurrency,
-                  })),
-                );
-                return {
-                  value: sum(values),
-                  currency,
-                };
-              },
-            };
-          };
-
-          return {
-            nodes: fetchNodes,
-            totalCount: fetchTotalCount,
-            totalAmount: fetchTotalAmount,
-            limit,
-            offset,
-          };
         },
       },
     };

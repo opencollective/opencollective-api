@@ -1,12 +1,20 @@
 import assert from 'assert';
 
 import express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
-import { OrderItem, Sequelize, Utils as SequelizeUtils } from 'sequelize';
+import { OrderItem, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
+import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import MemberRoles from '../../../../constants/roles';
@@ -14,12 +22,13 @@ import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
-import { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
+import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
+import { GraphQLActivityType } from '../../enum/ActivityType';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
 import { GraphQLLastCommentBy } from '../../enum/LastCommentByType';
@@ -230,6 +239,22 @@ export const ExpensesCollectionQueryArgs = {
   payoutMethod: {
     type: GraphQLPayoutMethodReferenceInput,
     description: 'Only return transactions that are associated with this payout method',
+  },
+  activity: {
+    description: 'Filter expenses by activities',
+    type: new GraphQLInputObjectType({
+      name: 'ExpenseActivityFilter',
+      fields: () => ({
+        individual: {
+          type: GraphQLAccountReferenceInput,
+          description: 'Activities triggered by this individual',
+        },
+        type: {
+          type: new GraphQLList(new GraphQLNonNull(GraphQLActivityType)),
+          description: 'The type(s) of activities to filter by',
+        },
+      }),
+    }),
   },
 };
 
@@ -597,6 +622,52 @@ export const ExpensesCollectionQueryResolver = async (
     ]);
     where[Op.and].push({ [Op.or]: conditionals });
     include.push({ model: AccountingCategory, as: 'accountingCategory' });
+  }
+
+  if (args.activity) {
+    const activitiesConditions: WhereOptions<Activity> = {};
+    if (args.activity.individual) {
+      const account = await fetchAccountWithReference(args.activity.individual, { throwIfMissing: true });
+      const user = await req.loaders.User.byCollectiveId.load(account.id);
+      if (!user) {
+        throw new NotFound('User not found');
+      }
+      activitiesConditions.UserId = user.id;
+    }
+    if (args.activity.type && args.activity.type.length > 0) {
+      const allowedActivityTypes = new Set([
+        ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+        ActivityTypes.COLLECTIVE_EXPENSE_DELETED,
+        ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+        ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+        ActivityTypes.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
+        ActivityTypes.COLLECTIVE_EXPENSE_MOVED,
+        ActivityTypes.COLLECTIVE_EXPENSE_PAID,
+        ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,
+        ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
+        ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
+        ActivityTypes.COLLECTIVE_EXPENSE_PUT_ON_HOLD,
+        ActivityTypes.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD,
+        ActivityTypes.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
+        ActivityTypes.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT,
+        ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+        ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DECLINED,
+        ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
+        ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
+      ]);
+
+      const invalidActivityTypes = args.activity.type.filter(type => !allowedActivityTypes.has(type));
+      if (invalidActivityTypes.length > 0) {
+        throw new Forbidden(`Invalid activity type: ${invalidActivityTypes.join(', ')}`);
+      }
+
+      activitiesConditions.type = { [Op.in]: args.activity.type };
+    }
+
+    include.push({ association: 'activities', required: true, attributes: [], where: activitiesConditions });
   }
 
   const order = [[args.orderBy.field, args.orderBy.direction]] as OrderItem[];
