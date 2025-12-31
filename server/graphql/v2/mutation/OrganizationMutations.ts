@@ -199,44 +199,6 @@ export default {
       return organization;
     },
   },
-  inviteOrganizationAdmins: {
-    type: GraphQLOrganization,
-    description: 'Creates and invites admins to an existing Organization. Scope: "account".',
-    args: {
-      organization: {
-        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
-        description: 'Reference to the organization to invite admins to',
-      },
-      inviteMembers: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLInviteMemberInput))),
-        description: 'List of members to invite as admins.',
-      },
-    },
-    resolve: async (_, args, req: express.Request) => {
-      checkRemoteUserCanUseAccount(req);
-
-      const organization = await fetchAccountWithReference(args.organization, { throwIfMissing: true });
-      if (!organization || organization.type !== ORGANIZATION) {
-        throw new ValidationFailed('Organization not found');
-      }
-
-      if (!req.remoteUser.isAdminOfCollective(organization)) {
-        throw new Forbidden('You need to be an Admin of the organization');
-      }
-
-      // Enforce 2FA for invite actions
-      await twoFactorAuthLib.enforceForAccount(req, organization, { onlyAskOnLogin: true });
-
-      if (args.inviteMembers && args.inviteMembers.length) {
-        await processInviteMembersInput(organization, args.inviteMembers, {
-          supportedRoles: [roles.ADMIN],
-          user: req.remoteUser,
-        });
-      }
-
-      return organization;
-    },
-  },
   editOrganizationMoneyManagementAndHosting: {
     type: new GraphQLNonNull(GraphQLOrganization),
     description: 'Convert an account to an Organization. Scope: "account".',
