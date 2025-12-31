@@ -205,7 +205,14 @@ type SignupRequestSession = {
 export async function signup(req: express.Request, res: express.Response) {
   const { email, captcha } = req.body;
   if (captcha) {
-    await checkCaptcha(captcha, req.ip);
+    try {
+      await checkCaptcha(captcha, req.ip);
+    } catch {
+      res.status(403).send({
+        error: { message: 'Captcha verification failed', type: 'CAPTCHA_VERIFICATION_FAILED' },
+      });
+      return;
+    }
   } else if (!req.remoteUser && isCaptchaSetup()) {
     res.status(403).send({
       error: { message: 'Captcha is required', type: 'CAPTCHA_REQUIRED' },
