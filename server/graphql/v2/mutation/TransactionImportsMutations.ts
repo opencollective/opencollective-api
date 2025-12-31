@@ -485,6 +485,35 @@ const transactionImportsMutations = {
               },
             },
           );
+        } else if (args.action === 'UNLINK') {
+          // Load rows that are linked
+          const rows = await TransactionsImportRow.findAll({
+            where: {
+              id: { [Op.in]: selectedRowIds },
+              status: TransactionsImportRowStatus.LINKED,
+            },
+            transaction,
+          });
+
+          if (rows.length === 0 || rows.length !== selectedRowIds.length) {
+            throw new ValidationFailed('Some rows are not linked');
+          }
+
+          // Unlink all rows (set ExpenseId/OrderId to null, status to PENDING)
+          await TransactionsImportRow.update(
+            {
+              ExpenseId: null,
+              OrderId: null,
+              status: TransactionsImportRowStatus.PENDING,
+            },
+            {
+              transaction,
+              where: {
+                id: { [Op.in]: selectedRowIds },
+                status: TransactionsImportRowStatus.LINKED,
+              },
+            },
+          );
         }
 
         // Update matching imports
