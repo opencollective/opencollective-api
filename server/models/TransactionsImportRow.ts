@@ -37,6 +37,10 @@ class TransactionsImportRow extends Model<
 
   declare public import?: TransactionsImport;
   declare public getImport: BelongsToGetAssociationMixin<TransactionsImport>;
+  declare public expense?: Expense;
+  declare public getExpense: BelongsToGetAssociationMixin<Expense>;
+  declare public order?: Order;
+  declare public getOrder: BelongsToGetAssociationMixin<Order>;
 
   public isProcessed(): boolean {
     return this.status === 'LINKED' || this.status === 'IGNORED';

@@ -2349,7 +2349,7 @@ export async function createExpense(
   }
 
   // Expense data
-  const data = { recipient, taxes };
+  const data: Expense['data'] = { recipient, taxes };
 
   // Set flag for manually created virtual card charges
   if (expenseData.type === ExpenseType.CHARGE) {
