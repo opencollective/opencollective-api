@@ -176,8 +176,9 @@ const getSortSubQuery = (
             -- is host trusted or first party
             (
               CASE
-                WHEN ((c.data#>'{isFirstPartyHost}')::boolean) THEN 2
-                WHEN ((c.data#>'{isTrustedHost}')::boolean) THEN 1
+                WHEN ((c.data#>'{isFirstPartyHost}')::boolean) THEN 3
+                WHEN ((c.data#>'{isTrustedHost}')::boolean) THEN 2
+                WHEN ((c.data#>'{isVerified}')::boolean) THEN 1
                 ELSE 0
               END
             ),
