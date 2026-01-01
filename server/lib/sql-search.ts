@@ -264,7 +264,7 @@ export const searchCollectivesInDB = async (
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
   let countryCodes = null;
-  let searchedTags = '';
+  let searchedTags = [''];
   if (countries) {
     countryCodes = `${countries.join(',')}`;
   }
@@ -363,7 +363,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (tags?.length) {
-    searchedTags = tags.map(tag => tag.toLowerCase()).join();
+    searchedTags = tags.map(tag => tag.toLowerCase());
     if (tagSearchOperator === 'OR') {
       dynamicConditions += `AND c."tags" && Array[:searchedTags]::varchar[] `;
     } else {
