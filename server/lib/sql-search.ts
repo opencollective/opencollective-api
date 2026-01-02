@@ -97,7 +97,7 @@ export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
-const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
+export const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
   let sanitizedTerm = '';

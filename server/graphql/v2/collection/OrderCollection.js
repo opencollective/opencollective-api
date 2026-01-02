@@ -1,7 +1,7 @@
-import { GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { GraphQLAccount } from '../interface/Account';
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLAccountCollection } from '../collection/AccountCollection';
+import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
 import { GraphQLOrder } from '../object/Order';
 
 export const GraphQLOrderCollection = new GraphQLObjectType({
@@ -15,8 +15,16 @@ export const GraphQLOrderCollection = new GraphQLObjectType({
         type: new GraphQLList(GraphQLOrder),
       },
       createdByUsers: {
-        type: new GraphQLList(GraphQLAccount),
-        description: 'The accounts that created the orders in this collection, regardless of pagination',
+        type: new GraphQLNonNull(GraphQLAccountCollection),
+        description:
+          'The accounts that created the orders in this collection, regardless of pagination. Returns a paginated and searchable collection.',
+        args: {
+          ...CollectionArgs,
+          searchTerm: {
+            type: GraphQLString,
+            description: 'Search term to filter by name, slug, or email',
+          },
+        },
       },
     };
   },
