@@ -3,11 +3,11 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, isEmpty, isNil, uniq } from 'lodash';
+import { cloneDeep, compact, isEmpty, isNil, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
-import { buildSearchConditions } from '../../../../lib/sql-search';
+import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
@@ -250,6 +250,10 @@ export const OrdersCollectionArgs = {
   host: {
     type: GraphQLAccountReferenceInput,
     description: 'Return orders only for this host',
+  },
+  createdBy: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description: 'Return only orders created by these users',
   },
 };
 
@@ -584,6 +588,22 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
+  // Store the current where as it will be used to fetch createdByUsers (before applying createdBy filter)
+  const baseWhere = cloneDeep(where);
+
+  if (!isEmpty(args.createdBy)) {
+    const createdByAccounts = await fetchAccountsWithReferences(args.createdBy, fetchAccountParams);
+    const createdByUsers = await models.User.findAll({
+      attributes: ['id'],
+      where: { CollectiveId: { [Op.in]: createdByAccounts.map(a => a.id) } },
+      raw: true,
+    });
+    if (createdByUsers.length === 0) {
+      throw new NotFound('No users found for the specified createdBy accounts');
+    }
+    where['CreatedByUserId'] = { [Op.in]: createdByUsers.map(u => u.id) };
+  }
+
   let order: Order;
   if (args.orderBy.field === 'lastChargedAt') {
     order = [
@@ -598,6 +618,54 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
+    createdByUsers: async (args: { limit?: number; offset?: number; searchTerm?: string } = {}) => {
+      const { limit = 10, offset = 0, searchTerm } = args;
+
+      const searchConditions = getSearchTermSQLConditions(searchTerm, 'c');
+
+      const orderWhereClause = sequelize.queryInterface.queryGenerator
+        .getWhereConditions(baseWhere, 'o', models.Order)
+        .replace(/"Order"\./g, 'o.');
+
+      const result = await sequelize.query<Collective & { __total__: string }>(
+        `
+        SELECT
+          c.*,
+          COUNT(*) OVER() AS __total__
+        FROM "Collectives" c
+        WHERE c."id" IN (
+          SELECT DISTINCT u."CollectiveId"
+          FROM "Orders" o
+          INNER JOIN "Collectives" "fromCollective" ON o."FromCollectiveId" = "fromCollective".id
+          INNER JOIN "Collectives" "collective" ON o."CollectiveId" = "collective".id
+          LEFT JOIN "Subscriptions" "Subscription" ON o."SubscriptionId" = "Subscription".id
+          INNER JOIN "Users" u ON o."CreatedByUserId" = u.id
+          WHERE o."deletedAt" IS NULL
+            AND o."CreatedByUserId" IS NOT NULL
+            AND u."CollectiveId" IS NOT NULL
+            ${orderWhereClause ? `AND ${orderWhereClause}` : ''}
+        )
+        AND c."deletedAt" IS NULL
+        ${searchConditions.sqlConditions}
+        ORDER BY c."name" ASC
+        OFFSET :offset
+        LIMIT :limit
+        `,
+        {
+          model: models.Collective,
+          mapToModel: true,
+          replacements: {
+            sanitizedTerm: searchConditions.sanitizedTerm,
+            sanitizedTermNoWhitespaces: searchConditions.sanitizedTermNoWhitespaces,
+            offset,
+            limit,
+          },
+        },
+      );
+
+      const totalCount = parseInt(result[0]?.dataValues?.__total__ || '0', 10);
+      return { nodes: result, totalCount, limit, offset };
+    },
   };
 };
 
