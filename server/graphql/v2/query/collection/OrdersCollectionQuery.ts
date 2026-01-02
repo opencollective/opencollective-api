@@ -7,7 +7,7 @@ import { cloneDeep, compact, isEmpty, isNil, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
-import { buildSearchConditions } from '../../../../lib/sql-search';
+import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
@@ -588,9 +588,8 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
-  // Store the current where/include as it will be used to fetch createdByUsers (before applying createdBy filter)
+  // Store the current where as it will be used to fetch createdByUsers (before applying createdBy filter)
   const baseWhere = cloneDeep(where);
-  const baseInclude = cloneDeep(include);
 
   if (!isEmpty(args.createdBy)) {
     const createdByAccounts = await fetchAccountsWithReferences(args.createdBy, fetchAccountParams);
@@ -619,32 +618,53 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
-    createdByUsers: async () => {
-      const userIds = await models.Order.findAll({
-        attributes: [[sequelize.fn('DISTINCT', sequelize.col('Order.CreatedByUserId')), 'CreatedByUserId']],
-        where: baseWhere,
-        include: baseInclude,
-        raw: true,
-      }).then(results => results.map(r => r.CreatedByUserId).filter(id => id !== null));
+    createdByUsers: async (args: { limit?: number; offset?: number; searchTerm?: string } = {}) => {
+      const { limit = 10, offset = 0, searchTerm } = args;
 
-      if (userIds.length === 0) {
-        return [];
-      }
+      const searchConditions = getSearchTermSQLConditions(searchTerm, 'c');
 
-      const users = await models.User.findAll({
-        attributes: ['CollectiveId'],
-        where: { id: { [Op.in]: userIds } },
-        raw: true,
-      });
+      const orderWhereClause = sequelize.queryInterface.queryGenerator
+        .getWhereConditions(baseWhere, 'o', models.Order)
+        .replace(/"Order"\./g, 'o.');
 
-      const collectiveIds = users.map(u => u.CollectiveId).filter(id => id !== null);
-      if (collectiveIds.length === 0) {
-        return [];
-      }
+      const result = await sequelize.query<Collective & { __total__: string }>(
+        `
+        SELECT
+          c.*,
+          COUNT(*) OVER() AS __total__
+        FROM "Collectives" c
+        WHERE c."id" IN (
+          SELECT DISTINCT u."CollectiveId"
+          FROM "Orders" o
+          INNER JOIN "Collectives" "fromCollective" ON o."FromCollectiveId" = "fromCollective".id
+          INNER JOIN "Collectives" "collective" ON o."CollectiveId" = "collective".id
+          LEFT JOIN "Subscriptions" "Subscription" ON o."SubscriptionId" = "Subscription".id
+          INNER JOIN "Users" u ON o."CreatedByUserId" = u.id
+          WHERE o."deletedAt" IS NULL
+            AND o."CreatedByUserId" IS NOT NULL
+            AND u."CollectiveId" IS NOT NULL
+            ${orderWhereClause ? `AND ${orderWhereClause}` : ''}
+        )
+        AND c."deletedAt" IS NULL
+        ${searchConditions.sqlConditions}
+        ORDER BY c."name" ASC
+        OFFSET :offset
+        LIMIT :limit
+        `,
+        {
+          model: models.Collective,
+          mapToModel: true,
+          replacements: {
+            sanitizedTerm: searchConditions.sanitizedTerm,
+            sanitizedTermNoWhitespaces: searchConditions.sanitizedTermNoWhitespaces,
+            offset,
+            limit,
+          },
+        },
+      );
 
-      return models.Collective.findAll({
-        where: { id: { [Op.in]: collectiveIds } },
-      });
+      const totalCount = parseInt(result[0]?.dataValues?.__total__ || '0', 10);
+      return { nodes: result, totalCount, limit, offset };
     },
   };
 };
