@@ -307,7 +307,31 @@ export default async (app: express.Application) => {
     },
   };
 
-  app.use('/graphql', graphqlUploadExpress());
+  // Wrap graphqlUploadExpress with error handling to provide better error messages
+  // for multipart upload parsing failures (see https://github.com/opencollective/opencollective-api/issues/11293)
+  app.use('/graphql', (req, res, next) => {
+    const uploadMiddleware = graphqlUploadExpress();
+    uploadMiddleware(req, res, (err?: Error) => {
+      if (err) {
+        logger.error(`GraphQL upload error: ${err.message}`, { error: err });
+        // Return a proper JSON error response instead of letting Express error handler return a generic 500
+        return res.status(400).json({
+          errors: [
+            {
+              message: `File upload failed: ${err.message}`,
+              extensions: {
+                code: 'BAD_REQUEST',
+                exception: {
+                  name: err.name,
+                },
+              },
+            },
+          ],
+        });
+      }
+      next();
+    });
+  });
 
   /**
    * GraphQL v1
