@@ -262,5 +262,42 @@ describe('GraphQL Multipart Upload Error Handling', () => {
       expect(response.body.errors).to.be.an('array');
       expect(response.body.errors[0].message).to.include('File upload failed');
     });
+
+    it('should return GraphQL response (not 500) for valid multipart upload requests', async () => {
+      // Send a valid multipart upload request following GraphQL multipart spec.
+      // Even if auth fails, the response should be in GraphQL format, not a raw 500.
+      // See: https://github.com/opencollective/opencollective-api/issues/11293
+      const response = await request(app)
+        .post('/graphql/v2')
+        .set('Authorization', 'Bearer test-token')
+        .field(
+          'operations',
+          JSON.stringify({
+            query: `mutation UploadFile($files: [UploadFileInput!]!) {
+              uploadFile(files: $files) { file { id url name } }
+            }`,
+            variables: { files: [{ kind: 'EXPENSE_ITEM', file: null }] },
+          }),
+        )
+        .field('map', JSON.stringify({ '0': ['variables.files.0.file'] }))
+        .attach('0', Buffer.from('test file content'), {
+          filename: 'test.txt',
+          contentType: 'text/plain',
+        });
+
+      // Should NOT return 500 - should return proper GraphQL response
+      // Even if auth fails (401-ish error), it should be in GraphQL format
+      expect(response.status).to.not.eq(500);
+
+      // If there's an error, it should be in GraphQL format
+      if (response.body.errors) {
+        expect(response.body.errors).to.be.an('array');
+        expect(response.body.errors[0]).to.have.property('message');
+      }
+      // If successful, it should have data
+      if (response.body.data) {
+        expect(response.body.data).to.have.property('uploadFile');
+      }
+    });
   });
 });
