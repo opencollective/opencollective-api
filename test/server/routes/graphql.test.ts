@@ -219,3 +219,48 @@ describe('GraphQL Armor Protection Tests', () => {
     });
   });
 });
+
+describe('GraphQL Multipart Upload Error Handling', () => {
+  let app;
+
+  before(async () => {
+    app = await startTestServer();
+  });
+
+  after(async () => {
+    await stopTestServer();
+  });
+
+  describe('/graphql/v2', () => {
+    it('should return errors in GraphQL format for malformed multipart requests', async () => {
+      // Send a multipart request with invalid JSON in the operations field.
+      // This triggers an error in graphqlUploadExpress middleware.
+      // See: https://github.com/opencollective/opencollective-api/issues/11293
+      const boundary = '----WebKitFormBoundary7MA4YWxkTrZu0gW';
+      const body = [
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="operations"',
+        '',
+        '{ invalid json }', // Invalid JSON triggers parsing error in graphqlUploadExpress
+        `--${boundary}`,
+        'Content-Disposition: form-data; name="map"',
+        '',
+        '{}',
+        `--${boundary}--`,
+      ].join('\r\n');
+
+      const response = await request(app)
+        .post('/graphql/v2')
+        .set('Content-Type', `multipart/form-data; boundary=${boundary}`)
+        .set('Authorization', 'Bearer test-token')
+        .send(body);
+
+      // The error should be returned in GraphQL format (errors array) not Express format (error object)
+      // This is important because GraphQL clients expect the standard errors array format.
+      expect(response.status).to.eq(400);
+      expect(response.body.errors).to.exist;
+      expect(response.body.errors).to.be.an('array');
+      expect(response.body.errors[0].message).to.include('File upload failed');
+    });
+  });
+});
