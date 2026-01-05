@@ -11,6 +11,7 @@ import { ApolloServerPlugin } from '@apollo/server';
 import * as Sentry from '@sentry/node';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
+import debugLib from 'debug';
 import { get, isEmpty, isEqual, pick } from 'lodash';
 
 import { ENGINEERING_DOMAINS } from '../../constants/engineering-domains';
@@ -20,6 +21,7 @@ import logger from '../logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from '../safe-json-stringify';
 
 import { checkIfSentryConfigured, HandlerType, redactSensitiveDataFromRequest } from './init';
+const debug = debugLib('sentry');
 
 export type CaptureErrorParams = {
   severity?: Sentry.SeverityLevel;
@@ -264,6 +266,7 @@ const IGNORED_GQL_ERRORS = [
     message: /The slug .+ is already taken/,
     path: [['createOrganization'], ['createCollective'], ['createFund'], ['createProject']],
   },
+  { message: /^Validation error:/ },
 ];
 
 const isIgnoredGQLError = (err): boolean => {
@@ -289,9 +292,11 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
         for (const err of ctx.errors) {
           // Only report internal server errors, all errors extending ApolloError should be user-facing
           if (err.extensions?.code || isIgnoredGQLError(err)) {
+            debug('Ignoring GraphQL error:', err.message);
             continue;
           }
 
+          debug('Reporting GraphQL error:', err.message);
           // Try to generate a User object for Sentry if logged in
           const req = ctx.contextValue as Express.Request;
           reportErrorToSentry(err, {
