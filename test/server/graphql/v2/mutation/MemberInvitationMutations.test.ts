@@ -314,7 +314,7 @@ describe('MemberInvitationMutations', () => {
     it('should invite a new user using memberInfo (email and name)', async () => {
       sendEmailSpy.resetHistory();
       const organization = await fakeOrganization({ admin: collectiveAdminUser });
-      const newUserEmail = 'invited-admin@example.com';
+      const newUserEmail = 'invitedadmin@oc-example.com';
       const newUserName = 'New User';
 
       const result = await utils.graphqlQueryV2(
@@ -334,16 +334,17 @@ describe('MemberInvitationMutations', () => {
         },
         collectiveAdminUser,
       );
-      await utils.waitForCondition(() => sendEmailSpy.callCount);
+
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.inviteMembers).to.exist;
+      await utils.waitForCondition(() => sendEmailSpy.callCount);
 
       const user = await models.User.findOne({ where: { email: newUserEmail } });
       expect(user).to.exist;
       expect(await user.name).to.equal(newUserName);
 
       expect(sendEmailSpy.callCount).to.equal(1);
-      console.log(sendEmailSpy.args);
       expect(sendEmailSpy.args[0][0]).to.equal(newUserEmail);
       sendEmailSpy.resetHistory();
     });
