@@ -176,8 +176,9 @@ const getSortSubQuery = (
             -- is host trusted or first party
             (
               CASE
-                WHEN ((c.data#>'{isFirstPartyHost}')::boolean) THEN 2
-                WHEN ((c.data#>'{isTrustedHost}')::boolean) THEN 1
+                WHEN ((c.data#>'{isFirstPartyHost}')::boolean) THEN 3
+                WHEN ((c.data#>'{isTrustedHost}')::boolean) THEN 2
+                WHEN ((c.data#>'{isVerified}')::boolean) THEN 1
                 ELSE 0
               END
             ),
@@ -264,7 +265,7 @@ export const searchCollectivesInDB = async (
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
   let countryCodes = null;
-  let searchedTags = '';
+  let searchedTags = [''];
   if (countries) {
     countryCodes = `${countries.join(',')}`;
   }
@@ -363,7 +364,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (tags?.length) {
-    searchedTags = tags.map(tag => tag.toLowerCase()).join();
+    searchedTags = tags.map(tag => tag.toLowerCase());
     if (tagSearchOperator === 'OR') {
       dynamicConditions += `AND c."tags" && Array[:searchedTags]::varchar[] `;
     } else {
