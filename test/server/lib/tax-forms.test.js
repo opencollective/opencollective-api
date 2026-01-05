@@ -340,7 +340,7 @@ describe('server/lib/tax-forms', () => {
     const baseParams = {
       FromCollectiveId: organizationWithTaxForm.id,
       CollectiveId: collectives[0].id,
-      amount: 250e2,
+      amount: Math.ceil((US_TAX_FORM_THRESHOLD + 100e2) / 3), // Split into 3 expenses that together exceed threshold
       PayoutMethodId: otherPayoutMethod.id,
     };
     await fakeExpense({ ...baseParams, type: 'INVOICE' });

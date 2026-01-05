@@ -5,7 +5,11 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 import { decodeBase64 } from 'tweetnacl-util';
 
-import { US_TAX_FORM_VALIDITY_IN_YEARS } from '../../../../../server/constants/tax-form';
+import {
+  US_TAX_FORM_THRESHOLD_POST_2026,
+  US_TAX_FORM_THRESHOLD_PRE_2026,
+  US_TAX_FORM_VALIDITY_IN_YEARS,
+} from '../../../../../server/constants/tax-form';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import * as PDFLib from '../../../../../server/lib/pdf';
@@ -26,6 +30,9 @@ import { graphqlQueryV2, waitForCondition } from '../../../../utils';
 
 describe('LegalDocumentsMutations', () => {
   let sandbox, sendEmailSpy, host, hostAdmin, collective, collectiveAdmin;
+
+  const YEAR = moment().year();
+  const US_TAX_FORM_THRESHOLD = YEAR >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
 
   before(async () => {
     sandbox = createSandbox();
@@ -295,7 +302,7 @@ describe('LegalDocumentsMutations', () => {
         status: 'APPROVED',
         CollectiveId: host.id,
         FromCollectiveId: payee.CollectiveId,
-        amount: 1000e2,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
         PayoutMethodId: payoutMethod.id,
       });
       const legalDocument = await fakeLegalDocument({
