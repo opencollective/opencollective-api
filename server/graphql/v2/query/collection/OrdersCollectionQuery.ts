@@ -595,7 +595,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     const createdByAccounts = await fetchAccountsWithReferences(args.createdBy, fetchAccountParams);
     const createdByUsers = await models.User.findAll({
       attributes: ['id'],
-      where: { CollectiveId: { [Op.in]: createdByAccounts.map(a => a.id) } },
+      where: { CollectiveId: { [Op.in]: uniq(createdByAccounts.map(a => a.id)) } },
       raw: true,
     });
     if (createdByUsers.length === 0) {
