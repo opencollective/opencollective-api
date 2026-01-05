@@ -104,6 +104,8 @@ describe('server/lib/kyc/manual', () => {
         {
           CollectiveId: org.id,
           RequestedByCollectiveId: user.collective.id,
+          CreatedByUserId: user.id,
+          UserTokenId: null,
         },
         {
           legalName: 'Legal name',
