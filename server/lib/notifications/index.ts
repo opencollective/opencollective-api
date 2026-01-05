@@ -4,6 +4,7 @@ import config from 'config';
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { Activity, Notification } from '../../models';
+import logger from '../logger';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';
 import { parseToBoolean } from '../utils';
@@ -87,7 +88,8 @@ const dispatch = async (
             await slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
             notifConfig.recordSuccess(); // No need to await
           } else if (notifConfig.channel === channels.WEBHOOK) {
-            const success = await publishToWebhook(notifConfig, activity);
+            // Send message to Webhook and ignore any failures
+            const success = await publishToWebhook(notifConfig, activity).catch(e => logger.error(e));
             if (success) {
               notifConfig.recordSuccess(); // No need to await
             }
