@@ -253,7 +253,7 @@ export const OrdersCollectionArgs = {
   },
   createdBy: {
     type: new GraphQLList(GraphQLAccountReferenceInput),
-    description: 'Return only orders created by these users',
+    description: 'Return only orders created by these users. Limited to 1000 users at a time.',
   },
 };
 
