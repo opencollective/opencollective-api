@@ -3,12 +3,17 @@ import config from 'config';
 import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { cloneDeep, defaultsDeep, omit, pick, sumBy } from 'lodash';
+import moment from 'moment';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import FEATURE from '../../../../../server/constants/feature';
+import {
+  US_TAX_FORM_THRESHOLD_POST_2026,
+  US_TAX_FORM_THRESHOLD_PRE_2026,
+} from '../../../../../server/constants/tax-form';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -67,6 +72,9 @@ import {
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
+
+const YEAR = moment().year();
+const US_TAX_FORM_THRESHOLD = YEAR >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
 
 const SNAPSHOT_COLUMNS = [
   'type',
@@ -838,7 +846,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     describe('tax form', () => {
-      const getValidExpenseDataSubjectToTaxForm = ({ amountInCents = 600e2, ...params } = {}) => ({
+      const getValidExpenseDataSubjectToTaxForm = ({
+        amountInCents = US_TAX_FORM_THRESHOLD + 100e2,
+        ...params
+      } = {}) => ({
         ...getValidExpenseData({ ...params, amountInCents }),
         type: 'INVOICE',
         payoutMethod: { type: 'OTHER', data: { content: 'Send cash!' } },
@@ -2834,7 +2845,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         const updatedExpenseData = {
           id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-          items: [{ amount: 550e2, description: 'A big expense', incurredAt: new Date() }],
+          items: [{ amount: US_TAX_FORM_THRESHOLD - 50e2, description: 'A big expense', incurredAt: new Date() }],
         };
 
         // The first call is not subject to tax form
@@ -2843,8 +2854,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result550.data.editExpense.requiredLegalDocuments).to.be.empty;
         expect(await expense.fromCollective.getLegalDocuments()).to.have.length(0);
 
-        // Update to 600 USD
-        updatedExpenseData.items[0].amount = 600e2;
+        // Update to amount over threshold
+        updatedExpenseData.items[0].amount = US_TAX_FORM_THRESHOLD + 100e2;
         const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
 
         // Check GraphQL response
