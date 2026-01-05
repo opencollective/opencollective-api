@@ -592,7 +592,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   const baseWhere = cloneDeep(where);
 
   if (!isEmpty(args.createdBy)) {
-    assert(args.createdBy.length < 1000, '"Created by" is limited to 1000 users');
+    assert(args.createdBy.length <= 1000, '"Created by" is limited to 1000 users');
     const createdByAccounts = await fetchAccountsWithReferences(args.createdBy, fetchAccountParams);
     const createdByUsers = await models.User.findAll({
       attributes: ['id'],
