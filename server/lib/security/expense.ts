@@ -503,15 +503,15 @@ export const checkExpensesBatch = async (
         },
       );
 
+      const hostCollectiveId = expense.HostCollectiveId || expense.collective?.HostCollectiveId;
+
       // KYC Verification Check: only for individual payees
       const payeeCollective =
         expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
       if (payeeCollective?.type === CollectiveType.USER) {
         const kycVerifications = await Promise.all(
           Object.values(KYCProviderName).map(provider =>
-            req.loaders.KYCVerification.verifiedStatusByProvider(expense.HostCollectiveId, provider).load(
-              payeeCollective.id,
-            ),
+            req.loaders.KYCVerification.verifiedStatusByProvider(hostCollectiveId, provider).load(payeeCollective.id),
           ),
         );
         for (const kycVerification of kycVerifications) {
