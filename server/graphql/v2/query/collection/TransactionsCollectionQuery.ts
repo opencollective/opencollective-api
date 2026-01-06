@@ -410,22 +410,29 @@ export const TransactionsCollectionResolver = async (
     }
 
     if (args.includePlatformTips) {
-      // Include transactions accounted by the host, and also PLATFORM_TIP credits related to the host via TransactionGroup
+      // Include transactions accounted by the host, and also PLATFORM_TIP credits related to the host via TransactionGroup.
+      // Use a UNION subquery to avoid a large OR bitmap scan on Transactions.
+      const hostId = sequelize.escape(host.id);
       where.push(
-        sequelize.or(
-          { HostCollectiveId: host.id },
-          sequelize.literal(`(
-              "Transaction"."kind" = 'PLATFORM_TIP'
-              AND "Transaction"."type" = 'CREDIT'
-              AND EXISTS (
-                SELECT 1 FROM "Transactions" t1
-                WHERE t1."TransactionGroup" = "Transaction"."TransactionGroup"
-                  AND t1."HostCollectiveId" = ${host.id}
-                  AND (t1."kind" IN ('CONTRIBUTION'))
-                  AND t1."deletedAt" IS NULL
-              )
-            )`),
-        ),
+        sequelize.literal(`"Transaction"."id" IN (
+          SELECT t."id"
+          FROM "Transactions" t
+          WHERE t."HostCollectiveId" = ${hostId}
+            AND t."deletedAt" IS NULL
+          UNION ALL
+          SELECT t."id"
+          FROM "Transactions" t
+          WHERE t."kind" = 'PLATFORM_TIP'
+            AND t."type" = 'CREDIT'
+            AND t."deletedAt" IS NULL
+            AND EXISTS (
+              SELECT 1 FROM "Transactions" t1
+              WHERE t1."TransactionGroup" = t."TransactionGroup"
+                AND t1."HostCollectiveId" = ${hostId}
+                AND (t1."kind" IN ('CONTRIBUTION'))
+                AND t1."deletedAt" IS NULL
+            )
+        )`),
       );
     } else {
       where.push({ HostCollectiveId: host.id });
