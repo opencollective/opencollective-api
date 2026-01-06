@@ -27,11 +27,11 @@ import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
-import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionTypes } from '../constants/transactions';
+import type { CustomPaymentProvider } from '../lib/collectivelib';
 import { executeOrder } from '../lib/payments';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
@@ -117,6 +117,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     platformTip?: number;
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
     reqIp?: string;
+    customPaymentProvider?: CustomPaymentProvider;
   };
 
   declare taxAmount?: number;
@@ -361,7 +362,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
   ) {
     return models.Order.count({
-      where: { status: { [Op.or]: [OrderStatuses.ACTIVE, OrderStatuses.ERROR] } },
+      where: { status: { [Op.or]: [OrderStatus.ACTIVE, OrderStatus.ERROR] } },
       include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
     });
   }

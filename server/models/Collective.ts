@@ -74,6 +74,7 @@ import {
 import { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedList,
+  CustomPaymentProvider,
   filterCollectiveSettings,
   getCollectiveAvatarUrl,
   getCollectiveBackgroundImageUrl,
@@ -189,6 +190,7 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  customPaymentProviders?: CustomPaymentProvider[];
 } & TaxSettings;
 
 type Data = Partial<{
@@ -1097,13 +1099,6 @@ class Collective extends Model<
     unset(settings, 'paymentMethods.manual');
 
     await this.update({ hasMoneyManagement: false, plan: null, settings });
-
-    await PayoutMethod.destroy({
-      where: {
-        data: { isManualBankTransfer: true },
-        CollectiveId: this.id,
-      },
-    });
 
     await ConnectedAccount.destroy({
       where: {
