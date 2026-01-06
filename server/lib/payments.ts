@@ -2,13 +2,12 @@
 import config from 'config';
 import DataLoader from 'dataloader';
 import debugLib from 'debug';
-import { find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
+import { escape, find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
-import status from '../constants/order-status';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import { RefundKind } from '../constants/refund-kind';
@@ -34,13 +33,13 @@ import {
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import { notify } from './notifications/email';
+import { sanitizeCustomPaymentProviderInstructions } from './collectivelib';
 import { getFxRate } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
-import { stripHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
 import { getDashboardObjectIdURL } from './stripe';
 import { formatAccountDetails } from './transferwise';
@@ -844,10 +843,10 @@ export const sendEmailNotifications = (order: Order, transaction?: Transaction |
     order.fromCollective?.id !== order.collective?.id
   ) {
     recordOrderConfirmation(order, transaction); // async
-  } else if (order.status === status.PENDING) {
+  } else if (order.status === OrderStatuses.PENDING) {
     sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
-  } else if (order.status === status.PROCESSING) {
+  } else if (order.status === OrderStatuses.PROCESSING) {
     sendOrderProcessingEmail(order);
   }
 };
@@ -874,7 +873,7 @@ export const createSubscription = async (order: Order, data?: { lastChargedAt?: 
   order.Subscription.chargeNumber = 1;
   order.Subscription.activate();
   await order.update({
-    status: status.ACTIVE,
+    status: OrderStatuses.ACTIVE,
     SubscriptionId: order.Subscription.id,
   });
 
@@ -929,7 +928,7 @@ export const executeOrder = async (
   const transaction = await processOrder(order, options);
   if (transaction) {
     await order.update({
-      status: status.PAID,
+      status: OrderStatuses.PAID,
       processedAt: order.processedAt || new Date(),
       data: omit(order.data, ['paymentIntent']),
     });
@@ -1077,16 +1076,27 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
-  const manualPayoutMethod = await PayoutMethod.findOne({
-    where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
-  });
-  const account =
-    manualPayoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT
-      ? formatAccountDetails(manualPayoutMethod.data as BankAccountPayoutMethodData)
-      : '';
+
+  // Use custom provider details if available, otherwise fall back to manual bank transfer
+  let providerAccount = null;
+  let providerInstructions = null;
+  if (order.data.customPaymentProvider) {
+    providerInstructions = order.data.customPaymentProvider.instructions || null;
+    providerAccount = order.data.customPaymentProvider['accountDetails'] || '';
+  } else {
+    const manualPayoutMethod = await PayoutMethod.findOne({
+      where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
+    });
+
+    providerInstructions = get(host, 'settings.paymentMethods.manual.instructions', null);
+    providerAccount =
+      manualPayoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT
+        ? formatAccountDetails(manualPayoutMethod.data as BankAccountPayoutMethodData)
+        : '';
+  }
 
   const data = {
-    account,
+    account: providerAccount,
     order: order.info,
     user: user.info,
     collective: collective.info,
@@ -1095,24 +1105,25 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
     subscriptionsLink: getEditRecurringContributionsUrl(fromCollective),
     instructions: null,
   };
-  const instructions = get(host, 'settings.paymentMethods.manual.instructions');
-  if (instructions) {
+
+  if (providerInstructions) {
     const formatValues = {
-      account,
+      account: providerAccount,
       reference: order.id,
       amount: formatCurrency(order.totalAmount, order.currency, 2),
       collective: order.collective.name,
-      tier: get(order, 'tier.slug') || get(order, 'tier.name'),
       // @deprecated but we still have some entries in the DB
       OrderId: order.id,
     };
-    data.instructions = stripHTML(instructions).replace(/{([\s\S]+?)}/g, (match, key) => {
-      if (key && !isNil(formatValues[key])) {
-        return `<strong>${stripHTML(formatValues[key])}</strong>`;
-      } else {
-        return stripHTML(match);
-      }
-    });
+    data.instructions = sanitizeCustomPaymentProviderInstructions(
+      providerInstructions.replace(/{([\s\S]+?)}/g, (match, key) => {
+        if (key && !isNil(formatValues[key])) {
+          return `<strong>${escape(formatValues[key])}</strong>`;
+        } else {
+          return match;
+        }
+      }),
+    );
   }
   await Activity.create({
     type: activities.ORDER_PENDING,

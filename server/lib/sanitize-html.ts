@@ -137,6 +137,18 @@ export const optsSanitizeHtmlForSimplified: SanitizeOptions = buildSanitizerOpti
 });
 
 /**
+ * For rich text editor in simplified mode with imageUploadEnabled=true.
+ */
+export const optsSanitizedSimplifiedWithImages = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+  images: true,
+  mainTitles: true,
+  titles: true,
+});
+
+/**
  * Sanitize the given input to strip the HTML content.
  *
  * This function is a specialization of the one provided by `sanitize-html` with

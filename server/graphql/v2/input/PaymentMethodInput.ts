@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-scalars';
 import { pick } from 'lodash';
 import moment from 'moment';
 
@@ -41,6 +42,9 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
       deprecationReason: '2021-08-20: Please use type instead',
+    },
+    data: {
+      type: GraphQLJSON,
     },
     name: {
       type: GraphQLString,
@@ -129,8 +133,8 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
   } else if (pm.legacyType) {
     return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
   } else if (pm.service && pm.newType) {
-    return { service: pm.service, type: pm.newType };
+    return { service: pm.service, type: pm.newType, data: pm.data };
   } else if (pm.service && pm.type) {
-    return { service: pm.service, type: pm.type };
+    return { service: pm.service, type: pm.type, data: pm.data };
   }
 };

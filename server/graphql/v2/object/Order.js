@@ -31,6 +31,7 @@ import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
+import { GraphQLCustomPaymentProvider } from './CustomPaymentProvider';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
@@ -223,6 +224,12 @@ export const GraphQLOrder = new GraphQLObjectType({
           if (order.PaymentMethodId) {
             return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
           }
+        },
+      },
+      customPaymentProvider: {
+        type: GraphQLCustomPaymentProvider,
+        resolve(order) {
+          return order.data?.customPaymentProvider;
         },
       },
       paymentProcessorUrl: {

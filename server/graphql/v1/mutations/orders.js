@@ -433,10 +433,18 @@ export async function createOrder(order, req) {
 
     // Default status, will get updated after the order is processed
     let orderStatus = status.NEW;
-    const isManualBankTransfer = get(order, 'paymentMethod.type') === 'manual';
-
-    if (isManualBankTransfer) {
+    const isManualPayment = get(order, 'paymentMethod.type') === 'manual';
+    if (isManualPayment) {
       orderStatus = status.PENDING;
+    }
+
+    let customPaymentProvider;
+    const customPaymentProviderId = get(order, 'paymentMethod.data.customPaymentProviderId');
+    if (customPaymentProviderId) {
+      customPaymentProvider = host.settings.customPaymentProviders?.find(p => p.id === customPaymentProviderId);
+      if (!customPaymentProvider) {
+        throw new Error(`Custom payment provider not found: ${customPaymentProviderId}`);
+      }
     }
 
     let orderPublicData;
@@ -477,8 +485,8 @@ export async function createOrder(order, req) {
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
         paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
-        isManualContribution: isManualBankTransfer,
-        ...(isManualBankTransfer ? { paymentMethod: 'BANK_TRANSFER' } : {}),
+        isManualContribution: isManualPayment,
+        customPaymentProvider,
       },
       status: orderStatus,
     };
