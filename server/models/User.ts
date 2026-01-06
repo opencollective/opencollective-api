@@ -704,7 +704,7 @@ User.init(
         },
         isBurnerEmail: function (val) {
           if (
-            this.emailChanged &&
+            (this._emailChanged || this.isNewRecord) &&
             isEmailBurner(val.toLowerCase()) &&
             !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
           ) {
@@ -733,7 +733,7 @@ User.init(
         },
         isBurnerEmail: function (val) {
           if (
-            this.emailWaitingForValidationChanged &&
+            (this._emailChanged || this.isNewRecord) &&
             isEmailBurner(val.toLowerCase()) &&
             !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
           ) {
