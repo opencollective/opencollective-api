@@ -139,11 +139,9 @@ const syncIndividualAccount = async (
         })),
       );
     } catch (e) {
-      // This is not supposed to happen because the `syncTransactions` function now has
-      // a MUTEX and Plaid webhooks are just notifications that a synchronization should
-      // happen (they don't actually insert the transactions). But it still provides
+      // This is not supposed to happen, but this check provides
       // an extra layer of protection in case another process tries to insert the same
-      // transaction at the same time, so it doesn't hurt to keep it.
+      // transaction at the same time.
       if (e.name === 'SequelizeUniqueConstraintError') {
         ++retryCount;
         lastError = e;
