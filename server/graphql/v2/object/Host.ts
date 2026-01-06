@@ -626,19 +626,31 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           // bank transfer = manual in host settings
-          if (get(collective, 'settings.paymentMethods.manual', null)) {
-            // these accounts do not have a structured bank detail in the payment instructions
-            if (get(collective, 'settings.paymentMethods.manual.legacy', false)) {
+          // if (get(collective, 'settings.paymentMethods.manual', null)) {
+          //   // these accounts do not have a structured bank detail in the payment instructions
+          //   if (get(collective, 'settings.paymentMethods.manual.legacy', false)) {
+          //     supportedPaymentMethods.push('BANK_TRANSFER');
+          //   } else {
+          //     const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+          //     const hasManualBankTransferMethod = payoutMethods.some(
+          //       c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
+          //     );
+          //     if (hasManualBankTransferMethod) {
+          //       supportedPaymentMethods.push('BANK_TRANSFER');
+          //     }
+          //   }
+          // }
+
+          // custom payment providers = custom payment methods in host settings
+          const customPaymentProviders = get(collective, 'settings.customPaymentProviders', []);
+          if (Array.isArray(customPaymentProviders) && customPaymentProviders.length > 0) {
+            if (
+              !supportedPaymentMethods.includes('BANK_TRANSFER') &&
+              customPaymentProviders.some(provider => provider.type === 'BANK_TRANSFER')
+            ) {
               supportedPaymentMethods.push('BANK_TRANSFER');
-            } else {
-              const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-              const hasManualBankTransferMethod = payoutMethods.some(
-                c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
-              );
-              if (hasManualBankTransferMethod) {
-                supportedPaymentMethods.push('BANK_TRANSFER');
-              }
             }
+            // TODO add custom
           }
 
           return supportedPaymentMethods;

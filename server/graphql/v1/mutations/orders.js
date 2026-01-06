@@ -434,6 +434,7 @@ export async function createOrder(order, req) {
     // Default status, will get updated after the order is processed
     let orderStatus = status.NEW;
     const isManualBankTransfer = get(order, 'paymentMethod.type') === 'manual';
+    const customPaymentProviderId = get(order, 'paymentMethod.data.customPaymentProviderId');
 
     if (isManualBankTransfer) {
       orderStatus = status.PENDING;
@@ -478,7 +479,8 @@ export async function createOrder(order, req) {
         fromAccountInfo: order.fromAccountInfo,
         paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
         isManualContribution: isManualBankTransfer,
-        ...(isManualBankTransfer ? { paymentMethod: 'BANK_TRANSFER' } : {}),
+        ...(isManualBankTransfer ? { paymentMethod: 'BANK_TRANSFER' } : {}), // TODO: check if some places depend on this
+        ...(customPaymentProviderId ? { customPaymentProviderId } : {}),
       },
       status: orderStatus,
     };

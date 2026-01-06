@@ -2,14 +2,17 @@ import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import { compact, get, pick } from 'lodash';
 import isURL from 'validator/lib/isURL';
+import { z } from 'zod';
 
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
+import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize, User } from '../models';
 
+import { formatZodError } from './errors';
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
 import { containsProtectedBrandName } from './string-utils';
@@ -156,6 +159,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'matchingFund',
   'moderation',
   'paymentMethods',
+  'customPaymentProviders',
   'payoutsTwoFactorAuth',
   'preview',
   'recommendedCollectives',
@@ -208,6 +212,23 @@ export function filterCollectiveSettings(settings: Record<string, unknown> | nul
   return preparedSettings;
 }
 
+const customPaymentProviderSchema = z
+  .array(
+    z.object({
+      id: z.string().min(1, 'ID is required'),
+      type: z.enum(['BANK_TRANSFER', 'OTHER']),
+      currency: z
+        .string()
+        .refine(val => SUPPORTED_CURRENCIES.includes(val as SupportedCurrency), 'Invalid or unsupported currency code'),
+      name: z.string().min(1, 'Payment processor name is required'),
+      accountDetails: z.string().optional(),
+      associatedName: z.string().optional(),
+      qrCodeUrl: z.union([z.string().url('QR code must be a valid URL'), z.literal('')]).optional(),
+      instructions: z.string().min(1, 'Instructions are required'),
+    }),
+  )
+  .optional();
+
 /**
  * Returns false if settings are valid or an error as string otherwise
  * @param {object|null} settings
@@ -246,6 +267,14 @@ export function validateSettings(settings: any): string | boolean {
 
   if (settings?.tos && !isURL(settings.tos)) {
     return 'Enter a valid URL. The URL should have the format https://example.com/…';
+  }
+
+  // Validate customPaymentProviders
+  if (settings.customPaymentProviders !== undefined) {
+    const validationResult = customPaymentProviderSchema.safeParse(settings.customPaymentProviders);
+    if (!validationResult.success) {
+      return formatZodError(validationResult.error);
+    }
   }
 
   return false;
