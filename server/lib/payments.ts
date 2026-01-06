@@ -1085,8 +1085,29 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
       ? formatAccountDetails(manualPayoutMethod.data as BankAccountPayoutMethodData)
       : '';
 
+  const customPaymentProviderId = get(order, 'data.customPaymentProviderId');
+  const customPaymentProviders = get(host, 'settings.customPaymentProviders', []);
+  const customProvider = customPaymentProviderId
+    ? customPaymentProviders.find(p => p.id === customPaymentProviderId)
+    : null;
+
+  // Use custom provider details if available, otherwise fall back to manual bank transfer
+  let providerAccount = account;
+  let providerInstructions = null;
+  let providerAssociatedName = null;
+  let providerQrCodeUrl = null;
+
+  if (customProvider) {
+    providerAccount = customProvider.accountDetails || '';
+    providerInstructions = customProvider.instructions || null;
+    providerAssociatedName = customProvider.associatedName || null;
+    providerQrCodeUrl = customProvider.qrCodeUrl || null;
+  } else {
+    // TODO throw? need to define how to handle providers deletion
+  }
+
   const data = {
-    account,
+    account: providerAccount,
     order: order.info,
     user: user.info,
     collective: collective.info,
@@ -1094,11 +1115,20 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
     fromCollective: fromCollective.activity,
     subscriptionsLink: getEditRecurringContributionsUrl(fromCollective),
     instructions: null,
+    ...(customProvider
+      ? {
+          customPaymentProvider: {
+            name: customProvider.name,
+            associatedName: providerAssociatedName,
+            qrCodeUrl: providerQrCodeUrl,
+          },
+        }
+      : {}),
   };
-  const instructions = get(host, 'settings.paymentMethods.manual.instructions');
-  if (instructions) {
+
+  if (providerInstructions) {
     const formatValues = {
-      account,
+      account: providerAccount,
       reference: order.id,
       amount: formatCurrency(order.totalAmount, order.currency, 2),
       collective: order.collective.name,
@@ -1106,7 +1136,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
       // @deprecated but we still have some entries in the DB
       OrderId: order.id,
     };
-    data.instructions = stripHTML(instructions).replace(/{([\s\S]+?)}/g, (match, key) => {
+    data.instructions = stripHTML(providerInstructions).replace(/{([\s\S]+?)}/g, (match, key) => {
       if (key && !isNil(formatValues[key])) {
         return `<strong>${stripHTML(formatValues[key])}</strong>`;
       } else {

@@ -4231,24 +4231,6 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
       },
     );
 
-    // Record the migration log
-    await models.MigrationLog.create(
-      {
-        type: MigrationLogType.MOVE_EXPENSES,
-        description: `Moved ${updatedExpenses.length} expenses`,
-        CreatedByUserId: req.remoteUser.id,
-        data: {
-          expenses: updatedExpenses.map(o => o.id),
-          recurringExpenses: updatedRecurringExpenses.map(o => o.id),
-          comments: updatedComments.map(c => c.id),
-          activities: updatedActivities.map(a => a.id),
-          destinationAccount: destinationAccount.id,
-          previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
-        },
-      },
-      { transaction: dbTransaction },
-    );
-
     return updatedExpenses;
   });
 
