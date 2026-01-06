@@ -17,7 +17,7 @@ const GraphQLCommunityTransactionSummary = new GraphQLObjectType({
   name: 'CommunityTransactionSummary',
   fields: () => ({
     year: {
-      type: new GraphQLNonNull(GraphQLInt),
+      type: GraphQLInt,
     },
     expenseTotal: {
       type: new GraphQLNonNull(GraphQLAmount),
@@ -61,6 +61,89 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
     relations: {
       type: new GraphQLList(GraphQLCommunityRelationType),
     },
+    lastInteractionAt: {
+      type: GraphQLDateTime,
+      async resolve(associatedAccount, _, req) {
+        const { FromCollectiveId, HostCollectiveId, CollectiveId } = associatedAccount;
+        const communityStats = await req.loaders.Collective.communityStats.forSpecificHostedCollective.load({
+          HostCollectiveId,
+          FromCollectiveId,
+          CollectiveId,
+        });
+
+        return communityStats?.lastInteractionAt;
+      },
+    },
+    firstInteractionAt: {
+      type: GraphQLDateTime,
+      async resolve(associatedAccount, _, req) {
+        const { FromCollectiveId, HostCollectiveId, CollectiveId } = associatedAccount;
+        const communityStats = await req.loaders.Collective.communityStats.forSpecificHostedCollective.load({
+          HostCollectiveId,
+          FromCollectiveId,
+          CollectiveId,
+        });
+
+        return communityStats?.firstInteractionAt;
+      },
+    },
+    transactionSummary: {
+      type: new GraphQLNonNull(GraphQLCommunityTransactionSummary),
+      async resolve(associatedAccount) {
+        const { FromCollectiveId, HostCollectiveId, CollectiveId } = associatedAccount;
+        const results = await (sequelize as Sequelize).query<{
+          hostCurrency: string;
+          expenseTotal: number;
+          expenseCount: number;
+          contributionTotal: number;
+          contributionCount: number;
+          orderCount: number;
+        }>(
+          `
+          SELECT
+            t."FromCollectiveId",
+            t."HostCollectiveId",
+            t."CollectiveId",
+            h.currency AS "hostCurrency",
+            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = 'EXPENSE'::"enum_Transactions_kind"),
+                    0::bigint) AS "expenseTotal",
+            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE'), 0::bigint) AS "expenseCount",
+            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = 'CONTRIBUTION'::"enum_Transactions_kind"),
+                    0::bigint) AS "contributionTotal",
+            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = 'CONTRIBUTION'),
+                    0::bigint) AS "contributionCount",
+            COALESCE(COUNT(DISTINCT t."OrderId") FILTER (WHERE t.kind = 'CONTRIBUTION'::"enum_Transactions_kind"),
+                    0::bigint) AS "orderCount"
+          FROM
+            "Transactions" t
+            JOIN "Collectives" h ON t."HostCollectiveId" = h.id
+          WHERE t."deletedAt" IS NULL
+            AND t."RefundTransactionId" IS NULL
+            AND t."isRefund" = FALSE
+            AND (t.kind = ANY (ARRAY ['CONTRIBUTION'::"enum_Transactions_kind", 'EXPENSE'::"enum_Transactions_kind"]))
+            AND t."hostCurrency" = h.currency
+            AND t."FromCollectiveId" = :FromCollectiveId
+            AND t."CollectiveId" = :CollectiveId
+            AND t."HostCollectiveId" = :HostCollectiveId
+          GROUP BY
+            t."FromCollectiveId", t."HostCollectiveId", t."CollectiveId", h.currency
+          `,
+          {
+            raw: true,
+            type: sequelize.QueryTypes.SELECT,
+            replacements: { FromCollectiveId, HostCollectiveId, CollectiveId },
+          },
+        );
+        const result = results[0];
+        return {
+          expenseTotal: { value: result?.expenseTotal || 0, currency: result?.hostCurrency || 'USD' },
+          expenseCount: result?.expenseCount || 0,
+          contributionTotal: { value: result?.contributionTotal || 0, currency: result?.hostCurrency || 'USD' },
+          contributionCount: result?.contributionCount || 0,
+          orderCount: result?.orderCount || 0,
+        };
+      },
+    },
   }),
 });
 
@@ -76,6 +159,9 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
             const collectives = await req.loaders.Collective.byId.loadMany(collectiveIds);
             const validCollectives = collectives.filter(collective => collective instanceof Collective);
             return validCollectives.map(collective => ({
+              FromCollectiveId: account.id,
+              HostCollectiveId: account.dataValues.contextualHostCollectiveId,
+              CollectiveId: collective.id,
               account: collective,
               relations: account.dataValues.associatedCollectives[collective.id],
             }));
@@ -90,6 +176,9 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
             const organizations = await req.loaders.Collective.byId.loadMany(organizationIds);
             const validOrganizations = organizations.filter(organization => organization instanceof Collective);
             return validOrganizations.map(organization => ({
+              FromCollectiveId: account.id,
+              HostCollectiveId: account.dataValues.contextualHostCollectiveId,
+              CollectiveId: organization.id,
               account: organization,
               relations: account.dataValues.associatedOrganizations[organization.id],
             }));
