@@ -3,11 +3,11 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, compact, isEmpty, isNil, uniq } from 'lodash';
+import { compact, isEmpty, isNil, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
-import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
+import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
@@ -38,42 +38,43 @@ import { getDatabaseIdFromTierReference, GraphQLTierReferenceInput } from '../..
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 import { UncategorizedValue } from '../../object/AccountingCategory';
 
-type OrderAssociation = 'fromCollective' | 'collective';
-
-// Returns the join condition for association
-const getCollectivesJoinCondition = (
+/**
+ * Builds WHERE conditions for Collective filtering
+ * Works for both direct table queries and association-based joins.
+ */
+const buildCollectivesConditions = ({
   account,
-  association: OrderAssociation,
-  includeChildrenAccounts = false,
-  hostContext?: 'ALL' | 'INTERNAL' | 'HOSTED', // TODO: make this a constant
-  limitToHostedAccounts?: Collective[],
-): WhereOptions => {
-  const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
-  const field =
-    // Foreign Key columns should only be used in isolation. When querying for associated data, it is more performant to also query for the associated id
-    associationFields[association] && !includeChildrenAccounts && !(hostContext && account.hasMoneyManagement)
-      ? associationFields[association]
-      : `$${association}.id$`;
-  const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id).filter(id => id !== account.id) || [];
-  const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
-  let conditions = [{ [field]: allTopAccountIds }];
+  limitToHostedAccountsIds,
+  allTopAccountIds,
+  includeChildrenAccounts,
+  hostContext,
+  getField = field => field,
+}: {
+  account: Collective;
+  limitToHostedAccountsIds: number[];
+  allTopAccountIds: number[];
+  includeChildrenAccounts: boolean;
+  hostContext?: 'ALL' | 'INTERNAL' | 'HOSTED';
+  getField?: (fieldName: string) => string;
+}): WhereOptions => {
+  let conditions: WhereOptions[] = [{ [getField('id')]: { [Op.in]: allTopAccountIds } }];
   let shouldQueryForChildAccounts = includeChildrenAccounts;
 
   if (hostContext && account.hasMoneyManagement) {
-    // Skip specifically querying for children when using host context unless you specify specific account ids, since all children collectives also have the HostCollectiveId
+    // Skip specifically querying for children when using host context unless you specify specific account ids
     if (!limitToHostedAccountsIds.length) {
       shouldQueryForChildAccounts = false;
     }
 
     // Hosted accounts are always approved and have a HostCollectiveId
     const hostedAccountCondition: WhereOptions = {
-      [`$${association}.HostCollectiveId$`]: account.id,
-      [`$${association}.approvedAt$`]: { [Op.not]: null },
+      [getField('HostCollectiveId')]: account.id,
+      [getField('approvedAt')]: { [Op.not]: null },
     };
 
     // Handle id filtering: either limit to specific hosted accounts, or exclude host accounts
     if (limitToHostedAccountsIds.length) {
-      conditions = [{ ...hostedAccountCondition, [`$${association}.id$`]: { [Op.in]: limitToHostedAccountsIds } }];
+      conditions = [{ ...hostedAccountCondition, [getField('id')]: { [Op.in]: limitToHostedAccountsIds } }];
     } else if (hostContext === 'ALL') {
       conditions = [hostedAccountCondition];
     } else if (hostContext === 'HOSTED') {
@@ -81,31 +82,75 @@ const getCollectivesJoinCondition = (
       conditions = [
         {
           ...hostedAccountCondition,
-          [`$${association}.id$`]: { [Op.ne]: account.id },
-          [`$${association}.ParentCollectiveId$`]: {
-            [Op.or]: [{ [Op.is]: null }, { [Op.ne]: account.id }],
-          },
+          [getField('id')]: { [Op.ne]: account.id },
+          [getField('ParentCollectiveId')]: { [Op.or]: [{ [Op.is]: null }, { [Op.ne]: account.id }] },
         },
       ];
     } else if (hostContext === 'INTERNAL') {
       // Only get internal accounts
       conditions = [
         {
-          [Op.or]: [{ [`$${association}.id$`]: account.id }, { [`$${association}.ParentCollectiveId$`]: account.id }],
+          [Op.or]: [{ [getField('id')]: account.id }, { [getField('ParentCollectiveId')]: account.id }],
         },
       ];
     }
   }
 
   if (shouldQueryForChildAccounts) {
-    if (limitToHostedAccountsIds.length) {
-      conditions.push({ [`$${association}.ParentCollectiveId$`]: limitToHostedAccountsIds });
-    } else {
-      conditions.push({ [`$${association}.ParentCollectiveId$`]: allTopAccountIds });
-    }
+    const parentIds = limitToHostedAccountsIds.length ? limitToHostedAccountsIds : allTopAccountIds;
+    conditions.push({ [getField('ParentCollectiveId')]: { [Op.in]: parentIds } });
   }
 
   return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
+};
+
+type OrderAssociation = 'fromCollective' | 'collective';
+
+// Returns the join condition for association
+const getCollectivesJoinCondition = (
+  account: Collective,
+  association: OrderAssociation,
+  includeChildrenAccounts = false,
+  hostContext?: 'ALL' | 'INTERNAL' | 'HOSTED',
+  limitToHostedAccounts?: Collective[],
+): WhereOptions => {
+  const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
+  const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id).filter(id => id !== account.id) || [];
+  const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
+
+  // Use direct FK column when possible for better performance
+  const canUseDirectFK = !includeChildrenAccounts && !(hostContext && account.hasMoneyManagement);
+  if (canUseDirectFK && associationFields[association]) {
+    return { [associationFields[association]]: allTopAccountIds };
+  }
+  const associationFieldAccessor = (association: OrderAssociation) => field => `$${association}.${field}$`;
+
+  return buildCollectivesConditions({
+    account,
+    limitToHostedAccountsIds,
+    allTopAccountIds,
+    includeChildrenAccounts,
+    hostContext,
+    getField: associationFieldAccessor(association),
+  });
+};
+
+const getCollectivesCondition = (
+  account: Collective,
+  includeChildrenAccounts = false,
+  hostContext?: 'ALL' | 'INTERNAL' | 'HOSTED',
+  limitToHostedAccounts?: Collective[],
+): WhereOptions => {
+  const limitToHostedAccountsIds = limitToHostedAccounts?.map(a => a.id).filter(id => id !== account.id) || [];
+  const allTopAccountIds = uniq([account.id, ...limitToHostedAccountsIds]);
+
+  return buildCollectivesConditions({
+    account,
+    limitToHostedAccountsIds,
+    allTopAccountIds,
+    includeChildrenAccounts,
+    hostContext,
+  });
 };
 
 export const OrdersCollectionArgs = {
@@ -588,9 +633,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['status'] = { ...where['status'], [Op.ne]: OrderStatuses.PENDING };
   }
 
-  // Store the current where as it will be used to fetch createdByUsers (before applying createdBy filter)
-  const baseWhere = cloneDeep(where);
-
   if (!isEmpty(args.createdBy)) {
     assert(args.createdBy.length <= 1000, '"Created by" is limited to 1000 users');
     const createdByAccounts = await fetchAccountsWithReferences(args.createdBy, fetchAccountParams);
@@ -619,53 +661,124 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     totalCount: () => models.Order.count({ include, where }),
     limit: args.limit,
     offset: args.offset,
-    createdByUsers: async (args: { limit?: number; offset?: number; searchTerm?: string } = {}) => {
-      const { limit = 10, offset = 0, searchTerm } = args;
+    createdByUsers: async (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) => {
+      const { limit = 10, offset = 0, searchTerm } = subArgs;
 
-      const searchConditions = getSearchTermSQLConditions(searchTerm, 'c');
+      const searchConditions = buildSearchConditions(searchTerm, {
+        slugFields: ['slug'],
+        textFields: ['name'],
+      });
 
-      const orderWhereClause = sequelize.queryInterface.queryGenerator
-        .getWhereConditions(baseWhere, 'o', models.Order)
-        .replace(/"Order"\./g, 'o.');
+      const ordersInclude: Includeable[] = [];
 
-      const result = await sequelize.query<Collective & { __total__: string }>(
-        `
-        SELECT
-          c.*,
-          COUNT(*) OVER() AS __total__
-        FROM "Collectives" c
-        WHERE c."id" IN (
-          SELECT DISTINCT u."CollectiveId"
-          FROM "Orders" o
-          INNER JOIN "Collectives" "fromCollective" ON o."FromCollectiveId" = "fromCollective".id
-          INNER JOIN "Collectives" "collective" ON o."CollectiveId" = "collective".id
-          LEFT JOIN "Subscriptions" "Subscription" ON o."SubscriptionId" = "Subscription".id
-          INNER JOIN "Users" u ON o."CreatedByUserId" = u.id
-          WHERE o."deletedAt" IS NULL
-            AND o."CreatedByUserId" IS NOT NULL
-            AND u."CollectiveId" IS NOT NULL
-            ${orderWhereClause ? `AND ${orderWhereClause}` : ''}
-        )
-        AND c."deletedAt" IS NULL
-        ${searchConditions.sqlConditions}
-        ORDER BY c."name" ASC
-        OFFSET :offset
-        LIMIT :limit
-        `,
-        {
-          model: models.Collective,
-          mapToModel: true,
-          replacements: {
-            sanitizedTerm: searchConditions.sanitizedTerm,
-            sanitizedTermNoWhitespaces: searchConditions.sanitizedTermNoWhitespaces,
-            offset,
-            limit,
+      const fromCollectiveConditions: WhereOptions[] = [];
+      const collectiveConditions: WhereOptions[] = [];
+
+      if (account) {
+        const accountConditions = getCollectivesCondition(
+          account,
+          args.includeChildrenAccounts,
+          args.hostContext,
+          args.hostedAccounts,
+        );
+
+        if (!args.filter || args.filter === 'OUTGOING') {
+          fromCollectiveConditions.push(accountConditions);
+        }
+
+        if (!args.filter || args.filter === 'INCOMING') {
+          collectiveConditions.push(accountConditions);
+        }
+      }
+
+      if (host) {
+        collectiveConditions.push({
+          HostCollectiveId: host.id,
+          approvedAt: { [Op.not]: null },
+        });
+      }
+
+      if (fromCollectiveConditions.length) {
+        ordersInclude.push({
+          association: 'fromCollective',
+          required: true,
+          attributes: [],
+          where: {
+            [Op.and]:
+              fromCollectiveConditions.length === 1 ? fromCollectiveConditions : { [Op.or]: fromCollectiveConditions },
           },
-        },
-      );
+        });
+      }
+      if (collectiveConditions.length) {
+        ordersInclude.push({
+          association: 'collective',
+          required: true,
+          attributes: [],
+          where: {
+            [Op.and]: collectiveConditions.length === 1 ? collectiveConditions : { [Op.or]: collectiveConditions },
+          },
+        });
+      }
 
-      const totalCount = parseInt(result[0]?.dataValues?.__total__ || '0', 10);
-      return { nodes: result, totalCount, limit, offset };
+      const ordersWhere: WhereOptions = {};
+
+      if (args.expectedFundsFilter) {
+        if (args.expectedFundsFilter === 'ONLY_MANUAL') {
+          ordersWhere['data.isManualContribution'] = 'true';
+        } else if (args.expectedFundsFilter === 'ONLY_PENDING') {
+          ordersWhere['data.isPendingContribution'] = 'true';
+        } else {
+          Object.assign(ordersWhere, {
+            [Op.or]: {
+              'data.isPendingContribution': 'true',
+              'data.isManualContribution': 'true',
+            },
+          });
+        }
+      }
+      if (args.status && args.status.length > 0) {
+        ordersWhere['status'] = { [Op.in]: args.status };
+      }
+
+      const queryOptions = {
+        where: {
+          deletedAt: null,
+          ...(searchConditions.length ? { [Op.or]: searchConditions } : {}),
+        },
+        include: [
+          {
+            association: 'user',
+            required: true,
+            attributes: [],
+            include: [
+              {
+                association: 'orders',
+                required: true,
+                attributes: [],
+                where: ordersWhere,
+                include: ordersInclude,
+              },
+            ],
+          },
+        ],
+      };
+
+      return {
+        nodes: models.Collective.findAll({
+          ...queryOptions,
+          order: [['name', 'ASC']],
+          offset,
+          limit,
+          subQuery: false,
+        }),
+        totalCount: models.Collective.count({
+          ...queryOptions,
+          distinct: true,
+          col: 'id',
+        }),
+        limit,
+        offset,
+      };
     },
   };
 };

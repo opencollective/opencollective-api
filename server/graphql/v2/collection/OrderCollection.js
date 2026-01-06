@@ -17,7 +17,7 @@ export const GraphQLOrderCollection = new GraphQLObjectType({
       createdByUsers: {
         type: new GraphQLNonNull(GraphQLAccountCollection),
         description:
-          'The accounts that created the orders in this collection, regardless of pagination. Returns a paginated and searchable collection.',
+          'The accounts that created the orders in this collection (respecting the `account`, `host`, `hostContext`, `includeChildrenAccounts`, `expectedFundsFilter` and `status` arguments), regardless of pagination. Returns a paginated and searchable collection.',
         args: {
           ...CollectionArgs,
           searchTerm: {
