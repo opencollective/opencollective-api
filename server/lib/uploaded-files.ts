@@ -66,6 +66,11 @@ export const FileFieldsDefinition: Record<
     field: 'longDescription',
     fieldType: 'richText',
   },
+  // CUSTOM_PAYMENT_METHOD_TEMPLATE: {
+  //   model: models.Collective,
+  //   fieldType: 'richText',
+  //   field: null, // TODO
+  // },
   ACCOUNT_CUSTOM_EMAIL: {
     model: models.Collective,
     field: 'settings.customEmailMessage',
