@@ -25,6 +25,14 @@ const loadFileContents = async (filePathOrUrl: string): Promise<string> => {
   }
 };
 
+export const parseExpenseCategoriesCsv = (rawContent: string) => {
+  return parse(rawContent, {
+    delimiter: ',',
+    columns: true,
+    skip_empty_lines: true, // eslint-disable-line camelcase
+  });
+};
+
 type RunOptions = {
   verbose: boolean;
   start: number | null;
@@ -44,11 +52,7 @@ const run = async (hostSlug: string, csvPath: string, options: RunOptions) => {
 
   // Load CSV content
   const rawContent = await loadFileContents(csvPath);
-  const parsedContent = parse(rawContent, {
-    delimiter: ',',
-    columns: true,
-    skip_empty_lines: true, // eslint-disable-line camelcase
-  });
+  const parsedContent = parseExpenseCategoriesCsv(rawContent);
 
   // Iterate over rows
   let rowIdx = options.start || 0;
