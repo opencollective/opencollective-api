@@ -662,6 +662,10 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     limit: args.limit,
     offset: args.offset,
     createdByUsers: async (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) => {
+      if (!args.filter) {
+        throw new Forbidden('The `filter` argument (INCOMING or OUTGOING) is required when querying createdByUsers');
+      }
+
       const { limit = 10, offset = 0, searchTerm } = subArgs;
 
       const searchConditions = buildSearchConditions(searchTerm, {
@@ -682,11 +686,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           args.hostedAccounts,
         );
 
-        if (!args.filter || args.filter === 'OUTGOING') {
+        if (args.filter === 'OUTGOING') {
           fromCollectiveConditions.push(accountConditions);
-        }
-
-        if (!args.filter || args.filter === 'INCOMING') {
+        } else if (args.filter === 'INCOMING') {
           collectiveConditions.push(accountConditions);
         }
       }
