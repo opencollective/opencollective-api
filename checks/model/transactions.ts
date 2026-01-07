@@ -1,11 +1,10 @@
 import '../../server/env';
 
-import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
 import { runAllChecksThenExit } from './_utils';
 
-async function checkDeletedCollectives({ fix = false } = {}) {
+async function checkDeletedCollectives() {
   const message = 'No Transactions without a matching Collective';
 
   const results = await sequelize.query(
@@ -19,27 +18,8 @@ async function checkDeletedCollectives({ fix = false } = {}) {
   );
 
   if (results[0].count > 0) {
-    if (!fix) {
-      throw new Error(message);
-    } else {
-      logger.warn(`Fixing: ${message}`);
-      await sequelize.query(
-        `UPDATE "Transactions"
-         SET "deletedAt" = NOW()
-         FROM "Collectives" c
-         WHERE c."id" = "Transactions"."CollectiveId"
-         AND "Transactions"."deletedAt" IS NULL
-         AND (c."deletedAt" IS NOT NULL OR c."id" IS NULL)`,
-      );
-      await sequelize.query(
-        `UPDATE "Transactions"
-         SET "deletedAt" = NOW()
-         FROM "Collectives" c
-         WHERE c."id" = "Transactions"."FromCollectiveId"
-         AND "Transactions"."deletedAt" IS NULL
-         AND (c."deletedAt" IS NOT NULL OR c."id" IS NULL)`,
-      );
-    }
+    // Not fixable
+    throw new Error(message);
   }
 }
 
