@@ -532,6 +532,7 @@ export const generateLoaders = req => {
       }),
       communityStats: {
         onHostContext: collectiveLoaders.communityStats.onHostContext(),
+        forSpecificHostedCollective: collectiveLoaders.communityStats.forSpecificHostedCollective(),
       },
       // // Collective - Stats
       stats: {
