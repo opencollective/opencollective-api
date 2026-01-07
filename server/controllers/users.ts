@@ -263,13 +263,20 @@ export async function signup(req: express.Request, res: express.Response) {
   }
 
   // Check if Users exists
-  let user = await models.User.findOne({ where: { email: sanitizedEmail } });
+  let user = await models.User.findOne({
+    where: { email: sanitizedEmail },
+    include: [{ model: models.Collective, as: 'collective' }],
+  });
   if (user) {
     if (user.confirmedAt) {
       res.status(403).send({
         error: { message: 'User already exists', type: 'USER_ALREADY_EXISTS' },
       });
       return;
+    }
+    if (user.collective) {
+      const newData = Object.assign({}, user.collective.data, { requiresProfileCompletion: true });
+      await user.collective.update({ data: newData });
     }
   } else {
     user = await sequelize.transaction(async transaction => {
@@ -462,7 +469,9 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
                   { confirmedAt: new Date(), data: omit(user.data, ['requiresVerification']) },
                   { transaction },
                 );
-                await user.collective.update({ data: omit(user.collective.data, ['isSuspended']) }, { transaction });
+                if (user.collective) {
+                  await user.collective.update({ data: omit(user.collective.data, ['isSuspended']) }, { transaction });
+                }
               });
               await sessionCache.delete(otpSessionKey);
               const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
@@ -473,7 +482,13 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
               const tries = otpSession.tries + 1;
               if (tries >= 3) {
                 await sessionCache.delete(otpSessionKey);
-                await user.safeDestroy();
+                if (user.collective) {
+                  const userHasTransactions = await user.collective.getTransactions({ limit: 1 });
+                  // Covers edge-case where the user has previously contributed as guest
+                  if (userHasTransactions.length === 0) {
+                    await user.safeDestroy();
+                  }
+                }
               } else {
                 await sessionCache.set(otpSessionKey, { ...otpSession, tries }, 15 * 60);
               }
