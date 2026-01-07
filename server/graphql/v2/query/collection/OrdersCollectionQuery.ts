@@ -665,6 +665,11 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       if (!args.filter) {
         throw new Forbidden('The `filter` argument (INCOMING or OUTGOING) is required when querying createdByUsers');
       }
+      if (!account) {
+        throw new Forbidden(
+          'The `account` argument (or using `account.orders`) is required when querying createdByUsers',
+        );
+      }
 
       const { limit = 10, offset = 0, searchTerm } = subArgs;
 
@@ -678,26 +683,17 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       const fromCollectiveConditions: WhereOptions[] = [];
       const collectiveConditions: WhereOptions[] = [];
 
-      if (account) {
-        const accountConditions = getCollectivesCondition(
-          account,
-          args.includeChildrenAccounts,
-          args.hostContext,
-          args.hostedAccounts,
-        );
+      const accountConditions = getCollectivesCondition(
+        account,
+        args.includeChildrenAccounts,
+        args.hostContext,
+        args.hostedAccounts,
+      );
 
-        if (args.filter === 'OUTGOING') {
-          fromCollectiveConditions.push(accountConditions);
-        } else if (args.filter === 'INCOMING') {
-          collectiveConditions.push(accountConditions);
-        }
-      }
-
-      if (host) {
-        collectiveConditions.push({
-          HostCollectiveId: host.id,
-          approvedAt: { [Op.not]: null },
-        });
+      if (args.filter === 'OUTGOING') {
+        fromCollectiveConditions.push(accountConditions);
+      } else {
+        collectiveConditions.push(accountConditions);
       }
 
       if (fromCollectiveConditions.length) {
