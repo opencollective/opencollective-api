@@ -137,10 +137,15 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
         const result = results[0];
         return {
           expenseTotal: { value: result?.expenseTotal || 0, currency: result?.hostCurrency || 'USD' },
+          expenseTotalAcc: { value: result?.expenseTotal || 0, currency: result?.hostCurrency || 'USD' },
           expenseCount: result?.expenseCount || 0,
+          expenseCountAcc: result?.expenseCount || 0,
           contributionTotal: { value: result?.contributionTotal || 0, currency: result?.hostCurrency || 'USD' },
+          contributionTotalAcc: { value: result?.contributionTotal || 0, currency: result?.hostCurrency || 'USD' },
           contributionCount: result?.contributionCount || 0,
+          contributionCountAcc: result?.contributionCount || 0,
           orderCount: result?.orderCount || 0,
+          orderCountAcc: result?.orderCount || 0,
         };
       },
     },
