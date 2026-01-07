@@ -107,6 +107,16 @@ export default [
                       return;
                     }
 
+                    // Allow if used in next(...)
+                    if (
+                      parent.type === 'CallExpression' &&
+                      parent.callee.name === 'next' &&
+                      parent.arguments.length >= 1 &&
+                      parent.arguments[0] === node
+                    ) {
+                      return;
+                    }
+
                     context.report({
                       node,
                       message: `Error '${node.callee.name}' is created but not thrown. Add 'throw' before this statement.`,

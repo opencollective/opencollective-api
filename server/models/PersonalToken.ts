@@ -7,9 +7,16 @@ import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Application from './Application';
+import Collective from './Collective';
 import User from './User';
 
-const personelTokenDataSchema = z.object({ allowGraphQLV1: z.boolean().optional() }).optional().nullable();
+const personelTokenDataSchema = z
+  .object({
+    allowGraphQLV1: z.boolean().optional(),
+    isSuspended: z.boolean().optional(),
+  })
+  .optional()
+  .nullable();
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
   declare public readonly id: CreationOptional<number>;
@@ -27,7 +34,8 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   declare public preAuthorize2FA: CreationOptional<boolean>;
 
   declare public application?: NonAttribute<typeof Application>;
-  declare public user?: NonAttribute<typeof User>;
+  declare public user?: NonAttribute<User>;
+  declare public collective?: NonAttribute<typeof Collective>;
 
   public static generateToken(): string {
     return randomBytes(20).toString('hex');

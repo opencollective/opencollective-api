@@ -3,6 +3,7 @@ import { URLSearchParams } from 'url';
 import * as Sentry from '@sentry/node';
 import config from 'config';
 import debugLib from 'debug';
+import type { NextFunction, Request, Response } from 'express';
 import gqlmin from 'gqlmin';
 import { get, isNil, omitBy, pick } from 'lodash';
 import moment from 'moment';
@@ -44,18 +45,18 @@ const debug = debugLib('auth');
  * expirations errors. This is a cleaned up version of that code that only
  * decodes the token (expected behaviour).
  */
-const parseJwt = req => {
+const parseJwt = (req: Request) => {
   const params = req.params || {};
   const query = req.query || {};
   const body = req.body || {};
-  let token = params.access_token || query.access_token || body.access_token;
+  let token: string = params.access_token || query.access_token || body.access_token;
   if (!token) {
     token = getBearerTokenFromRequestHeaders(req) || getBearerTokenFromCookie(req);
   }
 
   if (token) {
     try {
-      return verifyJwt(token);
+      return verifyJwt(token) as Request['jwtPayload'];
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
         throw new CustomError(401, 'jwt_expired', 'jwt expired');
@@ -69,7 +70,7 @@ const parseJwt = req => {
   }
 };
 
-const checkJwtScope = req => {
+const checkJwtScope = (req: Request) => {
   const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
 
   const scope = req.jwtPayload.scope || 'session';
@@ -140,7 +141,7 @@ const checkJwtScope = req => {
  *  - req.remoteUser
  *  - req.remoteUser.memberships[CollectiveId] = [roles]
  */
-const _authenticateUserByJwt = async (req, res, next) => {
+const _authenticateUserByJwt = async (req: Request, res: Response, next: NextFunction) => {
   const userId = Number(req.jwtPayload.sub);
   const user = await User.findByPk(userId, {
     include: [{ association: 'collective', required: false }],
@@ -241,7 +242,7 @@ const _authenticateUserByJwt = async (req, res, next) => {
  * @POST: req.remoteUser is set to the logged in user or null if authentication failed
  * @ERROR: Will return an error if a JWT token is provided and invalid
  */
-export function authenticateUser(req, res, next) {
+export function authenticateUser(req: Request, res: Response, next: NextFunction) {
   if (req.remoteUser && req.remoteUser.id) {
     return next();
   }
@@ -267,7 +268,7 @@ export function authenticateUser(req, res, next) {
   _authenticateUserByJwt(req, res, next);
 }
 
-export const authenticateService = async (req, res, next) => {
+export const authenticateService = async (req: Request, res: Response, next: NextFunction) => {
   // How many times a user can call this endpoint in a minute.
   const rateLimit = new RateLimit(`connected-accounts-authenticate-${req.ip}`, 60, 10);
   try {
@@ -278,7 +279,7 @@ export const authenticateService = async (req, res, next) => {
 
   const { service } = req.params;
   const { context } = req.query || {};
-  const opts = { callbackURL: getOAuthCallbackUrl(req) };
+  const opts: passport.AuthenticateOptions = { callbackURL: getOAuthCallbackUrl(req) };
 
   if (service === 'github') {
     if (context === 'createCollective') {
@@ -298,7 +299,9 @@ export const authenticateService = async (req, res, next) => {
 
   if (!req.query.CollectiveId) {
     return next(new errors.ValidationFailed(undefined, 'CollectiveId', 'Please provide a CollectiveId'));
-  } else if (!req.remoteUser || !req.remoteUser.isAdmin(req.query.CollectiveId)) {
+  } else if (Array.isArray(req.query.CollectiveId)) {
+    return next(new errors.ValidationFailed(undefined, 'CollectiveId', 'Please provide a single CollectiveId'));
+  } else if (!req.remoteUser || !req.remoteUser.isAdmin(req.query.CollectiveId as string)) {
     return next(new errors.Unauthorized('Please login as an admin of this collective to add a connected account'));
   }
 
@@ -312,7 +315,7 @@ export const authenticateService = async (req, res, next) => {
   return passport.authenticate(service, opts)(req, res, next);
 };
 
-export const authenticateServiceCallback = async (req, res, next) => {
+export const authenticateServiceCallback = async (req: Request, res: Response, next: NextFunction) => {
   // How many times a user can call this endpoint in a minute.
   const rateLimit = new RateLimit(`connected-accounts-callback-${req.ip}`, 60, 10);
   try {
@@ -338,7 +341,7 @@ export const authenticateServiceCallback = async (req, res, next) => {
   })(req, res, next);
 };
 
-export const authenticateServiceDisconnect = async (req, res, next) => {
+export const authenticateServiceDisconnect = async (req: Request, res: Response, next: NextFunction) => {
   // How many times a user can call this endpoint in a minute.
   const rateLimit = new RateLimit(`connected-accounts-disconnect-${req.ip}`, 60, 10);
   try {
@@ -350,7 +353,7 @@ export const authenticateServiceDisconnect = async (req, res, next) => {
   await connectedAccounts.disconnect(req, res);
 };
 
-function getOAuthCallbackUrl(req) {
+function getOAuthCallbackUrl(req: Request) {
   const { service } = req.params;
 
   // TODO We should not pass `access_token` to 3rd party services. Github likely still relies on this
@@ -366,12 +369,18 @@ function getOAuthCallbackUrl(req) {
 /**
  * Check Personal Token
  */
-export async function checkPersonalToken(req, res, next) {
+export async function checkPersonalToken(req: Request, res: Response, next: NextFunction) {
   const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
   const token = req.get('Personal-Token') || req.query.personalToken;
 
   if (apiKey || token) {
     const now = moment();
+    if (Array.isArray(apiKey)) {
+      return next(new errors.ValidationFailed(undefined, 'apiKey', 'Please provide a single apiKey'));
+    } else if (Array.isArray(token)) {
+      return next(new errors.ValidationFailed(undefined, 'token', 'Please provide a single token'));
+    }
+
     const personalToken = await models.PersonalToken.findOne({
       where: { token: apiKey || token },
       include: [
@@ -389,9 +398,19 @@ export async function checkPersonalToken(req, res, next) {
 
     if (personalToken) {
       if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
-        debug(`Expired Personal Token (Api Key): ${apiKey || token}`);
-        next(new Unauthorized(`Expired Personal Token (Api Key): ${apiKey || token}`));
+        debug(`Expired Personal Token (Api Key): ${personalToken.id}`);
+        next(new Unauthorized(`Expired Personal Token (Api Key)`));
+        return;
+      } else if (personalToken.data?.isSuspended) {
+        debug(`Suspended Personal Token (Api Key)`);
+        next(
+          new Unauthorized(
+            `Your personal token has been suspended, likely due to abuse. Please contact support to reactivate it.`,
+          ),
+        );
+        return;
       }
+
       debug('Valid Personal Token (Api Key)');
       // Update lastUsedAt if lastUsedAt older than 1 minute ago
       if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
@@ -425,7 +444,7 @@ export async function checkPersonalToken(req, res, next) {
 /**
  * Authorize api_key
  */
-export function authorizeClient(req, res, next) {
+export function authorizeClient(req: Request, res: Response, next: NextFunction) {
   // TODO: we should remove those exceptions
   // those routes should only be accessed via the website (which automatically adds the api_key)
   const exceptions = [
@@ -476,10 +495,10 @@ export function authorizeClient(req, res, next) {
 }
 
 /**
- * Makes sure that the user the is logged in and req.remoteUser is populated.
- * if we cannot authenticate the user, we directly return an Unauthorized error.
+ * Makes sure that the user is logged in and req.remoteUser is populated.
+ * If we cannot authenticate the user, we directly return an Unauthorized error.
  */
-export function mustBeLoggedIn(req, res, next) {
+export function mustBeLoggedIn(req: Request, res: Response, next: NextFunction) {
   authenticateUser(req, res, e => {
     if (e) {
       return next(e);

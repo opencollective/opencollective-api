@@ -417,6 +417,19 @@ export default async (app: express.Application) => {
   app.get('/docs/search', gitbook.search);
 
   /**
+   * Status endpoint
+   */
+  const statusHandler = (req: express.Request, res: express.Response) => {
+    res.json({
+      status: 'ok',
+      authenticated: Boolean(req.remoteUser && req.remoteUser.id),
+    });
+  };
+
+  app.get('/status', statusHandler);
+  app.post('/status', statusHandler);
+
+  /**
    * An endpoint to easily test Sentry integration
    */
   app.get('/__test_sentry__', (req, res) => {
