@@ -8,7 +8,7 @@ import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   RegistrationResponseJSON,
-} from '@simplewebauthn/types';
+} from '@simplewebauthn/server';
 import config from 'config';
 
 import { ApolloError } from '../../graphql/errors';
