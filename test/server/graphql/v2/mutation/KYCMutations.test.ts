@@ -54,6 +54,13 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
       },
     };
 
+    const manualProviderArgsWithoutAddress = {
+      manual: {
+        legalName: 'legal name',
+        notes: 'notes',
+      },
+    };
+
     async function setupOrg(opts = {}) {
       const org = await fakeOrganization({
         ...opts,
@@ -236,6 +243,47 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
       expect(result.data.requestKYCVerification).to.exist;
       expect(result.data.requestKYCVerification.createdByUser).to.exist;
       expect(result.data.requestKYCVerification.createdByUser.legacyId).to.equal(orgAdmin.id);
+    });
+
+    it('allows manual KYC request without legal address', async () => {
+      const orgAdmin = await fakeUser();
+      const org = await setupOrg({ admin: orgAdmin });
+      const user = await fakeUser();
+
+      const expected = await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        CollectiveId: user.collective.id,
+        provider: KYCProviderName.MANUAL,
+      });
+
+      const kycProviderStub = sandbox.stub(manualKycProvider, 'request').resolves(expected);
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          requestedByAccount: { slug: org.slug },
+          verifyAccount: { slug: user.collective.slug },
+          provider: 'MANUAL',
+          request: {
+            ...manualProviderArgsWithoutAddress,
+          },
+        },
+        orgAdmin,
+      );
+
+      expect(kycProviderStub).to.have.been.calledWithMatch(
+        {
+          CollectiveId: user.collective.id,
+          RequestedByCollectiveId: org.id,
+        },
+        {
+          legalName: 'legal name',
+          notes: 'notes',
+        },
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.requestKYCVerification).to.exist;
     });
   });
   describe('revokeKYCVerification', () => {
