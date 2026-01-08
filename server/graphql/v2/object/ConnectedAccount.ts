@@ -32,7 +32,23 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The date on which the ConnectedAccount was last updated',
     },
-    settings: { type: GraphQLJSON },
+    settings: {
+      type: GraphQLJSON,
+      async resolve(connectedAccount, _, req) {
+        if (connectedAccount.service === 'persona') {
+          if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
+            throw new Unauthorized('You need to be logged in as an admin of the account');
+          }
+          return {
+            apiKey: connectedAccount.token,
+            apiKeyId: connectedAccount.clientId,
+            inquiryTemplateId: connectedAccount.settings.inquiryTemplateId,
+          };
+        }
+
+        return connectedAccount.settings;
+      },
+    },
     service: { type: new GraphQLNonNull(GraphQLConnectedAccountService) },
     accountsMirrored: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),

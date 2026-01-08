@@ -1,5 +1,5 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString, GraphQLUnionType } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString, GraphQLUnionType } from 'graphql';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { KYCProviderName } from '../../../lib/kyc/providers';
 import { KYCVerification } from '../../../models/KYCVerification';
@@ -124,13 +124,50 @@ const GraphQLManualKYCProviderData = new GraphQLObjectType({
   }),
 });
 
+const GraphQLPersonaKYCProviderData = new GraphQLObjectType({
+  name: 'PersonaKYCProviderData',
+  description: 'Persona KYC data',
+  fields: () => ({
+    imported: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this persona inquiry was imported',
+      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
+        return !!kycVerification.providerData.imported;
+      },
+    },
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'ID of the Persona inquiry',
+      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
+        return kycVerification.providerData.inquiry.id;
+      },
+    },
+    status: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Status of the Persona inquiry',
+      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
+        return kycVerification.providerData.inquiry.attributes.status;
+      },
+    },
+    fields: {
+      type: new GraphQLNonNull(GraphQLJSON),
+      description: 'Contains KYC data verified by this inquiry',
+      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
+        return kycVerification.providerData.inquiry.attributes.fields;
+      },
+    },
+  }),
+});
+
 const GraphQLKYCProviderData = new GraphQLUnionType({
   name: 'KYCProviderData',
-  types: [GraphQLManualKYCProviderData],
+  types: [GraphQLManualKYCProviderData, GraphQLPersonaKYCProviderData],
   resolveType(kycVerification: KYCVerification) {
     switch (kycVerification.provider) {
       case KYCProviderName.MANUAL:
         return 'ManualKYCProviderData';
+      case KYCProviderName.PERSONA:
+        return 'PersonaKYCProviderData';
     }
   },
 });

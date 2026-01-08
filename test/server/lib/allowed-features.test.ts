@@ -268,6 +268,28 @@ describe('server/lib/allowed-features', () => {
       });
     });
 
+    describe('PERSONA_KYC', () => {
+      it('is AVAILABLE with plan for first party hosts, UNSUPPORTED for others', async () => {
+        const host = await fakeActiveHost({
+          data: {
+            isFirstPartyHost: true,
+            features: { [FEATURE.PERSONA_KYC]: true },
+          },
+        });
+        expect(await getFeatureAccess(host, FEATURE.PERSONA_KYC)).to.deep.eq({ access: 'AVAILABLE', reason: null });
+        const independentCollective = await fakeCollective({ hasMoneyManagement: true, isActive: false });
+        expect(await getFeatureAccess(independentCollective, FEATURE.PERSONA_KYC)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+        const org = await fakeOrganization();
+        expect(await getFeatureAccess(org, FEATURE.PERSONA_KYC)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+      });
+    });
+
     describe('OFF_PLATFORM_TRANSACTIONS', () => {
       describe('with the legacy pricing', () => {
         it('is AVAILABLE for platform orgs by default', async () => {
@@ -794,6 +816,7 @@ describe('server/lib/allowed-features', () => {
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        PERSONA_KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -864,6 +887,7 @@ describe('server/lib/allowed-features', () => {
         EVENTS: { access: 'AVAILABLE', reason: null },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        PERSONA_KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -934,6 +958,7 @@ describe('server/lib/allowed-features', () => {
         EVENTS: { access: 'AVAILABLE', reason: null },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        PERSONA_KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -993,6 +1018,7 @@ describe('server/lib/allowed-features', () => {
           FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
           HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          PERSONA_KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
@@ -1041,6 +1067,7 @@ describe('server/lib/allowed-features', () => {
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        PERSONA_KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -1095,6 +1122,7 @@ describe('server/lib/allowed-features', () => {
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        PERSONA_KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -1149,6 +1177,7 @@ describe('server/lib/allowed-features', () => {
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        PERSONA_KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
