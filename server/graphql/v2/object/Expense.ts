@@ -662,7 +662,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
               value: floatAmountToCents(quote.paymentOption.fee.total),
               currency: quote.sourceCurrency,
             };
-            return { sourceAmount, estimatedDeliveryAt, paymentProcessorFeeAmount };
+            return { sourceAmount, estimatedDeliveryAt, paymentProcessorFeeAmount, notices: quote.notices || [] };
           }
         },
       },
