@@ -29,12 +29,9 @@ const CloudflareLib = new Cloudflare({ apiEmail: cfConfig.email, apiKey: cfConfi
  * it is already generated automatically. We do that because Cloudflare consider
  * `https://opencollective.com/babel` and `https://opencollective.com/babel/` as two
  * different URLs.
- *
- * @param {string|array} pagePaths - a path or an array of paths `/eslint`, `['/', '/about']`
- * @returns {Promise}
  */
-export const purgeCacheForPage = pagePaths => {
-  const addPage = (urls, pagePath) => {
+export const purgeCacheForPage = (pagePaths: string | string[]) => {
+  const addPage = (urls: string[], pagePath: string) => {
     const prependSlash = pagePath[0] === '/' ? '' : '/';
     urls.push(`${config.host.website}${prependSlash}${pagePath}`);
     urls.push(`${config.host.website}${prependSlash}${pagePath}/`);
@@ -44,7 +41,7 @@ export const purgeCacheForPage = pagePaths => {
     }
   };
 
-  const urlsToPurge = [];
+  const urlsToPurge: string[] = [];
   if (Array.isArray(pagePaths)) {
     pagePaths.forEach(page => addPage(urlsToPurge, page));
   } else {
