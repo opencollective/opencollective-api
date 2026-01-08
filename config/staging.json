@@ -22,7 +22,8 @@
     "frontend": "https://frontend-staging.opencollective.com",
     "images": "https://images-staging.opencollective.com",
     "website": "https://staging.opencollective.com",
-    "ml": "https://ml.opencollective.com"
+    "ml": "https://ml.opencollective.com",
+    "webhooks": "https://api-staging.opencollective.com/webhooks"
   },
   "log": {
     "slowRequest": true
