@@ -1,7 +1,18 @@
-import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { GraphQLAmount } from './Amount';
+
+const GraphQLExpenseQuoteNotice = new GraphQLObjectType({
+  name: 'ExpenseQuoteNotice',
+  description: 'Fields for an expense quote notice',
+  fields: () => ({
+    type: { type: new GraphQLNonNull(GraphQLString) },
+    text: { type: new GraphQLNonNull(GraphQLString) },
+    code: { type: new GraphQLNonNull(GraphQLString) },
+    link: { type: new GraphQLNonNull(GraphQLString) },
+  }),
+});
 
 const GraphQLExpenseQuote = new GraphQLObjectType({
   name: 'ExpenseQuote',
@@ -18,6 +29,10 @@ const GraphQLExpenseQuote = new GraphQLObjectType({
     estimatedDeliveryAt: {
       type: GraphQLDateTime,
       description: 'The date on which the item was created',
+    },
+    notices: {
+      type: new GraphQLList(GraphQLExpenseQuoteNotice),
+      description: 'Notices related to this quote',
     },
   }),
 });
