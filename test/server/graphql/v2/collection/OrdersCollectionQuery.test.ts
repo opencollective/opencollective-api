@@ -21,6 +21,7 @@ const ordersQuery = gql`
     $hostedAccounts: [AccountReferenceInput]
     $includeHostedAccounts: Boolean
     $accountingCategory: [String]
+    $createdBy: [AccountReferenceInput]
   ) {
     orders(
       account: $account
@@ -30,6 +31,7 @@ const ordersQuery = gql`
       hostedAccounts: $hostedAccounts
       includeHostedAccounts: $includeHostedAccounts
       accountingCategory: $accountingCategory
+      createdBy: $createdBy
     ) {
       totalCount
       nodes {
@@ -54,6 +56,51 @@ const ordersQuery = gql`
           id
           legacyId
           slug
+        }
+        createdByAccount {
+          id
+          legacyId
+          slug
+        }
+      }
+    }
+  }
+`;
+
+const ordersWithCreatedByUsersQuery = gql`
+  query OrdersWithCreatedByUsers(
+    $account: AccountReferenceInput
+    $hostContext: HostContext
+    $filter: AccountOrdersFilter
+    $includeChildrenAccounts: Boolean
+    $expectedFundsFilter: ExpectedFundsFilter
+    $status: [OrderStatus]
+    $createdByUsersLimit: Int
+    $createdByUsersOffset: Int
+    $createdByUsersSearchTerm: String
+  ) {
+    orders(
+      account: $account
+      hostContext: $hostContext
+      filter: $filter
+      includeChildrenAccounts: $includeChildrenAccounts
+      expectedFundsFilter: $expectedFundsFilter
+      status: $status
+    ) {
+      totalCount
+      createdByUsers(
+        limit: $createdByUsersLimit
+        offset: $createdByUsersOffset
+        searchTerm: $createdByUsersSearchTerm
+      ) {
+        totalCount
+        limit
+        offset
+        nodes {
+          id
+          legacyId
+          slug
+          name
         }
       }
     }
@@ -756,6 +803,415 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(orderIds).to.include(orderWithCategory1.id);
       expect(orderIds).to.include(orderWithoutCategory.id);
       expect(orderIds).to.not.include(orderWithCategory2.id);
+    });
+  });
+
+  describe('createdBy argument', () => {
+    let collective, user1, user2, user3, orderByUser1, orderByUser2, orderByUser3;
+
+    before(async () => {
+      collective = await fakeCollective();
+
+      // Create users
+      user1 = await fakeUser();
+      user2 = await fakeUser();
+      user3 = await fakeUser();
+
+      // Create orders by different users
+      orderByUser1 = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: user1.CollectiveId,
+        CreatedByUserId: user1.id,
+        status: OrderStatuses.PAID,
+      });
+
+      orderByUser2 = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: user2.CollectiveId,
+        CreatedByUserId: user2.id,
+        status: OrderStatuses.PAID,
+      });
+
+      orderByUser3 = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: user3.CollectiveId,
+        CreatedByUserId: user3.id,
+        status: OrderStatuses.PAID,
+      });
+    });
+
+    it('should return only orders created by a single specified user', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdBy: [{ legacyId: user1.CollectiveId }],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(orderByUser1.id);
+      expect(result.data.orders.nodes[0].createdByAccount.legacyId).to.eq(user1.CollectiveId);
+    });
+
+    it('should return orders created by multiple specified users', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdBy: [{ legacyId: user1.CollectiveId }, { legacyId: user2.CollectiveId }],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(2);
+      const orderIds = result.data.orders.nodes.map(node => node.legacyId);
+      expect(orderIds).to.include(orderByUser1.id);
+      expect(orderIds).to.include(orderByUser2.id);
+      expect(orderIds).to.not.include(orderByUser3.id);
+    });
+
+    it('should return empty results when no orders match the specified users', async () => {
+      const otherUser = await fakeUser();
+
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdBy: [{ legacyId: otherUser.CollectiveId }],
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(0);
+      expect(result.data.orders.nodes).to.be.empty;
+    });
+
+    it('should throw an error when no users are found for the specified accounts', async () => {
+      const collectiveWithoutUser = await fakeCollective();
+
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdBy: [{ legacyId: collectiveWithoutUser.id }],
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('No users found for the specified createdBy accounts');
+    });
+  });
+
+  describe('createdByUsers resolver', () => {
+    let collective, childAccount, user1, user2, user3;
+
+    before(async () => {
+      collective = await fakeCollective();
+
+      // Create a child account (event) under the collective
+      childAccount = await fakeEvent({
+        ParentCollectiveId: collective.id,
+        approvedAt: new Date(),
+      });
+
+      // Create users with specific names for search testing
+      user1 = await fakeUser(null, { name: 'Alice Anderson' });
+      user2 = await fakeUser(null, { name: 'Bob Builder' });
+      user3 = await fakeUser(null, { name: 'Charlie Charlie' });
+
+      // Create orders by different users
+      await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: user1.CollectiveId,
+        CreatedByUserId: user1.id,
+        status: OrderStatuses.PAID,
+      });
+
+      await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: user2.CollectiveId,
+        CreatedByUserId: user2.id,
+        status: OrderStatuses.PAID,
+      });
+
+      // Create order to child account
+      await fakeOrder({
+        CollectiveId: childAccount.id,
+        FromCollectiveId: user3.CollectiveId,
+        CreatedByUserId: user3.id,
+        status: OrderStatuses.PAID,
+      });
+    });
+
+    it('should return all users who created orders for INCOMING filter', async () => {
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.createdByUsers.totalCount).to.eq(2);
+      const userCollectiveIds = result.data.orders.createdByUsers.nodes.map(node => node.legacyId);
+      expect(userCollectiveIds).to.include(user1.CollectiveId);
+      expect(userCollectiveIds).to.include(user2.CollectiveId);
+      expect(userCollectiveIds).to.not.include(user3.CollectiveId); // Created order to child, not directly to collective
+    });
+
+    it('should include children accounts when includeChildrenAccounts is true', async () => {
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        includeChildrenAccounts: true,
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.createdByUsers.totalCount).to.eq(3);
+      const userCollectiveIds = result.data.orders.createdByUsers.nodes.map(node => node.legacyId);
+      expect(userCollectiveIds).to.include(user1.CollectiveId);
+      expect(userCollectiveIds).to.include(user2.CollectiveId);
+      expect(userCollectiveIds).to.include(user3.CollectiveId);
+    });
+
+    it('should throw error when filter is not provided', async () => {
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include(
+        'The `filter` argument (INCOMING or OUTGOING) is required when querying createdByUsers',
+      );
+    });
+
+    it('should throw error when account is not provided', async () => {
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        filter: 'INCOMING',
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include(
+        'The `account` argument (or using `account.orders`) is required when querying createdByUsers',
+      );
+    });
+
+    it('should support pagination with limit and offset', async () => {
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdByUsersLimit: 1,
+        createdByUsersOffset: 0,
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.createdByUsers.totalCount).to.eq(2);
+      expect(result.data.orders.createdByUsers.nodes.length).to.eq(1);
+      expect(result.data.orders.createdByUsers.limit).to.eq(1);
+      expect(result.data.orders.createdByUsers.offset).to.eq(0);
+
+      // Test offset
+      const resultWithOffset = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdByUsersLimit: 1,
+        createdByUsersOffset: 1,
+      });
+
+      expect(resultWithOffset.errors).to.not.exist;
+      expect(resultWithOffset.data.orders.createdByUsers.totalCount).to.eq(2);
+      expect(resultWithOffset.data.orders.createdByUsers.nodes.length).to.eq(1);
+      expect(resultWithOffset.data.orders.createdByUsers.offset).to.eq(1);
+    });
+
+    it('should support search by name', async () => {
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdByUsersSearchTerm: 'Alice',
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.createdByUsers.totalCount).to.eq(1);
+      expect(result.data.orders.createdByUsers.nodes[0].name).to.eq('Alice Anderson');
+    });
+
+    it('should support search by slug', async () => {
+      const userCollective = await user1.getCollective();
+
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdByUsersSearchTerm: userCollective.slug,
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.createdByUsers.totalCount).to.eq(1);
+      expect(result.data.orders.createdByUsers.nodes[0].legacyId).to.eq(user1.CollectiveId);
+    });
+
+    it('should return empty results when search term does not match', async () => {
+      const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        createdByUsersSearchTerm: 'NonExistentName',
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.createdByUsers.totalCount).to.eq(0);
+      expect(result.data.orders.createdByUsers.nodes).to.be.empty;
+    });
+
+    describe('with hostContext', () => {
+      let host, hostedCollective, hostUser, hostedUser;
+
+      before(async () => {
+        host = await fakeActiveHost();
+
+        hostedCollective = await fakeCollective({
+          HostCollectiveId: host.id,
+          approvedAt: new Date(),
+        });
+
+        hostUser = await fakeUser(null, { name: 'Host User' });
+        hostedUser = await fakeUser(null, { name: 'Hosted User' });
+
+        // Create order to host
+        await fakeOrder({
+          CollectiveId: host.id,
+          FromCollectiveId: hostUser.CollectiveId,
+          CreatedByUserId: hostUser.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // Create order to hosted collective
+        await fakeOrder({
+          CollectiveId: hostedCollective.id,
+          FromCollectiveId: hostedUser.CollectiveId,
+          CreatedByUserId: hostedUser.id,
+          status: OrderStatuses.PAID,
+        });
+      });
+
+      it('should return users from both host and hosted accounts when hostContext is ALL', async () => {
+        const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          filter: 'INCOMING',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(2);
+        const userCollectiveIds = result.data.orders.createdByUsers.nodes.map(node => node.legacyId);
+        expect(userCollectiveIds).to.include(hostUser.CollectiveId);
+        expect(userCollectiveIds).to.include(hostedUser.CollectiveId);
+      });
+
+      it('should return only host account users when hostContext is INTERNAL', async () => {
+        const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'INTERNAL',
+          filter: 'INCOMING',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(1);
+        expect(result.data.orders.createdByUsers.nodes[0].legacyId).to.eq(hostUser.CollectiveId);
+      });
+
+      it('should return only hosted account users when hostContext is HOSTED', async () => {
+        const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'HOSTED',
+          filter: 'INCOMING',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(1);
+        expect(result.data.orders.createdByUsers.nodes[0].legacyId).to.eq(hostedUser.CollectiveId);
+      });
+    });
+
+    describe('with status filter', () => {
+      let collective2, userPaid, userActive;
+
+      before(async () => {
+        collective2 = await fakeCollective();
+
+        userPaid = await fakeUser(null, { name: 'Paid User' });
+        userActive = await fakeUser(null, { name: 'Active User' });
+
+        // Create paid order
+        await fakeOrder({
+          CollectiveId: collective2.id,
+          FromCollectiveId: userPaid.CollectiveId,
+          CreatedByUserId: userPaid.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // Create active order
+        await fakeOrder({
+          CollectiveId: collective2.id,
+          FromCollectiveId: userActive.CollectiveId,
+          CreatedByUserId: userActive.id,
+          status: OrderStatuses.ACTIVE,
+        });
+      });
+
+      it('should respect status filter', async () => {
+        const resultPaid = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: collective2.id },
+          filter: 'INCOMING',
+          status: ['PAID'],
+        });
+
+        expect(resultPaid.errors).to.not.exist;
+        expect(resultPaid.data.orders.createdByUsers.totalCount).to.eq(1);
+        expect(resultPaid.data.orders.createdByUsers.nodes[0].legacyId).to.eq(userPaid.CollectiveId);
+
+        const resultActive = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: collective2.id },
+          filter: 'INCOMING',
+          status: ['ACTIVE'],
+        });
+
+        expect(resultActive.errors).to.not.exist;
+        expect(resultActive.data.orders.createdByUsers.totalCount).to.eq(1);
+        expect(resultActive.data.orders.createdByUsers.nodes[0].legacyId).to.eq(userActive.CollectiveId);
+      });
+    });
+
+    describe('with OUTGOING filter', () => {
+      let fromCollective, recipient1, recipient2, outgoingUser1, outgoingUser2;
+
+      before(async () => {
+        fromCollective = await fakeCollective();
+        recipient1 = await fakeCollective();
+        recipient2 = await fakeCollective();
+
+        outgoingUser1 = await fakeUser(null, { name: 'Outgoing User 1' });
+        outgoingUser2 = await fakeUser(null, { name: 'Outgoing User 2' });
+
+        // Create outgoing orders from the collective
+        await fakeOrder({
+          CollectiveId: recipient1.id,
+          FromCollectiveId: fromCollective.id,
+          CreatedByUserId: outgoingUser1.id,
+          status: OrderStatuses.PAID,
+        });
+
+        await fakeOrder({
+          CollectiveId: recipient2.id,
+          FromCollectiveId: fromCollective.id,
+          CreatedByUserId: outgoingUser2.id,
+          status: OrderStatuses.PAID,
+        });
+      });
+
+      it('should return users who created outgoing orders', async () => {
+        const result = await graphqlQueryV2(ordersWithCreatedByUsersQuery, {
+          account: { legacyId: fromCollective.id },
+          filter: 'OUTGOING',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.createdByUsers.totalCount).to.eq(2);
+        const userCollectiveIds = result.data.orders.createdByUsers.nodes.map(node => node.legacyId);
+        expect(userCollectiveIds).to.include(outgoingUser1.CollectiveId);
+        expect(userCollectiveIds).to.include(outgoingUser2.CollectiveId);
+      });
     });
   });
 });
