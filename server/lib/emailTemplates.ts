@@ -53,7 +53,6 @@ export const templateNames = [
   'collective.virtualcard.deleted',
   'collective.virtualcard.request.approved',
   'collective.virtualcard.request.rejected',
-  'confirm-guest-account',
   'event.reminder.1d',
   'event.reminder.7d',
   'expense-accounting-category-educational',
