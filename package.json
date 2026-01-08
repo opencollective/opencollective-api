@@ -55,7 +55,7 @@
     "@sentry/node": "9.47.1",
     "@sentry/profiling-node": "9.47.1",
     "@shopify/address": "4.3.0",
-    "@simplewebauthn/server": "11.0.0",
+    "@simplewebauthn/server": "13.2.2",
     "@simplewebauthn/types": "11.0.0",
     "argparse": "2.0.1",
     "async-mutex": "0.5.0",
