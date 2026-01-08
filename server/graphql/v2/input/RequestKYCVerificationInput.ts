@@ -15,12 +15,24 @@ const GraphQLRequestManualKYCVerificationInput = new GraphQLInputObjectType({
   }),
 });
 
+const GraphQLRequestPersonaKYCVerificationInput = new GraphQLInputObjectType({
+  name: 'RequestPersonaKYCVerificationInput',
+  fields: () => ({
+    importInquiryId: {
+      type: GraphQLString,
+    },
+  }),
+});
+
 const GraphQLRequestKYCVerificationInput = new GraphQLInputObjectType({
   name: 'RequestKYCVerificationInput',
   isOneOf: true,
   fields: () => ({
     manual: {
       type: GraphQLRequestManualKYCVerificationInput,
+    },
+    persona: {
+      type: GraphQLRequestPersonaKYCVerificationInput,
     },
   }),
 });
