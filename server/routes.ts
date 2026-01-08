@@ -27,6 +27,7 @@ import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStud
 import cache from './lib/cache';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
+import { personaKycProvider } from './lib/kyc/providers/persona';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
@@ -341,6 +342,7 @@ export default async (app: express.Application) => {
   /**
    * Webhooks that should bypass api key check
    */
+  app.use('/webhooks/persona', personaKycProvider.webhookRoutes);
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal{/:hostId}', paypalWebhook);

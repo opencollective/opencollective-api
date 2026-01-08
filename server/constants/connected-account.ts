@@ -1,4 +1,5 @@
 export enum Service {
+  PERSONA = 'persona',
   PAYPAL = 'paypal',
   STRIPE = 'stripe',
   STRIPE_CUSTOMER = 'stripe_customer',
