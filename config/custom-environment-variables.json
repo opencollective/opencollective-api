@@ -270,9 +270,6 @@
     "enabled": "OPENTELEMETRY_ENABLED"
   },
   "features": {
-    "dashboard": {
-      "redirect": "FEATURES_DASHBOARD_REDIRECT"
-    },
     "newPricing": "NEW_PRICING"
   },
   "settlement": {
