@@ -8,10 +8,13 @@ import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const activitiesCollectionQuery = gql`
   query Activities(
-    $account: [AccountReferenceInput!]!
+    $account: [AccountReferenceInput!]
     $type: [ActivityAndClassesType!]
     $includeHostedAccounts: Boolean
     $includeChildrenAccounts: Boolean
+    $individual: AccountReferenceInput
+    $host: AccountReferenceInput
+    $orderBy: ChronologicalOrderInput
   ) {
     activities(
       limit: 100
@@ -20,6 +23,9 @@ const activitiesCollectionQuery = gql`
       type: $type
       includeHostedAccounts: $includeHostedAccounts
       includeChildrenAccounts: $includeChildrenAccounts
+      individual: $individual
+      host: $host
+      orderBy: $orderBy
     ) {
       offset
       limit
@@ -119,7 +125,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     });
 
     expect(resultUnauthenticated.errors).to.exist;
-    expect(resultUnauthenticated.errors[0].message).to.equal('You need to be logged in to manage account.');
+    expect(resultUnauthenticated.errors[0].message).to.equal('You need to be logged in to view activities.');
   });
 
   it('must be an admin of the collective', async () => {
@@ -228,6 +234,124 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       expect(result.data.activities.totalCount).to.eq(1);
       expect(result.data.activities.nodes[0].individual).to.exist;
       expect(result.data.activities.nodes[0].individual.name).to.eq('Public profile');
+    });
+  });
+
+  describe('querying by individual + host', () => {
+    it('filters activities by individual and host', async () => {
+      const variables = {
+        individual: { legacyId: incognitoUser.collective.id },
+        host: { legacyId: host.id },
+      };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      // Should only return the TICKET_CONFIRMED activity for incognitoUser
+      expect(result.data.activities.totalCount).to.eq(1);
+      expect(result.data.activities.nodes).to.have.length(1);
+      expect(result.data.activities.nodes[0].type).to.eq('TICKET_CONFIRMED');
+      expect(result.data.activities.nodes[0].account.slug).to.eq(collective.slug);
+      expect(result.data.activities.nodes[0].host.slug).to.eq(host.slug);
+    });
+
+    it('requires host when querying by individual', async () => {
+      const variables = {
+        individual: { legacyId: incognitoUser.collective.id },
+        // host is missing
+      };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Individual must be associated with a host');
+    });
+
+    it('requires individual to be a user type', async () => {
+      const variables = {
+        individual: { legacyId: collective.id }, // collective is not a user
+        host: { legacyId: host.id },
+      };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Individual must be an individual');
+    });
+
+    it('requires admin access to the host', async () => {
+      const randomUser = await fakeUser();
+      const variables = {
+        individual: { legacyId: incognitoUser.collective.id },
+        host: { legacyId: host.id },
+      };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('You are not allowed to access activities for this host');
+    });
+  });
+
+  describe('ordering results', () => {
+    it('orders results by createdAt DESC by default', async () => {
+      const variables = { account: [{ legacyId: collective.id }] };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.nodes).to.be.sortedBy('createdAt', { descending: true });
+      // Verify the first activity is the newest
+      if (result.data.activities.nodes.length > 1) {
+        expect(new Date(result.data.activities.nodes[0].createdAt).getTime()).to.be.greaterThan(
+          new Date(result.data.activities.nodes[1].createdAt).getTime(),
+        );
+      }
+    });
+
+    it('orders results by createdAt DESC when explicitly specified', async () => {
+      const variables = {
+        account: [{ legacyId: collective.id }],
+        orderBy: { field: 'CREATED_AT', direction: 'DESC' },
+      };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.nodes).to.be.sortedBy('createdAt', { descending: true });
+      // Verify descending order
+      if (result.data.activities.nodes.length > 1) {
+        const timestamps = result.data.activities.nodes.map(node => new Date(node.createdAt).getTime());
+        for (let i = 0; i < timestamps.length - 1; i++) {
+          expect(timestamps[i]).to.be.greaterThan(timestamps[i + 1]);
+        }
+      }
+    });
+
+    it('orders results by createdAt ASC when specified', async () => {
+      const variables = {
+        account: [{ legacyId: collective.id }],
+        orderBy: { field: 'CREATED_AT', direction: 'ASC' },
+      };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.nodes).to.be.sortedBy('createdAt', { descending: false });
+      // Verify ascending order
+      if (result.data.activities.nodes.length > 1) {
+        const timestamps = result.data.activities.nodes.map(node => new Date(node.createdAt).getTime());
+        for (let i = 0; i < timestamps.length - 1; i++) {
+          expect(timestamps[i]).to.be.lessThan(timestamps[i + 1]);
+        }
+      }
+    });
+
+    it('combines individual + host filtering with ordering', async () => {
+      const variables = {
+        account: [{ legacyId: collective.id }],
+        individual: { legacyId: incognitoUser.collective.id },
+        host: { legacyId: host.id },
+        orderBy: { field: 'CREATED_AT', direction: 'ASC' },
+      };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      // Should only return the TICKET_CONFIRMED activity for incognitoUser
+      expect(result.data.activities.totalCount).to.eq(1);
+      expect(result.data.activities.nodes[0].type).to.eq('TICKET_CONFIRMED');
+      expect(result.data.activities.nodes[0].account.slug).to.eq(collective.slug);
+      expect(result.data.activities.nodes[0].host.slug).to.eq(host.slug);
     });
   });
 });
