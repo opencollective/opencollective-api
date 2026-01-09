@@ -77,7 +77,7 @@ export const getOrCreateGuestProfile = async (
           slug: `guest-${uuid().split('-')[0]}`,
           name: name || DEFAULT_GUEST_NAME,
           legalName,
-          data: { isGuest: true },
+          data: { isGuest: true, requiresProfileCompletion: true },
           CreatedByUserId: user.id,
           location,
           currency,
@@ -115,7 +115,7 @@ export const confirmGuestAccount = async (
       !newName || newName === 'Incognito'
         ? `user-${uuid().split('-')[0]}`
         : await models.Collective.generateSlug([newName]),
-    data: { ...userCollective.data, isGuest: false, wasGuest: true },
+    data: { ...userCollective.data, isGuest: false, wasGuest: true, requiresProfileCompletion: true },
   });
 
   return { user, collective: userCollective };

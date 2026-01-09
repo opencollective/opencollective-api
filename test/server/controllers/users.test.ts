@@ -366,5 +366,44 @@ describe('server/controllers/users', () => {
       expect(user.deletedAt).not.to.be.null;
       expect(user.collective.deletedAt).not.to.be.null;
     });
+
+    it('should update guest flags when a guest user verifies their email', async () => {
+      sandbox.stub(emailLib, 'send').resolves();
+
+      // Create a guest user with pending verification
+      const user = await fakeUser(
+        { confirmedAt: null, data: { requiresVerification: true } },
+        { data: { isGuest: true } },
+      );
+      const email = user.email;
+
+      const otpResponse = await makeSignupRequest(email, randIPV4());
+      expect(otpResponse._getStatusCode()).to.eql(200);
+      const responseData = otpResponse._getData();
+      expect(responseData.sessionId).to.be.a('string');
+
+      const otpSessionKey = `otp_signup_${email}`;
+      const otpSession = await sessionCache.get(otpSessionKey);
+      expect(otpSession).to.exist;
+      expect(otpSession.userId).to.equal(user.id);
+
+      // Verify the guest flags before verification
+      await user.reload({ include: [{ model: models.Collective, as: 'collective' }] });
+      expect(user.collective.data.isGuest).to.be.true;
+
+      const sendEmailCall = (emailLib.send as sinon.SinonStub).getCall(0);
+      const otp = sendEmailCall.args[2].otp;
+      const verifyResponse = await makeVerifyOtpRequest(email, otp, responseData.sessionId, randIPV4());
+      expect(verifyResponse._getStatusCode()).to.eql(200);
+
+      // Should update guest flags after verification
+      await user.reload({ include: [{ model: models.Collective, as: 'collective' }] });
+      expect(user.confirmedAt).to.be.instanceOf(Date);
+      expect(user.data.requiresVerification).to.be.undefined;
+      expect(user.collective.data.isGuest).to.be.false;
+      expect(user.collective.data.wasGuest).to.be.true;
+      expect(user.collective.data.requiresProfileCompletion).to.be.true;
+      expect(user.collective.data.isSuspended).to.be.undefined;
+    });
   });
 });
