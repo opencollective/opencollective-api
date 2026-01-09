@@ -65,7 +65,7 @@ CMD_CREATE_DB="createdb"
 CMD_PSQL="psql"
 CMD_PG_RESTORE="pg_restore"
 
-if [ "$USE_DOCKER" = "true" || "$USE_PODMAN" = "true" ]; then
+if [[ "$USE_DOCKER" = "true" || "$USE_PODMAN" = "true" ]]; then
   if [ "$USE_DOCKER" = "true" ]; then
     echo "Using docker to run Postgres commands"
     CMD_DOCKER="./scripts/dev/run-docker.sh run --rm --network host"
