@@ -36,10 +36,11 @@ const { User } = models;
 /**
  * Check existence of a user based on email
  */
-export const exists = async (req, res) => {
-  const email = req.query.email.toLowerCase();
+export const exists = async (req: express.Request, res: express.Response) => {
+  const email = (req.query.email as string).toLowerCase();
   if (!isValidEmail(email)) {
-    return res.send({ exists: false });
+    res.send({ exists: false });
+    return;
   } else {
     const rateLimit = new RateLimit(
       `user_email_search_ip_${req.ip}`,
@@ -55,7 +56,8 @@ export const exists = async (req, res) => {
       attributes: ['id'],
       where: { email },
     });
-    return res.send({ exists: Boolean(user) });
+    res.send({ exists: Boolean(user) });
+    return;
   }
 };
 
@@ -66,7 +68,7 @@ export const exists = async (req, res) => {
  * create a new account. In the future once signin.js is fully deprecated (replaced by signinV2.js)
  * this function should be refactored to remove createProfile.
  */
-export const signin = async (req, res, next) => {
+export const signin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const { redirect, websiteUrl, sendLink, resetPassword, createProfile = true } = req.body;
   try {
     const rateLimit = new RateLimit(
@@ -76,40 +78,45 @@ export const signin = async (req, res, next) => {
       true,
     );
     if (!(await rateLimit.registerCall())) {
-      return res.status(403).send({
+      res.status(403).send({
         error: { message: 'Rate limit exceeded' },
       });
+      return;
     }
     let user = await models.User.findOne({ where: { email: req.body.user.email.toLowerCase() } });
     if (!user && !createProfile) {
-      return res.status(400).send({
+      res.status(400).send({
         errorCode: 'EMAIL_DOES_NOT_EXIST',
         message: 'Email does not exist',
       });
+      return;
     } else if (!user && createProfile) {
       user = await models.User.createUserWithCollective(req.body.user);
     } else if (!user.CollectiveId || user.data?.requiresVerification === true) {
-      return res.status(403).send({
+      res.status(403).send({
         errorCode: 'EMAIL_AWAITING_VERIFICATION',
         message: 'Email awaiting verification',
       });
+      return;
     }
 
     // If password set and not passed, challenge user with password
     if (user.passwordHash && !sendLink && !resetPassword) {
       if (!req.body.user.password) {
-        return res.status(403).send({
+        res.status(403).send({
           errorCode: 'PASSWORD_REQUIRED',
           message: 'Password requested to complete sign in.',
         });
+        return;
       }
       const validPassword = await bcrypt.compare(req.body.user.password, user.passwordHash);
       if (!validPassword) {
         // Would be great to be consistent in the way we send errors
         // This is what works best with Frontend today
-        return res.status(401).send({
+        res.status(401).send({
           error: { errorCode: 'PASSWORD_INVALID', message: 'Invalid password' },
         });
+        return;
       }
 
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
@@ -131,12 +138,14 @@ export const signin = async (req, res, next) => {
           },
           auth.TOKEN_EXPIRATION_2FA,
         );
-        return res.send({ token });
+        res.send({ token });
+        return;
       } else {
         // Context: this is token generation when using a password and no 2FA
         const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
         auth.setAuthCookie(res, token);
-        return res.send({ token });
+        res.send({ token });
+        return;
       }
     }
 
@@ -154,9 +163,10 @@ export const signin = async (req, res, next) => {
         );
       } catch (e) {
         reportErrorToSentry(e, { user });
-        return res.status(500).send({
+        res.status(500).send({
           error: { message: 'Error sending reset password email' },
         });
+        return;
       }
     } else {
       const collective = await user.getCollective();
@@ -175,17 +185,18 @@ export const signin = async (req, res, next) => {
         );
       } catch (e) {
         reportErrorToSentry(e, { user });
-        return res.status(500).send({
+        res.status(500).send({
           error: { message: 'Error sending login email' },
         });
+        return;
       }
 
       // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
       if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
-        return res.send({ success: true, redirect: loginLink });
+        res.send({ success: true, redirect: loginLink });
+        return;
       }
     }
-
     res.send({ success: true });
   } catch (e) {
     next(e);
@@ -529,7 +540,7 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
  *
  * B) If no 2FA, we send back a "session" token
  */
-export const exchangeLoginToken = async (req, res, next) => {
+export const exchangeLoginToken = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const rateLimit = new RateLimit(
     `user_exchange_login_token_ip_${req.ip}`,
     config.limits.userExchangeLoginTokenPerHourPerIp,
@@ -537,9 +548,10 @@ export const exchangeLoginToken = async (req, res, next) => {
     true,
   );
   if (!(await rateLimit.registerCall())) {
-    return res.status(403).send({
+    res.status(403).send({
       error: { message: 'Rate limit exceeded' },
     });
+    return;
   }
 
   // This is already checked in checkJwtScope but lets' make it clear
@@ -547,7 +559,8 @@ export const exchangeLoginToken = async (req, res, next) => {
     const errorMessage = `Cannot use this token on this route (scope: ${
       req.jwtPayload?.scope || 'session'
     }, expected: login)`;
-    return next(new BadRequest(errorMessage));
+    next(new BadRequest(errorMessage));
+    return;
   }
 
   // If a guest signs in, it's safe to directly confirm its account
@@ -591,7 +604,7 @@ export const exchangeLoginToken = async (req, res, next) => {
 /**
  * Exchange a session JWT against a fresh one with extended expiration
  */
-export const refreshToken = async (req, res, next) => {
+export const refreshToken = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const rateLimit = new RateLimit(
     `user_refresh_token_ip_${req.ip}`,
     config.limits.userRefreshTokenPerHourPerIp,
@@ -599,25 +612,29 @@ export const refreshToken = async (req, res, next) => {
     true,
   );
   if (!(await rateLimit.registerCall())) {
-    return res.status(403).send({
+    res.status(403).send({
       error: { message: 'Rate limit exceeded' },
     });
+    return;
   }
 
   if (req.personalToken) {
     const errorMessage = `Cannot use this token on this route (personal token)`;
-    return next(new BadRequest(errorMessage));
+    next(new BadRequest(errorMessage));
+    return;
   }
 
   if (req.jwtPayload?.scope && req.jwtPayload?.scope !== 'session') {
     const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope}, expected: session)`;
-    return next(new BadRequest(errorMessage));
+    next(new BadRequest(errorMessage));
+    return;
   }
 
   // TODO: not necessary once all oAuth tokens have the scope "oauth"
   if (req.jwtPayload?.access_token) {
     const errorMessage = `Cannot use this token on this route (oAuth access_token)`;
-    return next(new BadRequest(errorMessage));
+    next(new BadRequest(errorMessage));
+    return;
   }
 
   // Context: this is token generation when extending a session
@@ -634,12 +651,17 @@ export const refreshToken = async (req, res, next) => {
 /**
  * Verify the 2FA code or recovery code the user has entered when logging in and send back another JWT.
  */
-export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
+export const twoFactorAuthAndUpdateToken = async (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction,
+) => {
   if (req.jwtPayload?.scope !== 'twofactorauth') {
     const errorMessage = `Cannot use this token on this route (scope: ${
       req.jwtPayload?.scope || 'session'
     }, expected: twofactorauth)`;
-    return next(new BadRequest(errorMessage));
+    next(new BadRequest(errorMessage));
+    return;
   }
 
   const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode, twoFactorAuthenticationType } = req.body;
@@ -654,7 +676,8 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   };
 
   if (await rateLimit.hasReachedLimit()) {
-    return next(new TooManyRequests('Too many attempts. Please try again in an hour'));
+    next(new TooManyRequests('Too many attempts. Please try again in an hour'));
+    return;
   }
 
   const user = await User.findByPk(userId);
@@ -669,7 +692,8 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     twoFactorAuthenticationType ?? (twoFactorAuthenticatorCode ? TwoFactorMethod.TOTP : TwoFactorMethod.RECOVERY_CODE);
 
   if (!code) {
-    return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
+    fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
+    return;
   }
 
   try {
@@ -682,7 +706,8 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
       req,
     );
   } catch {
-    return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
+    fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
+    return;
   }
 
   // Context: this is token generation after signin and valid 2FA authentication
