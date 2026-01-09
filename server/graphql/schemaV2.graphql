@@ -2101,7 +2101,7 @@ type OrderCollection implements Collection {
   nodes: [Order]
 
   """
-  The accounts that created the orders in this collection (respecting the `account`, `host`, `hostContext`, `includeChildrenAccounts`, `expectedFundsFilter` and `status` arguments), regardless of pagination. Returns a paginated and searchable collection.
+  The accounts that created the orders in this collection (only scoped to the `account`, `hostContext`, `includeChildrenAccounts`, `expectedFundsFilter` and `status` arguments), regardless of pagination. Returns a paginated and searchable collection.
   """
   createdByUsers(
     """
@@ -7422,6 +7422,9 @@ type CommunityStats {
 type CommunityAssociatedAccount {
   account: Account
   relations: [CommunityRelationType]
+  lastInteractionAt: DateTime
+  firstInteractionAt: DateTime
+  transactionSummary: CommunityTransactionSummary!
 }
 
 enum CommunityRelationType {
@@ -7435,7 +7438,7 @@ enum CommunityRelationType {
 }
 
 type CommunityTransactionSummary {
-  year: Int!
+  year: Int
   expenseTotal: Amount!
   expenseCount: Int!
   contributionTotal: Amount!
@@ -16792,9 +16795,19 @@ type Query {
     offset: Int! = 0
 
     """
+    The individual associated with the Activity
+    """
+    individual: AccountReferenceInput
+
+    """
     The accounts associated with the Activity
     """
-    account: [AccountReferenceInput!]!
+    account: [AccountReferenceInput!]
+
+    """
+    The hosts associated with the Activity
+    """
+    host: AccountReferenceInput
 
     """
     If account is a parent, also include child accounts
@@ -16830,6 +16843,11 @@ type Query {
     If true, return the timeline of activities for this account
     """
     timeline: Boolean! = false
+
+    """
+    Order of the results
+    """
+    orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ActivityCollection!
   application(
     """
