@@ -37,7 +37,7 @@ const { User } = models;
  * Check existence of a user based on email
  */
 export const exists = async (req: express.Request, res: express.Response) => {
-  const email = (req.query.email as string).toLowerCase();
+  const email = (req.query.email as string)?.toLowerCase();
   if (!isValidEmail(email)) {
     res.send({ exists: false });
     return;
