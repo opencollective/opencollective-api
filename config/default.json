@@ -287,9 +287,6 @@
     "expectedOrigins": ["http://localhost:3000"]
   },
   "features": {
-    "dashboard": {
-      "redirect": false
-    },
     "newPricing": false
   },
   "performance": {
