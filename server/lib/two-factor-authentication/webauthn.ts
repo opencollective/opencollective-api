@@ -2,13 +2,13 @@ import crypto from 'crypto';
 
 import { AsnParser, OctetString } from '@peculiar/asn1-schema';
 import { Certificate } from '@peculiar/asn1-x509';
-import * as simplewebauthn from '@simplewebauthn/server';
-import { decodeAttestationObject } from '@simplewebauthn/server/helpers';
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   RegistrationResponseJSON,
-} from '@simplewebauthn/types';
+} from '@simplewebauthn/server';
+import * as simplewebauthn from '@simplewebauthn/server';
+import { decodeAttestationObject } from '@simplewebauthn/server/helpers';
 import config from 'config';
 
 import { ApolloError } from '../../graphql/errors';
