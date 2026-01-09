@@ -470,7 +470,11 @@ export async function verifyEmail(req: express.Request, res: express.Response) {
                   { transaction },
                 );
                 if (user.collective) {
-                  await user.collective.update({ data: omit(user.collective.data, ['isSuspended']) }, { transaction });
+                  let newData = omit(user.collective.data, ['isSuspended']);
+                  if (user.collective.data?.isGuest) {
+                    newData = { ...newData, isGuest: false, wasGuest: true, requiresProfileCompletion: true };
+                  }
+                  await user.collective.update({ data: newData }, { transaction });
                 }
               });
               await sessionCache.delete(otpSessionKey);
