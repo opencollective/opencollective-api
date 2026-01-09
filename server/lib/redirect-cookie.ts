@@ -8,9 +8,12 @@ export const setRedirectCookie = res => {
     httpOnly: true,
     sameSite: config.env === 'production' ? 'lax' : 'none',
     maxAge: 24 * 60 * 60 * 1000 * 365,
+    domain: config.env === 'production' || config.env === 'staging' ? '.opencollective.com' : undefined,
   });
 };
 
 export const clearRedirectCookie = res => {
-  res.clearCookie(cookieName);
+  res.clearCookie(cookieName, {
+    domain: config.env === 'production' || config.env === 'staging' ? '.opencollective.com' : undefined,
+  });
 };
