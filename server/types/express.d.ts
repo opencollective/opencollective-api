@@ -18,6 +18,10 @@ declare global {
         iat: number;
         exp: number;
         sub?: string;
+        email?: string;
+        access_token?: string;
+        lastLoginAt?: number;
+        passwordUpdatedAt?: number;
       };
       clientApp?: {
         id: number;
