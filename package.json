@@ -150,7 +150,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.14.202",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.17.9",
+    "@types/node": "^24.0.0",
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.4",
     "@types/validator": "^13.11.8",
@@ -272,7 +272,7 @@
     "lint-staged": "lint-staged"
   },
   "engines": {
-    "node": "20.x",
+    "node": "24.x",
     "npm": "10.x"
   },
   "lint-staged": {
