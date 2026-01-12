@@ -16,6 +16,7 @@ import logger from './lib/logger';
 import { isOpenSearchConfigured } from './lib/open-search/client';
 import { startOpenSearchPostgresSync, stopOpenSearchPostgresSync } from './lib/open-search/sync-postgres';
 import { reportErrorToSentry } from './lib/sentry';
+import { checkIfSentryConfigured } from './lib/sentry/init';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
 import routes from './routes';
@@ -33,7 +34,9 @@ async function startExpressServer(workerId) {
    */
   await routes(expressApp);
 
-  Sentry.setupExpressErrorHandler(expressApp);
+  if (checkIfSentryConfigured()) {
+    Sentry.setupExpressErrorHandler(expressApp);
+  }
 
   /**
    * Start server
