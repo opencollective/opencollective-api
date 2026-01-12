@@ -10,35 +10,39 @@ if (parseToBoolean(config.opentelemetry.enabled)) {
 
   const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
   const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-proto');
-  const { registerInstrumentations } = require('@opentelemetry/instrumentation');
-  const { Resource } = require('@opentelemetry/resources');
+  const { resourceFromAttributes } = require('@opentelemetry/resources');
   const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
-  const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
-  const { SequelizeInstrumentation } = require('opentelemetry-instrumentation-sequelize');
+  const { NodeSDK } = require('@opentelemetry/sdk-node');
+  const { SequelizeInstrumentation } = require('@opentelemetry/instrumentation-sequelize');
 
-  registerInstrumentations({
-    instrumentations: [getNodeAutoInstrumentations(), new SequelizeInstrumentation()],
-  });
-
-  const provider = new NodeTracerProvider({
-    resource: Resource.default().merge(
-      new Resource({
-        'service.name': 'opencollective-api',
-      }),
-    ),
-  });
+  const resource = resourceFromAttributes({ 'service.name': 'opencollective-api' });
 
   const collectorTraceExporter = new OTLPTraceExporter({
     url: 'http://localhost:4318/v1/traces',
     concurrencyLimit: 10,
   });
 
-  provider.addSpanProcessor(
-    new BatchSpanProcessor(collectorTraceExporter, {
-      maxQueueSize: 1000,
-      scheduledDelayMillis: 1000,
-    }),
-  );
+  const instrumentations = [getNodeAutoInstrumentations(), new SequelizeInstrumentation()];
+  const spanProcessor = new BatchSpanProcessor(collectorTraceExporter, {
+    maxQueueSize: 1000,
+    scheduledDelayMillis: 1000,
+  });
+  const sdk = new NodeSDK({
+    resource,
+    instrumentations,
+    spanProcessor,
+  });
+  Promise.resolve(sdk.start()).catch(error => logger.error('opentelemetry start failed', error));
+  const shutdown = () => sdk.shutdown();
 
-  provider.register();
+  const shutdownSignal = async () => {
+    try {
+      await shutdown();
+    } catch (error) {
+      logger.warn('opentelemetry shutdown failed', error);
+    }
+  };
+
+  process.on('SIGTERM', shutdownSignal);
+  process.on('SIGINT', shutdownSignal);
 }
