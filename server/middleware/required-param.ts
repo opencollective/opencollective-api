@@ -19,7 +19,7 @@ function requiredOptions(options, properties) {
         if (value || value === false) {
           return;
         }
-        value = source ? req[source][prop] : req[prop];
+        value = source ? req[source]?.[prop] : req?.[prop];
       });
 
       if ((!value || value === 'null') && value !== false) {
