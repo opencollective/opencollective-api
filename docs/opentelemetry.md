@@ -31,15 +31,17 @@ OTEL_METRICS_EXPORTER=none
 # Force sampling while debugging
 OTEL_TRACES_SAMPLER=always_on
 
-# Optional: increase verbosity
+# Increase verbosity
 OTEL_LOG_LEVEL=debug
 
-# Optional: override the service name (defaults to opencollective-api)
+# Override the service name (defaults to opencollective-api)
 OTEL_SERVICE_NAME=opencollective-api
+
+# Disable the SDK entirely
+OTEL_SDK_DISABLED=true
 ```
 
 Notes:
 
 - The SDK defaults to `http://localhost:4318/v1/traces` when no traces endpoint is set.
 - If `OTEL_SERVICE_NAME` is not set, the bootstrap sets it to `opencollective-api`.
-- Sequelize spans are enabled via `@opentelemetry/instrumentation-sequelize` in `server/open-telemetry.ts`.
