@@ -1,5 +1,6 @@
 import config from 'config';
 import express from 'express';
+import { pick } from 'lodash';
 
 import { Collective, ConnectedAccount, Op } from '../../../../models';
 import { KYCVerification, KYCVerificationStatus, KYCVerifiedData } from '../../../../models/KYCVerification';
@@ -54,6 +55,32 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
     return true;
   }
 
+  private sanitizeInquiry(inquiry: PersonaInquiry): Partial<PersonaInquiry> {
+    const inquiryFields = [
+      'id',
+      'type',
+      'attributes.status',
+      'attributes.reference-id',
+      'attributes.note',
+      'attributes.tags',
+      'attributes.creator',
+      'attributes.reviewer-comment',
+      'attributes.updated-at',
+      'attributes.created-at',
+      'attributes.started-at',
+      'attributes.expires-at',
+      'attributes.completed-at',
+      'attributes.failed-at',
+      'attributes.marked-for-review-at',
+      'attributes.decisioned-at',
+      'attributes.expired-at',
+      'attributes.redacted-at',
+      'attributes.behaviors',
+    ];
+
+    return pick(inquiry, inquiryFields);
+  }
+
   private inquiryStatusToKycVerificationStatus(
     inquiryStatus: PersonaInquiry['attributes']['status'],
   ): KYCVerificationStatus {
@@ -104,7 +131,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
         status: this.inquiryStatusToKycVerificationStatus(inquiry.attributes.status),
         providerData: {
           ...existingVerification.providerData,
-          inquiry,
+          inquiry: this.sanitizeInquiry(inquiry),
         },
         data: this.verifiedDataFromInquiry(inquiry),
       });
@@ -117,7 +144,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       status: this.inquiryStatusToKycVerificationStatus(inquiry.attributes.status),
       providerData: {
         imported: true,
-        inquiry,
+        inquiry: this.sanitizeInquiry(inquiry),
       },
       data: this.verifiedDataFromInquiry(inquiry),
       provider: this.providerName,
@@ -176,7 +203,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
         status: KYCVerificationStatus.PENDING,
         providerData: {
           ...resumableVerification.providerData,
-          inquiry: res.data,
+          inquiry: this.sanitizeInquiry(res.data),
         },
       });
     }
@@ -190,7 +217,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       CollectiveId: req.CollectiveId,
       RequestedByCollectiveId: req.RequestedByCollectiveId,
       providerData: {
-        inquiry,
+        inquiry: this.sanitizeInquiry(inquiry),
       },
       provider: this.providerName,
       status: KYCVerificationStatus.PENDING,

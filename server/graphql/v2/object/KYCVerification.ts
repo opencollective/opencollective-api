@@ -153,7 +153,7 @@ const GraphQLPersonaKYCProviderData = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLJSON),
       description: 'Contains KYC data verified by this inquiry',
       resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
-        return kycVerification.providerData.inquiry.attributes.fields;
+        return kycVerification.providerData.inquiry.attributes.fields ?? {};
       },
     },
   }),

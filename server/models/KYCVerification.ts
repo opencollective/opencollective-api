@@ -24,7 +24,7 @@ type KycProviderData = {
     notes: string;
   };
   [KYCProviderName.PERSONA]: {
-    inquiry: PersonaInquiry;
+    inquiry: Partial<PersonaInquiry>;
     imported?: boolean;
   };
 };
