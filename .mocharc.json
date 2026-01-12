@@ -1,8 +1,7 @@
 {
   "timeout": 20000,
   "extension": ["js", "ts"],
-  "require": ["./test/setup-babel.js"],
-  "file": ["./server/env.ts", "./test/setup.js"],
+  "require": ["./test/setup-babel.js", "./server/env.ts", "./test/setup.js"],
   "ignore": [
     "test/dbdumps/**",
     "test/mocks/**",
