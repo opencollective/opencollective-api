@@ -273,7 +273,7 @@
   },
   "engines": {
     "node": "24.x",
-    "npm": "10.x"
+    "npm": "11.x"
   },
   "lint-staged": {
     "*.{js,ts,json,md}": [
