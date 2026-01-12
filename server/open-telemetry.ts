@@ -5,7 +5,10 @@ import config from 'config';
 import logger from './lib/logger';
 import { parseToBoolean } from './lib/utils';
 
-if (parseToBoolean(config.opentelemetry.enabled)) {
+const globalScope = globalThis as typeof globalThis & { __ocOtelStarted?: boolean };
+
+if (parseToBoolean(config.opentelemetry.enabled) && !globalScope.__ocOtelStarted) {
+  globalScope.__ocOtelStarted = true;
   logger.info('opentelemetry tracing enabled');
 
   const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
@@ -30,7 +33,7 @@ if (parseToBoolean(config.opentelemetry.enabled)) {
   const sdk = new NodeSDK({
     resource,
     instrumentations,
-    spanProcessor,
+    spanProcessors: [spanProcessor],
   });
   Promise.resolve(sdk.start()).catch(error => logger.error('opentelemetry start failed', error));
   const shutdown = () => sdk.shutdown();
@@ -45,4 +48,6 @@ if (parseToBoolean(config.opentelemetry.enabled)) {
 
   process.on('SIGTERM', shutdownSignal);
   process.on('SIGINT', shutdownSignal);
+} else if (parseToBoolean(config.opentelemetry.enabled)) {
+  logger.warn('opentelemetry already initialized, skipping duplicate setup');
 }

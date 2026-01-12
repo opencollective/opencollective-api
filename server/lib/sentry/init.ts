@@ -54,36 +54,37 @@ export const redactSensitiveDataFromRequest = rawRequest => {
   return request;
 };
 
-Sentry.init({
-  beforeSend(event) {
-    event.request = redactSensitiveDataFromRequest(event.request);
-    return event;
-  },
-  beforeSendTransaction(event) {
-    event.request = redactSensitiveDataFromRequest(event.request);
-    return event;
-  },
-  dsn: config.sentry.dsn,
-  environment: config.env,
-  integrations: compact([
-    PROFILES_SAMPLE_RATE > 0 && nodeProfilingIntegration(),
-    Sentry.graphqlIntegration({ ignoreResolveSpans: false }),
-  ]),
-  attachStacktrace: true,
-  enabled: config.env !== 'test',
-  tracesSampler: samplingContext => {
-    if (!TRACES_SAMPLE_RATE || !samplingContext) {
-      return 0;
-    } else if (samplingContext.parentSampled !== undefined) {
-      return samplingContext.parentSampled;
-    } else if (samplingContext.normalizedRequest?.headers?.['x-sentry-force-sample']) {
-      return 1;
-    } else {
-      return TRACES_SAMPLE_RATE;
-    }
-  },
-  // Relative to tracesSampler
-  profilesSampleRate: PROFILES_SAMPLE_RATE,
-});
+if (checkIfSentryConfigured() && config.env !== 'test') {
+  Sentry.init({
+    beforeSend(event) {
+      event.request = redactSensitiveDataFromRequest(event.request);
+      return event;
+    },
+    beforeSendTransaction(event) {
+      event.request = redactSensitiveDataFromRequest(event.request);
+      return event;
+    },
+    dsn: config.sentry.dsn,
+    environment: config.env,
+    integrations: compact([
+      PROFILES_SAMPLE_RATE > 0 && nodeProfilingIntegration(),
+      Sentry.graphqlIntegration({ ignoreResolveSpans: false }),
+    ]),
+    attachStacktrace: true,
+    tracesSampler: samplingContext => {
+      if (!TRACES_SAMPLE_RATE || !samplingContext) {
+        return 0;
+      } else if (samplingContext.parentSampled !== undefined) {
+        return samplingContext.parentSampled;
+      } else if (samplingContext.normalizedRequest?.headers?.['x-sentry-force-sample']) {
+        return 1;
+      } else {
+        return TRACES_SAMPLE_RATE;
+      }
+    },
+    // Relative to tracesSampler
+    profilesSampleRate: PROFILES_SAMPLE_RATE,
+  });
+}
 
 export default Sentry;
