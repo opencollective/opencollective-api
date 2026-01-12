@@ -28,7 +28,11 @@ const initOpenTelemetry = () => {
   const sdk = new NodeSDK({
     instrumentations,
   });
-  Promise.resolve(sdk.start()).catch(error => logger.error('opentelemetry start failed', error));
+  try {
+    sdk.start();
+  } catch (error) {
+    logger.error('opentelemetry start failed', error);
+  }
 };
 
 initOpenTelemetry();
