@@ -280,6 +280,9 @@
       "prettier --write"
     ]
   },
+  "overrides": {
+    "url-regex-safe": "4.0.0"
+  },
   "nyc": {
     "reporter": [
       "lcov"
