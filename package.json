@@ -193,7 +193,7 @@
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
     "build:clean": "rm -rf dist && mkdir dist",
-    "build:server": "tsc -p tsconfig.build.json && node ./scripts/build/copy-server-assets.js",
+    "build:server": "tsc -p tsconfig.build.json && npm run script -- scripts/build/copy-server-assets.ts",
     "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
     "clean": "npm run build:clean && npm run test:clean",
     "commit": "git-cz",
@@ -229,7 +229,7 @@
     "graphql:updateV2": "npm run script scripts/update-gql-schemas.ts http://localhost:3060/graphql/v2 server/graphql/schemaV2.graphql && prettier server/graphql/schemaV2.graphql --write",
     "lint": "eslint .",
     "lint:check": "npm run lint -- --quiet",
-    "lint:check:simplified": "npm run lint -- --rule '@typescript-eslint/no-explicit-any: 0' --rule '@graphql-eslint/no-deprecated: 0'",
+    "lint:check:simplified": "npm run lint -- --rule 'no-console: 0' --rule '@typescript-eslint/no-explicit-any: 0' --rule '@graphql-eslint/no-deprecated: 0'",
     "lint:fix": "npm run lint -- --fix",
     "mailpit": "./scripts/dev/run-docker-compose.sh -f docker-compose/mail.yml up",
     "mail:preview": "npm run script scripts/dev/dev-email-preview.ts",
