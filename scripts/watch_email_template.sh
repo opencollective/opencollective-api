@@ -24,7 +24,7 @@ fi
 
 function compileTemplate {
   echo "Compiling $1";
-  npm run script -- scripts/compile-email.js $1 > /tmp/$1.html
+  npm run script scripts/compile-email.js $1 > /tmp/$1.html
   echo "Done: /tmp/$1.html";
   return 0
 }
