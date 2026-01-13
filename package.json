@@ -180,7 +180,7 @@
     "husky": "^9.0.10",
     "lint-staged": "^16.0.0",
     "markdown-table": "^2.0.0",
-    "mocha": "^11.0.0",
+    "mocha": "^11.7.5",
     "mocha-junit-reporter": "^2.2.1",
     "nock": "^13.5.0",
     "node-mocks-http": "^1.16.1",
