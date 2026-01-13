@@ -208,6 +208,14 @@ export default [
       'no-console': 'warn',
     },
   },
+  // CommonJS config files used by external tools
+  {
+    files: ['config/sequelize-cli.js', 'test/setup.cjs'],
+    rules: {
+      'import/no-commonjs': 'off',
+      'n/no-missing-require': 'off',
+    },
+  },
   {
     files: ['server/graphql/v2/**/*.+(js|ts)'],
 
