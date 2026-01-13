@@ -11,6 +11,7 @@ import { CollectiveType } from '../../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { mapPlatformTipCollectiveIds, mapPlatformTipDebitsToApplicationFees } from '../../../../lib/ledger-transform';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -190,7 +191,7 @@ export const TransactionsCollectionArgs = {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: true,
     description:
-      'When filtering with the `host` argument, also include PLATFORM_TIP credit transactions related to this host via TransactionGroup',
+      'When filtering with the `host` argument, also include virtual PLATFORM_TIP transactions related to Contributions via TransactionGroup',
   },
   includeRegularTransactions: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -410,7 +411,7 @@ export const TransactionsCollectionResolver = async (
     }
 
     if (args.includePlatformTips) {
-      // Include transactions accounted by the host, and also PLATFORM_TIP credits related to the host via TransactionGroup.
+      // Include transactions accounted by the host, and also PLATFORM_TIP transactions related to the host via TransactionGroup.
       // Use a UNION subquery to avoid a large OR bitmap scan on Transactions.
       const hostId = sequelize.escape(host.id);
       where.push(
@@ -423,7 +424,6 @@ export const TransactionsCollectionResolver = async (
           SELECT t."id"
           FROM "Transactions" t
           WHERE t."kind" = 'PLATFORM_TIP'
-            AND t."type" = 'CREDIT'
             AND t."deletedAt" IS NULL
             AND EXISTS (
               SELECT 1 FROM "Transactions" t1
@@ -729,7 +729,14 @@ export const TransactionsCollectionResolver = async (
   };
 
   return {
-    nodes: () => Transaction.findAll(queryParameters),
+    nodes: async () => {
+      const transactions = await Transaction.findAll(queryParameters);
+      if (args.includePlatformTips) {
+        const mappedTransactions = await mapPlatformTipCollectiveIds(transactions, req);
+        return mapPlatformTipDebitsToApplicationFees(mappedTransactions, req);
+      }
+      return transactions;
+    },
     totalCount: () => fetchTransactionsCount(queryParameters),
     limit: args.limit,
     offset: args.offset,
