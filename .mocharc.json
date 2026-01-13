@@ -10,7 +10,6 @@
     "test/test-helpers/**",
     "test/utils.js"
   ],
-  "node-option": ["loader=ts-node/esm"],
   "recursive": true,
   "exit": true,
   "slow": 500
