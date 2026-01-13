@@ -193,7 +193,7 @@
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
     "build:clean": "rm -rf dist && mkdir dist",
-    "build:server": "tsc -p tsconfig.build.json && rsync -a --exclude '*.ts' --exclude '*.js' server/ dist/",
+    "build:server": "tsc -p tsconfig.build.json && node ./scripts/build/copy-server-assets.js",
     "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
     "clean": "npm run build:clean && npm run test:clean",
     "commit": "git-cz",
