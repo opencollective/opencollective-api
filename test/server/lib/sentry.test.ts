@@ -24,7 +24,7 @@ describe('server/lib/sentry', () => {
       req.query = 'query { test }';
       req.variables = { test: 'test' };
 
-      const captureExceptionSpy = sandbox.spy(SentryLib.Sentry, 'captureException');
+      const reportErrorSpy = sandbox.spy(SentryLib, 'reportErrorToSentry');
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
         request: req,
       } as unknown as GraphQLRequestContext<BaseContext>);
@@ -34,9 +34,9 @@ describe('server/lib/sentry', () => {
         contextValue: {},
         request: req,
       });
-      expect(captureExceptionSpy).to.have.been.calledTwice;
-      expect(captureExceptionSpy.firstCall.args[0]).to.deep.equal({ message: 'Test error 1' });
-      expect(captureExceptionSpy.secondCall.args[0]).to.deep.equal({ message: 'Test error 2' });
+      expect(reportErrorSpy).to.have.been.calledTwice;
+      expect(reportErrorSpy.firstCall.args[0]).to.deep.equal({ message: 'Test error 1' });
+      expect(reportErrorSpy.secondCall.args[0]).to.deep.equal({ message: 'Test error 2' });
     });
 
     it('should not report errors that are ignored', async () => {
@@ -47,14 +47,14 @@ describe('server/lib/sentry', () => {
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
         request: req,
       } as unknown as GraphQLRequestContext<BaseContext>);
-      const captureExceptionSpy = sandbox.spy(SentryLib.Sentry, 'captureException');
+      const reportErrorSpy = sandbox.spy(SentryLib, 'reportErrorToSentry');
       context['didEncounterErrors']({
         operation: {},
         errors: [{ extensions: { code: 'IGNORED' } }, { path: ['account'], message: 'No collective found' }],
         contextValue: {},
         request: req,
       });
-      expect(captureExceptionSpy).to.not.have.been.called;
+      expect(reportErrorSpy).to.not.have.been.called;
     });
   });
 });
