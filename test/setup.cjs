@@ -1,8 +1,25 @@
 // Ensure ts-node loads all files from tsconfig so global .d.ts augmentations are applied.
-process.env.TS_NODE_FILES = 'true';
+if (!process.env.TS_NODE_FILES) {
+  process.env.TS_NODE_FILES = 'true';
+}
+
 // Skip typechecking in the test runner; `npm run type:check` handles it separately.
-process.env.TS_NODE_TRANSPILE_ONLY = 'true';
+if (!process.env.TS_NODE_TRANSPILE_ONLY) {
+  process.env.TS_NODE_TRANSPILE_ONLY = 'true';
+}
+
+// Use native TS compiler
+if (!process.env.TS_NODE_COMPILER) {
+  process.env.TS_NODE_COMPILER = 'typescript';
+}
+
+// setting up NODE_ENV to test when running the tests.
+if (!process.env.NODE_ENV) {
+  process.env.NODE_ENV = 'test';
+}
+
 require('ts-node/register');
+
 require('../server/env.ts');
 
 const chai = require('chai');
@@ -16,11 +33,6 @@ const Sequelize = require('sequelize');
 const sinonChai = require('sinon-chai');
 
 const { checkS3Configured, dangerouslyInitNonProductionBuckets } = require('../server/lib/awsS3');
-
-// setting up NODE_ENV to test when running the tests.
-if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = 'test';
-}
 
 chai.use(chaiAsPromised);
 chai.use(chaiJestSnapshot);
