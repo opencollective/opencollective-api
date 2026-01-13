@@ -451,6 +451,7 @@ const kindStrings = {
   HOST_FEE_SHARE: `Host Fee Share`,
   HOST_FEE_SHARE_DEBT: `Host Fee Share Debt`,
   PAYMENT_PROCESSOR_COVER: `Cover of Payment Processor Fee`,
+  APPLICATION_FEE: `Application Fee`,
   PLATFORM_TIP: `Platform Tip`,
   PLATFORM_TIP_DEBT: `Platform Tip Debt`,
   PREPAID_PAYMENT_METHOD: `Prepaid Payment Method`,
