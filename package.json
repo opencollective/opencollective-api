@@ -237,7 +237,7 @@
     "prettier": "prettier \"**/*.@(js|ts|json|md)\"",
     "prettier:check": "npm run prettier -- --check",
     "prettier:write": "npm run prettier -- --write",
-    "script": "TS_NODE_FILES=true node -r ts-node/register $1",
+    "script": "TS_NODE_FILES=true node -r ts-node/register",
     "search": "./scripts/dev/run-docker-compose.sh -f docker-compose/search.yml up",
     "minio": "./scripts/dev/run-docker.sh compose -f docker-compose/uploads.yml up",
     "sequelize": "npm run script -- ./node_modules/.bin/sequelize --config config/sequelize-cli.js",
