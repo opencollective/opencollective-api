@@ -1,15 +1,17 @@
 {
   "timeout": 20000,
   "extension": ["js", "ts"],
-  "require": ["./test/setup-babel.cjs", "./test/setup-env.cjs", "./test/setup.js"],
+  "require": ["./test/setup.cjs"],
   "ignore": [
     "test/dbdumps/**",
     "test/mocks/**",
     "test/nocks/**",
     "test/stores/**",
     "test/test-helpers/**",
+    "test/setup.cjs",
     "test/utils.js"
   ],
+  "node-option": ["loader=ts-node/esm"],
   "recursive": true,
   "exit": true,
   "slow": 500

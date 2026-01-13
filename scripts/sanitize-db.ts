@@ -4,51 +4,10 @@ import { Command } from 'commander';
 import config from 'config';
 
 import channels from '../server/constants/channels';
+import { testStripeAccounts } from '../server/lib/import-export/sanitize-helpers';
 import models, { Op, sequelize } from '../server/models';
 
 import { confirm } from './common/helpers';
-
-export const testStripeAccounts = {
-  // Open Source Collective 501c6
-  opensource: {
-    service: 'stripe',
-    username: 'acct_17GUlBGSh14qHxZK',
-    token: 'sk_test_DVhbUwvSoAvDfjlTRE0IrSPs',
-    data: {
-      publishableKey: 'pk_test_gwOTnKFLVpiYhsbXXfZcLPtR',
-    },
-    CollectiveId: 11004,
-  },
-  opensourceDvl: {
-    // legacy for opencollective_dvl.pgsql
-    service: 'stripe',
-    username: 'acct_17GUlBGSh14qHxZK',
-    token: 'sk_test_DVhbUwvSoAvDfjlTRE0IrSPs',
-    data: {
-      publishableKey: 'pk_test_gwOTnKFLVpiYhsbXXfZcLPtR',
-    },
-    CollectiveId: 9805,
-  },
-  // Open Collective Inc. host for meetups
-  other: {
-    service: 'stripe',
-    username: 'acct_17GUlBGSh14qHxZK',
-    token: 'sk_test_DVhbUwvSoAvDfjlTRE0IrSPs',
-    data: {
-      publishableKey: 'pk_test_gwOTnKFLVpiYhsbXXfZcLPtR',
-    },
-    CollectiveId: 8674,
-  },
-  brussesltogether: {
-    service: 'stripe',
-    username: 'acct_198T7jD8MNtzsDcg',
-    token: 'sk_test_Hcsz2JJdMzEsU28c6I8TyYYK',
-    data: {
-      publishableKey: 'pk_test_OSQ8IaRSyLe9FVHMivgRjQng',
-    },
-    CollectiveId: 9802,
-  },
-} as const;
 
 const createConnectedAccount = async (hostname: keyof typeof testStripeAccounts) => {
   const host = await models.Collective.findByPk(testStripeAccounts[hostname].CollectiveId);
@@ -58,7 +17,7 @@ const createConnectedAccount = async (hostname: keyof typeof testStripeAccounts)
 
   return models.ConnectedAccount.create(testStripeAccounts[hostname]).catch(e => {
     // will fail if the host is not present
-    console.log(`[warning] Unable to create a connected account for ${hostname}`);
+    console.log(`[warning] Unable to create a connected account for ${String(hostname)}`);
     if (process.env.DEBUG) {
       console.error(e);
     }
