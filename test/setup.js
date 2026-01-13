@@ -21,6 +21,7 @@ chai.use(chaiSubset);
 chai.use(chaiSorted);
 chai.use(sinonChai);
 
+// ts-unused-exports:disable-next-line
 export const mochaHooks = {
   beforeAll: async function () {
     chaiJestSnapshot.resetSnapshotRegistry();

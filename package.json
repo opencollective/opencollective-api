@@ -306,10 +306,11 @@
       "mocha"
     ],
     "ignores": [
+      "@opentelemetry/context-async-hooks",
       "eslint-import-resolver-typescript",
       "mocha-junit-reporter",
-      "typescript-eslint",
-      "@opentelemetry/context-async-hooks"
+      "ts-node",
+      "typescript-eslint"
     ]
   }
 }
