@@ -170,6 +170,9 @@ const transactionFieldsDefinition = () => ({
       },
     },
   },
+  netAmountInPayeeCurrency: {
+    type: GraphQLAmount,
+  },
   taxAmount: {
     type: new GraphQLNonNull(GraphQLAmount),
     args: {
@@ -358,6 +361,7 @@ export const TransactionFields = () => {
         return { value: transaction.amountInHostCurrency, currency: transaction.hostCurrency };
       },
     },
+
     hostCurrencyFxRate: {
       type: GraphQLFloat,
       description:
@@ -453,6 +457,15 @@ export const TransactionFields = () => {
           value: netAmountInHostCurrency,
           currency: transaction.hostCurrency,
         };
+      },
+    },
+    netAmountInPayeeCurrency: {
+      type: GraphQLAmount,
+      resolve(transaction) {
+        const transfer = transaction.data?.transfer;
+        if (transaction.kind === EXPENSE && transaction.type === 'CREDIT' && transfer) {
+          return { value: transfer.targetValue * 100 || 0, currency: transfer.targetCurrency };
+        }
       },
     },
     taxAmount: {
