@@ -1,6 +1,5 @@
 import config from 'config';
 import { get, pick } from 'lodash';
-import moment from 'moment';
 
 import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
@@ -894,12 +893,14 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
 const getTaxFormsRequiredForAccounts = async ({
   HostCollectiveId = null,
   CollectiveId = null,
-  year = moment().year(),
+  year,
   ignoreReceived = false,
   allTime = false,
 } = {}) => {
   if (CollectiveId && Array.isArray(CollectiveId) && CollectiveId.length === 0) {
     return new Set();
+  } else if (!allTime && !year) {
+    throw new Error('year is required when allTime is false');
   }
 
   const results = await sequelize.query(
@@ -907,6 +908,7 @@ const getTaxFormsRequiredForAccounts = async ({
     SELECT
       account.id as "collectiveId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      EXTRACT('year' FROM all_expenses."incurredAt") AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -956,7 +958,7 @@ const getTaxFormsRequiredForAccounts = async ({
     AND all_expenses."deletedAt" IS NULL
     ${ifStr(!allTime, `AND EXTRACT('year' FROM all_expenses."incurredAt") = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
-    GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
+    GROUP BY account.id, d."documentType", EXTRACT('year' FROM all_expenses."incurredAt"), COALESCE(pm."type", 'OTHER')
   `,
     {
       raw: true,

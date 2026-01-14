@@ -235,6 +235,7 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
     const accountIdsWithPendingTaxForm = await SQLQueries.getTaxFormsRequiredForAccounts({
       CollectiveId: allAccountIds,
       ignoreReceived: true,
+      year: moment().year(),
     });
     const filteredDocuments = requestedLegalDocuments.filter(d => accountIdsWithPendingTaxForm.has(d.CollectiveId));
     for (const legalDocument of filteredDocuments) {
