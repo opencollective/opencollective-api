@@ -3,8 +3,8 @@ import config from 'config';
 import crypto from 'crypto-js';
 import moment from 'moment';
 import nodemailer from 'nodemailer';
+import { generateSecret, generateSync } from 'otplib';
 import { stub } from 'sinon';
-import speakeasy from 'speakeasy';
 import request from 'supertest';
 
 import app from '../../../server/index';
@@ -144,8 +144,8 @@ describe('server/routes/users', () => {
     });
 
     it('should respond with 2FA token if the user has 2FA enabled on account', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'login' });
 
@@ -245,8 +245,8 @@ describe('server/routes/users', () => {
 
     it('should reject 2FA if invalid TOTP code is received', async () => {
       // Given a user and an authentication token and a TOTP
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'twofactorauth' });
       const twoFactorAuthenticatorCode = '123456';
@@ -265,15 +265,11 @@ describe('server/routes/users', () => {
 
     it('should validate 2FA if correct TOTP code is received', async () => {
       // Given a user and an authentication token and a TOTP
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'twofactorauth' });
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const twoFactorAuthenticatorCode = generateSync({ secret });
 
       // When the endpoint is hit with a valid TOTP code
       const response = await request(expressApp)

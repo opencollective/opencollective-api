@@ -3,7 +3,7 @@ import config from 'config';
 import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { times } from 'lodash';
-import speakeasy from 'speakeasy';
+import { generateSecret, generateSync } from 'otplib';
 
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
@@ -107,13 +107,9 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
     });
 
     it('creates an OAUTH application with 2FA enabled', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const twoFactorAuthenticatorCode = generateSync({ secret });
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(
@@ -142,8 +138,8 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
     });
 
     it('invalid 2FA when 2FA enabled and invalid', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(
@@ -160,8 +156,8 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
     });
 
     it('required 2FA when 2FA enabled', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS }, user);
       expect(result.errors[0].message).to.eq('Two-factor authentication required');

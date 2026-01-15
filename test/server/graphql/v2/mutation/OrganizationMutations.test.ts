@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import { generateSecret, generateSync } from 'otplib';
 import sinon from 'sinon';
-import speakeasy from 'speakeasy';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import OrderStatuses from '../../../../../server/constants/order-status';
@@ -238,13 +238,13 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
     });
 
     it('activates money management with 2FA', async () => {
-      const totp = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totpCode = generateSync({ secret: secretFor2FA });
       const result = await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
         twoFAUser,
         null,
-        { [TwoFactorAuthenticationHeader]: `totp ${totp}` },
+        { [TwoFactorAuthenticationHeader]: `totp ${totpCode}` },
       );
       expect(result.errors).to.not.exist;
       expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.true;
@@ -270,7 +270,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
 
     it('deactivates money management (only when hosting not active)', async () => {
       // First activate money management
-      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp1 = generateSync({ secret: secretFor2FA });
       await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
@@ -278,7 +278,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         null,
         { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
       );
-      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp2 = generateSync({ secret: secretFor2FA });
       const result = await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: false },
@@ -297,13 +297,13 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
     });
 
     it('does not activate hosting if money management is disabled', async () => {
-      const totp = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totpCode = generateSync({ secret: secretFor2FA });
       const result = await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
         twoFAUser,
         null,
-        { [TwoFactorAuthenticationHeader]: `totp ${totp}` },
+        { [TwoFactorAuthenticationHeader]: `totp ${totpCode}` },
       );
       expect(result.errors).to.not.exist;
       expect(result.data.editOrganizationMoneyManagementAndHosting.hasHosting).to.be.false;
@@ -313,7 +313,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
 
     it('activates hosting only after money management active', async () => {
       // Activate money management
-      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp1 = generateSync({ secret: secretFor2FA });
       await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
@@ -322,7 +322,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
       );
       // Activate hosting
-      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp2 = generateSync({ secret: secretFor2FA });
       const result = await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
@@ -342,7 +342,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
 
     it('fails to deactivate money management while hosting active', async () => {
       // Activate money management & hosting
-      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp1 = generateSync({ secret: secretFor2FA });
       await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
@@ -350,7 +350,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         null,
         { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
       );
-      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp2 = generateSync({ secret: secretFor2FA });
       await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
@@ -358,7 +358,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         null,
         { [TwoFactorAuthenticationHeader]: `totp ${totp2}` },
       );
-      const totp3 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp3 = generateSync({ secret: secretFor2FA });
       const result = await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: false },
@@ -372,7 +372,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
 
     it('fails to deactivate hosting while still hosting collectives', async () => {
       // Activate money management & hosting
-      const totp1 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp1 = generateSync({ secret: secretFor2FA });
       await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasMoneyManagement: true },
@@ -380,7 +380,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         null,
         { [TwoFactorAuthenticationHeader]: `totp ${totp1}` },
       );
-      const totp2 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp2 = generateSync({ secret: secretFor2FA });
       await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasHosting: true },
@@ -390,7 +390,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       );
       // Create a hosted collective
       await fakeCollective({ HostCollectiveId: orgFor2FA.id });
-      const totp3 = speakeasy.totp({ secret: secretFor2FA, encoding: 'base32' });
+      const totp3 = generateSync({ secret: secretFor2FA });
       const result = await utils.graphqlQueryV2(
         mutation,
         { organization: { legacyId: orgFor2FA.id }, hasHosting: false },
@@ -612,8 +612,8 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
     });
 
     it('enforces 2FA when enabled on account', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto.encrypt(secret.base32).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto.encrypt(secret).toString();
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
 
       const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: user });
@@ -629,11 +629,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(resultWithout2FA.errors[0].extensions.code).to.equal('2FA_REQUIRED');
 
       // Try with valid 2FA token
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const twoFactorAuthenticatorCode = generateSync({ secret });
 
       const resultWith2FA = await utils.graphqlQueryV2(
         convertOrganizationToCollectiveMutation,
