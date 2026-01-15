@@ -31,6 +31,7 @@ import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import { GraphQLActivityType } from '../../enum/ActivityType';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
+import GraphQLHostContext from '../../enum/HostContext';
 import { GraphQLLastCommentBy } from '../../enum/LastCommentByType';
 import { GraphQLPayoutMethodType } from '../../enum/PayoutMethodType';
 import {
@@ -150,6 +151,11 @@ export const ExpensesCollectionQueryArgs = {
   host: {
     type: GraphQLAccountReferenceInput,
     description: 'Return expenses only for this host',
+  },
+  hostContext: {
+    type: GraphQLHostContext,
+    description:
+      'If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.',
   },
   createdByAccount: {
     type: GraphQLAccountReferenceInput,
@@ -331,6 +337,22 @@ export const ExpensesCollectionQueryResolver = async (
       throw new Error('When filtering by both host and accounts, all accounts must be hosted by the same host');
     }
 
+    // Validate accounts match the hostContext requirements
+    if (host && args.hostContext) {
+      accounts.forEach(account => {
+        const isHostAccount = account.id === host.id;
+        const isHostChildAccount = account.ParentCollectiveId === host.id;
+
+        if (args.hostContext === 'INTERNAL' && !isHostAccount && !isHostChildAccount) {
+          throw new Error(
+            'When hostContext is INTERNAL, accounts must be the host account or its children (projects/events)',
+          );
+        } else if (args.hostContext === 'HOSTED' && (isHostAccount || isHostChildAccount)) {
+          throw new Error('When hostContext is HOSTED, accounts cannot be the host account or its direct children');
+        }
+      });
+    }
+
     const accountIds = accounts.map(account => account.id);
     if (args.includeChildrenExpenses) {
       const childIds = (await req.loaders.Collective.childrenIds.loadMany(accountIds)).filter(
@@ -343,7 +365,9 @@ export const ExpensesCollectionQueryResolver = async (
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
     include.push({ association: 'collective', attributes: [], required: true });
-    where[Op.and].push({
+
+    // Base condition: the expense belongs to an account hosted by this host
+    const hostedAccountCondition = {
       [Op.or]: [
         { HostCollectiveId: host.id },
         {
@@ -352,7 +376,34 @@ export const ExpensesCollectionQueryResolver = async (
           '$collective.approvedAt$': { [Op.not]: null },
         },
       ],
-    });
+    };
+
+    // When specific accounts are provided, skip hostContext-based filtering (accounts are already validated above)
+    // hostContext filtering only applies when no specific accounts are selected
+    if (args.hostContext && accounts.length === 0) {
+      if (args.hostContext === 'INTERNAL') {
+        // Only expenses from the host account and its children (projects/events)
+        where[Op.and].push({
+          ...hostedAccountCondition,
+          [Op.or]: [{ '$collective.id$': host.id }, { '$collective.ParentCollectiveId$': host.id }],
+        });
+      } else if (args.hostContext === 'HOSTED') {
+        // Only expenses from hosted accounts, excluding the host account and its children
+        where[Op.and].push({
+          ...hostedAccountCondition,
+          '$collective.id$': { [Op.ne]: host.id },
+          [Op.or]: [
+            { '$collective.ParentCollectiveId$': { [Op.is]: null } },
+            { '$collective.ParentCollectiveId$': { [Op.ne]: host.id } },
+          ],
+        });
+      } else {
+        // 'ALL' - return all expenses from accounts hosted by this host (default behavior)
+        where[Op.and].push(hostedAccountCondition);
+      }
+    } else {
+      where[Op.and].push(hostedAccountCondition);
+    }
   }
   if (createdByAccount) {
     if (createdByAccount.type !== CollectiveType.USER) {
