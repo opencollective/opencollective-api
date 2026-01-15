@@ -487,6 +487,11 @@ const queries = {
         type: new GraphQLList(GraphQLInt),
         description: 'Only return vendors visible to given account ids',
       },
+      includeAllVendors: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Include all vendors. Cannot be used together with includeVendorsForHostId. Must be root.',
+        defaultValue: false,
+      },
       skipRecentAccounts: {
         type: GraphQLBoolean,
         description: 'Whether to skip recent accounts (48h)',
@@ -520,8 +525,14 @@ const queries = {
         skipGuests,
         includeArchived,
         includeVendorsForHostId,
+        includeAllVendors,
         vendorVisibleToAccountIds,
       } = args;
+
+      if (includeAllVendors && !req.remoteUser?.isRoot()) {
+        throw new Unauthorized('You must be root to include all vendors');
+      }
+
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);
       const listToStr = list => (list ? list.join('_') : '');
@@ -555,6 +566,7 @@ const queries = {
           skipGuests,
           includeArchived,
           includeVendorsForHostId,
+          includeAllVendors,
           vendorVisibleToAccountIds,
         });
         return generateResults(collectives, total);

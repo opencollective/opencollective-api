@@ -223,6 +223,7 @@ export const searchCollectivesInDB = async (
     hostCollectiveIds,
     includeArchived,
     includeVendorsForHostId,
+    includeAllVendors,
     vendorVisibleToAccountIds,
     isHost,
     onlyActive,
@@ -242,6 +243,7 @@ export const searchCollectivesInDB = async (
     vendorVisibleToAccountIds?: number[];
     includeArchived?: boolean;
     includeVendorsForHostId?: number;
+    includeAllVendors?: boolean;
     isHost?: boolean;
     onlyActive?: boolean;
     onlyOpenHosts?: boolean;
@@ -301,7 +303,7 @@ export const searchCollectivesInDB = async (
   if (includeVendorsForHostId) {
     dynamicConditions +=
       'AND (c."type" != \'VENDOR\' OR (c."type" = \'VENDOR\' AND c."ParentCollectiveId" = :includeVendorsForHostId)) ';
-  } else if (!types) {
+  } else if (!types && !includeAllVendors) {
     dynamicConditions += 'AND c."type" != \'VENDOR\' ';
   }
 
