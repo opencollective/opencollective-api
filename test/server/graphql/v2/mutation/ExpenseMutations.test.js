@@ -4,8 +4,8 @@ import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { cloneDeep, defaultsDeep, omit, pick, sumBy } from 'lodash';
 import moment from 'moment';
+import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
-import speakeasy from 'speakeasy';
 
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
@@ -5465,8 +5465,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('Pays multiple expenses - 2FA is asked for the first time and after the limit is exceeded', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,
@@ -5476,11 +5476,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         },
       });
 
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const twoFactorAuthenticatorCode = generateSync({ secret });
 
       // process expense 1 giving 2FA the first time - limit will be set to 0/500
       const expenseMutationParams1 = {
@@ -5539,8 +5535,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         type: 'INVOICE',
       });
 
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       await UserTwoFactorMethod.create({
         UserId: hostAdmin.id,
         method: TwoFactorMethod.TOTP,
@@ -5550,11 +5546,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         },
       });
 
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const twoFactorAuthenticatorCode = generateSync({ secret });
 
       // Fails the first time with session 1
       const result1 = await graphqlQueryV2(

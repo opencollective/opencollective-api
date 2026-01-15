@@ -4,7 +4,7 @@ import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import { times } from 'lodash';
 import moment from 'moment';
-import speakeasy from 'speakeasy';
+import { generateSecret, generateSync } from 'otplib';
 
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
@@ -86,13 +86,9 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(personalToken.token).to.have.lengthOf(40);
     });
     it('creates a personal token with 2FA enabled', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const twoFactorAuthenticatorCode = generateSync({ secret });
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(
         CREATE_PERSONAL_TOKEN_MUTATION,
@@ -111,8 +107,8 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(personalToken.token).to.have.lengthOf(40);
     });
     it('fails with invalid 2FA when 2FA enabled', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(
         CREATE_PERSONAL_TOKEN_MUTATION,
@@ -127,8 +123,8 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(result.errors[0].extensions.code).to.eq('INVALID_2FA_CODE');
     });
     it('required 2FA when 2FA enabled', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(CREATE_PERSONAL_TOKEN_MUTATION, { personalToken: VALID_TOKEN_PARAMS }, user);
       expect(result.errors[0].message).to.eq('Two-factor authentication required');
@@ -176,8 +172,8 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(updatedPersonalToken.name).to.equal('New Name');
     });
     it('requires 2FA when editing sensitive fields', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const personalToken = await fakePersonalToken({ user });
       const result = await graphqlQueryV2(

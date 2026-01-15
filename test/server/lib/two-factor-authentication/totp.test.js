@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
-import speakeasy from 'speakeasy';
+import { generateSecret, generateSync } from 'otplib';
 
 import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
 import { fakeUser } from '../../../test-helpers/fake-data';
@@ -22,8 +22,8 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('fails if user token is incorrect', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const token = {};
@@ -35,16 +35,12 @@ describe('lib/two-factor-authentication', () => {
     });
 
     it('succeeds if user token is correct', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
 
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const twoFactorAuthenticatorCode = generateSync({ secret, algorithm: 'sha1', strategy: 'totp' });
 
       const token = {
         code: twoFactorAuthenticatorCode,

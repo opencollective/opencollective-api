@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gql from 'fake-tag';
+import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
-import speakeasy from 'speakeasy';
 
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
@@ -392,11 +392,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     const sandbox = createSandbox();
     afterEach(sandbox.restore);
 
-    const secret = speakeasy.generateSecret({ length: 64 });
+    const secret = generateSecret({ length: 64 });
     it('must be authenticated', async () => {
       const result = await graphqlQueryV2(addTwoFactorAuthTokenMutation, {
         account: { id: idEncode(adminUser.collective.id, 'account') },
-        token: secret.base32,
+        token: secret,
       });
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
@@ -407,7 +407,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(adminUser.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
         },
         randomUser,
       );
@@ -420,7 +420,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(adminUser.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
         },
         adminUser,
       );
@@ -442,7 +442,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(adminUser.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
         },
         adminUser,
       );
@@ -472,7 +472,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(user.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
           type: 'TOTP',
         },
         user,
@@ -493,7 +493,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     afterEach(sandbox.restore);
 
     let user;
-    const secret = speakeasy.generateSecret({ length: 64 });
+    const secret = generateSecret({ length: 64 });
 
     beforeEach(async () => {
       sandbox.stub(yubikeyOtp, 'validateYubikeyOTP').resolves(true);
@@ -517,7 +517,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(user.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
           type: 'TOTP',
         },
         user,
@@ -1954,8 +1954,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
 
     it('enforces 2FA when enabled on account', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
 
       const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
@@ -1973,11 +1973,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(resultWithout2FA.errors[0].extensions.code).to.equal('2FA_REQUIRED');
 
       // Try with valid 2FA token
-      const twoFactorAuthenticatorCode = speakeasy.totp({
-        algorithm: 'SHA1',
-        encoding: 'base32',
-        secret: secret.base32,
-      });
+      const twoFactorAuthenticatorCode = generateSync({ secret });
 
       const resultWith2FA = await graphqlQueryV2(
         convertAccountToOrganizationMutation,

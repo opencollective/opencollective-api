@@ -10,8 +10,8 @@ import config from 'config';
 import deepmerge from 'deepmerge';
 import { get, kebabCase, padStart, sample } from 'lodash';
 import moment from 'moment';
+import { generateSecret } from 'otplib';
 import type { CreateOptions, InferCreationAttributes } from 'sequelize';
-import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
@@ -163,8 +163,8 @@ export const fakeUser = async (
   { enable2FA = false } = {},
 ): Promise<User> => {
   const generate2FAAuthToken = () => {
-    const twoFactorAuthSecret = speakeasy.generateSecret({ length: 64 });
-    return crypto.encrypt(twoFactorAuthSecret.base32).toString();
+    const twoFactorAuthSecret = generateSecret({ length: 64 });
+    return crypto.encrypt(twoFactorAuthSecret).toString();
   };
 
   const user = await models.User.create({
