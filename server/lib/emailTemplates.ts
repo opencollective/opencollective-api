@@ -138,6 +138,7 @@ const eventdata = fs.readFileSync(`${templatesPath}/partials/eventdata.hbs`, 'ut
 const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
 const linkCollective = fs.readFileSync(`${templatesPath}/partials/link-collective.hbs`, 'utf8');
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
+const erratumBox = fs.readFileSync(`${templatesPath}/partials/erratum-box.hbs`, 'utf8');
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
 const mthReportSubscription = fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
 const planDetails = fs.readFileSync(`${templatesPath}/partials/plan-details.hbs`, 'utf8');
@@ -154,6 +155,7 @@ handlebars.registerPartial('eventsnippet', eventsnippet);
 handlebars.registerPartial('expenseItems', expenseItems);
 handlebars.registerPartial('eventdata', eventdata);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
+handlebars.registerPartial('erratum-box', erratumBox);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
 handlebars.registerPartial('plan-details', planDetails);

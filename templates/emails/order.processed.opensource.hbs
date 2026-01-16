@@ -1,8 +1,9 @@
-Subject: Thank you for your contribution to {{{collective.name}}}
+Subject: {{#if erratum}}[Erratum] {{/if}}Thank you for your contribution to {{{collective.name}}}
 
 {{> header}}
 
 {{> toplogo}}
+{{> erratum-box}}
 
 {{#if fromCollective.name}}
 <p>Dear {{fromCollective.name}},</p>
