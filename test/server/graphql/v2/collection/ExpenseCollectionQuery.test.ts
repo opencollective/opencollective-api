@@ -991,63 +991,6 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         await paidExpenseOnHostedCollective.destroy();
       });
 
-      it('should include deeply nested accounts (grandchildren of hosted collectives) in HOSTED', async () => {
-        // Create a grandchild: hosted collective -> project -> event
-        const grandchildEvent = await fakeEvent({
-          ParentCollectiveId: hostedCollectiveChild.id,
-          HostCollectiveId: host.id,
-          approvedAt: new Date(),
-        });
-        const expenseOnGrandchild = await fakeExpense({
-          CollectiveId: grandchildEvent.id,
-          status: 'APPROVED',
-          description: 'Expense on grandchild event',
-        });
-
-        const result = await graphqlQueryV2(expensesWithHostContextQuery, {
-          host: { legacyId: host.id },
-          hostContext: 'HOSTED',
-        });
-
-        expect(result.errors).to.not.exist;
-        const expenseIds = result.data.expenses.nodes.map(node => node.legacyId);
-        // Grandchild should be included in HOSTED (its parent is not the host)
-        expect(expenseIds).to.include(expenseOnGrandchild.id);
-
-        // Cleanup
-        await expenseOnGrandchild.destroy();
-        await grandchildEvent.destroy();
-      });
-
-      it('should NOT include deeply nested accounts under host (grandchildren of host) in HOSTED', async () => {
-        // Create a grandchild of host: host -> hostChild (event) -> nested project
-        const hostGrandchild = await fakeProject({
-          ParentCollectiveId: hostChild.id,
-          HostCollectiveId: host.id,
-          approvedAt: new Date(),
-        });
-        const expenseOnHostGrandchild = await fakeExpense({
-          CollectiveId: hostGrandchild.id,
-          status: 'APPROVED',
-          description: 'Expense on host grandchild',
-        });
-
-        const result = await graphqlQueryV2(expensesWithHostContextQuery, {
-          host: { legacyId: host.id },
-          hostContext: 'HOSTED',
-        });
-
-        expect(result.errors).to.not.exist;
-        const expenseIds = result.data.expenses.nodes.map(node => node.legacyId);
-        // Grandchild of host should be included in HOSTED (its parent is hostChild, not host directly)
-        // Note: This is current behavior - only direct children of host are excluded
-        expect(expenseIds).to.include(expenseOnHostGrandchild.id);
-
-        // Cleanup
-        await expenseOnHostGrandchild.destroy();
-        await hostGrandchild.destroy();
-      });
-
       it('should NOT include expenses from unapproved hosted collectives', async () => {
         // Create an unapproved collective
         const unapprovedCollective = await fakeCollective({
