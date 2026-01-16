@@ -2354,6 +2354,7 @@ interface Transaction {
     """
     fetchTax: Boolean = false
   ): Amount!
+  netAmountInPayeeCurrency: Amount
   taxAmount(
     """
     Fetch TAX transaction for retro-compatiblity.
@@ -8783,6 +8784,21 @@ type ExpenseQuote {
   The date on which the item was created
   """
   estimatedDeliveryAt: DateTime
+
+  """
+  Notices related to this quote
+  """
+  notices: [ExpenseQuoteNotice]
+}
+
+"""
+Fields for an expense quote notice
+"""
+type ExpenseQuoteNotice {
+  type: String!
+  text: String!
+  code: String!
+  link: String!
 }
 
 type TransferWiseRequiredField {
@@ -11434,6 +11450,7 @@ type Credit implements Transaction {
     """
     fetchTax: Boolean = false
   ): Amount!
+  netAmountInPayeeCurrency: Amount
   taxAmount(
     """
     Fetch TAX transaction for retro-compatiblity.
@@ -11580,6 +11597,7 @@ type Debit implements Transaction {
     """
     fetchTax: Boolean = false
   ): Amount!
+  netAmountInPayeeCurrency: Amount
   taxAmount(
     """
     Fetch TAX transaction for retro-compatiblity.
@@ -22803,16 +22821,6 @@ type Mutation {
     """
     expense: ExpenseReferenceInput!
   ): PaymentIntent!
-
-  """
-  Sends an email for guest to confirm their emails and create their Open Collective account
-  """
-  sendGuestConfirmationEmail(
-    """
-    The email to validate
-    """
-    email: EmailAddress!
-  ): Boolean!
 
   """
   Mark an account as confirmed
