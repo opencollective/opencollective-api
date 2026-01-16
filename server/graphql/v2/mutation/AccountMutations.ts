@@ -19,6 +19,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
 import { crypto } from '../../../lib/encryption';
+import { DEFAULT_GUEST_NAME } from '../../../lib/guest-accounts';
 import { canEditPolicy } from '../../../lib/policies';
 import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
@@ -712,12 +713,6 @@ const accountMutations = {
               previousData[key] = account[key];
               newData[key] = args.account[key];
               updateParams[key] = args.account[key];
-              if (account.data?.requiresProfileCompletion) {
-                updateParams.data = { ...account.data, requiresProfileCompletion: false };
-                updateParams.slug = await Collective.generateSlug([args.account.name], true);
-                previousData.slug = account.slug;
-                newData.slug = updateParams.slug;
-              }
             }
             break;
           case 'slug':
@@ -763,23 +758,35 @@ const accountMutations = {
         }
       }
 
-      if (!isEmpty(updateParams)) {
-        await account.update(updateParams);
+      if (account.data?.requiresProfileCompletion === true) {
+        updateParams.data = Object.assign({}, account.data, updateParams.data, { requiresProfileCompletion: false });
+        // Update slug if either the name is updated or if this is a previous guest account that already had a name
+        if (
+          (updateParams.name || ![DEFAULT_GUEST_NAME, 'Incognito'].includes(account.name)) &&
+          (!updateParams.slug || account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
+        ) {
+          updateParams.slug = await Collective.generateSlug([updateParams.name, account.name].filter(Boolean), true);
+          previousData.slug = account.slug;
+          newData.slug = updateParams.slug;
+        }
       }
 
-      await models.Activity.create({
-        type: activities.COLLECTIVE_EDITED,
-        UserId: req.remoteUser.id,
-        UserTokenId: req.userToken?.id,
-        CollectiveId: account.id,
-        FromCollectiveId: account.id,
-        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: {
-          collective: account.minimal,
-          previousData,
-          newData,
-        },
-      });
+      if (!isEmpty(updateParams)) {
+        await account.update(updateParams);
+        await models.Activity.create({
+          type: activities.COLLECTIVE_EDITED,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          CollectiveId: account.id,
+          FromCollectiveId: account.id,
+          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+          data: {
+            collective: account.minimal,
+            previousData,
+            newData,
+          },
+        });
+      }
 
       return account;
     },
