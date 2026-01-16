@@ -5097,6 +5097,66 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq("You don't have permission to mark this expense as unpaid");
       });
 
+      it('Partially refunds the payment processor fee', async () => {
+        const sandbox = createSandbox();
+        sandbox
+          .stub(config, 'ledger')
+          .value({ ...config.ledger, separatePaymentProcessorFees: true, separateTaxes: true });
+        // Create a new collective to make sure the balance is empty
+        const testCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+        const payoutMethod = await fakePayoutMethod({ type: 'PAYPAL' });
+        const expense = await fakeExpense({
+          amount: 10000,
+          CollectiveId: testCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        // Updates the collective balance and pay the expense with processor fee
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: 11000 });
+        const initialBalance = await testCollective.getBalanceWithBlockedFunds();
+        expect(initialBalance).to.eq(11000);
+
+        // Pay the expense with a payment processor fee
+        const paymentProcessorFee = 500; // $5 fee
+        await payExpense(makeRequest(hostAdmin), {
+          id: expense.id,
+          forceManual: true,
+          totalAmountPaidInHostCurrency: 10500,
+          paymentProcessorFeeInHostCurrency: paymentProcessorFee,
+        });
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(500);
+
+        // Mark as unpaid with a smaller refunded processor fee amount
+        const customRefundAmount = 300; // Only refund $3 instead of $5
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'MARK_AS_UNPAID',
+          paymentParams: {
+            shouldRefundPaymentProcessorFee: true,
+            refundedPaymentProcessorFeeAmount: customRefundAmount,
+          },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+
+        // Verify the refund transactions
+        const refundCredits = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id, isRefund: true, type: 'CREDIT' },
+          order: [['id', 'ASC']],
+        });
+
+        // Should have 2 refund transactions (DEBIT and CREDIT)
+        expect(refundCredits).to.have.length(3);
+        expect(refundCredits.find(t => t.kind === 'PAYMENT_PROCESSOR_FEE').amountInHostCurrency).to.eq(300);
+        expect(refundCredits.find(t => t.kind === 'PAYMENT_PROCESSOR_COVER').amountInHostCurrency).to.eq(200);
+        expect(refundCredits.find(t => t.kind === 'EXPENSE').amountInHostCurrency).to.eq(10000);
+
+        const finalBalance = await testCollective.getBalanceWithBlockedFunds();
+        expect(finalBalance).to.eq(11000);
+        sandbox.restore();
+      });
+
       describe('Taxes', () => {
         let sandbox;
 

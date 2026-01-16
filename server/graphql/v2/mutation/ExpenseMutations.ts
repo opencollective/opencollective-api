@@ -399,6 +399,10 @@ const expenseMutations = {
               type: GraphQLBoolean,
               description: 'Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID',
             },
+            refundedPaymentProcessorFeeAmount: {
+              type: GraphQLInt,
+              description: 'The exact amount of payment processor fees to refund when triggering MARK_AS_UNPAID',
+            },
             markAsUnPaidStatus: {
               type: new GraphQLEnumType({
                 name: 'MarkAsUnPaidExpenseStatus',
@@ -493,6 +497,7 @@ const expenseMutations = {
             expense.id,
             args.paymentParams?.shouldRefundPaymentProcessorFee || args.paymentParams?.paymentProcessorFee,
             args.paymentParams?.markAsUnPaidStatus,
+            args.paymentParams?.refundedPaymentProcessorFeeAmount,
           );
           break;
         case 'SCHEDULE_FOR_PAYMENT':

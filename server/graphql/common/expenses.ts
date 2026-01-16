@@ -3951,6 +3951,7 @@ export async function markExpenseAsUnpaid(
   expenseId: number,
   shouldRefundPaymentProcessorFee: boolean,
   markAsUnPaidStatus: ExpenseStatus.APPROVED | ExpenseStatus.ERROR | ExpenseStatus.INCOMPLETE = ExpenseStatus.APPROVED,
+  providedRefundedPaymentProcessorFeeAmount?: number,
 ): Promise<Expense> {
   const newExpenseStatus = markAsUnPaidStatus || ExpenseStatus.APPROVED;
 
@@ -3992,14 +3993,21 @@ export async function markExpenseAsUnpaid(
       include: [{ model: models.Expense }],
     });
 
-    // Load payment processor fee amount, either from the column or from the related transaction
+    // Load payment processor fee amount, either from the provided value, the column, or from the related transaction
     let refundedPaymentProcessorFeeAmount = 0;
     if (shouldRefundPaymentProcessorFee) {
-      refundedPaymentProcessorFeeAmount = transaction.paymentProcessorFeeInHostCurrency;
-      if (!refundedPaymentProcessorFeeAmount) {
-        refundedPaymentProcessorFeeAmount = Math.abs(
-          (await transaction.getPaymentProcessorFeeTransaction().then(t => t?.amountInHostCurrency)) || 0,
-        );
+      if (
+        providedRefundedPaymentProcessorFeeAmount !== null &&
+        providedRefundedPaymentProcessorFeeAmount !== undefined
+      ) {
+        refundedPaymentProcessorFeeAmount = providedRefundedPaymentProcessorFeeAmount;
+      } else {
+        refundedPaymentProcessorFeeAmount = transaction.paymentProcessorFeeInHostCurrency;
+        if (!refundedPaymentProcessorFeeAmount) {
+          refundedPaymentProcessorFeeAmount = Math.abs(
+            (await transaction.getPaymentProcessorFeeTransaction().then(t => t?.amountInHostCurrency)) || 0,
+          );
+        }
       }
     }
 
