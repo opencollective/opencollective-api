@@ -1,16 +1,14 @@
 {
   "timeout": 20000,
   "extension": ["js", "ts"],
-  "require": ["./test/setup-babel.js"],
-  "file": ["./server/env.ts", "./test/setup.js"],
+  "require": ["./test/setup.cjs"],
   "ignore": [
     "test/dbdumps/**",
     "test/mocks/**",
     "test/nocks/**",
     "test/stores/**",
     "test/test-helpers/**",
-    "test/setup-babel.js",
-    "test/setup.js",
+    "test/setup.cjs",
     "test/utils.js"
   ],
   "recursive": true,

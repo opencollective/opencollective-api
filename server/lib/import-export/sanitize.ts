@@ -2,8 +2,6 @@ import type Express from 'express';
 import { cloneDeepWith, pick } from 'lodash';
 import { InferAttributes } from 'sequelize';
 
-import { testStripeAccounts } from '../../../scripts/sanitize-db';
-import { randEmail, randStr } from '../../../test/test-helpers/fake-data';
 import Channels from '../../constants/channels';
 import { sanitizeActivityData } from '../../graphql/common/activities';
 import { canSeeComment } from '../../graphql/common/comment';
@@ -19,8 +17,14 @@ import { Agreement, Collective, LegalDocument, ModelInstance, type ModelNames } 
 import { KYCVerification } from '../../models/KYCVerification';
 import { IDENTIFIABLE_DATA_FIELDS } from '../../models/PayoutMethod';
 
-const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
-  (obj, account) => ({ ...obj, [account.CollectiveId]: account }),
+import { randEmail, randStr, testStripeAccounts } from './sanitize-helpers';
+
+type TestStripeAccount = (typeof testStripeAccounts)[keyof typeof testStripeAccounts];
+const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce<Record<number, TestStripeAccount>>(
+  (obj, account) => {
+    obj[account.CollectiveId] = account;
+    return obj;
+  },
   {},
 );
 

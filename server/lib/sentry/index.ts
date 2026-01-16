@@ -197,7 +197,7 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
         enhanceScopeWithAxiosError(scope, err, params);
       }
 
-      Sentry.captureException(err);
+      captureException(err);
     });
   } else {
     let details = err.stack ? err.stack : err.message;
@@ -317,5 +317,8 @@ export const SentryGraphQLPlugin: ApolloServerPlugin = {
     };
   },
 };
+
+// Wrapper for Sentry.captureException to allow spying in tests
+export const captureException = (err: Error) => Sentry.captureException(err);
 
 export { Sentry, HandlerType };

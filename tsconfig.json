@@ -7,7 +7,7 @@
     "moduleResolution": "node",
     // Process & infer types from .js files.
     "allowJs": true,
-    // Don't emit; allow Babel to transform files.
+    // Don't emit by default; build config overrides this.
     "noEmit": true,
     // Enable strictest settings like strictNullChecks & noImplicitAny.
     "strict": false,
@@ -18,7 +18,6 @@
     "lib": ["esnext", "dom", "dom.iterable"],
     "module": "commonjs",
     "noUnusedLocals": true,
-    "outDir": "dist",
     "skipLibCheck": true
   },
   "include": ["server", "test", "scripts", "migrations", "reports", "cron"]

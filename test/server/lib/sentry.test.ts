@@ -24,7 +24,7 @@ describe('server/lib/sentry', () => {
       req.query = 'query { test }';
       req.variables = { test: 'test' };
 
-      const captureExceptionSpy = sandbox.spy(SentryLib.Sentry, 'captureException');
+      const captureExceptionSpy = sandbox.spy(SentryLib, 'captureException');
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
         request: req,
       } as unknown as GraphQLRequestContext<BaseContext>);
@@ -47,7 +47,7 @@ describe('server/lib/sentry', () => {
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
         request: req,
       } as unknown as GraphQLRequestContext<BaseContext>);
-      const captureExceptionSpy = sandbox.spy(SentryLib.Sentry, 'captureException');
+      const captureExceptionSpy = sandbox.spy(SentryLib, 'captureException');
       context['didEncounterErrors']({
         operation: {},
         errors: [{ extensions: { code: 'IGNORED' } }, { path: ['account'], message: 'No collective found' }],
