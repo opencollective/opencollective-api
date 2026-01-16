@@ -367,7 +367,7 @@ export const ExpensesCollectionQueryResolver = async (
     include.push({ association: 'collective', attributes: [], required: true });
 
     // Base condition: the expense belongs to an account hosted by this host
-    const hostedAccountCondition = {
+    where[Op.and].push({
       [Op.or]: [
         { HostCollectiveId: host.id },
         {
@@ -376,7 +376,7 @@ export const ExpensesCollectionQueryResolver = async (
           '$collective.approvedAt$': { [Op.not]: null },
         },
       ],
-    };
+    });
 
     // When specific accounts are provided, skip hostContext-based filtering (accounts are already validated above)
     // hostContext filtering only applies when no specific accounts are selected
@@ -384,25 +384,18 @@ export const ExpensesCollectionQueryResolver = async (
       if (args.hostContext === 'INTERNAL') {
         // Only expenses from the host account and its children (projects/events)
         where[Op.and].push({
-          ...hostedAccountCondition,
           [Op.or]: [{ '$collective.id$': host.id }, { '$collective.ParentCollectiveId$': host.id }],
         });
       } else if (args.hostContext === 'HOSTED') {
         // Only expenses from hosted accounts, excluding the host account and its children
         where[Op.and].push({
-          ...hostedAccountCondition,
           '$collective.id$': { [Op.ne]: host.id },
           [Op.or]: [
             { '$collective.ParentCollectiveId$': { [Op.is]: null } },
             { '$collective.ParentCollectiveId$': { [Op.ne]: host.id } },
           ],
         });
-      } else {
-        // 'ALL' - return all expenses from accounts hosted by this host (default behavior)
-        where[Op.and].push(hostedAccountCondition);
       }
-    } else {
-      where[Op.and].push(hostedAccountCondition);
     }
   }
   if (createdByAccount) {
