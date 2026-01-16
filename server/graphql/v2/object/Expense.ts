@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { find, findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
@@ -17,6 +17,7 @@ import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
 import OAuthScopes from '../../../constants/oauth-scopes';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import { floatAmountToCents } from '../../../lib/math';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
@@ -281,6 +282,18 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (paidActivity?.UserId) {
             return req.loaders.Collective.byUserId.load(paidActivity.UserId);
           }
+        },
+      },
+      paidAt: {
+        type: GraphQLDateTime,
+        description: 'The date on which the expense was paid',
+        async resolve(expense, _, req) {
+          if (expense.status !== expenseStatus.PAID) {
+            return null;
+          }
+          const transactions = await req.loaders.Transaction.byExpenseId.load(expense.id);
+          const transaction = find(transactions, { kind: TransactionKind.EXPENSE, isRefund: false, type: 'DEBIT' });
+          return transaction?.clearedAt || transaction?.createdAt || null;
         },
       },
       onHold: {

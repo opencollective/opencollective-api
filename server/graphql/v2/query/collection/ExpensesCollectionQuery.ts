@@ -713,7 +713,25 @@ export const ExpensesCollectionQueryResolver = async (
     include.push({ association: 'activities', required: true, attributes: [], where: activitiesConditions });
   }
 
-  const order = [[args.orderBy.field, args.orderBy.direction]] as OrderItem[];
+  // Handle ordering - paidAt requires a subquery to the Transaction table
+  let order: OrderItem[];
+  if (args.orderBy.field === 'paidAt') {
+    // Use NULLS LAST to ensure unpaid expenses (with NULL paidAt) always appear at the end
+    order = [
+      sequelize.literal(`(
+        SELECT COALESCE(t."clearedAt", t."createdAt")
+        FROM "Transactions" t
+        WHERE t."ExpenseId" = "Expense"."id"
+          AND t."type" = 'DEBIT'
+          AND t."kind" = 'EXPENSE'
+          AND t."isRefund" = false
+          AND t."deletedAt" IS NULL
+        LIMIT 1
+      ) ${args.orderBy.direction} NULLS LAST`),
+    ];
+  } else {
+    order = [[args.orderBy.field, args.orderBy.direction]];
+  }
 
   const { offset, limit } = args;
 

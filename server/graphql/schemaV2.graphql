@@ -1986,6 +1986,11 @@ enum DateTimeField {
   Orders only: The date when an order was last charged, defaults to createdAt if never charged
   """
   LAST_CHARGED_AT
+
+  """
+  Expenses only: The date when an expense was paid (based on the related transaction clearedAt)
+  """
+  PAID_AT
 }
 
 """
@@ -2630,6 +2635,11 @@ type Expense {
   The account who paid this expense
   """
   paidBy: Account
+
+  """
+  The date on which the expense was paid
+  """
+  paidAt: DateTime
 
   """
   Whether this expense is on hold
