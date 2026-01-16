@@ -150,7 +150,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.14.202",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.17.9",
+    "@types/node": "^24.0.0",
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.4",
     "@types/validator": "^13.11.8",
@@ -180,7 +180,7 @@
     "husky": "^9.0.10",
     "lint-staged": "^16.0.0",
     "markdown-table": "^2.0.0",
-    "mocha": "^11.0.0",
+    "mocha": "^11.7.5",
     "mocha-junit-reporter": "^2.2.1",
     "nock": "^13.5.0",
     "node-mocks-http": "^1.16.1",
@@ -272,13 +272,16 @@
     "lint-staged": "lint-staged"
   },
   "engines": {
-    "node": "20.x",
-    "npm": "10.x"
+    "node": "24.x",
+    "npm": "11.x"
   },
   "lint-staged": {
     "*.{js,ts,json,md}": [
       "prettier --write"
     ]
+  },
+  "overrides": {
+    "url-regex-safe": "4.0.0"
   },
   "nyc": {
     "reporter": [
@@ -302,10 +305,10 @@
       "mocha"
     ],
     "ignores": [
+      "@opentelemetry/context-async-hooks",
       "eslint-import-resolver-typescript",
       "mocha-junit-reporter",
-      "typescript-eslint",
-      "@opentelemetry/context-async-hooks"
+      "typescript-eslint"
     ]
   }
 }
