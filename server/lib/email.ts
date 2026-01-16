@@ -46,9 +46,9 @@ type SendMessageData = {
 export const getMailer = () => {
   if (config.mailpit.client && config.env !== 'production') {
     return nodemailer.createTransport({
-      host: '127.0.0.1',
+      host: config.mailpit.host,
       ignoreTLS: true,
-      port: 1025,
+      port: config.mailpit.smtpPort,
     });
   }
   if (get(config, 'mailgun.user') && get(config, 'mailgun.password')) {
