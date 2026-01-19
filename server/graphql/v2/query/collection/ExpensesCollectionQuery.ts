@@ -154,8 +154,7 @@ export const ExpensesCollectionQueryArgs = {
   },
   hostContext: {
     type: GraphQLHostContext,
-    description:
-      'If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.',
+    description: 'If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.',
   },
   createdByAccount: {
     type: GraphQLAccountReferenceInput,
