@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 usage() {
   echo "Usage: db_restore.sh -d DBNAME -U DBUSER --use-postgis -f DBDUMP_FILE"
@@ -7,7 +7,7 @@ usage() {
   exit 0
 }
 
-while [[ $# -gt 0 ]]; do
+while [ "$#" -gt 0 ]; do
   key="$1"
 
   case $key in
@@ -65,7 +65,7 @@ CMD_CREATE_DB="createdb"
 CMD_PSQL="psql"
 CMD_PG_RESTORE="pg_restore"
 
-if [ "$USE_DOCKER" = "true" || "$USE_PODMAN" = "true" ]; then
+if [ "$USE_DOCKER" = "true" ] || [ "$USE_PODMAN" = "true" ]; then
   if [ "$USE_DOCKER" = "true" ]; then
     echo "Using docker to run Postgres commands"
     CMD_DOCKER="./scripts/dev/run-docker.sh run --rm --network host"
