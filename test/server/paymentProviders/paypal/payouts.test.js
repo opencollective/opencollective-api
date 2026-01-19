@@ -138,6 +138,33 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         { attributes: { flow: 'payout', method: 'PAYPAL', error_type: 'provider_error' } },
       ]);
     });
+
+    it('should mark expenses as ERROR when executePayouts returns a PayoutError', async () => {
+      const payoutError = {
+        name: 'VALIDATION_ERROR',
+        message: 'Invalid request - see details',
+        debug_id: 'abc123',
+        details: [
+          {
+            field: 'items[0].amount.value',
+            issue: 'AMOUNT_INVALID',
+            description: 'Amount is invalid',
+          },
+        ],
+      };
+
+      paypalLib.executePayouts.resolves(payoutError);
+
+      await paypalPayouts.payExpensesBatch([expense, expense2]);
+      await expense.reload();
+      await expense2.reload();
+
+      assert.calledOnce(paypalLib.executePayouts);
+      expect(expense).to.have.property('status', status.ERROR);
+      expect(expense2).to.have.property('status', status.ERROR);
+      expect(expense.data.error).to.deep.equal(payoutError);
+      expect(expense2.data.error).to.deep.equal(payoutError);
+    });
   });
 
   describe('checkBatchStatus', () => {
