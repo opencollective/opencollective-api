@@ -1,7 +1,9 @@
 import { expect } from 'chai';
+import { noop } from 'lodash';
 import moment from 'moment';
 import { assert, createSandbox } from 'sinon';
 
+import { TransferwiseError } from '../../../../server/graphql/errors';
 import cache from '../../../../server/lib/cache';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
@@ -255,6 +257,62 @@ describe('server/paymentProviders/transferwise/index', () => {
     it('should fund transfer account and update data.fund', () => {
       expect(fundTransfer.called).to.be.true;
       expect(data).to.have.nested.property('fund');
+    });
+
+    describe('when createTransfer fails', () => {
+      let testExpense;
+
+      beforeEach(async () => {
+        testExpense = await fakeExpense({
+          payoutMethod: 'transferwise',
+          status: 'PENDING',
+          amount: 10000,
+          CollectiveId: host.id,
+          currency: 'USD',
+          FromCollectiveId: payoutMethod.id,
+          category: 'Engineering',
+          type: 'INVOICE',
+          description: 'Test Invoice for Error',
+        });
+
+        // Make createTransfer fail with an error
+        createTransfer.rejects(
+          // eslint-disable-next-line custom-errors/no-unthrown-errors
+          new TransferwiseError('Insufficient balance', 'INSUFFICIENT_BALANCE', { errorCode: 4020 }),
+        );
+      });
+
+      afterEach(() => {
+        // Restore the stub to its default behavior
+        createTransfer.resolves({ id: 123 });
+      });
+
+      it('should throw the error from createTransfer', async () => {
+        await expect(transferwise.payExpense(connectedAccount, payoutMethod, testExpense)).to.be.rejectedWith(
+          'Wise: Insufficient balance',
+        );
+      });
+
+      it('should update expense status to ERROR', async () => {
+        await transferwise.payExpense(connectedAccount, payoutMethod, testExpense).catch(noop);
+
+        await testExpense.reload();
+        expect(testExpense.status).to.equal('ERROR');
+      });
+
+      it('should create an error activity', async () => {
+        const activitiesBefore = await testExpense.getActivities();
+
+        await transferwise.payExpense(connectedAccount, payoutMethod, testExpense).catch(noop);
+
+        const activitiesAfter = await testExpense.getActivities();
+        expect(activitiesAfter.length).to.be.greaterThan(activitiesBefore.length);
+
+        const errorActivity = activitiesAfter[activitiesAfter.length - 1];
+        expect(errorActivity.type).to.equal('collective.expense.error');
+        expect(errorActivity.data).to.have.property('error');
+        expect(errorActivity.data.error).to.have.property('message', 'Wise: Insufficient balance');
+      });
     });
   });
 
