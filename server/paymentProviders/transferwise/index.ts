@@ -33,7 +33,7 @@ import { applyBalanceAccountingCategoryFromConnectedAccount } from '../../lib/ac
 import cache, { sessionCache } from '../../lib/cache';
 import { centsAmountToFloat, getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
-import { safeJsonStringify } from '../../lib/safe-json-stringify';
+import { safeJsonStringify, sanitizeObjectForJSON } from '../../lib/safe-json-stringify';
 import {
   mapErrorToType,
   MetricEvent,
@@ -63,6 +63,7 @@ import {
   TransactionRequiredFieldsGroup,
   TransactionRequirementsType,
   Transfer,
+  TransferwiseErrorObject,
   Webhook,
 } from '../../types/transferwise';
 import { hashObject, validateRedirectUrl } from '../utils';
@@ -359,8 +360,14 @@ async function createTransfer(
       await expense.update({ status: status.ERROR });
     }
     const user = await User.findByPk(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAYMENT_ERROR, user, {
-      error: { message: e.message, details: safeJsonStringify(e) },
+    let error: TransferwiseErrorObject | { message: string; details: string };
+    try {
+      error = sanitizeObjectForJSON(e) as TransferwiseErrorObject;
+    } catch {
+      error = { message: e.message, details: safeJsonStringify(e) };
+    }
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
+      error,
       isSystem: true,
     });
 
