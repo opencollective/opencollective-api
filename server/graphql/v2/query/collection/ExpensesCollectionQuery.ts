@@ -725,6 +725,7 @@ export const ExpensesCollectionQueryResolver = async (
           AND t."type" = 'DEBIT'
           AND t."kind" = 'EXPENSE'
           AND t."isRefund" = false
+          AND t."RefundTransactionId" IS NULL
           AND t."deletedAt" IS NULL
         LIMIT 1
       ) ${args.orderBy.direction} NULLS LAST`),
