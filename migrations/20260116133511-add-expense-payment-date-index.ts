@@ -14,6 +14,7 @@ module.exports = {
         AND "type" = 'DEBIT' 
         AND "kind" = 'EXPENSE' 
         AND "isRefund" = false;
+        AND t."RefundTransactionId" IS NULL
     `);
   },
 
