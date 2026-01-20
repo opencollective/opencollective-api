@@ -13,11 +13,10 @@ import throng from 'throng';
 
 import setupExpress from './lib/express';
 import logger from './lib/logger';
-import { isOpenSearchConfigured } from './lib/open-search/client';
-import { startOpenSearchPostgresSync, stopOpenSearchPostgresSync } from './lib/open-search/sync-postgres';
 import { reportErrorToSentry } from './lib/sentry';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
+import { startSearchSyncWorker } from './workers/search-sync';
 import routes from './routes';
 
 const workers = isUndefined(process.env.WEB_CONCURRENCY) ? toInteger(process.env.WEB_CONCURRENCY) : 1;
@@ -60,7 +59,7 @@ async function startExpressServer(workerId) {
 }
 
 // Start the express server
-let appPromise;
+let appPromise: Promise<express.Express> | undefined;
 if (parseToBoolean(config.services.server)) {
   if (['production', 'staging'].includes(config.env) && workers > 1) {
     throng({ worker: startExpressServer, count: workers }); // TODO: Thong is not compatible with the shutdown logic below
@@ -70,44 +69,7 @@ if (parseToBoolean(config.services.server)) {
 }
 
 // Start the search sync job
-if (parseToBoolean(config.services.searchSync)) {
-  if (!isOpenSearchConfigured()) {
-    logger.warn('OpenSearch is not configured. Skipping sync job.');
-  } else {
-    startOpenSearchPostgresSync()
-      .catch(e => {
-        // We don't want to crash the server if the sync job fails to start
-        logger.error('Failed to start OpenSearch sync job', e);
-        reportErrorToSentry(e);
-      })
-      .then(() => {
-        // Add a handler to make sure we flush the OpenSearch sync queue before shutting down
-        let isShuttingDown = false;
-        const gracefullyShutdown = async signal => {
-          if (!isShuttingDown) {
-            logger.info(`Received ${signal}. Shutting down.`);
-            isShuttingDown = true;
-
-            if (appPromise) {
-              await appPromise.then(app => {
-                if (app.__server__) {
-                  logger.info('Closing express server');
-                  app.__server__.close();
-                }
-              });
-            }
-
-            await stopOpenSearchPostgresSync();
-            process.exit();
-          }
-        };
-
-        process.on('exit', () => gracefullyShutdown('exit'));
-        process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
-        process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
-      });
-  }
-}
+startSearchSyncWorker(appPromise);
 
 // This is used by tests
 export default async function startServerForTest() {
