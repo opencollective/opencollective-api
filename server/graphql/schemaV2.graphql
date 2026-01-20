@@ -736,7 +736,7 @@ interface Account {
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -3507,7 +3507,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -9713,7 +9713,7 @@ type Bot implements Account {
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -10733,7 +10733,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -12313,7 +12313,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -13607,7 +13607,7 @@ type Individual implements Account {
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -14917,7 +14917,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -16067,7 +16067,7 @@ type Vendor implements Account & AccountWithContributions {
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -17068,7 +17068,7 @@ type Query {
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -20075,7 +20075,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
@@ -21242,7 +21242,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     host: AccountReferenceInput
 
     """
-    If host is provided and has money management capabilities, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
     """
     hostContext: HostContext
 
