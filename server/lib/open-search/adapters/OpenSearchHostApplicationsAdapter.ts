@@ -98,4 +98,40 @@ export class OpenSearchHostApplicationsAdapter implements OpenSearchModelAdapter
     };
     /* eslint-enable camelcase */
   }
+
+  public getPersonalizationFilters(userId: number | null, adminOfAccountIds: number[], isRoot: boolean) {
+    /* eslint-disable camelcase */
+    if (isRoot) {
+      return null; // No filter, show all
+    }
+
+    if (!userId && !adminOfAccountIds.length) {
+      return null; // No user context, show all
+    }
+
+    const conditions = [];
+    if (adminOfAccountIds.length > 0) {
+      conditions.push(
+        { terms: { HostCollectiveId: adminOfAccountIds } },
+        { terms: { CollectiveId: adminOfAccountIds } },
+      );
+    }
+    if (userId) {
+      conditions.push({ term: { CreatedByUserId: userId } });
+    }
+
+    if (conditions.length === 0) {
+      return null;
+    }
+
+    return [
+      {
+        bool: {
+          minimum_should_match: 1,
+          should: conditions,
+        },
+      },
+    ];
+    /* eslint-enable camelcase */
+  }
 }
