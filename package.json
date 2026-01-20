@@ -24,11 +24,6 @@
     "url": "https://github.com/opencollective/opencollective-api.git"
   },
   "main": "server/index.js",
-  "config": {
-    "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
-    }
-  },
   "dependencies": {
     "@apollo/server": "5.0.0",
     "@as-integrations/express5": "1.1.2",
@@ -163,8 +158,6 @@
     "chai-subset": "^1.6.0",
     "cheerio": "^1.1.2",
     "chokidar": "^4.0.1",
-    "commitizen": "^4.3.1",
-    "cz-conventional-changelog": "^3.3.0",
     "eslint": "^9.14.0",
     "eslint-config-opencollective": "^6.0.0",
     "eslint-import-resolver-typescript": "^4.0.0",
@@ -295,7 +288,6 @@
     "specials": [
       "babel",
       "bin",
-      "commitizen",
       "eslint",
       "husky",
       "lint-staged",
