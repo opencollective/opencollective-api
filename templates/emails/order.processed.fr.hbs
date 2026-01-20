@@ -1,12 +1,13 @@
 {{#if interval }}
-Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}}/{{interval}} à {{{collective.name}}}
+Subject: {{#if erratum}}[Erratum] {{/if}}Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}}/{{interval}} à {{{collective.name}}}
 {{else}}
-Subject: Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}} à {{{collective.name}}}
+Subject: {{#if erratum}}[Erratum] {{/if}}Merci pour votre contribution de {{currency order.totalAmount currency=order.currency}} à {{{collective.name}}}
 {{/if}}
 
 {{> header}}
 
 {{> toplogo}}
+{{> erratum-box}}
 
 {{#if fromCollective.name}}
 <p>Bonjour {{fromCollective.name}},</p>

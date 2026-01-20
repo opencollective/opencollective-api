@@ -6,7 +6,9 @@
     "searchSync": "ENABLE_SERVICE_SEARCH_SYNC"
   },
   "mailpit": {
-    "client": "MAILPIT_CLIENT"
+    "client": "MAILPIT_CLIENT",
+    "smtpPort": "MAILPIT_SMTP_PORT",
+    "host": "MAILPIT_HOST"
   },
   "opensearch": {
     "url": "OPENSEARCH_URL",
