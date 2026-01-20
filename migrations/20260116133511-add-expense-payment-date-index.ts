@@ -13,8 +13,8 @@ module.exports = {
       WHERE "deletedAt" IS NULL 
         AND "type" = 'DEBIT' 
         AND "kind" = 'EXPENSE' 
-        AND "isRefund" = false;
-        AND t."RefundTransactionId" IS NULL
+        AND "isRefund" = false
+        AND t."RefundTransactionId" IS NULL;
     `);
   },
 
