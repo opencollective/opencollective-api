@@ -40,6 +40,27 @@ export type PayoutRequestResult = {
   };
 };
 
+export type PayoutError = {
+  name: string;
+  message: string;
+  debug_id: string;
+  information_link?: string;
+  details?: {
+    field?: string;
+    value?: string;
+    location?: 'body' | 'path' | 'query';
+    issue: string;
+    description?: string;
+  }[];
+  links?: [
+    {
+      href: string;
+      rel: string;
+      method?: 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
+    },
+  ];
+};
+
 export type PayoutItemDetails = {
   payout_item_id: string;
   transaction_id: string;
