@@ -66,6 +66,7 @@ import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
 import { GraphQLVirtualCard } from './VirtualCard';
+import { TransactionTypes } from '../../../constants/transactions';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
@@ -292,7 +293,12 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             return null;
           }
           const transactions = await req.loaders.Transaction.byExpenseId.load(expense.id);
-          const transaction = find(transactions, { kind: TransactionKind.EXPENSE, isRefund: false, type: 'DEBIT' });
+          const transaction = find(transactions, {
+            kind: TransactionKind.EXPENSE,
+            isRefund: false,
+            type: TransactionTypes.DEBIT,
+            RefundTransactionId: null,
+          });
           return transaction?.clearedAt || transaction?.createdAt || null;
         },
       },
