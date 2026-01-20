@@ -14,6 +14,7 @@ import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
+import ExportRequest from './ExportRequest';
 import HostApplication from './HostApplication';
 import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
@@ -145,6 +146,7 @@ Collective.hasMany(Collective, { foreignKey: 'ParentCollectiveId', as: 'children
 Collective.hasMany(ConnectedAccount);
 Collective.hasMany(Expense, { foreignKey: 'CollectiveId', as: 'expenses' });
 Collective.hasMany(Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpenses' });
+Collective.hasMany(ExportRequest, { foreignKey: 'CollectiveId', as: 'exportRequests' });
 Collective.hasMany(HostApplication, { foreignKey: 'CollectiveId', as: 'hostApplications' });
 Collective.hasMany(LegalDocument);
 Collective.hasMany(LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
@@ -188,6 +190,10 @@ ConversationFollower.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 // EmojiReaction
 EmojiReaction.belongsTo(Comment);
 EmojiReaction.belongsTo(User);
+
+// ExportRequests
+ExportRequest.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+ExportRequest.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 
 // Expense
 Expense.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
@@ -324,6 +330,7 @@ UploadedFile.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 User.belongsTo(Collective, { as: 'collective', foreignKey: 'CollectiveId', constraints: false });
 User.hasMany(Activity);
 User.hasMany(ConnectedAccount, { foreignKey: 'CreatedByUserId' });
+User.hasMany(ExportRequest, { foreignKey: 'CreatedByUserId', as: 'exportRequests' });
 User.hasMany(Member, { foreignKey: 'CreatedByUserId' });
 User.hasMany(Notification);
 User.hasMany(Order, { foreignKey: 'CreatedByUserId', as: 'orders' });
@@ -381,6 +388,7 @@ export {
   ConversationFollower,
   CurrencyExchangeRate,
   EmojiReaction,
+  ExportRequest as ExportRequests,
   Expense,
   ExpenseAttachedFile,
   ExpenseItem,
