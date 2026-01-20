@@ -12,7 +12,7 @@ import {
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
   sumCollectivesTransactions,
-} from '../../../server/lib/budget';
+} from '../../../server/lib/ledger/balance';
 import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
 import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';

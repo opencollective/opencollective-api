@@ -70,7 +70,7 @@ import {
   getTotalAmountSpentAmount,
   getTotalMoneyManagedAmount,
   getYearlyBudgetAmount,
-} from '../lib/budget';
+} from '../lib/ledger/balance';
 import { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedList,

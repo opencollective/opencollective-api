@@ -14,7 +14,7 @@ import {
   getSumCollectivesAmountSpent,
   getYearlyBudgets,
   sumCollectivesTransactions,
-} from '../../lib/budget';
+} from '../../lib/ledger/balance';
 import { getFxRate } from '../../lib/currency';
 import { ifStr } from '../../lib/utils';
 import {

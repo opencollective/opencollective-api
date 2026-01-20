@@ -12,7 +12,7 @@ import {
   PAYMENT_METHOD_TYPES,
 } from '../constants/paymentMethods';
 import { TransactionTypes } from '../constants/transactions';
-import { getBlockedContributionsCount, getBlockedExpenseFunds } from '../lib/budget';
+import { getBlockedContributionsCount, getBlockedExpenseFunds } from '../lib/ledger/balance';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import { findPaymentMethodProvider } from '../lib/payments';
