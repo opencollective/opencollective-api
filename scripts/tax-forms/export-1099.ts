@@ -107,6 +107,19 @@ const taxFormsQuery = `
   ORDER BY c."name"
 `;
 
+type Recipient = {
+  name: string;
+  service: string;
+  legalName: string;
+  profileUrl: string;
+  type: string;
+  country: string;
+  adminEmails: string;
+  documentPath: string;
+  paid: number;
+  data: string;
+};
+
 /**
  * A small helper to convert the path to the format produced by https://github.com/opencollective/encrypt_dir/blob/f038ffc8d53d679f9edbd1b1131de484be99e81f/decryptDir.js
  * @param basePath The base path without the S3 domain
@@ -152,10 +165,63 @@ const parseCommandLine = () => {
 // Setting the `fields` argument to enforce columns order
 const generateCSVFromData = data => new Parser({ header: true, fields: Object.values(TaxFormCSVColumns) }).parse(data);
 
+const parseCountryFromHelloWorks = (country: string | undefined) => {
+  if (!country) {
+    return '';
+  } else if (country.length === 2) {
+    return country;
+  } else {
+    // HelloWorks instances are aimed to be removed, so we only hardcode the ones we need
+    return (
+      {
+        ukraine: 'UA',
+        pakistan: 'PK',
+        nigeria: 'NG',
+        japan: 'JP',
+        india: 'IN',
+        china: 'CN',
+        netherlands: 'NL',
+        'united arab emirates': 'AE',
+        france: 'FR',
+        deutschland: 'DE',
+        australia: 'AU',
+        'united states': 'US',
+        poland: 'PL',
+        philippines: 'PH',
+        spain: 'ES',
+        'south africa': 'ZA',
+        canada: 'CA',
+        'the netherlands': 'NL',
+        russia: 'RU',
+        'sri lanka': 'LK',
+        ireland: 'IE',
+        indonesia: 'ID',
+        bangladesh: 'BD',
+        hungary: 'HU',
+        undefined: '',
+        finland: 'FI',
+        'united kingdom': 'GB',
+        portugal: 'PT',
+        denmark: 'DK',
+        'wales, united kingdom': 'GB',
+        belgium: 'BE',
+        germany: 'DE',
+        brazil: 'BR',
+        austria: 'AT',
+        italy: 'IT',
+        singapore: 'SG',
+        norway: 'NO',
+        tanzania: 'TZ',
+        kazakhstan: 'KZ',
+      }[country.toLowerCase()] || country
+    );
+  }
+};
+
 const generateExport = async (
   hostSlug: string,
   year: number | string,
-  recipients,
+  recipients: Recipient[],
   { outputDir = null, filesDir = null, initialWarnings = [] },
 ) => {
   const warnings: string[] = [...initialWarnings];
@@ -176,7 +242,7 @@ const generateExport = async (
         [TaxFormCSVColumns.TAX_ID]: formData.taxIdNumber,
         [TaxFormCSVColumns.RECIPIENT_ADDRESS_1]: formData.address1,
         [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: formData.address2,
-        [TaxFormCSVColumns.RECIPIENT_COUNTRY]: formData.country,
+        [TaxFormCSVColumns.RECIPIENT_COUNTRY]: parseCountryFromHelloWorks(formData.country),
         [TaxFormCSVColumns.RECIPIENT_EMAIL]: formData.email || recipient.adminEmails,
         [TaxFormCSVColumns.BOX_1_NONEMPLOYEE_COMPENSATION]: formatCurrency(recipient.paid, 'USD'),
         [TaxFormCSVColumns.FILE]: prepareDocumentPath(recipient.documentPath),
@@ -317,7 +383,7 @@ const main = async () => {
     }
 
     const threshold = year >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
-    const allRecipients = await sequelize.query(taxFormsQuery, {
+    const allRecipients: Recipient[] = await sequelize.query(taxFormsQuery, {
       replacements: { hostSlug, year, threshold },
       type: sequelize.QueryTypes.SELECT,
     });
