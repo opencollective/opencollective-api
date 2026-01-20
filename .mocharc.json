@@ -1,6 +1,7 @@
 {
   "timeout": 20000,
   "extension": ["js", "ts"],
+  "node-option": ["import=tsx"],
   "require": ["./test/setup.cjs"],
   "ignore": [
     "test/dbdumps/**",

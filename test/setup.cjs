@@ -1,24 +1,10 @@
-// Ensure ts-node loads all files from tsconfig so global .d.ts augmentations are applied.
-if (!process.env.TS_NODE_FILES) {
-  process.env.TS_NODE_FILES = 'true';
-}
-
-// Skip typechecking in the test runner; `npm run type:check` handles it separately.
-if (!process.env.TS_NODE_TRANSPILE_ONLY) {
-  process.env.TS_NODE_TRANSPILE_ONLY = 'true';
-}
-
-// Use native TS compiler
-if (!process.env.TS_NODE_COMPILER) {
-  process.env.TS_NODE_COMPILER = 'typescript';
-}
-
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'test';
 }
 
-require('ts-node/register');
+// tsx is loaded via node-option in .mocharc.json. It automatically handles
+// TypeScript transpilation without type checking. Type checking is handled by `npm run type:check`.
 
 require('../server/env.ts');
 
