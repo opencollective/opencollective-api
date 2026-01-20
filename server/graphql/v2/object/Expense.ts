@@ -18,6 +18,7 @@ import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
 import OAuthScopes from '../../../constants/oauth-scopes';
 import { TransactionKind } from '../../../constants/transaction-kind';
+import { TransactionTypes } from '../../../constants/transactions';
 import { floatAmountToCents } from '../../../lib/math';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
@@ -66,7 +67,6 @@ import { GraphQLTaxInfo } from './TaxInfo';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 import { GraphQLTransferWiseRequiredField } from './TransferWise';
 import { GraphQLVirtualCard } from './VirtualCard';
-import { TransactionTypes } from '../../../constants/transactions';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
