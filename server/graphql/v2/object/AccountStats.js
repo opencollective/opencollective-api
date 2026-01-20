@@ -5,8 +5,8 @@ import moment from 'moment';
 import assert from 'node:assert';
 
 import { TransactionKind } from '../../../constants/transaction-kind';
-import { getCollectiveIds } from '../../../lib/ledger/balance';
 import { getFxRate } from '../../../lib/currency';
+import { getCollectiveIds } from '../../../lib/ledger/balance';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';

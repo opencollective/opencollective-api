@@ -60,17 +60,6 @@ import plans, { HostPlan } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
-import {
-  getBalanceAmount,
-  getBalanceTimeSeries,
-  getContributionsAndContributorsCount,
-  getTotalAmountPaidExpenses,
-  getTotalAmountReceivedAmount,
-  getTotalAmountReceivedTimeSeries,
-  getTotalAmountSpentAmount,
-  getTotalMoneyManagedAmount,
-  getYearlyBudgetAmount,
-} from '../lib/ledger/balance';
 import { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedList,
@@ -94,6 +83,17 @@ import {
   getPlatformTips,
 } from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
+import {
+  getBalanceAmount,
+  getBalanceTimeSeries,
+  getContributionsAndContributorsCount,
+  getTotalAmountPaidExpenses,
+  getTotalAmountReceivedAmount,
+  getTotalAmountReceivedTimeSeries,
+  getTotalAmountSpentAmount,
+  getTotalMoneyManagedAmount,
+  getYearlyBudgetAmount,
+} from '../lib/ledger/balance';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';

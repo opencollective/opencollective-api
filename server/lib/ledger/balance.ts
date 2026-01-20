@@ -6,12 +6,11 @@ import { CollectiveType } from '../../constants/collectives';
 import { SupportedCurrency } from '../../constants/currencies';
 import ExpenseStatuses from '../../constants/expense-status';
 import { TransactionTypes } from '../../constants/transactions';
+import type { Loaders } from '../../graphql/loaders';
 import models, { Op, sequelize } from '../../models';
 import type Collective from '../../models/Collective';
 import { getFxRate } from '../currency';
 import { fillTimeSeriesWithNodes, parseToBoolean } from '../utils';
-
-import type { Loaders } from '../../graphql/loaders';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = ExpenseStatuses;
@@ -161,7 +160,7 @@ export async function getBalanceAmount(
   // Optimized version using loaders
   if (loaders && version === DEFAULT_BUDGET_VERSION) {
     const balanceLoader = loaders.Collective.balance.buildLoader(transactionArgs);
-    result = await balanceLoader.load(collective.id);
+    result = (await balanceLoader.load(collective.id)) as CollectiveTotal;
   } else {
     const results = await getBalances([collective.id], {
       ...transactionArgs,
@@ -201,10 +200,7 @@ export async function getBalances(
     useMaterializedView === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
       ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
       : {};
-  const missingCollectiveIds = difference(
-    collectiveIds.map(Number),
-    Object.keys(fastResults).map(Number),
-  );
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
   if (missingCollectiveIds.length === 0) {
     return fastResults;
@@ -264,7 +260,7 @@ export async function getTotalAmountReceivedAmount(
   if (loaders && version === DEFAULT_BUDGET_VERSION) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const amountReceivedLoader = loaders.Collective.amountReceived.buildLoader(transactionArgs as any);
-    result = await amountReceivedLoader.load(collective.id);
+    result = (await amountReceivedLoader.load(collective.id)) as CollectiveTotal;
   } else {
     const results = await getSumCollectivesAmountReceived([collective.id], {
       ...transactionArgs,
@@ -275,7 +271,7 @@ export async function getTotalAmountReceivedAmount(
   }
 
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
-  const fxRate = await getFxRate(result.currency as SupportedCurrency, currency);
+  const fxRate = await getFxRate(result.currency, currency);
   return {
     value: Math.round(result.value * fxRate),
     currency,
@@ -323,7 +319,7 @@ export async function getTotalAmountSpentAmount(
   if (loaders && version === DEFAULT_BUDGET_VERSION) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const amountSpentLoader = loaders.Collective.amountSpent.buildLoader(transactionArgs as any);
-    result = await amountSpentLoader.load(collective.id);
+    result = (await amountSpentLoader.load(collective.id)) as CollectiveTotal;
   } else {
     const results = await getSumCollectivesAmountSpent([collective.id], {
       ...transactionArgs,
@@ -334,7 +330,7 @@ export async function getTotalAmountSpentAmount(
   }
 
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
-  const fxRate = await getFxRate(result.currency as SupportedCurrency, currency);
+  const fxRate = await getFxRate(result.currency, currency);
   return {
     value: Math.round(result.value * fxRate),
     currency,
@@ -370,10 +366,7 @@ export async function getSumCollectivesAmountSpent(
           column: net ? 'totalNetAmountSpentInHostCurrency' : 'totalAmountSpentInHostCurrency',
         })
       : {};
-  const missingCollectiveIds = difference(
-    collectiveIds.map(Number),
-    Object.keys(fastResults).map(Number),
-  );
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
   if (missingCollectiveIds.length === 0) {
     return fastResults;
@@ -420,14 +413,8 @@ export async function getTotalAmountPaidExpenses(
 ): Promise<AmountWithCurrency> {
   currency = currency || (collective.currency as SupportedCurrency);
 
-  interface ExpenseWhereClause {
-    FromCollectiveId: number;
-    status: string;
-    type?: string;
-    createdAt?: { [Op.gte]?: Date; [Op.lt]?: Date };
-  }
-
-  const where: ExpenseWhereClause = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: Record<string, any> = {
     FromCollectiveId: collective.id,
     status: 'PAID',
   };
@@ -546,7 +533,7 @@ export async function getTotalAmountReceivedTimeSeries(
       ...transactionArgs,
       timeUnit,
     });
-    result = await amountReceivedTimeSeriesLoader.load(collective.id);
+    result = (await amountReceivedTimeSeriesLoader.load(collective.id)) as CollectiveTotalWithGroupBy;
   } else {
     const results = await getSumCollectivesAmountReceived([collective.id], {
       ...transactionArgs,
@@ -557,7 +544,7 @@ export async function getTotalAmountReceivedTimeSeries(
     result = results[collective.id] as CollectiveTotalWithGroupBy;
   }
 
-  const fxRate = await getFxRate(result.currency as SupportedCurrency, currency);
+  const fxRate = await getFxRate(result.currency, currency);
 
   const nodes: TimeSeriesNode[] = result.groupBy?.date
     ? Object.values(result.groupBy.date).map(node => ({
@@ -595,9 +582,7 @@ export async function getBalanceTimeSeries(
   version = version || (collective.settings?.budget?.version as BudgetVersion) || DEFAULT_BUDGET_VERSION;
   currency = currency || (collective.currency as SupportedCurrency);
 
-  const promises: Promise<
-    Record<number, CollectiveTotalWithGroupBy> | AmountWithCurrency
-  >[] = [];
+  const promises: Promise<Record<number, CollectiveTotalWithGroupBy> | AmountWithCurrency>[] = [];
 
   promises.push(
     sumCollectivesTransactions([collective.id], {
@@ -687,10 +672,7 @@ export async function getSumCollectivesAmountReceived(
           column: net ? 'totalNetAmountReceivedInHostCurrency' : 'totalAmountReceivedInHostCurrency',
         })
       : {};
-  const missingCollectiveIds = difference(
-    collectiveIds.map(Number),
-    Object.keys(fastResults).map(Number),
-  );
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
   if (missingCollectiveIds.length === 0) {
     return fastResults as Record<number, CollectiveTotalWithGroupBy>;
@@ -703,7 +685,9 @@ export async function getSumCollectivesAmountReceived(
     : net
       ? 'netAmountInHostCurrency'
       : 'amountInHostCurrency';
-  const transactionType: TransactionType = net ? 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE' : CREDIT;
+  const transactionType: TransactionType = net
+    ? 'CREDIT_WITH_CONTRIBUTIONS_HOST_FEE_AND_PAYMENT_PROCESSOR_FEE'
+    : CREDIT;
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
@@ -758,10 +742,7 @@ export async function getTotalMoneyManagedAmount(
         })
       : {};
 
-  const missingCollectiveIds = difference(
-    collectiveIds.map(Number),
-    Object.keys(fastResults).map(Number),
-  );
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
   if (missingCollectiveIds.length === 0) {
     // Sum and convert to final currency
@@ -867,7 +848,7 @@ export async function sumCollectivesTransactions(
   const include: IncludeModel[] = [];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let where: Record<string, any> = {};
+  let where: any = {};
 
   if (ids) {
     if (includeGiftCards) {
@@ -1122,7 +1103,7 @@ export async function getYearlyBudgetAmount(
 
   // Optimized version using loaders
   if (loaders) {
-    result = await loaders.Collective.yearlyBudget.load(collective.id);
+    result = (await loaders.Collective.yearlyBudget.load(collective.id)) as CollectiveTotal;
   } else {
     const results = await getYearlyBudgets([collective.id]);
     // we're guaranteed to have only one result per Collective
@@ -1307,7 +1288,7 @@ export async function getCurrentCollectiveBalances(
   const fastResults: CurrentCollectiveBalanceResult[] = loaders
     ? await Promise.all(
         collectiveIds.map(collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId)),
-      ).then(results => results.filter((el): el is CurrentCollectiveBalanceResult => !!el))
+      ).then(results => results.filter(Boolean) as unknown as CurrentCollectiveBalanceResult[])
     : await sequelize.query(
         `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb

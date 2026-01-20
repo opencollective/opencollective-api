@@ -3,8 +3,8 @@ import config from 'config';
 import { createSandbox } from 'sinon';
 
 import PlatformConstants from '../../../../server/constants/platform';
-import * as budget from '../../../../server/lib/ledger/balance';
 import emailLib from '../../../../server/lib/email';
+import * as budget from '../../../../server/lib/ledger/balance';
 import stripe from '../../../../server/lib/stripe';
 import { processAuthorization } from '../../../../server/paymentProviders/stripe/virtual-cards';
 import * as utils from '../../../../server/paymentProviders/utils';

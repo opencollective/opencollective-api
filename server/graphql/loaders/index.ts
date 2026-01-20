@@ -8,6 +8,7 @@ import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import { TransactionTypes } from '../../constants/transactions';
+import { getFxRate } from '../../lib/currency';
 import {
   getBalances,
   getSumCollectivesAmountReceived,
@@ -15,7 +16,6 @@ import {
   getYearlyBudgets,
   sumCollectivesTransactions,
 } from '../../lib/ledger/balance';
-import { getFxRate } from '../../lib/currency';
 import { ifStr } from '../../lib/utils';
 import {
   Collective,
