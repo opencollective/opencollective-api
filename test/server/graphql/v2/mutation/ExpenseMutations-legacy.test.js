@@ -42,6 +42,7 @@ import {
   multiple,
   randStr,
 } from '../../../../test-helpers/fake-data';
+import { stubExport } from '../../../../test-helpers/stub-helper';
 import {
   graphqlQueryV2,
   makeRequest,
@@ -2421,8 +2422,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
           });
 
           // Updates the collective balance
-          sandbox
-            .stub(LibCurrency, 'getFxRate')
+          stubExport(sandbox, LibCurrency, 'getFxRate')
             .withArgs('EUR', 'USD')
             .resolves(1.1)
             .withArgs('USD', 'EUR')
@@ -2501,8 +2501,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
           });
 
           // Updates the collective balance
-          sandbox
-            .stub(LibCurrency, 'getFxRate')
+          stubExport(sandbox, LibCurrency, 'getFxRate')
             .withArgs('EUR', 'USD')
             .resolves(1.1)
             .withArgs('USD', 'EUR')
@@ -2698,8 +2697,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
           });
 
           // Updates the collective balance
-          sandbox
-            .stub(LibCurrency, 'getFxRate')
+          stubExport(sandbox, LibCurrency, 'getFxRate')
             .withArgs('EUR', 'USD')
             .resolves(1.1)
             .withArgs('USD', 'EUR')

@@ -20,6 +20,7 @@ import {
   fakeUserToken,
   randStr,
 } from '../../../../test-helpers/fake-data';
+import { stubExport } from '../../../../test-helpers/stub-helper';
 import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -181,7 +182,7 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
     await hostAdmin.populateRoles();
 
     sandbox = createSandbox();
-    sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(FX_RATE));
+    stubExport(sandbox, libcurrency, 'getFxRate').callsFake(() => Promise.resolve(FX_RATE));
   });
 
   after(() => {

@@ -30,6 +30,7 @@ import {
   fakeUserTwoFactorMethod,
   randStr,
 } from '../../../../test-helpers/fake-data';
+import { stubExport } from '../../../../test-helpers/stub-helper';
 import { getOrCreatePlatformAccount, graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
@@ -451,8 +452,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
 
     it('Adds multiple methods', async () => {
-      sandbox.stub(yubikeyOtp, 'validateYubikeyOTP').resolves(true);
-      sandbox.stub(yubikeyOtp.default, 'validateToken').resolves(true);
+      stubExport(sandbox, yubikeyOtp, 'validateYubikeyOTP').resolves(true);
+      stubExport(sandbox, yubikeyOtp.default, 'validateToken').resolves(true);
       const user = await fakeUser();
       let result = await graphqlQueryV2(
         addTwoFactorAuthTokenMutation,
@@ -496,8 +497,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     const secret = speakeasy.generateSecret({ length: 64 });
 
     beforeEach(async () => {
-      sandbox.stub(yubikeyOtp, 'validateYubikeyOTP').resolves(true);
-      sandbox.stub(yubikeyOtp.default, 'validateToken').resolves(true);
+      stubExport(sandbox, yubikeyOtp, 'validateYubikeyOTP').resolves(true);
+      stubExport(sandbox, yubikeyOtp.default, 'validateToken').resolves(true);
       user = await fakeUser();
       let result = await graphqlQueryV2(
         addTwoFactorAuthTokenMutation,

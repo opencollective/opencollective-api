@@ -25,6 +25,7 @@ import {
   fakeUser,
   randStr,
 } from '../../../../test-helpers/fake-data';
+import { stubExport } from '../../../../test-helpers/stub-helper';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const US_TAX_FORM_THRESHOLD =
@@ -96,7 +97,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
 
   beforeEach(() => {
     sandbox = createSandbox();
-    sandbox.stub(libcurrency, 'loadFxRatesMap').resolves({
+    stubExport(sandbox, libcurrency, 'loadFxRatesMap').resolves({
       latest: {
         USD: { USD: 1 },
         GBP: { USD: 1.1 },
@@ -450,7 +451,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
 
     beforeEach(() => {
       sandbox.restore();
-      sandbox.stub(libcurrency, 'loadFxRatesMap').resolves({
+      stubExport(sandbox, libcurrency, 'loadFxRatesMap').resolves({
         latest: {
           USD: { USD: 1 },
           SEK: { USD: 0.09 },

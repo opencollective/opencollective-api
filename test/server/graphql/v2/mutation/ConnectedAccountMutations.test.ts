@@ -7,13 +7,14 @@ import * as PlaidConnect from '../../../../../server/lib/plaid/connect';
 import * as transferwise from '../../../../../server/lib/transferwise';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
+import { stubExport } from '../../../../test-helpers/stub-helper';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   const sandbox = createSandbox();
   beforeEach(async () => {
-    sandbox.stub(transferwise, 'getProfiles').resolves();
+    stubExport(sandbox, transferwise, 'getProfiles').resolves();
     await utils.resetTestDB();
   });
 

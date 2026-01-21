@@ -7,6 +7,7 @@ import roles from '../../../../server/constants/roles';
 import * as CacheLib from '../../../../server/lib/cache';
 import models from '../../../../server/models';
 import { fakeCollective, fakeExpense, fakeOrder, fakeProject, fakeUser } from '../../../test-helpers/fake-data';
+import { spyExport } from '../../../test-helpers/stub-helper';
 import * as utils from '../../../utils';
 
 let host, user1, user2, user3, collective1;
@@ -309,7 +310,7 @@ describe('server/graphql/v1/mutation', () => {
         );
 
         // Setup some spies
-        const purgeCacheSpy = sandbox.spy(CacheLib, 'purgeCacheForCollective');
+        const purgeCacheSpy = spyExport(sandbox, CacheLib, 'purgeCacheForCollective');
 
         // Call mutation
         const response = await utils.graphqlQuery(archiveCollectiveMutation, { id: project.id }, admin);

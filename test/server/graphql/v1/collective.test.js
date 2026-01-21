@@ -18,6 +18,7 @@ import {
   fakeTier,
   fakeUser,
 } from '../../../test-helpers/fake-data';
+import { spyExport, stubExport } from '../../../test-helpers/stub-helper';
 import * as utils from '../../../utils';
 
 const collectiveQuery = gqlV1 /* GraphQL */ `
@@ -681,7 +682,7 @@ describe('server/graphql/v1/collective', () => {
     it('gets totalAmountSpent by collective', async () => {
       const sandbox = createSandbox();
 
-      const stub = sandbox.stub(currency, 'getFxRate');
+      const stub = stubExport(sandbox, currency, 'getFxRate');
 
       stub
         .withArgs('EUR', 'EUR')
@@ -1111,8 +1112,9 @@ describe('server/graphql/v1/collective', () => {
       await fakeMember({ CollectiveId: collective.id, role: 'BACKER', TierId: tier2.id });
 
       // Spy on `getContributorsForCollective` and `cache.set`
-      const getContributorsForCollectiveSpy = sinon.spy(ContributorsLib, 'getContributorsForCollective');
-      const cacheSetSpy = sinon.spy(cache, 'set');
+      const sandbox = createSandbox();
+      const getContributorsForCollectiveSpy = spyExport(sandbox, ContributorsLib, 'getContributorsForCollective');
+      const cacheSetSpy = sandbox.spy(cache, 'set');
 
       // Fetch data and make sure we have the expected number of contributors
       const result = await utils.graphqlQuery(contributorsQuery, { slug: collective.slug });
@@ -1126,6 +1128,8 @@ describe('server/graphql/v1/collective', () => {
       // Make sure we haven't called `getContributorsForCollective` and `cache.set` more than once
       expect(getContributorsForCollectiveSpy.callCount).to.equal(1);
       expect(cacheSetSpy.callCount).to.equal(1);
+
+      sandbox.restore();
     });
   });
 });
