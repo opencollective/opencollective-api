@@ -1,22 +1,28 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import { createSandbox } from 'sinon';
 
-import { run as payPaypalScheduledExpenses } from '../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts';
 import status from '../../../server/constants/expense-status';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import * as paypal from '../../../server/paymentProviders/paypal/payouts';
 import { fakeCollective, fakeExpense, fakePayoutMethod, multiple } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
 import * as utils from '../../utils';
 
 describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
   const sandbox = createSandbox();
-  let payExpensesBatch;
+  let payExpensesBatch, payPaypalScheduledExpenses;
 
   afterEach(sandbox.restore);
   beforeEach(utils.resetTestDB);
-  beforeEach(() => {
-    payExpensesBatch = stubExport(sandbox, paypal, 'payExpensesBatch').resolves();
+  beforeEach(async () => {
+    payExpensesBatch = sandbox.stub().resolves();
+
+    // Load module with mocked dependencies
+    const module = await esmock('../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts', {
+      '../../../server/paymentProviders/paypal/payouts': {
+        payExpensesBatch,
+      },
+    });
+    payPaypalScheduledExpenses = module.run;
   });
 
   it('bundle expenses by hostId', async () => {

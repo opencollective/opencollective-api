@@ -1,24 +1,31 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import moment from 'moment';
 import sinon from 'sinon';
 
-import { runPlansFeatureProvisioningCron } from '../../../cron/daily/70-handle-plans-feature-provisioning';
 import FEATURE from '../../../server/constants/feature';
 import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
-import * as SentryLib from '../../../server/lib/sentry';
 import models from '../../../server/models';
 import { fakeActiveHost, fakePlatformSubscription, fakeRequiredLegalDocument } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
 import { resetTestDB } from '../../utils';
 
 describe('cron/daily/70-handle-plans-feature-provisioning', () => {
   let sandbox, provisionFeatureChangesSpy, reportErrorToSentryStub;
+  let runPlansFeatureProvisioningCron;
 
   beforeEach(async () => {
     await resetTestDB();
     sandbox = sinon.createSandbox();
     provisionFeatureChangesSpy = sandbox.spy(models.PlatformSubscription, 'provisionFeatureChanges');
-    reportErrorToSentryStub = stubExport(sandbox, SentryLib, 'reportErrorToSentry');
+    reportErrorToSentryStub = sandbox.stub();
+
+    // Load module with mocked dependencies
+    const module = await esmock('../../../cron/daily/70-handle-plans-feature-provisioning', {
+      '../../../server/lib/sentry': {
+        reportErrorToSentry: reportErrorToSentryStub,
+      },
+    });
+    runPlansFeatureProvisioningCron = module.runPlansFeatureProvisioningCron;
   });
 
   afterEach(() => {

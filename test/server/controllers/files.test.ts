@@ -1,13 +1,12 @@
 import { expect } from 'chai';
 import config from 'config';
+import esmock from 'esmock';
 import httpMocks from 'node-mocks-http';
 import sinon from 'sinon';
 
 import { expenseStatus } from '../../../server/constants';
-import * as FilesController from '../../../server/controllers/files';
 import { generateLoaders } from '../../../server/graphql/loaders';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
-import * as awsS3 from '../../../server/lib/awsS3';
 import { Collective, Expense, UploadedFile, User } from '../../../server/models';
 import {
   fakeActiveHost,
@@ -19,31 +18,6 @@ import {
   fakeUploadedFile,
   fakeUser,
 } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
-
-async function makeRequest(
-  id: number,
-  remoteUser?: User,
-  options?: { thumbnail?: boolean; expenseId?: string; draftKey?: string },
-): Promise<httpMocks.MockResponse<any>> {
-  const encodedId = idEncode(id, IDENTIFIER_TYPES.UPLOADED_FILE);
-  const request = httpMocks.createRequest({
-    method: 'GET',
-    url: `/api/files/${encodedId}`,
-    params: {
-      uploadedFileId: encodedId,
-    },
-    query: options,
-  });
-
-  request.remoteUser = remoteUser;
-  request.loaders = generateLoaders({ remoteUser });
-  const response = httpMocks.createResponse();
-
-  await FilesController.getFile(request, response);
-
-  return response;
-}
 
 describe('server/controllers/files', () => {
   let submitter: User;
@@ -65,9 +39,43 @@ describe('server/controllers/files', () => {
   let draftExpenseAttachedUploadedFile: UploadedFile;
 
   let sandbox;
+  let getSignedGetURLStub;
+  let FilesController;
+
+  async function makeRequest(
+    id: number,
+    remoteUser?: User,
+    options?: { thumbnail?: boolean; expenseId?: string; draftKey?: string },
+  ): Promise<httpMocks.MockResponse<any>> {
+    const encodedId = idEncode(id, IDENTIFIER_TYPES.UPLOADED_FILE);
+    const request = httpMocks.createRequest({
+      method: 'GET',
+      url: `/api/files/${encodedId}`,
+      params: {
+        uploadedFileId: encodedId,
+      },
+      query: options,
+    });
+
+    request.remoteUser = remoteUser;
+    request.loaders = generateLoaders({ remoteUser });
+    const response = httpMocks.createResponse();
+
+    await FilesController.getFile(request, response);
+
+    return response;
+  }
 
   before(async () => {
     sandbox = sinon.createSandbox();
+    getSignedGetURLStub = sandbox.stub();
+
+    // Load controller with mocked awsS3
+    FilesController = await esmock('../../../server/controllers/files', {
+      '../../../server/lib/awsS3': {
+        getSignedGetURL: getSignedGetURLStub,
+      },
+    });
 
     submitter = await fakeUser();
     otherUser = await fakeUser();
@@ -185,6 +193,10 @@ describe('server/controllers/files', () => {
   });
 
   afterEach(() => {
+    getSignedGetURLStub.reset();
+  });
+
+  after(() => {
     sandbox.restore();
   });
 
@@ -223,7 +235,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to recently submitted uploaded file if belongs to user', async () => {
       const actualUrl = uploadedFile.getDataValue('url');
-      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      getSignedGetURLStub.resolves(`${actualUrl}?signed`);
 
       const response = await makeRequest(uploadedFile.id, otherUser);
 
@@ -233,7 +245,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense attached file - wrong type', async () => {
       const actualUrl = expenseItemUploadedFileWrongKind.getDataValue('url');
-      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      getSignedGetURLStub.resolves(`${actualUrl}?signed`);
 
       const otherUserResponse = await makeRequest(expenseItemUploadedFileWrongKind.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
@@ -253,7 +265,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense item', async () => {
       const actualUrl = expenseItemUploadedFile.getDataValue('url');
-      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      getSignedGetURLStub.resolves(`${actualUrl}?signed`);
 
       const otherUserResponse = await makeRequest(expenseItemUploadedFile.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
@@ -273,7 +285,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense attached file', async () => {
       const actualUrl = expenseAttachedUploadedFile.getDataValue('url');
-      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      getSignedGetURLStub.resolves(`${actualUrl}?signed`);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
@@ -348,7 +360,7 @@ describe('server/controllers/files', () => {
     describe('draft expenses', () => {
       it('should redirect to resource if user has access to draft expense item', async () => {
         const actualUrl = draftExpenseItemUploadedFile.getDataValue('url');
-        stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+        getSignedGetURLStub.resolves(`${actualUrl}?signed`);
 
         const otherUserResponse = await makeRequest(draftExpenseItemUploadedFile.id, otherUser);
         expect(otherUserResponse._getStatusCode()).to.eql(403);

@@ -1,25 +1,34 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { run as runCron } from '../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity';
 import ActivityTypes from '../../../server/constants/activities';
 import VirtualCardProviders from '../../../server/constants/virtual-card-providers';
 import { Activity, VirtualCard } from '../../../server/models';
 import { VirtualCardStatus } from '../../../server/models/VirtualCard';
-import * as stripeVirtualCards from '../../../server/paymentProviders/stripe/virtual-cards';
 import { fakeActiveHost, fakeExpense, fakeHost, fakeVirtualCard } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
 import { resetTestDB } from '../../utils';
 
 describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
   const sandbox = createSandbox();
+  let runCron, pauseCardStub, resumeCardStub;
+
   afterEach(sandbox.restore);
 
   beforeEach(async () => {
     await resetTestDB();
-    stubExport(sandbox, stripeVirtualCards, 'pauseCard').resolves();
-    stubExport(sandbox, stripeVirtualCards, 'resumeCard').resolves();
+    pauseCardStub = sandbox.stub().resolves();
+    resumeCardStub = sandbox.stub().resolves();
+
+    // Load module with mocked dependencies
+    const module = await esmock('../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity', {
+      '../../../server/paymentProviders/stripe/virtual-cards': {
+        pauseCard: pauseCardStub,
+        resumeCard: resumeCardStub,
+      },
+    });
+    runCron = module.run;
   });
 
   it('pauses inactive virtual cards', async () => {

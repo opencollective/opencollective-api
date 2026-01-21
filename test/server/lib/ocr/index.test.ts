@@ -1,17 +1,26 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import sinon from 'sinon';
 
-import * as LibCurrency from '../../../../server/lib/currency';
-import { runOCRForExpenseFile } from '../../../../server/lib/ocr';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../../../../server/lib/ocr/ExpenseOCRService';
 import { fakeUploadedFile } from '../../../test-helpers/fake-data';
-import { stubExport } from '../../../test-helpers/stub-helper';
 
 describe('server/lib/ocr/index.ts', () => {
   let sandbox;
+  let loadFxRatesMapStub;
+  let runOCRForExpenseFile;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     sandbox = sinon.createSandbox();
+    loadFxRatesMapStub = sandbox.stub();
+
+    // Load module with mocked dependencies
+    const module = await esmock('../../../../server/lib/ocr', {
+      '../../../../server/lib/currency': {
+        loadFxRatesMap: loadFxRatesMapStub,
+      },
+    });
+    runOCRForExpenseFile = module.runOCRForExpenseFile;
   });
 
   afterEach(() => {
@@ -31,7 +40,7 @@ describe('server/lib/ocr/index.ts', () => {
 
     it('converts all the amounts to the requested currency', async () => {
       // Mock the FX rates
-      stubExport(sandbox, LibCurrency, 'loadFxRatesMap').resolves({
+      loadFxRatesMapStub.resolves({
         '2023-01-01': { USD: { EUR: 0.8 }, NZD: { EUR: 2.5 } },
       });
 

@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
@@ -8,15 +9,12 @@ import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
 import {
   getBalances,
-  getCurrentCollectiveBalances,
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
   sumCollectivesTransactions,
 } from '../../../server/lib/budget';
-import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
 import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -192,7 +190,7 @@ describe('server/lib/budget', () => {
   });
 
   describe('getCurrentCollectiveBalances', () => {
-    let collective, otherCollective, sandbox;
+    let collective, otherCollective, sandbox, getCurrentCollectiveBalances, getFxRateStub;
 
     beforeEach(async () => {
       await resetTestDB();
@@ -202,16 +200,19 @@ describe('server/lib/budget', () => {
 
     before(async () => {
       sandbox = createSandbox();
+      getFxRateStub = sandbox.stub();
+      getFxRateStub.withArgs('BRL', 'USD').resolves(1 / 1.1);
+      getFxRateStub.withArgs('USD', 'BRL').resolves(1.1);
+      getFxRateStub.withArgs('USD', 'USD').resolves(1);
+      getFxRateStub.withArgs('BRL', 'BRL').resolves(1);
 
-      stubExport(sandbox, libcurrency, 'getFxRate')
-        .withArgs('BRL', 'USD')
-        .resolves(1 / 1.1)
-        .withArgs('USD', 'BRL')
-        .resolves(1.1)
-        .withArgs('USD', 'USD')
-        .resolves(1)
-        .withArgs('BRL', 'BRL')
-        .resolves(1);
+      // Load budget module with mocked currency
+      const budgetModule = await esmock('../../../server/lib/budget', {
+        '../../../server/lib/currency': {
+          getFxRate: getFxRateStub,
+        },
+      });
+      getCurrentCollectiveBalances = budgetModule.getCurrentCollectiveBalances;
     });
 
     after(() => {

@@ -1,12 +1,11 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import { assert, createSandbox } from 'sinon';
 
-import { run as checkPendingTransfers } from '../../../cron/daily/91-check-pending-transferwise-transactions';
 import { roles } from '../../../server/constants';
 import status from '../../../server/constants/expense-status';
 import emailLib from '../../../server/lib/email';
 import logger from '../../../server/lib/logger';
-import * as transferwiseLib from '../../../server/lib/transferwise';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
   fakeCollective,
@@ -17,18 +16,25 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
 import * as utils from '../../utils';
 
 describe('cron/daily/check-pending-transferwise-transactions', () => {
   const sandbox = createSandbox();
-  let getTransfer, sendMessage;
+  let checkPendingTransfers, getTransfer, getQuote, sendMessage;
   let expense, host, collective, payoutMethod;
 
   afterEach(sandbox.restore);
   beforeEach(utils.resetTestDB);
-  beforeEach(() => {
-    getTransfer = stubExport(sandbox, transferwiseLib, 'getTransfer');
+  beforeEach(async () => {
+    getTransfer = sandbox.stub();
+    getQuote = sandbox.stub();
+    const module = await esmock('../../../cron/daily/91-check-pending-transferwise-transactions', {
+      '../../../server/lib/transferwise': {
+        getTransfer,
+        getQuote,
+      },
+    });
+    checkPendingTransfers = module.run;
     sendMessage = sandbox.spy(emailLib, 'sendMessage');
   });
   beforeEach(async () => {
@@ -67,7 +73,7 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
         paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
       },
     });
-    stubExport(sandbox, transferwiseLib, 'getQuote').resolves({
+    getQuote.resolves({
       paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }],
     });
   });

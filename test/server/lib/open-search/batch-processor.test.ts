@@ -1,34 +1,41 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import sinon from 'sinon';
 
-import { OpenSearchBatchProcessor } from '../../../../server/lib/open-search/batch-processor';
-import * as OpenSearchClient from '../../../../server/lib/open-search/client';
 import { OpenSearchRequestType } from '../../../../server/lib/open-search/types';
-import * as SentryLib from '../../../../server/lib/sentry';
-import { stubExport } from '../../../test-helpers/stub-helper';
 
 describe('server/lib/open-search/batch-processor', () => {
-  let processor: OpenSearchBatchProcessor;
+  let OpenSearchBatchProcessor;
+  let processor;
   let clientStub;
   let sentryReportMessageStub;
   let sentryReportErrorStub;
 
-  beforeEach(() => {
-    // Reset singleton instance
-    (OpenSearchBatchProcessor as any).instance = null;
-
+  beforeEach(async () => {
     // Create stub for ES client
     clientStub = {
       bulk: sinon.stub().resolves({ body: { items: [], errors: false, took: 0 } }),
       deleteByQuery: sinon.stub().resolves({ took: 0 }),
     };
 
-    // Mock the ES client
-    stubExport(sinon, OpenSearchClient, 'getOpenSearchClient').returns(clientStub);
-    processor = OpenSearchBatchProcessor.getInstance();
+    sentryReportMessageStub = sinon.stub();
+    sentryReportErrorStub = sinon.stub();
 
-    sentryReportMessageStub = stubExport(sinon, SentryLib, 'reportMessageToSentry');
-    sentryReportErrorStub = stubExport(sinon, SentryLib, 'reportErrorToSentry');
+    // Load module with mocked dependencies
+    const module = await esmock('../../../../server/lib/open-search/batch-processor', {
+      '../../../../server/lib/open-search/client': {
+        getOpenSearchClient: () => clientStub,
+      },
+      '../../../../server/lib/sentry': {
+        reportMessageToSentry: sentryReportMessageStub,
+        reportErrorToSentry: sentryReportErrorStub,
+      },
+    });
+    OpenSearchBatchProcessor = module.OpenSearchBatchProcessor;
+
+    // Reset singleton instance
+    (OpenSearchBatchProcessor as any).instance = null;
+    processor = OpenSearchBatchProcessor.getInstance();
   });
 
   afterEach(() => {

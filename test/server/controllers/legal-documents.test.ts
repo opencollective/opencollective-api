@@ -1,14 +1,12 @@
 import { expect } from 'chai';
 import config from 'config';
+import esmock from 'esmock';
 import type { Request, Response } from 'express';
 import sinon from 'sinon';
 
-import LegalDocumentsController from '../../../server/controllers/legal-documents';
 import { idEncode } from '../../../server/graphql/v2/identifiers';
-import * as LibS3 from '../../../server/lib/awsS3';
 import { getTaxFormsS3Bucket } from '../../../server/lib/tax-forms';
 import { TwoFactorAuthenticationHeader } from '../../../server/lib/two-factor-authentication/lib';
-import TOTPLib from '../../../server/lib/two-factor-authentication/totp';
 import { Collective, LegalDocument, RequiredLegalDocument, User } from '../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
@@ -21,7 +19,6 @@ import {
   fakePayoutMethod,
   fakeUser,
 } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
 import { makeRequest } from '../../utils';
 
 const getResStub = () => {
@@ -34,12 +31,36 @@ const getResStub = () => {
 
 describe('server/controllers/legal-documents', () => {
   let sandbox;
+  let LegalDocumentsController;
+  let getFileFromS3Stub;
+  let validateTokenStub;
 
-  before(() => {
+  before(async () => {
     sandbox = sinon.createSandbox();
+    getFileFromS3Stub = sandbox.stub();
+    validateTokenStub = sandbox.stub();
+
+    // Load controller with mocked dependencies
+    LegalDocumentsController = (
+      await esmock('../../../server/controllers/legal-documents', {
+        '../../../server/lib/awsS3': {
+          getFileFromS3: getFileFromS3Stub,
+        },
+        '../../../server/lib/two-factor-authentication/totp': {
+          default: {
+            validateToken: validateTokenStub,
+          },
+        },
+      })
+    ).default;
   });
 
   afterEach(() => {
+    getFileFromS3Stub.reset();
+    validateTokenStub.reset();
+  });
+
+  after(() => {
     sandbox.restore();
   });
 
@@ -203,7 +224,7 @@ describe('server/controllers/legal-documents', () => {
 
       it('must provide 2FA', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        stubExport(sandbox, LibS3, 'getFileFromS3').resolves(encryptedContent);
+        getFileFromS3Stub.resolves(encryptedContent);
         const req = makeRequest(hostAdmin) as unknown as Request;
         const res = getResStub();
         req.params = { id: idEncode(legalDocument.id, 'legal-document') };
@@ -220,7 +241,7 @@ describe('server/controllers/legal-documents', () => {
 
       it('should reject invalid 2FA codes', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        stubExport(sandbox, LibS3, 'getFileFromS3').resolves(encryptedContent);
+        getFileFromS3Stub.resolves(encryptedContent);
         const req = makeRequest(hostAdmin) as unknown as Request;
         req.headers[TwoFactorAuthenticationHeader] = `totp 123456`;
         const res = getResStub();
@@ -234,9 +255,9 @@ describe('server/controllers/legal-documents', () => {
 
       it('should decrypt and download file when valid 2FA is provided', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        stubExport(sandbox, LibS3, 'getFileFromS3').resolves(encryptedContent);
+        getFileFromS3Stub.resolves(encryptedContent);
+        validateTokenStub.resolves(true);
         const req = makeRequest(hostAdmin) as unknown as Request;
-        stubExport(sandbox, TOTPLib, 'validateToken').resolves(true);
         req.headers[TwoFactorAuthenticationHeader] = `totp 123456`;
         const res = getResStub();
         req.params = { id: idEncode(legalDocument.id, 'legal-document') };

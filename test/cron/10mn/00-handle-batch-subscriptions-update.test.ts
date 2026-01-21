@@ -1,13 +1,11 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import { assert, createSandbox } from 'sinon';
 
-import { run as runCronJob } from '../../../cron/10mn/00-handle-batch-subscriptions-update';
 import { activities } from '../../../server/constants';
 import OrderStatuses from '../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
-import * as SentryLib from '../../../server/lib/sentry';
 import models, { Collective, Order } from '../../../server/models';
-import * as PaypalAPI from '../../../server/paymentProviders/paypal/api';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -19,7 +17,6 @@ import {
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
-import { stubExport } from '../../test-helpers/stub-helper';
 import { resetTestDB } from '../../utils';
 
 const fakePayPalSubscriptionOrder = async (collective: Collective, orderData: Order['data'] = {}) => {
@@ -72,12 +69,28 @@ const fakeStripeSubscriptionOrder = async (collective: Collective, orderData: Or
 
 describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
   let sandbox, host;
+  let runCronJob, paypalRequestStub, reportErrorToSentryStub;
 
   beforeEach(async () => {
     await resetTestDB();
     host = await fakeHost();
     await fakeConnectedAccount({ service: 'paypal', clientId: randStr(), token: randStr(), CollectiveId: host.id });
     sandbox = createSandbox();
+
+    // Create stubs
+    paypalRequestStub = sandbox.stub();
+    reportErrorToSentryStub = sandbox.stub();
+
+    // Load module with mocked dependencies
+    const module = await esmock('../../../cron/10mn/00-handle-batch-subscriptions-update', {
+      '../../../server/paymentProviders/paypal/api': {
+        paypalRequest: paypalRequestStub,
+      },
+      '../../../server/lib/sentry': {
+        reportErrorToSentry: reportErrorToSentryStub,
+      },
+    });
+    runCronJob = module.run;
   });
 
   afterEach(() => {
@@ -92,7 +105,6 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     await unhostedCollective.changeHost(null);
 
     // PayPal API stubs
-    const paypalRequestStub = stubExport(sandbox, PaypalAPI, 'paypalRequest');
     const subscriptionUrl = `billing/subscriptions/${paypalOrder.paymentMethod.token}`;
     paypalRequestStub.resolves();
 
@@ -182,7 +194,6 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     await collective.changeHost(newHost.id, newHostAdmin);
 
     // PayPal API stubs
-    const paypalRequestStub = stubExport(sandbox, PaypalAPI, 'paypalRequest');
     const subscriptionUrl = `billing/subscriptions/${paypalOrder.paymentMethod.token}`;
     paypalRequestStub.resolves();
 
@@ -212,7 +223,7 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
 
   describe('paused orders (from freezing collectives)', () => {
     it('pauses subscriptions from paused orders', async () => {
-      const paypalRequestStub = stubExport(sandbox, PaypalAPI, 'paypalRequest').resolves();
+      paypalRequestStub.resolves();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const paypalOrder = await fakePayPalSubscriptionOrder(collective);
       const stripeOrder = await fakeStripeSubscriptionOrder(collective);
@@ -246,10 +257,7 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     });
 
     it('does not touch the order if PayPal call fails)', async () => {
-      const paypalRequestStub = stubExport(sandbox, PaypalAPI, 'paypalRequest').rejects(
-        new Error('Random PayPal failure'),
-      );
-      const sentryStub = stubExport(sandbox, SentryLib, 'reportErrorToSentry');
+      paypalRequestStub.rejects(new Error('Random PayPal failure'));
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const activeOrder = await fakePayPalSubscriptionOrder(collective);
       await collective.freeze('We are freezing you', true, 'Sorry contributor, we are freezing the collective');
@@ -267,9 +275,9 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
       expect(paypalRequest.args[0]).to.eq(`billing/subscriptions/${activeOrder.paymentMethod.token}/suspend`);
 
       // Make sure error gets reported
-      assert.calledTwice(sentryStub);
-      expect(sentryStub.getCall(0).args[0].message).to.eq('Random PayPal failure');
-      expect(sentryStub.getCall(1).args[0].message).to.eq('Failed to pause PayPal subscription');
+      assert.calledTwice(reportErrorToSentryStub);
+      expect(reportErrorToSentryStub.getCall(0).args[0].message).to.eq('Random PayPal failure');
+      expect(reportErrorToSentryStub.getCall(1).args[0].message).to.eq('Failed to pause PayPal subscription');
 
       // Check order status, should remain the same
       await activeOrder.reload();
@@ -280,7 +288,7 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     });
 
     it('resumes contributions that are pending for reactivation', async () => {
-      const paypalRequestStub = stubExport(sandbox, PaypalAPI, 'paypalRequest').resolves();
+      paypalRequestStub.resolves();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const paypalOrder = await fakePayPalSubscriptionOrder(collective);
       const stripeOrder = await fakeStripeSubscriptionOrder(collective);

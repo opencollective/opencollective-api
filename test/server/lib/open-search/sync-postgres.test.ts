@@ -1,15 +1,8 @@
 import { expect } from 'chai';
+import esmock from 'esmock';
 import sinon from 'sinon';
 
-import { OpenSearchBatchProcessor } from '../../../../server/lib/open-search/batch-processor';
-import {
-  removeOpenSearchPostgresTriggers,
-  startOpenSearchPostgresSync,
-  stopOpenSearchPostgresSync,
-} from '../../../../server/lib/open-search/sync-postgres';
-import * as SentryLib from '../../../../server/lib/sentry';
 import { fakeCollective, sequelize } from '../../../test-helpers/fake-data';
-import { stubExport } from '../../../test-helpers/stub-helper';
 import { waitForCondition } from '../../../utils';
 
 const checkIfSearchTriggerExists = async () => {
@@ -21,15 +14,32 @@ describe('server/lib/open-search/sync-postgres', () => {
   let processorStub;
   let sentryReportMessageStub;
   let sentryReportErrorStub;
+  let startOpenSearchPostgresSync, stopOpenSearchPostgresSync, removeOpenSearchPostgresTriggers;
 
-  beforeEach(() => {
-    processorStub = sinon.createStubInstance(OpenSearchBatchProcessor);
-    stubExport(sinon, OpenSearchBatchProcessor as unknown as Record<string, unknown>, 'getInstance').returns(
-      processorStub,
-    );
+  beforeEach(async () => {
+    processorStub = {
+      addToQueue: sinon.stub(),
+      flushAndClose: sinon.stub().resolves(),
+    };
 
-    sentryReportMessageStub = stubExport(sinon, SentryLib, 'reportMessageToSentry');
-    sentryReportErrorStub = stubExport(sinon, SentryLib, 'reportErrorToSentry');
+    sentryReportMessageStub = sinon.stub();
+    sentryReportErrorStub = sinon.stub();
+
+    // Load module with mocked dependencies
+    const module = await esmock('../../../../server/lib/open-search/sync-postgres', {
+      '../../../../server/lib/open-search/batch-processor': {
+        OpenSearchBatchProcessor: {
+          getInstance: () => processorStub,
+        },
+      },
+      '../../../../server/lib/sentry': {
+        reportMessageToSentry: sentryReportMessageStub,
+        reportErrorToSentry: sentryReportErrorStub,
+      },
+    });
+    startOpenSearchPostgresSync = module.startOpenSearchPostgresSync;
+    stopOpenSearchPostgresSync = module.stopOpenSearchPostgresSync;
+    removeOpenSearchPostgresTriggers = module.removeOpenSearchPostgresTriggers;
   });
 
   afterEach(async () => {
