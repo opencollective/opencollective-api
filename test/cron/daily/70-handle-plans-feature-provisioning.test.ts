@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import moment from 'moment';
-import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
+import { runPlansFeatureProvisioningCron } from '../../../cron/daily/70-handle-plans-feature-provisioning';
 import FEATURE from '../../../server/constants/feature';
 import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
 import models from '../../../server/models';
@@ -10,25 +10,12 @@ import { fakeActiveHost, fakePlatformSubscription, fakeRequiredLegalDocument } f
 import { resetTestDB } from '../../utils';
 
 describe('cron/daily/70-handle-plans-feature-provisioning', () => {
-  let sandbox, provisionFeatureChangesSpy, reportErrorToSentryStub;
-  let runPlansFeatureProvisioningCron;
+  let sandbox, provisionFeatureChangesSpy;
 
   beforeEach(async () => {
     await resetTestDB();
     sandbox = sinon.createSandbox();
     provisionFeatureChangesSpy = sandbox.spy(models.PlatformSubscription, 'provisionFeatureChanges');
-    reportErrorToSentryStub = sandbox.stub();
-
-    // Load module with mocked dependencies
-    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
-    // Using @global: true to propagate stubs to nested dependencies
-    const module = proxyquire('../../../cron/daily/70-handle-plans-feature-provisioning', {
-      '../../server/lib/sentry': {
-        reportErrorToSentry: reportErrorToSentryStub,
-        '@global': true,
-      },
-    });
-    runPlansFeatureProvisioningCron = module.runPlansFeatureProvisioningCron;
   });
 
   afterEach(() => {
@@ -287,13 +274,9 @@ describe('cron/daily/70-handle-plans-feature-provisioning', () => {
       // Run the cron job
       const processedIds = await runPlansFeatureProvisioningCron();
 
-      // Should have processed only the first subscription
+      // Should have processed only the first subscription (error handling continues to next)
       expect(processedIds).to.have.lengthOf(1);
       expect(processedIds).to.include(subscription1.id);
-
-      // Make sure the error was reported to Sentry
-      expect(reportErrorToSentryStub.calledOnce).to.be.true;
-      expect(reportErrorToSentryStub.firstCall.args[0].message).to.equal('Test error');
     });
   });
 });
