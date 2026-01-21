@@ -21,6 +21,7 @@ import {
   fakePayoutMethod,
   fakeUser,
 } from '../../test-helpers/fake-data';
+import { stubExport } from '../../test-helpers/stub-helper';
 import { makeRequest } from '../../utils';
 
 const getResStub = () => {
@@ -202,7 +203,7 @@ describe('server/controllers/legal-documents', () => {
 
       it('must provide 2FA', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        sandbox.stub(LibS3, 'getFileFromS3').resolves(encryptedContent);
+        stubExport(sandbox, LibS3, 'getFileFromS3').resolves(encryptedContent);
         const req = makeRequest(hostAdmin) as unknown as Request;
         const res = getResStub();
         req.params = { id: idEncode(legalDocument.id, 'legal-document') };
@@ -219,7 +220,7 @@ describe('server/controllers/legal-documents', () => {
 
       it('should reject invalid 2FA codes', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        sandbox.stub(LibS3, 'getFileFromS3').resolves(encryptedContent);
+        stubExport(sandbox, LibS3, 'getFileFromS3').resolves(encryptedContent);
         const req = makeRequest(hostAdmin) as unknown as Request;
         req.headers[TwoFactorAuthenticationHeader] = `totp 123456`;
         const res = getResStub();
@@ -233,9 +234,9 @@ describe('server/controllers/legal-documents', () => {
 
       it('should decrypt and download file when valid 2FA is provided', async () => {
         const encryptedContent = LegalDocument.encrypt(Buffer.from('content'));
-        sandbox.stub(LibS3, 'getFileFromS3').resolves(encryptedContent);
+        stubExport(sandbox, LibS3, 'getFileFromS3').resolves(encryptedContent);
         const req = makeRequest(hostAdmin) as unknown as Request;
-        sandbox.stub(TOTPLib, 'validateToken').resolves(true);
+        stubExport(sandbox, TOTPLib, 'validateToken').resolves(true);
         req.headers[TwoFactorAuthenticationHeader] = `totp 123456`;
         const res = getResStub();
         req.params = { id: idEncode(legalDocument.id, 'legal-document') };

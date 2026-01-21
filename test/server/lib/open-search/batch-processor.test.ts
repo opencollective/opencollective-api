@@ -5,6 +5,7 @@ import { OpenSearchBatchProcessor } from '../../../../server/lib/open-search/bat
 import * as OpenSearchClient from '../../../../server/lib/open-search/client';
 import { OpenSearchRequestType } from '../../../../server/lib/open-search/types';
 import * as SentryLib from '../../../../server/lib/sentry';
+import { stubExport } from '../../../test-helpers/stub-helper';
 
 describe('server/lib/open-search/batch-processor', () => {
   let processor: OpenSearchBatchProcessor;
@@ -23,11 +24,11 @@ describe('server/lib/open-search/batch-processor', () => {
     };
 
     // Mock the ES client
-    sinon.stub(OpenSearchClient, 'getOpenSearchClient').returns(clientStub);
+    stubExport(sinon, OpenSearchClient, 'getOpenSearchClient').returns(clientStub);
     processor = OpenSearchBatchProcessor.getInstance();
 
-    sentryReportMessageStub = sinon.stub(SentryLib, 'reportMessageToSentry');
-    sentryReportErrorStub = sinon.stub(SentryLib, 'reportErrorToSentry');
+    sentryReportMessageStub = stubExport(sinon, SentryLib, 'reportMessageToSentry');
+    sentryReportErrorStub = stubExport(sinon, SentryLib, 'reportErrorToSentry');
   });
 
   afterEach(() => {

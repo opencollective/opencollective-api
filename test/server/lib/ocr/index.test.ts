@@ -5,6 +5,7 @@ import * as LibCurrency from '../../../../server/lib/currency';
 import { runOCRForExpenseFile } from '../../../../server/lib/ocr';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../../../../server/lib/ocr/ExpenseOCRService';
 import { fakeUploadedFile } from '../../../test-helpers/fake-data';
+import { stubExport } from '../../../test-helpers/stub-helper';
 
 describe('server/lib/ocr/index.ts', () => {
   let sandbox;
@@ -30,7 +31,7 @@ describe('server/lib/ocr/index.ts', () => {
 
     it('converts all the amounts to the requested currency', async () => {
       // Mock the FX rates
-      sandbox.stub(LibCurrency, 'loadFxRatesMap').resolves({ '2023-01-01': { USD: { EUR: 0.8 }, NZD: { EUR: 2.5 } } });
+      stubExport(sandbox, LibCurrency, 'loadFxRatesMap').resolves({ '2023-01-01': { USD: { EUR: 0.8 }, NZD: { EUR: 2.5 } } });
 
       // A custom parser that resolves with values in various currencies, that we'll convert to EUR
       const parsingResult: ExpenseOCRParseResult = {

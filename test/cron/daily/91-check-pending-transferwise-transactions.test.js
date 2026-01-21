@@ -17,6 +17,7 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../../test-helpers/fake-data';
+import { stubExport } from '../../test-helpers/stub-helper';
 import * as utils from '../../utils';
 
 describe('cron/daily/check-pending-transferwise-transactions', () => {
@@ -27,7 +28,7 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
   afterEach(sandbox.restore);
   beforeEach(utils.resetTestDB);
   beforeEach(() => {
-    getTransfer = sandbox.stub(transferwiseLib, 'getTransfer');
+    getTransfer = stubExport(sandbox, transferwiseLib, 'getTransfer');
     sendMessage = sandbox.spy(emailLib, 'sendMessage');
   });
   beforeEach(async () => {
@@ -66,7 +67,7 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
         paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
       },
     });
-    sandbox.stub(transferwiseLib, 'getQuote').resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
+    stubExport(sandbox, transferwiseLib, 'getQuote').resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
   });
 
   it('should complete processing transactions if transfer was sent', async () => {

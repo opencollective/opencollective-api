@@ -5,6 +5,7 @@ import * as libcurrency from '../../../server/lib/currency';
 import * as libhost from '../../../server/lib/hostlib';
 import { Op } from '../../../server/models';
 import * as store from '../../stores';
+import { stubExport } from '../../test-helpers/stub-helper';
 import * as utils from '../../utils';
 
 async function donation(collective, user, amount, currency, createdAt) {
@@ -31,8 +32,8 @@ describe('server/lib/host', () => {
     await utils.resetTestDB();
     // Given that we stub the currency conversion machinery
     sandbox = createSandbox();
-    sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(0.75779));
-    sandbox.stub(libcurrency, 'convertToCurrency').callsFake(a => a * 2);
+    stubExport(sandbox, libcurrency, 'getFxRate').callsFake(() => Promise.resolve(0.75779));
+    stubExport(sandbox, libcurrency, 'convertToCurrency').callsFake(a => a * 2);
 
     // Given a host with a collective
     const currency = 'USD';

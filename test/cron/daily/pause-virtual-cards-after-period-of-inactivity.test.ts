@@ -9,6 +9,7 @@ import { Activity, VirtualCard } from '../../../server/models';
 import { VirtualCardStatus } from '../../../server/models/VirtualCard';
 import * as stripeVirtualCards from '../../../server/paymentProviders/stripe/virtual-cards';
 import { fakeActiveHost, fakeExpense, fakeHost, fakeVirtualCard } from '../../test-helpers/fake-data';
+import { stubExport } from '../../test-helpers/stub-helper';
 import { resetTestDB } from '../../utils';
 
 describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
@@ -17,8 +18,8 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
 
   beforeEach(async () => {
     await resetTestDB();
-    sandbox.stub(stripeVirtualCards, 'pauseCard').resolves();
-    sandbox.stub(stripeVirtualCards, 'resumeCard').resolves();
+    stubExport(sandbox, stripeVirtualCards, 'pauseCard').resolves();
+    stubExport(sandbox, stripeVirtualCards, 'resumeCard').resolves();
   });
 
   it('pauses inactive virtual cards', async () => {

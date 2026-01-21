@@ -19,6 +19,7 @@ import {
   fakeUploadedFile,
   fakeUser,
 } from '../../test-helpers/fake-data';
+import { stubExport } from '../../test-helpers/stub-helper';
 
 async function makeRequest(
   id: number,
@@ -222,7 +223,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to recently submitted uploaded file if belongs to user', async () => {
       const actualUrl = uploadedFile.getDataValue('url');
-      sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
 
       const response = await makeRequest(uploadedFile.id, otherUser);
 
@@ -232,7 +233,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense attached file - wrong type', async () => {
       const actualUrl = expenseItemUploadedFileWrongKind.getDataValue('url');
-      sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
 
       const otherUserResponse = await makeRequest(expenseItemUploadedFileWrongKind.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
@@ -252,7 +253,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense item', async () => {
       const actualUrl = expenseItemUploadedFile.getDataValue('url');
-      sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
 
       const otherUserResponse = await makeRequest(expenseItemUploadedFile.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
@@ -272,7 +273,7 @@ describe('server/controllers/files', () => {
 
     it('should redirect to resource if user has access to expense attached file', async () => {
       const actualUrl = expenseAttachedUploadedFile.getDataValue('url');
-      sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+      stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
 
       const otherUserResponse = await makeRequest(expenseAttachedUploadedFile.id, otherUser);
       expect(otherUserResponse._getStatusCode()).to.eql(403);
@@ -347,7 +348,7 @@ describe('server/controllers/files', () => {
     describe('draft expenses', () => {
       it('should redirect to resource if user has access to draft expense item', async () => {
         const actualUrl = draftExpenseItemUploadedFile.getDataValue('url');
-        sandbox.stub(awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
+        stubExport(sandbox, awsS3, 'getSignedGetURL').resolves(`${actualUrl}?signed`);
 
         const otherUserResponse = await makeRequest(draftExpenseItemUploadedFile.id, otherUser);
         expect(otherUserResponse._getStatusCode()).to.eql(403);

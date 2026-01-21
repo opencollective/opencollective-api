@@ -16,6 +16,7 @@ import {
 import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
 import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
+import { stubExport } from '../../test-helpers/stub-helper';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -202,8 +203,7 @@ describe('server/lib/budget', () => {
     before(async () => {
       sandbox = createSandbox();
 
-      sandbox
-        .stub(libcurrency, 'getFxRate')
+      stubExport(sandbox, libcurrency, 'getFxRate')
         .withArgs('BRL', 'USD')
         .resolves(1 / 1.1)
         .withArgs('USD', 'BRL')

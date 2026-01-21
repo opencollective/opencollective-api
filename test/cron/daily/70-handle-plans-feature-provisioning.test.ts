@@ -8,6 +8,7 @@ import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
 import * as SentryLib from '../../../server/lib/sentry';
 import models from '../../../server/models';
 import { fakeActiveHost, fakePlatformSubscription, fakeRequiredLegalDocument } from '../../test-helpers/fake-data';
+import { stubExport } from '../../test-helpers/stub-helper';
 import { resetTestDB } from '../../utils';
 
 describe('cron/daily/70-handle-plans-feature-provisioning', () => {
@@ -17,7 +18,7 @@ describe('cron/daily/70-handle-plans-feature-provisioning', () => {
     await resetTestDB();
     sandbox = sinon.createSandbox();
     provisionFeatureChangesSpy = sandbox.spy(models.PlatformSubscription, 'provisionFeatureChanges');
-    reportErrorToSentryStub = sandbox.stub(SentryLib, 'reportErrorToSentry');
+    reportErrorToSentryStub = stubExport(sandbox, SentryLib, 'reportErrorToSentry');
   });
 
   afterEach(() => {

@@ -9,6 +9,7 @@ import {
 } from '../../../../server/lib/open-search/sync-postgres';
 import * as SentryLib from '../../../../server/lib/sentry';
 import { fakeCollective, sequelize } from '../../../test-helpers/fake-data';
+import { stubExport } from '../../../test-helpers/stub-helper';
 import { waitForCondition } from '../../../utils';
 
 const checkIfSearchTriggerExists = async () => {
@@ -23,10 +24,10 @@ describe('server/lib/open-search/sync-postgres', () => {
 
   beforeEach(() => {
     processorStub = sinon.createStubInstance(OpenSearchBatchProcessor);
-    sinon.stub(OpenSearchBatchProcessor, 'getInstance').returns(processorStub);
+    stubExport(sinon, OpenSearchBatchProcessor as unknown as Record<string, unknown>, 'getInstance').returns(processorStub);
 
-    sentryReportMessageStub = sinon.stub(SentryLib, 'reportMessageToSentry');
-    sentryReportErrorStub = sinon.stub(SentryLib, 'reportErrorToSentry');
+    sentryReportMessageStub = stubExport(sinon, SentryLib, 'reportMessageToSentry');
+    sentryReportErrorStub = stubExport(sinon, SentryLib, 'reportErrorToSentry');
   });
 
   afterEach(async () => {

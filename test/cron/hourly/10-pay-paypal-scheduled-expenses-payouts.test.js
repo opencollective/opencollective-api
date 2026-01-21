@@ -6,6 +6,7 @@ import status from '../../../server/constants/expense-status';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import * as paypal from '../../../server/paymentProviders/paypal/payouts';
 import { fakeCollective, fakeExpense, fakePayoutMethod, multiple } from '../../test-helpers/fake-data';
+import { stubExport } from '../../test-helpers/stub-helper';
 import * as utils from '../../utils';
 
 describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
@@ -15,7 +16,7 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
   afterEach(sandbox.restore);
   beforeEach(utils.resetTestDB);
   beforeEach(() => {
-    payExpensesBatch = sandbox.stub(paypal, 'payExpensesBatch').resolves();
+    payExpensesBatch = stubExport(sandbox, paypal, 'payExpensesBatch').resolves();
   });
 
   it('bundle expenses by hostId', async () => {
