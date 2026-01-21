@@ -102,7 +102,7 @@ export class PersonaClient {
     this.apiKey = apiKey;
   }
 
-  private get personaBaseUrl(): string {
+  get personaBaseUrl(): string {
     return 'https://api.withpersona.com';
   }
 
