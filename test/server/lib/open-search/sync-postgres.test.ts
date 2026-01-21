@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
+import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
 import { fakeCollective, sequelize } from '../../../test-helpers/fake-data';
@@ -26,7 +26,7 @@ describe('server/lib/open-search/sync-postgres', () => {
     sentryReportErrorStub = sinon.stub();
 
     // Load module with mocked dependencies
-    const module = await esmock('../../../../server/lib/open-search/sync-postgres', {
+    const module = proxyquire('../../../../server/lib/open-search/sync-postgres', {
       '../../../../server/lib/open-search/batch-processor': {
         OpenSearchBatchProcessor: {
           getInstance: () => processorStub,

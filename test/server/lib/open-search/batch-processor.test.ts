@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
+import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
 import { OpenSearchRequestType } from '../../../../server/lib/open-search/types';
@@ -22,7 +22,7 @@ describe('server/lib/open-search/batch-processor', () => {
     sentryReportErrorStub = sinon.stub();
 
     // Load module with mocked dependencies
-    const module = await esmock('../../../../server/lib/open-search/batch-processor', {
+    const module = proxyquire('../../../../server/lib/open-search/batch-processor', {
       '../../../../server/lib/open-search/client': {
         getOpenSearchClient: () => clientStub,
       },

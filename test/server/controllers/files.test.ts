@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
-import esmock from 'esmock';
 import httpMocks from 'node-mocks-http';
+import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
 import { expenseStatus } from '../../../server/constants';
@@ -71,7 +71,7 @@ describe('server/controllers/files', () => {
     getSignedGetURLStub = sandbox.stub();
 
     // Load controller with mocked awsS3
-    FilesController = await esmock('../../../server/controllers/files', {
+    FilesController = proxyquire('../../../server/controllers/files', {
       '../../../server/lib/awsS3': {
         getSignedGetURL: getSignedGetURLStub,
       },

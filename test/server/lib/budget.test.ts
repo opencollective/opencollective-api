@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
 import moment from 'moment';
+import proxyquire from 'proxyquire';
 import { createSandbox } from 'sinon';
 
 import ExpenseStatuses from '../../../server/constants/expense-status';
@@ -207,7 +207,7 @@ describe('server/lib/budget', () => {
       getFxRateStub.withArgs('BRL', 'BRL').resolves(1);
 
       // Load budget module with mocked currency
-      const budgetModule = await esmock('../../../server/lib/budget', {
+      const budgetModule = proxyquire('../../../server/lib/budget', {
         '../../../server/lib/currency': {
           getFxRate: getFxRateStub,
         },

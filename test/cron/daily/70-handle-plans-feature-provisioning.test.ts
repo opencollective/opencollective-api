@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
 import moment from 'moment';
+import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
 import FEATURE from '../../../server/constants/feature';
@@ -20,7 +20,7 @@ describe('cron/daily/70-handle-plans-feature-provisioning', () => {
     reportErrorToSentryStub = sandbox.stub();
 
     // Load module with mocked dependencies
-    const module = await esmock('../../../cron/daily/70-handle-plans-feature-provisioning', {
+    const module = proxyquire('../../../cron/daily/70-handle-plans-feature-provisioning', {
       '../../../server/lib/sentry': {
         reportErrorToSentry: reportErrorToSentryStub,
       },

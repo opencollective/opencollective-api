@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
+import proxyquire from 'proxyquire';
 import { createSandbox } from 'sinon';
 
 import { Op } from '../../../server/models';
@@ -34,7 +34,7 @@ describe('server/lib/host', () => {
     convertToCurrencyStub = sandbox.stub().callsFake(a => a * 2);
 
     // Load hostlib with mocked currency
-    libhost = await esmock('../../../server/lib/hostlib', {
+    libhost = proxyquire('../../../server/lib/hostlib', {
       '../../../server/lib/currency': {
         getFxRate: getFxRateStub,
         convertToCurrency: convertToCurrencyStub,

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
+import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../../../../server/lib/ocr/ExpenseOCRService';
@@ -15,7 +15,7 @@ describe('server/lib/ocr/index.ts', () => {
     loadFxRatesMapStub = sandbox.stub();
 
     // Load module with mocked dependencies
-    const module = await esmock('../../../../server/lib/ocr', {
+    const module = proxyquire('../../../../server/lib/ocr', {
       '../../../../server/lib/currency': {
         loadFxRatesMap: loadFxRatesMapStub,
       },

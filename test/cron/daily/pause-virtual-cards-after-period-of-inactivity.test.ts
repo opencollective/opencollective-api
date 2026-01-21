@@ -1,6 +1,6 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
 import moment from 'moment';
+import proxyquire from 'proxyquire';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../server/constants/activities';
@@ -22,7 +22,7 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
     resumeCardStub = sandbox.stub().resolves();
 
     // Load module with mocked dependencies
-    const module = await esmock('../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity', {
+    const module = proxyquire('../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity', {
       '../../../server/paymentProviders/stripe/virtual-cards': {
         pauseCard: pauseCardStub,
         resumeCard: resumeCardStub,

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
+import proxyquire from 'proxyquire';
 import { assert, createSandbox } from 'sinon';
 
 import { roles } from '../../../server/constants';
@@ -28,7 +28,7 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
   beforeEach(async () => {
     getTransfer = sandbox.stub();
     getQuote = sandbox.stub();
-    const module = await esmock('../../../cron/daily/91-check-pending-transferwise-transactions', {
+    const module = proxyquire('../../../cron/daily/91-check-pending-transferwise-transactions', {
       '../../../server/lib/transferwise': {
         getTransfer,
         getQuote,

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import esmock from 'esmock';
+import proxyquire from 'proxyquire';
 import { assert, createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
@@ -82,7 +82,7 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     reportErrorToSentryStub = sandbox.stub();
 
     // Load module with mocked dependencies
-    const module = await esmock('../../../cron/10mn/00-handle-batch-subscriptions-update', {
+    const module = proxyquire('../../../cron/10mn/00-handle-batch-subscriptions-update', {
       '../../../server/paymentProviders/paypal/api': {
         paypalRequest: paypalRequestStub,
       },

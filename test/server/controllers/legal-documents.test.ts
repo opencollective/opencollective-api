@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
-import esmock from 'esmock';
 import type { Request, Response } from 'express';
+import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
 import { idEncode } from '../../../server/graphql/v2/identifiers';
@@ -41,18 +41,16 @@ describe('server/controllers/legal-documents', () => {
     validateTokenStub = sandbox.stub();
 
     // Load controller with mocked dependencies
-    LegalDocumentsController = (
-      await esmock('../../../server/controllers/legal-documents', {
-        '../../../server/lib/awsS3': {
-          getFileFromS3: getFileFromS3Stub,
+    LegalDocumentsController = proxyquire('../../../server/controllers/legal-documents', {
+      '../../../server/lib/awsS3': {
+        getFileFromS3: getFileFromS3Stub,
+      },
+      '../../../server/lib/two-factor-authentication/totp': {
+        default: {
+          validateToken: validateTokenStub,
         },
-        '../../../server/lib/two-factor-authentication/totp': {
-          default: {
-            validateToken: validateTokenStub,
-          },
-        },
-      })
-    ).default;
+      },
+    }).default;
   });
 
   afterEach(() => {
