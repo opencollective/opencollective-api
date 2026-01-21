@@ -28,7 +28,7 @@ async function startExpressServer(workerId) {
 
   await updateCachedFidoMetadata();
   const redisClient = await createRedisClient(RedisInstanceType.SESSION);
-  await setupExpress(expressApp, redisClient);
+  setupExpress(expressApp, redisClient);
 
   /**
    * Routes.
