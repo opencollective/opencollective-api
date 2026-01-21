@@ -194,6 +194,7 @@ EmojiReaction.belongsTo(User);
 // ExportRequests
 ExportRequest.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 ExportRequest.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+ExportRequest.belongsTo(UploadedFile, { foreignKey: 'UploadedFileId', as: 'uploadedFile' });
 
 // Expense
 Expense.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
