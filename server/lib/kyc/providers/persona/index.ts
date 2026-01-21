@@ -102,13 +102,23 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
     }
   }
 
-  private async importInquiryId(req: KYCRequest, providerRequest: PersonaKYCRequest) {
+  private async getConnectedAccount(CollectiveId: number) {
     const connectedAccount = await ConnectedAccount.findOne({
       where: {
-        CollectiveId: req.RequestedByCollectiveId,
-        service: 'persona',
+        CollectiveId,
+        service: this.providerName,
       },
     });
+
+    if (!connectedAccount) {
+      throw new Error('Persona connected account not found');
+    }
+
+    return connectedAccount;
+  }
+
+  private async importInquiryId(req: KYCRequest, providerRequest: PersonaKYCRequest) {
+    const connectedAccount = await this.getConnectedAccount(req.RequestedByCollectiveId);
     const client = new PersonaClient(connectedAccount.token);
     const { data: inquiry } = await client.retrieveInquiry(providerRequest.importInquiryId);
 
@@ -178,12 +188,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       return existingVerification;
     }
 
-    const connectedAccount = await ConnectedAccount.findOne({
-      where: {
-        CollectiveId: req.RequestedByCollectiveId,
-        service: 'persona',
-      },
-    });
+    const connectedAccount = await this.getConnectedAccount(req.RequestedByCollectiveId);
     const client = new PersonaClient(connectedAccount.token);
 
     const resumableVerification = await KYCVerification.findOne<PersonaKYCVerification>({
@@ -230,12 +235,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
   }
 
   async startVerification(kycVerification: PersonaKYCVerification): Promise<any> {
-    const connectedAccount = await ConnectedAccount.findOne({
-      where: {
-        CollectiveId: kycVerification.RequestedByCollectiveId,
-        service: 'persona',
-      },
-    });
+    const connectedAccount = await this.getConnectedAccount(kycVerification.RequestedByCollectiveId);
     const client = new PersonaClient(connectedAccount.token);
     const { data: inquiry, meta } = await client.resumeInquiry(kycVerification.providerData.inquiry.id);
 
@@ -250,7 +250,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
     const connectedAccount = await ConnectedAccount.findOne({
       where: {
         id: idNumber,
-        service: 'persona',
+        service: this.providerName,
       },
       include: [
         {
@@ -262,7 +262,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
     });
 
     if (!connectedAccount) {
-      next(new Error('Persona connected account not found'));
+      res.status(404).end();
       return;
     }
 
@@ -290,19 +290,31 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
 
     const eventName = event.attributes.name;
 
-    switch (eventName) {
-      case PersonaEvent.INQUIRY_APPROVED:
-        await this.handleInquiryApproved(connectedAccount, event as PersonaWebhookEvent<PersonaEvent.INQUIRY_APPROVED>);
-        break;
-      case PersonaEvent.INQUIRY_DECLINED:
-        await this.handleInquiryDeclined(connectedAccount, event as PersonaWebhookEvent<PersonaEvent.INQUIRY_DECLINED>);
-        break;
-      case PersonaEvent.INQUIRY_EXPIRED:
-        await this.handleInquiryExpired(connectedAccount, event as PersonaWebhookEvent<PersonaEvent.INQUIRY_EXPIRED>);
-        break;
-      case PersonaEvent.INQUIRY_FAILED:
-        await this.handleInquiryFailed(connectedAccount, event as PersonaWebhookEvent<PersonaEvent.INQUIRY_FAILED>);
-        break;
+    try {
+      switch (eventName) {
+        case PersonaEvent.INQUIRY_APPROVED:
+          await this.handleInquiryApproved(
+            connectedAccount,
+            event as PersonaWebhookEvent<PersonaEvent.INQUIRY_APPROVED>,
+          );
+          break;
+        case PersonaEvent.INQUIRY_DECLINED:
+          await this.handleInquiryDeclined(
+            connectedAccount,
+            event as PersonaWebhookEvent<PersonaEvent.INQUIRY_DECLINED>,
+          );
+          break;
+        case PersonaEvent.INQUIRY_EXPIRED:
+          await this.handleInquiryExpired(connectedAccount, event as PersonaWebhookEvent<PersonaEvent.INQUIRY_EXPIRED>);
+          break;
+        case PersonaEvent.INQUIRY_FAILED:
+          await this.handleInquiryFailed(connectedAccount, event as PersonaWebhookEvent<PersonaEvent.INQUIRY_FAILED>);
+          break;
+      }
+    } catch (error) {
+      logger.error(`error handling persona webhook: ${error}`);
+      res.status(500).end();
+      return;
     }
 
     res.status(200).end();
@@ -341,15 +353,18 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
             id: inquiry.id,
           },
         },
-        data: this.verifiedDataFromInquiry(inquiry),
       },
     });
+
+    if (!kycVerification) {
+      return;
+    }
 
     await kycVerification.update({
       status: KYCVerificationStatus.VERIFIED,
       providerData: {
         ...kycVerification.providerData,
-        inquiry,
+        inquiry: this.sanitizeInquiry(inquiry),
       },
     });
   }
@@ -371,11 +386,15 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       },
     });
 
+    if (!kycVerification) {
+      return;
+    }
+
     await kycVerification.update({
       status: KYCVerificationStatus.FAILED,
       providerData: {
         ...kycVerification.providerData,
-        inquiry,
+        inquiry: this.sanitizeInquiry(inquiry),
       },
     });
   }
@@ -405,7 +424,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       status: KYCVerificationStatus.EXPIRED,
       providerData: {
         ...kycVerification.providerData,
-        inquiry,
+        inquiry: this.sanitizeInquiry(inquiry),
       },
     });
   }
@@ -427,11 +446,15 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       },
     });
 
+    if (!kycVerification) {
+      return;
+    }
+
     await kycVerification.update({
       status: KYCVerificationStatus.FAILED,
       providerData: {
         ...kycVerification.providerData,
-        inquiry,
+        inquiry: this.sanitizeInquiry(inquiry),
       },
     });
   }
@@ -451,19 +474,24 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
 
     const client = new PersonaClient(req.apiKey);
     // test key
-    await client.listWebhooks();
+    try {
+      await client.listWebhooks();
+    } catch (error) {
+      logger.error(`error listing webhooks: ${error}`);
+      throw new Error('Invalid API key');
+    }
 
     let connectedAccount = await ConnectedAccount.findOne({
       where: {
         CollectiveId: req.CollectiveId,
-        service: 'persona',
+        service: this.providerName,
       },
     });
 
     if (!connectedAccount) {
       connectedAccount = await ConnectedAccount.create({
         CollectiveId: req.CollectiveId,
-        service: 'persona',
+        service: this.providerName,
         token: req.apiKey,
         clientId: req.apiKeyId,
         CreatedByUserId: req.CreatedByUserId,

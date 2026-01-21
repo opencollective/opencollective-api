@@ -259,7 +259,12 @@ export class PersonaClient {
 
       const responseBody = await res.json();
       debug(`persona response: ${res.status}, ${JSON.stringify(responseBody)}`);
-      return { status: res.status, headers: res.headers, body: responseBody };
+
+      if (res.status >= 200 && res.status < 300) {
+        return { status: res.status, headers: res.headers, body: responseBody };
+      }
+
+      throw new Error(`Persona API error: ${res.status} ${responseBody?.errors?.[0]?.title}`);
     } catch (e) {
       debug(`persona error: ${e.message}`);
       reportErrorToSentry(e);
