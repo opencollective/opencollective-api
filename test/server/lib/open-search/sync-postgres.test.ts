@@ -24,7 +24,9 @@ describe('server/lib/open-search/sync-postgres', () => {
 
   beforeEach(() => {
     processorStub = sinon.createStubInstance(OpenSearchBatchProcessor);
-    stubExport(sinon, OpenSearchBatchProcessor as unknown as Record<string, unknown>, 'getInstance').returns(processorStub);
+    stubExport(sinon, OpenSearchBatchProcessor as unknown as Record<string, unknown>, 'getInstance').returns(
+      processorStub,
+    );
 
     sentryReportMessageStub = stubExport(sinon, SentryLib, 'reportMessageToSentry');
     sentryReportErrorStub = stubExport(sinon, SentryLib, 'reportErrorToSentry');

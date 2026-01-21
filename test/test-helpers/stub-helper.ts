@@ -4,7 +4,7 @@
  * tsx/esbuild makes module exports non-configurable, which prevents sinon from stubbing them.
  * This helper makes the property configurable before stubbing.
  */
-import type { SinonSandbox, SinonStub, SinonSpy } from 'sinon';
+import type { SinonSandbox, SinonSpy, SinonStub } from 'sinon';
 
 /**
  * Makes a module export configurable so it can be stubbed with sinon.

@@ -246,7 +246,9 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     });
 
     it('does not touch the order if PayPal call fails)', async () => {
-      const paypalRequestStub = stubExport(sandbox, PaypalAPI, 'paypalRequest').rejects(new Error('Random PayPal failure'));
+      const paypalRequestStub = stubExport(sandbox, PaypalAPI, 'paypalRequest').rejects(
+        new Error('Random PayPal failure'),
+      );
       const sentryStub = stubExport(sandbox, SentryLib, 'reportErrorToSentry');
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const activeOrder = await fakePayPalSubscriptionOrder(collective);

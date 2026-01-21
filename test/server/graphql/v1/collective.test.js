@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon, { createSandbox } from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { activities as ACTIVITY } from '../../../../server/constants';
 import * as expenses from '../../../../server/graphql/common/expenses';
