@@ -23,10 +23,12 @@ describe('cron/daily/pause-virtual-cards-after-period-of-inactivity', () => {
 
     // Load module with mocked dependencies
     // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
     const module = proxyquire('../../../cron/daily/52-pause-virtual-cards-after-period-of-inactivity', {
       '../../server/paymentProviders/stripe/virtual-cards': {
         pauseCard: pauseCardStub,
         resumeCard: resumeCardStub,
+        '@global': true,
       },
     });
     runCron = module.run;

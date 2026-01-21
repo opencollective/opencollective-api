@@ -42,14 +42,17 @@ describe('server/controllers/legal-documents', () => {
 
     // Load controller with mocked dependencies
     // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
     LegalDocumentsController = proxyquire('../../../server/controllers/legal-documents', {
       '../lib/awsS3': {
         getFileFromS3: getFileFromS3Stub,
+        '@global': true,
       },
       '../lib/two-factor-authentication/totp': {
         default: {
           validateToken: validateTokenStub,
         },
+        '@global': true,
       },
     }).default;
   });

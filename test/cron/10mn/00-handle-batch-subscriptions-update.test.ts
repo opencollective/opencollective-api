@@ -83,12 +83,15 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
 
     // Load module with mocked dependencies
     // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
     const module = proxyquire('../../../cron/10mn/00-handle-batch-subscriptions-update', {
       '../../server/paymentProviders/paypal/api': {
         paypalRequest: paypalRequestStub,
+        '@global': true,
       },
       '../../server/lib/sentry': {
         reportErrorToSentry: reportErrorToSentryStub,
+        '@global': true,
       },
     });
     runCronJob = module.run;

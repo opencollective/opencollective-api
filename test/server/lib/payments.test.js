@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
+import proxyquire from 'proxyquire';
 import { createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
@@ -21,7 +22,6 @@ import {
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
-import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
 import {
   fakeCollective,
@@ -866,21 +866,28 @@ describe('server/lib/payments', () => {
     });
 
     describe('paypal', () => {
-      let orderToPause, paypalRequestStub;
+      let orderToPause, paypalRequestStub, pauseOrderWithMock, resumeOrderWithMock;
 
       beforeEach(() => {
-        paypalRequestStub = sandbox.stub(paypalAPI, 'paypalRequest');
-      });
-
-      afterEach(() => {
-        paypalRequestStub.restore();
+        // Use proxyquire to load payments module with mocked PayPal API
+        // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+        // Using @global: true to propagate stubs to nested dependencies
+        paypalRequestStub = sandbox.stub();
+        const paymentsModule = proxyquire('../../../server/lib/payments', {
+          '../paymentProviders/paypal/api': {
+            paypalRequest: paypalRequestStub,
+            '@global': true,
+          },
+        });
+        pauseOrderWithMock = paymentsModule.pauseOrder;
+        resumeOrderWithMock = paymentsModule.resumeOrder;
       });
 
       it('pauses order', async () => {
         const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
         const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
-        await pauseOrder(orderToPause, 'Paused for no reason', 'HOST');
+        await pauseOrderWithMock(orderToPause, 'Paused for no reason', 'HOST');
         const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
         expect(updatedOrder.status).to.equal('PAUSED');
         expect(updatedOrder.data.messageForContributors).to.equal('Paused for no reason');
@@ -894,7 +901,7 @@ describe('server/lib/payments', () => {
         const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
         const orderValues = { status: 'PAUSED', interval: 'month', PaymentMethodId: paymentMethod.id };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
-        await resumeOrder(orderToPause, "Let's continue");
+        await resumeOrderWithMock(orderToPause, "Let's continue");
         const updatedOrder = await models.Order.findByPk(orderToPause.id, { include: { association: 'Subscription' } });
         expect(updatedOrder.status).to.equal('ACTIVE');
         expect(updatedOrder.Subscription.isActive).to.be.true;
@@ -907,7 +914,7 @@ describe('server/lib/payments', () => {
         const orderValues = { status: 'ACTIVE', interval: 'month', PaymentMethodId: paymentMethod.id };
         orderToPause = await fakeOrder(orderValues, { withSubscription: true });
         paypalRequestStub.rejects(new Error('PayPal error'));
-        await expect(pauseOrder(orderToPause, 'Paused for no reason', 'HOST')).to.be.rejectedWith(
+        await expect(pauseOrderWithMock(orderToPause, 'Paused for no reason', 'HOST')).to.be.rejectedWith(
           'Failed to pause PayPal subscription',
         );
 

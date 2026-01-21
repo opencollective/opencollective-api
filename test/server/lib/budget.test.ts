@@ -208,9 +208,11 @@ describe('server/lib/budget', () => {
 
       // Load budget module with mocked currency
       // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+      // Using @global: true to propagate stubs to nested dependencies
       const budgetModule = proxyquire('../../../server/lib/budget', {
         './currency': {
           getFxRate: getFxRateStub,
+          '@global': true,
         },
       });
       getCurrentCollectiveBalances = budgetModule.getCurrentCollectiveBalances;

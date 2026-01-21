@@ -22,13 +22,17 @@ describe('server/lib/open-search/batch-processor', () => {
     sentryReportErrorStub = sinon.stub();
 
     // Load module with mocked dependencies
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
     const module = proxyquire('../../../../server/lib/open-search/batch-processor', {
-      '../../../../server/lib/open-search/client': {
+      './client': {
         getOpenSearchClient: () => clientStub,
+        '@global': true,
       },
-      '../../../../server/lib/sentry': {
+      '../../sentry': {
         reportMessageToSentry: sentryReportMessageStub,
         reportErrorToSentry: sentryReportErrorStub,
+        '@global': true,
       },
     });
     OpenSearchBatchProcessor = module.OpenSearchBatchProcessor;

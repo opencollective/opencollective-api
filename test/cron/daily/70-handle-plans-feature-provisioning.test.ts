@@ -21,9 +21,11 @@ describe('cron/daily/70-handle-plans-feature-provisioning', () => {
 
     // Load module with mocked dependencies
     // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
     const module = proxyquire('../../../cron/daily/70-handle-plans-feature-provisioning', {
       '../../server/lib/sentry': {
         reportErrorToSentry: reportErrorToSentryStub,
+        '@global': true,
       },
     });
     runPlansFeatureProvisioningCron = module.runPlansFeatureProvisioningCron;

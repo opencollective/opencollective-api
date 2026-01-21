@@ -35,10 +35,12 @@ describe('server/lib/host', () => {
 
     // Load hostlib with mocked currency
     // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
     libhost = proxyquire('../../../server/lib/hostlib', {
       './currency': {
         getFxRate: getFxRateStub,
         convertToCurrency: convertToCurrencyStub,
+        '@global': true,
       },
     });
 

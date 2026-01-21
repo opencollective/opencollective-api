@@ -18,9 +18,11 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
 
     // Load module with mocked dependencies
     // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
     const module = proxyquire('../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts', {
       '../../server/paymentProviders/paypal/payouts': {
         payExpensesBatch,
+        '@global': true,
       },
     });
     payPaypalScheduledExpenses = module.run;
