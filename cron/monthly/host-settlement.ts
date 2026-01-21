@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { Parser } from '@json2csv/plainjs';
 import config from 'config';
-import { groupBy, sumBy } from 'lodash';
+import { groupBy, min, sumBy } from 'lodash';
 import moment from 'moment';
 
 import activityType from '../../server/constants/activities';
@@ -313,7 +313,9 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
       // Attach CSV
       const csvUrl = getTransactionsCsvUrl('transactions', host, {
-        startDate,
+        startDate: moment(min(transactions.map(t => t.createdAt)))
+          .startOf('month')
+          .toDate(),
         endDate,
         kind: transactionsKinds,
         add: ['orderLegacyId'],
