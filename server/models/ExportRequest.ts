@@ -5,13 +5,23 @@ import { formatZodError } from '../lib/errors';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Collective from './Collective';
+import UploadedFile from './UploadedFile';
 import User from './User';
 
 // For some reason `CreationOptional` is not enough to make fields optional
 type CreationAttributes = InferCreationAttributes<
   ExportRequest,
   {
-    omit: 'id' | 'parameters' | 'data' | 'status' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'expiresAt';
+    omit:
+      | 'id'
+      | 'parameters'
+      | 'data'
+      | 'status'
+      | 'createdAt'
+      | 'updatedAt'
+      | 'deletedAt'
+      | 'expiresAt'
+      | 'UploadedFileId';
   }
 >;
 
@@ -31,8 +41,6 @@ const dataSchema = z
   .object({
     progress: z.number().min(0).max(100).optional(),
     error: z.string().optional(),
-    fileUrl: z.string().optional(),
-    fileSize: z.number().optional(),
     rowCount: z.number().optional(),
   })
   .optional();
@@ -43,6 +51,7 @@ class ExportRequest extends Model<InferAttributes<ExportRequest>, CreationAttrib
   declare public id: number;
   declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public UploadedFileId: ForeignKey<UploadedFile['id']>;
   declare public name: string;
   declare public type: ExportRequestTypes;
   declare public parameters: Record<string, unknown> | null;
@@ -57,6 +66,8 @@ class ExportRequest extends Model<InferAttributes<ExportRequest>, CreationAttrib
   declare public getCollective: BelongsToGetAssociationMixin<Collective>;
   declare public createdByUser?: User;
   declare public getCreatedByUser: BelongsToGetAssociationMixin<User>;
+  declare public uploadedFile?: UploadedFile;
+  declare public getUploadedFile: BelongsToGetAssociationMixin<UploadedFile>;
 }
 
 ExportRequest.init(
@@ -77,6 +88,13 @@ ExportRequest.init(
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Users' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+    UploadedFileId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'UploadedFiles' },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
