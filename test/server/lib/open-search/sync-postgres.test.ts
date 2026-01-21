@@ -18,6 +18,7 @@ describe('server/lib/open-search/sync-postgres', () => {
 
   beforeEach(async () => {
     processorStub = {
+      start: sinon.stub(),
       addToQueue: sinon.stub(),
       flushAndClose: sinon.stub().resolves(),
     };

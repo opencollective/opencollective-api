@@ -2,10 +2,9 @@ import assert from 'assert';
 
 import { expect } from 'chai';
 import { PlaidApi } from 'plaid';
+import proxyquire from 'proxyquire';
 import sinon from 'sinon';
 
-import * as PlaidClient from '../../../../server/lib/plaid/client';
-import { syncPlaidAccount } from '../../../../server/lib/plaid/sync';
 import { Activity, ConnectedAccount, TransactionsImport } from '../../../../server/models';
 import { plaidTransactionsSyncResponse } from '../../../mocks/plaid';
 import {
@@ -19,6 +18,7 @@ import { getResumableSleep, sleep } from '../../../utils';
 describe('server/lib/plaid/sync', () => {
   let sandbox: sinon.SinonSandbox;
   let stubPlaidAPI: sinon.SinonStubbedInstance<PlaidApi>;
+  let syncPlaidAccount;
 
   before(async () => {
     sandbox = sinon.createSandbox();
@@ -27,7 +27,17 @@ describe('server/lib/plaid/sync', () => {
   beforeEach(() => {
     stubPlaidAPI = sandbox.createStubInstance(PlaidApi);
     stubPlaidAPI.transactionsSync = sandbox.stub().resolves(plaidTransactionsSyncResponse);
-    sandbox.stub(PlaidClient, 'getPlaidClient').returns(stubPlaidAPI);
+
+    // Load module with mocked dependencies
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
+    // Using @global: true to propagate stubs to nested dependencies
+    const module = proxyquire('../../../../server/lib/plaid/sync', {
+      './client': {
+        getPlaidClient: () => stubPlaidAPI,
+        '@global': true,
+      },
+    });
+    syncPlaidAccount = module.syncPlaidAccount;
   });
 
   afterEach(() => {
