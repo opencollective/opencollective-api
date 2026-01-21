@@ -299,5 +299,8 @@
       "typescript-eslint",
       "@opentelemetry/context-async-hooks"
     ]
+  },
+  "overrides": {
+    "url-regex-safe": "^4.0.0"
   }
 }
