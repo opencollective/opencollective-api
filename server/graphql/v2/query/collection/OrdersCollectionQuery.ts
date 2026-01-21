@@ -554,18 +554,29 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['data.expectedAt'][Op.lte] = args.expectedDateTo;
   }
 
-  if (args.chargedDateFrom) {
+  if (args.chargedDateFrom || args.chargedDateTo) {
     where[Op.and].push(
-      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
-        [Op.gte]: args.chargedDateFrom,
-      }),
-    );
-  }
-  if (args.chargedDateTo) {
-    where[Op.and].push(
-      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
-        [Op.lte]: args.chargedDateTo,
-      }),
+      sequelize.literal(
+        SequelizeUtils.formatNamedParameters(
+          `EXISTS (
+          SELECT 1 FROM "Transactions" t
+          WHERE t."OrderId" = "Order"."id" AND 
+          ${args.chargedDateFrom ? `COALESCE(t."clearedAt", t."createdAt") >= :chargedDateFrom AND` : ''}
+          ${args.chargedDateTo ? `COALESCE(t."clearedAt", t."createdAt") <= :chargedDateTo AND` : ''}
+          t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND 
+          t."type" = 'CREDIT' AND 
+          NOT t."isRefund" AND 
+          t."RefundTransactionId" IS NULL AND 
+          t."deletedAt" IS NULL
+          LIMIT 1
+        )`,
+          {
+            chargedDateFrom: args.chargedDateFrom,
+            chargedDateTo: args.chargedDateTo,
+          },
+          'postgres',
+        ),
+      ),
     );
   }
 
