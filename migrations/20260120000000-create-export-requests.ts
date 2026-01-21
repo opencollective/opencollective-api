@@ -25,6 +25,13 @@ module.exports = {
         onUpdate: 'CASCADE',
         allowNull: true,
       },
+      UploadedFileId: {
+        type: Sequelize.INTEGER,
+        references: { key: 'id', model: 'UploadedFiles' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      },
       name: {
         type: Sequelize.STRING,
         allowNull: false,
@@ -70,6 +77,7 @@ module.exports = {
 
     await queryInterface.addIndex('ExportRequests', ['CollectiveId']);
     await queryInterface.addIndex('ExportRequests', ['CreatedByUserId']);
+    await queryInterface.addIndex('ExportRequests', ['UploadedFileId']);
     await queryInterface.addIndex('ExportRequests', ['status']);
   },
 
