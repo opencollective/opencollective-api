@@ -29,7 +29,7 @@ describe('server/lib/open-search/batch-processor', () => {
         getOpenSearchClient: () => clientStub,
         '@global': true,
       },
-      '../../sentry': {
+      '../sentry': {
         reportMessageToSentry: sentryReportMessageStub,
         reportErrorToSentry: sentryReportErrorStub,
         '@global': true,

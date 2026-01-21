@@ -35,7 +35,7 @@ describe('server/lib/open-search/sync-postgres', () => {
         },
         '@global': true,
       },
-      '../../sentry': {
+      '../sentry': {
         reportMessageToSentry: sentryReportMessageStub,
         reportErrorToSentry: sentryReportErrorStub,
         '@global': true,
