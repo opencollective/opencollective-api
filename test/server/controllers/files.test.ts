@@ -71,8 +71,9 @@ describe('server/controllers/files', () => {
     getSignedGetURLStub = sandbox.stub();
 
     // Load controller with mocked awsS3
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     FilesController = proxyquire('../../../server/controllers/files', {
-      '../../../server/lib/awsS3': {
+      '../lib/awsS3': {
         getSignedGetURL: getSignedGetURLStub,
       },
     });

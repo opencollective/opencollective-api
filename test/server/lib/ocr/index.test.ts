@@ -15,8 +15,9 @@ describe('server/lib/ocr/index.ts', () => {
     loadFxRatesMapStub = sandbox.stub();
 
     // Load module with mocked dependencies
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     const module = proxyquire('../../../../server/lib/ocr', {
-      '../../../../server/lib/currency': {
+      '../currency': {
         loadFxRatesMap: loadFxRatesMapStub,
       },
     });

@@ -28,8 +28,9 @@ describe('cron/daily/check-pending-transferwise-transactions', () => {
   beforeEach(async () => {
     getTransfer = sandbox.stub();
     getQuote = sandbox.stub();
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     const module = proxyquire('../../../cron/daily/91-check-pending-transferwise-transactions', {
-      '../../../server/lib/transferwise': {
+      '../../server/lib/transferwise': {
         getTransfer,
         getQuote,
       },

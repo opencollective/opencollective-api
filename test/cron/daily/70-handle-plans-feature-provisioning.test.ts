@@ -20,8 +20,9 @@ describe('cron/daily/70-handle-plans-feature-provisioning', () => {
     reportErrorToSentryStub = sandbox.stub();
 
     // Load module with mocked dependencies
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     const module = proxyquire('../../../cron/daily/70-handle-plans-feature-provisioning', {
-      '../../../server/lib/sentry': {
+      '../../server/lib/sentry': {
         reportErrorToSentry: reportErrorToSentryStub,
       },
     });

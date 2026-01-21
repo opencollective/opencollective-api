@@ -17,8 +17,9 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
     payExpensesBatch = sandbox.stub().resolves();
 
     // Load module with mocked dependencies
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     const module = proxyquire('../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts', {
-      '../../../server/paymentProviders/paypal/payouts': {
+      '../../server/paymentProviders/paypal/payouts': {
         payExpensesBatch,
       },
     });

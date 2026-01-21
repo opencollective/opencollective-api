@@ -82,11 +82,12 @@ describe('cron/10mn/00-handle-batch-subscriptions-update', () => {
     reportErrorToSentryStub = sandbox.stub();
 
     // Load module with mocked dependencies
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     const module = proxyquire('../../../cron/10mn/00-handle-batch-subscriptions-update', {
-      '../../../server/paymentProviders/paypal/api': {
+      '../../server/paymentProviders/paypal/api': {
         paypalRequest: paypalRequestStub,
       },
-      '../../../server/lib/sentry': {
+      '../../server/lib/sentry': {
         reportErrorToSentry: reportErrorToSentryStub,
       },
     });

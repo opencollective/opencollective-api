@@ -34,8 +34,9 @@ describe('server/lib/host', () => {
     convertToCurrencyStub = sandbox.stub().callsFake(a => a * 2);
 
     // Load hostlib with mocked currency
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     libhost = proxyquire('../../../server/lib/hostlib', {
-      '../../../server/lib/currency': {
+      './currency': {
         getFxRate: getFxRateStub,
         convertToCurrency: convertToCurrencyStub,
       },

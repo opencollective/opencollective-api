@@ -207,8 +207,9 @@ describe('server/lib/budget', () => {
       getFxRateStub.withArgs('BRL', 'BRL').resolves(1);
 
       // Load budget module with mocked currency
+      // Note: proxyquire stub paths are relative to the module being loaded, not the test file
       const budgetModule = proxyquire('../../../server/lib/budget', {
-        '../../../server/lib/currency': {
+        './currency': {
           getFxRate: getFxRateStub,
         },
       });

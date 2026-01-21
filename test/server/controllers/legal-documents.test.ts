@@ -41,11 +41,12 @@ describe('server/controllers/legal-documents', () => {
     validateTokenStub = sandbox.stub();
 
     // Load controller with mocked dependencies
+    // Note: proxyquire stub paths are relative to the module being loaded, not the test file
     LegalDocumentsController = proxyquire('../../../server/controllers/legal-documents', {
-      '../../../server/lib/awsS3': {
+      '../lib/awsS3': {
         getFileFromS3: getFileFromS3Stub,
       },
-      '../../../server/lib/two-factor-authentication/totp': {
+      '../lib/two-factor-authentication/totp': {
         default: {
           validateToken: validateTokenStub,
         },
