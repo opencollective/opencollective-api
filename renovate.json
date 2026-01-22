@@ -20,7 +20,8 @@
         "prettier",
         "sanitize-html",
         "typescript",
-        "uuid"
+        "uuid",
+        "lib-address"
       ]
     },
     {
