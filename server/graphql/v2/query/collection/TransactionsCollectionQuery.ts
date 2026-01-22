@@ -10,6 +10,7 @@ import { type Order as SequelizeOrder, Utils as SequelizeUtils } from 'sequelize
 import { CollectiveType } from '../../../../constants/collectives';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { mapPlatformTipCollectiveIds, mapPlatformTipDebitsToApplicationFees } from '../../../../lib/ledger-transform';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, Op, PaymentMethod, sequelize } from '../../../../models';
@@ -176,6 +177,12 @@ export const TransactionsCollectionArgs = {
     defaultValue: true,
     description:
       'Used when filtering with the `host` argument to determine whether to include transactions on the fiscal host account (and children)',
+  },
+  includePlatformTips: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: true,
+    description:
+      'When filtering with the `host` argument, also include virtual PLATFORM_TIP transactions related to Contributions via TransactionGroup',
   },
   includeRegularTransactions: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -394,7 +401,33 @@ export const TransactionsCollectionResolver = async (
       where.push({ CollectiveId: { [Op.notIn]: hostAccountsIds } });
     }
 
-    where.push({ HostCollectiveId: host.id });
+    if (args.includePlatformTips) {
+      // Include transactions accounted by the host, and also PLATFORM_TIP transactions related to the host via TransactionGroup.
+      // Use a UNION subquery to avoid a large OR bitmap scan on Transactions.
+      const hostId = sequelize.escape(host.id);
+      where.push(
+        sequelize.literal(`"Transaction"."id" IN (
+          SELECT t."id"
+          FROM "Transactions" t
+          WHERE t."HostCollectiveId" = ${hostId}
+            AND t."deletedAt" IS NULL
+          UNION ALL
+          SELECT t."id"
+          FROM "Transactions" t
+          WHERE t."kind" = 'PLATFORM_TIP'
+            AND t."deletedAt" IS NULL
+            AND EXISTS (
+              SELECT 1 FROM "Transactions" t1
+              WHERE t1."TransactionGroup" = t."TransactionGroup"
+                AND t1."HostCollectiveId" = ${hostId}
+                AND (t1."kind" IN ('CONTRIBUTION'))
+                AND t1."deletedAt" IS NULL
+            )
+        )`),
+      );
+    } else {
+      where.push({ HostCollectiveId: host.id });
+    }
   }
 
   // Store the current where as it will be later used to fetch available kinds and paymentMethodTypes
@@ -664,7 +697,14 @@ export const TransactionsCollectionResolver = async (
   };
 
   return {
-    nodes: () => Transaction.findAll(queryParameters),
+    nodes: async () => {
+      const transactions = await Transaction.findAll(queryParameters);
+      if (args.includePlatformTips) {
+        const mappedTransactions = await mapPlatformTipCollectiveIds(transactions, req);
+        return mapPlatformTipDebitsToApplicationFees(mappedTransactions, req);
+      }
+      return transactions;
+    },
     totalCount: () => fetchTransactionsCount(queryParameters),
     limit: args.limit,
     offset: args.offset,
