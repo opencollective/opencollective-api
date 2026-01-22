@@ -10,7 +10,12 @@ import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 // We need to hardcode the API version that we are compatible with.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore stripe-version 2015-04-07
-const stripe = new Stripe(config.stripe.secret, { apiVersion: '2015-04-07', maxNetworkRetries: 2 });
+
+const passthroughFetch = (...args: Parameters<typeof fetch>) => fetch(...args);
+const httpClient = process.env.NODE_ENV === 'test' ? Stripe.createFetchHttpClient(passthroughFetch) : undefined;
+
+// @ts-expect-error stripe-version 2015-04-07
+const stripe = new Stripe(config.stripe.secret, { apiVersion: '2015-04-07', maxNetworkRetries: 2, httpClient });
 
 export default stripe;
 
@@ -19,7 +24,7 @@ export const StripeCustomToken = token => {
   // We need to hardcode the API version that we are compatible with.
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore stripe-version 2015-04-07
-  const stripe = new Stripe(token, { apiVersion: '2015-04-07', maxNetworkRetries: 2 });
+  const stripe = new Stripe(token, { apiVersion: '2015-04-07', maxNetworkRetries: 2, httpClient });
   return stripe;
 };
 
