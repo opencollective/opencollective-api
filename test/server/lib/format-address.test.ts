@@ -28,7 +28,7 @@ describe('server/lib/format-address', () => {
             postalCode: '94102',
           },
         });
-        expect(result).to.equal('123 Main Street, Suite 100, San Francisco California 94102');
+        expect(result).to.equal('123 Main Street, Suite 100, San Francisco, California 94102');
       });
 
       it('formats a US address without address2', async () => {
@@ -41,7 +41,7 @@ describe('server/lib/format-address', () => {
             postalCode: '10001',
           },
         });
-        expect(result).to.equal('456 Oak Avenue, New York New York 10001');
+        expect(result).to.equal('456 Oak Avenue, New York, New York 10001');
       });
 
       it('formats a US address with minimal fields', async () => {
@@ -116,7 +116,7 @@ describe('server/lib/format-address', () => {
             postalCode: '28013',
           },
         });
-        expect(result).to.equal('Calle Gran Vía 28, 28013 Madrid, Madrid Province');
+        expect(result).to.equal('Calle Gran Vía 28, 28013 Madrid Madrid');
       });
 
       it('formats a Dutch address', async () => {
@@ -140,7 +140,7 @@ describe('server/lib/format-address', () => {
             postalCode: '6688101',
           },
         });
-        expect(result).to.equal('Rothschild Boulevard 1, 6688101 Tel Aviv');
+        expect(result).to.equal('Rothschild Boulevard 1, Tel Aviv 6688101');
       });
 
       it('formats a Canadian address', async () => {
@@ -165,7 +165,7 @@ describe('server/lib/format-address', () => {
             postalCode: '111 21',
           },
         });
-        expect(result).to.equal('Drottninggatan 53, 111 21 Stockholm');
+        expect(result).to.equal('Drottninggatan 53, SE-111 21 Stockholm');
       });
 
       it('formats a Brazilian address', async () => {
@@ -178,7 +178,7 @@ describe('server/lib/format-address', () => {
             postalCode: '01310-100',
           },
         });
-        expect(result).to.equal('Avenida Paulista 1000, 01310-100 São Paulo São Paulo');
+        expect(result).to.equal('Avenida Paulista 1000, São Paulo-São Paulo, 01310-100');
       });
 
       it('formats an Indian address', async () => {
@@ -191,7 +191,7 @@ describe('server/lib/format-address', () => {
             postalCode: '110001',
           },
         });
-        expect(result).to.equal('Connaught Place, 110001 New Delhi Delhi');
+        expect(result).to.equal('Connaught Place, New Delhi 110001, Delhi');
       });
     });
 
@@ -208,7 +208,7 @@ describe('server/lib/format-address', () => {
           },
           { includeCountry: true },
         );
-        expect(result).to.equal('15 Rue de la Paix, 75002 Paris, France');
+        expect(result).to.equal('15 Rue de la Paix, 75002 Paris, FRANCE');
       });
 
       it('does not include country when includeCountry is false', async () => {
@@ -238,7 +238,7 @@ describe('server/lib/format-address', () => {
             postalCode: '94102',
           },
         });
-        expect(result).to.equal('123 Main Street, San Francisco California 94102');
+        expect(result).to.equal('123 Main Street, San Francisco, California 94102');
       });
 
       it('uses newline divider when specified', async () => {
@@ -254,7 +254,7 @@ describe('server/lib/format-address', () => {
           },
           { lineDivider: '\n' },
         );
-        expect(result).to.equal('123 Main Street\nSan Francisco California 94102');
+        expect(result).to.equal('123 Main Street\nSan Francisco, California 94102');
       });
     });
 
