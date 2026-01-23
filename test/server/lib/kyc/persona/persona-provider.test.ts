@@ -103,7 +103,7 @@ describe('server/lib/kyc/persona', () => {
       });
 
       await expect(
-        personaKycProvider.request(
+        personaKycProvider.requestVerification(
           {
             CollectiveId: user.collective.id,
             RequestedByCollectiveId: org.id,
@@ -128,7 +128,7 @@ describe('server/lib/kyc/persona', () => {
       });
 
       await expect(
-        personaKycProvider.request(
+        personaKycProvider.requestVerification(
           {
             CollectiveId: user.collective.id,
             RequestedByCollectiveId: org.id,
@@ -150,7 +150,7 @@ describe('server/lib/kyc/persona', () => {
         await setupPersonaAccount(org);
         const user = await fakeUser();
         await expect(
-          personaKycProvider.request(
+          personaKycProvider.requestVerification(
             {
               CollectiveId: user.collective.id,
               RequestedByCollectiveId: org.id,
@@ -170,7 +170,7 @@ describe('server/lib/kyc/persona', () => {
         const org = await setupOrg();
         await setupPersonaAccount(org);
         const user = await fakeUser();
-        const verification = await personaKycProvider.request(
+        const verification = await personaKycProvider.requestVerification(
           {
             CollectiveId: user.collective.id,
             RequestedByCollectiveId: org.id,
@@ -212,7 +212,7 @@ describe('server/lib/kyc/persona', () => {
           },
         });
 
-        const verification = await personaKycProvider.request(
+        const verification = await personaKycProvider.requestVerification(
           {
             CollectiveId: user.collective.id,
             RequestedByCollectiveId: org.id,

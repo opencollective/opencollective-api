@@ -40,7 +40,6 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
             throw new Unauthorized('You need to be logged in as an admin of the account');
           }
           return {
-            apiKey: connectedAccount.token,
             apiKeyId: connectedAccount.clientId,
             inquiryTemplateId: connectedAccount.settings.inquiryTemplateId,
           };

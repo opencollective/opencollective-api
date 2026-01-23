@@ -21,7 +21,10 @@ export abstract class KYCProvider<
     this.providerName = providerName;
   }
 
-  abstract request(req: KYCRequest, providerRequest: ProviderKYCRequest): Promise<ProviderKYCVerification>;
+  abstract requestVerification(
+    params: KYCRequest,
+    providerParams: ProviderKYCRequest,
+  ): Promise<ProviderKYCVerification>;
 
   async revoke(
     kycVerification: ProviderKYCVerification,

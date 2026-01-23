@@ -164,21 +164,21 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
     return kycVerification;
   }
 
-  async request(req: KYCRequest, providerRequest: PersonaKYCRequest): Promise<PersonaKYCVerification> {
-    const requestedByCollective = await Collective.findByPk(req.RequestedByCollectiveId);
+  async requestVerification(params: KYCRequest, personaParams: PersonaKYCRequest): Promise<PersonaKYCVerification> {
+    const requestedByCollective = await Collective.findByPk(params.RequestedByCollectiveId);
     if (!requestedByCollective) {
       throw new Error('Collective not found');
     }
     await checkFeatureAccess(requestedByCollective, FEATURE.PERSONA_KYC);
 
-    if (providerRequest?.importInquiryId) {
-      return this.importInquiryId(req, providerRequest);
+    if (personaParams?.importInquiryId) {
+      return this.importInquiryId(params, personaParams);
     }
 
     const existingVerification = await KYCVerification.findOne<PersonaKYCVerification>({
       where: {
-        CollectiveId: req.CollectiveId,
-        RequestedByCollectiveId: req.RequestedByCollectiveId,
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
         provider: this.providerName,
         status: KYCVerificationStatus.VERIFIED,
       },
@@ -188,13 +188,13 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       return existingVerification;
     }
 
-    const connectedAccount = await this.getConnectedAccount(req.RequestedByCollectiveId);
+    const connectedAccount = await this.getConnectedAccount(params.RequestedByCollectiveId);
     const client = new PersonaClient(connectedAccount.token);
 
     const resumableVerification = await KYCVerification.findOne<PersonaKYCVerification>({
       where: {
-        CollectiveId: req.CollectiveId,
-        RequestedByCollectiveId: req.RequestedByCollectiveId,
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
         provider: this.providerName,
         status: {
           [Op.in]: [KYCVerificationStatus.EXPIRED, KYCVerificationStatus.PENDING],
@@ -214,13 +214,13 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
     }
 
     const { data: inquiry } = await client.createInquiry({
-      accountReferenceId: `${req.RequestedByCollectiveId}-${req.CollectiveId}`,
+      accountReferenceId: `${params.RequestedByCollectiveId}-${params.CollectiveId}`,
       inquiryTemplateId: connectedAccount.settings.inquiryTemplateId,
     });
 
     const kycVerification = await KYCVerification.create<PersonaKYCVerification>({
-      CollectiveId: req.CollectiveId,
-      RequestedByCollectiveId: req.RequestedByCollectiveId,
+      CollectiveId: params.CollectiveId,
+      RequestedByCollectiveId: params.RequestedByCollectiveId,
       providerData: {
         inquiry: this.sanitizeInquiry(inquiry),
       },
@@ -229,7 +229,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       verifiedAt: new Date(),
     });
 
-    await this.createRequestedActivity(kycVerification, req.UserTokenId);
+    await this.createRequestedActivity(kycVerification, params.UserTokenId);
 
     return kycVerification;
   }
