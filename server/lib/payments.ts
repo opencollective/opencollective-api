@@ -15,8 +15,9 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { Op } from '../models';
+import { ManualPaymentProvider, Op } from '../models';
 import Activity from '../models/Activity';
+import { sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
@@ -33,7 +34,6 @@ import {
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import { notify } from './notifications/email';
-import { sanitizeCustomPaymentProviderInstructions } from './collectivelib';
 import { getFxRate } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
@@ -1077,13 +1077,19 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
 
-  // Use custom provider details if available, otherwise fall back to manual bank transfer
+  // Use manual payment provider if available, otherwise fall back to legacy manual bank transfer
   let providerAccount = null;
   let providerInstructions = null;
-  if (order.data.customPaymentProvider) {
-    providerInstructions = order.data.customPaymentProvider.instructions || null;
-    providerAccount = order.data.customPaymentProvider['accountDetails'] || '';
+  if (order.ManualPaymentProviderId) {
+    const manualPaymentProvider = await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId);
+    if (!manualPaymentProvider) {
+      throw new Error(`Manual payment provider not found for order ${order.id}`);
+    } else {
+      providerInstructions = manualPaymentProvider.instructions || null;
+      providerAccount = manualPaymentProvider.data || {};
+    }
   } else {
+    // Fall back to legacy manual bank transfer settings
     const manualPayoutMethod = await PayoutMethod.findOne({
       where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
     });
@@ -1115,7 +1121,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
       // @deprecated but we still have some entries in the DB
       OrderId: order.id,
     };
-    data.instructions = sanitizeCustomPaymentProviderInstructions(
+    data.instructions = sanitizeManualPaymentProviderInstructions(
       providerInstructions.replace(/{([\s\S]+?)}/g, (match, key) => {
         if (key && !isNil(formatValues[key])) {
           return `<strong>${escape(formatValues[key])}</strong>`;
