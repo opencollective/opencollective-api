@@ -111,7 +111,8 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs) => {
 };
 
 const CommunityQuery = {
-  description: 'Return accounts that have interacted with a given account or host',
+  description:
+    'Return accounts that have interacted with a given account or host. Root users can query platform-wide without host/account filters.',
   type: new GraphQLNonNull(GraphQLAccountCollection),
   args: {
     account: {
@@ -120,7 +121,7 @@ const CommunityQuery = {
     },
     host: {
       type: GraphQLAccountReferenceInput,
-      description: 'Host context filter',
+      description: 'Host context filter. Optional for root users (platform-wide query when omitted).',
     },
     type: { type: new GraphQLList(GraphQLAccountType) },
     searchTerm: {
@@ -145,10 +146,18 @@ const CommunityQuery = {
       throw new Error(`Cannot fetch more than ${DEFAULT_LIMIT} members at the same time, please adjust the limit`);
     }
 
-    assert(
-      Boolean(args.account) || Boolean(args.host),
-      'You must provide either an account or a host to fetch its community',
-    );
+    const isPlatformWideQuery = !args.account && !args.host;
+
+    // For platform-wide queries (no host/account), require root access
+    if (isPlatformWideQuery) {
+      assert(req.remoteUser?.isRoot(), new BadRequest('Only root users can query platform-wide community data'));
+    } else {
+      // For scoped queries, at least one of host or account is required
+      assert(
+        Boolean(args.account) || Boolean(args.host),
+        'You must provide either an account or a host to fetch its community',
+      );
+    }
 
     const replacements: CommunitySummaryArgs = {
       limit: args.limit,
@@ -173,7 +182,7 @@ const CommunityQuery = {
     }
     if (host) {
       assert(
-        req.remoteUser?.isAdminOfCollective(host),
+        req.remoteUser?.isAdminOfCollective(host) || req.remoteUser?.isRoot(),
         new BadRequest('Only admins can lookup for members using the "host" argument'),
       );
       replacements.HostCollectiveId = host.id;
@@ -186,7 +195,12 @@ const CommunityQuery = {
       replacements.relation = JSON.stringify(args.relation);
     }
     if (args.searchTerm) {
-      if (req.remoteUser?.isAdminOfCollective(account) || req.remoteUser?.isAdminOfCollective(host)) {
+      // Root users can always search, otherwise require admin access to the account or host
+      if (
+        req.remoteUser?.isRoot() ||
+        req.remoteUser?.isAdminOfCollective(account) ||
+        req.remoteUser?.isAdminOfCollective(host)
+      ) {
         replacements.searchTerm = args.searchTerm;
       } else {
         throw new BadRequest('Only admins can lookup for members using the "searchTerm" argument');
