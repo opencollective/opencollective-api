@@ -4,9 +4,10 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, isEmpty, isNil, uniq } from 'lodash';
-import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
+import { DataTypes, Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
+import { includeCte } from '../../../../lib/sequelize-cte';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -554,32 +555,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['data.expectedAt'][Op.lte] = args.expectedDateTo;
   }
 
-  if (args.chargedDateFrom || args.chargedDateTo) {
-    where[Op.and].push(
-      sequelize.literal(
-        SequelizeUtils.formatNamedParameters(
-          `EXISTS (
-          SELECT 1 FROM "Transactions" t
-          WHERE t."OrderId" = "Order"."id" AND 
-          ${args.chargedDateFrom ? `COALESCE(t."clearedAt", t."createdAt") >= :chargedDateFrom AND` : ''}
-          ${args.chargedDateTo ? `COALESCE(t."clearedAt", t."createdAt") <= :chargedDateTo AND` : ''}
-          t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND 
-          t."type" = 'CREDIT' AND 
-          NOT t."isRefund" AND 
-          t."RefundTransactionId" IS NULL AND 
-          t."deletedAt" IS NULL
-          LIMIT 1
-        )`,
-          {
-            chargedDateFrom: args.chargedDateFrom,
-            chargedDateTo: args.chargedDateTo,
-          },
-          'postgres',
-        ),
-      ),
-    );
-  }
-
   if (args.status && args.status.length > 0) {
     where['status'] = { [Op.in]: args.status };
     if (args.status.includes(OrderStatuses.PAUSED) && args.pausedBy) {
@@ -667,9 +642,62 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     order = [[args.orderBy.field, args.orderBy.direction]];
   }
   const { offset, limit } = args;
+
+  const cte = [];
+
+  if (args.chargedDateFrom || args.chargedDateTo) {
+    cte.push({
+      query: SequelizeUtils.formatNamedParameters(
+        `
+      SELECT DISTINCT t."OrderId" as "id"
+      FROM "Transactions" "t"
+      WHERE t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND
+      ${args.chargedDateFrom ? `COALESCE(t."clearedAt", t."createdAt") >= :chargedDateFrom AND` : ''}
+      ${args.chargedDateTo ? `COALESCE(t."clearedAt", t."createdAt") <= :chargedDateTo AND` : ''}
+      t."type" = 'CREDIT' AND
+      NOT t."isRefund" AND
+      t."RefundTransactionId" IS NULL AND
+      t."deletedAt" IS NULL
+    `,
+        {
+          chargedDateFrom: args.chargedDateFrom,
+          chargedDateTo: args.chargedDateTo,
+        },
+        'postgres',
+      ),
+      as: 'OrdersWithTxns',
+    });
+
+    include.push(
+      includeCte(
+        'OrdersWithTxns',
+        {
+          id: {
+            type: DataTypes.INTEGER,
+          },
+        },
+        models.Order,
+        'id',
+      ),
+    );
+  }
+
   return {
-    nodes: () => models.Order.findAll({ include, where, order, offset, limit }),
-    totalCount: () => models.Order.count({ include, where }),
+    nodes: () =>
+      models.Order.findAll({
+        cte,
+        include,
+        where,
+        order,
+        offset,
+        limit,
+      }),
+    totalCount: () =>
+      models.Order.count({
+        cte,
+        include,
+        where,
+      }),
     limit: args.limit,
     offset: args.offset,
     createdByUsers: async (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) => {

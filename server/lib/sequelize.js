@@ -6,6 +6,8 @@ import Sequelize from 'sequelize';
 import { getDBConf } from '../lib/db';
 import logger from '../lib/logger';
 
+import { sequelizeCte } from './sequelize-cte';
+
 // this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
 // like in case of the key totalOrders and raw query (like User.getTopBackers())
 pg.defaults.parseInt8 = true;
@@ -61,6 +63,8 @@ const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.p
   dialect: dbConfig.dialect,
   ...config.database.options,
 });
+
+sequelizeCte(sequelize);
 
 export { Op, DataTypes, Model, QueryTypes, Sequelize, Transaction } from 'sequelize';
 
