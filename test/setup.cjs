@@ -1,19 +1,38 @@
-import chai from 'chai';
-import chaiAsPromised from 'chai-as-promised';
-import chaiJestSnapshot from 'chai-jest-snapshot';
-import chaiSorted from 'chai-sorted';
-import chaiSubset from 'chai-subset';
-import { mapValues } from 'lodash';
-import markdownTable from 'markdown-table';
-import Sequelize from 'sequelize';
-import sinonChai from 'sinon-chai';
+// Ensure ts-node loads all files from tsconfig so global .d.ts augmentations are applied.
+if (!process.env.TS_NODE_FILES) {
+  process.env.TS_NODE_FILES = 'true';
+}
 
-import { checkS3Configured, dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
+// Skip typechecking in the test runner; `npm run type:check` handles it separately.
+if (!process.env.TS_NODE_TRANSPILE_ONLY) {
+  process.env.TS_NODE_TRANSPILE_ONLY = 'true';
+}
+
+// Use native TS compiler
+if (!process.env.TS_NODE_COMPILER) {
+  process.env.TS_NODE_COMPILER = 'typescript';
+}
 
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'test';
 }
+
+require('ts-node/register');
+
+require('../server/env.ts');
+
+const chai = require('chai');
+const chaiAsPromised = require('chai-as-promised');
+const chaiJestSnapshot = require('chai-jest-snapshot');
+const chaiSorted = require('chai-sorted');
+const chaiSubset = require('chai-subset');
+const { mapValues } = require('lodash');
+const markdownTable = require('markdown-table');
+const Sequelize = require('sequelize');
+const sinonChai = require('sinon-chai');
+
+const { checkS3Configured, dangerouslyInitNonProductionBuckets } = require('../server/lib/awsS3');
 
 chai.use(chaiAsPromised);
 chai.use(chaiJestSnapshot);
@@ -21,8 +40,7 @@ chai.use(chaiSubset);
 chai.use(chaiSorted);
 chai.use(sinonChai);
 
-// ts-unused-exports:disable-next-line
-export const mochaHooks = {
+module.exports.mochaHooks = {
   beforeAll: async function () {
     chaiJestSnapshot.resetSnapshotRegistry();
 

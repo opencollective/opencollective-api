@@ -1,13 +1,13 @@
-import '../server/env';
+require('../server/env');
 
-import config from 'config';
-import { get } from 'lodash';
+const config = require('config');
+const { get } = require('lodash');
 
-import { getDBConf } from '../server/lib/db';
+const { getDBConf } = require('../server/lib/db');
 
 const dbConfig = getDBConf('database');
 
-export default {
+module.exports = {
   ...dbConfig,
   dialectOptions: get(config.database.options, 'dialectOptions', {}),
 };
