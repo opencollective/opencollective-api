@@ -1,5 +1,5 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
-import { isEmpty, isNil } from 'lodash';
+import { isEmpty } from 'lodash';
 import { Order } from 'sequelize';
 
 import models from '../../../../models';
@@ -8,7 +8,7 @@ import { Forbidden } from '../../../errors';
 import { GraphQLVirtualCardRequestCollection } from '../../collection/VirtualCardRequestCollection';
 import { GraphQLVirtualCardRequestStatus } from '../../enum/VirtualCardRequestStatus';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, CollectionReturnType, getValidatedPaginationArgs } from '../../interface/Collection';
 
 const VirtualCardRequestsCollectionQuery = {
   type: new GraphQLNonNull(GraphQLVirtualCardRequestCollection),
@@ -23,17 +23,7 @@ const VirtualCardRequestsCollectionQuery = {
   },
   async resolve(_: void, args, req: Express.Request): Promise<CollectionReturnType> {
     checkRemoteUserCanUseVirtualCards(req);
-
-    // Check Pagination arguments
-    if (isNil(args.limit) || args.limit < 0) {
-      args.limit = 100;
-    }
-    if (isNil(args.offset) || args.offset < 0) {
-      args.offset = 0;
-    }
-    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-      throw new Error('Cannot fetch more than 1,000 virtual card requests at the same time, please adjust the limit');
-    }
+    const { offset, limit } = getValidatedPaginationArgs(args, req);
 
     const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
     const isHostAdmin = req.remoteUser.isAdminOfCollective(host);
@@ -69,10 +59,10 @@ const VirtualCardRequestsCollectionQuery = {
     const result = await models.VirtualCardRequest.findAndCountAll({
       where,
       order,
-      offset: args.offset,
-      limit: args.limit,
+      offset,
+      limit,
     });
-    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+    return { nodes: result.rows, totalCount: result.count, limit, offset };
   },
 };
 

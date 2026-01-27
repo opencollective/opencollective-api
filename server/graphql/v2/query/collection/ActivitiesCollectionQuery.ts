@@ -3,7 +3,7 @@ import assert from 'assert';
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLBoolean } from 'graphql/type';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { flatten, isNil, uniq } from 'lodash';
+import { flatten, uniq } from 'lodash';
 import { Order, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
@@ -22,7 +22,7 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, CollectionReturnType, getValidatedPaginationArgs } from '../../interface/Collection';
 
 const IGNORED_ACTIVITIES: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
 
@@ -90,19 +90,7 @@ const ActivitiesCollectionQuery = {
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     checkRemoteUserCanUseAccount(req, { signedOutMessage: 'You need to be logged in to view activities.' });
     const isRoot = req.remoteUser.isRoot();
-
-    // Check Pagination arguments
-    if (isNil(args.limit) || args.limit < 0) {
-      args.limit = 100;
-    }
-    if (isNil(args.offset) || args.offset < 0) {
-      args.offset = 0;
-    }
-    if (args.limit > 1000 && !isRoot) {
-      throw new Error('Cannot fetch more than 1,000 activities at the same time, please adjust the limit');
-    }
-
-    const { offset, limit } = args;
+    const { offset, limit } = getValidatedPaginationArgs(args, req);
 
     // Load accounts
     let accounts: Collective[], user: User, host: Collective;

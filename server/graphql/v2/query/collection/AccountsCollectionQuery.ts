@@ -1,6 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNil } from 'lodash';
 
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
@@ -13,7 +12,7 @@ import {
 } from '../../input/AccountReferenceInput';
 import { GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
 import { GraphQLOrderByInput } from '../../input/OrderByInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, CollectionReturnType, getValidatedPaginationArgs } from '../../interface/Collection';
 
 export const CommonAccountsCollectionQueryArgs = {
   searchTerm: {
@@ -122,18 +121,7 @@ const AccountsCollectionQuery = {
     },
   },
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
-    // Check Pagination arguments
-    if (isNil(args.limit) || args.limit < 0) {
-      args.limit = 100;
-    }
-    if (isNil(args.offset) || args.offset < 0) {
-      args.offset = 0;
-    }
-    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-      throw new Error('Cannot fetch more than 1,000 accounts at the same time, please adjust the limit');
-    }
-
-    const { offset, limit } = args;
+    const { offset, limit } = getValidatedPaginationArgs(args, req);
     const cleanTerm = args.searchTerm?.trim();
 
     const hostCollectiveIds = args.host && (await fetchAccountsIdsWithReference(args.host));

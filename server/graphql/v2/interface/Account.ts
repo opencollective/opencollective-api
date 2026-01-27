@@ -105,7 +105,7 @@ import {
 } from '../query/collection/TransactionsCollectionQuery';
 import GraphQLEmailAddress from '../scalar/EmailAddress';
 
-import { CollectionArgs } from './Collection';
+import { CollectionArgs, getValidatedPaginationArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
 import { IsMemberOfFields } from './IsMemberOf';
 
@@ -545,18 +545,7 @@ const accountFieldsDefinition = () => ({
         return null;
       }
 
-      // Check Pagination arguments
-      if (isNil(args.limit) || args.limit < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || args.offset < 0) {
-        args.offset = 0;
-      }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error('Cannot fetch more than 1,000 applications at the same time, please adjust the limit');
-      }
-
-      const { limit, offset } = args;
+      const { limit, offset } = getValidatedPaginationArgs(args, req);
       const where = { CollectiveId: collective.id, type: 'oAuth' };
       const result = await Application.findAndCountAll({
         where,
@@ -614,18 +603,8 @@ const accountFieldsDefinition = () => ({
       searchTerm: { type: GraphQLString },
     },
     async resolve(collective: Collective, args, req) {
-      // Check Pagination arguments
-      if (isNil(args.limit) || args.limit < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || args.offset < 0) {
-        args.offset = 0;
-      }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error('Cannot fetch more than 1,000 updates at the same time, please adjust the limit');
-      }
-
-      const { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm } = args;
+      const { limit, offset } = getValidatedPaginationArgs(args, req);
+      const { onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm } = args;
       let where = {
         CollectiveId: collective.id,
         [Op.and]: [],
@@ -1166,17 +1145,7 @@ const accountFieldsDefinition = () => ({
     },
     async resolve(account, args, req: Express.Request) {
       checkRemoteUserCanUseKYC(req);
-
-      // Check Pagination arguments
-      if (isNil(args.limit) || args.limit < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || args.offset < 0) {
-        args.offset = 0;
-      }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error('Cannot fetch more than 1,000 KYC verifications at the same time, please adjust the limit');
-      }
+      const { limit, offset } = getValidatedPaginationArgs(args, req);
 
       const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
 
@@ -1198,8 +1167,8 @@ const accountFieldsDefinition = () => ({
       }
 
       return {
-        limit: args.limit,
-        offset: args.offset,
+        limit,
+        offset,
         async totalCount() {
           return await KYCVerification.count({
             where,
@@ -1208,8 +1177,8 @@ const accountFieldsDefinition = () => ({
         async nodes() {
           return await KYCVerification.findAll({
             where,
-            limit: args.limit,
-            offset: args.offset,
+            limit,
+            offset,
             order: [['id', 'DESC']],
           });
         },
@@ -1597,18 +1566,7 @@ export const AccountFields = {
         );
       }
 
-      // Check Pagination arguments
-      if (isNil(args.limit) || args.limit < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || args.offset < 0) {
-        args.offset = 0;
-      }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error(
-          'Cannot fetch more than 1,000 host application requests at the same time, please adjust the limit',
-        );
-      }
+      const { limit, offset } = getValidatedPaginationArgs(args, req);
 
       const where = {
         CollectiveId: account.id,
@@ -1616,8 +1574,8 @@ export const AccountFields = {
       };
 
       return {
-        limit: args.limit,
-        offset: args.offset,
+        limit,
+        offset,
         totalCount: () =>
           models.HostApplication.count({
             where,
@@ -1626,8 +1584,8 @@ export const AccountFields = {
           models.HostApplication.findAll({
             order: [[args.orderBy.field, args.orderBy.direction]],
             where,
-            limit: args.limit,
-            offset: args.offset,
+            limit,
+            offset,
             include: [
               {
                 model: models.Collective,

@@ -22,7 +22,7 @@ import { GraphQLContributorCollection } from '../collection/ContributorCollectio
 import { GraphQLTierCollection } from '../collection/TierCollection';
 import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
 
-import { CollectionArgs } from './Collection';
+import { CollectionArgs, getValidatedPaginationArgs } from './Collection';
 
 export const AccountWithContributionsFields = {
   totalFinancialContributors: {
@@ -60,16 +60,7 @@ export const AccountWithContributionsFields = {
       },
     },
     async resolve(account: Collective, args: Record<string, unknown>, req): Promise<Record<string, unknown>> {
-      // Check Pagination arguments
-      if (isNil(args.limit) || (args.limit as number) < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || (args.offset as number) < 0) {
-        args.offset = 0;
-      }
-      if ((args.limit as number) > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error('Cannot fetch more than 1,000 tiers at the same time, please adjust the limit');
-      }
+      const { limit, offset } = getValidatedPaginationArgs(args as { limit?: number; offset?: number }, req);
 
       if (!account.hasBudget()) {
         return { nodes: [], totalCount: 0 };
@@ -78,11 +69,11 @@ export const AccountWithContributionsFields = {
       const query = {
         where: { CollectiveId: account.id },
         order: [['amount', 'ASC']] as OrderItem[],
-        limit: <number>args.limit,
-        offset: <number>args.offset,
+        limit,
+        offset,
       };
       const result = await models.Tier.findAndCountAll(query);
-      return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
   },
   contributors: {
@@ -93,29 +84,20 @@ export const AccountWithContributionsFields = {
       roles: { type: new GraphQLList(GraphQLMemberRole) },
     },
     async resolve(collective: Collective, args, req): Promise<Record<string, unknown>> {
-      // Check Pagination arguments
-      if (isNil(args.limit) || args.limit < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || args.offset < 0) {
-        args.offset = 0;
-      }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error('Cannot fetch more than 1,000 contributors at the same time, please adjust the limit');
-      }
+      const { limit, offset } = getValidatedPaginationArgs(args, req);
 
       if (collective.isIncognito || collective.type === 'USER') {
-        return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
+        return { nodes: [], totalCount: 0, limit, offset };
       }
 
       const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
       const contributors = contributorsCache.all || [];
       const filteredContributors = filterContributors(contributors, omit(args, ['offset', 'limit']));
       return {
-        offset: args.offset,
-        limit: args.limit,
+        offset,
+        limit,
         totalCount: filteredContributors.length,
-        nodes: filteredContributors.slice(args.offset, args.limit + args.offset),
+        nodes: filteredContributors.slice(offset, limit + offset),
       };
     },
   },
@@ -129,16 +111,7 @@ export const AccountWithContributionsFields = {
       includeActiveRecurringContributions: { type: GraphQLBoolean },
     },
     async resolve(account, args, req) {
-      // Check Pagination arguments
-      if (isNil(args.limit) || args.limit < 0) {
-        args.limit = 100;
-      }
-      if (isNil(args.offset) || args.offset < 0) {
-        args.offset = 0;
-      }
-      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-        throw new Error('Cannot fetch more than 1,000 active contributors at the same time, please adjust the limit');
-      }
+      const { limit, offset } = getValidatedPaginationArgs(args, req);
 
       const collectiveIdsResult = await sequelize.query(
         `WITH "CollectiveDonations" AS (
@@ -208,15 +181,15 @@ export const AccountWithContributionsFields = {
         `),
             ]
           : undefined,
-        offset: args.offset,
-        limit: args.limit,
+        offset,
+        limit,
       });
 
       return {
         totalCount: collectives.length,
         nodes: collectives,
-        limit: args.limit,
-        offset: args.offset,
+        limit,
+        offset,
       };
     },
   },

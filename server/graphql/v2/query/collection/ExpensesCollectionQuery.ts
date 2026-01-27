@@ -50,7 +50,7 @@ import {
   GraphQLPayoutMethodReferenceInput,
 } from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, CollectionReturnType, getValidatedPaginationArgs } from '../../interface/Collection';
 import { UncategorizedValue } from '../../object/AccountingCategory';
 
 const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
@@ -314,17 +314,7 @@ export const ExpensesCollectionQueryResolver = async (
 ): Promise<CollectionReturnType & { totalAmount?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
-
-  // Check Pagination arguments
-  if (isNil(args.limit) || args.limit < 0) {
-    args.limit = 100;
-  }
-  if (isNil(args.offset) || args.offset < 0) {
-    args.offset = 0;
-  }
-  if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-    throw new Error('Cannot fetch more than 1,000 expenses at the same time, please adjust the limit');
-  }
+  const { offset, limit } = getValidatedPaginationArgs(args as { limit?: number; offset?: number }, req);
 
   // Load accounts
   const { fromAccounts, accounts, host, createdByAccount } = await loadAllAccountsFromArgs(args, req);
@@ -740,8 +730,6 @@ export const ExpensesCollectionQueryResolver = async (
     order = [[args.orderBy.field, args.orderBy.direction]];
   }
 
-  const { offset, limit } = args;
-
   const fetchNodes = () => {
     return Expense.findAll({ include, where, order, offset, limit });
   };
@@ -784,8 +772,8 @@ export const ExpensesCollectionQueryResolver = async (
         },
       };
     },
-    limit: args.limit,
-    offset: args.offset,
+    limit,
+    offset,
   };
 };
 
