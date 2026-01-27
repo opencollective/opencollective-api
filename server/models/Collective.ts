@@ -190,7 +190,6 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
-  customPaymentProviders?: CustomPaymentProvider[];
 } & TaxSettings;
 
 type Data = Partial<{

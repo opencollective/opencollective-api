@@ -1,6 +1,6 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
-import { compact, get, pick, uniqBy } from 'lodash';
+import { compact, get, pick } from 'lodash';
 import isURL from 'validator/lib/isURL';
 import { z } from 'zod';
 
@@ -13,7 +13,7 @@ import models, { Collective, Member, Op, sequelize, User } from '../models';
 
 import { formatZodError } from './errors';
 import logger from './logger';
-import { optsSanitizedSimplifiedWithImages, sanitizeHTML, stripHTML } from './sanitize-html';
+import { stripHTML } from './sanitize-html';
 import { containsProtectedBrandName } from './string-utils';
 import { md5 } from './utils';
 
@@ -158,7 +158,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'matchingFund',
   'moderation',
   'paymentMethods',
-  'customPaymentProviders',
   'payoutsTwoFactorAuth',
   'preview',
   'recommendedCollectives',
@@ -208,53 +207,8 @@ export function filterCollectiveSettings(settings: Record<string, unknown> | nul
     }
   });
 
-  // Sanitize custom payment providers instructions
-  if (preparedSettings.customPaymentProviders && Array.isArray(preparedSettings.customPaymentProviders)) {
-    preparedSettings.customPaymentProviders = preparedSettings.customPaymentProviders.map(provider => ({
-      ...provider,
-      instructions: sanitizeCustomPaymentProviderInstructions(provider.instructions),
-    }));
-  }
-
   return preparedSettings;
 }
-
-const uuidV7Regex = /^[0-9a-f]{8}(?:\-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
-
-const customPaymentProviderSchema = z.discriminatedUnion('type', [
-  z.object({
-    id: z.string().min(1, 'ID is required').regex(uuidV7Regex, 'ID must be a valid UUID v7'),
-    type: z.literal('BANK_TRANSFER'),
-    name: z.string().min(1, 'Payment processor name is required'),
-    instructions: z.string().min(1, 'Instructions are required'),
-    icon: z.string().optional(),
-    accountDetails: z.record(z.string(), z.unknown()),
-  }),
-  z.object({
-    id: z.string().min(1, 'ID is required').regex(uuidV7Regex, 'ID must be a valid UUID v7'),
-    type: z.literal('OTHER'),
-    name: z.string().min(1, 'Payment processor name is required'),
-    instructions: z.string().min(1, 'Instructions are required'),
-    icon: z.string().optional(),
-  }),
-]);
-
-export type CustomPaymentProvider = z.infer<typeof customPaymentProviderSchema>;
-
-const customPaymentProviderSettingSchema = z
-  .array(customPaymentProviderSchema)
-  .optional()
-  .superRefine((data, ctx) => {
-    if (uniqBy(data, 'id').length !== data.length) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Custom payment providers IDs must be unique',
-      });
-    }
-  });
-
-export const sanitizeCustomPaymentProviderInstructions = (instructions: string): string =>
-  sanitizeHTML(instructions, optsSanitizedSimplifiedWithImages);
 
 /**
  * Returns false if settings are valid or an error as string otherwise
@@ -294,14 +248,6 @@ export function validateSettings(settings: any): string | boolean {
 
   if (settings?.tos && !isURL(settings.tos)) {
     return 'Enter a valid URL. The URL should have the format https://example.com/…';
-  }
-
-  // Validate customPaymentProviders
-  if (settings.customPaymentProviders !== undefined) {
-    const validationResult = customPaymentProviderSettingSchema.safeParse(settings.customPaymentProviders);
-    if (!validationResult.success) {
-      return formatZodError(validationResult.error);
-    }
   }
 
   return false;

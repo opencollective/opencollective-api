@@ -35,6 +35,7 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
+import { fetchManualPaymentProviderWithReference } from '../../v2/input/ManualPaymentProviderInput';
 const debug = debugLib('orders');
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
@@ -433,17 +434,24 @@ export async function createOrder(order, req) {
 
     // Default status, will get updated after the order is processed
     let orderStatus = status.NEW;
+    let manualPaymentProvider;
     const isManualPayment = get(order, 'paymentMethod.type') === 'manual';
     if (isManualPayment) {
       orderStatus = status.PENDING;
-    }
-
-    let customPaymentProvider;
-    const customPaymentProviderId = get(order, 'paymentMethod.data.customPaymentProviderId');
-    if (customPaymentProviderId) {
-      customPaymentProvider = host.settings.customPaymentProviders?.find(p => p.id === customPaymentProviderId);
-      if (!customPaymentProvider) {
-        throw new Error(`Custom payment provider not found: ${customPaymentProviderId}`);
+      // TODO: This parameter should become mandatory once we push the new frontend
+      if (order.paymentMethod.data?.manualPaymentProvider) {
+        manualPaymentProvider = await fetchManualPaymentProviderWithReference(
+          order.paymentMethod.data.manualPaymentProvider,
+          {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          },
+        );
+        if (manualPaymentProvider.CollectiveId !== host.id) {
+          throw new Error(`This payment provider is not available for this account.`);
+        } else if (manualPaymentProvider.archivedAt) {
+          throw new Error(`This payment provider is not available anymore, please select a different one.`);
+        }
       }
     }
 
@@ -470,6 +478,7 @@ export async function createOrder(order, req) {
       tags: order.tags,
       platformTipAmount: order.platformTipAmount,
       platformTipEligible,
+      ManualPaymentProviderId: isManualPayment ? manualPaymentProvider?.id : null,
       data: {
         ...orderPublicData,
         reqIp,
@@ -486,7 +495,6 @@ export async function createOrder(order, req) {
         fromAccountInfo: order.fromAccountInfo,
         paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
         isManualContribution: isManualPayment,
-        customPaymentProvider,
       },
       status: orderStatus,
     };
