@@ -56,6 +56,7 @@ import AccountingCategory from '../../server/models/AccountingCategory';
 import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
+import ExportRequest, { ExportRequestTypes } from '../../server/models/ExportRequest';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
 import { KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
@@ -1418,3 +1419,23 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
     revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
   });
 }
+
+/**
+ * Creates a fake export request. All params are optional.
+ */
+export const fakeExportRequest = async (exportRequestData: Partial<InferCreationAttributes<ExportRequest>> = {}) => {
+  const collective = exportRequestData.CollectiveId
+    ? await models.Collective.findByPk(exportRequestData.CollectiveId)
+    : await fakeCollective();
+  const createdByUser = exportRequestData.CreatedByUserId
+    ? await models.User.findByPk(exportRequestData.CreatedByUserId)
+    : await fakeUser();
+
+  return ExportRequest.create({
+    name: randStr('Export Request '),
+    type: ExportRequestTypes.TRANSACTIONS,
+    CollectiveId: collective.id,
+    CreatedByUserId: createdByUser.id,
+    ...exportRequestData,
+  });
+};

@@ -25,12 +25,12 @@ type CreationAttributes = InferCreationAttributes<
   }
 >;
 
-enum ExportRequestTypes {
+export enum ExportRequestTypes {
   TRANSACTIONS = 'TRANSACTIONS',
   HOSTED_COLLECTIVES = 'HOSTED_COLLECTIVES',
 }
 
-enum ExportRequestStatus {
+export enum ExportRequestStatus {
   ENQUEUED = 'ENQUEUED',
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
@@ -42,6 +42,10 @@ const dataSchema = z
     progress: z.number().min(0).max(100).optional(),
     error: z.string().optional(),
     rowCount: z.number().optional(),
+    retryCount: z.number().optional(),
+    lastAttemptAt: z.string().optional(),
+    shouldRetry: z.boolean().optional(),
+    shouldNotify: z.boolean().optional(),
   })
   .optional();
 
@@ -68,6 +72,16 @@ class ExportRequest extends Model<InferAttributes<ExportRequest>, CreationAttrib
   declare public getCreatedByUser: BelongsToGetAssociationMixin<User>;
   declare public uploadedFile?: UploadedFile;
   declare public getUploadedFile: BelongsToGetAssociationMixin<UploadedFile>;
+
+  async fail(error: string, options?: { shouldRetry?: boolean }): Promise<void> {
+    const newData: ExportRequest['data'] = Object.assign({}, this.data, {
+      lastAttemptAt: new Date().toISOString(),
+      shouldRetry: options?.shouldRetry || false,
+      retryCount: (this.data?.retryCount || 0) + 1,
+      error,
+    });
+    await this.update({ status: ExportRequestStatus.FAILED, data: newData });
+  }
 }
 
 ExportRequest.init(
