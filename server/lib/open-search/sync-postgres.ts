@@ -1,4 +1,4 @@
-import { createPostgresListener } from '../db';
+import { createPostgresListener, removePostgresTriggers, setupPostgresTriggers as setupTriggers } from '../db';
 import logger from '../logger';
 import { runWithTimeout } from '../promises';
 import { HandlerType, reportErrorToSentry, reportMessageToSentry } from '../sentry';
@@ -10,62 +10,16 @@ import { isOpenSearchConfigured } from './client';
 import { isValidOpenSearchRequest, OpenSearchRequestType } from './types';
 
 const CHANNEL_NAME = 'opensearch-requests';
+const FUNCTION_NAME = 'notify_opensearch_on_change';
 
 const setupPostgresTriggers = async () => {
+  const tables = Object.values(OpenSearchModelsAdapters).map(adapter => ({
+    tableName: adapter.getModel().tableName,
+    triggerPrefix: `search_${adapter.getModel().tableName}`,
+  }));
+
   try {
-    await sequelize.query(`
-      -- Create a trigger function to send notifications on table changes
-      CREATE OR REPLACE FUNCTION notify_opensearch_on_change()
-      RETURNS TRIGGER AS $$
-      DECLARE
-          notification JSON;
-      BEGIN
-          -- Determine the type of operation
-          IF (TG_OP = 'INSERT') THEN
-            notification = json_build_object('type', 'UPDATE',  'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
-          ELSIF (TG_OP = 'UPDATE') THEN
-            IF (OLD."deletedAt" IS NULL AND NEW."deletedAt" IS NOT NULL) THEN
-              notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
-            ELSIF (OLD."deletedAt" IS NOT NULL AND NEW."deletedAt" IS NOT NULL) THEN
-              RETURN NULL; -- Do not notify on updates of deleted rows
-            ELSE
-              notification = json_build_object('type', 'UPDATE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
-            END IF;
-          ELSIF (TG_OP = 'DELETE') THEN
-            notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', OLD.id));
-          END IF;
-  
-          -- Publish the notification to the search requests channel
-          PERFORM pg_notify('${CHANNEL_NAME}', notification::text);
-  
-          RETURN NULL;
-      END;
-      $$ LANGUAGE plpgsql;
-  
-      ${Object.values(OpenSearchModelsAdapters)
-        .map(
-          adapter => `
-      -- Create the trigger for INSERT operations
-      CREATE OR REPLACE TRIGGER  search_${adapter.getModel().tableName}_insert_trigger
-      AFTER INSERT ON "${adapter.getModel().tableName}"
-      FOR EACH ROW
-      EXECUTE FUNCTION notify_opensearch_on_change();
-  
-      -- Create the trigger for UPDATE operations
-      CREATE OR REPLACE TRIGGER  search_${adapter.getModel().tableName}_update_trigger
-      AFTER UPDATE ON "${adapter.getModel().tableName}"
-      FOR EACH ROW
-      EXECUTE FUNCTION notify_opensearch_on_change();
-  
-      -- Create the trigger for DELETE operations
-      CREATE OR REPLACE TRIGGER  search_${adapter.getModel().tableName}_delete_trigger
-      AFTER DELETE ON "${adapter.getModel().tableName}"
-      FOR EACH ROW
-      EXECUTE FUNCTION notify_opensearch_on_change();
-    `,
-        )
-        .join('\n')}
-    `);
+    await setupTriggers(sequelize, CHANNEL_NAME, FUNCTION_NAME, tables);
   } catch (error) {
     logger.error(`Error setting up Postgres triggers: ${JSON.stringify(error)}`);
     reportErrorToSentry(error, { handler: HandlerType.OPENSEARCH_SYNC_JOB });
@@ -74,20 +28,12 @@ const setupPostgresTriggers = async () => {
 };
 
 export const removeOpenSearchPostgresTriggers = async () => {
-  await sequelize.query(`
-    ${Object.values(OpenSearchModelsAdapters)
-      .map(
-        adapter => `
-    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_insert_trigger ON "${adapter.getModel().tableName}";
-    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_update_trigger ON "${adapter.getModel().tableName}";
-    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_delete_trigger ON "${adapter.getModel().tableName}";
-    DROP TRIGGER IF EXISTS search_${adapter.getModel().tableName}_truncate_trigger ON "${adapter.getModel().tableName}";
-  `,
-      )
-      .join('\n')}
+  const tables = Object.values(OpenSearchModelsAdapters).map(adapter => ({
+    tableName: adapter.getModel().tableName,
+    triggerPrefix: `search_${adapter.getModel().tableName}`,
+  }));
 
-    DROP FUNCTION IF EXISTS notify_opensearch_on_change();
-  `);
+  await removePostgresTriggers(sequelize, FUNCTION_NAME, tables);
 };
 
 // Some shared variables
