@@ -3,7 +3,7 @@ import assert from 'assert';
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLBoolean } from 'graphql/type';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { flatten, uniq } from 'lodash';
+import { flatten, isNil, uniq } from 'lodash';
 import { Order, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
@@ -90,6 +90,18 @@ const ActivitiesCollectionQuery = {
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     checkRemoteUserCanUseAccount(req, { signedOutMessage: 'You need to be logged in to view activities.' });
     const isRoot = req.remoteUser.isRoot();
+
+    // Check Pagination arguments
+    if (isNil(args.limit) || args.limit < 0) {
+      args.limit = 100;
+    }
+    if (isNil(args.offset) || args.offset < 0) {
+      args.offset = 0;
+    }
+    if (args.limit > 1000 && !isRoot) {
+      throw new Error('Cannot fetch more than 1,000 activities at the same time, please adjust the limit');
+    }
+
     const { offset, limit } = args;
 
     // Load accounts

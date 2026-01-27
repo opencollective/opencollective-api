@@ -59,7 +59,18 @@ export const AccountWithContributionsFields = {
         defaultValue: 100,
       },
     },
-    async resolve(account: Collective, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    async resolve(account: Collective, args: Record<string, unknown>, req): Promise<Record<string, unknown>> {
+      // Check Pagination arguments
+      if (isNil(args.limit) || (args.limit as number) < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || (args.offset as number) < 0) {
+        args.offset = 0;
+      }
+      if ((args.limit as number) > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 tiers at the same time, please adjust the limit');
+      }
+
       if (!account.hasBudget()) {
         return { nodes: [], totalCount: 0 };
       }
@@ -82,6 +93,17 @@ export const AccountWithContributionsFields = {
       roles: { type: new GraphQLList(GraphQLMemberRole) },
     },
     async resolve(collective: Collective, args, req): Promise<Record<string, unknown>> {
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 contributors at the same time, please adjust the limit');
+      }
+
       if (collective.isIncognito || collective.type === 'USER') {
         return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
       }
@@ -89,13 +111,11 @@ export const AccountWithContributionsFields = {
       const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
       const contributors = contributorsCache.all || [];
       const filteredContributors = filterContributors(contributors, omit(args, ['offset', 'limit']));
-      const offset = args.offset || 0;
-      const limit = args.limit || 50;
       return {
-        offset,
-        limit,
+        offset: args.offset,
+        limit: args.limit,
         totalCount: filteredContributors.length,
-        nodes: filteredContributors.slice(offset, limit + offset),
+        nodes: filteredContributors.slice(args.offset, args.limit + args.offset),
       };
     },
   },
@@ -108,7 +128,18 @@ export const AccountWithContributionsFields = {
       dateTo: { type: GraphQLDateTime },
       includeActiveRecurringContributions: { type: GraphQLBoolean },
     },
-    async resolve(account, args) {
+    async resolve(account, args, req) {
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 active contributors at the same time, please adjust the limit');
+      }
+
       const collectiveIdsResult = await sequelize.query(
         `WITH "CollectiveDonations" AS (
             SELECT 

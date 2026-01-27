@@ -315,7 +315,13 @@ export const ExpensesCollectionQueryResolver = async (
   const where = { [Op.and]: [] };
   const include = [];
 
-  // Check arguments
+  // Check Pagination arguments
+  if (isNil(args.limit) || args.limit < 0) {
+    args.limit = 100;
+  }
+  if (isNil(args.offset) || args.offset < 0) {
+    args.offset = 0;
+  }
   if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
     throw new Error('Cannot fetch more than 1,000 expenses at the same time, please adjust the limit');
   }

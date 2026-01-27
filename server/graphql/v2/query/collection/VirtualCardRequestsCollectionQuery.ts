@@ -1,5 +1,5 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
-import { isEmpty } from 'lodash';
+import { isEmpty, isNil } from 'lodash';
 import { Order } from 'sequelize';
 
 import models from '../../../../models';
@@ -23,6 +23,17 @@ const VirtualCardRequestsCollectionQuery = {
   },
   async resolve(_: void, args, req: Express.Request): Promise<CollectionReturnType> {
     checkRemoteUserCanUseVirtualCards(req);
+
+    // Check Pagination arguments
+    if (isNil(args.limit) || args.limit < 0) {
+      args.limit = 100;
+    }
+    if (isNil(args.offset) || args.offset < 0) {
+      args.offset = 0;
+    }
+    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+      throw new Error('Cannot fetch more than 1,000 virtual card requests at the same time, please adjust the limit');
+    }
 
     const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
     const isHostAdmin = req.remoteUser.isAdminOfCollective(host);

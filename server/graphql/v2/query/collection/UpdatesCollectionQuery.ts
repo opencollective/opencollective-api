@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { isNil } from 'lodash';
 import { Order } from 'sequelize';
 
 import models, { Op } from '../../../../models';
@@ -35,7 +36,18 @@ const UpdatesCollectionQuery = {
       defaultValue: UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
   },
-  async resolve(_: void, args): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req): Promise<CollectionReturnType> {
+    // Check Pagination arguments
+    if (isNil(args.limit) || args.limit < 0) {
+      args.limit = 100;
+    }
+    if (isNil(args.offset) || args.offset < 0) {
+      args.offset = 0;
+    }
+    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+      throw new Error('Cannot fetch more than 1,000 updates at the same time, please adjust the limit');
+    }
+
     const { offset, limit } = args;
     const where = {
       // Only return published updates

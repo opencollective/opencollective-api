@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { isNil } from 'lodash';
 
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
@@ -121,6 +122,17 @@ const AccountsCollectionQuery = {
     },
   },
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
+    // Check Pagination arguments
+    if (isNil(args.limit) || args.limit < 0) {
+      args.limit = 100;
+    }
+    if (isNil(args.offset) || args.offset < 0) {
+      args.offset = 0;
+    }
+    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+      throw new Error('Cannot fetch more than 1,000 accounts at the same time, please adjust the limit');
+    }
+
     const { offset, limit } = args;
     const cleanTerm = args.searchTerm?.trim();
 

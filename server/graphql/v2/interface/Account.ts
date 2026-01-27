@@ -545,6 +545,17 @@ const accountFieldsDefinition = () => ({
         return null;
       }
 
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 applications at the same time, please adjust the limit');
+      }
+
       const { limit, offset } = args;
       const where = { CollectiveId: collective.id, type: 'oAuth' };
       const result = await Application.findAndCountAll({
@@ -602,11 +613,19 @@ const accountFieldsDefinition = () => ({
       },
       searchTerm: { type: GraphQLString },
     },
-    async resolve(
-      collective: Collective,
-      { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm },
-      req,
-    ) {
+    async resolve(collective: Collective, args, req) {
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 updates at the same time, please adjust the limit');
+      }
+
+      const { limit, offset, onlyPublishedUpdates, isDraft, onlyChangelogUpdates, orderBy, searchTerm } = args;
       let where = {
         CollectiveId: collective.id,
         [Op.and]: [],
@@ -1148,6 +1167,17 @@ const accountFieldsDefinition = () => ({
     async resolve(account, args, req: Express.Request) {
       checkRemoteUserCanUseKYC(req);
 
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 KYC verifications at the same time, please adjust the limit');
+      }
+
       const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
 
       if (!isAccountAdmin) {
@@ -1564,6 +1594,19 @@ export const AccountFields = {
       if (!req.remoteUser?.isAdmin(account.id)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its host applications requests',
+        );
+      }
+
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error(
+          'Cannot fetch more than 1,000 host application requests at the same time, please adjust the limit',
         );
       }
 
