@@ -10,6 +10,7 @@ export enum MigrationLogType {
   MERGE_ACCOUNTS = 'MERGE_ACCOUNTS',
   BAN_ACCOUNTS = 'BAN_ACCOUNTS',
   MOVE_ORDERS = 'MOVE_ORDERS',
+  /** @deprecated There's now an activity for this */
   MOVE_EXPENSES = 'MOVE_EXPENSES',
   MODEL_FIX = 'MODEL_FIX',
 }
