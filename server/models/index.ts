@@ -67,6 +67,7 @@ const models = {
   Expense,
   ExpenseAttachedFile,
   ExpenseItem,
+  ExportRequest,
   HostApplication,
   LegalDocument,
   Location,

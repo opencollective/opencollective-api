@@ -19,6 +19,7 @@ export enum HandlerType {
   FALLBACK = 'FALLBACK',
   WEBHOOK = 'WEBHOOK',
   OPENSEARCH_SYNC_JOB = 'OPENSEARCH_SYNC_JOB',
+  EXPORTS_WORKER = 'EXPORTS_WORKER',
 }
 
 export const redactSensitiveDataFromRequest = rawRequest => {

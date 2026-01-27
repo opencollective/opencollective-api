@@ -16,7 +16,9 @@ import logger from './lib/logger';
 import { reportErrorToSentry } from './lib/sentry';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
+import { startExportWorker } from './workers/exports';
 import { startSearchSyncWorker } from './workers/search-sync';
+import { sequelize } from './models';
 import routes from './routes';
 
 const workers = isUndefined(process.env.WEB_CONCURRENCY) ? toInteger(process.env.WEB_CONCURRENCY) : 1;
@@ -69,7 +71,41 @@ if (parseToBoolean(config.services.server)) {
 }
 
 // Start the search sync job
-startSearchSyncWorker(appPromise);
+const pStopSearchSyncWorker = startSearchSyncWorker();
+const pStopExportWorker = startExportWorker();
+
+let isShuttingDown = false;
+const gracefullyShutdown = async signal => {
+  if (!isShuttingDown) {
+    logger.info(`Received ${signal}. Shutting down.`);
+    isShuttingDown = true;
+
+    if (appPromise) {
+      await appPromise.then(app => {
+        if (app['__server__']) {
+          logger.info('Closing express server');
+          app['__server__'].close();
+        }
+      });
+    }
+
+    const stopSearchSyncWorker = await pStopSearchSyncWorker;
+    if (stopSearchSyncWorker) {
+      await stopSearchSyncWorker();
+    }
+    const stopExportWorker = await pStopExportWorker;
+    if (stopExportWorker) {
+      await stopExportWorker();
+    }
+
+    await sequelize.close();
+    process.exit();
+  }
+};
+
+process.on('exit', () => gracefullyShutdown('exit'));
+process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
 
 // This is used by tests
 export default async function startServerForTest() {
