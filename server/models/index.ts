@@ -18,6 +18,7 @@ import HostApplication from './HostApplication';
 import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
+import ManualPaymentProvider from './ManualPaymentProvider';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
@@ -69,6 +70,7 @@ const models = {
   HostApplication,
   LegalDocument,
   Location,
+  ManualPaymentProvider,
   Member,
   MemberInvitation,
   MigrationLog,
@@ -222,6 +224,11 @@ LegalDocument.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collectiv
 // Location
 Location.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 
+// ManualPaymentProvider
+ManualPaymentProvider.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+ManualPaymentProvider.hasMany(Order, { foreignKey: 'ManualPaymentProviderId', as: 'orders' });
+Collective.hasMany(ManualPaymentProvider, { foreignKey: 'CollectiveId', as: 'manualPaymentProviders' });
+
 // Members
 Member.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Member.belongsTo(Collective, { foreignKey: 'MemberCollectiveId', as: 'memberCollective' });
@@ -246,6 +253,7 @@ OAuthAuthorizationCode.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 Order.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
 Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+Order.belongsTo(ManualPaymentProvider, { foreignKey: 'ManualPaymentProviderId', as: 'manualPaymentProvider' });
 Order.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
 Order.belongsTo(Subscription); // adds SubscriptionId to the Orders table
 Order.belongsTo(Tier);
@@ -387,6 +395,7 @@ export {
   HostApplication,
   LegalDocument,
   Location,
+  ManualPaymentProvider,
   Member,
   MemberInvitation,
   MigrationLog,

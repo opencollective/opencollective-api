@@ -36,6 +36,7 @@ import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from 
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
+import { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvider';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions } from '../../common/scope-check';
@@ -63,6 +64,7 @@ import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
+import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
@@ -106,6 +108,7 @@ import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
+import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
@@ -625,12 +628,15 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('PAYPAL');
           }
 
-          // custom payment providers = custom payment methods in host settings
-          const customPaymentProviders = get(collective, 'settings.customPaymentProviders', []);
-          if (Array.isArray(customPaymentProviders) && customPaymentProviders.length > 0) {
+          // Check for manual payment providers from the model
+          const manualProviders = await models.ManualPaymentProvider.findAll({
+            where: { CollectiveId: collective.id, archivedAt: null },
+          });
+
+          if (manualProviders.length > 0) {
             if (
               !supportedPaymentMethods.includes('BANK_TRANSFER') &&
-              customPaymentProviders.some(provider => provider.type === 'BANK_TRANSFER')
+              manualProviders.some(provider => provider.type === ManualPaymentProviderTypes.BANK_TRANSFER)
             ) {
               supportedPaymentMethods.push('BANK_TRANSFER');
             }
@@ -638,6 +644,37 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           return supportedPaymentMethods;
+        },
+      },
+      manualPaymentProviders: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProvider))),
+        description: 'Manual payment providers configured for this host',
+        args: {
+          type: {
+            type: GraphQLManualPaymentProviderType,
+            description: 'Filter by provider type',
+          },
+          includeArchived: {
+            type: new GraphQLNonNull(GraphQLBoolean),
+            defaultValue: false,
+            description: 'Whether to include archived providers',
+          },
+        },
+        async resolve(collective, args) {
+          const where: Record<string, unknown> = { CollectiveId: collective.id };
+          if (args.type) {
+            where.type = args.type;
+          }
+          if (!args.includeArchived) {
+            where.archivedAt = null;
+          }
+          return models.ManualPaymentProvider.findAll({
+            where,
+            order: [
+              ['order', 'ASC'],
+              ['createdAt', 'ASC'],
+            ],
+          });
         },
       },
       bankAccount: {

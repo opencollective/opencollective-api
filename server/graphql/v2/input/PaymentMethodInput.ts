@@ -11,6 +11,10 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 
 import { GraphQLCreditCardCreateInput } from './CreditCardCreateInput';
+import {
+  fetchManualPaymentProviderWithReference,
+  GraphQLManualPaymentProviderReferenceInput,
+} from './ManualPaymentProviderInput';
 import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput';
 import { GraphQLPaypalPaymentInput } from './PaypalPaymentInput';
 
@@ -65,6 +69,10 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
     paymentIntentId: {
       type: GraphQLString,
       description: 'The Payment Intent ID used in this checkout',
+    },
+    manualPaymentProvider: {
+      type: GraphQLManualPaymentProviderReferenceInput,
+      description: 'The Manual Payment Provider ID used in this checkout',
     },
   }),
 });
