@@ -98,8 +98,10 @@ export async function getBalances(
   } = {},
 ) {
   const fastResults =
-    useMaterializedView === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
-      ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+    useMaterializedView === true && version === DEFAULT_BUDGET_VERSION && !includeChildren
+      ? endDate
+        ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
+        : await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
@@ -1001,6 +1003,37 @@ export async function getBlockedContributionsCount(collectiveId) {
       RefundTransactionId: null,
     },
   });
+}
+
+// Get historical balance for collectives at a specific point in time using TransactionBalances materialized view.
+// Note: No separate loader needed - batching is handled by the existing `balance` loader in getBalances().
+export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
+  const results = await sequelize.query(
+    `SELECT DISTINCT ON (tb."CollectiveId")
+       tb."CollectiveId",
+       tb."balance" as "netAmountInHostCurrency",
+       tb."hostCurrency"
+     FROM "TransactionBalances" tb
+     INNER JOIN "Collectives" c ON tb."CollectiveId" = c."id"
+       AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+     WHERE tb."CollectiveId" IN (:collectiveIds)
+       AND tb."createdAt" < :endDate
+     ORDER BY tb."CollectiveId", tb."createdAt" DESC`,
+    {
+      replacements: { collectiveIds, endDate },
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+    },
+  );
+
+  const totals = {};
+
+  for (const result of results) {
+    const CollectiveId = result['CollectiveId'];
+    totals[CollectiveId] = { CollectiveId, currency: result['hostCurrency'], value: result['netAmountInHostCurrency'] };
+  }
+
+  return totals;
 }
 
 // Get current balance for collective using a combination of speed and accuracy.
