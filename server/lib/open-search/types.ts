@@ -1,6 +1,7 @@
 export enum OpenSearchRequestType {
   FULL_ACCOUNT_RE_INDEX = 'FULL_ACCOUNT_RE_INDEX',
   UPDATE = 'UPDATE',
+  INSERT = 'INSERT',
   DELETE = 'DELETE',
 }
 
@@ -15,7 +16,7 @@ export type OpenSearchRequest = OpenSearchRequestBase &
         payload: { id: number };
       }
     | {
-        type: OpenSearchRequestType.UPDATE | OpenSearchRequestType.DELETE;
+        type: OpenSearchRequestType.UPDATE | OpenSearchRequestType.DELETE | OpenSearchRequestType.INSERT;
         table: string;
         payload: { id: number };
       }
@@ -34,6 +35,7 @@ export const isValidOpenSearchRequest = (message: any): message is OpenSearchReq
       case OpenSearchRequestType.FULL_ACCOUNT_RE_INDEX:
         return 'id' in message.payload && typeof message.payload.id === 'number';
       case OpenSearchRequestType.UPDATE:
+      case OpenSearchRequestType.INSERT:
       case OpenSearchRequestType.DELETE:
         return 'table' in message && 'id' in message.payload && typeof message.payload.id === 'number';
       default:
