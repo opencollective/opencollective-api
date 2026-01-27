@@ -573,6 +573,7 @@ describe('server/graphql/v2/object/Host', () => {
         hostAdmin,
       );
 
+      result.errors && console.error(result.errors);
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
       );
