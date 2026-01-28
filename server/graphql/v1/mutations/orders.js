@@ -159,7 +159,7 @@ const hasPaymentMethod = order => {
       paymentMethod.token ||
       paymentMethod.type === 'manual' ||
       paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
-      (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
+      (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data?.stripePaymentMethodId),
     );
   }
 };

@@ -162,7 +162,6 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       expect(provider.isArchived).to.be.false;
 
       // Verify it was saved in the database
-      const decodedId = IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER;
       const savedProvider = await models.ManualPaymentProvider.findOne({
         where: { CollectiveId: host.id, name: 'Wire Transfer' },
       });

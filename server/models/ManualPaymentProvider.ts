@@ -10,6 +10,7 @@ import {
 
 import { optsSanitizedSimplifiedWithImages, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
+import { RecipientAccount } from '../types/transferwise';
 
 import type { Collective } from '.';
 import { Order } from '.';
@@ -43,7 +44,7 @@ class ManualPaymentProvider extends Model<
   declare public name: string;
   declare public instructions: string;
   declare public icon: CreationOptional<string>;
-  declare public data: CreationOptional<Record<string, unknown>>;
+  declare public data: CreationOptional<RecipientAccount | Record<string, unknown>>;
   declare public order: CreationOptional<number>;
   declare public archivedAt: CreationOptional<Date>;
   declare public createdAt: CreationOptional<Date>;

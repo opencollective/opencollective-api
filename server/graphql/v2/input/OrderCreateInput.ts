@@ -16,7 +16,6 @@ import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
 import { GraphQLAmountInput } from './AmountInput';
 import { GraphQLGuestInfoInput } from './GuestInfoInput';
 import { GraphQLLocationInput } from './LocationInput';
-import { GraphQLManualPaymentProviderReferenceInput } from './ManualPaymentProviderInput';
 import { GraphQLOrderTaxInput } from './OrderTaxInput';
 import { GraphQLPaymentMethodInput } from './PaymentMethodInput';
 import { GraphQLTaxInput } from './TaxInput';

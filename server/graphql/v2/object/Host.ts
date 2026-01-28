@@ -36,7 +36,6 @@ import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from 
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
-import { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvider';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions } from '../../common/scope-check';
@@ -629,18 +628,16 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           // Check for manual payment providers from the model
-          const manualProviders = await models.ManualPaymentProvider.findAll({
+          const nbManualProviders = await models.ManualPaymentProvider.count({
             where: { CollectiveId: collective.id, archivedAt: null },
           });
 
-          if (manualProviders.length > 0) {
-            if (
-              !supportedPaymentMethods.includes('BANK_TRANSFER') &&
-              manualProviders.some(provider => provider.type === ManualPaymentProviderTypes.BANK_TRANSFER)
-            ) {
-              supportedPaymentMethods.push('BANK_TRANSFER');
-            }
-            // TODO add custom
+          if (nbManualProviders > 0) {
+            // The legacy "BANK_TRANSFER" type represents all types of manual payment providers
+            supportedPaymentMethods.push('BANK_TRANSFER');
+          } else if (get(collective, 'settings.paymentMethods.manual', null)) {
+            // TODO: this condition can safely be removed after deploying the new frontend
+            supportedPaymentMethods.push('BANK_TRANSFER');
           }
 
           return supportedPaymentMethods;

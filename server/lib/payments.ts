@@ -17,7 +17,7 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { ManualPaymentProvider, Op } from '../models';
 import Activity from '../models/Activity';
-import { sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
+import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
@@ -40,6 +40,7 @@ import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
+import { optsSanitizeOnlyTextFormatting, sanitizeHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
 import { getDashboardObjectIdURL } from './stripe';
 import { formatAccountDetails } from './transferwise';
@@ -1080,6 +1081,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   // Use manual payment provider if available, otherwise fall back to legacy manual bank transfer
   let providerAccount = null;
   let providerInstructions = null;
+  let providerName = null;
   // TODO: This parameter should become mandatory once we push the new frontend
   if (order.ManualPaymentProviderId) {
     const manualPaymentProvider = await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId);
@@ -1087,7 +1089,11 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
       throw new Error(`Manual payment provider not found for order ${order.id}`);
     } else {
       providerInstructions = manualPaymentProvider.instructions || null;
-      providerAccount = manualPaymentProvider.data || {};
+      providerName = manualPaymentProvider.name || null;
+      providerAccount =
+        manualPaymentProvider.type === ManualPaymentProviderTypes.BANK_TRANSFER
+          ? formatAccountDetails(manualPaymentProvider.data, { asSafeHTML: true })
+          : '';
     }
   } else {
     // Fall back to legacy manual bank transfer settings
@@ -1100,6 +1106,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
       manualPayoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT
         ? formatAccountDetails(manualPayoutMethod.data as BankAccountPayoutMethodData)
         : '';
+    providerName = 'Bank Transfer';
   }
 
   const data = {
@@ -1111,6 +1118,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
     fromCollective: fromCollective.activity,
     subscriptionsLink: getEditRecurringContributionsUrl(fromCollective),
     instructions: null,
+    paymentMethodName: providerName,
   };
 
   if (providerInstructions) {
@@ -1124,8 +1132,10 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
     };
     data.instructions = sanitizeManualPaymentProviderInstructions(
       providerInstructions.replace(/{([\s\S]+?)}/g, (match, key) => {
-        if (key && !isNil(formatValues[key])) {
-          return `<strong>${escape(formatValues[key])}</strong>`;
+        if (key === 'account') {
+          return sanitizeHTML(formatValues.account, optsSanitizeOnlyTextFormatting);
+        } else if (key && !isNil(formatValues[key])) {
+          return escape(formatValues[key] || '');
         } else {
           return match;
         }

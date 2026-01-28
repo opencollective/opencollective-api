@@ -3,7 +3,10 @@
 import type { QueryInterface } from 'sequelize';
 import { DataTypes, Op } from 'sequelize';
 
-import { sanitizeManualPaymentProviderInstructions } from '../server/models/ManualPaymentProvider';
+import { optsSanitizedSimplifiedWithImages, sanitizeHTML } from '../server/lib/sanitize-html';
+
+const sanitizeManualPaymentProviderInstructions = (instructions: string) =>
+  sanitizeHTML(instructions, optsSanitizedSimplifiedWithImages);
 
 /**
  * This migration:
@@ -105,10 +108,14 @@ module.exports = {
       `
       SELECT c.id as "collectiveId", c.settings as "collectiveSettings", pm.data as "payoutMethodData"
       FROM "Collectives" c
-      LEFT JOIN "PayoutMethods" pm ON pm."CollectiveId" = c.id AND pm.type = 'BANK_ACCOUNT' AND pm.data->>'isManualBankTransfer' = 'true'
+      LEFT JOIN "PayoutMethods" pm
+        ON pm."CollectiveId" = c.id
+        AND pm.type = 'BANK_ACCOUNT'
+        AND pm.data->>'isManualBankTransfer' = 'true'
+        AND pm."deletedAt" IS NULL
+        AND pm."isSaved" = TRUE
       WHERE c.settings -> 'paymentMethods' -> 'manual' -> 'instructions' IS NOT NULL
       AND c."deletedAt" IS NULL
-      AND pm."deletedAt" IS NULL
       `,
       {
         type: Sequelize.QueryTypes.SELECT,

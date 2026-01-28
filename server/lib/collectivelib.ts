@@ -2,7 +2,6 @@ import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import { compact, get, pick } from 'lodash';
 import isURL from 'validator/lib/isURL';
-import { z } from 'zod';
 
 import activities from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
@@ -11,7 +10,6 @@ import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize, User } from '../models';
 
-import { formatZodError } from './errors';
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
 import { containsProtectedBrandName } from './string-utils';

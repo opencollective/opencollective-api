@@ -81,7 +81,6 @@ const payoutMethodMutations = {
       } else if (await payoutMethod.canBeArchived()) {
         return payoutMethod.update({
           isSaved: false,
-          data: payoutMethod.data,
         });
       } else {
         throw new Forbidden();

@@ -46,8 +46,6 @@ const manualPaymentProviderMutations = {
         throw new ValidationFailed('Only hosts can have manual payment providers');
       }
 
-      // TODO check plan
-
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host);
 

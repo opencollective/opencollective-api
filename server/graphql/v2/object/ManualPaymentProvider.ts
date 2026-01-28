@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvider';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -32,7 +33,7 @@ export const GraphQLManualPaymentProvider = new GraphQLObjectType({
     accountDetails: {
       type: GraphQLJSON,
       description: 'Bank account details for BANK_TRANSFER type providers',
-      resolve: provider => provider.data,
+      resolve: provider => (provider.type === ManualPaymentProviderTypes.BANK_TRANSFER ? provider.data : null),
     },
     isArchived: {
       type: new GraphQLNonNull(GraphQLBoolean),
