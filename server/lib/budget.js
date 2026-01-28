@@ -14,6 +14,8 @@ const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
 const DEFAULT_BUDGET_VERSION = 'v2';
+// TODO: Replace DEFAULT_BUDGET_VERSION checks with FAST_BALANCE_SUPPORTED_VERSIONS throughout this file
+const FAST_BALANCE_SUPPORTED_VERSIONS = ['v2', 'v3'];
 
 const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
 
@@ -98,10 +100,14 @@ export async function getBalances(
   } = {},
 ) {
   const fastResults =
-    useMaterializedView === true && version === DEFAULT_BUDGET_VERSION && !includeChildren
+    useMaterializedView === true && !includeChildren
       ? endDate
-        ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
-        : await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version)
+          ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
+          : {}
+        : version === DEFAULT_BUDGET_VERSION
+          ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+          : {}
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
@@ -1017,12 +1023,12 @@ export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
        tb."hostCurrency"
      FROM "TransactionBalances" tb
      INNER JOIN "Collectives" c ON tb."CollectiveId" = c."id"
-       AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
+       AND COALESCE(c."settings"->'budget'->>'version', 'v2') IN (:supportedBudgetVersions)
      WHERE tb."CollectiveId" IN (:collectiveIds)
        AND tb."createdAt" < :endDate
      ORDER BY tb."CollectiveId", tb."createdAt" DESC`,
     {
-      replacements: { collectiveIds, endDate },
+      replacements: { collectiveIds, endDate, supportedBudgetVersions: FAST_BALANCE_SUPPORTED_VERSIONS },
       type: sequelize.QueryTypes.SELECT,
       raw: true,
     },
