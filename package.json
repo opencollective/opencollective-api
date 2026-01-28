@@ -58,7 +58,7 @@
     "@simplewebauthn/server": "13.2.2",
     "argparse": "2.0.1",
     "async-mutex": "0.5.0",
-    "axios": "1.13.2",
+    "axios": "1.13.4",
     "babel-plugin-add-module-exports": "1.0.4",
     "bayes": "1.0.0",
     "bcrypt": "6.0.0",
