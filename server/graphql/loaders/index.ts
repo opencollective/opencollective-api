@@ -1198,6 +1198,7 @@ export const generateLoaders = req => {
 
         return sortResultsSimple(transactionIds, transactionBalances);
       }),
+      latestCarryforwardDate: transactionLoaders.generateLatestCarryforwardDateLoader(cachedLoaders),
     },
     TransactionsImport: {
       ...context.loaders.TransactionsImport,

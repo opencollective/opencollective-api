@@ -2,8 +2,11 @@ import DataLoader from 'dataloader';
 import { groupBy } from 'lodash';
 
 import { TransactionKind } from '../../constants/transaction-kind';
-import models, { Op } from '../../models';
+import { TransactionTypes } from '../../constants/transactions';
+import models, { Op, sequelize } from '../../models';
 import Transaction from '../../models/Transaction';
+
+import { sortResultsSimple } from './helpers';
 
 export const generateHostFeeAmountForTransactionLoader = (): DataLoader<Transaction, number> =>
   new DataLoader(
@@ -179,3 +182,60 @@ export const generateRelatedContributionTransactionLoader = (): DataLoader<Trans
     },
   );
 };
+
+/**
+ * Creates a loader that returns the latest carryforward date for each collective.
+ * The carryforward date is the createdAt of the opening (CREDIT) BALANCE_CARRYFORWARD transaction.
+ *
+ * @param cachedLoaders - Cache object to store parameterized loaders
+ * @returns A buildLoader function that accepts optional endDate parameter
+ */
+export const generateLatestCarryforwardDateLoader = (
+  cachedLoaders: Record<string, DataLoader<number, Date | null>>,
+): { buildLoader: (opts?: { endDate?: Date }) => DataLoader<number, Date | null> } => ({
+  buildLoader({ endDate = null }: { endDate?: Date } = {}) {
+    const key = `latestCarryforwardDate-${endDate?.toISOString() || 'null'}`;
+    if (!cachedLoaders[key]) {
+      cachedLoaders[key] = new DataLoader<number, Date | null>(async (collectiveIds: readonly number[]) => {
+        // Query to get the latest BALANCE_CARRYFORWARD CREDIT (opening) transaction for each collective
+        // before the given endDate
+        const whereClause: Record<string, unknown> = {
+          CollectiveId: collectiveIds,
+          kind: TransactionKind.BALANCE_CARRYFORWARD,
+          type: TransactionTypes.CREDIT, // Opening transaction
+        };
+
+        if (endDate) {
+          whereClause.createdAt = { [Op.lte]: endDate };
+        }
+
+        // Use a raw query to get the MAX(createdAt) grouped by CollectiveId
+        const results = (await sequelize.query(
+          `
+          SELECT "CollectiveId", MAX("createdAt") as "latestCarryforwardDate"
+          FROM "Transactions"
+          WHERE "CollectiveId" IN (:collectiveIds)
+            AND "kind" = 'BALANCE_CARRYFORWARD'
+            AND "type" = 'CREDIT'
+            AND "deletedAt" IS NULL
+            ${endDate ? 'AND "createdAt" <= :endDate' : ''}
+          GROUP BY "CollectiveId"
+          `,
+          {
+            replacements: {
+              collectiveIds: [...collectiveIds],
+              ...(endDate && { endDate }),
+            },
+            type: sequelize.QueryTypes.SELECT,
+            raw: true,
+          },
+        )) as Array<{ CollectiveId: number; latestCarryforwardDate: Date }>;
+
+        return sortResultsSimple(collectiveIds, results, r => r.CollectiveId, null).map(
+          r => r?.latestCarryforwardDate || null,
+        );
+      });
+    }
+    return cachedLoaders[key];
+  },
+});
