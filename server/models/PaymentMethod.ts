@@ -12,9 +12,9 @@ import {
   PAYMENT_METHOD_TYPES,
 } from '../constants/paymentMethods';
 import { TransactionTypes } from '../constants/transactions';
-import { getBlockedContributionsCount, getBlockedExpenseFunds } from '../lib/budget';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
+import { getBlockedContributionsCount, getBlockedExpenseFunds } from '../lib/ledger/balance';
 import { findPaymentMethodProvider } from '../lib/payments';
 import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';

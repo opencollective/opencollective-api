@@ -6,7 +6,7 @@ import {
   getSumCollectivesAmountReceived,
   getSumCollectivesAmountSpent,
   sumTransactionsInCurrency,
-} from '../../../lib/budget';
+} from '../../../lib/ledger/balance';
 
 import { GraphQLAmount } from './Amount';
 

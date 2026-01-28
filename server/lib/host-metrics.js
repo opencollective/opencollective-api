@@ -4,7 +4,7 @@ import { orderBy } from 'lodash';
 import PlatformConstants from '../constants/platform';
 import { sequelize } from '../models';
 
-import { getTotalMoneyManagedAmount } from './budget';
+import { getTotalMoneyManagedAmount } from './ledger/balance';
 import { getFxRate } from './currency';
 import { computeDatesAsISOStrings } from './utils';
 
