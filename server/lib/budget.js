@@ -1009,7 +1009,9 @@ export async function getBlockedContributionsCount(collectiveId) {
 // Note: No separate loader needed - batching is handled by the existing `balance` loader in getBalances().
 export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
   const results = await sequelize.query(
-    `SELECT DISTINCT ON (tb."CollectiveId")
+    `-- DISTINCT ON is a PostgreSQL extension that returns the first row for each unique CollectiveId.
+     -- Combined with ORDER BY CollectiveId, createdAt DESC, it returns the most recent balance per collective.
+     SELECT DISTINCT ON (tb."CollectiveId")
        tb."CollectiveId",
        tb."balance" as "netAmountInHostCurrency",
        tb."hostCurrency"
