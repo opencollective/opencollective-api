@@ -7,6 +7,7 @@ import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
 import { getFxRate } from './currency';
+import { getOrCreateLoaders } from './loaders';
 import { fillTimeSeriesWithNodes, parseToBoolean } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
@@ -106,16 +107,76 @@ export async function getBalances(
     return fastResults;
   }
 
-  const results = await sumCollectivesTransactions(missingCollectiveIds, {
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    endDate,
-    includeChildren,
-    withBlockedFunds,
-    excludeRefunds: false,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-  });
+  const column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
+  const hostCollectiveId = version === 'v3' ? { [Op.not]: null } : null;
 
-  return { ...fastResults, ...results };
+  // Fetch latest carryforward dates for missing collectives using the loader
+  // The loader returns the latest carryforward date before endDate (or before now if no endDate)
+  // Use request loaders if available, otherwise use standalone loaders
+  const carryforwardLoader = loaders
+    ? loaders.Transaction.latestCarryforwardDate
+    : getOrCreateLoaders().latestCarryforwardDate;
+  const carryforwardDates = await carryforwardLoader.buildLoader({ endDate }).loadMany(missingCollectiveIds);
+
+  // Group collectives by carryforward date for efficient batch querying
+  // Skip carryforward optimization if includeChildren is true (complexity of child balances)
+  const carryforwardMap = new Map(); // carryforward timestamp -> collectiveIds
+  const noCarryforwardIds = [];
+
+  for (let i = 0; i < missingCollectiveIds.length; i++) {
+    const collectiveId = missingCollectiveIds[i];
+    const carryforwardDate = carryforwardDates[i];
+
+    if (!carryforwardDate || includeChildren) {
+      // No carryforward or includeChildren (skip optimization)
+      noCarryforwardIds.push(collectiveId);
+    } else {
+      // Can use carryforward optimization - group by carryforward date
+      const dateKey = new Date(carryforwardDate).getTime();
+      if (!carryforwardMap.has(dateKey)) {
+        carryforwardMap.set(dateKey, []);
+      }
+      carryforwardMap.get(dateKey).push(collectiveId);
+    }
+  }
+
+  // Query collectives without carryforward (or where optimization doesn't apply)
+  const resultsPromises = [];
+
+  if (noCarryforwardIds.length > 0) {
+    resultsPromises.push(
+      sumCollectivesTransactions(noCarryforwardIds, {
+        column,
+        endDate,
+        includeChildren,
+        withBlockedFunds,
+        excludeRefunds: false,
+        hostCollectiveId,
+      }),
+    );
+  }
+
+  // Query each carryforward date group with startDate optimization
+  for (const [dateKey, ids] of carryforwardMap) {
+    const startDate = new Date(dateKey);
+    resultsPromises.push(
+      sumCollectivesTransactions(ids, {
+        column,
+        startDate,
+        endDate,
+        includeChildren,
+        withBlockedFunds,
+        excludeRefunds: false,
+        hostCollectiveId,
+      }),
+    );
+  }
+
+  // Merge all results
+  const allResults = await Promise.all(resultsPromises);
+  const mergedResults = allResults.reduce((acc, result) => ({ ...acc, ...result }), {});
+
+  return { ...fastResults, ...mergedResults };
 }
 
 export async function getTotalAmountReceivedAmount(

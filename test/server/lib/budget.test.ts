@@ -14,8 +14,9 @@ import {
   sumCollectivesTransactions,
 } from '../../../server/lib/budget';
 import * as libcurrency from '../../../server/lib/currency';
+import { createBalanceCarryforward, getBalancesByHostAndCurrency } from '../../../server/lib/ledger/carryforward';
 import { sequelize } from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeHost, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -368,6 +369,468 @@ describe('server/lib/budget', () => {
       });
       expect(balances[collective.id].value).to.eq(140e2);
       expect(balances[otherCollective.id].value).to.eq(130e2);
+    });
+  });
+
+  describe('createBalanceCarryforward', () => {
+    let host, collective;
+
+    beforeEach(async () => {
+      await resetTestDB();
+      host = await fakeHost();
+      collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+    });
+
+    describe('getBalancesByHostAndCurrency()', () => {
+      it('returns balances grouped by host and currency', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const balances = await getBalancesByHostAndCurrency(collective.id);
+
+        expect(balances).to.have.length(1);
+        expect(balances[0].HostCollectiveId).to.equal(host.id);
+        expect(balances[0].hostCurrency).to.equal(host.currency);
+        expect(balances[0].balance).to.equal(100e2);
+      });
+
+      it('respects endDate parameter', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 50e2,
+            createdAt: moment().subtract(10, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        // Query with endDate before the second transaction
+        const endDate = moment().subtract(15, 'days').toDate();
+        const balances = await getBalancesByHostAndCurrency(collective.id, { endDate });
+
+        expect(balances).to.have.length(1);
+        expect(balances[0].balance).to.equal(100e2);
+      });
+
+      it('returns empty array for collective with no transactions', async () => {
+        const balances = await getBalancesByHostAndCurrency(collective.id);
+        expect(balances).to.have.length(0);
+      });
+    });
+
+    describe('createBalanceCarryforward()', () => {
+      it('creates DEBIT and CREDIT transaction pair with correct amounts', async () => {
+        // Create some balance
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+
+        const result = await createBalanceCarryforward(collective, carryforwardDate);
+
+        expect(result).to.not.be.null;
+        expect(result.balance).to.equal(100e2);
+        expect(result.closingTransaction).to.exist;
+        expect(result.openingTransaction).to.exist;
+        expect(result.balancesByHost).to.exist;
+        expect(result.balancesByHost).to.have.length(1);
+        expect(result.balancesByHost[0].HostCollectiveId).to.equal(host.id);
+        expect(result.balancesByHost[0].balance).to.equal(100e2);
+
+        // Check closing transaction (DEBIT)
+        expect(result.closingTransaction.type).to.equal(TransactionTypes.DEBIT);
+        expect(result.closingTransaction.kind).to.equal(TransactionKind.BALANCE_CARRYFORWARD);
+        expect(result.closingTransaction.amountInHostCurrency).to.equal(-100e2);
+        expect(result.closingTransaction.description).to.equal('Balance carryforward - Closing');
+        expect(result.closingTransaction.isInternal).to.be.true;
+
+        // Check opening transaction (CREDIT)
+        expect(result.openingTransaction.type).to.equal(TransactionTypes.CREDIT);
+        expect(result.openingTransaction.kind).to.equal(TransactionKind.BALANCE_CARRYFORWARD);
+        expect(result.openingTransaction.amountInHostCurrency).to.equal(100e2);
+        expect(result.openingTransaction.description).to.equal('Balance carryforward - Opening');
+        expect(result.openingTransaction.isInternal).to.be.true;
+      });
+
+      it('returns null when balance is zero', async () => {
+        // Create offsetting transactions that result in zero balance
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+        await fakeTransaction(
+          {
+            type: TransactionTypes.DEBIT,
+            kind: TransactionKind.EXPENSE,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: -100e2,
+            createdAt: moment().subtract(20, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        const result = await createBalanceCarryforward(collective, carryforwardDate);
+
+        expect(result).to.be.null;
+      });
+
+      it('transactions share the same TransactionGroup', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        const result = await createBalanceCarryforward(collective, carryforwardDate);
+
+        expect(result.closingTransaction.TransactionGroup).to.equal(result.openingTransaction.TransactionGroup);
+      });
+
+      it('transactions have correct HostCollectiveId', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        const result = await createBalanceCarryforward(collective, carryforwardDate);
+
+        expect(result.closingTransaction.HostCollectiveId).to.equal(host.id);
+        expect(result.openingTransaction.HostCollectiveId).to.equal(host.id);
+      });
+
+      it('closing transaction dated before opening transaction', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        const result = await createBalanceCarryforward(collective, carryforwardDate);
+
+        expect(result.closingTransaction.createdAt.getTime()).to.be.lessThan(
+          result.openingTransaction.createdAt.getTime(),
+        );
+      });
+
+      it('errors if collective has no transactions with a host', async () => {
+        const collectiveWithoutHost = await fakeCollective({ HostCollectiveId: null });
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+
+        await expect(createBalanceCarryforward(collectiveWithoutHost, carryforwardDate)).to.be.rejectedWith(
+          'No transactions found with a host before the carryforward date',
+        );
+      });
+
+      it('allows multiple carryforwards at any dates', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(60, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        // First carryforward at a recent date
+        const recentCarryforwardDate = moment().subtract(10, 'days').endOf('day').toDate();
+        const recentResult = await createBalanceCarryforward(collective, recentCarryforwardDate);
+        expect(recentResult).to.not.be.null;
+
+        // Second carryforward at an earlier date - should work
+        const earlierCarryforwardDate = moment().subtract(30, 'days').endOf('day').toDate();
+        const earlierResult = await createBalanceCarryforward(collective, earlierCarryforwardDate);
+        expect(earlierResult).to.not.be.null;
+
+        // Balance should still be correct
+        const balance = await getBalances([collective.id], { useMaterializedView: false });
+        expect(balance[collective.id].value).to.equal(100e2);
+      });
+
+      it('errors if carryforward date is in the future', async () => {
+        const futureDate = moment().add(1, 'day').toDate();
+
+        await expect(createBalanceCarryforward(collective, futureDate)).to.be.rejectedWith(
+          'Carryforward date must be in the past',
+        );
+      });
+
+      it('errors if carryforward already exists at the same date', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const carryforwardDate = moment().subtract(10, 'days').endOf('day').toDate();
+
+        // First carryforward should succeed
+        await createBalanceCarryforward(collective, carryforwardDate);
+
+        // Second carryforward at same date should fail
+        await expect(createBalanceCarryforward(collective, carryforwardDate)).to.be.rejectedWith(
+          'A carryforward already exists at this date',
+        );
+      });
+
+      it('handles negative balances correctly', async () => {
+        // Create a negative balance by having more debits than credits
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 50e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+        await fakeTransaction(
+          {
+            type: TransactionTypes.DEBIT,
+            kind: TransactionKind.EXPENSE,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: -100e2,
+            createdAt: moment().subtract(20, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        const result = await createBalanceCarryforward(collective, carryforwardDate);
+
+        expect(result.balance).to.equal(-50e2);
+        expect(result.closingTransaction.amountInHostCurrency).to.equal(50e2); // Positive (removes negative balance)
+        expect(result.openingTransaction.amountInHostCurrency).to.equal(-50e2); // Negative (establishes negative balance)
+      });
+    });
+
+    describe('Balance calculation with carryforward', () => {
+      it('getBalances() returns same balance before and after carryforward', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        // Get balance before carryforward
+        const balanceBefore = await getBalances([collective.id], { useMaterializedView: false });
+
+        // Create carryforward
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        await createBalanceCarryforward(collective, carryforwardDate);
+
+        // Get balance after carryforward
+        await collective.reload();
+        const balanceAfter = await getBalances([collective.id], { useMaterializedView: false });
+
+        expect(balanceAfter[collective.id].value).to.equal(balanceBefore[collective.id].value);
+      });
+
+      it('balance is correct after new transactions are added post-carryforward', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        // Create carryforward
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        await createBalanceCarryforward(collective, carryforwardDate);
+
+        // Add new transaction after carryforward
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 50e2,
+            createdAt: new Date(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        await collective.reload();
+        const balance = await getBalances([collective.id], { useMaterializedView: false });
+
+        expect(balance[collective.id].value).to.equal(150e2);
+      });
+
+      it('historical balance query with endDate before carryforward uses full transaction history', async () => {
+        const oldDate = moment().subtract(60, 'days').toDate();
+        const carryforwardDate = moment().subtract(10, 'days').endOf('day').toDate();
+
+        // Create old transaction
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: oldDate,
+          },
+          { createDoubleEntry: true },
+        );
+
+        // Create carryforward at a later date
+        await createBalanceCarryforward(collective, carryforwardDate);
+        await collective.reload();
+
+        // Query historical balance (before carryforward date)
+        const historicalEndDate = moment().subtract(30, 'days').toDate();
+        const balance = await getBalances([collective.id], {
+          endDate: historicalEndDate,
+          useMaterializedView: false,
+        });
+
+        expect(balance[collective.id].value).to.equal(100e2);
+      });
+    });
+
+    describe('Metric exclusion', () => {
+      it('carryforward transactions are excluded from sumCollectivesTransactions when excludeInternals is true', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        // Create carryforward
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        await createBalanceCarryforward(collective, carryforwardDate);
+
+        // Query with excludeInternals: true (like contribution totals)
+        const txs = await sumCollectivesTransactions([collective.id], {
+          column: 'netAmountInHostCurrency',
+          transactionType: TransactionTypes.CREDIT,
+          excludeInternals: true,
+          excludeRefunds: true,
+        });
+
+        // Should only include the original contribution, not the carryforward credit
+        expect(txs[collective.id]['value']).to.equal(100e2);
+      });
+
+      it('carryforward transactions are included in ledger queries (excludeInternals: false)', async () => {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: collective.id,
+            HostCollectiveId: host.id,
+            amount: 100e2,
+            createdAt: moment().subtract(30, 'days').toDate(),
+          },
+          { createDoubleEntry: true },
+        );
+
+        // Create carryforward
+        const carryforwardDate = moment().subtract(1, 'day').endOf('day').toDate();
+        await createBalanceCarryforward(collective, carryforwardDate);
+
+        // Query with excludeInternals: false (like balance calculation)
+        const txs = await sumCollectivesTransactions([collective.id], {
+          column: 'netAmountInHostCurrency',
+          excludeInternals: false,
+          excludeRefunds: false,
+        });
+
+        // Balance should remain the same (carryforward nets to zero)
+        expect(txs[collective.id]['value']).to.equal(100e2);
+      });
     });
   });
 });

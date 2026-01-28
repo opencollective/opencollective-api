@@ -1,0 +1,17 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/lib/ledger/carryforward Ledger snapshot ledger state before and after carryforward 1`] = `
+"
+| kind         | type   | amount | amountInHostCurrency | To              | From        | Host      | isInternal | description           |
+| ------------ | ------ | ------ | -------------------- | --------------- | ----------- | --------- | ---------- | --------------------- |
+| CONTRIBUTION | CREDIT | 15000  | 15000                | Test Collective | Contributor | Test Host | false      | Original contribution |"
+`;
+
+exports[`server/lib/ledger/carryforward Ledger snapshot ledger state before and after carryforward 2`] = `
+"
+| kind                 | type   | amount | amountInHostCurrency | To              | From            | Host      | isInternal | description                    |
+| -------------------- | ------ | ------ | -------------------- | --------------- | --------------- | --------- | ---------- | ------------------------------ |
+| CONTRIBUTION         | CREDIT | 15000  | 15000                | Test Collective | Contributor     | Test Host | false      | Original contribution          |
+| BALANCE_CARRYFORWARD | DEBIT  | -15000 | -15000               | Test Collective | Test Collective | Test Host | true       | Balance carryforward - Closing |
+| BALANCE_CARRYFORWARD | CREDIT | 15000  | 15000                | Test Collective | Test Collective | Test Host | true       | Balance carryforward - Opening |"
+`;

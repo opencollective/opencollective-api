@@ -1,7 +1,10 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import sequelize from '../../../lib/sequelize';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
+import { Unauthorized } from '../../errors';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 import {
@@ -69,6 +72,70 @@ export const GraphQLOrganization = new GraphQLObjectType({
         description: 'Returns whether the account has hosting activated.',
         resolve(collective) {
           return collective.hasHosting;
+        },
+      },
+      canBeVendorOf: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description:
+          'Returns whether this organization can be a vendor of the specified host. This checks if the organization only transacted with this host and all its admins are also admins of the host.',
+        args: {
+          host: {
+            type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+            description: 'The host account to check against',
+          },
+        },
+        async resolve(organization, args, req) {
+          if (!req.remoteUser) {
+            throw new Unauthorized('You need to be logged in to check vendor eligibility');
+          }
+
+          const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+
+          // Query to check if this organization meets the criteria to be a vendor
+          const query = `
+            WITH hostadmins AS (
+              SELECT m."MemberCollectiveId", u."id" as "UserId"
+              FROM "Members" m
+              INNER JOIN "Users" u ON m."MemberCollectiveId" = u."CollectiveId"
+              WHERE m."CollectiveId" = :hostid AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
+            ), org AS (
+              SELECT c.id, ARRAY_AGG(DISTINCT m."MemberCollectiveId") as "admins", ARRAY_AGG(DISTINCT t."HostCollectiveId") as hosts, c."CreatedByUserId"
+              FROM "Collectives" c
+              LEFT JOIN "Members" m ON c.id = m."CollectiveId" AND m."deletedAt" IS NULL AND m.role = 'ADMIN'
+              LEFT JOIN "Transactions" t ON c.id = t."FromCollectiveId" AND t."deletedAt" IS NULL
+              WHERE c."deletedAt" IS NULL
+                AND c.id = :orgid
+                AND c.type = 'ORGANIZATION'
+                AND c."HostCollectiveId" IS NULL
+              GROUP BY c.id
+            )
+            SELECT EXISTS(
+              SELECT 1
+              FROM "org" o
+              WHERE
+                (
+                  o."admins" <@ ARRAY(SELECT "MemberCollectiveId" FROM hostadmins)
+                    OR (
+                      o."CreatedByUserId" IN (
+                        SELECT "UserId"
+                        FROM hostadmins
+                      )
+                      AND o."admins" = ARRAY[null]::INTEGER[]
+                    )
+                )
+                AND o."hosts" IN (ARRAY[:hostid], ARRAY[null]::INTEGER[])
+            ) as "canBeVendor";
+          `;
+
+          const result = await sequelize.query(query, {
+            replacements: {
+              hostid: host.id,
+              orgid: organization.id,
+            },
+            type: sequelize.QueryTypes.SELECT,
+          });
+
+          return result[0]?.canBeVendor || false;
         },
       },
     };
