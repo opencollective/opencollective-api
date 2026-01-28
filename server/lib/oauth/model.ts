@@ -61,7 +61,19 @@ const dbTokenToOAuthToken = async (token: UserToken): Promise<Token> => {
     token.client = dbApplicationToClient(token.application);
   }
 
-  return token as Token;
+  // Return a plain object to ensure proper destructuring in v5's TokenModel
+  // Include additional fields (id, application) for backward compatibility
+  return {
+    id: token.id,
+    accessToken: token.accessToken,
+    accessTokenExpiresAt: token.accessTokenExpiresAt,
+    refreshToken: token.refreshToken,
+    refreshTokenExpiresAt: token.refreshTokenExpiresAt,
+    scope: token.scope,
+    client: token.client,
+    user: token.user,
+    application: token.application,
+  };
 };
 
 // For some reason `saveAuthorizationCode` and `saveToken` can receive a `scope`
