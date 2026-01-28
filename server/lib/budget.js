@@ -1016,7 +1016,7 @@ export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
        tb."hostCurrency"
      FROM "TransactionBalances" tb
      INNER JOIN "Collectives" c ON tb."CollectiveId" = c."id"
-       AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+       AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
      WHERE tb."CollectiveId" IN (:collectiveIds)
        AND tb."createdAt" < :endDate
      ORDER BY tb."CollectiveId", tb."createdAt" DESC`,
@@ -1047,7 +1047,7 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
         `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
-         AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+         AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
         {
           replacements: { collectiveIds },
