@@ -11,10 +11,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 
 import { GraphQLCreditCardCreateInput } from './CreditCardCreateInput';
-import {
-  fetchManualPaymentProviderWithReference,
-  GraphQLManualPaymentProviderReferenceInput,
-} from './ManualPaymentProviderInput';
+import { GraphQLManualPaymentProviderReferenceInput } from './ManualPaymentProviderInput';
 import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput';
 import { GraphQLPaypalPaymentInput } from './PaypalPaymentInput';
 

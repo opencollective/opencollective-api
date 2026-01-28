@@ -58,6 +58,7 @@ describe('migrations/20260115143930-migrate-manual-payment-methods-to-custom-pro
     await fakePayoutMethod({
       CollectiveId: host1.id,
       type: PayoutMethodTypes.BANK_ACCOUNT,
+      isSaved: true,
       data: {
         isManualBankTransfer: true,
         bankName: 'Test Bank',

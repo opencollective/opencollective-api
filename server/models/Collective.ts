@@ -74,7 +74,6 @@ import {
 import { purgeCacheForCollective } from '../lib/cache';
 import {
   collectiveSlugReservedList,
-  CustomPaymentProvider,
   filterCollectiveSettings,
   getCollectiveAvatarUrl,
   getCollectiveBackgroundImageUrl,
