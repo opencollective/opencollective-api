@@ -16,11 +16,11 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
     super(KYCProviderName.MANUAL);
   }
 
-  async request(req: KYCRequest, providerRequest: ManualKYCRequest): Promise<ManualKYCVerification> {
+  async requestVerification(params: KYCRequest, manualParams: ManualKYCRequest): Promise<ManualKYCVerification> {
     const existing = await KYCVerification.findOne({
       where: {
-        CollectiveId: req.CollectiveId,
-        RequestedByCollectiveId: req.RequestedByCollectiveId,
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
         provider: this.providerName,
         status: KYCVerificationStatus.VERIFIED,
       },
@@ -31,22 +31,22 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
     }
 
     const kycVerification = await KYCVerification.create<ManualKYCVerification>({
-      CollectiveId: req.CollectiveId,
-      RequestedByCollectiveId: req.RequestedByCollectiveId,
-      CreatedByUserId: req.CreatedByUserId,
+      CollectiveId: params.CollectiveId,
+      RequestedByCollectiveId: params.RequestedByCollectiveId,
+      CreatedByUserId: params.CreatedByUserId,
       providerData: {
-        notes: providerRequest.notes ?? '',
+        notes: manualParams.notes ?? '',
       },
       data: {
-        legalName: providerRequest.legalName,
-        ...(providerRequest.legalAddress ? { legalAddress: providerRequest.legalAddress } : {}),
+        legalName: manualParams.legalName,
+        ...(manualParams.legalAddress ? { legalAddress: manualParams.legalAddress } : {}),
       },
       provider: this.providerName,
       status: KYCVerificationStatus.VERIFIED,
       verifiedAt: new Date(),
     });
 
-    await this.createRequestedActivity(kycVerification, req.UserTokenId);
+    await this.createRequestedActivity(kycVerification, params.UserTokenId);
 
     return kycVerification;
   }

@@ -10,14 +10,14 @@ import helmet from 'helmet';
 import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
+import { RedisClientType } from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
 import hyperwatch from './hyperwatch';
 import logger from './logger';
-import { createRedisClient, RedisInstanceType } from './redis';
 
-export default async function setupExpress(app: express.Application) {
+export default function setupExpress(app: express.Application, redisClient?: RedisClientType) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
   // Keep Express 4 query parsing behavior (extended) for compatibility in v5.
   app.set('query parser', 'extended');
@@ -56,7 +56,7 @@ export default async function setupExpress(app: express.Application) {
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // Hyperwatch
-  await hyperwatch(app);
+  hyperwatch(app);
 
   // Error handling.
   if (config.env !== 'production' && config.env !== 'staging') {
@@ -79,7 +79,6 @@ export default async function setupExpress(app: express.Application) {
 
   // Setup session (required by passport)
 
-  const redisClient = await createRedisClient(RedisInstanceType.SESSION);
   if (redisClient || process.env.OC_ENV === 'development') {
     const store = !redisClient ? undefined : new RedisStore({ client: redisClient });
     app.use(

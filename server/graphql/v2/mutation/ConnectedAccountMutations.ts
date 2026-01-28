@@ -7,6 +7,7 @@ import FEATURE from '../../../constants/feature';
 import { checkFeatureAccess, getErrorMessageFromFeatureAccess, getFeatureAccess } from '../../../lib/allowed-features';
 import { crypto } from '../../../lib/encryption';
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
+import { personaKycProvider } from '../../../lib/kyc/providers/persona';
 import * as paypal from '../../../lib/paypal';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
 import * as transferwise from '../../../lib/transferwise';
@@ -84,6 +85,16 @@ const connectedAccountMutations = {
             throw new ValidationFailed('The Client ID and Token are not a valid combination');
           }
         }
+      }
+
+      if (args.connectedAccount.service === Service.PERSONA) {
+        return personaKycProvider.provisionProvider({
+          CollectiveId: collective.id,
+          CreatedByUserId: req.remoteUser.id,
+          apiKey: args.connectedAccount.data.apiKey,
+          apiKeyId: args.connectedAccount.data.apiKeyId,
+          inquiryTemplateId: args.connectedAccount.data.inquiryTemplateId,
+        });
       }
 
       const connectedAccount = await models.ConnectedAccount.create({
