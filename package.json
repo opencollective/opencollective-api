@@ -34,10 +34,10 @@
     "@as-integrations/express5": "1.1.2",
     "@aws-sdk/client-s3": "3.966.0",
     "@aws-sdk/s3-request-presigner": "3.966.0",
-    "@babel/core": "7.28.5",
-    "@babel/node": "7.28.0",
-    "@babel/plugin-transform-typescript": "7.28.5",
-    "@babel/preset-env": "7.28.5",
+    "@babel/core": "7.28.6",
+    "@babel/node": "7.28.6",
+    "@babel/plugin-transform-typescript": "7.28.6",
+    "@babel/preset-env": "7.28.6",
     "@escape.tech/graphql-armor": "3.2.0",
     "@hyperwatch/hyperwatch": "4.2.0",
     "@json2csv/plainjs": "^7.0.6",
@@ -70,7 +70,7 @@
     "config": "4.1.1",
     "connect-redis": "9.0.0",
     "cookie-parser": "1.4.7",
-    "cors": "2.8.5",
+    "cors": "2.8.6",
     "crypto-js": "4.2.0",
     "crypto-random-string": "3.3.1",
     "csv-parse": "6.1.0",
@@ -101,7 +101,7 @@
     "jsonwebtoken": "9.0.3",
     "juice": "11.1.0",
     "limax": "4.2.2",
-    "lodash": "4.17.21",
+    "lodash": "4.17.23",
     "lru-cache": "11.2.4",
     "moment": "2.30.1",
     "moment-timezone": "0.6.0",
@@ -134,7 +134,7 @@
     "uuid": "13.0.0",
     "validator": "13.15.26",
     "winston": "3.19.0",
-    "zod": "4.1.13"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@babel/cli": "^7.23.4",
@@ -150,7 +150,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.14.202",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.17.9",
+    "@types/node": "^24.0.0",
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.4",
     "@types/validator": "^13.11.8",
@@ -180,7 +180,7 @@
     "husky": "^9.0.10",
     "lint-staged": "^16.0.0",
     "markdown-table": "^2.0.0",
-    "mocha": "^11.0.0",
+    "mocha": "^11.7.5",
     "mocha-junit-reporter": "^2.2.1",
     "nock": "^13.5.0",
     "node-mocks-http": "^1.16.1",
@@ -188,7 +188,7 @@
     "npm-run-all2": "^8.0.4",
     "nyc": "^17.0.0",
     "opentelemetry-instrumentation-sequelize": "^0.41.0",
-    "prettier": "3.7.4",
+    "prettier": "3.8.1",
     "sinon": "^21.0.0",
     "sinon-chai": "^3.7.0",
     "supertest": "^7.0.0",
@@ -272,13 +272,16 @@
     "lint-staged": "lint-staged"
   },
   "engines": {
-    "node": "20.x",
-    "npm": "10.x"
+    "node": "24.x",
+    "npm": "11.x"
   },
   "lint-staged": {
     "*.{js,ts,json,md}": [
       "prettier --write"
     ]
+  },
+  "overrides": {
+    "url-regex-safe": "4.0.0"
   },
   "nyc": {
     "reporter": [
@@ -302,10 +305,10 @@
       "mocha"
     ],
     "ignores": [
+      "@opentelemetry/context-async-hooks",
       "eslint-import-resolver-typescript",
       "mocha-junit-reporter",
-      "typescript-eslint",
-      "@opentelemetry/context-async-hooks"
+      "typescript-eslint"
     ]
   }
 }

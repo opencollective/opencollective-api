@@ -21,29 +21,29 @@ chai.use(chaiSubset);
 chai.use(chaiSorted);
 chai.use(sinonChai);
 
-before(() => {
-  chaiJestSnapshot.resetSnapshotRegistry();
-});
+// ts-unused-exports:disable-next-line
+export const mochaHooks = {
+  beforeAll: async function () {
+    chaiJestSnapshot.resetSnapshotRegistry();
 
-beforeEach(function () {
-  chaiJestSnapshot.configureUsingMochaContext(this);
-});
-
-before(async () => {
-  try {
-    if (checkS3Configured()) {
-      await dangerouslyInitNonProductionBuckets();
-    } else {
-      console.warn('S3 is not configured, skipping S3 bucket initialization');
+    try {
+      if (checkS3Configured()) {
+        await dangerouslyInitNonProductionBuckets();
+      } else {
+        console.warn('S3 is not configured, skipping S3 bucket initialization');
+      }
+    } catch {
+      if (process.env.OC_ENV !== 'ci') {
+        console.warn(
+          'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start minio (see docs/s3.md).',
+        );
+      }
     }
-  } catch {
-    if (process.env.OC_ENV !== 'ci') {
-      console.warn(
-        'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start minio (see docs/s3.md).',
-      );
-    }
-  }
-});
+  },
+  beforeEach: function () {
+    chaiJestSnapshot.configureUsingMochaContext(this);
+  },
+};
 
 // Chai plugins
 const sortDeep = item => {

@@ -5,6 +5,8 @@ exports[`cron/monthly/host-settlement should update all settlement status for EU
 | kind                | type   | amount | isRefund | Settlement |
 | ------------------- | ------ | ------ | -------- | ---------- |
 | PLATFORM_TIP_DEBT   | CREDIT | 30000  | false    | INVOICED   |
+| HOST_FEE_SHARE_DEBT | CREDIT | 5000   | false    | INVOICED   |
+| PLATFORM_TIP_DEBT   | CREDIT | 30000  | false    | INVOICED   |
 | HOST_FEE_SHARE_DEBT | CREDIT | 5000   | false    | INVOICED   |"
 `;
 
