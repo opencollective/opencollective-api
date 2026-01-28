@@ -1,6 +1,8 @@
 export enum TransactionKind {
   /** Transactions coming from the "Add Funds" */
   ADDED_FUNDS = 'ADDED_FUNDS',
+  /** Balance carryforward transactions for period closing/opening */
+  BALANCE_CARRYFORWARD = 'BALANCE_CARRYFORWARD',
   /** Transactions from transferring the remaining balance from a project/event/collective **/
   BALANCE_TRANSFER = 'BALANCE_TRANSFER',
   /** Transactions coming from the "Contribution Flow" */
