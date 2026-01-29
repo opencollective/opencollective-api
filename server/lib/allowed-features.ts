@@ -191,6 +191,10 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
     optIn: true,
   },
+  [FEATURE.PERSONA_KYC]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
+    optIn: true,
+  },
 } as const;
 
 /**

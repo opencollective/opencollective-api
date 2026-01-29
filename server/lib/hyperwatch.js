@@ -25,7 +25,7 @@ const computeMask = req => {
   return md5(maskString);
 };
 
-const load = async app => {
+const load = app => {
   if (!config.hyperwatch || parseToBoolean(config.hyperwatch.enabled) !== true) {
     return;
   }
