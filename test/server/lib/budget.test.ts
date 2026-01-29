@@ -6,14 +6,14 @@ import ExpenseStatuses from '../../../server/constants/expense-status';
 import OrderStatuses from '../../../server/constants/order-status';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../server/constants/transactions';
+import * as libcurrency from '../../../server/lib/currency';
 import {
   getBalances,
   getCurrentCollectiveBalances,
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
   sumCollectivesTransactions,
-} from '../../../server/lib/budget';
-import * as libcurrency from '../../../server/lib/currency';
+} from '../../../server/lib/ledger/balance';
 import { sequelize } from '../../../server/models';
 import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
@@ -106,8 +106,8 @@ describe('server/lib/budget', () => {
 
       const txs = await sumCollectivesTransactions([collective.id], {
         column: 'netAmountInHostCurrency',
-        startDate: moment().subtract(1, 'day'),
-        endDate: moment(),
+        startDate: moment().subtract(1, 'day').toDate(),
+        endDate: moment().toDate(),
         kind: null,
       });
       const sum = txs[collective.id];
