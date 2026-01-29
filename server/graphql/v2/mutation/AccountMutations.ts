@@ -25,7 +25,8 @@ import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
-import models, { Collective, sequelize } from '../../../models';
+import models, { Collective, HostApplication, sequelize } from '../../../models';
+import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
@@ -965,6 +966,18 @@ const accountMutations = {
         throw new Error("Can't convert an hosted Collective.");
       }
 
+      // Check host applications
+      const hostApplications = await HostApplication.findAll({
+        where: { CollectiveId: account.id, status: HostApplicationStatus.PENDING },
+        include: [{ association: 'host', required: true }],
+      });
+
+      if (hostApplications.length > 0) {
+        throw new Error(
+          `Can't convert a Collective with pending host applications. Please withdraw the application from ${hostApplications.map(a => a.host.name).join(', ')} first.`,
+        );
+      }
+
       await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
       await account.update({ type: ORGANIZATION });
@@ -975,6 +988,10 @@ const accountMutations = {
 
       if (args.hasMoneyManagement === true) {
         await account.activateMoneyManagement(req.remoteUser, { silent: true });
+      }
+
+      if (hostApplications.length > 0) {
+        await HostApplication.destroy({ where: { CollectiveId: account.id } });
       }
 
       await models.Activity.create({
