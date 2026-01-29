@@ -38,7 +38,7 @@ import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions } from '../../common/scope-check';
+import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions, enforceScope } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
@@ -1482,15 +1482,64 @@ export const GraphQLHost = new GraphQLObjectType({
           },
         },
         async resolve(account, args, req) {
+          enforceScope(req, 'host');
+
           const where = {
             ParentCollectiveId: account.id,
             type: CollectiveType.VENDOR,
             deactivatedAt: { [args.isArchived ? Op.not : Op.is]: null },
           };
 
+          const isAdminOfHost = req.remoteUser?.isAdminOfCollective(account);
+          let visibleToAccountIds: number[] = [];
+          if (args.visibleToAccounts?.length > 0) {
+            assert(args.visibleToAccounts.length <= 100, 'You can only request up to 100 visible to accounts');
+            const requestedVisibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
+              throwIfMissing: true,
+            });
+
+            const parentAccounts = await Collective.findAll({
+              where: {
+                id: requestedVisibleToAccountIds,
+                ParentCollectiveId: { [Op.ne]: null },
+              },
+              attributes: ['ParentCollectiveId'],
+            });
+
+            visibleToAccountIds = uniq(
+              compact([...requestedVisibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]),
+            );
+
+            if (!isAdminOfHost) {
+              visibleToAccountIds = visibleToAccountIds.filter(id => req.remoteUser?.isAdmin(id));
+            }
+
+            if (!visibleToAccountIds.length) {
+              throw new Unauthorized('You are not authorized to see vendors visible to the given accounts');
+            } else {
+              where[Op.and] = [
+                sequelize.literal(`
+                    data#>'{visibleToAccountIds}' IS NULL 
+                    OR data#>'{visibleToAccountIds}' = '[]'::jsonb
+                    OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+                    OR
+                    (
+                      jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+                      AND 
+                      EXISTS (
+                        SELECT v FROM (
+                          SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                        ) WHERE v = ANY(${sequelize.escape(visibleToAccountIds)})
+                      )  
+                    )
+              `),
+              ];
+            }
+          }
+
           const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
-          const isAdmin = req.remoteUser?.isAdminOfCollective(account);
-          if (!publicVendorPolicy && !isAdmin) {
+
+          if (!publicVendorPolicy && !isAdminOfHost && !visibleToAccountIds?.length) {
             return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
           }
 
@@ -1533,40 +1582,8 @@ export const GraphQLHost = new GraphQLObjectType({
             ];
           }
 
-          if (args.visibleToAccounts?.length > 0) {
-            const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
-              throwIfMissing: true,
-            });
-            const parentAccounts = await Collective.findAll({
-              where: {
-                id: visibleToAccountIds,
-                ParentCollectiveId: { [Op.ne]: null },
-              },
-              attributes: ['ParentCollectiveId'],
-            });
-
-            const accountIds = compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
-            findArgs.where[Op.and] = [
-              sequelize.literal(`
-                    data#>'{visibleToAccountIds}' IS NULL 
-                    OR data#>'{visibleToAccountIds}' = '[]'::jsonb
-                    OR data#>'{visibleToAccountIds}' = 'null'::jsonb
-                    OR
-                    (
-                      jsonb_typeof(data#>'{visibleToAccountIds}')='array'
-                      AND 
-                      EXISTS (
-                        SELECT v FROM (
-                          SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(${sequelize.escape(accountIds)})
-                      )  
-                    )
-              `),
-            ];
-          }
           const { rows, count } = await models.Collective.findAndCountAll(findArgs);
-          const vendors = args.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
-
+          const vendors = args.forAccount && !isAdminOfHost ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
           return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
         },
       },
