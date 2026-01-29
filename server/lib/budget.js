@@ -16,6 +16,13 @@ const DEFAULT_BUDGET_VERSION = 'v2';
 
 const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
 
+// Global carryforward date from config (null = disabled)
+// When set, balance queries will only consider transactions from this date forward
+// This requires ALL collectives to have carryforward transactions at this date
+const BALANCE_CARRYFORWARD_DATE = config.ledger?.balanceCarryforwardDate
+  ? new Date(config.ledger.balanceCarryforwardDate)
+  : null;
+
 export async function sumTransactionsInCurrency(results, currency) {
   let total = 0;
 
@@ -106,13 +113,22 @@ export async function getBalances(
     return fastResults;
   }
 
+  const column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
+  const hostCollectiveId = version === 'v3' ? { [Op.not]: null } : null;
+
+  // Use global carryforward date as startDate if configured
+  // This is a simple, config-based approach that requires ALL collectives to have carryforward
+  // transactions at the configured date before enabling
+  const startDate = BALANCE_CARRYFORWARD_DATE;
+
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
+    column,
+    startDate,
     endDate,
     includeChildren,
     withBlockedFunds,
     excludeRefunds: false,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    hostCollectiveId,
   });
 
   return { ...fastResults, ...results };
