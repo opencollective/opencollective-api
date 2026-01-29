@@ -7,7 +7,6 @@ import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
 import { getFxRate } from './currency';
-import { getOrCreateLoaders } from './loaders';
 import { fillTimeSeriesWithNodes, parseToBoolean } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
@@ -16,6 +15,13 @@ const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 const DEFAULT_BUDGET_VERSION = 'v2';
 
 const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
+
+// Global carryforward date from config (null = disabled)
+// When set, balance queries will only consider transactions from this date forward
+// This requires ALL collectives to have carryforward transactions at this date
+const BALANCE_CARRYFORWARD_DATE = config.ledger?.balanceCarryforwardDate
+  ? new Date(config.ledger.balanceCarryforwardDate)
+  : null;
 
 export async function sumTransactionsInCurrency(results, currency) {
   let total = 0;
@@ -110,73 +116,22 @@ export async function getBalances(
   const column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
   const hostCollectiveId = version === 'v3' ? { [Op.not]: null } : null;
 
-  // Fetch latest carryforward dates for missing collectives using the loader
-  // The loader returns the latest carryforward date before endDate (or before now if no endDate)
-  // Use request loaders if available, otherwise use standalone loaders
-  const carryforwardLoader = loaders
-    ? loaders.Transaction.latestCarryforwardDate
-    : getOrCreateLoaders().latestCarryforwardDate;
-  const carryforwardDates = await carryforwardLoader.buildLoader({ endDate }).loadMany(missingCollectiveIds);
+  // Use global carryforward date as startDate if configured
+  // This is a simple, config-based approach that requires ALL collectives to have carryforward
+  // transactions at the configured date before enabling
+  const startDate = BALANCE_CARRYFORWARD_DATE;
 
-  // Group collectives by carryforward date for efficient batch querying
-  // Skip carryforward optimization if includeChildren is true (complexity of child balances)
-  const carryforwardMap = new Map(); // carryforward timestamp -> collectiveIds
-  const noCarryforwardIds = [];
+  const results = await sumCollectivesTransactions(missingCollectiveIds, {
+    column,
+    startDate,
+    endDate,
+    includeChildren,
+    withBlockedFunds,
+    excludeRefunds: false,
+    hostCollectiveId,
+  });
 
-  for (let i = 0; i < missingCollectiveIds.length; i++) {
-    const collectiveId = missingCollectiveIds[i];
-    const carryforwardDate = carryforwardDates[i];
-
-    if (!carryforwardDate || includeChildren) {
-      // No carryforward or includeChildren (skip optimization)
-      noCarryforwardIds.push(collectiveId);
-    } else {
-      // Can use carryforward optimization - group by carryforward date
-      const dateKey = new Date(carryforwardDate).getTime();
-      if (!carryforwardMap.has(dateKey)) {
-        carryforwardMap.set(dateKey, []);
-      }
-      carryforwardMap.get(dateKey).push(collectiveId);
-    }
-  }
-
-  // Query collectives without carryforward (or where optimization doesn't apply)
-  const resultsPromises = [];
-
-  if (noCarryforwardIds.length > 0) {
-    resultsPromises.push(
-      sumCollectivesTransactions(noCarryforwardIds, {
-        column,
-        endDate,
-        includeChildren,
-        withBlockedFunds,
-        excludeRefunds: false,
-        hostCollectiveId,
-      }),
-    );
-  }
-
-  // Query each carryforward date group with startDate optimization
-  for (const [dateKey, ids] of carryforwardMap) {
-    const startDate = new Date(dateKey);
-    resultsPromises.push(
-      sumCollectivesTransactions(ids, {
-        column,
-        startDate,
-        endDate,
-        includeChildren,
-        withBlockedFunds,
-        excludeRefunds: false,
-        hostCollectiveId,
-      }),
-    );
-  }
-
-  // Merge all results
-  const allResults = await Promise.all(resultsPromises);
-  const mergedResults = allResults.reduce((acc, result) => ({ ...acc, ...result }), {});
-
-  return { ...fastResults, ...mergedResults };
+  return { ...fastResults, ...results };
 }
 
 export async function getTotalAmountReceivedAmount(
