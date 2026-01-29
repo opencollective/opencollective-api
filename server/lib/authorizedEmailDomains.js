@@ -27,6 +27,9 @@ const authorizedEmailDomains = [
   'mailhaven.com',
   'brainonfire.net',
   'sohu.com',
+  'duck.com',
+  'proton.me',
+  'pm.me',
 ];
 
 export default authorizedEmailDomains;
