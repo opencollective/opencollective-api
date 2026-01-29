@@ -63,7 +63,7 @@ const { PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 
 export const getTransactionKindPriorityCase = tableName => `
   CASE
-    WHEN "${tableName}"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
+    WHEN "${tableName}"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD', 'BALANCE_CARRYFORWARD') THEN 1
     WHEN "${tableName}"."kind" IN ('PLATFORM_TIP') THEN 2
     WHEN "${tableName}"."kind" IN ('PLATFORM_TIP_DEBT') THEN 3
     WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
