@@ -439,9 +439,9 @@ export async function createOrder(order, req) {
     if (isManualPayment) {
       orderStatus = status.PENDING;
       // TODO: This parameter should become mandatory once we push the new frontend
-      if (order.paymentMethod.data?.manualPaymentProvider) {
+      if (order.paymentMethod.manualPaymentProvider) {
         manualPaymentProvider = await fetchManualPaymentProviderWithReference(
-          order.paymentMethod.data.manualPaymentProvider,
+          order.paymentMethod.manualPaymentProvider,
           {
             throwIfMissing: true,
             loaders: req.loaders,
@@ -451,6 +451,16 @@ export async function createOrder(order, req) {
           throw new Error(`This payment provider is not available for this account.`);
         } else if (manualPaymentProvider.archivedAt) {
           throw new Error(`This payment provider is not available anymore, please select a different one.`);
+        }
+      } else {
+        manualPaymentProvider = await models.ManualPaymentProvider.findOne({
+          where: {
+            CollectiveId: host.id,
+            archivedAt: null,
+          },
+        });
+        if (!manualPaymentProvider) {
+          throw new Error(`No manual payment provider found for this account.`);
         }
       }
     }

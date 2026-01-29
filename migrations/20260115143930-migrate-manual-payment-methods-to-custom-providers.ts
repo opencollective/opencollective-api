@@ -154,7 +154,16 @@ module.exports = {
       FROM "ManualPaymentProviders" mpp, "Collectives" c
       WHERE o."CollectiveId" = c.id
       AND c."HostCollectiveId" = mpp."CollectiveId"
+      AND o."deletedAt" IS NULL
       AND o."PaymentMethodId" IS NULL
+      AND o."data" IS NOT NULL
+      AND o."totalAmount" > 0
+      AND o.status IN ('PAID', 'REJECTED', 'PENDING', 'EXPIRED', 'PAUSED')
+      AND COALESCE(o."data" ->> 'isPendingContribution', 'false') != 'true'
+      AND (
+        o."data" ->> 'paymentMethod' = 'BANK_TRANSFER'
+        OR o.data ->> 'isManualContribution' = 'true'
+      )
       `,
     );
   },

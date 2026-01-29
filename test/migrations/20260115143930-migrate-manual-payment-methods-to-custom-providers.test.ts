@@ -114,7 +114,7 @@ describe('migrations/20260115143930-migrate-manual-payment-methods-to-custom-pro
       totalAmount: 10000,
       currency: 'USD',
       status: OrderStatuses.PENDING,
-      data: { marker: 'migration-test' } as Record<string, unknown>,
+      data: { marker: 'migration-test', isManualContribution: true } as Record<string, unknown>,
       PaymentMethodId: null,
     });
 
@@ -126,7 +126,7 @@ describe('migrations/20260115143930-migrate-manual-payment-methods-to-custom-pro
       totalAmount: 20000,
       currency: 'USD',
       status: OrderStatuses.PENDING,
-      data: { marker: 'migration-test' } as Record<string, unknown>,
+      data: { marker: 'migration-test', isManualContribution: true } as Record<string, unknown>,
       PaymentMethodId: null,
     });
 
