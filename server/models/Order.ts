@@ -27,7 +27,6 @@ import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
-import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
@@ -125,6 +124,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare platformTipAmount: number;
   declare platformTipEligible: boolean;
   declare AccountingCategoryId?: number;
+  declare ManualPaymentProviderId?: number;
 
   // Order belongsTo AccountingCategory via AccountingCategory['id']
   declare accountingCategory?: AccountingCategory;
@@ -361,7 +361,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
   ) {
     return models.Order.count({
-      where: { status: { [Op.or]: [OrderStatuses.ACTIVE, OrderStatuses.ERROR] } },
+      where: { status: { [Op.or]: [OrderStatus.ACTIVE, OrderStatus.ERROR] } },
       include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
     });
   }
@@ -640,6 +640,14 @@ Order.init(
     AccountingCategoryId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'AccountingCategories' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    ManualPaymentProviderId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'ManualPaymentProviders' },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,

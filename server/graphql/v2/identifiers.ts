@@ -34,6 +34,7 @@ export const IDENTIFIER_TYPES = {
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
   LEGAL_DOCUMENT: 'legal-document',
+  MANUAL_PAYMENT_PROVIDER: 'manual-payment-provider',
   RECURRING_EXPENSE: 'recurring-expense',
   TIER: 'tier',
   ORDER: 'order',

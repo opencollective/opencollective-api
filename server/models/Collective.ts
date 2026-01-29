@@ -1098,13 +1098,6 @@ class Collective extends Model<
 
     await this.update({ hasMoneyManagement: false, plan: null, settings });
 
-    await PayoutMethod.destroy({
-      where: {
-        data: { isManualBankTransfer: true },
-        CollectiveId: this.id,
-      },
-    });
-
     await ConnectedAccount.destroy({
       where: {
         service: 'stripe',

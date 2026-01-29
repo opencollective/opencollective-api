@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-scalars';
 import { pick } from 'lodash';
 import moment from 'moment';
 
@@ -10,6 +11,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 
 import { GraphQLCreditCardCreateInput } from './CreditCardCreateInput';
+import { GraphQLManualPaymentProviderReferenceInput } from './ManualPaymentProviderInput';
 import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput';
 import { GraphQLPaypalPaymentInput } from './PaypalPaymentInput';
 
@@ -42,6 +44,9 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
       // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist
       deprecationReason: '2021-08-20: Please use type instead',
     },
+    data: {
+      type: GraphQLJSON,
+    },
     name: {
       type: GraphQLString,
       description: 'Name of this payment method',
@@ -61,6 +66,10 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
     paymentIntentId: {
       type: GraphQLString,
       description: 'The Payment Intent ID used in this checkout',
+    },
+    manualPaymentProvider: {
+      type: GraphQLManualPaymentProviderReferenceInput,
+      description: 'The Manual Payment Provider ID used in this checkout',
     },
   }),
 });
@@ -129,8 +138,8 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
   } else if (pm.legacyType) {
     return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
   } else if (pm.service && pm.newType) {
-    return { service: pm.service, type: pm.newType };
+    return { service: pm.service, type: pm.newType, data: pm.data };
   } else if (pm.service && pm.type) {
-    return { service: pm.service, type: pm.type };
+    return { service: pm.service, type: pm.type, data: pm.data };
   }
 };

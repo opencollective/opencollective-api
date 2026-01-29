@@ -35,6 +35,7 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
+import { fetchManualPaymentProviderWithReference } from '../../v2/input/ManualPaymentProviderInput';
 const debug = debugLib('orders');
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
@@ -433,10 +434,25 @@ export async function createOrder(order, req) {
 
     // Default status, will get updated after the order is processed
     let orderStatus = status.NEW;
-    const isManualBankTransfer = get(order, 'paymentMethod.type') === 'manual';
-
-    if (isManualBankTransfer) {
+    let manualPaymentProvider;
+    const isManualPayment = get(order, 'paymentMethod.type') === 'manual';
+    if (isManualPayment) {
       orderStatus = status.PENDING;
+      // TODO: This parameter should become mandatory once we push the new frontend
+      if (order.paymentMethod.data?.manualPaymentProvider) {
+        manualPaymentProvider = await fetchManualPaymentProviderWithReference(
+          order.paymentMethod.data.manualPaymentProvider,
+          {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          },
+        );
+        if (manualPaymentProvider.CollectiveId !== host.id) {
+          throw new Error(`This payment provider is not available for this account.`);
+        } else if (manualPaymentProvider.archivedAt) {
+          throw new Error(`This payment provider is not available anymore, please select a different one.`);
+        }
+      }
     }
 
     let orderPublicData;
@@ -462,6 +478,7 @@ export async function createOrder(order, req) {
       tags: order.tags,
       platformTipAmount: order.platformTipAmount,
       platformTipEligible,
+      ManualPaymentProviderId: isManualPayment ? manualPaymentProvider?.id : null,
       data: {
         ...orderPublicData,
         reqIp,
@@ -477,8 +494,7 @@ export async function createOrder(order, req) {
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
         paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
-        isManualContribution: isManualBankTransfer,
-        ...(isManualBankTransfer ? { paymentMethod: 'BANK_TRANSFER' } : {}),
+        isManualContribution: isManualPayment,
       },
       status: orderStatus,
     };
