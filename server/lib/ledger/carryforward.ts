@@ -374,7 +374,8 @@ export async function computeCarryforwardBalance(
  * @param collective - The collective to create carryforward for
  * @param carryforwardDate - The date for the carryforward (end of period, e.g., Dec 31 23:59:59)
  * @returns A CarryforwardResult with status and transaction details (if created)
- * @throws Only throws for unexpected errors (not for expected skip conditions)
+ * @throws Error if carryforwardDate is in the future (validation error)
+ * @throws Error for unexpected database or data integrity issues
  */
 export async function createBalanceCarryforward(
   collective: Collective,
