@@ -30,6 +30,10 @@ const authorizedEmailDomains = [
   'duck.com',
   'proton.me',
   'pm.me',
+  'passmail.net',
+  'passmail.com',
+  'passinbox.com',
+  'passfwd.com',
 ];
 
 export default authorizedEmailDomains;
