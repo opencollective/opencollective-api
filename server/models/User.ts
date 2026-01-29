@@ -705,8 +705,8 @@ User.init(
         isBurnerEmail: function (val) {
           if (
             (this._emailChanged || this.isNewRecord) &&
-            isEmailBurner(val.toLowerCase()) &&
-            !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
+            !emailLib.isAuthorizedEmailDomain(val.toLowerCase()) &&
+            isEmailBurner(val.toLowerCase())
           ) {
             throw new Error(
               'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
@@ -734,8 +734,8 @@ User.init(
         isBurnerEmail: function (val) {
           if (
             (this._emailWaitingForValidationChanged || this.isNewRecord) &&
-            isEmailBurner(val.toLowerCase()) &&
-            !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
+            !emailLib.isAuthorizedEmailDomain(val.toLowerCase()) &&
+            isEmailBurner(val.toLowerCase())
           ) {
             throw new Error(
               'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
