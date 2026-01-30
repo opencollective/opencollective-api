@@ -691,7 +691,7 @@ User.init(
       set(val: string) {
         if (val && val.toLowerCase) {
           this._emailChanged = true;
-          this.setDataValue('email', val.toLowerCase());
+          this.setDataValue('email', val.toLowerCase().trim());
         }
       },
       validate: {
