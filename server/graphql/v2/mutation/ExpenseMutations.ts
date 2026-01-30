@@ -120,7 +120,10 @@ const expenseMutations = {
       checkRemoteUserCanUseExpenses(req);
 
       const fromCollective = await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true });
-      await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
+      const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      const host = await collective.getHostCollective({ loaders: req.loaders });
+      const accountsFor2FA = [fromCollective, collective, host].filter(Boolean);
+      await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
       const payoutMethod = args.expense.payoutMethod;
       populatePayoutMethodId(payoutMethod);
@@ -148,7 +151,7 @@ const expenseMutations = {
             'reference',
           ]),
           payoutMethod,
-          collective: await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }),
+          collective,
           fromCollective,
           accountingCategory:
             args.expense.accountingCategory &&
