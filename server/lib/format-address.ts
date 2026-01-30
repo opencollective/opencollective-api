@@ -1,4 +1,4 @@
-import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopify/address';
+import { CountryCode, formatAddress as libFormatAddress } from 'lib-address';
 
 import { Location } from '../types/Location';
 
@@ -17,38 +17,36 @@ export async function formatAddress(
   if (!structured) {
     return null;
   }
-  let addressLines: string[];
+
   const { address1, address2, city, zone, postalCode } = structured;
-  /** A few countries (see list in frontend/components/I18nAddressFields.js)
-   * are present in the input type, but not available in the @shopify/address formatter.
-   *
-   * All except Antartica (AQ) are US territories and use the US address format.
-   * The US format is provided as a fallback which does not rely on the Shopify API,
-   * since this can also fail to respond to the getCountry request
-   */
+
   try {
-    // Locale is only affecting language, not formatting
-    const addressFormatter = new AddressFormatter(locale);
-    const formattingCountry = await addressFormatter.getCountry(country);
-    addressLines = shopifyFormatAddress(
+    const formatted = libFormatAddress(
       {
-        address1,
-        address2,
+        country: country as CountryCode,
+        addressLine1: address1,
+        addressLine2: address2,
         city,
-        province: zone,
+        state: zone,
         zip: postalCode,
-        ...(includeCountry && {
-          country,
-        }),
       },
-      formattingCountry,
+      {
+        appendCountry: includeCountry,
+        lang: locale,
+        preserveCase: true,
+      },
     );
+
+    // lib-address returns newline-separated string, convert to requested divider
+    if (lineDivider === '\n') {
+      return formatted;
+    } else {
+      return formatted.split('\n').filter(Boolean).join(lineDivider);
+    }
   } catch (error) {
     reportErrorToSentry(error);
 
     // Use fallback formatting (US format)
-    addressLines = [address1, address2, [city, zone, postalCode].filter(Boolean).join(' ')];
+    return [address1, address2, [city, zone, postalCode].filter(Boolean).join(' ')].filter(Boolean).join(lineDivider);
   }
-
-  return addressLines.filter(Boolean).join(lineDivider);
 }
