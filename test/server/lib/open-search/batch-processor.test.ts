@@ -42,8 +42,13 @@ describe('server/lib/open-search/batch-processor', () => {
         table: 'Collectives',
         payload: { id: 1 },
       });
+      processor.addToQueue({
+        type: OpenSearchRequestType.INSERT,
+        table: 'Collectives',
+        payload: { id: 2 },
+      });
 
-      expect((processor as any)._queue).to.have.length(1);
+      expect((processor as any)._queue).to.have.length(2);
       expect(processor.hasScheduledBatch).to.be.true;
     });
 
@@ -54,7 +59,7 @@ describe('server/lib/open-search/batch-processor', () => {
       // Fill queue to maxBatchSize
       for (let i = 0; i < processor.maxBatchSize; i++) {
         processor.addToQueue({
-          type: OpenSearchRequestType.UPDATE,
+          type: OpenSearchRequestType.INSERT,
           table: 'Collectives',
           payload: { id: i }, // Need to have unique payloads to prevent deduplication
         });
@@ -177,7 +182,7 @@ describe('server/lib/open-search/batch-processor', () => {
           payload: { id: 1 },
         },
         {
-          type: OpenSearchRequestType.UPDATE,
+          type: OpenSearchRequestType.INSERT,
           table: 'Transactions',
           payload: { id: 2 },
         },
@@ -188,7 +193,7 @@ describe('server/lib/open-search/batch-processor', () => {
         accountsToReIndex: [],
         requestsGroupedByTableName: {
           Collectives: [{ type: OpenSearchRequestType.UPDATE, table: 'Collectives', payload: { id: 1 } }],
-          Transactions: [{ type: OpenSearchRequestType.UPDATE, table: 'Transactions', payload: { id: 2 } }],
+          Transactions: [{ type: OpenSearchRequestType.INSERT, table: 'Transactions', payload: { id: 2 } }],
         },
       });
     });

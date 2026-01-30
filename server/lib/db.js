@@ -16,6 +16,7 @@ import format from 'pg-format';
 import createSubscriber from 'pg-listen';
 
 import logger from './logger';
+import { ifStr } from './utils';
 
 /** Load a dump file into the current database.
  *
@@ -170,3 +171,95 @@ export const createPostgresListener = () => {
     ...config.database.options.dialectOptions,
   });
 };
+
+/**
+ * Setup Postgres triggers for a given table and channel
+ * @param {object} sequelize - Sequelize instance
+ * @param {string} channelName - Name of the notification channel
+ * @param {string} functionName - Name of the trigger function
+ * @param {Array<{tableName: string, triggerPrefix: string}>} tables - Array of table configurations
+ * @param {object} options - Options for trigger setup
+ * @param {boolean} options.insertTriggersUpdate - If true, INSERT triggers will send 'UPDATE' notifications
+ * @param {Array<string>} options.operations - Array of operations to create triggers for (INSERT, UPDATE, DELETE)
+ * @return {Promise<void>}
+ */
+export async function setupPostgresTriggers(
+  sequelize,
+  channelName,
+  functionName,
+  tables,
+  { insertTriggersUpdate, operations = ['INSERT', 'UPDATE', 'DELETE'] } = {
+    insertTriggersUpdate: true,
+    operations: ['INSERT', 'UPDATE', 'DELETE'],
+  },
+) {
+  const normalizedOperations = operations.map(op => op.toUpperCase());
+  const triggerFunction = `
+    -- Create a trigger function to send notifications on table changes
+    CREATE OR REPLACE FUNCTION ${functionName}()
+    RETURNS TRIGGER AS $$
+    DECLARE
+        notification JSON;
+    BEGIN
+        -- Determine the type of operation
+        IF (TG_OP = 'INSERT') THEN
+          notification = json_build_object('type', '${insertTriggersUpdate ? 'UPDATE' : 'INSERT'}',  'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
+        ELSIF (TG_OP = 'UPDATE') THEN
+          IF (OLD."deletedAt" IS NULL AND NEW."deletedAt" IS NOT NULL) THEN
+            notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
+          ELSIF (OLD."deletedAt" IS NOT NULL AND NEW."deletedAt" IS NOT NULL) THEN
+            RETURN NULL; -- Do not notify on updates of deleted rows
+          ELSE
+            notification = json_build_object('type', 'UPDATE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', NEW.id));
+          END IF;
+        ELSIF (TG_OP = 'DELETE') THEN
+          notification = json_build_object('type', 'DELETE', 'table', TG_TABLE_NAME, 'payload', json_build_object('id', OLD.id));
+        END IF;
+
+        -- Publish the notification to the channel
+        PERFORM pg_notify('${channelName}', notification::text);
+
+        RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql;
+  `;
+
+  const triggers = tables
+    .map(
+      ({ tableName, triggerPrefix }) => `
+    -- Create the trigger for INSERT operations
+    ${ifStr(normalizedOperations.includes('INSERT'), `CREATE OR REPLACE TRIGGER ${triggerPrefix}_insert_trigger AFTER INSERT ON "${tableName}" FOR EACH ROW EXECUTE FUNCTION ${functionName}();`)}
+    -- Create the trigger for UPDATE operations
+    ${ifStr(normalizedOperations.includes('UPDATE'), `CREATE OR REPLACE TRIGGER ${triggerPrefix}_update_trigger AFTER UPDATE ON "${tableName}" FOR EACH ROW EXECUTE FUNCTION ${functionName}();`)}
+    -- Create the trigger for DELETE operations
+    ${ifStr(normalizedOperations.includes('DELETE'), `CREATE OR REPLACE TRIGGER ${triggerPrefix}_delete_trigger AFTER DELETE ON "${tableName}" FOR EACH ROW EXECUTE FUNCTION ${functionName}();`)}
+    `,
+    )
+    .join('\n');
+
+  await sequelize.query(triggerFunction + triggers);
+}
+
+/**
+ * Remove Postgres triggers for a given table and function
+ * @param {object} sequelize - Sequelize instance
+ * @param {string} functionName - Name of the trigger function
+ * @param {Array<{tableName: string, triggerPrefix: string}>} tables - Array of table configurations
+ */
+export async function removePostgresTriggers(sequelize, functionName, tables) {
+  const dropTriggers = tables
+    .map(
+      ({ tableName, triggerPrefix }) => `
+    DROP TRIGGER IF EXISTS ${triggerPrefix}_insert_trigger ON "${tableName}";
+    DROP TRIGGER IF EXISTS ${triggerPrefix}_update_trigger ON "${tableName}";
+    DROP TRIGGER IF EXISTS ${triggerPrefix}_delete_trigger ON "${tableName}";
+  `,
+    )
+    .join('\n');
+
+  await sequelize.query(
+    `${dropTriggers}
+    DROP FUNCTION IF EXISTS ${functionName}();
+  `,
+  );
+}
