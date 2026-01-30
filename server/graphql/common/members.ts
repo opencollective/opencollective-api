@@ -73,13 +73,19 @@ export async function processInviteMembersInput(
     if (inviteMember.memberAccount) {
       memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
     } else if (inviteMember.memberInfo) {
+      const email = inviteMember.memberInfo.email.toLowerCase().trim();
+      if (!email) {
+        throw new Error('Email is required to invite a member.');
+      }
+
       let user = await models.User.findOne({
-        where: { email: inviteMember.memberInfo.email.toLowerCase() },
+        where: { email },
         transaction: options.transaction,
       });
       if (!user) {
         const userData = {
-          ...pick(inviteMember.memberInfo, ['name', 'email']),
+          email,
+          ...pick(inviteMember.memberInfo, ['name']),
           data: { requiresProfileCompletion: true },
         };
         user = await models.User.createUserWithCollective(userData, options.transaction);
