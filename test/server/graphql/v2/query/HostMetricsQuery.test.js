@@ -1,16 +1,13 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import moment from 'moment';
 import { useFakeTimers } from 'sinon';
 
-import PlatformConstants, { getPlatformConstantsForDate } from '../../../../../server/constants/platform';
+import PlatformConstants from '../../../../../server/constants/platform';
 import { processOrder } from '../../../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/query/HostMetricsQuery', () => {
-  before(resetTestDB);
-
   let host, collectiveAdminUser, hostAdminUser, collective1, collective2;
 
   const hostMetricsQuery = gql`
@@ -48,6 +45,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
   `;
 
   before(async () => {
+    await resetTestDB();
     await fakeCollective({
       id: PlatformConstants.PlatformCollectiveId,
       slug: randStr('platform-'),
@@ -62,11 +60,6 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
     collective2 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
 
     let clock = useFakeTimers({ now: new Date('2021-02-01 0:0').getTime(), toFake: ['Date'] });
-    await fakeCollective({
-      id: getPlatformConstantsForDate(moment()).PlatformCollectiveId,
-      slug: randStr('platform-'),
-      HostCollectiveId: getPlatformConstantsForDate(moment()).PlatformCollectiveId,
-    });
     try {
       const order1 = await fakeOrder({
         CollectiveId: collective1.id,
