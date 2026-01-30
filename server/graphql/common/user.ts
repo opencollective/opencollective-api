@@ -42,9 +42,10 @@ export const createUser = (
   },
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
 ): Promise<{ user: User; organization?: Collective }> => {
-  assert(userData.email, 'Email is required');
+  const email = userData.email?.toLowerCase()?.trim();
+  assert(email, 'Email is required');
   return sequelize.transaction(async transaction => {
-    let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() }, transaction });
+    let user = await models.User.findOne({ where: { email }, transaction });
 
     if (throwIfExists && user) {
       throw new ValidationFailed(
@@ -53,7 +54,7 @@ export const createUser = (
       );
     } else if (!user) {
       // Create user
-      user = await models.User.createUserWithCollective(userData, transaction);
+      user = await models.User.createUserWithCollective({ ...userData, email }, transaction);
       user = await user.update({ data: { creationRequest } }, { transaction });
     }
 

@@ -31,6 +31,7 @@ import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
 
@@ -348,6 +349,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   fields: () => {
     return {
       id: { type: GraphQLInt },
+      idV2: { type: GraphQLString },
       createdByUser: { type: UserType },
       parentCollective: { type: CollectiveInterfaceType },
       children: { type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)) },
@@ -665,6 +667,12 @@ const CollectiveFields = () => {
       type: GraphQLInt,
       resolve(collective) {
         return collective.id;
+      },
+    },
+    idV2: {
+      type: GraphQLString,
+      resolve(collective) {
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
       },
     },
     createdByUser: {
