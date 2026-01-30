@@ -31,6 +31,7 @@ import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
+import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
@@ -222,6 +223,14 @@ export const GraphQLOrder = new GraphQLObjectType({
         resolve(order, _, req) {
           if (order.PaymentMethodId) {
             return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+          }
+        },
+      },
+      manualPaymentProvider: {
+        type: GraphQLManualPaymentProvider,
+        async resolve(order, _, req) {
+          if (order.ManualPaymentProviderId) {
+            return req.loaders.ManualPaymentProvider.byId.load(order.ManualPaymentProviderId);
           }
         },
       },

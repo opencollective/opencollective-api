@@ -10,6 +10,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 
 import { GraphQLCreditCardCreateInput } from './CreditCardCreateInput';
+import { GraphQLManualPaymentProviderReferenceInput } from './ManualPaymentProviderInput';
 import { fetchPaymentMethodWithReference } from './PaymentMethodReferenceInput';
 import { GraphQLPaypalPaymentInput } from './PaypalPaymentInput';
 
@@ -61,6 +62,10 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
     paymentIntentId: {
       type: GraphQLString,
       description: 'The Payment Intent ID used in this checkout',
+    },
+    manualPaymentProvider: {
+      type: GraphQLManualPaymentProviderReferenceInput,
+      description: 'The Manual Payment Provider ID used in this checkout',
     },
   }),
 });
@@ -125,12 +130,17 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       };
     }
   } else if (pm.paymentIntentId) {
-    return { service: pm.service, type: pm.newType, paymentIntentId: pm.paymentIntentId, save: pm.isSavedForLater };
+    return {
+      service: pm.service,
+      type: pm.type || pm.newType,
+      paymentIntentId: pm.paymentIntentId,
+      save: pm.isSavedForLater,
+    };
   } else if (pm.legacyType) {
     return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
   } else if (pm.service && pm.newType) {
-    return { service: pm.service, type: pm.newType };
+    return { service: pm.service, type: pm.newType, manualPaymentProvider: pm.manualPaymentProvider };
   } else if (pm.service && pm.type) {
-    return { service: pm.service, type: pm.type };
+    return { service: pm.service, type: pm.type, manualPaymentProvider: pm.manualPaymentProvider };
   }
 };

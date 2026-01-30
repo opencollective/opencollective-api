@@ -1,14 +1,4 @@
-Subject: {{#if instructions}}ACTION REQUIRED:{{/if}} your {{currency order.totalAmount currency=order.currency}} {{order.type}} to {{collective.name}} is pending
-
-<style>
-  code {
-    display: inline-block;
-    border: 1px solid #ccc;
-    background: #ddd;
-    padding: 1px 3px;
-    margin: 0px 1px;
-  }
-</style>
+Subject: {{#if instructions}}ACTION REQUIRED:{{/if}} Contribution request received - {{currency order.totalAmount currency=order.currency}} to {{collective.name}}
 
 {{> header}}
 
@@ -17,41 +7,51 @@ Subject: {{#if instructions}}ACTION REQUIRED:{{/if}} your {{currency order.total
 {{#if fromCollective.name}}
 <p>Hi {{fromCollective.name}},</p>
 {{else}}
-<p>Hi!</p>
+<p>Hi,</p>
 {{/if}}
 
-<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}, made on
-  {{moment order.createdAt}}.</p>
+<p>We have received your contribution request of <strong>{{currency order.totalAmount currency=order.currency}}</strong>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} to <strong><a href="{{config.env.website}}/{{collective.slug}}">{{collective.name}}</a></strong>.</p>
 
-<p>Your contribution is currently pending. Once you transmit the funds per the instructions below,
-   and they have been confirmed as received by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>,
-   the amount will be credited to {{collective.name}}.</p>
+<p>To complete your contribution, please follow the payment instructions below. The amount will be credited to {{collective.name}} once your payment has been received and confirmed.</p>
 
-{{#if instructions}}
-<section>
-  <h2>Instructions</h2>
-  <pre>{{{instructions}}}</pre>
-</section>
-{{/if}}
+<!-- Payment instructions section -->
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0;">
+  <tr>
+    <td>
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 16px;">
+        <tr>
+          <td style="vertical-align: middle;">
+            <h3 style="color: #111827; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 18px; font-weight: 600; margin: 0; text-align: left;">Payment instructions</h3>
+          </td>
+          {{#if paymentMethodName}}
+          <td style="text-align: right; vertical-align: middle;">
+            <span style="display: inline-block; background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 9999px; padding: 4px 12px; font-size: 12px; color: #374151; font-weight: 500; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">{{paymentMethodName}}</span>
+          </td>
+          {{/if}}
+        </tr>
+      </table>
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="background: #F9FAFB; border-left: 4px solid #60A5FA; border-radius: 4px; padding: 20px;">
+            <div style="white-space: pre-wrap; word-wrap: break-word; margin: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #374151;">{{{instructions}}}</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
 
 {{#if order.isGuest}}
-<p>
+<p style="color: #6B7280; font-size: 14px;">
   If you need help with this contribution, please <a href="mailto:support@opencollective.com">contact support</a>.
 </p>
 {{/if}}
 
-{{#if fromCollective.isIncognito}}
-{{else}}
-<h2>Help {{collective.name}}!</h2>
-<p>Share our link to help us get more contributions: <a
-    href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
-</p>
-{{/if}}
-
-<p>Thank you again for your support!</p>
+<p>Thank you for your support!</p>
 
 <p>
-  – {{collective.name}}
+  Warmly,<br />
+  The {{collective.name}} team
 </p>
 
 {{> footer}}

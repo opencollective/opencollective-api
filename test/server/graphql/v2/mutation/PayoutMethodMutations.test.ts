@@ -58,57 +58,6 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(result.data).to.exist;
       expect(result.data.createPayoutMethod).to.deep.include(payoutMethod);
     });
-
-    it('should upsert a existing payout method if data.isManualBankTransfer is passed', async () => {
-      const payoutMethod = {
-        name: 'Test Bank',
-        type: PayoutMethodTypes.BANK_ACCOUNT,
-        data: {
-          isManualBankTransfer: true,
-          accountHolderName: 'Nicolas Cage',
-          currency: 'EUR',
-          type: 'IBAN',
-          details: {
-            iban: 'FR893219828398123',
-          },
-        },
-      };
-
-      await graphqlQueryV2(
-        createPayoutMethodMutation,
-        {
-          payoutMethod,
-          account: { legacyId: collective.id },
-        },
-        user,
-      );
-
-      const updatedPayoutMethod = {
-        ...payoutMethod,
-        name: 'New Bank Account',
-        data: {
-          ...payoutMethod.data,
-          accountHolderName: 'John Malkovich',
-        },
-      };
-
-      const result = await graphqlQueryV2(
-        createPayoutMethodMutation,
-        {
-          payoutMethod: updatedPayoutMethod,
-          account: { legacyId: collective.id },
-        },
-        user,
-      );
-
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data).to.exist;
-      expect(result.data.createPayoutMethod).to.deep.include(updatedPayoutMethod);
-
-      const existingPayoutMethods = await collective.getPayoutMethods();
-      expect(existingPayoutMethods).to.have.length(1);
-    });
   });
 
   describe('removePayoutMethod', () => {

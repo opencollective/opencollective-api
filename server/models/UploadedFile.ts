@@ -4,7 +4,7 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
-import { isEmpty, kebabCase } from 'lodash';
+import { kebabCase } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -18,6 +18,7 @@ import { v4 as uuid } from 'uuid';
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
+import { isOpenCollectiveProtectedS3BucketURL, isOpenCollectiveS3BucketURL } from '../lib/images';
 import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
 import RateLimit from '../lib/rate-limit';
@@ -89,6 +90,7 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
   UPDATE: SUPPORTED_FILE_TYPES_IMAGES,
   COMMENT: SUPPORTED_FILE_TYPES_IMAGES,
   TIER_LONG_DESCRIPTION: SUPPORTED_FILE_TYPES_IMAGES,
+  CUSTOM_PAYMENT_METHOD_TEMPLATE: SUPPORTED_FILE_TYPES_IMAGES,
   ACCOUNT_CUSTOM_EMAIL: SUPPORTED_FILE_TYPES_IMAGES,
   AGREEMENT_ATTACHMENT: SUPPORTED_FILE_TYPES,
   RECEIPT_EMBEDDED_IMAGE: SUPPORTED_FILE_TYPES_IMAGES,
@@ -116,50 +118,19 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
   declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
 
   // ==== Static methods ====
+
+  /**
+   * @deprecated Use isOpenCollectiveS3BucketURL from lib/images instead
+   */
   public static isOpenCollectiveS3BucketURL(url: string): boolean {
-    if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(url)) {
-      return true;
-    }
-
-    if (!url) {
-      return false;
-    }
-
-    let parsedURL: URL;
-    try {
-      parsedURL = new URL(url);
-    } catch {
-      return false;
-    }
-
-    const endpoint = config.aws.s3.endpoint || `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com`;
-    const searchParams = parsedURL.searchParams;
-    searchParams.delete('draftKey');
-    searchParams.delete('expenseId');
-    return (
-      parsedURL.origin === endpoint &&
-      /\/\w+/.test(parsedURL.pathname) &&
-      searchParams.size === 0 &&
-      isEmpty(parsedURL.hash) &&
-      isEmpty(parsedURL.username) &&
-      isEmpty(parsedURL.password)
-    );
+    return isOpenCollectiveS3BucketURL(url);
   }
 
+  /**
+   * @deprecated Use isOpenCollectiveProtectedS3BucketURL from lib/images instead
+   */
   public static isOpenCollectiveProtectedS3BucketURL(url: string): boolean {
-    if (!url) {
-      return false;
-    }
-
-    let parsedURL: URL;
-    try {
-      parsedURL = new URL(url);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e) {
-      return false;
-    }
-
-    return parsedURL.origin === config.host.website && /^\/api\/files\/[^\/]+\/?$/.test(parsedURL.pathname);
+    return isOpenCollectiveProtectedS3BucketURL(url);
   }
 
   public static getFromProtectedURL(url: string): Promise<UploadedFile> {
