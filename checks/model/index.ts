@@ -10,6 +10,7 @@ import { checks as independentCollectivesChecks } from './independent-collective
 import { checks as membersChecks } from './members';
 import { checks as ordersChecks } from './orders';
 import { checks as paymentMethodsChecks } from './payment-methods';
+import { checks as payoutMethodsChecks } from './payout-methods';
 import { checks as tiersChecks } from './tiers';
 import { checks as transactionsChecks } from './transactions';
 import { checks as usersChecks } from './users';
@@ -23,6 +24,7 @@ const allModelChecks: CheckFn[] = [
   ...membersChecks,
   ...ordersChecks,
   ...paymentMethodsChecks,
+  ...payoutMethodsChecks,
   ...tiersChecks,
   ...transactionsChecks,
   ...usersChecks,

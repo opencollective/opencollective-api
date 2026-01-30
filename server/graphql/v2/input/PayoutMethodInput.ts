@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
+import { GraphQLCurrency } from '../enum/Currency';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
 
 /**
@@ -33,6 +34,10 @@ export const GraphQLPayoutMethodInput = new GraphQLInputObjectType({
     type: {
       type: GraphQLPayoutMethodType,
       description: 'The type of payout method (e.g., PayPal, bank transfer)',
+    },
+    currency: {
+      type: GraphQLCurrency,
+      description: 'The currency for this payout method',
     },
   }),
 });
