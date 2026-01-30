@@ -76,13 +76,28 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
 
   try {
     const response = await paypal.executePayouts(connectedAccount, requestBody);
-    const updateExpenses = expenses.map(async e => {
-      await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
-      const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user);
-      return e;
-    });
-    return Promise.all(updateExpenses);
+    if ('batch_header' in response && response.batch_header.payout_batch_id) {
+      const updateExpenses = expenses.map(async e => {
+        await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
+        const user = await models.User.findByPk(e.lastEditedById);
+        await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user);
+        return e;
+      });
+      return Promise.all(updateExpenses);
+    } else if ('name' in response) {
+      const error = response;
+      reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
+      const updateExpenses = expenses.map(async e => {
+        await e.update({ status: status.ERROR, data: { ...e.data, error } });
+        const user = await models.User.findByPk(e.lastEditedById);
+        await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
+          error,
+          isSystem: true,
+        });
+        return e;
+      });
+      return Promise.all(updateExpenses);
+    }
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
     const updateExpenses = expenses.map(async e => {
