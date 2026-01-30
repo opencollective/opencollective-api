@@ -104,9 +104,18 @@ const vendorMutations = {
         });
       }
 
+      if (
+        args.vendor.payoutMethod.currency &&
+        args.vendor.payoutMethod.data?.currency &&
+        args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
+      ) {
+        throw new ValidationFailed('Currency mismatch between data and currency');
+      }
+
       if (args.vendor.payoutMethod) {
         await models.PayoutMethod.create({
           ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+          currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
           CollectiveId: vendor.id,
           CreatedByUserId: req.remoteUser.id,
           isSaved: true,
@@ -227,8 +236,17 @@ const vendorMutations = {
             existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
           }
 
+          if (
+            args.vendor.payoutMethod.currency &&
+            args.vendor.payoutMethod.data?.currency &&
+            args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
+          ) {
+            throw new ValidationFailed('Currency mismatch between data and currency');
+          }
+
           payoutMethod = await models.PayoutMethod.create({
             ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+            currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
             CollectiveId: vendor.id,
             CreatedByUserId: req.remoteUser.id,
             isSaved: true,
