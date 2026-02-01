@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import { sequelize } from '../../server/models';
@@ -10,7 +11,7 @@ async function checkDeletedCollectives() {
   const message = 'No Transactions without a matching Collective';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Transactions" t
      LEFT JOIN "Collectives" c
@@ -31,7 +32,7 @@ async function checkOrphanTransactions() {
   const message = 'No orphan Transaction without a primary Transaction (EXPENSE, CONTRIBUTION, ADDED_FUNDS)';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(DISTINCT secondaryTransactions."TransactionGroup") as count
      FROM "Transactions" secondaryTransactions
      LEFT JOIN "Transactions" primaryTransactions
@@ -61,7 +62,7 @@ async function checkUniqueUuid() {
   const message = 'No Transaction with duplicate UUID';
 
   const results = await sequelize.query<{ uuid: string | null }>(
-    `
+    sql`
      SELECT "uuid"
      FROM "Transactions"
      WHERE "deletedAt" IS NULL
@@ -81,7 +82,7 @@ async function checkUniqueTransactionGroup() {
   const message = 'No duplicate TransactionGroup';
 
   const results = await sequelize.query<{ TransactionGroup: string | null }>(
-    `
+    sql`
      SELECT "TransactionGroup"
      FROM "Transactions"
      WHERE "kind" IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
@@ -100,7 +101,7 @@ async function checkUniqueTransactionGroup() {
 
 async function checkPaidTransactionsWithHostCollectiveId() {
   const results = await sequelize.query<{ id: number }>(
-    `
+    sql`
     SELECT t.id
     FROM "Transactions" t
     INNER JOIN "Collectives" c ON t."CollectiveId" = c."id"
@@ -129,7 +130,7 @@ async function checkWisePaidTransactions() {
     request_value_matches: number;
     user_received_amount: number;
   }>(
-    `
+    sql`
     WITH
       d AS (
         SELECT

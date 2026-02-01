@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
@@ -11,7 +12,7 @@ async function checkIsActive({ fix = false } = {}) {
   const message = 'Independent Collectives without isActive=TRUE';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "isActive" IS FALSE
@@ -28,7 +29,7 @@ async function checkIsActive({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "isActive" = TRUE, "updatedAt" = NOW()
          WHERE "isActive" IS FALSE
@@ -45,7 +46,7 @@ async function checkHasHostCollectiveId({ fix = false } = {}) {
   const message = 'Independent Collectives without HostCollectiveId set';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "HostCollectiveId" IS NULL
@@ -62,7 +63,7 @@ async function checkHasHostCollectiveId({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "HostCollectiveId" = "id", "updatedAt" = NOW()
          WHERE "isActive" IS FALSE
@@ -79,7 +80,7 @@ async function checkApprovedAt({ fix = false } = {}) {
   const message = 'Independent Collectives with approvedAt=null';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "approvedAt" IS NULL
@@ -96,7 +97,7 @@ async function checkApprovedAt({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "approvedAt" = NOW(), "updatedAt" = NOW()
          WHERE "approvedAt" IS NULL
@@ -113,7 +114,7 @@ async function checkIsHostAccount({ fix = false } = {}) {
   const message = 'Non-Independent Collectives with hasMoneyManagement=TRUE';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "deletedAt" IS NULL
@@ -129,7 +130,7 @@ async function checkIsHostAccount({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "hasMoneyManagement" = FALSE, "updatedAt" = NOW()
          WHERE "deletedAt" IS NULL
@@ -145,7 +146,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
   const message = 'Independent Collectives with hostFeePercent != 0';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE ("hostFeePercent" IS NULL OR "hostFeePercent" > 0)
@@ -162,7 +163,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "hostFeePercent" = 0, "updatedAt" = NOW()
          WHERE ("hostFeePercent" IS NULL OR "hostFeePercent" > 0)

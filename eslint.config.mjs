@@ -1,7 +1,17 @@
 import graphqlPlugin from '@graphql-eslint/eslint-plugin'; // eslint-disable-line import/no-unresolved
+import safeql from '@ts-safeql/eslint-plugin/config'; // eslint-disable-line import/no-unresolved
 import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.config.cjs';
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
+
+// We have to reconstruct the PG URL from env here because we can't import the db file from eslint
+const DB_HOST = process.env.PG_HOST || '127.0.0.1';
+const DB_PORT = process.env.PG_PORT || 5432;
+const DB_DATABASE = process.env.PG_DATABASE || 'opencollective_dvl';
+const DB_USERNAME = process.env.PG_USERNAME || 'opencollective';
+const DB_PASSWORD = process.env.PG_PASSWORD || '';
+const databaseUrl =
+  process.env.DATABASE_URL || `postgresql://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_DATABASE}`;
 
 export default [
   ...openCollectiveConfig,
@@ -77,6 +87,11 @@ export default [
   // New TS rules
   {
     files: ['**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
+    },
     plugins: {
       'custom-errors': {
         rules: {
@@ -225,4 +240,16 @@ export default [
       ],
     },
   },
+  // SafeQL: type-check raw SQL in sequelize.query(sql`...`)
+  // See https://safeql.dev/guide/getting-started.html and https://safeql.dev/compatibility/sequelize.html
+  safeql.configs.connections({
+    databaseUrl,
+    targets: [{ wrapper: 'sequelize.query' }],
+    overrides: {
+      types: {
+        int8: 'number', // sequelize returns bigint as regular numbers
+        numeric: 'number', // sequelize returns numeric as regular numbers
+      },
+    },
+  }),
 ];

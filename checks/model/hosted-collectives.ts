@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
@@ -11,7 +12,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
   const message = 'Hosted Collectives without hostFeePercent';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "isActive" IS TRUE
@@ -30,7 +31,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "hostFeePercent" = host."hostFeePercent"
          FROM "Collectives" host
@@ -51,7 +52,7 @@ async function checkPendingHostApplications({ fix = false } = {}) {
   const message = 'Host Applications with status PENDING but Collective is approved to Host';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) AS count
      FROM "HostApplications"
      INNER JOIN "Collectives"
@@ -70,7 +71,7 @@ async function checkPendingHostApplications({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "HostApplications"
          SET "status" = 'APPROVED'
          FROM "Collectives"
