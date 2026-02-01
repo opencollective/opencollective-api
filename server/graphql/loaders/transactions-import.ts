@@ -1,5 +1,6 @@
 import DataLoader from 'dataloader';
 import { groupBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { sequelize } from '../../models';
 
@@ -36,7 +37,7 @@ export const generateTransactionsImportStatsLoader = () => {
       GROUP BY row."TransactionsImportId"
       `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         replacements: { importIds },
       },
     );
@@ -82,7 +83,7 @@ export const generateOffPlatformTransactionsStatsLoader = () => {
       GROUP BY ti."CollectiveId"
       `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         replacements: { hostIds },
       },
     );

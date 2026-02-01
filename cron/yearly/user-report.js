@@ -2,6 +2,7 @@ import '../../server/env';
 
 import config from 'config';
 import _ from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import emailLib from '../../server/lib/email';
 import queries from '../../server/lib/queries';
@@ -61,7 +62,7 @@ const getPlatformStats = async () => {
 const processCollective = collective => {
   return sequelize
     .query(GetCollectiveTransactionsQuery, {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: { FromCollectiveId: collective.id, startDate, endDate },
     })
     .then(transactions => {

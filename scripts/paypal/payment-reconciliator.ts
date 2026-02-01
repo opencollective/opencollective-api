@@ -3,6 +3,7 @@ import '../../server/env';
 import { Command } from 'commander';
 import { get } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import OrderStatus from '../../server/constants/order-status';
 import { TransactionKind } from '../../server/constants/transaction-kind';
@@ -153,7 +154,7 @@ const loadSubscription = async paypalSubscriptionId => {
       `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
       {
         replacements: { paypalSubscriptionId },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         mapToModel: true,
         model: models.Subscription,
       },
@@ -190,7 +191,7 @@ const showSubscriptionDetails = async paypalSubscriptionId => {
   if (!subscription) {
     [subscription] = await sequelize.query(
       `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
-      { replacements: { paypalSubscriptionId }, type: sequelize.QueryTypes.SELECT },
+      { replacements: { paypalSubscriptionId }, type: QueryTypes.SELECT },
     );
   }
 
@@ -230,7 +231,7 @@ const loadDataForSubscription = async paypalSubscriptionId => {
       `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
       {
         replacements: { paypalSubscriptionId },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         mapToModel: true,
         model: models.Subscription,
       },
@@ -408,7 +409,7 @@ const findOrphanSubscriptions = async (_, commander) => {
       pm.id
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       raw: true,
       replacements: { hostCollectiveIds: allHosts.map(h => h.id) },
     },

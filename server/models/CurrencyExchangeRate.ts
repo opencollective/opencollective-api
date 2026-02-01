@@ -1,6 +1,7 @@
+import { sql } from '@ts-safeql/sql-tag';
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
 
 export enum FX_RATE_SOURCE {
   OPENCOLLECTIVE = 'OPENCOLLECTIVE',
@@ -39,7 +40,7 @@ class CurrencyExchangeRate extends Model<
       ORDER BY "to", "createdAt" DESC
     `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         model: CurrencyExchangeRate,
         mapToModel: true,
         replacements: {
@@ -55,14 +56,14 @@ class CurrencyExchangeRate extends Model<
     from: string,
     to: string,
   ): Promise<{ from: string; to: string; stddev: number; latestRate: number }> {
-    const info = sequelize.query(
-      `
-      SELECT "from", "to", STDDEV("rate"), (ARRAY_AGG("rate" ORDER BY "createdAt" DESC))[1] as "latestRate"
-      FROM "CurrencyExchangeRates"
-      WHERE "from" = :from AND "to" = :to AND "createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
-      GROUP BY "to", "from"
-    `,
-      { replacements: { from, to }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    const info = sequelize.query<{ from: string; to: string; stddev: number | null; latestRate: number | null }>(
+      sql`
+        SELECT "from", "to", STDDEV("rate"), (ARRAY_AGG("rate" ORDER BY "createdAt" DESC))[1] as "latestRate"
+        FROM "CurrencyExchangeRates"
+        WHERE "from" = ${from} AND "to" = ${to} AND "createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
+        GROUP BY "to", "from"
+      `,
+      { type: QueryTypes.SELECT, raw: true, plain: true },
     );
     return info;
   }

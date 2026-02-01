@@ -5,6 +5,7 @@ import debugLib from 'debug';
 import { compact, get, head, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
 import {
+  BelongsToGetAssociationMixin,
   CreationOptional,
   InferAttributes,
   InferCreationAttributes,
@@ -111,6 +112,14 @@ export type TransactionData = {
   id?: string; // Up to 2021-06-08, this field was used to store the external IDs of virtual card transactions
   token?: string; // Up to 2021-11-19, this field was used to store the external IDs of privacy.com transactions
   refundWiseEventTimestamp?: string; // This field is used to guarantee that the Wise refund event is processed only once
+  createPaymentResponse?: {
+    defaultFundingPlan: {
+      fundingAmount: {
+        amount: string;
+      };
+    };
+  };
+  migration?: unknown;
 };
 
 class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
@@ -180,6 +189,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
   declare getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
   declare getCollective: () => Promise<Collective | null>;
   declare getOrder: (options?: { paranoid?: boolean }) => Promise<Order | null>;
+  declare getExpense: BelongsToGetAssociationMixin<Expense>;
   declare hasPlatformTip: () => boolean;
   declare getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<Transaction>;
   declare getRelatedTransactions: (options: {

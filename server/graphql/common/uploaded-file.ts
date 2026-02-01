@@ -1,4 +1,5 @@
 import type Express from 'express';
+import { QueryTypes } from 'sequelize';
 
 import { Expense, sequelize, UploadedFile } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -87,7 +88,7 @@ export async function hasUploadedFilePermission(
     ) LIMIT 1
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       raw: true,
       replacements: {
         url: actualUrl,

@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { omit } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import models, { sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
@@ -26,7 +27,7 @@ const migrate = async () => {
       AND t.id IS NULL
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Order,
       mapToModel: true,
     },

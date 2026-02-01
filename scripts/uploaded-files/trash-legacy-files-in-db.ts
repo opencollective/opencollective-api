@@ -8,6 +8,7 @@ import '../../server/env';
 import { Command } from 'commander';
 import { toPath } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
 import { FileFieldsDefinition } from '../../server/lib/uploaded-files';
@@ -76,7 +77,7 @@ const main = async options => {
           ${DRY_RUN ? 'ROLLBACK;' : ''}
         `,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           replacements: { kind, olderThanDate: olderThanDate.toDate() },
         },
       );

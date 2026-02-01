@@ -156,7 +156,7 @@ export const AccountWithContributionsFields = {
             dateFrom: args.dateFrom,
             dateTo: args.dateTo,
           },
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
         },
       );
 

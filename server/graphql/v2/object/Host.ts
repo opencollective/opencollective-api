@@ -14,6 +14,7 @@ import {
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../../constants';
 import ActivityTypes from '../../../constants/activities';
@@ -270,7 +271,7 @@ export const GraphQLHost = new GraphQLObjectType({
             replacements: {
               hostCollectiveId: host.id,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -419,7 +420,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               refreshedAt,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -589,7 +590,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               dateFrom: moment(args.dateFrom).utc().toISOString(),
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -1059,7 +1060,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const nodes = () =>
             sequelize.query(pageQuery, {
               replacements: queryReplacements,
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
               model: models.VirtualCard,
             });
 
@@ -1626,7 +1627,7 @@ export const GraphQLHost = new GraphQLObjectType({
               limit: args.limit,
               offset: args.offset,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             model: models.Collective,
           });
 

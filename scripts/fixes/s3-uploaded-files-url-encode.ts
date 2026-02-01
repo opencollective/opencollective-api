@@ -1,5 +1,7 @@
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import { moveFileInS3 } from '../../server/lib/awsS3';
 import { parseToBoolean } from '../../server/lib/utils';
 import { sequelize } from '../../server/models';
@@ -16,7 +18,7 @@ const migrate = async () => {
     ORDER BY id DESC
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
   for (const file of files) {

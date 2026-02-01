@@ -1,5 +1,7 @@
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import models, { sequelize } from '../../server/models';
 
 const migrate = async () => {
@@ -15,7 +17,7 @@ const migrate = async () => {
             AND m."TierId" <> o."TierId"
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Member,
       mapToModel: true,
     },

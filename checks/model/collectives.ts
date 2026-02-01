@@ -1,5 +1,8 @@
 import '../../server/env';
 
+import { sql } from '@ts-safeql/sql-tag';
+import { QueryTypes } from 'sequelize';
+
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
@@ -8,8 +11,8 @@ import { runAllChecksThenExit } from './_utils';
 async function checkActiveApprovedAtInconsistency() {
   const message = 'approvedAt and isActive are inconsistent (no auto fix)';
 
-  const [results] = await sequelize.query(
-    `
+  const [results] = await sequelize.query<{ activeUnapproved: number; inactiveApproved: number }>(
+    sql`
     SELECT
       COUNT(*) FILTER (WHERE "isActive" IS TRUE and "approvedAt" IS NULL) as "activeUnapproved",
       COUNT(*) FILTER (WHERE "isActive" IS NOT TRUE and "approvedAt" IS NOT NULL) as "inactiveApproved"
@@ -19,7 +22,7 @@ async function checkActiveApprovedAtInconsistency() {
       ("isActive" IS TRUE and "approvedAt" IS NULL)
       OR ("isActive" IS NOT TRUE and "approvedAt" IS NOT NULL)
     )`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.activeUnapproved > 0 || results.inactiveApproved > 0) {
@@ -30,22 +33,22 @@ async function checkActiveApprovedAtInconsistency() {
 }
 
 async function checkNonActiveHostOrganizations({ fix = false } = {}) {
-  const results = await sequelize.query(
-    `
+  const results = await sequelize.query<{ count: number }>(
+    sql`
     SELECT COUNT(*) as count FROM "Collectives"
     WHERE "deletedAt" is null
       AND "hasMoneyManagement" is true
       AND "isActive" is FALSE
       AND type = 'ORGANIZATION';
     `,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
     const message = `Host Organizations must be active, found ${results[0].count} inactive ones.`;
     if (fix) {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
         SET "isActive" = true
         WHERE "deletedAt" is null

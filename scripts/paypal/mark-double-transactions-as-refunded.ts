@@ -5,6 +5,8 @@
 
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import logger from '../../server/lib/logger';
 import { createRefundTransaction } from '../../server/lib/payments';
 import models, { sequelize } from '../../server/models';
@@ -30,7 +32,7 @@ const main = async (): Promise<void> => {
     HAVING count(t.id) > 1
     ORDER BY t."OrderId" DESC
   `,
-    { raw: true, type: sequelize.QueryTypes.SELECT },
+    { raw: true, type: QueryTypes.SELECT },
   );
 
   for (const doubleTransactionInfo of doubleTransactionsInfos) {

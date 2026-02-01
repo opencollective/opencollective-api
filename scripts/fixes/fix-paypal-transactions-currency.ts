@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { get, groupBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { getFxRate } from '../../server/lib/currency';
 import { paypalAmountToCents } from '../../server/lib/paypal';
@@ -20,7 +21,7 @@ const migrate = async () => {
       AND t."data" -> 'capture' -> 'amount' ->> 'currency_code' != t.currency 
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Transaction,
       mapToModel: true,
     },

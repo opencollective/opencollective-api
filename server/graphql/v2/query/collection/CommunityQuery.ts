@@ -3,7 +3,7 @@ import assert from 'assert';
 import type Express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
-import { Sequelize } from 'sequelize';
+import { QueryTypes, Sequelize } from 'sequelize';
 
 import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
 import { ifStr } from '../../../../lib/utils';
@@ -102,7 +102,7 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs) => {
       .query<{ totalCount: number }>(`SELECT COUNT(DISTINCT fc.id) AS "totalCount" ${baseQuery}`, {
         replacements: allReplacements,
         raw: true,
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         plain: true,
       })
       .then(res => res.totalCount || 0);

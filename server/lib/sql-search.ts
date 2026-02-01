@@ -7,6 +7,7 @@ import assert from 'assert';
 import config from 'config';
 import slugify from 'limax';
 import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
+import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
@@ -334,7 +335,7 @@ export const searchCollectivesInDB = async (
             EXISTS (
               SELECT v FROM (
                 SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-              ) WHERE v = ANY(${sequelize.escape(vendorVisibleToAccountIds)})
+              ) WHERE v IN (:vendorVisibleToAccountIds)
             )  
           )
       )
@@ -441,6 +442,7 @@ export const searchCollectivesInDB = async (
         plan: args.plan,
         lastTransactionFrom: args.lastTransactionFrom,
         lastTransactionTo: args.lastTransactionTo,
+        vendorVisibleToAccountIds,
       },
     },
   );
@@ -601,7 +603,7 @@ export const getColletiveTagFrequencies = async args => {
         LIMIT :limit
         OFFSET :offset`,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         replacements: {
           sanitizedTerm: `%${sanitizedTerm}%`,
           hostCollectiveId: args.hostCollectiveId,
@@ -629,7 +631,7 @@ export const getColletiveTagFrequencies = async args => {
       LIMIT :limit
       OFFSET :offset`,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: {
         sanitizedTerm: searchConditions.sanitizedTerm,
         sanitizedTermNoWhitespaces: searchConditions.sanitizedTermNoWhitespaces,
@@ -678,7 +680,7 @@ export const getExpenseTagFrequencies = async args => {
      LIMIT :limit
      OFFSET :offset`,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements,
     },
   );

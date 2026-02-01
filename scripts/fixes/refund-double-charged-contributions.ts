@@ -7,6 +7,8 @@
 
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import { RefundKind } from '../../server/constants/refund-kind';
 import logger from '../../server/lib/logger';
 import { refundTransaction } from '../../server/lib/payments';
@@ -31,7 +33,7 @@ const main = async () => {
     ORDER BY o.id
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Order,
       mapToModel: true,
     },

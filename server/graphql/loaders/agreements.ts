@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import { QueryTypes } from 'sequelize';
 
 import { sequelize } from '../../models';
 
@@ -21,7 +22,7 @@ export const generateTotalAccountHostAgreementsLoader = () =>
     GROUP BY c."id"
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         raw: true,
         replacements: {
           collectiveIds,

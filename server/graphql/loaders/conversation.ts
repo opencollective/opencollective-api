@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import { QueryTypes } from 'sequelize';
 
 import models, { sequelize } from '../../models';
 
@@ -16,7 +17,7 @@ export default {
         GROUP BY    f."ConversationId", c.id
       `,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           model: models.Collective,
           mapToModel: true,
           replacements: { conversationIds },
@@ -49,7 +50,7 @@ export default {
         GROUP BY "ConversationId"
       `,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           mapToModel: false,
           replacements: { conversationsIds },
         },

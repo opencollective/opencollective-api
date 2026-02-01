@@ -2,6 +2,7 @@ import '../../server/env';
 
 import { Command } from 'commander';
 import { groupBy, mapValues, pick, sumBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
 import { formatCurrency } from '../../server/lib/utils';
@@ -77,7 +78,7 @@ program
   .command('check-pending')
   .description("Check host fees with taxes that haven't been fixed yet")
   .action(async () => {
-    const data = await sequelize.query(baseDataQuery, { type: sequelize.QueryTypes.SELECT });
+    const data = await sequelize.query(baseDataQuery, { type: QueryTypes.SELECT });
     const groupedByHost = groupBy(data, 'hostSlug');
     const nbHosts = Object.keys(groupedByHost).length;
     logger.info(`Found ${data.length} transactions to update for a total of ${nbHosts} hosts`);
@@ -117,7 +118,7 @@ program
       logger.info('This is a dry run, use --run to trigger changes');
     }
 
-    const data: BaseDataQueryResult[] = await sequelize.query(baseDataQuery, { type: sequelize.QueryTypes.SELECT });
+    const data: BaseDataQueryResult[] = await sequelize.query(baseDataQuery, { type: QueryTypes.SELECT });
     const groupedByHost = groupBy(data, 'hostSlug');
     const nbHosts = Object.keys(groupedByHost).length;
     logger.info(`Found ${data.length} transactions to update for a total of ${nbHosts} hosts`);
@@ -191,7 +192,7 @@ program
       ORDER BY t.id
     `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     );
 

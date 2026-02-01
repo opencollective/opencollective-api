@@ -20,7 +20,7 @@ const getTransactions = async () => {
       AND t.type = 'CREDIT'
     `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Transaction,
       mapToModel: true,
     },
