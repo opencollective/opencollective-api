@@ -77,7 +77,6 @@ module.exports = {
 
     await queryInterface.addIndex('ExportRequests', ['CollectiveId']);
     await queryInterface.addIndex('ExportRequests', ['CreatedByUserId']);
-    await queryInterface.addIndex('ExportRequests', ['UploadedFileId']);
     await queryInterface.addIndex('ExportRequests', ['status']);
   },
 
