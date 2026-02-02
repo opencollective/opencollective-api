@@ -88,6 +88,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   Expense: {},
   ExpenseAttachedFile: {},
   ExpenseItem: {},
+  ExportRequest: {},
   HostApplication: {},
   LegalDocument: {},
   Location: {},
