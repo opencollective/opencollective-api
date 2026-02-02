@@ -84,6 +84,7 @@ export function includeCte(
   attributes: ModelAttributes<Model, unknown>,
   leftModel: ModelStatic<Model>,
   leftKey: string,
+  options: Partial<IncludeOptions> = {},
 ): IncludeOptions {
   return {
     as: tableName,
@@ -92,7 +93,6 @@ export function includeCte(
       identifierField: leftKey,
     } as unknown as Association<Model, Model>,
     _pseudo: true,
-    required: true,
     model: {
       rawAttributes: attributes,
       getTableName: () => tableName,
@@ -109,5 +109,6 @@ export function includeCte(
         options.attributes = [];
       },
     } as unknown as ModelStatic<Model>,
+    ...options,
   } as unknown as IncludeOptions;
 }

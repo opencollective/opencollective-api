@@ -9,6 +9,7 @@ import { DataTypes, Includeable, Order, Utils as SequelizeUtils, WhereOptions } 
 import OrderStatuses from '../../../../constants/order-status';
 import { includeCte } from '../../../../lib/sequelize-cte';
 import { buildSearchConditions } from '../../../../lib/sql-search';
+import { ifStr } from '../../../../lib/utils';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
@@ -652,16 +653,19 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       SELECT DISTINCT t."OrderId" as "id"
       FROM "Transactions" "t"
       WHERE t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND
-      ${args.chargedDateFrom ? `COALESCE(t."clearedAt", t."createdAt") >= :chargedDateFrom AND` : ''}
-      ${args.chargedDateTo ? `COALESCE(t."clearedAt", t."createdAt") <= :chargedDateTo AND` : ''}
+      ${ifStr(args.chargedDateFrom, `COALESCE(t."clearedAt", t."createdAt") >= :chargedDateFrom AND`)}
+      ${ifStr(args.chargedDateTo, `COALESCE(t."clearedAt", t."createdAt") <= :chargedDateTo AND`)}
       t."type" = 'CREDIT' AND
       NOT t."isRefund" AND
       t."RefundTransactionId" IS NULL AND
       t."deletedAt" IS NULL
+      ${ifStr(host?.id, `AND t."HostCollectiveId" = :hostCollectiveId`)}
     `,
         {
           chargedDateFrom: args.chargedDateFrom,
           chargedDateTo: args.chargedDateTo,
+          hostCollectiveId: host?.id,
+          oppositeCollectiveId: oppositeAccount?.id,
         },
         'postgres',
       ),
@@ -678,6 +682,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
         },
         models.Order,
         'id',
+        { required: true },
       ),
     );
   }
