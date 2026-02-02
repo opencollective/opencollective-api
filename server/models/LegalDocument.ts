@@ -346,7 +346,7 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
     }: {
       UserTokenId?: number;
     } = {},
-  ): Promise<void> => {
+  ): Promise<LegalDocument> => {
     // Preload associations
     this.collective = this.collective || (await this.getCollective());
 

@@ -78,7 +78,7 @@ program
   .command('check-pending')
   .description("Check host fees with taxes that haven't been fixed yet")
   .action(async () => {
-    const data = await sequelize.query(baseDataQuery, { type: QueryTypes.SELECT });
+    const data = await sequelize.query<BaseDataQueryResult>(baseDataQuery, { type: QueryTypes.SELECT });
     const groupedByHost = groupBy(data, 'hostSlug');
     const nbHosts = Object.keys(groupedByHost).length;
     logger.info(`Found ${data.length} transactions to update for a total of ${nbHosts} hosts`);
@@ -161,11 +161,22 @@ program
   });
 
 // Check
+type CheckFixedQueryResult = {
+  TransactionGroup: string;
+  hostSlug: string;
+  hostCurrency: string;
+  collectiveSlug: string;
+  hostFeeInHostCurrency: number;
+  previousHostFeeInHostCurrency: number;
+  hostFeeShareInHostCurrency: number;
+  hostFeeSharePercent: string;
+};
+
 program
   .command('check-fixed')
   .description('Check host fees with taxes that have already been fixed')
   .action(async () => {
-    const results = await sequelize.query(
+    const results = await sequelize.query<CheckFixedQueryResult>(
       `
       SELECT
         t."TransactionGroup",

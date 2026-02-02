@@ -1,6 +1,5 @@
 import '../../server/env';
 
-import { sql } from '@ts-safeql/sql-tag';
 import { flatten, uniq } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
@@ -13,7 +12,7 @@ async function checkTransactionsImports({ fix = false } = {}) {
   const message = 'No deadlocks found in TransactionsImports';
 
   const results = await sequelize.query<{ id: number }>(
-    sql`
+    `
       SELECT id
       FROM "TransactionsImports"
       WHERE "deletedAt" IS NULL
@@ -30,11 +29,12 @@ async function checkTransactionsImports({ fix = false } = {}) {
       const importIds = uniq(flatten(results.map(r => r.id)));
       logger.warn(`Fixing: ${message} for imports: ${importIds.join(', ')}`);
       await sequelize.query(
-        sql`
+        `
         UPDATE "TransactionsImports"
         SET "data" = "data" - 'lockedAt'
-        WHERE id = ANY(${importIds}::int[])
+        WHERE id IN (:importIds)
         `,
+        { replacements: { importIds } },
       );
     }
   }

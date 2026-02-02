@@ -66,7 +66,7 @@ export async function hasUploadedFilePermission(
     return false;
   }
 
-  const result = await sequelize.query(
+  const result = await sequelize.query<Array<{ ExpenseId: number }>>(
     `
     SELECT * FROM (
       (
@@ -97,7 +97,8 @@ export async function hasUploadedFilePermission(
     },
   );
 
-  const expenseId = result?.[0]?.ExpenseId;
+  const rows = result as Array<{ ExpenseId: number }> | Array<Array<{ ExpenseId: number }>>;
+  const expenseId = (Array.isArray(rows?.[0]) ? (rows[0] as Array<{ ExpenseId: number }>)?.[0] : rows?.[0])?.ExpenseId;
   if (!expenseId) {
     return req.remoteUser?.id === uploadedFile.CreatedByUserId;
   }

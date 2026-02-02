@@ -1,7 +1,6 @@
 import type Express from 'express';
 import { get } from 'lodash';
-import { QueryOptions } from 'sequelize';
-import { QueryTypes } from 'sequelize';
+import { QueryOptions, QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
@@ -21,7 +20,7 @@ const checkExistsInDB = async (query: string | string[], queryOptions: QueryOpti
   const queries = queriesArray.map(q => `EXISTS (${q})`).join(' OR ');
   return sequelize
     .query(`SELECT ${queries} AS result`, { type: QueryTypes.SELECT, plain: true, ...queryOptions })
-    .then(({ result }) => result);
+    .then(returnedValue => (returnedValue as unknown as { result?: boolean }).result);
 };
 
 const checkIsActive = async (

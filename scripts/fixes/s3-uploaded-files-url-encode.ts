@@ -4,12 +4,12 @@ import { QueryTypes } from 'sequelize';
 
 import { moveFileInS3 } from '../../server/lib/awsS3';
 import { parseToBoolean } from '../../server/lib/utils';
-import { sequelize } from '../../server/models';
+import { sequelize, UploadedFile } from '../../server/models';
 
 const IS_DRY = !process.env.DRY ? true : parseToBoolean(process.env.DRY);
 
 const migrate = async () => {
-  const files = await sequelize.query(
+  const files = await sequelize.query<Pick<UploadedFile, 'id' | 'url'>>(
     `
     SELECT "id", "url"
     FROM "UploadedFiles"

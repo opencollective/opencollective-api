@@ -1,6 +1,5 @@
 import '../../server/env';
 
-import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
@@ -12,7 +11,7 @@ async function checkDeletedVirtualCardsWithExpenses({ fix = false } = {}) {
   const message = 'Deleted Virtual Cards with non-deleted Expenses ';
 
   const results = await sequelize.query<{ count: number }>(
-    sql`
+    `
      SELECT COUNT(*) as count
      FROM "VirtualCards", "Expenses"
      WHERE "VirtualCards"."id" = "Expenses"."VirtualCardId"
@@ -29,7 +28,7 @@ async function checkDeletedVirtualCardsWithExpenses({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(sql`
+      await sequelize.query(`
         UPDATE "VirtualCards"
          SET "deletedAt" = NULL
          FROM "Expenses"

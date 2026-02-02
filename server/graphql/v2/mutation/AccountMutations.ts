@@ -127,7 +127,7 @@ const accountMutations = {
         description: 'The value to set for this key',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -220,7 +220,7 @@ const accountMutations = {
         description: 'If using a custom fee, set this to true',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseHost(req);
 
       return sequelize.transaction(async dbTransaction => {

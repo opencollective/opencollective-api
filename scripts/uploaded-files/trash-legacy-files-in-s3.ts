@@ -87,7 +87,7 @@ const main = async options => {
   const filteredObjects = onlyRootFolder ? allObjects.filter(o => !o.Key.includes('/')) : allObjects;
 
   // Get a report for all S3 files presence in the database
-  const results: [{ key: string; uploadedFileId: number; deletedAt: Date }] = await sequelize.query(
+  const results = await sequelize.query<{ key: string; uploadedFileId: number; deletedAt: Date }>(
     `
       SELECT
         "key",

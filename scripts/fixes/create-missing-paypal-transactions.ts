@@ -3,6 +3,7 @@ import '../../server/env';
 import { omit } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
+import OrderStatuses from '../../server/constants/order-status';
 import models, { sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
@@ -40,7 +41,7 @@ const migrate = async () => {
     const hostCollective = await order.collective.getHostCollective();
 
     // Fetch payment info
-    const paypalOrderId = order.dataValues.__paypalOrderId__;
+    const paypalOrderId = order.dataValues['__paypalOrderId__'];
     const paypalOrderUrl = `checkout/orders/${paypalOrderId}`;
     const paypalOrderDetails = await paypalRequestV2(paypalOrderUrl, hostCollective, 'GET');
     const captureId = paypalOrderDetails.purchase_units[0].payments.captures[0].id;
@@ -53,7 +54,7 @@ const migrate = async () => {
     } else {
       await recordPaypalCapture(order, captureDetails);
       const newOrderData = omit(order.data, 'error');
-      await order.update({ processedAt: new Date(), status: 'PAID', data: newOrderData });
+      await order.update({ processedAt: new Date(), status: OrderStatuses.PAID, data: newOrderData });
     }
   }
 };

@@ -1,4 +1,3 @@
-import { sql } from '@ts-safeql/sql-tag';
 import config from 'config';
 import slugify from 'limax';
 import { pick } from 'lodash';
@@ -357,11 +356,12 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     const slugPattern = `${suggestion}%`;
     return sequelize
       .query<{ slug: string }>(
-        sql`
-        SELECT slug FROM "Updates" WHERE "CollectiveId"=${this.CollectiveId} AND slug like ${slugPattern}
+        `
+        SELECT slug FROM "Updates" WHERE "CollectiveId" = :collectiveId AND slug LIKE :slugPattern
       `,
         {
           type: QueryTypes.SELECT,
+          replacements: { collectiveId: this.CollectiveId, slugPattern },
         },
       )
       .then(updateObjectList => updateObjectList.map(update => update.slug))

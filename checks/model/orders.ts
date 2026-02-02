@@ -1,6 +1,5 @@
 import '../../server/env';
 
-import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
@@ -12,7 +11,7 @@ async function checkDuplicateNonRecurringContribution() {
   const message = 'Duplicate non-recurring Contribution (no auto fix)';
 
   const results = await sequelize.query<{ count: number; id: number }>(
-    sql`
+    `
      SELECT COUNT(*), o."id"
      FROM "Transactions" t
      INNER JOIN "Orders" o ON o."id" = t."OrderId"
@@ -39,7 +38,7 @@ async function checkPaidOrdersWithNullProcessedAt({ fix = false } = {}) {
   const message = 'Paid Order with null processedAt';
 
   const results = await sequelize.query<{ id: number; updatedAt: Date }>(
-    sql`
+    `
     SELECT id, "updatedAt"
     FROM "Orders"
     WHERE status = 'PAID'
@@ -54,7 +53,7 @@ async function checkPaidOrdersWithNullProcessedAt({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(sql`
+      await sequelize.query(`
         UPDATE "Orders"
         SET "processedAt" = "updatedAt"
         WHERE status = 'PAID'
@@ -68,7 +67,7 @@ async function checkPaidOrdersWithDeletedTransactions({ fix = false } = {}) {
   const message = 'Paid Orders with deleted transactions';
 
   const results = await sequelize.query<{ id: number }>(
-    sql`
+    `
     SELECT id
     FROM "Orders"
     WHERE "deletedAt" IS NULL
@@ -88,7 +87,7 @@ async function checkPaidOrdersWithDeletedTransactions({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(sql`
+      await sequelize.query(`
         UPDATE "Orders"
         SET "deletedAt" = NOW()
         WHERE "deletedAt" IS NULL
@@ -108,7 +107,7 @@ async function checkOrdersCollectiveIdMismatch({ fix = false } = {}) {
   const message = 'Paid Orders with CollectiveId/FromCollectiveId mimsatch in Transactions';
 
   const results = await sequelize.query<{ id: number }>(
-    sql`
+    `
     SELECT "Orders"."id"
     FROM "Orders"
     INNER JOIN "Transactions" ON "OrderId" = "Orders"."id" AND "Transactions"."deletedAt" IS NULL
@@ -134,7 +133,7 @@ async function checkOrdersCollectiveIdMismatch({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(sql`
+      await sequelize.query(`
       UPDATE "Orders"
       SET "FromCollectiveId" = "Transactions"."FromCollectiveId", "CollectiveId" = "Transactions"."CollectiveId"
       FROM "Transactions"

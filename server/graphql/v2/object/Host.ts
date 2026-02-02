@@ -267,7 +267,7 @@ export const GraphQLHost = new GraphQLObjectType({
             SELECT "refreshedAt" FROM "HostMonthlyTransactions" LIMIT 1;
           `;
 
-          const refreshedAtResult = await sequelize.query(refreshedAtQuery, {
+          const refreshedAtResult = await sequelize.query<{ refreshedAt: Date }>(refreshedAtQuery, {
             replacements: {
               hostCollectiveId: host.id,
             },
@@ -1559,7 +1559,7 @@ export const GraphQLHost = new GraphQLObjectType({
                       EXISTS (
                         SELECT v FROM (
                           SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(${sequelize.escape(accountIds)})
+                        ) WHERE v = ANY(ARRAY[${accountIds.map(v => sequelize.escape(v)).join(',')}]::int[])
                       )  
                     )
               `),

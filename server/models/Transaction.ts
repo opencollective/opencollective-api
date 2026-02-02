@@ -97,7 +97,8 @@ export type TransactionData = {
   paypalTransaction?: Partial<PaypalTransaction>;
   platformTip?: number;
   platformTipInHostCurrency?: number;
-  preMigrationData?: TransactionData;
+  preMigrationData?: Record<string, unknown>;
+  migration?: unknown;
   refund?: Stripe.Refund;
   refundedFromDoubleTransactionsScript?: boolean;
   refundReason?: string;
@@ -119,7 +120,6 @@ export type TransactionData = {
       };
     };
   };
-  migration?: unknown;
 };
 
 class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
@@ -187,11 +187,16 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
 
   // Class methods
   declare getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
-  declare getCollective: () => Promise<Collective | null>;
-  declare getOrder: (options?: { paranoid?: boolean }) => Promise<Order | null>;
+  declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare getOrder: BelongsToGetAssociationMixin<Order>;
   declare getExpense: BelongsToGetAssociationMixin<Expense>;
   declare hasPlatformTip: () => boolean;
-  declare getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<Transaction>;
+  declare getRelatedTransaction: (options: {
+    type?: string | string[];
+    kind?: string | string[];
+    isDebt?: boolean;
+  }) => Promise<Transaction>;
+
   declare getRelatedTransactions: (options: {
     type?: string;
     kind?: string;

@@ -1,4 +1,3 @@
-import { sql } from '@ts-safeql/sql-tag';
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
@@ -57,13 +56,13 @@ class CurrencyExchangeRate extends Model<
     to: string,
   ): Promise<{ from: string; to: string; stddev: number; latestRate: number }> {
     const info = sequelize.query<{ from: string; to: string; stddev: number | null; latestRate: number | null }>(
-      sql`
+      `
         SELECT "from", "to", STDDEV("rate"), (ARRAY_AGG("rate" ORDER BY "createdAt" DESC))[1] as "latestRate"
         FROM "CurrencyExchangeRates"
-        WHERE "from" = ${from} AND "to" = ${to} AND "createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
+        WHERE "from" = :from AND "to" = :to AND "createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
         GROUP BY "to", "from"
       `,
-      { type: QueryTypes.SELECT, raw: true, plain: true },
+      { type: QueryTypes.SELECT, raw: true, plain: true, replacements: { from, to } },
     );
     return info;
   }

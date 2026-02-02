@@ -380,7 +380,12 @@ const findOrphanSubscriptions = async (_, commander) => {
   const reason = `Some PayPal subscriptions were previously not cancelled properly. Please contact support@opencollective.com for any question.`;
   const hostSlugs = await getHostsSlugsFromOptions(options);
   const allHosts = await models.Collective.findAll({ where: { slug: hostSlugs } });
-  const orphanContributions = await sequelize.query(
+  const orphanContributions = await sequelize.query<{
+    paypalSubscriptionId: string;
+    fromCollectiveId: number;
+    possibleHostIds: number[];
+    possibleOrderIds: number[];
+  }>(
     `
     SELECT
       pm."token" AS "paypalSubscriptionId",

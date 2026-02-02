@@ -4,7 +4,7 @@ import readline from 'readline';
 
 import debugLib from 'debug';
 import { isEmpty, isNil, isUndefined, mapKeys, mapValues, pick, set } from 'lodash';
-import { Model as SequelizeModel, ModelStatic } from 'sequelize';
+import { Model as SequelizeModel, ModelStatic, QueryTypes } from 'sequelize';
 
 import models, { ModelNames, sequelize } from '../../models';
 import logger from '../logger';
@@ -34,11 +34,16 @@ export const populateDefaultValues = (row: any) => {
 };
 
 const updateSequence = async (tableName, field) => {
-  const [sequences] = await sequelize.query(`SELECT pg_get_serial_sequence('"${tableName}"', '${field}')`);
+  const [sequences] = await sequelize.query<{ pg_get_serial_sequence: string | null }>(
+    `SELECT pg_get_serial_sequence('"${tableName}"', '${field}')`,
+    { type: QueryTypes.SELECT },
+  );
   const sequence = sequences[0].pg_get_serial_sequence;
   assert(sequence, `No sequence found for table "${tableName}" and field "${field}"`);
 
-  const [ids] = await sequelize.query(`SELECT MAX(${field}) FROM "${tableName}"`);
+  const [ids] = await sequelize.query<{ max: number }>(`SELECT MAX(${field}) FROM "${tableName}"`, {
+    type: QueryTypes.SELECT,
+  });
   const currentVal = ids[0]?.max || 1;
   logger.info(`Updating sequence "${tableName}"."${field}" (${sequence}) to ${currentVal}`);
 
@@ -62,11 +67,16 @@ export const resetModelsSequences = async models => {
  */
 const getNextPK = async model => {
   const primaryKey = model.primaryKeyAttribute;
-  const [sequences] = await sequelize.query(`SELECT pg_get_serial_sequence('"${model.tableName}"', '${primaryKey}')`);
+  const [sequences] = await sequelize.query<{ pg_get_serial_sequence: string | null }>(
+    `SELECT pg_get_serial_sequence('"${model.tableName}"', '${primaryKey}')`,
+    { type: QueryTypes.SELECT },
+  );
   const sequence = sequences[0].pg_get_serial_sequence;
   assert(sequence, `No sequence found for table "${model.tableName}" and field "${primaryKey}"`);
 
-  const [result] = await sequelize.query(`SELECT nextval('${sequence}')`);
+  const [result] = await sequelize.query<{ nextval: number }>(`SELECT nextval('${sequence}')`, {
+    type: QueryTypes.SELECT,
+  });
   return result[0].nextval;
 };
 

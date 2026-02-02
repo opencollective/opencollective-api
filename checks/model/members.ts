@@ -1,6 +1,5 @@
 import '../../server/env';
 
-import { sql } from '@ts-safeql/sql-tag';
 import { flatten, min, uniq } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
@@ -15,16 +14,14 @@ async function checkDeletedMembers({ fix = false } = {}) {
   const message = 'No non-deleted Members without a matching non-deleted Collective';
 
   const results = await sequelize.query<{ count: number }>(
-    sql`
-     SELECT COUNT(*) as count
+    `SELECT COUNT(*) as count
      FROM "Members" m
      LEFT JOIN "Collectives" c1
      ON c1."id" = m."CollectiveId"
      LEFT JOIN "Collectives" c2
      ON c2."id" = m."MemberCollectiveId"
      WHERE m."deletedAt" IS NULL
-     AND (c1."deletedAt" IS NOT NULL OR c1."id" IS NULL OR c2."deletedAt" IS NOT NULL OR c2."id" IS NULL)
-    `,
+     AND (c1."deletedAt" IS NOT NULL OR c1."id" IS NULL OR c2."deletedAt" IS NOT NULL OR c2."id" IS NULL)`,
     { type: QueryTypes.SELECT, raw: true },
   );
 
@@ -33,15 +30,15 @@ async function checkDeletedMembers({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(sql`
-        UPDATE "Members"
+      await sequelize.query(
+        `UPDATE "Members"
          SET "deletedAt" = NOW()
          FROM "Collectives" c1, "Collectives" c2
          WHERE "Members"."deletedAt" IS NULL
          AND c1."id" = "Members"."CollectiveId"
          AND c2."id" = "Members"."MemberCollectiveId"
-         AND (c1."deletedAt" IS NOT NULL OR c1."id" IS NULL OR c2."deletedAt" IS NOT NULL OR c2."id" IS NULL)
-      `);
+         AND (c1."deletedAt" IS NOT NULL OR c1."id" IS NULL OR c2."deletedAt" IS NOT NULL OR c2."id" IS NULL)`,
+      );
     }
   }
 }
@@ -50,8 +47,7 @@ async function checkMemberTypes() {
   const message = 'No ACCOUNTANT OR ADMIN member with a type different than USER (no auto fix)';
 
   const results = await sequelize.query<{ count: number }>(
-    sql`
-     SELECT COUNT(*) as count
+    `SELECT COUNT(*) as count
      FROM "Members" as m
      LEFT JOIN "Users" u ON u."CollectiveId" = m."MemberCollectiveId"
      LEFT JOIN "Collectives" c ON c."id" = m."MemberCollectiveId"
@@ -59,8 +55,7 @@ async function checkMemberTypes() {
      WHERE m."role" IN ('ACCOUNTANT', 'ADMIN')
      AND m."deletedAt" IS NULL
      AND u."id" IS NULL
-     AND c."type" != 'USER'
-    `,
+     AND c."type" != 'USER'`,
     { type: QueryTypes.SELECT, raw: true },
   );
 
@@ -73,9 +68,8 @@ async function checkMemberTypes() {
 async function checkDuplicateMembers({ fix = false } = {}) {
   const message = 'No duplicate members';
 
-  const results = await sequelize.query<{ duplicate_ids: number[] | null }>(
-    sql`
-     SELECT ARRAY_AGG(DISTINCT m2.id) AS duplicate_ids
+  const results = await sequelize.query<{ duplicate_ids: number[] }>(
+    `SELECT ARRAY_AGG(DISTINCT m2.id) AS duplicate_ids
      FROM "Members" m1
      INNER JOIN "Members" m2
        ON m1.id < m2.id
@@ -97,12 +91,11 @@ async function checkDuplicateMembers({ fix = false } = {}) {
       logger.warn(`Fixing: ${message}`);
       const allDuplicateIds = uniq(flatten(results.map(r => r.duplicate_ids)));
       await sequelize.query(
-        sql`
-         UPDATE "Members"
+        `UPDATE "Members"
          SET "deletedAt" = NOW()
-         WHERE "Members"."id" = ANY(${allDuplicateIds}::int[])
-         AND "Members"."deletedAt" IS NULL
-        `,
+         WHERE "Members"."id" IN (:allDuplicateIds)
+         AND "Members"."deletedAt" IS NULL`,
+        { replacements: { allDuplicateIds } },
       );
 
       // Members don't have a `data` column that we could use to log that they've been deleted from this script, so we
@@ -120,14 +113,14 @@ async function checkMissingMembers({ fix = false }) {
   const message = 'No missing members';
 
   const results = await sequelize.query<{
-    FromCollectiveId: number | null;
-    CollectiveId: number | null;
-    TierId: number | null;
-    tierType: string | null;
-    CreatedByUserId: (number | null)[] | null;
-    createdAt: Date[] | null;
+    FromCollectiveId: number;
+    CollectiveId: number;
+    TierId: number;
+    tierType: string;
+    CreatedByUserId: number[];
+    createdAt: Date[];
   }>(
-    sql`
+    `
     SELECT
       o."FromCollectiveId",
       o."CollectiveId",
@@ -198,9 +191,9 @@ async function checkMissingMembers({ fix = false }) {
 async function checkExtraMembers({ fix = false }) {
   const message = 'No extra members (BACKER)';
 
-  const results = await sequelize.query<{ id: number }>(
-    sql`
-    SELECT id
+  const results = await sequelize.query(
+    `
+    SELECT *
     FROM "Members"
     WHERE "role" = 'BACKER' AND "deletedAt" IS NULL
     AND NOT EXISTS (
@@ -208,8 +201,7 @@ async function checkExtraMembers({ fix = false }) {
       WHERE "deletedAt" IS NULL
       AND "Transactions"."CollectiveId" = "Members"."CollectiveId"
       AND "Transactions"."FromCollectiveId" = "Members"."MemberCollectiveId"
-    )
-    `,
+    )`,
     { type: QueryTypes.SELECT, raw: true },
   );
 
@@ -218,7 +210,8 @@ async function checkExtraMembers({ fix = false }) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(sql`
+      await sequelize.query(
+        `
         UPDATE "Members"
         SET "deletedAt" = NOW()
         WHERE "role" = 'BACKER' AND "deletedAt" IS NULL
@@ -227,8 +220,8 @@ async function checkExtraMembers({ fix = false }) {
           WHERE "deletedAt" IS NULL
           AND "Transactions"."CollectiveId" = "Members"."CollectiveId"
           AND "Transactions"."FromCollectiveId" = "Members"."MemberCollectiveId"
-        )
-      `);
+        )`,
+      );
     }
   }
 }

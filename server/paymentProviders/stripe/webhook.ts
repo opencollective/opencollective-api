@@ -1,5 +1,4 @@
 /* eslint-disable camelcase */
-import { sql } from '@ts-safeql/sql-tag';
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
@@ -342,22 +341,23 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
 async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise<'ORDER' | 'EXPENSE'> {
   const result = await sequelize.query<{ target: 'ORDER' | 'EXPENSE' }>(
-    sql`
+    `
     (
       SELECT 'ORDER' as "target"
-      FROM "Orders" where "data"#>>'{paymentIntent,id}' = ${paymentIntent.id}
+      FROM "Orders" where "data"#>>'{paymentIntent,id}' = :paymentIntentId
       AND "deletedAt" IS NULL LIMIT 1
     )
     UNION ALL
     (
       SELECT 'EXPENSE' as "target"
-      FROM "Expenses" where "data"#>>'{paymentIntent,id}' = ${paymentIntent.id}
+      FROM "Expenses" where "data"#>>'{paymentIntent,id}' = :paymentIntentId
       AND "deletedAt" IS NULL LIMIT 1
     )
   `,
     {
       type: QueryTypes.SELECT,
       raw: true,
+      replacements: { paymentIntentId: paymentIntent.id },
     },
   );
 

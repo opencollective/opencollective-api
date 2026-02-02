@@ -17,7 +17,7 @@ import {
   getAmountRangeQuery,
   makeConsolidatedBalanceSubquery,
 } from '../graphql/v2/input/AmountRangeInput';
-import models, { Op, sequelize } from '../models';
+import models, { Collective, Op, sequelize } from '../models';
 
 import { floatAmountToCents } from './math';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
@@ -264,7 +264,7 @@ export const searchCollectivesInDB = async (
     lastTransactionFrom?: Date;
     lastTransactionTo?: Date;
   } = {},
-) => {
+): Promise<[Collective[], number]> => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
   let countryCodes = null;

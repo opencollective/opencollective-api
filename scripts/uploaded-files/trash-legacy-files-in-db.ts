@@ -43,7 +43,7 @@ const main = async options => {
       const hasSoftDelete = Boolean(definition.model['options']['paranoid']);
       const timeLabel = `Performance for analyzing ${kind}`;
       console.time(timeLabel);
-      const result = await sequelize.query(
+      const result = await sequelize.query<{ id: number; url: string }>(
         `
           ${DRY_RUN ? 'BEGIN;' : ''}
           -- Pre-extract all links from the field as it makes the query way faster for rich text

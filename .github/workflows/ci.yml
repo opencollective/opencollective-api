@@ -29,20 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    services:
-      postgres:
-        image: postgres:16.11
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_DB: postgres
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports:
-          - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-
-    env:
-      DATABASE_URL: postgres://opencollective@localhost:5432/opencollective_dvl
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -63,11 +49,6 @@ jobs:
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
-
-      - name: Init DB (for SafeQL)
-        run: |
-          npm run db:restore
-          npm run db:migrate
 
       - run: npm run lint:check
 
