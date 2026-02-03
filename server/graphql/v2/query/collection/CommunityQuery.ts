@@ -15,6 +15,8 @@ import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum/AccountType';
 import { GraphQLCommunityRelationType } from '../../enum/CommunityRelationType';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import { getAmountRangeQuery, GraphQLAmountRangeInput } from '../../input/AmountRangeInput';
+import { GraphQLOrderByInput } from '../../input/OrderByInput';
 
 const DEFAULT_LIMIT = 100;
 
@@ -68,34 +70,56 @@ type CommunitySummaryArgs = {
   CollectiveId?: number;
   searchTerm?: string;
   relation?: string;
+  totalExpendedExpression?: string;
+  totalContributedExpression?: string;
 };
 const getHostCommunity = async (replacements: CommunitySummaryArgs) => {
   const isAdmin = 'relation' in replacements && replacements.relation.includes('ADMIN');
   const searchConditions = buildSearchConditions(replacements.searchTerm);
+  const includeCommunityHostTransactionsAggregated =
+    replacements.totalContributedExpression || replacements.totalExpendedExpression;
 
   const baseQuery = `
     FROM "CommunityActivitySummary" cas
     INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
     ${searchConditions.joinClause}
     ${ifStr(isAdmin, `INNER JOIN "Members" m ON m."CollectiveId" = cas."CollectiveId" AND m."MemberCollectiveId" = "FromCollectiveId" AND m.role = 'ADMIN' AND m."deletedAt" IS NULL`)}
+    ${ifStr(
+      includeCommunityHostTransactionsAggregated,
+      `LEFT JOIN "CommunityHostTransactionsAggregated" chta ON chta."FromCollectiveId" = cas."FromCollectiveId" AND chta."HostCollectiveId" = cas."HostCollectiveId"`,
+    )}
     WHERE
       fc."deletedAt" IS NULL
       ${ifStr('HostCollectiveId' in replacements, `AND cas."HostCollectiveId" = :HostCollectiveId`)}
       ${ifStr('CollectiveId' in replacements, `AND cas."CollectiveId" = :CollectiveId`)}
       ${ifStr('type' in replacements, `AND fc.type IN (:type)`)}
       ${ifStr('relation' in replacements && replacements.relation.length > 0, `AND cas."relations" @> :relation`)}
+      ${ifStr(replacements.totalExpendedExpression, () => `AND ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0))${replacements.totalExpendedExpression}`)}
+      ${ifStr(replacements.totalContributedExpression, () => `AND ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0))${replacements.totalContributedExpression}`)}
       ${searchConditions.whereClause}
     `;
 
+  const orderBy = ['fc.name'];
+  const groupBy = ['cas."FromCollectiveId"', 'fc.id'];
+  if (replacements.totalExpendedExpression) {
+    orderBy.unshift(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) DESC`);
+    groupBy.push('chta."expenseTotalAcc"');
+  }
+  if (replacements.totalContributedExpression) {
+    orderBy.unshift(`ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) DESC`);
+    groupBy.push('chta."contributionTotalAcc"');
+  }
+
   const allReplacements = { ...replacements, ...searchConditions.replacements };
-  const nodes = await sequelize.query(
-    `SELECT fc.* ${baseQuery} GROUP BY cas."FromCollectiveId", fc.id ORDER BY fc.name LIMIT :limit OFFSET :offset`,
-    {
-      model: Collective,
-      mapToModel: true,
-      replacements: allReplacements,
-    },
-  );
+  const nodes = () =>
+    sequelize.query<Collective>(
+      `SELECT fc.* ${baseQuery} GROUP BY ${groupBy.join(', ')} ORDER BY ${orderBy.join(', ')} LIMIT :limit OFFSET :offset`,
+      {
+        model: Collective,
+        mapToModel: true,
+        replacements: allReplacements,
+      },
+    );
 
   const totalCount = async () =>
     (sequelize as Sequelize)
@@ -129,6 +153,17 @@ const CommunityQuery = {
     },
     relation: {
       type: new GraphQLList(new GraphQLNonNull(GraphQLCommunityRelationType)),
+    },
+    orderBy: {
+      type: GraphQLOrderByInput,
+    },
+    totalContributed: {
+      type: GraphQLAmountRangeInput,
+      description: 'Only return accounts that contributed within this amount range',
+    },
+    totalExpended: {
+      type: GraphQLAmountRangeInput,
+      description: 'Only return accounts that expended within this amount range',
     },
     limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: DEFAULT_LIMIT },
     offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
@@ -179,6 +214,16 @@ const CommunityQuery = {
       replacements.HostCollectiveId = host.id;
     }
 
+    const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
+    if (hasCommunityHostTransactionsArgs) {
+      if (args.totalExpended) {
+        replacements.totalExpendedExpression = getAmountRangeQuery(args.totalExpended);
+      }
+      if (args.totalContributed) {
+        replacements.totalContributedExpression = getAmountRangeQuery(args.totalContributed);
+      }
+    }
+
     if (args.type && args.type.length > 0) {
       replacements.type = args.type.map(value => AccountTypeToModelMapping[value]);
     }
@@ -194,8 +239,8 @@ const CommunityQuery = {
       // TODO: Before returning the result, double check if the remoteUser has access to see the result email
     }
 
-    const data = await getHostCommunity(replacements);
-    const ids: number[] = data.nodes.map(c => c.id);
+    const { nodes, totalCount } = await getHostCommunity(replacements);
+    const ids: number[] = (await nodes()).map(c => c.id);
     const canSeePrivateLocation = await req.loaders.Collective.canSeePrivateLocation.loadMany(ids);
     const canSeePrivateProfileInfo = await req.loaders.Collective.canSeePrivateProfileInfo.loadMany(ids);
     ids.forEach((id, i) => {
@@ -206,7 +251,7 @@ const CommunityQuery = {
         allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, id);
       }
     });
-    return { ...data, limit: args.limit, offset: args.offset };
+    return { nodes, totalCount, limit: args.limit, offset: args.offset };
   },
 };
 

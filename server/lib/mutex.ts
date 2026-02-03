@@ -6,6 +6,13 @@ import { sleep } from './utils';
 
 const debug = debugLib('mutex');
 
+export const MutexLockError = class extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MutexLockError';
+  }
+};
+
 /**
  * Cache based, service-wide mutex implementation.
  */
@@ -31,7 +38,7 @@ export async function lockUntilResolved<T>(
     lockAcquired = await lock();
     if (Date.now() - start > lockAcquireTimeoutMs) {
       debug(`Timeouted waiting for lock ${_key}`);
-      throw new Error(`Timeout to acquire lock for key ${_key}`);
+      throw new MutexLockError(`Timeout to acquire lock for key ${_key}`);
     }
   }
 
@@ -71,6 +78,6 @@ export async function lockUntilOrThrow<T>(
     }
   } else {
     debug(`Failed to acquire lock ${_key}`);
-    throw new Error(`Failed to acquire lock for key ${_key}`);
+    throw new MutexLockError(`Failed to acquire lock for key ${_key}`);
   }
 }
