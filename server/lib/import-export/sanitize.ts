@@ -97,6 +97,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   // Things that don't need any redaction.
   AccountingCategory: () => {},
   EmojiReaction: () => {},
+  ExportRequest: () => {},
   Conversation: () => {},
   ConversationFollower: () => {},
   CurrencyExchangeRate: () => {},

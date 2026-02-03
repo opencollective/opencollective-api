@@ -76,4 +76,9 @@ export const FileFieldsDefinition: Record<
     field: ['settings.invoice.templates.default.embeddedImage', 'settings.invoice.templates.alternative.embeddedImage'],
     fieldType: 'url',
   },
+  TRANSACTIONS_CSV_EXPORT: {
+    model: models.ExportRequest,
+    field: 'data.url',
+    fieldType: 'url',
+  },
 };
