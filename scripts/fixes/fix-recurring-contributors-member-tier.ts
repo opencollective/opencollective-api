@@ -1,5 +1,8 @@
 import '../../server/env';
 
+import { get } from 'lodash';
+import { QueryTypes } from 'sequelize';
+
 import models, { sequelize } from '../../server/models';
 
 const migrate = async () => {
@@ -15,17 +18,18 @@ const migrate = async () => {
             AND m."TierId" <> o."TierId"
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Member,
       mapToModel: true,
     },
   );
 
   for (const member of members) {
+    const newTierId = get(member.dataValues, 'NewTierId') as number;
     if (process.env.DRY) {
-      console.log(`Would fix Member #${member.id} with TierId ${member.dataValues.NewTierId}`);
+      console.log(`Would fix Member #${member.id} with TierId ${newTierId}`);
     } else {
-      await member.update({ TierId: member.dataValues.NewTierId });
+      await member.update({ TierId: newTierId });
     }
   }
 };

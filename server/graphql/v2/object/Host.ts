@@ -14,6 +14,7 @@ import {
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../../constants';
 import ActivityTypes from '../../../constants/activities';
@@ -64,7 +65,7 @@ import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
-import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTimeUnit, TimeUnit } from '../enum/TimeUnit';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportStatus } from '../enum/TransactionsImportStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
@@ -267,11 +268,11 @@ export const GraphQLHost = new GraphQLObjectType({
             SELECT "refreshedAt" FROM "HostMonthlyTransactions" LIMIT 1;
           `;
 
-          const refreshedAtResult = await sequelize.query(refreshedAtQuery, {
+          const refreshedAtResult = await sequelize.query<{ refreshedAt: Date }>(refreshedAtQuery, {
             replacements: {
               hostCollectiveId: host.id,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -420,7 +421,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               refreshedAt,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -545,11 +546,7 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        /**
-         * @param {import("../../../models/Collective").default} host
-         * @param {{ timeUnit: import("../enum/TimeUnit").TimeUnit; dateFrom: Date; dateTo: Date }} args
-         */
-        resolve: async (host, args) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -590,7 +587,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               dateFrom: moment(args.dateFrom).utc().toISOString(),
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -1060,7 +1057,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const nodes = () =>
             sequelize.query(pageQuery, {
               replacements: queryReplacements,
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
               model: models.VirtualCard,
             });
 
@@ -1567,8 +1564,8 @@ export const GraphQLHost = new GraphQLObjectType({
                       EXISTS (
                         SELECT v FROM (
                           SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(${sequelize.escape(accountIds)})
-                      )
+                        ) WHERE v = ANY(ARRAY[${accountIds.map(v => sequelize.escape(v)).join(',')}]::int[])
+                      )  
                     )
               `),
             ];
@@ -1576,7 +1573,7 @@ export const GraphQLHost = new GraphQLObjectType({
 
           const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
           if (hasCommunityHostTransactionsArgs) {
-            const prefilteredIds = await sequelize.query(
+            const prefilteredIds = await sequelize.query<{ id: number }>(
               `
               SELECT DISTINCT id
                 FROM
@@ -1588,7 +1585,7 @@ export const GraphQLHost = new GraphQLObjectType({
                 ${ifStr(args.totalContributed, () => `AND ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0))${getAmountRangeQuery(args.totalContributed)}`)}
               `,
               {
-                type: sequelize.QueryTypes.SELECT,
+                type: QueryTypes.SELECT,
                 replacements: { hostId: account.id },
               },
             );
@@ -1657,7 +1654,7 @@ export const GraphQLHost = new GraphQLObjectType({
               limit: args.limit,
               offset: args.offset,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             model: models.Collective,
           });
 

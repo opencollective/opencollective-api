@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
 import moment from 'moment';
-import { Order, Sequelize, WhereOptions } from 'sequelize';
+import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
@@ -1087,7 +1087,7 @@ const accountFieldsDefinition = () => ({
           timeUnit: args.timeUnit,
           dateTo: moment(args.dateTo).utc().toISOString(),
         },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         raw: true,
       });
 

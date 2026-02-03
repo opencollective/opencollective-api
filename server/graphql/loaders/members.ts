@@ -1,5 +1,6 @@
 import DataLoader from 'dataloader';
 import _, { groupBy, keyBy, partition, remove, uniq } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import MemberRoles from '../../constants/roles';
 import models, { Collective, Member, sequelize, Tier } from '../../models';
@@ -31,8 +32,8 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
         `);
       }
 
-      const result = await sequelize.query(queries.join('UNION ALL'), {
-        type: sequelize.QueryTypes.SELECT,
+      const result = await sequelize.query<{ CollectiveId: number; email: string }>(queries.join('UNION ALL'), {
+        type: QueryTypes.SELECT,
         replacements: {
           userCollectiveIds: [...new Set(userCollectives.map(collective => collective.id))],
           otherCollectivesIds: [...new Set(otherCollectives.map(collective => collective.id))],
@@ -97,7 +98,7 @@ export const generateMemberIsActiveLoader = (req: Express.Request) => {
         // the next charge date is set to the following month (to avoid charging twice in a short period of time). This also
         // adds a grace period in case the first payment fails.
         // See `getNextChargeAndPeriodStartDates`
-        const results: [{ id: number }] = await sequelize.query(
+        const results = await sequelize.query<{ id: number }>(
           `
           SELECT DISTINCT m.id
           FROM "Members" m
@@ -124,7 +125,7 @@ export const generateMemberIsActiveLoader = (req: Express.Request) => {
         `,
           {
             replacements: { membersIds: membersToProcess.map(m => m.id) },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
           },
         );
 

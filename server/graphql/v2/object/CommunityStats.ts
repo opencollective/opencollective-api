@@ -3,6 +3,7 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'grap
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, flatten, uniq } from 'lodash';
 import type { Sequelize } from 'sequelize';
+import { QueryTypes } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { Activity, Collective, Op, sequelize } from '../../../models';
@@ -130,7 +131,7 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
           `,
           {
             raw: true,
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             replacements: { FromCollectiveId, HostCollectiveId, CollectiveId },
           },
         );
@@ -226,7 +227,7 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
               AND "HostCollectiveId" = :HostCollectiveId
             ORDER BY year DESC;
             `,
-            { raw: true, type: sequelize.QueryTypes.SELECT, replacements: { FromCollectiveId, HostCollectiveId } },
+            { raw: true, type: QueryTypes.SELECT, replacements: { FromCollectiveId, HostCollectiveId } },
           );
 
           return results.map(result => ({

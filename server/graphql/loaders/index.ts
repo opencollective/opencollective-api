@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
-import { OrderItem, Sequelize } from 'sequelize';
+import { OrderItem, QueryTypes, Sequelize } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
@@ -222,21 +222,42 @@ export const generateLoaders = req => {
           hostCurrency: string;
           CollectiveId: number;
         }
-      >(collectiveIds =>
-        sequelize
-          .query(
-            `SELECT ccb.*
+      >(
+        collectiveIds =>
+          sequelize
+            .query<
+              Array<{
+                netAmountInHostCurrnecy: number;
+                disputednetAmountInHostCurrency: number;
+                hostCurrency: string;
+                CollectiveId: number;
+              }>
+            >(
+              `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
          AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
-            {
-              replacements: { collectiveIds },
-              type: sequelize.QueryTypes.SELECT,
-              raw: true,
-            },
-          )
-          .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
+              {
+                replacements: { collectiveIds },
+                type: QueryTypes.SELECT,
+                raw: true,
+              },
+            )
+            .then(results =>
+              sortResults(
+                collectiveIds,
+                Object.values(Array.isArray(results) ? results : (results as Record<string, unknown>)),
+                'CollectiveId',
+              ),
+            ) as PromiseLike<
+            ArrayLike<{
+              netAmountInHostCurrnecy: number;
+              disputednetAmountInHostCurrency: number;
+              hostCurrency: string;
+              CollectiveId: number;
+            }>
+          >,
       ),
 
       currentCollectiveTransactionStats: new DataLoader<
@@ -249,14 +270,42 @@ export const generateLoaders = req => {
           totalNetAmountSpentInHostCurrency: number;
           hostCurrency: string;
         }
-      >(collectiveIds =>
-        sequelize
-          .query(`SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`, {
-            replacements: { collectiveIds },
-            type: sequelize.QueryTypes.SELECT,
-            raw: true,
-          })
-          .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
+      >(
+        collectiveIds =>
+          sequelize
+            .query<
+              Array<{
+                CollectiveId: number;
+                totalAmountReceivedInHostCurrency: number;
+                totalNetAmountReceivedInHostCurrency: number;
+                totalAmountSpentInHostCurrency: number;
+                totalNetAmountSpentInHostCurrency: number;
+                hostCurrency: string;
+              }>
+            >(`SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`, {
+              replacements: { collectiveIds },
+              type: QueryTypes.SELECT,
+              raw: true,
+            })
+            .then(results =>
+              sortResults(
+                collectiveIds,
+                Object.values(Array.isArray(results) ? results : (results as Record<string, unknown>)),
+                'CollectiveId',
+              ),
+            ) as Promise<
+            ArrayLike<
+              | Error
+              | {
+                  CollectiveId: number;
+                  totalAmountReceivedInHostCurrency: number;
+                  totalNetAmountReceivedInHostCurrency: number;
+                  totalAmountSpentInHostCurrency: number;
+                  totalNetAmountSpentInHostCurrency: number;
+                  hostCurrency: string;
+                }
+            >
+          >,
       ),
 
       // Collective - Balance
@@ -516,7 +565,7 @@ export const generateLoaders = req => {
             cbc."HostCollectiveId", cbc."hostCurrency";
         `,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             replacements: { ids },
           },
         );
@@ -693,7 +742,7 @@ export const generateLoaders = req => {
             `SELECT * FROM "CollectiveOrderStats" WHERE "CollectiveId" IN (:collectiveIds)`,
             {
               replacements: { collectiveIds },
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
               raw: true,
             },
           )) as {
@@ -763,7 +812,7 @@ export const generateLoaders = req => {
                       dateFrom,
                       dateTo,
                     },
-                    type: sequelize.QueryTypes.SELECT,
+                    type: QueryTypes.SELECT,
                     raw: true,
                   },
                 )) as {
@@ -867,7 +916,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result['totalDonated'] : 0))),
@@ -889,7 +938,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result['total'] : 0))),
@@ -911,7 +960,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result['total'] : 0))),
@@ -942,7 +991,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results =>
@@ -958,13 +1007,13 @@ export const generateLoaders = req => {
         const results = (await Member.findAll({
           attributes: [
             'TierId',
-            sequelize.col('memberCollective.type'),
+            sequelize.col('memberCollective.type') as unknown as string,
             [sequelize.fn('COUNT', sequelize.col('memberCollective.id')), 'count'],
           ],
           where: {
             TierId: { [Op.in]: tiersIds },
           },
-          group: ['TierId', sequelize.col('memberCollective.type')],
+          group: ['TierId', sequelize.col('memberCollective.type') as unknown as string],
           include: [
             {
               model: Collective,
@@ -1185,18 +1234,22 @@ export const generateLoaders = req => {
       taxAmountForTransaction: transactionLoaders.generateTaxAmountForTransactionLoader(),
       relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
       relatedContributionTransaction: transactionLoaders.generateRelatedContributionTransactionLoader(),
-      balanceById: new DataLoader<number, number>(async transactionIds => {
-        const transactionBalances = await sequelize.query(
-          ` SELECT      id, balance
+      balanceById: new DataLoader<number, number>(async (transactionIds: number[]) => {
+        const transactionBalances = await sequelize.query<Array<{ id: number; balance: number }>>(
+          `SELECT      id, balance
           FROM        "TransactionBalances"
           WHERE       id in (:transactionIds)`,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             replacements: { transactionIds },
           },
         );
 
-        return sortResultsSimple(transactionIds, transactionBalances);
+        const balances = sortResultsSimple(
+          transactionIds,
+          transactionBalances as unknown as Array<{ id: number; balance: number }>,
+        );
+        return balances.map((r: { id: number; balance: number } | undefined) => r?.balance ?? 0);
       }),
     },
     TransactionsImport: {

@@ -11,7 +11,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil, omit } from 'lodash';
-import { OrderItem } from 'sequelize';
+import { OrderItem, QueryTypes } from 'sequelize';
 
 import PlatformConstants from '../../../constants/platform';
 import { filterContributors } from '../../../lib/contributors';
@@ -109,7 +109,7 @@ export const AccountWithContributionsFields = {
       includeActiveRecurringContributions: { type: GraphQLBoolean },
     },
     async resolve(account, args) {
-      const collectiveIdsResult = await sequelize.query(
+      const collectiveIdsResult = await sequelize.query<{ id: number; slug: string; total_donated: number }>(
         `WITH "CollectiveDonations" AS (
             SELECT 
               "Orders"."FromCollectiveId",
@@ -156,7 +156,7 @@ export const AccountWithContributionsFields = {
             dateFrom: args.dateFrom,
             dateTo: args.dateTo,
           },
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
         },
       );
 
