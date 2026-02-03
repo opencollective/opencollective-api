@@ -40,6 +40,7 @@ import {
 } from '../../../lib/subscriptions';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
+import { formatCurrency } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
@@ -607,6 +608,12 @@ const orderMutations = {
         if (hasChanges) {
           const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
 
+          // Capture original order totals for proportional tip validation (order is mutated below)
+          const originalOrderTotalAmount = order.totalAmount;
+          const originalOrderTipAmount = order.platformTipAmount || 0;
+          const originalBaseAmount = order.totalAmount - originalOrderTipAmount - (order.taxAmount || 0);
+          const originalTipPercent = originalOrderTipAmount / originalBaseAmount;
+
           // Ensure amounts are provided with the right currency
           ['amount', 'paymentProcessorFee', 'platformTip', 'tax.amount'].forEach(field => {
             if (!isNil(get(args.order, field))) {
@@ -618,8 +625,26 @@ const orderMutations = {
             const amountInCents = getValueInCentsFromAmountInput(amount);
             const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
             const totalAmount = amountInCents + platformTipInCents;
+
+            if (originalOrderTipAmount && originalOrderTotalAmount !== totalAmount && isNil(platformTip)) {
+              throw new ValidationFailed(
+                'Platform tip is required when changing the amount on a contribution with a tip, and must be proportional to the original tip choice.',
+              );
+            }
+
+            const expectedPlatformTip = amountInCents * originalTipPercent;
+            if (Math.abs(platformTipInCents - expectedPlatformTip) > 1) {
+              throw new ValidationFailed(
+                `Platform tip must be proportional to the amount received based on the contributor's original tip choice. Expected ${originalTipPercent}% of ${formatCurrency(amountInCents, order.currency)} = ${formatCurrency(expectedPlatformTip, order.currency)}`,
+              );
+            }
+
+            order.set('platformTipAmount', platformTipInCents);
             order.set('totalAmount', totalAmount);
+          } else if (!isNil(platformTip)) {
+            throw new ValidationFailed('Platform tip cannot be provided without an amount');
           }
+
           if (!isNil(paymentProcessorFee)) {
             if (!order.data) {
               order.set('data', {});
@@ -640,10 +665,6 @@ const orderMutations = {
             );
             order.set('taxAmount', taxAmount);
             order.set('data.tax', taxInfo);
-          }
-          if (!isNil(platformTip)) {
-            const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
-            order.set('platformTipAmount', platformTipInCents);
           }
           if (!isNil(hostFeePercent)) {
             order.set('data.hostFeePercent', hostFeePercent);
