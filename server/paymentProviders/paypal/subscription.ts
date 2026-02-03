@@ -301,7 +301,31 @@ export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMetho
     throw error;
   }
 
+  // We don't await as this doesn't block the order from being activated
+  setPaypalSubscriptionOrderId(hostCollective, paypalSubscriptionId, order);
+
   return order;
+};
+
+export const setPaypalSubscriptionOrderId = async (
+  hostCollective: Collective,
+  paypalSubscriptionId: string,
+  order: Order,
+) => {
+  // Set custom_id so our order reference appears on the PayPal dashboard
+  const customId = `Contribution #${order.id}`;
+  const customIdMaxLength = 127; // PayPal custom_id limit
+  try {
+    await paypalRequest(
+      `billing/subscriptions/${paypalSubscriptionId}`,
+      [{ op: 'replace', path: '/custom_id', value: customId.slice(0, customIdMaxLength) }],
+      hostCollective,
+      'PATCH',
+      { shouldReportErrors: false },
+    );
+  } catch (e) {
+    reportErrorToSentry(e, { extra: { paypalSubscriptionId, customId } });
+  }
 };
 
 export const updateSubscriptionWithPaypal = async (
