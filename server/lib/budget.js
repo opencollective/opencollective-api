@@ -116,10 +116,12 @@ export async function getBalances(
   const column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
   const hostCollectiveId = version === 'v3' ? { [Op.not]: null } : null;
 
-  // Use global carryforward date as startDate if configured
-  // This is a simple, config-based approach that requires ALL collectives to have carryforward
-  // transactions at the configured date before enabling
-  const startDate = BALANCE_CARRYFORWARD_DATE;
+  // Use global carryforward date as startDate if configured, but only when:
+  // - No endDate specified (current balance query), OR
+  // - endDate is after the carryforward date
+  // Historical queries with endDate before carryforward must scan full history
+  const startDate =
+    BALANCE_CARRYFORWARD_DATE && (!endDate || endDate >= BALANCE_CARRYFORWARD_DATE) ? BALANCE_CARRYFORWARD_DATE : null;
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
