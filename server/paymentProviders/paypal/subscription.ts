@@ -302,7 +302,7 @@ export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMetho
   }
 
   // We don't await as this doesn't block the order from being activated
-  await setPaypalSubscriptionOrderId(hostCollective, paypalSubscriptionId, order);
+  setPaypalSubscriptionOrderId(hostCollective, paypalSubscriptionId, order);
 
   return order;
 };
