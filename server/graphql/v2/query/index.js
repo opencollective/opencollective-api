@@ -5,6 +5,7 @@ import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
 import CommunityQuery from './collection/CommunityQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import ExpenseTagStatsCollectionQuery from './collection/ExpenseTagStatsCollectionQuery';
+import ExportRequestsCollectionQuery from './collection/ExportRequestsCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
@@ -53,6 +54,7 @@ const query = {
   expense: ExpenseQuery,
   expenses: ExpensesCollectionQuery,
   expenseTagStats: ExpenseTagStatsCollectionQuery,
+  exportRequests: ExportRequestsCollectionQuery,
   fund: FundQuery,
   host: HostQuery,
   hosts: HostsCollectionQuery,
