@@ -12,16 +12,7 @@ import User from './User';
 type CreationAttributes = InferCreationAttributes<
   ExportRequest,
   {
-    omit:
-      | 'id'
-      | 'parameters'
-      | 'data'
-      | 'status'
-      | 'createdAt'
-      | 'updatedAt'
-      | 'deletedAt'
-      | 'expiresAt'
-      | 'UploadedFileId';
+    omit: 'id' | 'data' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'expiresAt' | 'UploadedFileId';
   }
 >;
 
