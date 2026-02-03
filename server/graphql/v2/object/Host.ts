@@ -65,7 +65,7 @@ import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
-import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTimeUnit, TimeUnit } from '../enum/TimeUnit';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportStatus } from '../enum/TransactionsImportStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
@@ -546,11 +546,7 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        /**
-         * @param {import("../../../models/Collective").default} host
-         * @param {{ timeUnit: import("../enum/TimeUnit").TimeUnit; dateFrom: Date; dateTo: Date }} args
-         */
-        resolve: async (host, args) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -1577,7 +1573,7 @@ export const GraphQLHost = new GraphQLObjectType({
 
           const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
           if (hasCommunityHostTransactionsArgs) {
-            const prefilteredIds = await sequelize.query(
+            const prefilteredIds = await sequelize.query<{ id: number }>(
               `
               SELECT DISTINCT id
                 FROM
@@ -1589,7 +1585,7 @@ export const GraphQLHost = new GraphQLObjectType({
                 ${ifStr(args.totalContributed, () => `AND ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0))${getAmountRangeQuery(args.totalContributed)}`)}
               `,
               {
-                type: sequelize.QueryTypes.SELECT,
+                type: QueryTypes.SELECT,
                 replacements: { hostId: account.id },
               },
             );

@@ -27,7 +27,6 @@ import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
-import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
@@ -233,7 +232,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    * @param options.retries - Number of retries before giving up (default: 0)
    * @param options.retryDelay - Interval between retries in milliseconds (default: 500)
    */
-  declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<T>;
+  declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<void>;
   declare isLocked: () => boolean;
   declare createProcessedActivity: ({
     user,
@@ -335,7 +334,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
   ) {
     return models.Order.count({
-      where: { status: { [Op.or]: [OrderStatuses.ACTIVE, OrderStatuses.ERROR] } },
+      where: { status: { [Op.or]: [OrderStatus.ACTIVE, OrderStatus.ERROR] } },
       include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
     });
   }
@@ -916,10 +915,7 @@ Order.prototype.getSubscriptionForUser = function (user) {
   });
 };
 
-Order.prototype.lock = async function (
-  callback,
-  { retries = 0, retryDelay = 500 } = {},
-): Promise<ReturnType<typeof callback>> {
+Order.prototype.lock = async function (callback, { retries = 0, retryDelay = 500 } = {}): Promise<void> {
   // Reload the order and mark it as locked
   const success = await sequelize.transaction(async sqlTransaction => {
     const orderToLock = await Order.findByPk(this.id, { transaction: sqlTransaction, lock: true });
@@ -948,7 +944,7 @@ Order.prototype.lock = async function (
 
   // Call the callback
   try {
-    return await callback();
+    await callback();
   } finally {
     // Unlock order
     await sequelize.query(`UPDATE "Orders" SET data = data - 'lockedAt' WHERE id = :orderId`, {
