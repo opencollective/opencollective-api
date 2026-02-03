@@ -990,10 +990,6 @@ const accountMutations = {
         await account.activateMoneyManagement(req.remoteUser, { silent: true });
       }
 
-      if (hostApplications.length > 0) {
-        await HostApplication.destroy({ where: { CollectiveId: account.id } });
-      }
-
       await models.Activity.create({
         type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
         UserId: req.remoteUser.id,
