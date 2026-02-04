@@ -38,7 +38,7 @@ const loaders = {
             WHERE t."FromCollectiveId" IN (:CollectiveIds)
               AND t."HostCollectiveId" = :HostId
               AND t."createdAt" >= :since
-              AND t.kind = 'CONTRIBUTION'
+              AND t.kind IN ('CONTRIBUTION', 'ADDED_FUNDS')
               AND t."deletedAt" IS NULL
               AND t."RefundTransactionId" IS NULL
             GROUP BY t."FromCollectiveId", t."HostCollectiveId", t."hostCurrency"
