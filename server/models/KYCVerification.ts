@@ -38,6 +38,8 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   InferAttributes<KYCVerification>,
   KYCVerification
 > {
+  public static readonly tableName = 'KYCVerifications' as const;
+
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare RequestedByCollectiveId: ForeignKey<Collective['id']>;

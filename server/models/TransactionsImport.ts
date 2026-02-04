@@ -105,6 +105,8 @@ export class TransactionsImportLockedError extends Error {
 }
 
 class TransactionsImport extends Model<InferAttributes<TransactionsImport>, CreationAttributes> {
+  public static readonly tableName = 'TransactionsImports' as const;
+
   declare public id: number;
   declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public UploadedFileId: ForeignKey<UploadedFile['id']>;

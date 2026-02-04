@@ -20,6 +20,8 @@ class ConnectedAccount extends Model<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
   InferCreationAttributes<ConnectedAccount>
 > {
+  public static readonly tableName = 'ConnectedAccounts' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public service: string;
   declare public username: string;

@@ -19,6 +19,8 @@ const personelTokenDataSchema = z
   .nullable();
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
+  public static readonly tableName = 'PersonalTokens' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public token: string;
   declare public expiresAt: Date;
