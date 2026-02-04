@@ -68,7 +68,7 @@ export const generateOrderTotalContributedLoader = (): DataLoader<number, number
       where: {
         OrderId: { [Op.in]: orderIds },
         type: TransactionTypes.CREDIT,
-        kind: TransactionKind.CONTRIBUTION,
+        kind: [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS],
         RefundTransactionId: null,
       },
       group: ['OrderId'],
