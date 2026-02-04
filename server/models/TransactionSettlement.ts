@@ -26,6 +26,8 @@ class TransactionSettlement extends Model<
   InferAttributes<TransactionSettlement>,
   InferCreationAttributes<TransactionSettlement>
 > {
+  public static readonly tableName = 'TransactionSettlements' as const;
+
   declare public TransactionGroup: string;
   declare public kind: TransactionKind | `${TransactionKind}`;
   declare public status: TransactionSettlementStatus;

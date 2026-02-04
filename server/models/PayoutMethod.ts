@@ -85,6 +85,8 @@ type PayoutMethodDataType =
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
 class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAttributes<PayoutMethod>> {
+  public static readonly tableName = 'PayoutMethods' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public type: PayoutMethodTypes;
   declare public createdAt: CreationOptional<Date>;

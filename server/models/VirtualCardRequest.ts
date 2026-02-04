@@ -27,6 +27,8 @@ class VirtualCardRequest extends Model<
   InferAttributes<VirtualCardRequest>,
   InferCreationAttributes<VirtualCardRequest>
 > {
+  public static readonly tableName = 'VirtualCardRequests' as const;
+
   declare id: CreationOptional<number>;
   declare purpose: string;
   declare notes: string;

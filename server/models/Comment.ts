@@ -24,6 +24,8 @@ export enum CommentType {
 }
 
 class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Comment>> {
+  public static readonly tableName = 'Comments' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: number;
   declare public FromCollectiveId: number;

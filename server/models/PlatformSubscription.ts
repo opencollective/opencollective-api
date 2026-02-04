@@ -88,6 +88,8 @@ class PlatformSubscription extends Model<
   InferAttributes<PlatformSubscription>,
   InferCreationAttributes<PlatformSubscription>
 > {
+  public static readonly tableName = 'PlatformSubscriptions' as const;
+
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare plan: Partial<PlatformSubscriptionPlan>;

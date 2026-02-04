@@ -26,6 +26,8 @@ export enum VirtualCardStatus {
 }
 
 class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
+  public static readonly tableName = 'VirtualCards' as const;
+
   declare public id: CreationOptional<string>;
   declare public CollectiveId: number;
   declare public HostCollectiveId: number;
