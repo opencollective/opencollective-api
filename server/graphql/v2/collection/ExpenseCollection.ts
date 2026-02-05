@@ -1,7 +1,8 @@
-import { GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLCurrency } from '../enum';
-import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLExpense } from '../object/Expense';
 
@@ -32,6 +33,18 @@ export const GraphQLExpenseCollection = new GraphQLObjectType({
           },
         },
       }),
+    },
+    fromAccounts: {
+      type: new GraphQLNonNull(GraphQLAccountCollection),
+      description:
+        'The accounts that are payees of the expenses in this collection (scoped to the main query arguments), regardless of pagination. Returns a paginated and searchable collection.',
+      args: {
+        ...CollectionArgs,
+        searchTerm: {
+          type: GraphQLString,
+          description: 'Search term to filter by name or slug',
+        },
+      },
     },
   }),
 });
