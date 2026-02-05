@@ -1,5 +1,7 @@
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import { floatAmountToCents } from '../../server/lib/math';
 import models, { sequelize } from '../../server/models';
 
@@ -18,7 +20,7 @@ const getTransactions = async () => {
         ORDER BY t.id ASC
     `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Transaction,
       mapToModel: true,
     },
@@ -78,8 +80,8 @@ const main = async (): Promise<void> => {
     if (IS_DRY) {
       // Validate new transactions data
       try {
-        await creditTransaction.validate({ validateOppositeTransaction: false });
-        await debitTransaction.validate({ validateOppositeTransaction: false });
+        await models.Transaction.validate(creditTransaction, { validateOppositeTransaction: false });
+        await models.Transaction.validate(debitTransaction, { validateOppositeTransaction: false });
       } catch (e) {
         console.warn(`Error validating transactions for expense ${expense.id}: ${e.message}`);
       }

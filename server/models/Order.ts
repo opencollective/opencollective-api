@@ -116,6 +116,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     platformTip?: number;
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
     reqIp?: string;
+    lockedAt?: Date;
   };
 
   declare taxAmount?: number;
@@ -232,7 +233,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    * @param options.retries - Number of retries before giving up (default: 0)
    * @param options.retryDelay - Interval between retries in milliseconds (default: 500)
    */
-  declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<T>;
+  declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<void>;
   declare isLocked: () => boolean;
   declare createProcessedActivity: ({
     user,
@@ -326,33 +327,6 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
             [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
           },
         },
-      },
-    );
-  }
-
-  /**
-   * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
-   */
-  static cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]> {
-    return sequelize.query(
-      `
-        UPDATE public."Orders"
-        SET
-          status = 'CANCELLED',
-          "updatedAt" = NOW()
-        WHERE id IN (
-          SELECT "Orders".id FROM public."Orders"
-          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
-          WHERE
-            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
-            "Subscriptions"."isManagedExternally" AND
-            "Subscriptions"."isActive" AND
-            "Orders"."CollectiveId" = ?
-        )
-      `,
-      {
-        type: QueryTypes.UPDATE,
-        replacements: [collectiveId],
       },
     );
   }
@@ -950,13 +924,10 @@ Order.prototype.getSubscriptionForUser = function (user) {
   });
 };
 
-Order.prototype.lock = async function (
-  callback,
-  { retries = 0, retryDelay = 500 } = {},
-): Promise<ReturnType<typeof callback>> {
+Order.prototype.lock = async function (callback, { retries = 0, retryDelay = 500 } = {}): Promise<void> {
   // Reload the order and mark it as locked
   const success = await sequelize.transaction(async sqlTransaction => {
-    const orderToLock = await models.Order.findByPk(this.id, { transaction: sqlTransaction, lock: true });
+    const orderToLock = await Order.findByPk(this.id, { transaction: sqlTransaction, lock: true });
     if (!orderToLock) {
       throw new Error('Order not found'); // Not supposed to happen, just in case we try to lock a deleted order
     } else if (orderToLock.isLocked()) {
@@ -983,7 +954,6 @@ Order.prototype.lock = async function (
   // Call the callback
   try {
     await callback();
-    return success;
   } finally {
     // Unlock order
     await sequelize.query(`UPDATE "Orders" SET data = data - 'lockedAt' WHERE id = :orderId`, {

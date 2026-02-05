@@ -1,5 +1,6 @@
 import DataLoader from 'dataloader';
 import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model } from 'sequelize';
+import { QueryTypes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
@@ -100,7 +101,7 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
           
         `,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             model: KYCVerification,
             mapToModel: true,
             replacements: {

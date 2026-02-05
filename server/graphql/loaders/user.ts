@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import { QueryTypes } from 'sequelize';
 
 import models, { sequelize } from '../../models';
 import User from '../../models/User';
@@ -23,7 +24,7 @@ export const generateUserHasTwoFactorAuthEnabled = (): DataLoader<number, boolea
     GROUP BY u.id
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         replacements: {
           userIds,
         },

@@ -2,7 +2,7 @@ import { assert } from 'chai';
 import config from 'config';
 import { has } from 'lodash';
 
-import { lockUntilOrThrow, lockUntilResolved } from '../../../server/lib/mutex';
+import { lockUntilOrThrow, lockUntilResolved, MutexLockError } from '../../../server/lib/mutex';
 import { createRedisClient } from '../../../server/lib/redis';
 import { sleep } from '../../utils';
 
@@ -66,7 +66,7 @@ describe('lockUntilResolved', () => {
     it('throws if it fails to acquire a lock', async () => {
       lockUntilResolved('test3', async () => sleep(100));
       const pSecond = lockUntilResolved('test3', async () => sleep(1), { lockAcquireTimeoutMs: 50 });
-      await assert.isRejected(pSecond, /Timeout to acquire lock for key lock:test3/);
+      await assert.isRejected(pSecond, MutexLockError, /Timeout to acquire lock for key lock:test3/);
     });
 
     it('automatically releases the lock after expiring', async () => {
@@ -100,7 +100,7 @@ describe('lockUntilOrThrow', () => {
       });
 
       assert.equal(await pFirst, 'first');
-      await assert.isRejected(pSecond, /acquire lock/);
+      await assert.isRejected(pSecond, MutexLockError, /acquire lock/);
     });
 
     it('releases the lock if the callback function fails', async () => {

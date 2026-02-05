@@ -9,8 +9,8 @@ import app from '../../server/index';
  */
 export const startTestServer = async () => {
   const expressApp = await app();
-  if (!expressApp.__server__.listening) {
-    expressApp.__server__.listen(config.port);
+  if (!expressApp['__server__'].listening) {
+    expressApp['__server__'].listen(config.port);
   }
 
   return expressApp;
@@ -21,8 +21,8 @@ export const startTestServer = async () => {
  */
 export const stopTestServer = async () => {
   const expressApp = await app();
-  if (expressApp.__server__.listening) {
-    await new Promise(resolve => expressApp.__server__.close(resolve));
+  if (expressApp['__server__'].listening) {
+    await new Promise(resolve => expressApp['__server__'].close(resolve));
   }
 
   return expressApp;

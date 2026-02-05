@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import OrderStatuses from '../../../../server/constants/order-status';
 import { generateTierAvailableQuantityLoader } from '../../../../server/graphql/loaders/tiers';
@@ -86,7 +87,7 @@ describe('server/graphql/loaders/tiers', () => {
       const aWeekAgo = moment().subtract(1, 'week').toDate();
       await sequelize.query(`UPDATE "Orders" SET "createdAt" = :date, "updatedAt" = :date WHERE "id" IN (:ids)`, {
         replacements: { date: aWeekAgo, ids: [oldNewOrder.id, oldProcessingOrder.id] },
-        type: sequelize.QueryTypes.UPDATE,
+        type: QueryTypes.UPDATE,
       });
 
       const loader = generateTierAvailableQuantityLoader();

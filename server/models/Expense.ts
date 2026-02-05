@@ -152,6 +152,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare public fromCollective?: Collective;
   declare public host?: Collective;
   declare public User?: User;
+  // @deprecated Some parts of the code rely on this legacy user field, populated by getSubmitterUser
+  declare public user?: User;
   declare public PayoutMethod?: PayoutMethod;
   declare public PaymentMethod?: PaymentMethod;
   declare public virtualCard?: VirtualCard;
@@ -586,7 +588,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.gte,
           isMoment(dateFrom) ? dateFrom.toDate() : dateFrom,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
     if (dateTo) {
@@ -595,7 +597,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.lte,
           isMoment(dateTo) ? dateTo.toDate() : dateTo,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
 
@@ -654,7 +656,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.gte,
           isMoment(dateFrom) ? dateFrom.toDate() : dateFrom,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
     if (dateTo) {
@@ -663,7 +665,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.lte,
           isMoment(dateTo) ? dateTo.toDate() : dateTo,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
 

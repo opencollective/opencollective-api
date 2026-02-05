@@ -5,14 +5,14 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
-import { type Order as SequelizeOrder, Utils as SequelizeUtils } from 'sequelize';
+import { Op, type Order as SequelizeOrder, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
-import { AccountingCategory, Expense, Op, PaymentMethod, sequelize } from '../../../../models';
+import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
@@ -241,7 +241,7 @@ export const TransactionsCollectionResolver = async (
   args,
   req: express.Request,
 ): Promise<GraphQLTransactionsCollectionReturnType> => {
-  const where = [];
+  const where: WhereOptions<Transaction> = [];
   const include = [];
 
   // Check Pagination arguments
@@ -471,13 +471,16 @@ export const TransactionsCollectionResolver = async (
     );
   } else {
     if (args.minAmount) {
+      // @ts-expect-error - TODO: fix this
       where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
     }
     if (args.maxAmount) {
       let amount = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
       if (where['amount']) {
+        // @ts-expect-error - TODO: fix this
         amount = { [Op.and]: [where['amount'], amount] };
       }
+      // @ts-expect-error - TODO: fix this
       where.push({ amount });
     }
   }

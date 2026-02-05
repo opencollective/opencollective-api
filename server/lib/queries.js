@@ -1,5 +1,6 @@
 import config from 'config';
 import { get, pick } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
@@ -83,7 +84,7 @@ const getHosts = async args => {
       offset: args.offset,
       minNbCollectivesHosted: args.minNbCollectivesHosted,
     },
-    type: sequelize.QueryTypes.SELECT,
+    type: QueryTypes.SELECT,
     model: models.Collective,
     mapToModel: true,
   });
@@ -148,7 +149,7 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
   `,
       {
         replacements: { HostCollectiveId },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
@@ -194,7 +195,7 @@ const getTotalAnnualBudget = async () => {
     "yearlyIncome"
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
@@ -383,7 +384,7 @@ const getGiftCardBatchesForCollective = async collectiveId => {
   `,
     {
       raw: true,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: { collectiveId },
     },
   );
@@ -428,7 +429,7 @@ const getTopSponsors = () => {
     `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
       {
         replacements: { limit: 6, since: d },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(sponsors =>
@@ -516,7 +517,7 @@ const getMembersOfCollectiveWithRole = CollectiveIds => {
 `,
     {
       replacements: { collectiveids },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
     },
   );
@@ -632,7 +633,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         types,
         role: where.role,
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
     },
   );
@@ -726,7 +727,7 @@ const getMembersWithBalance = (where, options = {}) => {
     query.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
     {
       replacements,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
     },
   );
@@ -744,7 +745,7 @@ const getTotalNumberOfActiveCollectives = (since, until) => {
     WHERE c.type='COLLECTIVE' ${sinceClause} ${untilClause}
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => parseInt(res[0].count));
@@ -760,7 +761,7 @@ const getTotalNumberOfDonors = () => {
     WHERE c.type='COLLECTIVE'
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => parseInt(res[0].count));
@@ -865,7 +866,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       raw: true,
       replacements: {
         expenseIds,
@@ -962,7 +963,7 @@ const getTaxFormsRequiredForAccounts = async ({
   `,
     {
       raw: true,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: {
         CollectiveId,
         HostCollectiveId,

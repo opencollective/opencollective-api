@@ -18,6 +18,7 @@ import { Parser } from '@json2csv/plainjs';
 import { Command } from 'commander';
 import { isEmpty, omitBy, truncate } from 'lodash';
 import markdownTable from 'markdown-table';
+import { QueryTypes } from 'sequelize';
 
 import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../server/constants/tax-form';
 import logger from '../../server/lib/logger';
@@ -385,7 +386,7 @@ const main = async () => {
     const threshold = year >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
     const allRecipients: Recipient[] = await sequelize.query(taxFormsQuery, {
       replacements: { hostSlug, year, threshold },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     const pendingRecipients = allRecipients.filter(recipient => recipient['document_id'] === null);
