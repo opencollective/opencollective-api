@@ -1,0 +1,31 @@
+Subject: Your export "{{exportRequest.name}}" could not be completed
+
+{{> header}}
+
+<p>{{> greeting}}</p>
+
+<p>
+  Unfortunately, your export <strong>{{exportRequest.name}}</strong> could not be completed.
+</p>
+
+{{#if exportRequest.error}}
+<p>
+  <strong>Error:</strong> {{exportRequest.error}}
+</p>
+{{/if}}
+
+<br />
+
+<center>
+  <a href="{{config.host.website}}/dashboard/{{collective.slug}}/exports" class="btn blue">
+    View Your Exports
+  </a>
+</center>
+
+<br />
+
+<p>
+  If this problem persists, please <a href="https://opencollective.com/contact">contact us</a> for assistance.
+</p>
+
+{{> footer}}
