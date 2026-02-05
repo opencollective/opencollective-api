@@ -125,6 +125,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare platformTipAmount: number;
   declare platformTipEligible: boolean;
   declare AccountingCategoryId?: number;
+  declare ManualPaymentProviderId?: number;
 
   // Order belongsTo AccountingCategory via AccountingCategory['id']
   declare accountingCategory?: AccountingCategory;
@@ -613,6 +614,14 @@ Order.init(
     AccountingCategoryId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'AccountingCategories' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    ManualPaymentProviderId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'ManualPaymentProviders' },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,

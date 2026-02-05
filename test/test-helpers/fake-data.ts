@@ -60,6 +60,7 @@ import ExportRequest, { ExportRequestTypes } from '../../server/models/ExportReq
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
 import { KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
+import ManualPaymentProvider, { ManualPaymentProviderTypes } from '../../server/models/ManualPaymentProvider';
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
@@ -1419,6 +1420,33 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
     revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
   });
 }
+
+/**
+ * Creates a fake manual payment provider. All params are optional.
+ */
+export const fakeManualPaymentProvider = async (
+  data: Partial<{
+    CollectiveId: number;
+    type: ManualPaymentProviderTypes;
+    name: string;
+    instructions: string;
+    icon: string;
+    data: Record<string, unknown>;
+    order: number;
+    archivedAt: Date;
+  }> = {},
+): Promise<ManualPaymentProvider> => {
+  const CollectiveId = data.CollectiveId || (await fakeActiveHost()).id;
+  return ManualPaymentProvider.create({
+    type: ManualPaymentProviderTypes.BANK_TRANSFER,
+    name: randStr('Payment Provider '),
+    instructions: '<p>Please transfer to our bank account</p>',
+    icon: 'Landmark',
+    order: 0,
+    ...data,
+    CollectiveId,
+  });
+};
 
 /**
  * Creates a fake export request. All params are optional.

@@ -101,6 +101,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   Conversation: () => {},
   ConversationFollower: () => {},
   CurrencyExchangeRate: () => {},
+  ManualPaymentProvider: () => {},
   Member: () => {},
   PaypalPlan: () => {},
   PaypalProduct: () => {},
