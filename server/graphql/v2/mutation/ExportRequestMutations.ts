@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { parseS3Url, permanentlyDeleteFileFromS3 } from '../../../lib/awsS3';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import ExportRequest, { ExportRequestStatus } from '../../../models/ExportRequest';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -90,6 +91,44 @@ const exportRequestMutations = {
       if (Object.keys(updateData).length > 0) {
         await exportRequest.update(updateData);
       }
+
+      return exportRequest;
+    },
+  },
+
+  removeExportRequest: {
+    type: new GraphQLNonNull(GraphQLExportRequest),
+    description: 'Remove an existing export request. Scope: "account".',
+    args: {
+      exportRequest: {
+        type: new GraphQLNonNull(GraphQLExportRequestReferenceInput),
+        description: 'Reference to the export request to remove',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<ExportRequest> {
+      checkRemoteUserCanUseAccount(req);
+
+      // Fetch the export request
+      const exportRequest = await fetchExportRequestWithReference(args.exportRequest, { throwIfMissing: true });
+
+      // Check permissions - user must be admin of the account
+      const account = await req.loaders.Collective.byId.load(exportRequest.CollectiveId);
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Forbidden('You do not have permission to remove this export request');
+      }
+
+      // Delete the uploaded file if it exists
+      if (exportRequest.UploadedFileId) {
+        const uploadedFile = await req.loaders.UploadedFile.byId.load(exportRequest.UploadedFileId);
+        if (uploadedFile) {
+          const { bucket, key } = parseS3Url(uploadedFile.url);
+          await permanentlyDeleteFileFromS3(bucket, key);
+          await uploadedFile.destroy();
+        }
+      }
+
+      // Delete the export request
+      await exportRequest.destroy();
 
       return exportRequest;
     },
