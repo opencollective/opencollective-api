@@ -8,7 +8,7 @@ let lastRefreshAt: number | null = null;
 
 export const getGoCardlessClient = () => {
   if (!config.gocardless || !config.gocardless.secretId || !config.gocardless.secretKey) {
-    throw new Error('GoCardless is not available at this time');
+    throw new Error('The European bank account data provider is not available at this time');
   }
 
   if (!gocardlessClient) {
