@@ -1,0 +1,29 @@
+Subject: Your export "{{exportRequest.name}}" is ready to download
+
+{{> header}}
+
+<p>{{> greeting}}</p>
+
+<p>
+  Good news! Your export <strong>{{exportRequest.name}}</strong> has been generated and is ready to download.
+</p>
+
+<p>
+  You can download the file from your exports page:
+</p>
+
+<br />
+
+<center>
+  <a href="{{config.host.website}}/dashboard/{{collective.slug}}/exports" class="btn blue">
+    View Your Exports
+  </a>
+</center>
+
+<br />
+
+<p>
+  <strong>Note:</strong> Export files are available for a limited time. Please download your file soon.
+</p>
+
+{{> footer}}

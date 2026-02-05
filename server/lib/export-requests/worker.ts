@@ -5,6 +5,8 @@ import debugLib from 'debug';
 import moment from 'moment';
 import PQueue from 'p-queue';
 
+import ActivityTypes from '../../constants/activities';
+import Activity from '../../models/Activity';
 import ExportRequest, { ExportRequestStatus, ExportRequestTypes } from '../../models/ExportRequest';
 import { createPostgresListener, removePostgresTriggers, setupPostgresTriggers } from '../db';
 import logger from '../logger';
@@ -80,12 +82,51 @@ class ExportWorker {
       signal.addEventListener('abort', abortHandler);
       // Update status
       await request.update({ status: ExportRequestStatus.PROCESSING });
-      await processor(request, signal).catch(async error => {
-        debug(`Error in processor for export request ${request.id}:`, error);
-        await request.fail(error.message || 'Unknown error', { shouldRetry: request.data?.retryCount < MAX_RETRIES });
-        reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
-      });
-      logger.info(`Export request ${request.id} processed successfully`);
+      await processor(request, signal)
+        .then(async () => {
+          // Create activity on successful completion
+          const collective = await request.getCollective();
+          await Activity.create({
+            type: ActivityTypes.EXPORT_REQUEST_COMPLETED,
+            UserId: request.CreatedByUserId,
+            CollectiveId: request.CollectiveId,
+            data: {
+              exportRequest: {
+                id: request.id,
+                name: request.name,
+                type: request.type,
+              },
+              collective: collective?.info,
+            },
+          });
+          logger.info(`Export request ${request.id} processed successfully`);
+        })
+        .catch(async error => {
+          debug(`Error in processor for export request ${request.id}:`, error);
+          const shouldRetry = request.data?.retryCount < MAX_RETRIES;
+          await request.fail(error.message || 'Unknown error', { shouldRetry });
+          reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
+
+          // Create activity on failure (only if not retrying)
+          if (!shouldRetry) {
+            const collective = await request.getCollective();
+            await Activity.create({
+              type: ActivityTypes.EXPORT_REQUEST_FAILED,
+              UserId: request.CreatedByUserId,
+              CollectiveId: request.CollectiveId,
+              HostCollectiveId: collective?.HostCollectiveId,
+              data: {
+                exportRequest: {
+                  id: request.id,
+                  name: request.name,
+                  type: request.type,
+                  error: error.message || 'Unknown error',
+                },
+                collective: collective?.info,
+              },
+            });
+          }
+        });
       signal.removeEventListener('abort', abortHandler);
     });
   }
