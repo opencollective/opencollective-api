@@ -253,12 +253,12 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       expect(getNodesFromResult(result3)).to.have.length(0);
 
       // Check activities
+      await sleep(100); // For the async activity creation
       const activities = await models.Activity.findAll({
         where: { CollectiveId: host.id, type: ActivityTypes.ACCOUNTING_CATEGORIES_EDITED },
         order: [['createdAt', 'ASC']],
       });
 
-      await sleep(100); // For the async activity creation
       expect(activities).to.have.length(3);
       activities.forEach(activity => {
         expect(activity.HostCollectiveId).to.equal(host.id);
