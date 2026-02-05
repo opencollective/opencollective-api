@@ -1,8 +1,11 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import sinon from 'sinon';
 
+import * as awsS3 from '../../../../../server/lib/awsS3';
 import { ExportRequestStatus, ExportRequestTypes } from '../../../../../server/models/ExportRequest';
-import { fakeCollective, fakeExportRequest, fakeUser } from '../../../../test-helpers/fake-data';
+import UploadedFile from '../../../../../server/models/UploadedFile';
+import { fakeCollective, fakeExportRequest, fakeUploadedFile, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
 const createExportRequestMutation = gql`
@@ -33,6 +36,15 @@ const editExportRequestMutation = gql`
       account {
         legacyId
       }
+    }
+  }
+`;
+
+const removeExportRequestMutation = gql`
+  mutation RemoveExportRequest($exportRequest: ExportRequestReferenceInput!) {
+    removeExportRequest(exportRequest: $exportRequest) {
+      id
+      legacyId
     }
   }
 `;
@@ -239,6 +251,108 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editExportRequest.legacyId).to.eq(exportRequest.id);
       expect(result.data.editExportRequest.name).to.eq('Original Name');
+    });
+  });
+
+  describe('removeExportRequest', () => {
+    it('requires user to be logged in', async () => {
+      const exportRequest = await fakeExportRequest();
+
+      const result = await graphqlQueryV2(
+        removeExportRequestMutation,
+        {
+          exportRequest: { legacyId: exportRequest.id },
+        },
+        null,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('You need to be logged in');
+    });
+
+    it('requires user to be admin of the account', async () => {
+      const adminUser = await fakeUser();
+      const randomUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const exportRequest = await fakeExportRequest({
+        CollectiveId: collective.id,
+        CreatedByUserId: adminUser.id,
+      });
+
+      const result = await graphqlQueryV2(
+        removeExportRequestMutation,
+        {
+          exportRequest: { legacyId: exportRequest.id },
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('You do not have permission');
+    });
+
+    it('removes an export request', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const exportRequest = await fakeExportRequest({
+        CollectiveId: collective.id,
+        CreatedByUserId: adminUser.id,
+        name: 'Export to Delete',
+        type: ExportRequestTypes.TRANSACTIONS,
+      });
+
+      const result = await graphqlQueryV2(
+        removeExportRequestMutation,
+        {
+          exportRequest: { legacyId: exportRequest.id },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeExportRequest.legacyId).to.eq(exportRequest.id);
+    });
+
+    it('removes an export request and its uploaded file from S3', async () => {
+      const sandbox = sinon.createSandbox();
+      const permanentlyDeleteFileFromS3Stub = sandbox.stub(awsS3, 'permanentlyDeleteFileFromS3').resolves();
+
+      try {
+        const adminUser = await fakeUser();
+        const collective = await fakeCollective({ admin: adminUser });
+        const uploadedFile = await fakeUploadedFile({
+          kind: 'TRANSACTIONS_CSV_EXPORT',
+          CreatedByUserId: adminUser.id,
+        });
+        const exportRequest = await fakeExportRequest({
+          CollectiveId: collective.id,
+          CreatedByUserId: adminUser.id,
+          UploadedFileId: uploadedFile.id,
+          name: 'Export with File',
+          type: ExportRequestTypes.TRANSACTIONS,
+          status: ExportRequestStatus.COMPLETED,
+        });
+
+        const result = await graphqlQueryV2(
+          removeExportRequestMutation,
+          {
+            exportRequest: { legacyId: exportRequest.id },
+          },
+          adminUser,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.removeExportRequest.legacyId).to.eq(exportRequest.id);
+
+        // Verify S3 delete was called
+        expect(permanentlyDeleteFileFromS3Stub.calledOnce).to.be.true;
+
+        // Verify uploaded file is soft-deleted
+        const deletedUploadedFile = await UploadedFile.findByPk(uploadedFile.id, { paranoid: false });
+        expect(deletedUploadedFile.deletedAt).to.not.be.null;
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 });
