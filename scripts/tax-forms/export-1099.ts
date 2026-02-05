@@ -219,7 +219,7 @@ const parseCountryFromHelloWorks = (country: string | undefined) => {
   }
 };
 
-const generateExport = async (
+export const generateExport = async (
   hostSlug: string,
   year: number | string,
   recipients: Recipient[],
