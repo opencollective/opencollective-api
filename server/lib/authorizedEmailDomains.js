@@ -39,6 +39,8 @@ const authorizedEmailDomains = [
   'simplelogin.io',
   'slmail.me',
   'aleeas.com',
+  'relay.firefox.com',
+  'mozmail.com',
 ];
 
 export default authorizedEmailDomains;
