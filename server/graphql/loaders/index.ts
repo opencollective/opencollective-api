@@ -1234,8 +1234,8 @@ export const generateLoaders = req => {
       taxAmountForTransaction: transactionLoaders.generateTaxAmountForTransactionLoader(),
       relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
       relatedContributionTransaction: transactionLoaders.generateRelatedContributionTransactionLoader(),
-      balanceById: new DataLoader<number, number>(async (transactionIds: number[]) => {
-        const transactionBalances = await sequelize.query<Array<{ id: number; balance: number }>>(
+      balanceById: new DataLoader<number, { id: number; balance: number }>(async (transactionIds: number[]) => {
+        const transactionBalances = await sequelize.query<{ id: number; balance: number }>(
           `SELECT      id, balance
           FROM        "TransactionBalances"
           WHERE       id in (:transactionIds)`,
@@ -1245,11 +1245,7 @@ export const generateLoaders = req => {
           },
         );
 
-        const balances = sortResultsSimple(
-          transactionIds,
-          transactionBalances as unknown as Array<{ id: number; balance: number }>,
-        );
-        return balances.map((r: { id: number; balance: number } | undefined) => r?.balance ?? 0);
+        return sortResultsSimple(transactionIds, transactionBalances);
       }),
     },
     TransactionsImport: {
