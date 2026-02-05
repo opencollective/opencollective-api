@@ -103,6 +103,26 @@ async function checkPaidOrdersWithDeletedTransactions({ fix = false } = {}) {
   }
 }
 
+async function checkManualPaymentProviderIdAndPaymentMethodIdMutuallyExclusive() {
+  const message = 'Orders with both ManualPaymentProviderId and PaymentMethodId set (must be mutually exclusive)';
+
+  const results = await sequelize.query<{ id: number }>(
+    `
+    SELECT id
+    FROM "Orders"
+    WHERE "ManualPaymentProviderId" IS NOT NULL
+    AND "PaymentMethodId" IS NOT NULL
+    AND "deletedAt" IS NULL
+    `,
+    { type: QueryTypes.SELECT, raw: true },
+  );
+
+  if (results.length > 0) {
+    const orderIds = results.map(r => r.id).join(', ');
+    throw new Error(`${message}. Order IDs: ${orderIds}`);
+  }
+}
+
 async function checkOrdersCollectiveIdMismatch({ fix = false } = {}) {
   const message = 'Paid Orders with CollectiveId/FromCollectiveId mimsatch in Transactions';
 
@@ -160,6 +180,7 @@ export const checks = [
   checkDuplicateNonRecurringContribution,
   checkPaidOrdersWithNullProcessedAt,
   checkPaidOrdersWithDeletedTransactions,
+  checkManualPaymentProviderIdAndPaymentMethodIdMutuallyExclusive,
   checkOrdersCollectiveIdMismatch,
 ];
 
