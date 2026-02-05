@@ -20,6 +20,7 @@ import ConversationQuery from './ConversationQuery';
 import CurrencyExchangeRateQuery from './CurrencyExchangeRateQuery';
 import EventQuery from './EventQuery';
 import ExpenseQuery from './ExpenseQuery';
+import ExportRequestQuery from './ExportRequestQuery';
 import FundQuery from './FundQuery';
 import HostApplicationQuery from './HostApplicationQuery';
 import HostQuery from './HostQuery';
@@ -54,6 +55,7 @@ const query = {
   expense: ExpenseQuery,
   expenses: ExpensesCollectionQuery,
   expenseTagStats: ExpenseTagStatsCollectionQuery,
+  exportRequest: ExportRequestQuery,
   exportRequests: ExportRequestsCollectionQuery,
   fund: FundQuery,
   host: HostQuery,
