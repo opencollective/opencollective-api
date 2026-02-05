@@ -72,6 +72,22 @@ class ManualPaymentProvider extends Model<
   async archive({ transaction }: { transaction: Transaction }): Promise<ManualPaymentProvider> {
     return this.update({ archivedAt: new Date() }, { transaction });
   }
+
+  /**
+   * Get a minimal representation of this provider
+   */
+  activity() {
+    return {
+      id: this.id,
+      name: this.name,
+      type: this.type,
+      instructions: this.instructions,
+      icon: this.icon,
+      data: this.data,
+      order: this.order,
+      archivedAt: this.archivedAt,
+    };
+  }
 }
 
 // Link the model to database fields
