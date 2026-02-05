@@ -1018,7 +1018,9 @@ export async function getBlockedContributionsCount(collectiveId) {
 export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
   const results = await sequelize.query(
     `-- DISTINCT ON is a PostgreSQL extension that returns the first row for each unique CollectiveId.
-     -- Combined with ORDER BY CollectiveId, createdAt DESC, it returns the most recent balance per collective.
+     -- Combined with ORDER BY CollectiveId, rank DESC, it returns the most recent balance per collective.
+     -- We use rank (not createdAt) because rank is deterministic within a CollectiveId - it incorporates
+     -- time ordering (10-second buckets), TransactionGroup, kind priority, and type priority.
      SELECT DISTINCT ON (tb."CollectiveId")
        tb."CollectiveId",
        tb."balance" as "netAmountInHostCurrency",
@@ -1028,7 +1030,7 @@ export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
        AND COALESCE(c."settings"->'budget'->>'version', 'v2') IN (:supportedBudgetVersions)
      WHERE tb."CollectiveId" IN (:collectiveIds)
        AND tb."createdAt" < :endDate
-     ORDER BY tb."CollectiveId", tb."createdAt" DESC`,
+     ORDER BY tb."CollectiveId", tb."rank" DESC`,
     {
       replacements: { collectiveIds, endDate, supportedBudgetVersions: FAST_BALANCE_SUPPORTED_VERSIONS },
       type: sequelize.QueryTypes.SELECT,
