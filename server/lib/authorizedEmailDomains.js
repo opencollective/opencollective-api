@@ -34,6 +34,11 @@ const authorizedEmailDomains = [
   'passmail.com',
   'passinbox.com',
   'passfwd.com',
+  'simplelogin.co',
+  'simplelogin.com',
+  'simplelogin.io',
+  'slmail.me',
+  'aleeas.com',
 ];
 
 export default authorizedEmailDomains;
