@@ -14,11 +14,15 @@ Subject: Your export "{{exportRequest.name}}" could not be completed
 </p>
 {{/if}}
 
+<p>
+  You can view the details and try creating a new export from your exports page:
+</p>
+
 <br />
 
 <center>
-  <a href="{{config.host.website}}/dashboard/{{collective.slug}}/exports" class="btn blue">
-    View Your Exports
+  <a href="{{config.host.website}}/dashboard/{{collective.slug}}/exports/{{idEncode exportRequest.id 'export-request'}}" class="btn blue">
+    View Export Details
   </a>
 </center>
 
