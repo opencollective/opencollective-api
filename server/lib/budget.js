@@ -99,10 +99,12 @@ export async function getBalances(
     loaders = null,
   } = {},
 ) {
+  // Note: Historical balances (endDate path) don't support withBlockedFunds - the slow path will throw
+  // an error for that combination. We must not use the fast path in that case to preserve the error.
   const fastResults =
     useMaterializedView === true && !includeChildren
       ? endDate
-        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version)
+        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds
           ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
           : {}
         : version === DEFAULT_BUDGET_VERSION
