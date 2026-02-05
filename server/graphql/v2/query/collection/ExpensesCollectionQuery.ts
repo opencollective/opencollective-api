@@ -311,7 +311,7 @@ export const ExpensesCollectionQueryResolver = async (
   _: void,
   args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
-): Promise<CollectionReturnType & { totalAmount?: any }> => {
+): Promise<CollectionReturnType & { totalAmount?: any; fromAccounts?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
 
@@ -780,6 +780,138 @@ export const ExpensesCollectionQueryResolver = async (
     },
     limit: args.limit,
     offset: args.offset,
+    fromAccounts: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
+      fetchExpensesFromAccounts({ args, host, accounts }, subArgs),
+  };
+};
+
+const fetchExpensesFromAccounts = (
+  {
+    args,
+    host,
+    accounts,
+  }: {
+    args: Record<string, unknown>;
+    host: Collective | null;
+    accounts: Collective[];
+  },
+  subArgs: { limit?: number; offset?: number; searchTerm?: string } = {},
+) => {
+  const { limit = 10, offset = 0, searchTerm } = subArgs;
+
+  const searchConditions = buildSearchConditions(searchTerm, {
+    slugFields: ['slug'],
+    textFields: ['name'],
+  });
+
+  // Build expense conditions for the join
+  const expensesWhere: WhereOptions<Expense> = {};
+  const expensesInclude: Array<{
+    association: string;
+    required?: boolean;
+    attributes: string[];
+    where?: WhereOptions;
+  }> = [];
+
+  // Apply account/collective filter
+  if (accounts.length > 0) {
+    expensesWhere['CollectiveId'] = accounts.map(a => a.id);
+  }
+
+  // Apply host filter with hostContext support
+  if (host) {
+    let collectiveWhere: WhereOptions;
+
+    // Base condition: account is hosted by this host (or is the host itself)
+    if (args.hostContext === 'INTERNAL') {
+      // Only the host account and its children (projects/events)
+      collectiveWhere = {
+        approvedAt: { [Op.not]: null },
+        [Op.or]: [{ id: host.id }, { ParentCollectiveId: host.id }],
+      };
+    } else if (args.hostContext === 'HOSTED') {
+      // Only hosted accounts, excluding the host account and its children
+      collectiveWhere = {
+        approvedAt: { [Op.not]: null },
+        HostCollectiveId: host.id,
+        id: { [Op.ne]: host.id },
+        [Op.or]: [{ ParentCollectiveId: { [Op.is]: null } }, { ParentCollectiveId: { [Op.ne]: host.id } }],
+      };
+    } else {
+      // ALL (default): all accounts hosted by this host, including the host itself
+      collectiveWhere = {
+        approvedAt: { [Op.not]: null },
+        [Op.or]: [{ HostCollectiveId: host.id }, { id: host.id }],
+      };
+    }
+
+    expensesInclude.push({
+      association: 'collective',
+      required: true,
+      attributes: [],
+      where: collectiveWhere,
+    });
+  }
+
+  // Apply status filter
+  if (args.status && (args.status as string[]).length > 0) {
+    if ((args.status as string[]).includes('ON_HOLD') && (args.status as string[]).length === 1) {
+      expensesWhere['onHold'] = true;
+    } else if (!(args.status as string[]).includes('READY_TO_PAY')) {
+      expensesWhere['status'] = args.status as string[];
+      if (!(args.status as string[]).includes('ON_HOLD')) {
+        expensesWhere['onHold'] = false;
+      }
+    }
+  }
+
+  // Apply type filter
+  if (args.type) {
+    expensesWhere['type'] = args.type as string;
+  } else if (args.types && (args.types as string[]).length > 0) {
+    expensesWhere['type'] = { [Op.in]: args.types as string[] };
+  }
+
+  // Apply date filters
+  if (args.dateFrom) {
+    expensesWhere['createdAt'] = { [Op.gte]: args.dateFrom as Date };
+  }
+  if (args.dateTo) {
+    expensesWhere['createdAt'] = expensesWhere['createdAt'] || {};
+    (expensesWhere['createdAt'] as Record<symbol, Date>)[Op.lte] = args.dateTo as Date;
+  }
+
+  const queryOptions = {
+    where: {
+      deletedAt: null,
+      ...(searchConditions.length ? { [Op.or]: searchConditions } : {}),
+    },
+    include: [
+      {
+        association: 'submittedExpenses', // Note: ambiguous association name, it is defined as Collective.hasMany(Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpenses' });
+        required: true,
+        attributes: [],
+        where: expensesWhere,
+        include: expensesInclude,
+      },
+    ],
+  };
+
+  return {
+    nodes: Collective.findAll({
+      ...queryOptions,
+      order: [['name', 'ASC']],
+      offset,
+      limit,
+      subQuery: false,
+    }),
+    totalCount: Collective.count({
+      ...queryOptions,
+      distinct: true,
+      col: 'id',
+    }),
+    limit,
+    offset,
   };
 };
 
