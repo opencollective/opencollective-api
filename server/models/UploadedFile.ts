@@ -353,12 +353,10 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
     let size = 0;
     const uploadStream = streamToS3(uploadParams);
-    if (args.onProgress) {
-      uploadStream.on('httpUploadProgress', progress => {
-        size = progress.total;
-        args.onProgress(progress.loaded);
-      });
-    }
+    uploadStream.on('httpUploadProgress', progress => {
+      size = progress.loaded;
+      args?.onProgress?.(progress.loaded);
+    });
     return uploadStream.done().then(uploadResult => {
       return UploadedFile.create({
         kind: kind,
