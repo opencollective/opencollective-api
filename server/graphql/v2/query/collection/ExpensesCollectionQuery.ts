@@ -11,7 +11,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
-import { OrderItem, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
+import { OrderItem, QueryTypes, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
@@ -20,7 +20,7 @@ import { SupportedCurrency } from '../../../../constants/currencies';
 import MemberRoles from '../../../../constants/roles';
 import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
-import { buildSearchConditions } from '../../../../lib/sql-search';
+import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
@@ -785,7 +785,7 @@ export const ExpensesCollectionQueryResolver = async (
   };
 };
 
-const fetchExpensesFromAccounts = (
+const fetchExpensesFromAccounts = async (
   {
     args,
     host,
@@ -799,10 +799,8 @@ const fetchExpensesFromAccounts = (
 ) => {
   const { limit = 10, offset = 0, searchTerm } = subArgs;
 
-  const searchConditions = buildSearchConditions(searchTerm, {
-    slugFields: ['slug'],
-    textFields: ['name'],
-  });
+  // Get search conditions as raw SQL
+  const searchTermConditions = getSearchTermSQLConditions(searchTerm, '"Collective"');
 
   // Build expense conditions for the join
   const expensesWhere: WhereOptions<Expense> = {};
@@ -839,10 +837,7 @@ const fetchExpensesFromAccounts = (
       };
     } else {
       // ALL (default): all accounts hosted by this host, including the host itself
-      collectiveWhere = {
-        approvedAt: { [Op.not]: null },
-        [Op.or]: [{ HostCollectiveId: host.id }, { id: host.id }],
-      };
+      expensesWhere['HostCollectiveId'] = host.id;
     }
 
     expensesInclude.push({
@@ -881,35 +876,137 @@ const fetchExpensesFromAccounts = (
     (expensesWhere['createdAt'] as Record<symbol, Date>)[Op.lte] = args.dateTo as Date;
   }
 
-  const queryOptions = {
-    where: {
-      deletedAt: null,
-      ...(searchConditions.length ? { [Op.or]: searchConditions } : {}),
-    },
-    include: [
-      {
-        association: 'submittedExpenses', // Note: ambiguous association name, it is defined as Collective.hasMany(Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpenses' });
-        required: true,
-        attributes: [],
-        where: expensesWhere,
-        include: expensesInclude,
-      },
-    ],
-  };
+  // Build the EXISTS subquery conditions for expenses
+  const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"'];
+  const replacements: Record<string, unknown> = { limit, offset };
+
+  // Add expense where conditions
+  if (expensesWhere['CollectiveId']) {
+    expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    replacements.collectiveIds = expensesWhere['CollectiveId'];
+  }
+  if (expensesWhere['HostCollectiveId']) {
+    expenseConditions.push('e."HostCollectiveId" = :hostCollectiveId');
+    replacements.hostCollectiveId = expensesWhere['HostCollectiveId'];
+  }
+  if (expensesWhere['status']) {
+    expenseConditions.push('e."status" IN (:statuses)');
+    replacements.statuses = Array.isArray(expensesWhere['status'])
+      ? expensesWhere['status']
+      : [expensesWhere['status']];
+  }
+  if (expensesWhere['onHold'] !== undefined) {
+    expenseConditions.push('e."onHold" = :onHold');
+    replacements.onHold = expensesWhere['onHold'];
+  }
+  if (expensesWhere['type']) {
+    const typeValue = expensesWhere['type'] as string | { [Op.in]: string[] };
+    if (typeof typeValue === 'object' && Op.in in typeValue) {
+      expenseConditions.push('e."type" IN (:types)');
+      replacements.types = (typeValue as { [Op.in]: string[] })[Op.in];
+    } else {
+      expenseConditions.push('e."type" = :type');
+      replacements.type = typeValue;
+    }
+  }
+  if (expensesWhere['createdAt']) {
+    const createdAt = expensesWhere['createdAt'] as { [Op.gte]?: Date; [Op.lte]?: Date };
+    if (Op.gte in createdAt) {
+      expenseConditions.push('e."createdAt" >= :dateFrom');
+      replacements.dateFrom = createdAt[Op.gte];
+    }
+    if (Op.lte in createdAt) {
+      expenseConditions.push('e."createdAt" <= :dateTo');
+      replacements.dateTo = createdAt[Op.lte];
+    }
+  }
+
+  // Build collective conditions for the EXISTS subquery (for host filtering)
+  let collectiveJoin = '';
+  if (expensesInclude.length > 0) {
+    const collectiveInclude = expensesInclude[0];
+    if (collectiveInclude.where) {
+      collectiveJoin = 'INNER JOIN "Collectives" AS ec ON ec."id" = e."CollectiveId"';
+      const collectiveWhere = collectiveInclude.where as Record<string, unknown>;
+
+      if (collectiveWhere['approvedAt']) {
+        expenseConditions.push('ec."approvedAt" IS NOT NULL');
+      }
+      if (collectiveWhere['HostCollectiveId']) {
+        expenseConditions.push('ec."HostCollectiveId" = :ecHostCollectiveId');
+        replacements.ecHostCollectiveId = collectiveWhere['HostCollectiveId'];
+      }
+      if (collectiveWhere['id']) {
+        const idCondition = collectiveWhere['id'] as { [Op.ne]?: number };
+        if (Op.ne in idCondition) {
+          expenseConditions.push('ec."id" != :excludeCollectiveId');
+          replacements.excludeCollectiveId = idCondition[Op.ne];
+        }
+      }
+      if (Op.or in collectiveWhere) {
+        const orConditions = (collectiveWhere as { [Op.or]: Array<Record<string, unknown>> })[Op.or];
+        const orParts: string[] = [];
+        orConditions.forEach((cond, idx) => {
+          if (cond['id']) {
+            orParts.push(`ec."id" = :orId${idx}`);
+            replacements[`orId${idx}`] = cond['id'];
+          }
+          if (cond['ParentCollectiveId']) {
+            const parentCond = cond['ParentCollectiveId'] as { [Op.is]?: null; [Op.ne]?: number } | number;
+            if (typeof parentCond === 'object') {
+              if (Op.is in parentCond) {
+                orParts.push('ec."ParentCollectiveId" IS NULL');
+              } else if (Op.ne in parentCond) {
+                orParts.push(`ec."ParentCollectiveId" != :orParent${idx}`);
+                replacements[`orParent${idx}`] = parentCond[Op.ne];
+              }
+            } else {
+              orParts.push(`ec."ParentCollectiveId" = :orParent${idx}`);
+              replacements[`orParent${idx}`] = parentCond;
+            }
+          }
+        });
+        if (orParts.length > 0) {
+          expenseConditions.push(`(${orParts.join(' OR ')})`);
+        }
+      }
+    }
+  }
+
+  // Build the main query conditions
+  let whereConditions = '"Collective"."deletedAt" IS NULL';
+
+  // Add search term conditions (uses full-text search on searchTsVector)
+  if (searchTermConditions.sqlConditions) {
+    whereConditions += ` ${searchTermConditions.sqlConditions}`;
+    replacements.sanitizedTerm = searchTermConditions.sanitizedTerm;
+    replacements.sanitizedTermNoWhitespaces = searchTermConditions.sanitizedTermNoWhitespaces;
+  }
+
+  const existsClause = `EXISTS (SELECT 1 FROM "Expenses" e ${collectiveJoin} WHERE ${expenseConditions.join(' AND ')})`;
+  const whereClause = `WHERE ${whereConditions} AND ${existsClause}`;
 
   return {
-    nodes: Collective.findAll({
-      ...queryOptions,
-      order: [['name', 'ASC']],
-      offset,
-      limit,
-      subQuery: false,
-    }),
-    totalCount: Collective.count({
-      ...queryOptions,
-      distinct: true,
-      col: 'id',
-    }),
+    nodes: () =>
+      sequelize.query<Collective>(
+        `SELECT "Collective".* FROM "Collectives" AS "Collective" ${whereClause} ORDER BY "Collective"."name" ASC LIMIT :limit OFFSET :offset`,
+        {
+          replacements,
+          model: Collective,
+          mapToModel: true,
+        },
+      ),
+    totalCount: async () => {
+      const countResult = await sequelize.query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM "Collectives" AS "Collective" ${whereClause}`,
+        {
+          replacements,
+          type: QueryTypes.SELECT,
+          raw: true,
+        },
+      );
+      return parseInt(countResult[0]?.count ?? '0', 10);
+    },
     limit,
     offset,
   };
