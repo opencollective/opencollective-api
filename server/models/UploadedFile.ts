@@ -4,7 +4,8 @@ import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
-import { isEmpty, kebabCase } from 'lodash';
+import { kebabCase } from 'lodash';
+import type { Readable } from 'node:stream';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -17,7 +18,8 @@ import { v4 as uuid } from 'uuid';
 
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
-import { checkS3Configured, uploadToS3 } from '../lib/awsS3';
+import { checkS3Configured, streamToS3, uploadToS3 } from '../lib/awsS3';
+import { isOpenCollectiveProtectedS3BucketURL, isOpenCollectiveS3BucketURL } from '../lib/images';
 import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
 import RateLimit from '../lib/rate-limit';
@@ -37,6 +39,7 @@ type CommonDataShape = {
   completedAt?: string;
   /** A checksum of the content as returned by Amazon S3 (cannot be computed locally since we use server-side encryption) */
   s3SHA256?: string;
+  ETag?: string;
   mutationStartDate?: string;
   uploadStartDate?: string;
   uploadDuration?: number; // in seconds
@@ -85,10 +88,12 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
   EXPENSE_ITEM: SUPPORTED_FILE_TYPES,
   EXPENSE_INVOICE: SUPPORTED_FILE_TYPES,
   TRANSACTIONS_IMPORT: ['text/csv'],
+  TRANSACTIONS_CSV_EXPORT: ['text/csv'],
   ACCOUNT_LONG_DESCRIPTION: SUPPORTED_FILE_TYPES_IMAGES,
   UPDATE: SUPPORTED_FILE_TYPES_IMAGES,
   COMMENT: SUPPORTED_FILE_TYPES_IMAGES,
   TIER_LONG_DESCRIPTION: SUPPORTED_FILE_TYPES_IMAGES,
+  CUSTOM_PAYMENT_METHOD_TEMPLATE: SUPPORTED_FILE_TYPES_IMAGES,
   ACCOUNT_CUSTOM_EMAIL: SUPPORTED_FILE_TYPES_IMAGES,
   AGREEMENT_ATTACHMENT: SUPPORTED_FILE_TYPES,
   RECEIPT_EMBEDDED_IMAGE: SUPPORTED_FILE_TYPES_IMAGES,
@@ -116,50 +121,19 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
   declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
 
   // ==== Static methods ====
+
+  /**
+   * @deprecated Use isOpenCollectiveS3BucketURL from lib/images instead
+   */
   public static isOpenCollectiveS3BucketURL(url: string): boolean {
-    if (UploadedFile.isOpenCollectiveProtectedS3BucketURL(url)) {
-      return true;
-    }
-
-    if (!url) {
-      return false;
-    }
-
-    let parsedURL: URL;
-    try {
-      parsedURL = new URL(url);
-    } catch {
-      return false;
-    }
-
-    const endpoint = config.aws.s3.endpoint || `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com`;
-    const searchParams = parsedURL.searchParams;
-    searchParams.delete('draftKey');
-    searchParams.delete('expenseId');
-    return (
-      parsedURL.origin === endpoint &&
-      /\/\w+/.test(parsedURL.pathname) &&
-      searchParams.size === 0 &&
-      isEmpty(parsedURL.hash) &&
-      isEmpty(parsedURL.username) &&
-      isEmpty(parsedURL.password)
-    );
+    return isOpenCollectiveS3BucketURL(url);
   }
 
+  /**
+   * @deprecated Use isOpenCollectiveProtectedS3BucketURL from lib/images instead
+   */
   public static isOpenCollectiveProtectedS3BucketURL(url: string): boolean {
-    if (!url) {
-      return false;
-    }
-
-    let parsedURL: URL;
-    try {
-      parsedURL = new URL(url);
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e) {
-      return false;
-    }
-
-    return parsedURL.origin === config.host.website && /^\/api\/files\/[^\/]+\/?$/.test(parsedURL.pathname);
+    return isOpenCollectiveProtectedS3BucketURL(url);
   }
 
   public static getFromProtectedURL(url: string): Promise<UploadedFile> {
@@ -349,6 +323,58 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
   }
 
+  public static async uploadStream(
+    stream: Readable,
+    kind: FileKind,
+    user: User | null,
+    args: {
+      fileName?: string;
+      mimetype: SUPPORTED_FILE_TYPES_UNION;
+      onProgress?: (progress: number) => void;
+      abortController?: AbortController;
+    },
+  ) {
+    if (!checkS3Configured()) {
+      logger.error('No S3 client available');
+      throw new Error('There was a problem while uploading the file');
+    }
+    const fileName = UploadedFile.getFilename(undefined, args.fileName, SUPPORTED_FILE_EXTENSIONS[args.mimetype]);
+    const uploadParams: PutObjectCommand['input'] = {
+      Bucket: config.aws.s3.bucket,
+      Key: `${kebabCase(kind)}/${uuid()}/${fileName || uuid()}`,
+      Body: stream,
+      ACL: 'private',
+      ContentType: args.mimetype,
+      Metadata: {
+        CreatedByUserId: `${user?.id}`,
+        FileKind: kind,
+      },
+    };
+
+    let size = 0;
+    const uploadStream = streamToS3(uploadParams);
+    if (args.onProgress) {
+      uploadStream.on('httpUploadProgress', progress => {
+        size = progress.total;
+        args.onProgress(progress.loaded);
+      });
+    }
+    return uploadStream.done().then(uploadResult => {
+      return UploadedFile.create({
+        kind: kind,
+        fileName,
+        fileSize: size,
+        fileType: args.mimetype as (typeof SUPPORTED_FILE_TYPES)[number],
+        url: uploadResult.Location,
+        CreatedByUserId: user?.id,
+        data: {
+          s3SHA256: uploadResult.ChecksumSHA256,
+          ETag: uploadResult.ETag,
+        },
+      });
+    });
+  }
+
   private static async getData(file, s3SHA256: string = null) {
     if (UploadedFile.isSupportedImageMimeType(file.mimetype)) {
       const image = sharp(file.buffer);
@@ -374,9 +400,9 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
   }
 
-  private static getFilename(file: FileUpload, fileNameFromArgs: string | null) {
-    const expectedExtension = SUPPORTED_FILE_EXTENSIONS[file.mimetype];
-    const rawFileName = fileNameFromArgs || file.originalname || uuid();
+  private static getFilename(file?: FileUpload, fileNameFromArgs?: string | null, extension?: string) {
+    const expectedExtension = file && 'mimetype' in file ? SUPPORTED_FILE_EXTENSIONS[file.mimetype] : extension;
+    const rawFileName = fileNameFromArgs || file?.originalname || uuid();
     const parsedFileName = path.parse(rawFileName);
     // S3 limits file names to 1024 characters. We're using 900 to be safe and give some room for the kind + uuid + extension.
     return `${parsedFileName.name.slice(0, 900)}${expectedExtension}`;

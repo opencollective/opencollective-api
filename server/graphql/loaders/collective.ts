@@ -1,5 +1,6 @@
 import DataLoader from 'dataloader';
 import { first, groupBy, uniq, uniqBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
@@ -32,7 +33,7 @@ export default {
           AND         c."deletedAt" IS NULL
           GROUP BY    u."id", c.id`,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           model: models.Collective,
           mapToModel: true,
           replacements: { userIds },
@@ -265,7 +266,7 @@ export default {
             `,
             {
               raw: true,
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           );
 

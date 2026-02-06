@@ -1,5 +1,6 @@
 import config from 'config';
 import { difference } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
 import expenseStatus from '../constants/expense-status';
@@ -918,7 +919,7 @@ export async function getYearlyBudgets(collectiveIds) {
       `,
     {
       replacements: { CollectiveIds: collectiveIds },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -1016,7 +1017,7 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
         {
           replacements: { collectiveIds },
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           raw: true,
         },
       );
@@ -1056,7 +1057,7 @@ export async function getCurrentCollectiveTransactionStats(collectiveIds, { load
         `SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`,
         {
           replacements: { collectiveIds },
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           raw: true,
         },
       );

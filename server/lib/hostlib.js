@@ -1,5 +1,6 @@
 import { intersection, sum } from 'lodash';
 import pMap from 'p-map';
+import { QueryTypes } from 'sequelize';
 
 import { convertToCurrency } from '../lib/currency';
 import models, { Op, sequelize } from '../models';
@@ -27,7 +28,7 @@ export function getHostedCollectives(hostid, startDate, endDate = new Date()) {
     {
       replacements: { hostid, endDate, startDate },
       model: models.Collective,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 }

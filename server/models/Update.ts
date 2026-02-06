@@ -221,8 +221,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       return [];
     }
 
-    const results = await sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
-      type: sequelize.QueryTypes.SELECT,
+    const results = await sequelize.query<{ id: number }>(SQLQueries.usersToNotifyForUpdateSQLQuery, {
+      type: QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
         targetRoles: this.getTargetMembersRoles(audience, channel),
@@ -248,8 +248,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       return 0;
     }
 
-    const [result] = await sequelize.query(SQLQueries.countUsersToNotifyForUpdateSQLQuery, {
-      type: sequelize.QueryTypes.SELECT,
+    const [result] = await sequelize.query<{ count: number }>(SQLQueries.countUsersToNotifyForUpdateSQLQuery, {
+      type: QueryTypes.SELECT,
       replacements: {
         collectiveId: this.CollectiveId,
         targetRoles: this.getTargetMembersRoles(audience, channel),
@@ -270,13 +270,16 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       return {};
     }
 
-    const result = await sequelize.query(SQLQueries.countMembersToNotifyForUpdateSQLQuery, {
-      type: sequelize.QueryTypes.SELECT,
-      replacements: {
-        collectiveId: this.CollectiveId,
-        targetRoles: this.getTargetMembersRoles(audience, channel),
+    const result = await sequelize.query<{ type: string; count: number }>(
+      SQLQueries.countMembersToNotifyForUpdateSQLQuery,
+      {
+        type: QueryTypes.SELECT,
+        replacements: {
+          collectiveId: this.CollectiveId,
+          targetRoles: this.getTargetMembersRoles(audience, channel),
+        },
       },
-    });
+    );
 
     return result.reduce((stats, { type, count }) => {
       stats[type] = count;
@@ -350,13 +353,15 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
     };
 
     // fetch any matching slugs or slugs for the top choice in the list above
+    const slugPattern = `${suggestion}%`;
     return sequelize
-      .query(
+      .query<{ slug: string }>(
         `
-        SELECT slug FROM "Updates" WHERE "CollectiveId"=${this.CollectiveId} AND slug like '${suggestion}%'
+        SELECT slug FROM "Updates" WHERE "CollectiveId" = :collectiveId AND slug LIKE :slugPattern
       `,
         {
           type: QueryTypes.SELECT,
+          replacements: { collectiveId: this.CollectiveId, slugPattern },
         },
       )
       .then(updateObjectList => updateObjectList.map(update => update.slug))

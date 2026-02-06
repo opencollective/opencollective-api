@@ -9,6 +9,7 @@ import '../../server/env';
 import { Command } from 'commander';
 import config from 'config';
 import { kebabCase } from 'lodash';
+import { QueryTypes } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { copyFileInS3, getS3URL, parseS3Url } from '../../server/lib/awsS3';
@@ -34,7 +35,7 @@ program.action(async options => {
     ${options.limit ? `LIMIT :limit` : ''}
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: {
         limit: options.limit,
         id: options.id,

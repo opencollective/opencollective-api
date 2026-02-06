@@ -18,6 +18,7 @@ import {
   uniqBy,
 } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import { SupportedCurrency } from '../../constants/currencies';
@@ -362,7 +363,7 @@ const getExpensesAmountsStats = async (
       WHERE e.id IN (:expenseIds)
     `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: { displayCurrency, collectiveIds, expenseIds },
     },
   );

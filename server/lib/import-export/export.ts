@@ -1,7 +1,7 @@
 import debugLib from 'debug';
 import type Express from 'express';
 import { compact, concat, keys, pick, set, uniqBy, values } from 'lodash';
-import { DataType } from 'sequelize';
+import { DataType, QueryTypes } from 'sequelize';
 
 import type { ModelNames, Models } from '../../models';
 import models, { sequelize } from '../../models';
@@ -184,7 +184,9 @@ export const traverse = async (
 };
 
 export const getMigrationsHash = async () => {
-  const [data] = await sequelize.query('SELECT name FROM "SequelizeMeta" ORDER BY name');
+  const data = await sequelize.query<{ name: string }>('SELECT name FROM "SequelizeMeta" ORDER BY name', {
+    type: QueryTypes.SELECT,
+  });
   const migrationNames = data.map(d => d.name);
   migrationNames.sort();
   return hashObject(migrationNames);

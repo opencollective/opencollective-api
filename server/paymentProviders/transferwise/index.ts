@@ -489,7 +489,7 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
 
 const updateBatchGroup = async (batchGroup: BatchGroup): Promise<void> => {
   assert(batchGroup.id, 'Batch group id is required');
-  return await sequelize.query(
+  await sequelize.query(
     `
         UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE
         "data"#>>'{batchGroup, id}' = :batchGroupId;

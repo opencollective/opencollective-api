@@ -3,8 +3,6 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import ExpenseStatuses from '../../../constants/expense-status';
-import logger from '../../../lib/logger';
-import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -41,25 +39,7 @@ const payoutMethodMutations = {
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
-      if (args.payoutMethod.data?.isManualBankTransfer) {
-        try {
-          await collective.setCurrency(args.payoutMethod.data.currency);
-        } catch (error) {
-          logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
-          reportErrorToSentry(error);
-        }
-
-        const existingBankAccount = await models.PayoutMethod.findOne({
-          where: {
-            data: { isManualBankTransfer: true },
-            CollectiveId: collective.id,
-            isSaved: true,
-          },
-        });
-        if (existingBankAccount) {
-          return await existingBankAccount.update(pick(args.payoutMethod, ['name', 'data']));
-        }
-      } else if (args.payoutMethod.type === PayoutMethodTypes.OTHER && !args.payoutMethod.data) {
+      if (args.payoutMethod.type === PayoutMethodTypes.OTHER && !args.payoutMethod.data) {
         throw new ValidationFailed(
           'Custom payout methods must have a `data` object with a `content` and a `currency` field',
         );
@@ -108,10 +88,6 @@ const payoutMethodMutations = {
       } else if (await payoutMethod.canBeArchived()) {
         return payoutMethod.update({
           isSaved: false,
-          data: {
-            ...payoutMethod.data,
-            ...(payoutMethod.data['isManualBankTransfer'] ? { isManualBankTransfer: false } : {}),
-          },
         });
       } else {
         throw new Forbidden();

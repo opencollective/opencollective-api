@@ -1,5 +1,7 @@
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import { sequelize } from '../../server/models';
 
 import { runAllChecksThenExit } from './_utils';
@@ -7,14 +9,16 @@ import { runAllChecksThenExit } from './_utils';
 async function checkDeletedCollectives() {
   const message = 'No Transactions without a matching Collective';
 
-  const results = await sequelize.query(
-    `SELECT COUNT(*) as count
+  const results = await sequelize.query<{ count: number }>(
+    `
+     SELECT COUNT(*) as count
      FROM "Transactions" t
      LEFT JOIN "Collectives" c
      ON c."id" = t."CollectiveId"
      WHERE t."deletedAt" IS NULL
-     AND (c."deletedAt" IS NOT NULL OR c."id" IS NULL)`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+     AND (c."deletedAt" IS NOT NULL OR c."id" IS NULL)
+    `,
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
@@ -26,8 +30,9 @@ async function checkDeletedCollectives() {
 async function checkOrphanTransactions() {
   const message = 'No orphan Transaction without a primary Transaction (EXPENSE, CONTRIBUTION, ADDED_FUNDS)';
 
-  const results = await sequelize.query(
-    `SELECT COUNT(DISTINCT secondaryTransactions."TransactionGroup") as count
+  const results = await sequelize.query<{ count: number }>(
+    `
+     SELECT COUNT(DISTINCT secondaryTransactions."TransactionGroup") as count
      FROM "Transactions" secondaryTransactions
      LEFT JOIN "Transactions" primaryTransactions
      ON primaryTransactions."TransactionGroup" = secondaryTransactions."TransactionGroup"
@@ -41,8 +46,9 @@ async function checkOrphanTransactions() {
      -- for now, we just want to get alerts if this happen again in the future
      AND secondaryTransactions."createdAt" > '2024-01-01'
      AND secondaryTransactions."deletedAt" IS NULL
-     AND primaryTransactions."id" IS NULL`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+     AND primaryTransactions."id" IS NULL
+    `,
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
@@ -54,13 +60,15 @@ async function checkOrphanTransactions() {
 async function checkUniqueUuid() {
   const message = 'No Transaction with duplicate UUID';
 
-  const results = await sequelize.query(
-    `SELECT "uuid"
+  const results = await sequelize.query<{ uuid: string | null }>(
+    `
+     SELECT "uuid"
      FROM "Transactions"
      WHERE "deletedAt" IS NULL
      GROUP BY "uuid"
-     HAVING COUNT(*) > 1`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+     HAVING COUNT(*) > 1
+    `,
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.length > 0) {
@@ -72,14 +80,16 @@ async function checkUniqueUuid() {
 async function checkUniqueTransactionGroup() {
   const message = 'No duplicate TransactionGroup';
 
-  const results = await sequelize.query(
-    `SELECT "TransactionGroup"
-    FROM "Transactions"
-    WHERE "kind" IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
-    AND "deletedAt" IS NULL
-    GROUP BY "TransactionGroup"
-    HAVING COUNT(*) > 2`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+  const results = await sequelize.query<{ TransactionGroup: string | null }>(
+    `
+     SELECT "TransactionGroup"
+     FROM "Transactions"
+     WHERE "kind" IN ('EXPENSE', 'CONTRIBUTION', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD')
+     AND "deletedAt" IS NULL
+     GROUP BY "TransactionGroup"
+     HAVING COUNT(*) > 2
+    `,
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.length > 0) {
@@ -89,9 +99,9 @@ async function checkUniqueTransactionGroup() {
 }
 
 async function checkPaidTransactionsWithHostCollectiveId() {
-  const results = await sequelize.query(
+  const results = await sequelize.query<{ id: number }>(
     `
-    SELECT *
+    SELECT t.id
     FROM "Transactions" t
     INNER JOIN "Collectives" c ON t."CollectiveId" = c."id"
     INNER JOIN "Orders" o ON t."OrderId" = o."id"
@@ -105,7 +115,7 @@ async function checkPaidTransactionsWithHostCollectiveId() {
     AND t."createdAt" > '2025-01-01'
     AND COALESCE(TRIM(BOTH '"'::text FROM (((c."settings" -> 'budget'::text) -> 'version'::text))::text), 'v2'::text) = 'v2'
     `,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.length > 0) {
@@ -115,7 +125,10 @@ async function checkPaidTransactionsWithHostCollectiveId() {
 }
 
 async function checkWisePaidTransactions() {
-  const results = await sequelize.query(
+  const results = await sequelize.query<{
+    request_value_matches: number;
+    user_received_amount: number;
+  }>(
     `
     WITH
       d AS (
@@ -150,7 +163,7 @@ async function checkWisePaidTransactions() {
         )
     SELECT count("Requested Value in Host Currency matches the debited amount") as request_value_matches, count("User receives requested amount") as "user_received_amount" FROM summary WHERE "Requested Value in Host Currency matches the debited amount" IS FALSE OR "User receives requested amount" IS FALSE
     `,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].request_value_matches > 0 || results[0].user_received_amount > 0) {

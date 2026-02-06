@@ -4,6 +4,7 @@ import { Parser } from '@json2csv/plainjs';
 import config from 'config';
 import { groupBy, min, sumBy } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
@@ -125,7 +126,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     `,
     {
       mapToModel: true,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
       replacements: {
         startDate: startDate,
