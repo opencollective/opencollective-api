@@ -108,8 +108,8 @@ export const createGoCardlessLink = async (
 
     // Create agreement
     const agreement: EndUserAgreement = await client.agreement.createAgreement({
-      maxHistoricalDays: parseInt(institution.transaction_total_days) || 90,
-      accessValidForDays: parseInt(institution.max_access_valid_for_days) || 180,
+      maxHistoricalDays: maxHistoricalDays || parseInt(institution.transaction_total_days) || 90,
+      accessValidForDays: accessValidForDays || parseInt(institution.max_access_valid_for_days) || 180,
       institutionId: institutionId,
     });
 
