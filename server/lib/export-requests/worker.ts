@@ -103,7 +103,7 @@ class ExportWorker {
         })
         .catch(async error => {
           debug(`Error in processor for export request ${request.id}:`, error);
-          const shouldRetry = request.data?.retryCount < MAX_RETRIES;
+          const shouldRetry = (request.data?.retryCount || 0) < MAX_RETRIES;
           await request.fail(error.message || 'Unknown error', { shouldRetry });
           reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
 
