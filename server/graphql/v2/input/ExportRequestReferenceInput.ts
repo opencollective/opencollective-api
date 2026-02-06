@@ -19,7 +19,7 @@ export const GraphQLExportRequestReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export type ExportRequestReferenceInputType = {
+type ExportRequestReferenceInputType = {
   id?: string;
   legacyId?: number;
 };
