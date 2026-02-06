@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import ActivityTypes from '../../../../../server/constants/activities';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models from '../../../../../server/models';
 import { ManualPaymentProviderTypes } from '../../../../../server/models/ManualPaymentProvider';
@@ -167,6 +168,23 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       });
       expect(savedProvider).to.exist;
       expect(savedProvider.type).to.equal('BANK_TRANSFER');
+
+      // Verify MANUAL_PAYMENT_PROVIDER_CREATED activity was created
+      const activity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_CREATED,
+          CollectiveId: host.id,
+          UserId: hostAdmin.id,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+      expect(activity).to.exist;
+      expect(activity.HostCollectiveId).to.equal(host.id);
+      expect(activity.data?.manualPaymentProvider).to.deep.include({
+        id: savedProvider.id,
+        name: 'Wire Transfer',
+        type: 'BANK_TRANSFER',
+      });
     });
 
     it('creates a provider with OTHER type', async () => {
@@ -312,6 +330,39 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       expect(updated.instructions).to.equal('<p>Updated instructions</p>');
       expect(updated.icon).to.equal('CreditCard');
       expect(updated.accountDetails).to.deep.equal({ newField: 'newValue' });
+
+      // Verify MANUAL_PAYMENT_PROVIDER_UPDATED activity was created
+      const activity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_UPDATED,
+          CollectiveId: host.id,
+          UserId: hostAdmin.id,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+      expect(activity).to.exist;
+      expect(activity.data).to.deep.equal({
+        previousData: {
+          id: provider.id,
+          name: 'Original Name',
+          type: provider.type,
+          instructions: '<p>Original instructions</p>',
+          icon: 'Landmark',
+          data: null,
+          order: 0,
+          archivedAt: null,
+        },
+        newData: {
+          id: provider.id,
+          name: 'Updated Name',
+          type: provider.type,
+          instructions: '<p>Updated instructions</p>',
+          icon: 'CreditCard',
+          data: { newField: 'newValue' },
+          order: 0,
+          archivedAt: null,
+        },
+      });
     });
 
     it('allows partial updates', async () => {
@@ -385,6 +436,22 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       // Verify it was deleted (soft delete)
       const deletedProvider = await models.ManualPaymentProvider.findByPk(provider.id);
       expect(deletedProvider).to.be.null;
+
+      // Verify MANUAL_PAYMENT_PROVIDER_DELETED activity was created
+      const activity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_DELETED,
+          CollectiveId: host.id,
+          UserId: hostAdmin.id,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+      expect(activity).to.exist;
+      expect(activity.data?.manualPaymentProvider).to.deep.include({
+        id: provider.id,
+        name: provider.name,
+        type: provider.type,
+      });
     });
 
     it('archives provider when orders reference it', async () => {
@@ -411,6 +478,22 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       const archivedProvider = await models.ManualPaymentProvider.findByPk(provider.id);
       expect(archivedProvider).to.exist;
       expect(archivedProvider.archivedAt).to.not.be.null;
+
+      // Verify MANUAL_PAYMENT_PROVIDER_ARCHIVED activity was created
+      const activity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_ARCHIVED,
+          CollectiveId: host.id,
+          UserId: hostAdmin.id,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+      expect(activity).to.exist;
+      expect(activity.data?.manualPaymentProvider).to.deep.include({
+        id: provider.id,
+        name: provider.name,
+        type: provider.type,
+      });
     });
   });
 

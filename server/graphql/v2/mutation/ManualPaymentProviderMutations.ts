@@ -3,9 +3,10 @@ import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { isUndefined, omitBy } from 'lodash';
 import { Transaction } from 'sequelize';
 
+import ActivityTypes from '../../../constants/activities';
 import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
+import models, { Activity } from '../../../models';
 import ManualPaymentProviderModel from '../../../models/ManualPaymentProvider';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
@@ -55,7 +56,7 @@ const manualPaymentProviderMutations = {
           where: { CollectiveId: host.id },
         });
 
-        return models.ManualPaymentProvider.create(
+        const provider = await models.ManualPaymentProvider.create(
           {
             CollectiveId: host.id,
             type: args.manualPaymentProvider.type,
@@ -67,6 +68,20 @@ const manualPaymentProviderMutations = {
           },
           { transaction },
         );
+
+        await Activity.create(
+          {
+            type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_CREATED,
+            CollectiveId: host.id,
+            HostCollectiveId: host.id,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            data: { manualPaymentProvider: provider.activity() },
+          },
+          { transaction },
+        );
+
+        return provider;
       });
     },
   },
@@ -102,7 +117,8 @@ const manualPaymentProviderMutations = {
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, host);
-      return provider.update(
+      const previousData = provider.activity();
+      const updatedProvider = await provider.update(
         omitBy(
           {
             name: args.input.name,
@@ -113,6 +129,20 @@ const manualPaymentProviderMutations = {
           isUndefined,
         ),
       );
+
+      await Activity.create({
+        type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_UPDATED,
+        CollectiveId: host.id,
+        HostCollectiveId: host.id,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        data: {
+          previousData,
+          newData: updatedProvider.activity(),
+        },
+      });
+
+      return updatedProvider;
     },
   },
 
@@ -144,11 +174,34 @@ const manualPaymentProviderMutations = {
         if (await provider.canBeDeleted({ transaction })) {
           await twoFactorAuthLib.enforceForAccount(req, host);
           await provider.destroy({ transaction });
+          await Activity.create(
+            {
+              type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_DELETED,
+              CollectiveId: host.id,
+              HostCollectiveId: host.id,
+              UserId: req.remoteUser.id,
+              UserTokenId: req.userToken?.id,
+              data: { manualPaymentProvider: provider.activity() },
+            },
+            { transaction },
+          );
           return provider;
         } else {
           // Archive instead of delete if orders reference this provider
           await twoFactorAuthLib.enforceForAccount(req, host, { alwaysAskForToken: true });
-          return provider.archive({ transaction });
+          const archivedProvider = await provider.archive({ transaction });
+          await Activity.create(
+            {
+              type: ActivityTypes.MANUAL_PAYMENT_PROVIDER_ARCHIVED,
+              CollectiveId: host.id,
+              HostCollectiveId: host.id,
+              UserId: req.remoteUser.id,
+              UserTokenId: req.userToken?.id,
+              data: { manualPaymentProvider: archivedProvider.activity() },
+            },
+            { transaction },
+          );
+          return archivedProvider;
         }
       });
     },
