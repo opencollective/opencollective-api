@@ -1596,7 +1596,7 @@ export const GraphQLHost = new GraphQLObjectType({
                         SELECT v FROM (
                           SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
                         ) WHERE v = ANY(ARRAY[${accountIds.map(v => sequelize.escape(v)).join(',')}]::int[])
-                      )  
+                      )
                     )
               `),
             ];
@@ -1875,6 +1875,8 @@ export const GraphQLHost = new GraphQLObjectType({
                 ),
                 direction,
               ]);
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.STARTS_AT) {
+              orderBy.push(['startsAt', direction]);
             } else {
               orderBy.push([field, direction]);
             }
