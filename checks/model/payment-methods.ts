@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
@@ -18,7 +19,7 @@ async function checkCollectivePaymentMethodsCurrencies({ fix = false } = {}) {
     hostCurrency: string | null;
     paymentMethodCurrency: string | null;
   }>(
-    `
+    sql`
     SELECT
       pm.id AS "paymentMethodId",
       c.slug AS "collectiveSlug",
@@ -48,9 +49,9 @@ async function checkCollectivePaymentMethodsCurrencies({ fix = false } = {}) {
         `Fixing payment method ${result.paymentMethodId} for ${result.collectiveSlug}: ${result.paymentMethodCurrency} -> ${result.hostCurrency}`,
       );
 
-      await sequelize.query(`UPDATE "PaymentMethods" SET currency = :hostCurrency WHERE id = :paymentMethodId`, {
-        replacements: { hostCurrency: result.hostCurrency, paymentMethodId: result.paymentMethodId },
-      });
+      await sequelize.query(
+        sql`UPDATE "PaymentMethods" SET currency = ${result.hostCurrency} WHERE id = ${result.paymentMethodId}`,
+      );
     }
   }
 }

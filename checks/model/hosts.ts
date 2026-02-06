@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
@@ -11,7 +12,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
   const message = 'Host without hostFeePercent';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "deletedAt" IS NULL
@@ -27,7 +28,7 @@ async function checkHostFeePercent({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "hostFeePercent" = 0
          WHERE "deletedAt" IS NULL
@@ -43,7 +44,7 @@ async function checkHostMemberEntry({ fix = false } = {}) {
   const message = 'No Collective with approved host without host member entry';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "HostCollectiveId" IS NOT NULL
@@ -71,7 +72,7 @@ async function checkHostMemberEntry({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         INSERT INTO "Members" (
            "createdAt",
            "updatedAt",
@@ -115,7 +116,7 @@ async function checkHostActive({ fix = false } = {}) {
   const message = 'Host with isActive=false';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "hasMoneyManagement" IS TRUE
@@ -132,7 +133,7 @@ async function checkHostActive({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(`
+      await sequelize.query(sql`
         UPDATE "Collectives"
          SET "isActive" = TRUE
          WHERE "hasMoneyManagement" IS TRUE

@@ -1,3 +1,4 @@
+import { sql } from '@ts-safeql/sql-tag';
 import DataLoader from 'dataloader';
 import _, { groupBy, keyBy, partition, remove, uniq } from 'lodash';
 import { QueryTypes } from 'sequelize';
@@ -12,7 +13,7 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
       const queries = [];
 
       if (userCollectives.length > 0) {
-        queries.push(`
+        queries.push(sql`
           SELECT users."CollectiveId" AS "CollectiveId", users.email
           FROM "Users" users
           WHERE users."CollectiveId" IN (:userCollectiveIds)
@@ -21,7 +22,7 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
       }
 
       if (otherCollectives.length > 0) {
-        queries.push(`
+        queries.push(sql`
           SELECT member."CollectiveId" AS "CollectiveId", users.email
           FROM "Users" users
           INNER JOIN "Members" member ON member."MemberCollectiveId" = users."CollectiveId"

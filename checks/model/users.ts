@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { sql } from '@ts-safeql/sql-tag';
 import { QueryTypes } from 'sequelize';
 
 import { sequelize } from '../../server/models';
@@ -10,7 +11,7 @@ async function checkDeletedCollectives() {
   const message = 'No Users without a matching Collective (no auto fix)';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Users" u
      LEFT JOIN "Collectives" c
@@ -31,7 +32,7 @@ async function checkDeletedUsers() {
   const message = 'No Collectives type=USER without a matching User (no auto fix)';
 
   const results = await sequelize.query<{ count: number }>(
-    `
+    sql`
      SELECT COUNT(*) as count
      FROM "Collectives" c
      LEFT JOIN "Users" u
