@@ -1,8 +1,9 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
+import { uniq } from 'lodash';
 
 import models from '../../../models';
-import type ManualPaymentProvider from '../../../models/ManualPaymentProvider';
+import ManualPaymentProvider from '../../../models/ManualPaymentProvider';
 import { NotFound } from '../../errors';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -95,4 +96,26 @@ export const fetchManualPaymentProviderWithReference = async (
   }
 
   return provider;
+};
+
+export const fetchManualPaymentProvidersWithReferences = async (
+  inputs: { id: string }[],
+  { loaders, throwIfMissing = false }: { loaders?: Express.Request['loaders']; throwIfMissing?: boolean } = {},
+): Promise<ManualPaymentProvider[]> => {
+  let providers: ManualPaymentProvider[] = [];
+  const ids = inputs.map(input => idDecode(input.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER));
+  const uniqueIds = uniq(ids);
+  if (loaders) {
+    const loaded = await loaders.ManualPaymentProvider.byId.loadMany(uniqueIds);
+    providers = loaded.filter(provider => provider instanceof ManualPaymentProvider);
+  } else {
+    providers = await models.ManualPaymentProvider.findAll({ where: { id: uniqueIds } });
+  }
+
+  if (throwIfMissing && providers.length !== uniqueIds.length) {
+    const missingIds = uniqueIds.filter(id => !providers.find(provider => provider.id === id));
+    throw new NotFound(`Could not find manual payment providers with ids: ${missingIds.join(', ')}`);
+  }
+
+  return providers;
 };
