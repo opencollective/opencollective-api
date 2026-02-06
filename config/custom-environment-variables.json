@@ -80,6 +80,14 @@
     "slowMiddleware": "LOG_SLOW_MIDDLEWARE",
     "slowMiddlewareThreshold": "LOG_SLOW_MIDDLEWARE_THRESHOLD"
   },
+  "platform": {
+    "collectiveId": "OC_PLATFORM_COLLECTIVE_ID",
+    "userId": "OC_PLATFORM_USER_ID",
+    "currency": "OC_PLATFORM_CURRENCY",
+    "address": "OC_PLATFORM_ADDRESS",
+    "country": "OC_PLATFORM_COUNTRY",
+    "name": "OC_PLATFORM_NAME"
+  },
   "gocardless": {
     "secretId": "GOCARDLESS_SECRET_ID",
     "secretKey": "GOCARDLESS_SECRET_KEY"
