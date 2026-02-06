@@ -210,8 +210,11 @@ const HostApplicationMutations = {
 
       if (!req.remoteUser.isAdmin(host.id)) {
         throw new Forbidden('You need to be authenticated as a host admin to perform this action');
-      } else if (account.HostCollectiveId !== host.id) {
+      } else if (!args.hostApplication && account.HostCollectiveId !== host.id) {
+        // When using deprecated (account, host) args, collective must currently point to this host
         throw new NotFound(`No application found for ${account.slug} in ${host.slug}`);
+      } else if (args.hostApplication && hostApplication.status !== HostApplicationStatus.PENDING) {
+        throw new ValidationFailed('This host application is no longer pending');
       } else if (account.approvedAt) {
         throw new ValidationFailed('This collective application has already been approved');
       }
