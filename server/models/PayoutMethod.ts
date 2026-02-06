@@ -12,9 +12,10 @@ import {
 } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
-import { SUPPORTED_CURRENCIES } from '../constants/currencies';
+import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
+import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
@@ -94,10 +95,11 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   declare public isSaved: boolean;
   declare public CollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public currency: SupportedCurrency | null;
 
   declare public Collective?: Collective;
 
-  private static editableFields = ['data', 'name', 'isSaved'];
+  private static editableFields = ['data', 'name', 'isSaved', 'currency'];
 
   /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */
   get data(): PayoutMethodDataType {
@@ -368,6 +370,16 @@ PayoutMethod.init(
       onUpdate: 'CASCADE',
       allowNull: true,
     },
+    currency: {
+      type: DataTypes.STRING(3),
+      allowNull: true,
+      validate: {
+        isIn: {
+          args: [SUPPORTED_CURRENCIES],
+          msg: 'Currency must be a supported currency',
+        },
+      },
+    },
   },
   {
     sequelize,
@@ -379,6 +391,16 @@ PayoutMethod.init(
       },
       paypal: {
         where: { type: PayoutMethodTypes.PAYPAL },
+      },
+    },
+    hooks: {
+      beforeValidate: (instance: PayoutMethod) => {
+        // Auto-extract currency from data field if not explicitly set on the column
+        const data = instance.getDataValue('data') as Record<string, unknown> | undefined;
+        if (!instance.currency && data?.currency) {
+          reportMessageToSentry(`Missing currency while creating payout method`, { extra: { data } });
+          instance.currency = data.currency as SupportedCurrency;
+        }
       },
     },
   },

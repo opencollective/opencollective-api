@@ -43,10 +43,17 @@ const payoutMethodMutations = {
         throw new ValidationFailed(
           'Custom payout methods must have a `data` object with a `content` and a `currency` field',
         );
+      } else if (
+        args.payoutMethod.currency &&
+        args.payoutMethod.data?.currency &&
+        args.payoutMethod.currency !== args.payoutMethod.data?.currency
+      ) {
+        throw new ValidationFailed('Currency mismatch between data and currency');
       }
 
       return await models.PayoutMethod.create({
         ...pick(args.payoutMethod, ['name', 'data', 'type']),
+        currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
         CollectiveId: collective.id,
         CreatedByUserId: req.remoteUser.id,
       });
@@ -130,9 +137,18 @@ const payoutMethodMutations = {
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
+      if (
+        args.payoutMethod.currency &&
+        args.payoutMethod.data?.currency &&
+        args.payoutMethod.currency !== args.payoutMethod.data?.currency
+      ) {
+        throw new ValidationFailed('Currency mismatch between data and currency');
+      }
+
       if (await payoutMethod.canBeEdited()) {
         return await payoutMethod.update({
           ...pick(args.payoutMethod, ['name', 'data', 'isSaved']),
+          currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
         });
@@ -142,6 +158,7 @@ const payoutMethodMutations = {
         const newPayoutMethod = await models.PayoutMethod.create({
           ...pick(payoutMethod, ['name', 'data', 'type']),
           ...pick(args.payoutMethod, ['name', 'data', 'type', 'isSaved']),
+          currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
         });
