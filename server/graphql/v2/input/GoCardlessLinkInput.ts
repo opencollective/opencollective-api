@@ -11,11 +11,13 @@ export const GraphQLGoCardlessLinkInput = new GraphQLInputObjectType({
     },
     maxHistoricalDays: {
       type: GraphQLInt,
-      description: 'Maximum number of days of transaction data to retrieve (default: 90)',
+      description:
+        'Maximum number of days of transaction data to retrieve (default to the maximum allowed by the institution)',
     },
     accessValidForDays: {
       type: GraphQLInt,
-      description: 'Number of days from acceptance that the access can be used (default: 90)',
+      description:
+        'Number of days from acceptance that the access can be used (default to the maximum allowed by the institution)',
     },
     userLanguage: {
       type: GraphQLLocale,
