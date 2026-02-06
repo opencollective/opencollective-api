@@ -52,6 +52,8 @@ const dataSchema = z
 type ExportRequestData = z.infer<typeof dataSchema>;
 
 class ExportRequest extends Model<InferAttributes<ExportRequest>, CreationAttributes> {
+  public static readonly tableName = 'ExportRequests' as const;
+
   declare public id: number;
   declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;

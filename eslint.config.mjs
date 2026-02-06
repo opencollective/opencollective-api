@@ -3,6 +3,8 @@ import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.confi
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
 
+import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
+
 export default [
   ...openCollectiveConfig,
   // Global ignores
@@ -133,6 +135,20 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': 'error',
       'custom-errors/no-unthrown-errors': 'error',
+    },
+  },
+  // Sequelize models: require public static readonly tableName = '...' as const
+  {
+    files: ['server/models/**/*.ts'],
+    plugins: {
+      'sequelize-model': {
+        rules: {
+          'require-table-name': sequelizeModelRequireTableName,
+        },
+      },
+    },
+    rules: {
+      'sequelize-model/require-table-name': 'error',
     },
   },
   // Tests

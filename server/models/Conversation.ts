@@ -14,6 +14,8 @@ import ConversationFollower from './ConversationFollower';
 import User from './User';
 
 class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
+  public static readonly tableName = 'Conversations' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public title: string;
   declare public slug: string;

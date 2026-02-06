@@ -16,6 +16,8 @@ class CurrencyExchangeRate extends Model<
   InferAttributes<CurrencyExchangeRate>,
   InferCreationAttributes<CurrencyExchangeRate>
 > {
+  public static readonly tableName = 'CurrencyExchangeRates' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public rate: number;
   declare public from: string;

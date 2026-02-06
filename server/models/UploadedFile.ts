@@ -103,6 +103,8 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
  * A file uploaded to our S3 bucket.
  */
 class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAttributes<UploadedFile>> {
+  public static readonly tableName = 'UploadedFiles' as const;
+
   declare id: CreationOptional<number>;
   declare kind: CreationOptional<FileKind>;
   declare fileName: CreationOptional<string>;

@@ -62,6 +62,8 @@ const PRIVATE_UPDATE_TARGET_ROLES = [
 const PUBLIC_UPDATE_TARGET_ROLES = [...PRIVATE_UPDATE_TARGET_ROLES, MemberRoles.FOLLOWER];
 
 class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Update>> {
+  public static readonly tableName = 'Updates' as const;
+
   declare public id: CreationOptional<number>;
   declare public slug: string;
   declare public CollectiveId: number;

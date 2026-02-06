@@ -17,6 +17,8 @@ import UploadedFile from './UploadedFile';
 import User from './User';
 
 class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
+  public static readonly tableName = 'Agreements' as const;
+
   declare id: CreationOptional<number>;
   declare title: string;
   declare notes: string;

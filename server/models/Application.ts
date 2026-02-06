@@ -19,6 +19,8 @@ import User from './User';
 export type ApplicationType = 'apiKey' | 'oAuth';
 
 class Application extends Model<InferAttributes<Application>, InferCreationAttributes<Application>> {
+  public static readonly tableName = 'Applications' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;

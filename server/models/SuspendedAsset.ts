@@ -17,6 +17,8 @@ export enum AssetType {
  * Sequelize model to represent an SuspendedAsset, linked to the `SuspendedAssets` table.
  */
 class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreationAttributes<SuspendedAsset>> {
+  public static readonly tableName = 'SuspendedAssets' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public type: AssetType;
   declare public reason: string;

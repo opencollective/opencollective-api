@@ -31,6 +31,8 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
 export type TierType = 'TIER' | 'MEMBERSHIP' | 'DONATION' | 'TICKET' | 'PRODUCT' | 'SERVICE';
 
 class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
+  public static readonly tableName = 'Tiers' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: number;
   declare public slug: string;

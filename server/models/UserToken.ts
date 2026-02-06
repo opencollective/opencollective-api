@@ -12,6 +12,8 @@ export enum TokenType {
 }
 
 class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttributes<UserToken>> {
+  public static readonly tableName = 'UserTokens' as const;
+
   declare public id: CreationOptional<number>;
   declare public type: 'OAUTH';
   declare public accessToken: string;

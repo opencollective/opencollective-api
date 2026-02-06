@@ -52,6 +52,8 @@ class UserTwoFactorMethod<T extends Exclude<TwoFactorMethod, TwoFactorMethod.REC
   InferAttributes<UserTwoFactorMethod<T>>,
   InferCreationAttributes<UserTwoFactorMethod<T>>
 > {
+  public static readonly tableName = 'UserTwoFactorMethods' as const;
+
   declare id: CreationOptional<number>;
   declare method: T;
 

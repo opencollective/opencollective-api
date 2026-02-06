@@ -14,6 +14,8 @@ import User from './User';
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
 class ExpenseAttachedFile extends Model {
+  public static readonly tableName = 'ExpenseAttachedFiles' as const;
+
   declare public readonly id: number;
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;

@@ -10,6 +10,8 @@ class OAuthAuthorizationCode extends Model<
   InferAttributes<OAuthAuthorizationCode>,
   InferCreationAttributes<OAuthAuthorizationCode>
 > {
+  public static readonly tableName = 'OAuthAuthorizationCodes' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public code: string;
   declare public redirectUri: string;

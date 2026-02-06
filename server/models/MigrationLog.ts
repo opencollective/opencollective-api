@@ -26,6 +26,8 @@ export type MigrationLogDataForMergeAccounts = {
 type MigrationLogData = MigrationLogDataForMergeAccounts | Record<string, unknown>;
 
 class MigrationLog extends Model<InferAttributes<MigrationLog>, InferCreationAttributes<MigrationLog>> {
+  public static readonly tableName = 'MigrationLogs' as const;
+
   declare public id: CreationOptional<number>;
   declare public type: MigrationLogType;
   declare public createdAt: CreationOptional<Date>;

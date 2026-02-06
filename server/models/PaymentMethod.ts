@@ -30,6 +30,8 @@ import User from './User';
 const debug = debugLib('models:PaymentMethod');
 
 class PaymentMethod extends Model<InferAttributes<PaymentMethod>, InferCreationAttributes<PaymentMethod>> {
+  public static readonly tableName = 'PaymentMethods' as const;
+
   declare id: number;
   declare uuid: string;
   declare CreatedByUserId: number;

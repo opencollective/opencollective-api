@@ -123,6 +123,8 @@ export type TransactionData = {
 };
 
 class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
+  public static readonly tableName = 'Transactions' as const;
+
   declare id: CreationOptional<number>;
   declare type: TransactionTypes | `${TransactionTypes}`;
   declare kind: TransactionKind;

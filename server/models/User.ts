@@ -40,6 +40,8 @@ type UserData = {
 };
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
+  public static readonly tableName = 'Users' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public email: string;
   declare public emailWaitingForValidation: CreationOptional<string>;

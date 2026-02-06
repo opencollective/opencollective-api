@@ -10,6 +10,8 @@ export interface PaypalProductCreateAttributes {
 }
 
 class PaypalProduct extends Model<InferAttributes<PaypalProduct>, PaypalProductCreateAttributes> {
+  public static readonly tableName = 'PaypalProducts' as const;
+
   declare public id: string;
   declare public CollectiveId: number;
   declare public HostCollectiveId: number;

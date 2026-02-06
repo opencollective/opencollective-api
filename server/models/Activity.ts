@@ -7,6 +7,8 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import Expense from './Expense';
 
 class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
+  public static readonly tableName = 'Activities' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public type: ActivityTypes;
   declare public data: CreationOptional<Record<string, any> & { notify?: boolean }>;
