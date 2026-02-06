@@ -2,11 +2,13 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order-status';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
   fakeEvent,
+  fakeManualPaymentProvider,
   fakeOrder,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
@@ -61,6 +63,36 @@ const ordersQuery = gql`
           id
           legacyId
           slug
+        }
+      }
+    }
+  }
+`;
+
+const ordersWithPaymentFilterQuery = gql`
+  query OrdersWithPaymentFilter(
+    $account: AccountReferenceInput
+    $filter: AccountOrdersFilter
+    $hostContext: HostContext
+    $paymentMethodService: [PaymentMethodService]
+    $paymentMethodType: [PaymentMethodType]
+    $manualPaymentProvider: [ManualPaymentProviderReferenceInput!]
+  ) {
+    orders(
+      account: $account
+      filter: $filter
+      hostContext: $hostContext
+      paymentMethodService: $paymentMethodService
+      paymentMethodType: $paymentMethodType
+      manualPaymentProvider: $manualPaymentProvider
+    ) {
+      totalCount
+      nodes {
+        id
+        legacyId
+        manualPaymentProvider {
+          id
+          name
         }
       }
     }
@@ -1212,6 +1244,81 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         expect(userCollectiveIds).to.include(outgoingUser1.CollectiveId);
         expect(userCollectiveIds).to.include(outgoingUser2.CollectiveId);
       });
+    });
+  });
+
+  describe('manualPaymentProvider and OPENCOLLECTIVE+MANUAL filter', () => {
+    let hostForMpp, collectiveForMpp, providerMpp, orderWithMpp, hostAdminUser;
+
+    before(async () => {
+      hostAdminUser = await fakeUser();
+      hostForMpp = await fakeActiveHost({ admin: hostAdminUser.collective });
+      collectiveForMpp = await fakeCollective({ HostCollectiveId: hostForMpp.id });
+      providerMpp = await fakeManualPaymentProvider({
+        CollectiveId: hostForMpp.id,
+        name: 'Test Bank Transfer',
+      });
+      orderWithMpp = await fakeOrder({
+        FromCollectiveId: (await fakeUser()).CollectiveId,
+        CollectiveId: collectiveForMpp.id,
+        ManualPaymentProviderId: providerMpp.id,
+        PaymentMethodId: null,
+        status: OrderStatuses.PAID,
+      });
+    });
+
+    it('filters orders by manualPaymentProvider', async () => {
+      const result = await graphqlQueryV2(
+        ordersWithPaymentFilterQuery,
+        {
+          account: { legacyId: hostForMpp.id },
+          filter: 'INCOMING',
+          hostContext: 'ALL',
+          manualPaymentProvider: [{ id: idEncode(providerMpp.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER) }],
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(orderWithMpp.id);
+      expect(result.data.orders.nodes[0].manualPaymentProvider.id).to.eq(
+        idEncode(providerMpp.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER),
+      );
+    });
+
+    it('returns 403 when non-admin filters by manualPaymentProvider', async () => {
+      const randomUser = await fakeUser();
+      const result = await graphqlQueryV2(
+        ordersWithPaymentFilterQuery,
+        {
+          account: { legacyId: hostForMpp.id },
+          filter: 'INCOMING',
+          manualPaymentProvider: [{ id: idEncode(providerMpp.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER) }],
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('admin of the host');
+    });
+
+    it('includes orders with ManualPaymentProviderId when filtering OPENCOLLECTIVE + MANUAL', async () => {
+      const result = await graphqlQueryV2(
+        ordersWithPaymentFilterQuery,
+        {
+          account: { legacyId: hostForMpp.id },
+          filter: 'INCOMING',
+          hostContext: 'ALL',
+          paymentMethodService: ['OPENCOLLECTIVE'],
+          paymentMethodType: ['MANUAL'],
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(orderWithMpp.id);
     });
   });
 });
