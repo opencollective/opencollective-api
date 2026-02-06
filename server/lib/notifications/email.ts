@@ -216,6 +216,8 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
     case ActivityTypes.USER_CARD_CLAIMED:
+    case ActivityTypes.EXPORT_REQUEST_COMPLETED:
+    case ActivityTypes.EXPORT_REQUEST_FAILED:
       await notify.user(activity);
       break;
 

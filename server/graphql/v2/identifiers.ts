@@ -30,6 +30,7 @@ export const IDENTIFIER_TYPES = {
   PAYOUT_METHOD: 'payout-method',
   PAYMENT_METHOD: 'paymentMethod',
   EXPENSE: 'expense',
+  EXPORT_REQUEST: 'export-request',
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',

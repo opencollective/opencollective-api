@@ -80,15 +80,6 @@ const gracefullyShutdown = async signal => {
     logger.info(`Received ${signal}. Shutting down.`);
     isShuttingDown = true;
 
-    if (appPromise) {
-      await appPromise.then(app => {
-        if (app['__server__']) {
-          logger.info('Closing express server');
-          app['__server__'].close();
-        }
-      });
-    }
-
     const stopSearchSyncWorker = await pStopSearchSyncWorker;
     if (stopSearchSyncWorker) {
       await stopSearchSyncWorker();
@@ -96,6 +87,15 @@ const gracefullyShutdown = async signal => {
     const stopExportWorker = await pStopExportWorker;
     if (stopExportWorker) {
       await stopExportWorker();
+    }
+
+    if (appPromise) {
+      await appPromise.then(app => {
+        if (app['__server__']) {
+          logger.info('Closing express server');
+          app['__server__'].close();
+        }
+      });
     }
 
     await sequelize.close();

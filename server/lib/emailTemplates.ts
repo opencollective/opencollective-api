@@ -87,6 +87,8 @@ export const templateNames = [
   'platform.billing.overdue.reminder',
   'platform.billing.additional.charges.notification',
   'platform.billing.payment.confirmation',
+  'export.request.completed',
+  'export.request.failed',
   'report.platform',
   'report.platform.weekly',
   'subscription.canceled',
