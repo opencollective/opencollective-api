@@ -72,7 +72,7 @@ class ExportWorker {
 
       const abortHandler = async () => {
         debug(`Processing of export request ${request.id} aborted`);
-        this.queue.add(async () => {
+        await this.queue.add(async () => {
           await request.fail(ABORT_ERROR, { shouldRetry: true });
           if (release) {
             await release();
