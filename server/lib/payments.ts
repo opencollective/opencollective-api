@@ -36,6 +36,7 @@ import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transf
 import { notify } from './notifications/email';
 import { getFxRate } from './currency';
 import emailLib from './email';
+import logger from './logger';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
@@ -1097,6 +1098,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
     }
   } else {
     // Fall back to legacy manual bank transfer settings
+    logger.warn('Order email: No manual payment provider provided, using default one');
     const manualPayoutMethod = await PayoutMethod.findOne({
       where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
     });

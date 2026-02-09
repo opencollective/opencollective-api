@@ -27,6 +27,7 @@ import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import logger from '../../../lib/logger';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
@@ -633,9 +634,6 @@ export const GraphQLHost = new GraphQLObjectType({
           if (nbManualProviders > 0) {
             // The legacy "BANK_TRANSFER" type represents all types of manual payment providers
             supportedPaymentMethods.push('BANK_TRANSFER');
-          } else if (get(collective, 'settings.paymentMethods.manual', null)) {
-            // TODO: this condition can safely be removed after deploying the new frontend
-            supportedPaymentMethods.push('BANK_TRANSFER');
           }
 
           return supportedPaymentMethods;
@@ -676,6 +674,7 @@ export const GraphQLHost = new GraphQLObjectType({
         type: GraphQLPayoutMethod,
         deprecationReason: '2026-01-23: Deprecated in favour of custom payment providers',
         async resolve(collective, _, req) {
+          logger.warn('Host.bankAccount: Deprecated in favour of custom payment providers');
           const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
           const payoutMethod = payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
           if (payoutMethod && get(collective, 'settings.paymentMethods.manual')) {
