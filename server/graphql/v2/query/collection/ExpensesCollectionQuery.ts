@@ -833,15 +833,15 @@ const fetchExpensesPayees = async (
     }
   }
 
-  // Status filter
-  const statuses = args.status as string[] | undefined;
+  // Status filter (simplified to use "APPROVED" for "READY_TO_PAY")
+  const statuses = (args.status as string[] | undefined)?.map(s => (s === 'READY_TO_PAY' ? 'APPROVED' : s));
   if (statuses?.length > 0) {
     if (statuses.includes('ON_HOLD') && statuses.length === 1) {
       expenseConditions.push('e."onHold" = :onHold');
       replacements.onHold = true;
-    } else if (!statuses.includes('READY_TO_PAY')) {
+    } else {
       expenseConditions.push('e."status" IN (:statuses)');
-      replacements.statuses = statuses;
+      replacements.statuses = [...new Set(statuses)];
       if (!statuses.includes('ON_HOLD')) {
         expenseConditions.push('e."onHold" = :onHold');
         replacements.onHold = false;
