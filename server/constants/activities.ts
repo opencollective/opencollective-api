@@ -115,6 +115,12 @@ enum ActivityTypes {
   VENDOR_EDITED = 'vendor.edited',
   VENDOR_DELETED = 'vendor.deleted',
 
+  // Manual payment providers
+  MANUAL_PAYMENT_PROVIDER_CREATED = 'manual_payment_provider.created',
+  MANUAL_PAYMENT_PROVIDER_UPDATED = 'manual_payment_provider.updated',
+  MANUAL_PAYMENT_PROVIDER_DELETED = 'manual_payment_provider.deleted',
+  MANUAL_PAYMENT_PROVIDER_ARCHIVED = 'manual_payment_provider.archived',
+
   // PENDING CONTRIBUTIONS
   ORDER_PENDING_CREATED = 'order.pending.created',
   ORDER_PENDING_FOLLOWUP = 'order.pending.followup',

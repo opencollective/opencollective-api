@@ -7,6 +7,7 @@ import '../../server/env';
 
 import { groupBy } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
@@ -67,7 +68,7 @@ const getMissingTransactions = async (
   }
 
   const groupedTransactions = groupBy(transactions, 'transaction_info.transaction_id');
-  const results = await sequelize.query(
+  const results = await sequelize.query<{ paypalId: string }>(
     `
       SELECT *
       FROM UNNEST(ARRAY[:paypalIds]) "paypalId"
@@ -79,7 +80,7 @@ const getMissingTransactions = async (
       )
     `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: { paypalIds: Object.keys(groupedTransactions) },
     },
   );
@@ -97,7 +98,7 @@ const loadDataForSubscription = async (paypalSubscriptionId, expectedHost) => {
       `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
       {
         replacements: { paypalSubscriptionId },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         mapToModel: true,
         model: models.Subscription,
       },

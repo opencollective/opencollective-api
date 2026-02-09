@@ -102,7 +102,11 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
   new DataLoader(async (expenseIds: number[]) => {
     const transactions = (await models.Transaction.findAll({
       raw: true,
-      attributes: ['ExpenseId', 'currency', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
+      attributes: [
+        'ExpenseId',
+        'currency',
+        [sequelize.json('data.expenseToHostFxRate') as unknown as string, 'expenseToHostFxRate'],
+      ],
       where: {
         ExpenseId: expenseIds,
         kind: TransactionKind.EXPENSE,

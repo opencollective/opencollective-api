@@ -25,7 +25,8 @@ import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
-import models, { Collective, sequelize } from '../../../models';
+import models, { Collective, HostApplication, sequelize } from '../../../models';
+import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
@@ -127,7 +128,7 @@ const accountMutations = {
         description: 'The value to set for this key',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -220,7 +221,7 @@ const accountMutations = {
         description: 'If using a custom fee, set this to true',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseHost(req);
 
       return sequelize.transaction(async dbTransaction => {
@@ -963,6 +964,18 @@ const accountMutations = {
       // Disallow if Hosted
       if (account.HostCollectiveId && account.approvedAt) {
         throw new Error("Can't convert an hosted Collective.");
+      }
+
+      // Check host applications
+      const hostApplications = await HostApplication.findAll({
+        where: { CollectiveId: account.id, status: HostApplicationStatus.PENDING },
+        include: [{ association: 'host', required: true }],
+      });
+
+      if (hostApplications.length > 0) {
+        throw new Error(
+          `Can't convert a Collective with pending host applications. Please withdraw the application from ${hostApplications.map(a => a.host.name).join(', ')} first.`,
+        );
       }
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });

@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { ArgumentParser } from 'argparse';
+import { QueryTypes } from 'sequelize';
 
 import { refundTransaction } from '../../server/lib/payments';
 import models, { sequelize } from '../../server/models';
@@ -60,7 +61,7 @@ async function main({ dryRun, totalAmount, reqMask, isGuest, fromCollectiveId })
   console.log('Searching for fraudulent orders with:');
   console.log(query);
   const orders = await sequelize.query(query, {
-    type: sequelize.QueryTypes.SELECT,
+    type: QueryTypes.SELECT,
     model: models.Order,
     mapToModel: true,
   });

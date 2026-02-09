@@ -7,6 +7,8 @@
  * contributors should surface only unique collectives.
  */
 
+import { QueryTypes } from 'sequelize';
+
 import { SupportedCurrency } from '../constants/currencies';
 import MemberRoles from '../constants/roles';
 import { Collective, sequelize } from '../models';
@@ -156,9 +158,9 @@ const loadContributors = async (collectiveId: number, currency: SupportedCurrenc
   }
 
   // See https://github.com/opencollective/opencollective/issues/4121
-  const allContributors = await sequelize.query(contributorsQuery, {
+  const allContributors = await sequelize.query<Contributor>(contributorsQuery, {
     raw: true,
-    type: sequelize.QueryTypes.SELECT,
+    type: QueryTypes.SELECT,
     replacements: { collectiveId, currency },
   });
 

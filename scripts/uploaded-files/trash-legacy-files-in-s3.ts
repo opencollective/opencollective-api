@@ -11,6 +11,7 @@ import { Command } from 'commander';
 import config from 'config';
 import moment from 'moment';
 import PQueue from 'p-queue';
+import { QueryTypes } from 'sequelize';
 
 import { listFilesInS3, S3_TRASH_PREFIX, trashFileFromS3 } from '../../server/lib/awsS3';
 import logger from '../../server/lib/logger';
@@ -86,7 +87,7 @@ const main = async options => {
   const filteredObjects = onlyRootFolder ? allObjects.filter(o => !o.Key.includes('/')) : allObjects;
 
   // Get a report for all S3 files presence in the database
-  const results: [{ key: string; uploadedFileId: number; deletedAt: Date }] = await sequelize.query(
+  const results = await sequelize.query<{ key: string; uploadedFileId: number; deletedAt: Date }>(
     `
       SELECT
         "key",
@@ -98,7 +99,7 @@ const main = async options => {
         ON "uf"."url" = 'https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/' || "key"
     `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: { keys: filteredObjects.map(o => formatKey(o.Key)) },
     },
   );

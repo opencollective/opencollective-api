@@ -16,6 +16,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
+import logger from '../../../lib/logger';
 import { executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
@@ -35,6 +36,7 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
+import { fetchManualPaymentProviderWithReference } from '../../v2/input/ManualPaymentProviderInput';
 const debug = debugLib('orders');
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
@@ -158,7 +160,7 @@ const hasPaymentMethod = order => {
       paymentMethod.token ||
       paymentMethod.type === 'manual' ||
       paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
-      (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
+      (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data?.stripePaymentMethodId),
     );
   }
 };
@@ -433,10 +435,36 @@ export async function createOrder(order, req) {
 
     // Default status, will get updated after the order is processed
     let orderStatus = status.NEW;
-    const isManualBankTransfer = get(order, 'paymentMethod.type') === 'manual';
-
-    if (isManualBankTransfer) {
+    let manualPaymentProvider;
+    const isManualPayment = get(order, 'paymentMethod.type') === 'manual';
+    if (isManualPayment) {
       orderStatus = status.PENDING;
+      // TODO: This parameter should become mandatory once we push the new frontend
+      if (order.paymentMethod.manualPaymentProvider) {
+        manualPaymentProvider = await fetchManualPaymentProviderWithReference(
+          order.paymentMethod.manualPaymentProvider,
+          {
+            throwIfMissing: true,
+            loaders: req.loaders,
+          },
+        );
+        if (manualPaymentProvider.CollectiveId !== host.id) {
+          throw new Error(`This payment provider is not available for this account.`);
+        } else if (manualPaymentProvider.archivedAt) {
+          throw new Error(`This payment provider is not available anymore, please select a different one.`);
+        }
+      } else {
+        logger.warn('Order creation: No manual payment provider provided, using default one');
+        manualPaymentProvider = await models.ManualPaymentProvider.findOne({
+          where: {
+            CollectiveId: host.id,
+            archivedAt: null,
+          },
+        });
+        if (!manualPaymentProvider) {
+          throw new Error(`No manual payment provider found for this account.`);
+        }
+      }
     }
 
     let orderPublicData;
@@ -462,6 +490,7 @@ export async function createOrder(order, req) {
       tags: order.tags,
       platformTipAmount: order.platformTipAmount,
       platformTipEligible,
+      ManualPaymentProviderId: isManualPayment ? manualPaymentProvider?.id : null,
       data: {
         ...orderPublicData,
         reqIp,
@@ -477,8 +506,7 @@ export async function createOrder(order, req) {
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
         paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
-        isManualContribution: isManualBankTransfer,
-        ...(isManualBankTransfer ? { paymentMethod: 'BANK_TRANSFER' } : {}),
+        isManualContribution: isManualPayment,
       },
       status: orderStatus,
     };

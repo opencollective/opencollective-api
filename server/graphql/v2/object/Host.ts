@@ -14,6 +14,7 @@ import {
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../../constants';
 import ActivityTypes from '../../../constants/activities';
@@ -26,6 +27,7 @@ import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import logger from '../../../lib/logger';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
@@ -63,6 +65,7 @@ import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
+import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { GraphQLTimeUnit, TimeUnit } from '../enum/TimeUnit';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
@@ -80,6 +83,7 @@ import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/Amo
 import {
   ACCOUNT_BALANCE_QUERY,
   ACCOUNT_CONSOLIDATED_BALANCE_QUERY,
+  getAmountRangeQuery,
   getAmountRangeValueAndOperator,
   GraphQLAmountRangeInput,
 } from '../input/AmountRangeInput';
@@ -106,6 +110,7 @@ import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
+import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
 import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
@@ -266,11 +271,11 @@ export const GraphQLHost = new GraphQLObjectType({
             SELECT "refreshedAt" FROM "HostMonthlyTransactions" LIMIT 1;
           `;
 
-          const refreshedAtResult = await sequelize.query(refreshedAtQuery, {
+          const refreshedAtResult = await sequelize.query<{ refreshedAt: Date }>(refreshedAtQuery, {
             replacements: {
               hostCollectiveId: host.id,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -419,7 +424,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               refreshedAt,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -544,11 +549,7 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        /**
-         * @param {import("../../../models/Collective").default} host
-         * @param {{ timeUnit: import("../enum/TimeUnit").TimeUnit; dateFrom: Date; dateTo: Date }} args
-         */
-        resolve: async (host, args) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -589,7 +590,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               dateFrom: moment(args.dateFrom).utc().toISOString(),
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -691,28 +692,55 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('PAYPAL');
           }
 
-          // bank transfer = manual in host settings
-          if (get(collective, 'settings.paymentMethods.manual', null)) {
-            // these accounts do not have a structured bank detail in the payment instructions
-            if (get(collective, 'settings.paymentMethods.manual.legacy', false)) {
-              supportedPaymentMethods.push('BANK_TRANSFER');
-            } else {
-              const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-              const hasManualBankTransferMethod = payoutMethods.some(
-                c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
-              );
-              if (hasManualBankTransferMethod) {
-                supportedPaymentMethods.push('BANK_TRANSFER');
-              }
-            }
+          // Check for manual payment providers from the model
+          const nbManualProviders = await models.ManualPaymentProvider.count({
+            where: { CollectiveId: collective.id, archivedAt: null },
+          });
+
+          if (nbManualProviders > 0) {
+            // The legacy "BANK_TRANSFER" type represents all types of manual payment providers
+            supportedPaymentMethods.push('BANK_TRANSFER');
           }
 
           return supportedPaymentMethods;
         },
       },
+      manualPaymentProviders: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProvider))),
+        description: 'Manual payment providers configured for this host',
+        args: {
+          type: {
+            type: GraphQLManualPaymentProviderType,
+            description: 'Filter by provider type',
+          },
+          includeArchived: {
+            type: new GraphQLNonNull(GraphQLBoolean),
+            defaultValue: false,
+            description: 'Whether to include archived providers',
+          },
+        },
+        async resolve(collective, args) {
+          const where: Record<string, unknown> = { CollectiveId: collective.id };
+          if (args.type) {
+            where.type = args.type;
+          }
+          if (!args.includeArchived) {
+            where.archivedAt = null;
+          }
+          return models.ManualPaymentProvider.findAll({
+            where,
+            order: [
+              ['order', 'ASC'],
+              ['createdAt', 'ASC'],
+            ],
+          });
+        },
+      },
       bankAccount: {
         type: GraphQLPayoutMethod,
+        deprecationReason: '2026-01-23: Deprecated in favour of custom payment providers',
         async resolve(collective, _, req) {
+          logger.warn('Host.bankAccount: Deprecated in favour of custom payment providers');
           const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
           const payoutMethod = payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
           if (payoutMethod && get(collective, 'settings.paymentMethods.manual')) {
@@ -1125,7 +1153,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const nodes = () =>
             sequelize.query(pageQuery, {
               replacements: queryReplacements,
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
               model: models.VirtualCard,
             });
 
@@ -1546,6 +1574,14 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLString,
             description: 'Search vendors related to this term based on name, description, tags, slug, and location',
           },
+          totalContributed: {
+            type: GraphQLAmountRangeInput,
+            description: 'Only return accounts that contributed within this amount range',
+          },
+          totalExpended: {
+            type: GraphQLAmountRangeInput,
+            description: 'Only return accounts that expended within this amount range',
+          },
         },
         async resolve(account, args, req) {
           const where = {
@@ -1614,22 +1650,44 @@ export const GraphQLHost = new GraphQLObjectType({
             const accountIds = compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
             findArgs.where[Op.and] = [
               sequelize.literal(`
-                    data#>'{visibleToAccountIds}' IS NULL 
+                    data#>'{visibleToAccountIds}' IS NULL
                     OR data#>'{visibleToAccountIds}' = '[]'::jsonb
                     OR data#>'{visibleToAccountIds}' = 'null'::jsonb
                     OR
                     (
                       jsonb_typeof(data#>'{visibleToAccountIds}')='array'
-                      AND 
+                      AND
                       EXISTS (
                         SELECT v FROM (
                           SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(${sequelize.escape(accountIds)})
+                        ) WHERE v = ANY(ARRAY[${accountIds.map(v => sequelize.escape(v)).join(',')}]::int[])
                       )  
                     )
               `),
             ];
           }
+
+          const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
+          if (hasCommunityHostTransactionsArgs) {
+            const prefilteredIds = await sequelize.query<{ id: number }>(
+              `
+              SELECT DISTINCT id
+                FROM
+                  "CommunityActivitySummary" cas
+                  INNER JOIN "Collectives" c ON cas."FromCollectiveId" = c.id AND c.type = 'VENDOR' AND c."ParentCollectiveId" = :hostId
+                  LEFT JOIN "CommunityHostTransactionsAggregated" chta ON chta."FromCollectiveId" = cas."FromCollectiveId" AND chta."HostCollectiveId" = cas."HostCollectiveId"
+                WHERE cas."HostCollectiveId" = :hostId
+                ${ifStr(args.totalExpended, () => `AND ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0))${getAmountRangeQuery(args.totalExpended)}`)}
+                ${ifStr(args.totalContributed, () => `AND ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0))${getAmountRangeQuery(args.totalContributed)}`)}
+              `,
+              {
+                type: QueryTypes.SELECT,
+                replacements: { hostId: account.id },
+              },
+            );
+            findArgs.where['id'] = { [Op.in]: prefilteredIds.map(row => row.id) };
+          }
+
           const { rows, count } = await models.Collective.findAndCountAll(findArgs);
           const vendors = args.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
 
@@ -1692,7 +1750,7 @@ export const GraphQLHost = new GraphQLObjectType({
               limit: args.limit,
               offset: args.offset,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             model: models.Collective,
           });
 

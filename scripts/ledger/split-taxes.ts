@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { RefundKind } from '../../server/constants/refund-kind';
 import { associateTransactionRefundId, buildRefundForTransaction } from '../../server/lib/payments';
@@ -25,7 +26,7 @@ const MIGRATION_DATA_FIELD = 'taxMigration';
 const migrate = async () => {
   const transactions = await sequelize.query(getTransactionsToMigrateQuery, {
     replacements: { startDate },
-    type: sequelize.QueryTypes.SELECT,
+    type: QueryTypes.SELECT,
     model: models.Transaction,
     mapToModel: true,
   });
