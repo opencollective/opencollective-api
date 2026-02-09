@@ -798,183 +798,78 @@ const fetchExpensesFromAccounts = async (
   subArgs: { limit?: number; offset?: number; searchTerm?: string } = {},
 ) => {
   const { limit = 10, offset = 0, searchTerm } = subArgs;
-
-  // Get search conditions as raw SQL
-  const searchTermConditions = getSearchTermSQLConditions(searchTerm, '"Collective"');
-
-  // Build expense conditions for the join
-  const expensesWhere: WhereOptions<Expense> = {};
-  const expensesInclude: Array<{
-    association: string;
-    required?: boolean;
-    attributes: string[];
-    where?: WhereOptions;
-  }> = [];
-
-  // Apply account/collective filter
-  if (accounts.length > 0) {
-    expensesWhere['CollectiveId'] = accounts.map(a => a.id);
-  }
-
-  // Apply host filter with hostContext support
-  if (host) {
-    let collectiveWhere: WhereOptions;
-
-    // handles default
-    expensesWhere['HostCollectiveId'] = host.id;
-
-    if (args.hostContext && args.hostContext !== 'ALL') {
-      // Base condition: account is hosted by this host (or is the host itself)
-      if (args.hostContext === 'INTERNAL') {
-        // Only the host account and its children (projects/events)
-        collectiveWhere = {
-          [Op.or]: [{ id: host.id }, { ParentCollectiveId: host.id }],
-        };
-      } else if (args.hostContext === 'HOSTED') {
-        // Only hosted accounts, excluding the host account and its children
-        collectiveWhere = {
-          id: { [Op.ne]: host.id },
-          [Op.or]: [{ ParentCollectiveId: { [Op.is]: null } }, { ParentCollectiveId: { [Op.ne]: host.id } }],
-        };
-      }
-      expensesInclude.push({
-        association: 'collective',
-        required: true,
-        attributes: [],
-        where: collectiveWhere,
-      });
-    }
-  }
-
-  // Apply status filter
-  if (args.status && (args.status as string[]).length > 0) {
-    if ((args.status as string[]).includes('ON_HOLD') && (args.status as string[]).length === 1) {
-      expensesWhere['onHold'] = true;
-    } else if (!(args.status as string[]).includes('READY_TO_PAY')) {
-      expensesWhere['status'] = args.status as string[];
-      if (!(args.status as string[]).includes('ON_HOLD')) {
-        expensesWhere['onHold'] = false;
-      }
-    }
-  }
-
-  // Apply type filter
-  if (args.type) {
-    expensesWhere['type'] = args.type as string;
-  } else if (args.types && (args.types as string[]).length > 0) {
-    expensesWhere['type'] = { [Op.in]: args.types as string[] };
-  }
-
-  // Apply date filters
-  if (args.dateFrom) {
-    expensesWhere['createdAt'] = { [Op.gte]: args.dateFrom as Date };
-  }
-  if (args.dateTo) {
-    expensesWhere['createdAt'] = expensesWhere['createdAt'] || {};
-    (expensesWhere['createdAt'] as Record<symbol, Date>)[Op.lte] = args.dateTo as Date;
-  }
-
-  // Build the EXISTS subquery conditions for expenses
-  const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"'];
   const replacements: Record<string, unknown> = { limit, offset };
 
-  // Add expense where conditions
-  if (expensesWhere['CollectiveId']) {
-    expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
-    replacements.collectiveIds = expensesWhere['CollectiveId'];
-  }
-  if (expensesWhere['HostCollectiveId']) {
-    expenseConditions.push('e."HostCollectiveId" = :hostCollectiveId');
-    replacements.hostCollectiveId = expensesWhere['HostCollectiveId'];
-  }
-  if (expensesWhere['status']) {
-    expenseConditions.push('e."status" IN (:statuses)');
-    replacements.statuses = Array.isArray(expensesWhere['status'])
-      ? expensesWhere['status']
-      : [expensesWhere['status']];
-  }
-  if (expensesWhere['onHold'] !== undefined) {
-    expenseConditions.push('e."onHold" = :onHold');
-    replacements.onHold = expensesWhere['onHold'];
-  }
-  if (expensesWhere['type']) {
-    const typeValue = expensesWhere['type'] as string | { [Op.in]: string[] };
-    if (typeof typeValue === 'object' && Op.in in typeValue) {
-      expenseConditions.push('e."type" IN (:types)');
-      replacements.types = (typeValue as { [Op.in]: string[] })[Op.in];
-    } else {
-      expenseConditions.push('e."type" = :type');
-      replacements.type = typeValue;
-    }
-  }
-  if (expensesWhere['createdAt']) {
-    const createdAt = expensesWhere['createdAt'] as { [Op.gte]?: Date; [Op.lte]?: Date };
-    if (Op.gte in createdAt) {
-      expenseConditions.push('e."createdAt" >= :dateFrom');
-      replacements.dateFrom = createdAt[Op.gte];
-    }
-    if (Op.lte in createdAt) {
-      expenseConditions.push('e."createdAt" <= :dateTo');
-      replacements.dateTo = createdAt[Op.lte];
-    }
-  }
-
-  // Build collective conditions for the EXISTS subquery (for host filtering)
+  const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"'];
   let collectiveJoin = '';
-  if (expensesInclude.length > 0) {
-    const collectiveInclude = expensesInclude[0];
-    if (collectiveInclude.where) {
-      collectiveJoin = 'INNER JOIN "Collectives" AS ec ON ec."id" = e."CollectiveId"';
-      const collectiveWhere = collectiveInclude.where as Record<string, unknown>;
 
-      if (collectiveWhere['approvedAt']) {
-        expenseConditions.push('ec."approvedAt" IS NOT NULL');
-      }
-      if (collectiveWhere['HostCollectiveId']) {
-        expenseConditions.push('ec."HostCollectiveId" = :ecHostCollectiveId');
-        replacements.ecHostCollectiveId = collectiveWhere['HostCollectiveId'];
-      }
-      if (collectiveWhere['id']) {
-        const idCondition = collectiveWhere['id'] as { [Op.ne]?: number };
-        if (Op.ne in idCondition) {
-          expenseConditions.push('ec."id" != :excludeCollectiveId');
-          replacements.excludeCollectiveId = idCondition[Op.ne];
-        }
-      }
-      if (Op.or in collectiveWhere) {
-        const orConditions = (collectiveWhere as { [Op.or]: Array<Record<string, unknown>> })[Op.or];
-        const orParts: string[] = [];
-        orConditions.forEach((cond, idx) => {
-          if (cond['id']) {
-            orParts.push(`ec."id" = :orId${idx}`);
-            replacements[`orId${idx}`] = cond['id'];
-          }
-          if (cond['ParentCollectiveId']) {
-            const parentCond = cond['ParentCollectiveId'] as { [Op.is]?: null; [Op.ne]?: number } | number;
-            if (typeof parentCond === 'object') {
-              if (Op.is in parentCond) {
-                orParts.push('ec."ParentCollectiveId" IS NULL');
-              } else if (Op.ne in parentCond) {
-                orParts.push(`ec."ParentCollectiveId" != :orParent${idx}`);
-                replacements[`orParent${idx}`] = parentCond[Op.ne];
-              }
-            } else {
-              orParts.push(`ec."ParentCollectiveId" = :orParent${idx}`);
-              replacements[`orParent${idx}`] = parentCond;
-            }
-          }
-        });
-        if (orParts.length > 0) {
-          expenseConditions.push(`(${orParts.join(' OR ')})`);
-        }
+  // Account filter
+  if (accounts.length > 0) {
+    expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    replacements.collectiveIds = accounts.map(a => a.id);
+  }
+
+  // Host filter
+  if (host) {
+    expenseConditions.push('e."HostCollectiveId" = :hostCollectiveId');
+    replacements.hostCollectiveId = host.id;
+
+    // Host context: filter on the expense's collective
+    if (args.hostContext && args.hostContext !== 'ALL') {
+      collectiveJoin = 'INNER JOIN "Collectives" AS ec ON ec."id" = e."CollectiveId"';
+      if (args.hostContext === 'INTERNAL') {
+        // Only the host account and its children (projects/events)
+        expenseConditions.push('(ec."id" = :hostId OR ec."ParentCollectiveId" = :hostId)');
+        replacements.hostId = host.id;
+      } else if (args.hostContext === 'HOSTED') {
+        // Only hosted accounts, excluding the host account and its children
+        expenseConditions.push('ec."id" != :hostId');
+        expenseConditions.push('(ec."ParentCollectiveId" IS NULL OR ec."ParentCollectiveId" != :hostId)');
+        replacements.hostId = host.id;
       }
     }
   }
 
-  // Build the main query conditions
+  // Status filter
+  const statuses = args.status as string[] | undefined;
+  if (statuses?.length > 0) {
+    if (statuses.includes('ON_HOLD') && statuses.length === 1) {
+      expenseConditions.push('e."onHold" = :onHold');
+      replacements.onHold = true;
+    } else if (!statuses.includes('READY_TO_PAY')) {
+      expenseConditions.push('e."status" IN (:statuses)');
+      replacements.statuses = statuses;
+      if (!statuses.includes('ON_HOLD')) {
+        expenseConditions.push('e."onHold" = :onHold');
+        replacements.onHold = false;
+      }
+    }
+  }
+
+  // Type filter
+  if (args.type) {
+    expenseConditions.push('e."type" = :type');
+    replacements.type = args.type;
+  } else if ((args.types as string[])?.length > 0) {
+    expenseConditions.push('e."type" IN (:types)');
+    replacements.types = args.types;
+  }
+
+  // Date filters
+  if (args.dateFrom) {
+    expenseConditions.push('e."createdAt" >= :dateFrom');
+    replacements.dateFrom = args.dateFrom;
+  }
+  if (args.dateTo) {
+    expenseConditions.push('e."createdAt" <= :dateTo');
+    replacements.dateTo = args.dateTo;
+  }
+
+  // --- Main WHERE on Collectives ---
   let whereConditions = '"Collective"."deletedAt" IS NULL';
 
-  // Add search term conditions (uses full-text search on searchTsVector)
+  // Search term (full-text search on Collective)
+  const searchTermConditions = getSearchTermSQLConditions(searchTerm, '"Collective"');
   if (searchTermConditions.sqlConditions) {
     whereConditions += ` ${searchTermConditions.sqlConditions}`;
     replacements.sanitizedTerm = searchTermConditions.sanitizedTerm;
