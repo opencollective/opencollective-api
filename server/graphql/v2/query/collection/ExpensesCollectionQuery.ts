@@ -311,7 +311,7 @@ export const ExpensesCollectionQueryResolver = async (
   _: void,
   args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
-): Promise<CollectionReturnType & { totalAmount?: any; fromAccounts?: any }> => {
+): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
 
@@ -780,12 +780,12 @@ export const ExpensesCollectionQueryResolver = async (
     },
     limit: args.limit,
     offset: args.offset,
-    fromAccounts: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
-      fetchExpensesFromAccounts({ args, host, accounts }, subArgs),
+    payees: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
+      fetchExpensesPayees({ args, host, accounts }, subArgs),
   };
 };
 
-const fetchExpensesFromAccounts = async (
+const fetchExpensesPayees = async (
   {
     args,
     host,

@@ -34,7 +34,7 @@ export const GraphQLExpenseCollection = new GraphQLObjectType({
         },
       }),
     },
-    fromAccounts: {
+    payees: {
       type: new GraphQLNonNull(GraphQLAccountCollection),
       description:
         'The accounts that are payees of the expenses in this collection (scoped to the main query arguments), regardless of pagination. Returns a paginated and searchable collection.',
