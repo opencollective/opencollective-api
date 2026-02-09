@@ -656,7 +656,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               dateFrom: moment(args.dateFrom).utc().toISOString(),
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
