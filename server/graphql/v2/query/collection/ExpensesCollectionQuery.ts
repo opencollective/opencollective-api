@@ -798,6 +798,9 @@ const fetchExpensesPayees = async (
   subArgs: { limit?: number; offset?: number; searchTerm?: string } = {},
 ) => {
   const { limit = 10, offset = 0, searchTerm } = subArgs;
+  if (limit > 1000) {
+    throw new Error('Cannot fetch more than 1000 payees at once');
+  }
   const replacements: Record<string, unknown> = { limit, offset };
 
   const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"'];
