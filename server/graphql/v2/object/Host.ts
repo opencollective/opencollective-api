@@ -653,8 +653,8 @@ export const GraphQLHost = new GraphQLObjectType({
             replacements: {
               hostCollectiveId: host.id,
               timeUnit: args.timeUnit,
-              dateTo: moment(args.dateTo).utc().toISOString(),
-              dateFrom: moment(args.dateFrom).utc().toISOString(),
+              dateTo: args.dateTo ? moment(args.dateTo).utc().toISOString() : null,
+              dateFrom: args.dateFrom ? moment(args.dateFrom).utc().toISOString() : null,
             },
             type: QueryTypes.SELECT,
             raw: true,

@@ -665,7 +665,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
           chargedDateFrom: args.chargedDateFrom,
           chargedDateTo: args.chargedDateTo,
           hostCollectiveId: host?.id,
-          oppositeCollectiveId: oppositeAccount?.id,
         },
         'postgres',
       ),
