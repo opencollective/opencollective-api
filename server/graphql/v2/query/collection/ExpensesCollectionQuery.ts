@@ -781,7 +781,7 @@ export const ExpensesCollectionQueryResolver = async (
     limit: args.limit,
     offset: args.offset,
     payees: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
-      fetchExpensesPayees({ args, host, accounts }, subArgs),
+      fetchExpensesPayees({ args, host, collectiveIds: where['CollectiveId'] as number[] | undefined }, subArgs),
   };
 };
 
@@ -789,11 +789,11 @@ const fetchExpensesPayees = async (
   {
     args,
     host,
-    accounts,
+    collectiveIds,
   }: {
     args: Record<string, unknown>;
     host: Collective | null;
-    accounts: Collective[];
+    collectiveIds: number[] | undefined;
   },
   subArgs: { limit?: number; offset?: number; searchTerm?: string } = {},
 ) => {
@@ -806,10 +806,10 @@ const fetchExpensesPayees = async (
   const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"'];
   let collectiveJoin = '';
 
-  // Account filter
-  if (accounts.length > 0) {
+  // Account filter (collectiveIds already includes children when includeChildrenExpenses is set)
+  if (collectiveIds?.length > 0) {
     expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
-    replacements.collectiveIds = accounts.map(a => a.id);
+    replacements.collectiveIds = collectiveIds;
   }
 
   // Host filter
