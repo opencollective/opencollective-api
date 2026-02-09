@@ -1875,6 +1875,7 @@ export const GraphQLHost = new GraphQLObjectType({
                 direction,
               ]);
             } else if (field === ORDER_BY_PSEUDO_FIELDS.STARTS_AT) {
+              where['startsAt'] = { [Op.not]: null };
               orderBy.push(['startsAt', direction]);
             } else {
               orderBy.push([field, direction]);
