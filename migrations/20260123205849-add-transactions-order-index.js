@@ -6,7 +6,7 @@ module.exports = {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__contributions_date"
         ON "Transactions" (COALESCE("clearedAt", "createdAt"))
-        INCLUDE ("OrderId", "HostCollectiveId")
+        INCLUDE ("OrderId", "HostCollectiveId", "CollectiveId", "FromCollectiveId")
         WHERE 
           "kind" IN ('CONTRIBUTION', 'ADDED_FUNDS') AND
           type = 'CREDIT' AND
@@ -16,7 +16,7 @@ module.exports = {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__contributions_host_id"
       ON "Transactions" ("HostCollectiveId", COALESCE("clearedAt", "createdAt"))
-      INCLUDE ("OrderId")
+      INCLUDE ("OrderId", "CollectiveId", "FromCollectiveId")
       WHERE 
         "kind" IN ('CONTRIBUTION', 'ADDED_FUNDS') AND
         type = 'CREDIT' AND
