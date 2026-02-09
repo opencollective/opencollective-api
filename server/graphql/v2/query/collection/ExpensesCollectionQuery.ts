@@ -820,32 +820,30 @@ const fetchExpensesFromAccounts = async (
   if (host) {
     let collectiveWhere: WhereOptions;
 
-    // Base condition: account is hosted by this host (or is the host itself)
-    if (args.hostContext === 'INTERNAL') {
-      // Only the host account and its children (projects/events)
-      collectiveWhere = {
-        approvedAt: { [Op.not]: null },
-        [Op.or]: [{ id: host.id }, { ParentCollectiveId: host.id }],
-      };
-    } else if (args.hostContext === 'HOSTED') {
-      // Only hosted accounts, excluding the host account and its children
-      collectiveWhere = {
-        approvedAt: { [Op.not]: null },
-        HostCollectiveId: host.id,
-        id: { [Op.ne]: host.id },
-        [Op.or]: [{ ParentCollectiveId: { [Op.is]: null } }, { ParentCollectiveId: { [Op.ne]: host.id } }],
-      };
-    } else {
-      // ALL (default): all accounts hosted by this host, including the host itself
-      expensesWhere['HostCollectiveId'] = host.id;
-    }
+    // handles default
+    expensesWhere['HostCollectiveId'] = host.id;
 
-    expensesInclude.push({
-      association: 'collective',
-      required: true,
-      attributes: [],
-      where: collectiveWhere,
-    });
+    if (args.hostContext && args.hostContext !== 'ALL') {
+      // Base condition: account is hosted by this host (or is the host itself)
+      if (args.hostContext === 'INTERNAL') {
+        // Only the host account and its children (projects/events)
+        collectiveWhere = {
+          [Op.or]: [{ id: host.id }, { ParentCollectiveId: host.id }],
+        };
+      } else if (args.hostContext === 'HOSTED') {
+        // Only hosted accounts, excluding the host account and its children
+        collectiveWhere = {
+          id: { [Op.ne]: host.id },
+          [Op.or]: [{ ParentCollectiveId: { [Op.is]: null } }, { ParentCollectiveId: { [Op.ne]: host.id } }],
+        };
+      }
+      expensesInclude.push({
+        association: 'collective',
+        required: true,
+        attributes: [],
+        where: collectiveWhere,
+      });
+    }
   }
 
   // Apply status filter
