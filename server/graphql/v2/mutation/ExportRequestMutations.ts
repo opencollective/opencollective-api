@@ -121,7 +121,7 @@ const exportRequestMutations = {
       if (exportRequest.UploadedFileId) {
         const uploadedFile = await req.loaders.UploadedFile.byId.load(exportRequest.UploadedFileId);
         if (uploadedFile) {
-          const { bucket, key } = parseS3Url(uploadedFile.url);
+          const { bucket, key } = parseS3Url(uploadedFile.getDataValue('url'));
           await permanentlyDeleteFileFromS3(bucket, key);
           await uploadedFile.destroy();
         }
