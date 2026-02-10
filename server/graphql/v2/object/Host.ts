@@ -2164,7 +2164,8 @@ export const GraphQLHost = new GraphQLObjectType({
               required: true,
               where: {
                 ...((args.importType && { type: args.importType }) || {}),
-                ...((args.importId && { id: args.importId.map(id => idDecode(id, 'transactions-import')) }) || {}),
+                ...((args.importId && { id: uniq(args.importId.map(id => idDecode(id, 'transactions-import'))) }) ||
+                  {}),
                 CollectiveId: host.id,
               },
             },

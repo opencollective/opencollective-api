@@ -571,7 +571,7 @@ export const TransactionsCollectionResolver = async (
       model: Expense,
       required: true,
       where: {
-        VirtualCardId: args.virtualCard.map(vc => vc.id),
+        VirtualCardId: uniq(args.virtualCard.map(vc => vc.id)),
       },
     });
   }
