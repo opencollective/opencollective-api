@@ -159,4 +159,89 @@ describe('server/graphql/v2/object/PayoutMethod', () => {
       }
     });
   });
+
+  describe('archived payout method obfuscation', () => {
+    it('returns null for data when collective admin queries an archived payout method', async () => {
+      const user = await fakeUser();
+      const archivedPm = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        name: 'Secret Bank',
+        CollectiveId: user.CollectiveId,
+        isSaved: false,
+        data: {
+          accountHolderName: 'Secret Holder',
+          currency: 'EUR',
+          type: 'IBAN',
+          details: { iban: 'FR123456789' },
+        },
+      });
+      await fakeExpense({ PayoutMethodId: archivedPm.id, status: 'PAID' });
+
+      const result = await graphqlQueryV2(
+        gql`
+          query Account($slug: String!) {
+            account(slug: $slug) {
+              id
+              payoutMethods(includeArchived: true) {
+                id
+                name
+                data
+                isSaved
+                type
+              }
+            }
+          }
+        `,
+        { slug: user.collective.slug },
+        user,
+      );
+      expect(result.errors).to.not.exist;
+      const archivedFromQuery = result.data.account.payoutMethods.find(pm => pm.id && !pm.isSaved);
+      expect(archivedFromQuery).to.exist;
+      expect(archivedFromQuery.name).to.be.equal('Secret Bank');
+      expect(archivedFromQuery.data).to.be.null;
+      expect(archivedFromQuery.isSaved).to.be.false;
+      expect(archivedFromQuery.type).to.equal('BANK_ACCOUNT');
+    });
+
+    it('returns name and data for saved payout methods when collective admin queries', async () => {
+      const user = await fakeUser();
+      await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        name: 'My Bank',
+        CollectiveId: user.CollectiveId,
+        isSaved: true,
+        data: {
+          accountHolderName: 'Holder',
+          currency: 'EUR',
+          type: 'IBAN',
+          details: { iban: 'FR999999999' },
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        gql`
+          query Account($slug: String!) {
+            account(slug: $slug) {
+              id
+              payoutMethods {
+                id
+                name
+                data
+                isSaved
+              }
+            }
+          }
+        `,
+        { slug: user.collective.slug },
+        user,
+      );
+      expect(result.errors).to.not.exist;
+      const pm = result.data.account.payoutMethods.find(p => p.name === 'My Bank');
+      expect(pm).to.exist;
+      expect(pm.name).to.equal('My Bank');
+      expect(pm.data).to.exist;
+      expect(pm.isSaved).to.be.true;
+    });
+  });
 });

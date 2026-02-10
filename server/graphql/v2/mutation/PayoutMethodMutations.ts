@@ -89,6 +89,7 @@ const payoutMethodMutations = {
   },
   restorePayoutMethod: {
     description: 'Restore the given payout method. Scope: "expenses".',
+    deprecationReason: '2025-02-10: Payout methods cannot be restored.',
     type: new GraphQLNonNull(GraphQLPayoutMethod),
     args: {
       payoutMethod: {
@@ -96,17 +97,8 @@ const payoutMethodMutations = {
         description: 'Payout Method reference',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<PayoutMethodModel> {
-      checkRemoteUserCanUseExpenses(req);
-
-      const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
-
-      const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Forbidden();
-      }
-
-      return payoutMethod.update({ isSaved: true });
+    async resolve() {
+      throw new Forbidden('Payout methods cannot be restored.');
     },
   },
   editPayoutMethod: {
@@ -129,6 +121,10 @@ const payoutMethodMutations = {
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
+
+      if (!payoutMethod.isSaved && args.payoutMethod.isSaved === true) {
+        throw new Forbidden('Archived payout methods cannot be restored.');
+      }
 
       if (await payoutMethod.canBeEdited()) {
         return await payoutMethod.update({
