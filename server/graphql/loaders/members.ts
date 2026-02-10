@@ -124,7 +124,7 @@ export const generateMemberIsActiveLoader = (req: Express.Request) => {
           AND m."deletedAt" IS NULL
         `,
           {
-            replacements: { membersIds: membersToProcess.map(m => m.id) },
+            replacements: { membersIds: uniq(membersToProcess.map(m => m.id)) },
             type: QueryTypes.SELECT,
           },
         );
