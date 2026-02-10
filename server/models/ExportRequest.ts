@@ -97,6 +97,7 @@ ExportRequest.init(
       onUpdate: 'CASCADE',
       allowNull: true,
     },
+    // One-to-one relationship enforced by a unique index constraint.
     UploadedFileId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'UploadedFiles' },
