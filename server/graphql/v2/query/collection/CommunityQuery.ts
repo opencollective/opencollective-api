@@ -73,11 +73,25 @@ type CommunitySummaryArgs = {
   totalExpendedExpression?: string;
   totalContributedExpression?: string;
 };
-const getHostCommunity = async (replacements: CommunitySummaryArgs) => {
+
+type CommunitySummaryOptions = {
+  orderBy?: {
+    field?: string;
+    direction?: string;
+  };
+};
+
+const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: CommunitySummaryOptions) => {
   const isAdmin = 'relation' in replacements && replacements.relation.includes('ADMIN');
   const searchConditions = buildSearchConditions(replacements.searchTerm);
-  const includeCommunityHostTransactionsAggregated =
-    replacements.totalContributedExpression || replacements.totalExpendedExpression;
+
+  // Determine if we need to join CommunityHostTransactionsAggregated table
+  const needsTransactionsAggregated =
+    replacements.totalContributedExpression ||
+    replacements.totalExpendedExpression ||
+    options?.orderBy?.field === 'TOTAL_CONTRIBUTED' ||
+    options?.orderBy?.field === 'TOTAL_EXPENDED';
+  const includeCommunityHostTransactionsAggregated = needsTransactionsAggregated;
 
   const baseQuery = `
     FROM "CommunityActivitySummary" cas
@@ -99,15 +113,40 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs) => {
       ${searchConditions.whereClause}
     `;
 
-  const orderBy = ['fc.name'];
+  // Build ORDER BY clause based on options
+  const orderBy = [];
   const groupBy = ['cas."FromCollectiveId"', 'fc.id'];
-  if (replacements.totalExpendedExpression) {
-    orderBy.unshift(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) DESC`);
-    groupBy.push('chta."expenseTotalAcc"');
-  }
-  if (replacements.totalContributedExpression) {
-    orderBy.unshift(`ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) DESC`);
-    groupBy.push('chta."contributionTotalAcc"');
+
+  if (options?.orderBy?.field && options?.orderBy?.direction) {
+    const direction = options.orderBy.direction.toUpperCase();
+    switch (options.orderBy.field) {
+      case 'NAME':
+        orderBy.push(`fc.name ${direction}`);
+        break;
+      case 'TOTAL_CONTRIBUTED':
+        orderBy.push(
+          `ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) ${direction}`,
+        );
+        groupBy.push('chta."contributionTotalAcc"');
+        break;
+      case 'TOTAL_EXPENDED':
+        orderBy.push(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) ${direction}`);
+        groupBy.push('chta."expenseTotalAcc"');
+        break;
+      default:
+        orderBy.push('fc.name ASC');
+    }
+  } else {
+    // Default ordering when filters are applied
+    if (replacements.totalExpendedExpression) {
+      orderBy.push(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) DESC`);
+      groupBy.push('chta."expenseTotalAcc"');
+    }
+    if (replacements.totalContributedExpression) {
+      orderBy.push(`ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) DESC`);
+      groupBy.push('chta."contributionTotalAcc"');
+    }
+    orderBy.push('fc.name ASC');
   }
 
   const allReplacements = { ...replacements, ...searchConditions.replacements };
@@ -239,7 +278,7 @@ const CommunityQuery = {
       // TODO: Before returning the result, double check if the remoteUser has access to see the result email
     }
 
-    const { nodes, totalCount } = await getHostCommunity(replacements);
+    const { nodes, totalCount } = await getHostCommunity(replacements, { orderBy: args.orderBy });
     const ids: number[] = (await nodes()).map(c => c.id);
     const canSeePrivateLocation = await req.loaders.Collective.canSeePrivateLocation.loadMany(ids);
     const canSeePrivateProfileInfo = await req.loaders.Collective.canSeePrivateProfileInfo.loadMany(ids);
