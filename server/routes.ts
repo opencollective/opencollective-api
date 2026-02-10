@@ -339,13 +339,24 @@ export default async (app: express.Application) => {
   app.use('/graphql', expressMiddleware(graphqlServerV2, apolloExpressMiddlewareOptions));
 
   /**
+   * Generic OAuth (ConnectedAccounts)
+   * To keep in sync with opencollective-frontend/pages/api/connected-accounts/[service]/oauthUrl.js
+   */
+  const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
+
+  /**
    * Webhooks that should bypass api key check
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
   app.post('/webhooks/plaid', plaidWebhook);
-  app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
+  app.get('/connected-accounts/:service/callback', noCache, (req, res, next) => {
+    if (!oauthServiceAllowlist.has(req.params.service)) {
+      return next(new errors.NotFound('Service not supported'));
+    }
+    return authentication.authenticateServiceCallback(req, res, next);
+  }); // oauth callback
   app.delete(
     '/connected-accounts/:service/disconnect/:collectiveId',
     noCache,
@@ -370,11 +381,6 @@ export default async (app: express.Application) => {
    * Separate route for uploading images to S3
    */
   app.post('/images', upload.single('file'), uploadImage);
-
-  /**
-   * Generic OAuth (ConnectedAccounts)
-   */
-  const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
 
   // backward compatibility
   app.get('/connected-accounts/:service', noCache, (req, res, next) => {
