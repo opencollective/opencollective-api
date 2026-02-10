@@ -438,7 +438,7 @@ export const ExpensesCollectionQueryResolver = async (
 
   if (!isEmpty(args.virtualCards)) {
     where[Op.and].push({
-      [Op.or]: [{ type: { [Op.ne]: ExpenseType.CHARGE } }, { VirtualCardId: args.virtualCards.map(vc => vc.id) }],
+      [Op.or]: [{ type: { [Op.ne]: ExpenseType.CHARGE } }, { VirtualCardId: uniq(args.virtualCards.map(vc => vc.id)) }],
     });
   }
 

@@ -1,4 +1,5 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { uniq } from 'lodash';
 import { Includeable } from 'sequelize';
 
 import models from '../../../models';
@@ -60,7 +61,7 @@ export const fetchOrdersWithReferences = async (
 
   // Fetch orders
   const orders = await models.Order.findAll({
-    where: { id: inputs.map(getDatabaseIdFromOrderReference) },
+    where: { id: uniq(inputs.map(getDatabaseIdFromOrderReference)) },
     include,
   });
 
