@@ -245,7 +245,8 @@
     "fastBalance": true,
     "separatePaymentProcessorFees": false,
     "separateTaxes": false,
-    "orderedTransactions": false
+    "orderedTransactions": false,
+    "balanceCarryforwardDate": null
   },
   "timeline": {
     "daysCached": 7,
