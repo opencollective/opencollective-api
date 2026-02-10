@@ -1595,7 +1595,7 @@ export const GraphQLHost = new GraphQLObjectType({
                         SELECT v FROM (
                           SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
                         ) WHERE v = ANY(ARRAY[${accountIds.map(v => sequelize.escape(v)).join(',')}]::int[])
-                      )  
+                      )
                     )
               `),
             ];
@@ -1741,11 +1741,20 @@ export const GraphQLHost = new GraphQLObjectType({
             type: new GraphQLList(GraphQLString),
             description: 'Filter by specific Account currencies',
           },
+          startsAtFrom: {
+            type: GraphQLDateTime,
+            description: 'Filter for accounts (Events) that started at a specific date range',
+          },
+          startsAtTo: {
+            type: GraphQLDateTime,
+            description: 'Filter for accounts (Events) that started at a specific date range',
+          },
         },
         async resolve(host, args) {
           const where: Parameters<typeof models.Collective.findAndCountAll>[0]['where'] = {
             HostCollectiveId: host.id,
             id: { [Op.not]: host.id },
+            [Op.and]: [],
           };
 
           if (args.accountType && args.accountType.length > 0) {
@@ -1787,12 +1796,6 @@ export const GraphQLHost = new GraphQLObjectType({
               assert(args.balance.lte.currency === host.currency, 'Balance currency must match host currency');
             }
 
-            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-            if (!where[Op.and]) {
-              // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-              where[Op.and] = [];
-            }
-
             const { operator, value } = getAmountRangeValueAndOperator(args.balance);
             // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             where[Op.and].push(sequelize.where(ACCOUNT_BALANCE_QUERY, operator, value));
@@ -1811,12 +1814,6 @@ export const GraphQLHost = new GraphQLObjectType({
                 args.consolidatedBalance.lte.currency === host.currency,
                 'Consolidated Balance currency must match host currency',
               );
-            }
-
-            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-            if (!where[Op.and]) {
-              // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-              where[Op.and] = [];
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.consolidatedBalance);
@@ -1857,6 +1854,15 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
+          if (args.startsAtFrom) {
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            where[Op.and].push({ startsAt: { [Op.gte]: args.startsAtFrom } });
+          }
+          if (args.startsAtTo) {
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            where[Op.and].push({ startsAt: { [Op.lte]: args.startsAtTo } });
+          }
+
           const orderBy = [];
           if (args.orderBy) {
             const { field, direction } = args.orderBy;
@@ -1874,6 +1880,9 @@ export const GraphQLHost = new GraphQLObjectType({
                 ),
                 direction,
               ]);
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.STARTS_AT) {
+              where['startsAt'] = { [Op.not]: null };
+              orderBy.push(['startsAt', direction]);
             } else {
               orderBy.push([field, direction]);
             }
