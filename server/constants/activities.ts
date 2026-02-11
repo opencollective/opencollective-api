@@ -214,6 +214,8 @@ export const TransactionalActivities = [
   ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
   ActivityTypes.PLATFORM_BILLING_OVERDUE_REMINDER,
   ActivityTypes.PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION,
+  ActivityTypes.EXPORT_REQUEST_COMPLETED,
+  ActivityTypes.EXPORT_REQUEST_FAILED,
 ];
 
 export enum ActivityClasses {
