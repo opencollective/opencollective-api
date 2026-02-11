@@ -814,21 +814,23 @@ const fetchExpensesPayees = async (
 
   // Host filter
   if (host) {
-    expenseConditions.push('e."HostCollectiveId" = :hostCollectiveId');
-    replacements.hostCollectiveId = host.id;
+    // Always join the collective table when filtering by host, to handle expenses where HostCollectiveId is NULL
+    collectiveJoin = 'INNER JOIN "Collectives" AS ec ON ec."id" = e."CollectiveId"';
+    // Match the main query's logic: either HostCollectiveId is set, or the collective's host matches
+    expenseConditions.push(
+      '(e."HostCollectiveId" = :hostId OR (e."HostCollectiveId" IS NULL AND ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL))',
+    );
+    replacements.hostId = host.id;
 
     // Host context: filter on the expense's collective
     if (args.hostContext && args.hostContext !== 'ALL') {
-      collectiveJoin = 'INNER JOIN "Collectives" AS ec ON ec."id" = e."CollectiveId"';
       if (args.hostContext === 'INTERNAL') {
         // Only the host account and its children (projects/events)
         expenseConditions.push('(ec."id" = :hostId OR ec."ParentCollectiveId" = :hostId)');
-        replacements.hostId = host.id;
       } else if (args.hostContext === 'HOSTED') {
         // Only hosted accounts, excluding the host account and its children
         expenseConditions.push('ec."id" != :hostId');
         expenseConditions.push('(ec."ParentCollectiveId" IS NULL OR ec."ParentCollectiveId" != :hostId)');
-        replacements.hostId = host.id;
       }
     }
   }
