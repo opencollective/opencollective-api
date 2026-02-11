@@ -2,7 +2,7 @@ import { GraphQLNonNull } from 'graphql';
 import { Order } from 'sequelize';
 
 import models from '../../../../models';
-import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
+import { checkRemoteUserCanUseExportRequests } from '../../../common/scope-check';
 import { Forbidden } from '../../../errors';
 import { GraphQLExportRequestCollection } from '../../collection/ExportRequestCollection';
 import { GraphQLExportRequestStatus } from '../../enum/ExportRequestStatus';
@@ -28,7 +28,7 @@ const ExportRequestsCollectionQuery = {
     },
   },
   async resolve(_: void, args, req: Express.Request): Promise<CollectionReturnType> {
-    checkRemoteUserCanUseAccount(req);
+    checkRemoteUserCanUseExportRequests(req);
 
     // Fetch account and check permissions
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });

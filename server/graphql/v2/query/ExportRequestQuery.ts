@@ -2,7 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
 import ExportRequest from '../../../models/ExportRequest';
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanUseExportRequests } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
 import {
   fetchExportRequestWithReference,
@@ -24,7 +24,7 @@ const ExportRequestQuery = {
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<ExportRequest | null> {
-    checkRemoteUserCanUseAccount(req);
+    checkRemoteUserCanUseExportRequests(req);
 
     const exportRequest = await fetchExportRequestWithReference(args.exportRequest, {
       throwIfMissing: args.throwIfMissing,

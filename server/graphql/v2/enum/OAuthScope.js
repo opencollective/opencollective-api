@@ -48,5 +48,8 @@ export const GraphQLOAuthScope = new GraphQLEnumType({
     [oAuthScopes.root]: {
       description: 'Perform critical administrative operations. ',
     },
+    [oAuthScopes.exportRequests]: {
+      description: 'Manage export requests.',
+    },
   },
 });
