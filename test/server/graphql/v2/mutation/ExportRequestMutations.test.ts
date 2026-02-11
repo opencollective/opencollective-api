@@ -26,7 +26,7 @@ const createExportRequestMutation = gql`
 `;
 
 const editExportRequestMutation = gql`
-  mutation EditExportRequest($exportRequest: ExportRequestReferenceInput!, $name: String) {
+  mutation EditExportRequest($exportRequest: ExportRequestReferenceInput!, $name: NonEmptyString) {
     editExportRequest(exportRequest: $exportRequest, name: $name) {
       id
       legacyId
