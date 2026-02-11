@@ -803,7 +803,7 @@ const fetchExpensesPayees = async (
   }
   const replacements: Record<string, unknown> = { limit, offset };
 
-  const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"'];
+  const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"', 'e."deletedAt" IS NULL'];
   let collectiveJoin = '';
 
   // Account filter (collectiveIds already includes children when includeChildrenExpenses is set)
