@@ -236,7 +236,7 @@ export const generateLoaders = req => {
               `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
-         AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+         AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
               {
                 replacements: { collectiveIds },
