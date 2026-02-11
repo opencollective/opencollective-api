@@ -10,7 +10,7 @@ export const GraphQLExportRequestCollection = new GraphQLObjectType({
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(new GraphQLNonNull(GraphQLExportRequest)),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExportRequest))),
     },
   }),
 });

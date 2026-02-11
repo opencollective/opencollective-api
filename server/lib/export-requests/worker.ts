@@ -90,6 +90,7 @@ class ExportWorker {
             type: ActivityTypes.EXPORT_REQUEST_COMPLETED,
             UserId: request.CreatedByUserId,
             CollectiveId: request.CollectiveId,
+            HostCollectiveId: collective?.HostCollectiveId,
             data: {
               exportRequest: {
                 id: request.id,

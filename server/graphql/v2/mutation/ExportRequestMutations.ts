@@ -1,8 +1,10 @@
 import express from 'express';
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLNonNull } from 'graphql';
+import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { parseS3Url, permanentlyDeleteFileFromS3 } from '../../../lib/awsS3';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import ExportRequest, { ExportRequestStatus } from '../../../models/ExportRequest';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, RateLimitExceeded } from '../../errors';
@@ -65,7 +67,7 @@ const exportRequestMutations = {
         description: 'Reference to the export request to edit',
       },
       name: {
-        type: GraphQLString,
+        type: GraphQLNonEmptyString,
         description: 'The new name for the export request',
       },
     },
@@ -122,8 +124,13 @@ const exportRequestMutations = {
         const uploadedFile = await req.loaders.UploadedFile.byId.load(exportRequest.UploadedFileId);
         if (uploadedFile) {
           const { bucket, key } = parseS3Url(uploadedFile.getDataValue('url'));
-          await permanentlyDeleteFileFromS3(bucket, key);
-          await uploadedFile.destroy();
+          try {
+            await permanentlyDeleteFileFromS3(bucket, key);
+            await uploadedFile.destroy();
+          } catch (error) {
+            reportErrorToSentry(error);
+            throw new Error('Failed to delete the uploaded file for this export request. Please contact support.');
+          }
         }
       }
 

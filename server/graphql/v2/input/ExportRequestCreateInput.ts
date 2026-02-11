@@ -1,5 +1,5 @@
-import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-scalars';
+import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
+import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLExportRequestType } from '../enum/ExportRequestType';
 
@@ -14,7 +14,7 @@ export const GraphQLExportRequestCreateInput = new GraphQLInputObjectType({
       description: 'The account to create the export request for',
     },
     name: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'A name for this export request',
     },
     type: {

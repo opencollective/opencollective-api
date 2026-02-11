@@ -1,5 +1,5 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExportRequest from '../../../models/ExportRequest';
 import { GraphQLExportRequestStatus } from '../enum/ExportRequestStatus';
@@ -15,7 +15,7 @@ export const GraphQLExportRequest = new GraphQLObjectType({
   description: 'An export request',
   fields: () => ({
     id: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'Unique identifier for this export request',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPORT_REQUEST),
     },
@@ -27,7 +27,7 @@ export const GraphQLExportRequest = new GraphQLObjectType({
       },
     },
     name: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The name of the export request',
     },
     type: {
