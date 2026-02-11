@@ -11,7 +11,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
-import { OrderItem, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
+import { OrderItem, QueryTypes, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
@@ -20,7 +20,7 @@ import { SupportedCurrency } from '../../../../constants/currencies';
 import MemberRoles from '../../../../constants/roles';
 import { getBalances } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
-import { buildSearchConditions } from '../../../../lib/sql-search';
+import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
@@ -311,7 +311,7 @@ export const ExpensesCollectionQueryResolver = async (
   _: void,
   args: Record<string, any> & { amount?: AmountRangeInputType },
   req: express.Request,
-): Promise<CollectionReturnType & { totalAmount?: any }> => {
+): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
 
@@ -780,6 +780,133 @@ export const ExpensesCollectionQueryResolver = async (
     },
     limit: args.limit,
     offset: args.offset,
+    payees: (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) =>
+      fetchExpensesPayees({ args, host, collectiveIds: where['CollectiveId'] as number[] | undefined }, subArgs),
+  };
+};
+
+const fetchExpensesPayees = async (
+  {
+    args,
+    host,
+    collectiveIds,
+  }: {
+    args: Record<string, unknown>;
+    host: Collective | null;
+    collectiveIds: number[] | undefined;
+  },
+  subArgs: { limit?: number; offset?: number; searchTerm?: string } = {},
+) => {
+  const { limit = 10, offset = 0, searchTerm } = subArgs;
+  if (limit > 1000) {
+    throw new Error('Cannot fetch more than 1000 payees at once');
+  }
+  const replacements: Record<string, unknown> = { limit, offset };
+
+  const expenseConditions: string[] = ['e."FromCollectiveId" = "Collective"."id"', 'e."deletedAt" IS NULL'];
+  let collectiveJoin = '';
+
+  // Account filter (collectiveIds already includes children when includeChildrenExpenses is set)
+  if (collectiveIds?.length > 0) {
+    expenseConditions.push('e."CollectiveId" IN (:collectiveIds)');
+    replacements.collectiveIds = collectiveIds;
+  }
+
+  // Host filter
+  if (host) {
+    // Always join the collective table when filtering by host, to handle expenses where HostCollectiveId is NULL
+    collectiveJoin = 'INNER JOIN "Collectives" AS ec ON ec."id" = e."CollectiveId"';
+    // Match the main query's logic: either HostCollectiveId is set, or the collective's host matches
+    expenseConditions.push(
+      '(e."HostCollectiveId" = :hostId OR (e."HostCollectiveId" IS NULL AND ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL))',
+    );
+    replacements.hostId = host.id;
+
+    // Host context: filter on the expense's collective
+    if (args.hostContext && args.hostContext !== 'ALL') {
+      if (args.hostContext === 'INTERNAL') {
+        // Only the host account and its children (projects/events)
+        expenseConditions.push('(ec."id" = :hostId OR ec."ParentCollectiveId" = :hostId)');
+      } else if (args.hostContext === 'HOSTED') {
+        // Only hosted accounts, excluding the host account and its children
+        expenseConditions.push('ec."id" != :hostId');
+        expenseConditions.push('(ec."ParentCollectiveId" IS NULL OR ec."ParentCollectiveId" != :hostId)');
+      }
+    }
+  }
+
+  // Status filter (simplified to use "APPROVED" for "READY_TO_PAY")
+  const statuses = (args.status as string[] | undefined)?.map(s => (s === 'READY_TO_PAY' ? 'APPROVED' : s));
+  if (statuses?.length > 0) {
+    if (statuses.includes('ON_HOLD') && statuses.length === 1) {
+      expenseConditions.push('e."onHold" = :onHold');
+      replacements.onHold = true;
+    } else {
+      expenseConditions.push('e."status" IN (:statuses)');
+      replacements.statuses = [...new Set(statuses)];
+      if (!statuses.includes('ON_HOLD')) {
+        expenseConditions.push('e."onHold" = :onHold');
+        replacements.onHold = false;
+      }
+    }
+  }
+
+  // Type filter
+  if (args.type) {
+    expenseConditions.push('e."type" = :type');
+    replacements.type = args.type;
+  } else if ((args.types as string[])?.length > 0) {
+    expenseConditions.push('e."type" IN (:types)');
+    replacements.types = args.types;
+  }
+
+  // Date filters
+  if (args.dateFrom) {
+    expenseConditions.push('e."createdAt" >= :dateFrom');
+    replacements.dateFrom = args.dateFrom;
+  }
+  if (args.dateTo) {
+    expenseConditions.push('e."createdAt" <= :dateTo');
+    replacements.dateTo = args.dateTo;
+  }
+
+  // --- Main WHERE on Collectives ---
+  let whereConditions = '"Collective"."deletedAt" IS NULL';
+
+  // Search term (full-text search on Collective)
+  const searchTermConditions = getSearchTermSQLConditions(searchTerm, '"Collective"');
+  if (searchTermConditions.sqlConditions) {
+    whereConditions += ` ${searchTermConditions.sqlConditions}`;
+    replacements.sanitizedTerm = searchTermConditions.sanitizedTerm;
+    replacements.sanitizedTermNoWhitespaces = searchTermConditions.sanitizedTermNoWhitespaces;
+  }
+
+  const existsClause = `EXISTS (SELECT 1 FROM "Expenses" e ${collectiveJoin} WHERE ${expenseConditions.join(' AND ')})`;
+  const whereClause = `WHERE ${whereConditions} AND ${existsClause}`;
+
+  return {
+    nodes: () =>
+      sequelize.query<Collective>(
+        `SELECT "Collective".* FROM "Collectives" AS "Collective" ${whereClause} ORDER BY "Collective"."name" ASC LIMIT :limit OFFSET :offset`,
+        {
+          replacements,
+          model: Collective,
+          mapToModel: true,
+        },
+      ),
+    totalCount: async () => {
+      const countResult = await sequelize.query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM "Collectives" AS "Collective" ${whereClause}`,
+        {
+          replacements,
+          type: QueryTypes.SELECT,
+          raw: true,
+        },
+      );
+      return parseInt(countResult[0]?.count ?? '0', 10);
+    },
+    limit,
+    offset,
   };
 };
 
