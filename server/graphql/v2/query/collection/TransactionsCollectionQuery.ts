@@ -563,10 +563,10 @@ export const TransactionsCollectionResolver = async (
     where.push({ PaymentMethodId: { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] } });
   } else if (args.paymentMethodService || args.paymentMethodType) {
     const services = uniq(args.paymentMethodService);
+    const hasOpenCollective = !services?.length || services.includes(PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE);
     const types = uniq(args.paymentMethodType?.map(type => type || PAYMENT_METHOD_TYPE.MANUAL)); // We historically used 'null' to fetch for manual payments
-    const hasManual =
-      services.includes(PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) || types.includes(PAYMENT_METHOD_TYPE.MANUAL);
-    const hasOnlyManual = hasManual && services.length + types.length <= 2;
+    const hasManual = hasOpenCollective && (!types?.length || types.includes(PAYMENT_METHOD_TYPE.MANUAL));
+    const hasOnlyManual = hasManual && services?.length <= 1 && types?.length === 1;
 
     if (hasOnlyManual) {
       where.push({ PaymentMethodId: { [Op.is]: null } });

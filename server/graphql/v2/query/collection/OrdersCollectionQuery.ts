@@ -7,7 +7,7 @@ import { compact, isEmpty, isNil, pickBy, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
-import { PAYMENT_METHOD_SERVICE } from '../../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -470,9 +470,10 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   // Filter on payment method service/type
   if (args.paymentMethodService || args.paymentMethodType) {
     const services = uniq(args.paymentMethodService);
-    const types = uniq(args.paymentMethodType);
-    const hasManual = services.includes(PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE);
-    const hasOnlyManual = hasManual && services.length === 1 && types.length === 1;
+    const hasOpenCollective = !services?.length || services.includes(PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE);
+    const types = uniq(args.paymentMethodType?.map(type => type || PAYMENT_METHOD_TYPE.MANUAL)); // We historically used 'null' to fetch for manual payments
+    const hasManual = hasOpenCollective && (!types?.length || types.includes(PAYMENT_METHOD_TYPE.MANUAL));
+    const hasOnlyManual = hasManual && services?.length <= 1 && types?.length === 1;
 
     if (hasOnlyManual) {
       // Simplest case: we only need to filter on PaymentMethodId
