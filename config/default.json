@@ -25,6 +25,7 @@
   "opensearch": {
     "maxSyncDelay": 5000
   },
+  "platform": {},
   "maintenancedb": {
     "url": "postgres://postgres@127.0.0.1:5432/postgres"
   },

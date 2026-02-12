@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
@@ -334,6 +334,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       mimetype: SUPPORTED_FILE_TYPES_UNION;
       onProgress?: (progress: number) => void;
       abortController?: AbortController;
+      ACL?: ObjectCannedACL;
     },
   ) {
     if (!checkS3Configured()) {
@@ -345,7 +346,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       Bucket: config.aws.s3.bucket,
       Key: `${kebabCase(kind)}/${uuid()}/${fileName || uuid()}`,
       Body: stream,
-      ACL: 'private',
+      ACL: args?.ACL || 'private',
       ContentType: args.mimetype,
       Metadata: {
         CreatedByUserId: `${user?.id}`,
@@ -355,12 +356,10 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
     let size = 0;
     const uploadStream = streamToS3(uploadParams);
-    if (args.onProgress) {
-      uploadStream.on('httpUploadProgress', progress => {
-        size = progress.total;
-        args.onProgress(progress.loaded);
-      });
-    }
+    uploadStream.on('httpUploadProgress', progress => {
+      size = progress.loaded;
+      args?.onProgress?.(progress.loaded);
+    });
     return uploadStream.done().then(uploadResult => {
       return UploadedFile.create({
         kind: kind,
@@ -473,7 +472,7 @@ UploadedFile.init(
         const url = this.getDataValue('url');
         const kind = this.getDataValue('kind');
         if (
-          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE'].includes(kind) &&
+          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE', 'TRANSACTIONS_CSV_EXPORT'].includes(kind) &&
           UploadedFile.isOpenCollectiveS3BucketURL(url)
         ) {
           return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(this);

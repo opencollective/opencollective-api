@@ -82,6 +82,9 @@ enum ActivityTypes {
   // Transactions imports
   TRANSACTIONS_IMPORT_CREATED = 'transactions.import.created',
   TRANSACTIONS_IMPORT_ROW_UPDATED = 'transactions.import.updated',
+  // Export requests
+  EXPORT_REQUEST_COMPLETED = 'export.request.completed',
+  EXPORT_REQUEST_FAILED = 'export.request.failed',
   // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',
@@ -211,6 +214,8 @@ export const TransactionalActivities = [
   ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
   ActivityTypes.PLATFORM_BILLING_OVERDUE_REMINDER,
   ActivityTypes.PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION,
+  ActivityTypes.EXPORT_REQUEST_COMPLETED,
+  ActivityTypes.EXPORT_REQUEST_FAILED,
 ];
 
 export enum ActivityClasses {

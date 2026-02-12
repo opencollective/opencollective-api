@@ -11,6 +11,7 @@ import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { getRootDomain, prependHttp } from '../lib/url-utils';
 
 import Collective from './Collective';
+import Member from './Member';
 import User from './User';
 
 const debug = debugLib('models:Notification');
@@ -154,7 +155,7 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
    * (e.g. backers@:collectiveSlug.opencollective.com, :eventSlug@:collectiveSlug.opencollective.com)
    * We exclude users that have unsubscribed (by looking for rows in the Notifications table that are active: false)
    */
-  static async getSubscribers(collectiveSlug: string | number, mailinglist: string) {
+  static async getSubscribers(collectiveSlug: string | number, mailinglist: string): Promise<Member[]> {
     const findByAttribute = typeof collectiveSlug === 'string' ? 'findBySlug' : 'findById';
     const collective = await Collective[findByAttribute](collectiveSlug);
 
@@ -204,7 +205,7 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
     }
     return User.findAll({
       where: {
-        CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+        CollectiveId: { [Op.in]: uniq(memberships.map(m => m.MemberCollectiveId)) },
       },
     });
   }
@@ -217,7 +218,7 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
     }
     return Collective.findAll({
       where: {
-        id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+        id: { [Op.in]: uniq(memberships.map(m => m.MemberCollectiveId)) },
       },
     });
   }

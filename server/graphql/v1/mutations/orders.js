@@ -16,6 +16,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
+import logger from '../../../lib/logger';
 import { executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
@@ -453,6 +454,7 @@ export async function createOrder(order, req) {
           throw new Error(`This payment provider is not available anymore, please select a different one.`);
         }
       } else {
+        logger.warn('Order creation: No manual payment provider provided, using default one');
         manualPaymentProvider = await models.ManualPaymentProvider.findOne({
           where: {
             CollectiveId: host.id,
