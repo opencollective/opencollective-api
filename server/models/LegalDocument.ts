@@ -52,6 +52,8 @@ const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
 
 class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttributes<LegalDocument>> {
+  public static readonly tableName = 'LegalDocuments' as const;
+
   declare public id: number;
   declare public year: number;
   declare public documentType: string;

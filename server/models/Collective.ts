@@ -294,6 +294,8 @@ class Collective extends Model<
   >,
   InferCreationAttributes<Collective>
 > {
+  public static readonly tableName = 'Collectives' as const;
+
   declare public id: number;
   declare public type: CollectiveType;
   declare public slug: string;

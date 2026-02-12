@@ -27,6 +27,8 @@ const invalidateContributorsCacheUsingInstance = instance => {
 };
 
 class Member extends Model<InferAttributes<Member, { omit: 'info' }>, InferCreationAttributes<Member>> {
+  public static readonly tableName = 'Members' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public MemberCollectiveId: ForeignKey<Collective['id']>;
