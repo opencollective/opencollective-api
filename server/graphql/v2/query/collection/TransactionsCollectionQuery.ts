@@ -13,7 +13,11 @@ import { RefundKind } from '../../../../constants/refund-kind';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
-import { mapPlatformTipCollectiveIds, mapPlatformTipDebitsToApplicationFees } from '../../../../lib/ledger-transform';
+import {
+  reassignPlatformTipCreditCollectives,
+  reassignPlatformTipDebtCollectives,
+  recastPlatformTipDebitsAsApplicationFees,
+} from '../../../../lib/ledger-transform';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -194,6 +198,12 @@ export const TransactionsCollectionArgs = {
     defaultValue: true,
     description:
       'When filtering with the `host` argument, also include virtual PLATFORM_TIP transactions related to Contributions via TransactionGroup',
+  },
+  transformPlatformTips: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: true,
+    description:
+      'Apply virtual ledger transforms to platform tip transactions: reassign tip credits to the contribution recipient collective, recast tip debits as APPLICATION_FEE entries attributed to the contributor, and reassign PLATFORM_TIP_DEBT collectives from the platform to the contribution recipient. Export-only, does not modify stored data.',
   },
   includeRegularTransactions: {
     type: new GraphQLNonNull(GraphQLBoolean),
@@ -743,9 +753,11 @@ export const TransactionsCollectionResolver = async (
   return {
     nodes: async () => {
       const transactions = await Transaction.findAll(queryParameters);
-      if (args.includePlatformTips) {
-        const mappedTransactions = await mapPlatformTipCollectiveIds(transactions, req);
-        return mapPlatformTipDebitsToApplicationFees(mappedTransactions, req);
+      if (args.transformPlatformTips) {
+        let result = await reassignPlatformTipCreditCollectives(transactions, req);
+        result = await recastPlatformTipDebitsAsApplicationFees(result, req);
+        result = await reassignPlatformTipDebtCollectives(result, req);
+        return result;
       }
       return transactions;
     },
