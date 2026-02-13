@@ -5,6 +5,7 @@ import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
 import { KYCProviderName } from '../../../lib/kyc/providers';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op } from '../../../models';
@@ -63,6 +64,39 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(account) {
           return Boolean(account.data?.isGuest);
+        },
+      },
+      emailWaitingForValidation: {
+        type: GraphQLString,
+        description: 'Email address waiting for validation. Only visible to the user themselves.',
+        async resolve(account: Collective, _, req: Request) {
+          if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(account)) {
+            return null;
+          }
+          if (!checkScope(req, 'account')) {
+            return null;
+          }
+          const user = await req.loaders.User.byCollectiveId.load(account.id);
+          return user?.emailWaitingForValidation;
+        },
+      },
+      isLimited: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: "Returns true if user account is limited (user can't use any feature)",
+        async resolve(account: Collective, _, req: Request) {
+          const user = await req.loaders.User.byCollectiveId.load(account.id);
+          return Boolean(user?.data?.features?.[FEATURE.ALL] === false);
+        },
+      },
+      isRoot: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns true if user is a root user. Only visible to the user themselves.',
+        async resolve(account: Collective, _, req: Request) {
+          if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(account)) {
+            return false;
+          }
+          const user = await req.loaders.User.byCollectiveId.load(account.id);
+          return user?.isRoot() ?? false;
         },
       },
       requiresProfileCompletion: {
