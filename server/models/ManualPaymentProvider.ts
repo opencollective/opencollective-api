@@ -38,6 +38,7 @@ class ManualPaymentProvider extends Model<
   InferAttributes<ManualPaymentProvider>,
   InferCreationAttributes<ManualPaymentProvider>
 > {
+  public static readonly tableName = 'ManualPaymentProviders' as const;
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public type: ManualPaymentProviderTypes;

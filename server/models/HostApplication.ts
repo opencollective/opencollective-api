@@ -23,6 +23,8 @@ export enum HostApplicationStatus {
 }
 
 class HostApplication extends Model<InferAttributes<HostApplication>, InferCreationAttributes<HostApplication>> {
+  public static readonly tableName = 'HostApplications' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: number;
   declare public HostCollectiveId: number;

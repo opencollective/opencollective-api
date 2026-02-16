@@ -38,6 +38,8 @@ type RecurringExpenseCreateAttributes =
   | Pick<RecurringExpenseAttributes, 'endsAt' | 'lastDraftedAt'>;
 
 class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
+  public static readonly tableName = 'RecurringExpenses' as const;
+
   declare public id: number;
   declare public interval: string;
   declare public CollectiveId: number;

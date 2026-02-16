@@ -30,6 +30,13 @@ export const checkRemoteUserCanUseAccount = (
   enforceScope(req, 'account');
 };
 
+export const checkRemoteUserCanUseExportRequests = (req: Express.Request): void => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage export requests.');
+  }
+  enforceScope(req, 'exportRequests');
+};
+
 export const checkRemoteUserCanUseHost = (req: Express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage hosted accounts.');

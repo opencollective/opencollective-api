@@ -3,6 +3,7 @@ import { QueryTypes } from 'sequelize';
 
 import { Expense, sequelize, UploadedFile } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
+import ExportRequest from '../../models/ExportRequest';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { canSeeExpenseAttachments, canSeeExpenseDraftPrivateDetails } from './expenses';
@@ -64,6 +65,16 @@ export async function hasUploadedFilePermission(
 
   if (!req?.remoteUser) {
     return false;
+  }
+
+  if (uploadedFile.kind === 'TRANSACTIONS_CSV_EXPORT') {
+    // One-to-one relationship enforced by a unique index constraint.
+    const exportRequest = await ExportRequest.findOne({
+      where: {
+        UploadedFileId: uploadedFile.id,
+      },
+    });
+    return req.remoteUser.isAdmin(exportRequest.CollectiveId);
   }
 
   const result = await sequelize.query<Array<{ ExpenseId: number }>>(

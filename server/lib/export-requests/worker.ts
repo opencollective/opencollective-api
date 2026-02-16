@@ -5,6 +5,8 @@ import debugLib from 'debug';
 import moment from 'moment';
 import PQueue from 'p-queue';
 
+import ActivityTypes from '../../constants/activities';
+import Activity from '../../models/Activity';
 import ExportRequest, { ExportRequestStatus, ExportRequestTypes } from '../../models/ExportRequest';
 import { createPostgresListener, removePostgresTriggers, setupPostgresTriggers } from '../db';
 import logger from '../logger';
@@ -22,6 +24,7 @@ const CHANNEL_NAME = 'export-requests';
 const FUNCTION_NAME = 'notify_export_requests_on_change';
 const TICK_INTERVAL = 5 * 60_000;
 const ABORT_ERROR = 'Process aborted';
+const MAX_RETRIES = 3;
 const TABLES = [{ tableName: 'ExportRequests', triggerPrefix: 'export_requests' }];
 export const EXPORT_PROCESSORS: Record<ExportRequestTypes, ExportProcessor> = {
   [ExportRequestTypes.TRANSACTIONS]: processTransactionsRequest,
@@ -58,7 +61,7 @@ class ExportWorker {
   }
 
   async processRequest(requestId: number, signal: AbortSignal): Promise<void> {
-    return await lockUntilOrThrow(`export-request-${requestId}`, async () => {
+    return await lockUntilOrThrow(`export-request-${requestId}`, async release => {
       const request = await ExportRequest.findByPk(requestId);
       assert(request, 'ExportRequest not found');
       assert(request.status === ExportRequestStatus.ENQUEUED, `ExportRequest is not ENQUEUED`);
@@ -69,16 +72,62 @@ class ExportWorker {
 
       const abortHandler = async () => {
         debug(`Processing of export request ${request.id} aborted`);
-        await request.fail(ABORT_ERROR, { shouldRetry: true });
+        await this.queue.add(async () => {
+          await request.fail(ABORT_ERROR, { shouldRetry: true });
+          if (release) {
+            await release();
+          }
+        });
       };
       signal.addEventListener('abort', abortHandler);
       // Update status
       await request.update({ status: ExportRequestStatus.PROCESSING });
-      await processor(request, signal).catch(async error => {
-        debug(`Error in processor for export request ${request.id}:`, error);
-        await request.fail(error.message || 'Unknown error', { shouldRetry: false });
-        reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
-      });
+      await processor(request, signal)
+        .then(async () => {
+          // Create activity on successful completion
+          const collective = await request.getCollective();
+          await Activity.create({
+            type: ActivityTypes.EXPORT_REQUEST_COMPLETED,
+            UserId: request.CreatedByUserId,
+            CollectiveId: request.CollectiveId,
+            HostCollectiveId: collective?.HostCollectiveId,
+            data: {
+              exportRequest: {
+                id: request.id,
+                name: request.name,
+                type: request.type,
+              },
+              collective: collective?.info,
+            },
+          });
+          logger.info(`Export request ${request.id} processed successfully`);
+        })
+        .catch(async error => {
+          debug(`Error in processor for export request ${request.id}:`, error);
+          const shouldRetry = (request.data?.retryCount || 0) < MAX_RETRIES;
+          await request.fail(error.message || 'Unknown error', { shouldRetry });
+          reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
+
+          // Create activity on failure (only if not retrying)
+          if (!shouldRetry) {
+            const collective = await request.getCollective();
+            await Activity.create({
+              type: ActivityTypes.EXPORT_REQUEST_FAILED,
+              UserId: request.CreatedByUserId,
+              CollectiveId: request.CollectiveId,
+              HostCollectiveId: collective?.HostCollectiveId,
+              data: {
+                exportRequest: {
+                  id: request.id,
+                  name: request.name,
+                  type: request.type,
+                  error: error.message || 'Unknown error',
+                },
+                collective: collective?.info,
+              },
+            });
+          }
+        });
       signal.removeEventListener('abort', abortHandler);
     });
   }
@@ -210,6 +259,7 @@ class ExportWorker {
           signal: this.controller.signal,
           id: `export-request-${event.payload.id}`,
         });
+        logger.info(`Queued export request ${event.payload.id} for processing`);
       } catch (error) {
         reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
       }
@@ -246,13 +296,12 @@ class ExportWorker {
       logger.info('Shutting down Exports Worker <-> Postgres sync job');
       this.shutdownPromise = runWithTimeout(
         (async () => {
-          this.subscriber?.close?.();
+          await removePostgresTriggers(sequelize, FUNCTION_NAME, TABLES);
           if (this.interval) {
             clearInterval(this.interval);
           }
-          await removePostgresTriggers(sequelize, FUNCTION_NAME, TABLES);
-          this.queue?.pause();
           this.controller?.abort();
+          this.subscriber?.close?.();
           await this.queue?.onPendingZero();
           logger.info('Exports Worker <-> Postgres sync job shutdown complete');
         })(),

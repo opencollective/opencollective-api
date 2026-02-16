@@ -50,6 +50,8 @@ class ExpenseTypesEnum extends DataTypes.ABSTRACT {
 }
 
 class AccountingCategory extends Model<InferAttributes<AccountingCategory>, AccountingCategoryCreationAttributes> {
+  public static readonly tableName = 'AccountingCategories' as const;
+
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare code: string;

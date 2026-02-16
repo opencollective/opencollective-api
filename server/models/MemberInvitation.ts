@@ -16,6 +16,8 @@ import User from './User';
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER];
 
 class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCreationAttributes<MemberInvitation>> {
+  public static readonly tableName = 'MemberInvitations' as const;
+
   declare id: number;
   declare CreatedByUserId: number;
   declare MemberCollectiveId: number;

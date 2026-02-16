@@ -8,6 +8,8 @@ class RequiredLegalDocument extends Model<
   InferAttributes<RequiredLegalDocument>,
   InferAttributes<RequiredLegalDocument>
 > {
+  public static readonly tableName = 'RequiredLegalDocuments' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public documentType: LEGAL_DOCUMENT_TYPE;
   declare public HostCollectiveId: number;

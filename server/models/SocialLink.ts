@@ -31,6 +31,8 @@ export enum SocialLinkType {
 }
 
 class SocialLink extends Model<InferAttributes<SocialLink>, InferCreationAttributes<SocialLink>> {
+  public static readonly tableName = 'SocialLinks' as const;
+
   declare public CollectiveId: number;
   declare public type: SocialLinkType;
   declare public url: string;

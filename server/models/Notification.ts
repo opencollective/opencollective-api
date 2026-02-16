@@ -23,6 +23,8 @@ const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
 };
 
 class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
+  public static readonly tableName = 'Notifications' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public channel: channels;
   declare public type: ActivityTypes | ActivityClasses | string;

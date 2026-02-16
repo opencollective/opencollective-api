@@ -12,16 +12,7 @@ import User from './User';
 type CreationAttributes = InferCreationAttributes<
   ExportRequest,
   {
-    omit:
-      | 'id'
-      | 'parameters'
-      | 'data'
-      | 'status'
-      | 'createdAt'
-      | 'updatedAt'
-      | 'deletedAt'
-      | 'expiresAt'
-      | 'UploadedFileId';
+    omit: 'id' | 'data' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'expiresAt' | 'UploadedFileId';
   }
 >;
 
@@ -52,6 +43,8 @@ const dataSchema = z
 type ExportRequestData = z.infer<typeof dataSchema>;
 
 class ExportRequest extends Model<InferAttributes<ExportRequest>, CreationAttributes> {
+  public static readonly tableName = 'ExportRequests' as const;
+
   declare public id: number;
   declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;
@@ -106,6 +99,7 @@ ExportRequest.init(
       onUpdate: 'CASCADE',
       allowNull: true,
     },
+    // One-to-one relationship enforced by a unique index constraint.
     UploadedFileId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'UploadedFiles' },

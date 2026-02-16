@@ -31,11 +31,12 @@ class CustomTokenHandler extends TokenHandler {
     );
 
     // Include refresh token in the response so clients can refresh access tokens
+    // In v5, the library's updateSuccessResponse will convert scope array to string
     return new BearerTokenType(
       accessToken,
       auth.TOKEN_EXPIRATION_SESSION_OAUTH,
       model.refreshToken || null,
-      model.scope.join(' '),
+      model.scope,
     );
   };
 }

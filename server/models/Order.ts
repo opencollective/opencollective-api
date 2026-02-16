@@ -63,6 +63,8 @@ export type OrderTax = {
 };
 
 class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
+  public static readonly tableName = 'Orders' as const;
+
   declare id: CreationOptional<number>;
   declare CreatedByUserId: ForeignKey<User['id']>;
   declare CollectiveId: ForeignKey<Collective['id']>;

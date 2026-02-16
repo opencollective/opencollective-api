@@ -21,6 +21,8 @@ type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
 class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttributes<ExpenseItem>> {
+  public static readonly tableName = 'ExpenseItems' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;

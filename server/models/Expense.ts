@@ -85,6 +85,8 @@ export enum ExpenseLockableFields {
 }
 
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
+  public static readonly tableName = 'Expenses' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public UserId: ForeignKey<User['id']>;
   declare public lastEditedById: ForeignKey<User['id']>;
