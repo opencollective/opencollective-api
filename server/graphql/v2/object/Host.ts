@@ -602,6 +602,72 @@ export const GraphQLHost = new GraphQLObjectType({
           };
         },
       },
+      hostContributionsReport: {
+        type: GraphQLHostExpensesReports,
+        description: 'EXPERIMENTAL (this may change or be removed)',
+        args: {
+          timeUnit: {
+            type: GraphQLTimeUnit,
+            defaultValue: 'MONTH',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+          },
+        },
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
+          if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
+            throw new Error('Only monthly, quarterly and yearly reports are supported.');
+          }
+
+          const query = `
+            WITH HostCollectiveIds AS (
+              SELECT "id" FROM "Collectives"
+              WHERE "id" = :hostCollectiveId
+              OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')
+            )
+            SELECT
+              DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt") AT TIME ZONE 'UTC') AS "date",
+              SUM(t."amountInHostCurrency") AS "amount",
+              (SELECT "currency" FROM "Collectives" where id = :hostCollectiveId) as "currency",
+              COUNT(o."id") AS "count",
+              CASE
+                  WHEN o."CollectiveId" IN (SELECT * FROM HostCollectiveIds) THEN TRUE ELSE FALSE
+              END AS "isHost",
+              o."AccountingCategoryId"
+
+            FROM "Transactions" t
+            JOIN "Orders" o ON o.id = t."OrderId"
+
+            WHERE t."HostCollectiveId" = :hostCollectiveId
+            AND t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND t."type" = 'CREDIT' AND NOT t."isRefund" AND t."RefundTransactionId" IS NULL AND t."deletedAt" IS NULL
+            ${args.dateFrom ? 'AND COALESCE(t."clearedAt", t."createdAt") >= :dateFrom' : ''}
+            ${args.dateTo ? 'AND COALESCE(t."clearedAt", t."createdAt") <= :dateTo' : ''}
+
+            GROUP BY "date", "isHost", o."AccountingCategoryId"
+          `;
+
+          const queryResult = await sequelize.query(query, {
+            replacements: {
+              hostCollectiveId: host.id,
+              timeUnit: args.timeUnit,
+              dateTo: args.dateTo ? moment(args.dateTo).utc().toISOString() : null,
+              dateFrom: args.dateFrom ? moment(args.dateFrom).utc().toISOString() : null,
+            },
+            type: QueryTypes.SELECT,
+            raw: true,
+          });
+
+          return {
+            timeUnit: args.timeUnit,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+            nodes: queryResult,
+          };
+        },
+      },
       supportedPaymentMethods: {
         type: new GraphQLList(GraphQLPaymentMethodLegacyType),
         description:

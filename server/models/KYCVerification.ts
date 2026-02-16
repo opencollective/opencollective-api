@@ -1,6 +1,5 @@
 import DataLoader from 'dataloader';
-import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model } from 'sequelize';
-import { QueryTypes } from 'sequelize';
+import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model, QueryTypes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
