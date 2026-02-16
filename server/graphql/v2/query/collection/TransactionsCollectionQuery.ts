@@ -16,6 +16,7 @@ import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
+import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound } from '../../../errors';
 import {
@@ -696,7 +697,19 @@ export const TransactionsCollectionResolver = async (
   };
 
   return {
-    nodes: () => Transaction.findAll(queryParameters),
+    nodes: async () => {
+      const transactions = await Transaction.findAll(queryParameters);
+      if (req.remoteUser) {
+        const fromCollectiveIds = uniq(transactions.map(t => t.FromCollectiveId).filter(Boolean));
+        const canSeeLocation = await req.loaders.Collective.canSeePrivateLocation.loadMany(fromCollectiveIds);
+        fromCollectiveIds.forEach((id, i) => {
+          if (canSeeLocation[i]) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, id);
+          }
+        });
+      }
+      return transactions;
+    },
     totalCount: () => fetchTransactionsCount(queryParameters),
     limit: args.limit,
     offset: args.offset,

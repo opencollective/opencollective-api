@@ -9,7 +9,9 @@ import {
   fakeAccountingCategory,
   fakeCollective,
   fakeHost,
+  fakeLocation,
   fakeManualPaymentProvider,
+  fakeMember,
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
@@ -414,6 +416,60 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
   });
 
   describe('permissions', () => {
+    it('host admin can see fromAccount.location on transactions', async () => {
+      const contributorUser = await fakeUser();
+      await fakeLocation({ CollectiveId: contributorUser.CollectiveId, country: 'NZ', address: '123 Test St' });
+      const locationHostAdmin = await fakeUser();
+      const locationHost = await fakeHost({ admin: locationHostAdmin.collective });
+      const locationCollective = await fakeCollective({ HostCollectiveId: locationHost.id });
+      // Create a BACKER membership so the canSeePrivateLocation loader can find the contributor
+      await fakeMember({
+        CollectiveId: locationCollective.id,
+        MemberCollectiveId: contributorUser.CollectiveId,
+        role: 'BACKER',
+      });
+      await fakeTransaction({
+        FromCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: locationCollective.id,
+        HostCollectiveId: locationHost.id,
+        kind: TransactionKind.CONTRIBUTION,
+        amount: 5000,
+      });
+
+      const locationQuery = gql`
+        query TransactionsWithLocation($slug: String!) {
+          transactions(account: { slug: $slug }) {
+            nodes {
+              id
+              fromAccount {
+                id
+                ... on Individual {
+                  location {
+                    country
+                    address
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      // Random user should NOT see location
+      const randomUser = await fakeUser();
+      const resultRandom = await graphqlQueryV2(locationQuery, { slug: locationCollective.slug }, randomUser);
+      expect(resultRandom.errors).to.not.exist;
+      expect(resultRandom.data.transactions.nodes[0].fromAccount.location).to.be.null;
+
+      // Host admin SHOULD see location
+      const resultHostAdmin = await graphqlQueryV2(locationQuery, { slug: locationCollective.slug }, locationHostAdmin);
+      expect(resultHostAdmin.errors).to.not.exist;
+      expect(resultHostAdmin.data.transactions.nodes[0].fromAccount.location).to.deep.include({
+        country: 'NZ',
+        address: '123 Test St',
+      });
+    });
+
     it('can see legalName if owner or host admin', async () => {
       const randomUser = await fakeUser();
       const queryArgs = { slug: collective.slug };
