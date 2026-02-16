@@ -4,13 +4,11 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, isEmpty, isNil, pickBy, uniq } from 'lodash';
-import { DataTypes, Includeable, Order, Utils as SequelizeUtils, where, WhereOptions } from 'sequelize';
+import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
-import { includeCte } from '../../../../lib/sequelize-cte';
 import { buildSearchConditions } from '../../../../lib/sql-search';
-import { ifStr } from '../../../../lib/utils';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
@@ -595,6 +593,21 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['data.expectedAt'][Op.lte] = args.expectedDateTo;
   }
 
+  if (args.chargedDateFrom) {
+    where[Op.and].push(
+      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
+        [Op.gte]: args.chargedDateFrom,
+      }),
+    );
+  }
+  if (args.chargedDateTo) {
+    where[Op.and].push(
+      sequelize.where(sequelize.literal(`COALESCE("Subscription"."lastChargedAt", "Order"."createdAt")`), {
+        [Op.lte]: args.chargedDateTo,
+      }),
+    );
+  }
+
   if (args.status && args.status.length > 0) {
     where['status'] = { [Op.in]: args.status };
     if (args.status.includes(OrderStatuses.PAUSED) && args.pausedBy) {
@@ -683,52 +696,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
   const { offset, limit } = args;
 
-  const cte = [];
-
-  if (args.chargedDateFrom || args.chargedDateTo) {
-    cte.push({
-      query: SequelizeUtils.formatNamedParameters(
-        `
-      SELECT DISTINCT t."OrderId" as "id"
-      FROM "Transactions" "t"
-      WHERE t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND
-      ${ifStr(args.chargedDateFrom, `COALESCE(t."clearedAt", t."createdAt") >= :chargedDateFrom AND`)}
-      ${ifStr(args.chargedDateTo, `COALESCE(t."clearedAt", t."createdAt") <= :chargedDateTo AND`)}
-      t."type" = 'CREDIT' AND
-      NOT t."isRefund" AND
-      t."RefundTransactionId" IS NULL AND
-      t."deletedAt" IS NULL
-      ${ifStr(host?.id, `AND t."HostCollectiveId" = :hostCollectiveId`)}
-    `,
-        {
-          chargedDateFrom: args.chargedDateFrom,
-          chargedDateTo: args.chargedDateTo,
-          hostCollectiveId: host?.id,
-        },
-        'postgres',
-      ),
-      as: 'OrdersWithTxns',
-    });
-
-    include.push(
-      includeCte(
-        'OrdersWithTxns',
-        {
-          id: {
-            type: DataTypes.INTEGER,
-          },
-        },
-        models.Order,
-        'id',
-        { required: true },
-      ),
-    );
-  }
-
   return {
     nodes: () =>
       models.Order.findAll({
-        cte,
         include,
         where,
         order,
@@ -737,7 +707,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       }),
     totalCount: () =>
       models.Order.count({
-        cte,
         include,
         where,
       }),

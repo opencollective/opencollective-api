@@ -5,7 +5,6 @@ import { Sequelize } from 'sequelize';
 
 import { getDBConf } from './db';
 import logger from './logger';
-import { sequelizeCte } from './sequelize-cte';
 
 // this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
 // like in case of the key totalOrders and raw query (like User.getTopBackers())
@@ -62,8 +61,6 @@ const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.p
   dialect: dbConfig.dialect,
   ...config.database.options,
 });
-
-sequelizeCte(sequelize);
 
 export {
   // @deprecated use the imports from 'sequelize' directly
