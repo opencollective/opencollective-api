@@ -82,6 +82,10 @@ const transactionsQuery = gql`
         fromAccount {
           id
           legalName
+          location {
+            address
+            country
+          }
         }
         toAccount {
           id
@@ -466,6 +470,57 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
           expect(transaction.toAccount.legalName).to.eq('Secret Corp');
           expect(transaction.account.legalName).to.be.null;
         }
+      });
+    });
+
+    it('can see fromAccount.location.address if host admin', async () => {
+      const randomUser = await fakeUser();
+      const testHostAdmin = await fakeUser();
+      const testFromCollectiveAdmin = await fakeUser();
+      const testHost = await fakeHost({ admin: testHostAdmin.collective });
+      const testFromCollective = await fakeOrganization({
+        legalName: 'Test Corp',
+        location: { address: '123 Secret Street' },
+        admin: testFromCollectiveAdmin.collective,
+      });
+      const testCollective = await fakeCollective({ HostCollectiveId: testHost.id });
+      const testOrder = await fakeOrder({
+        FromCollectiveId: testFromCollective.id,
+        CollectiveId: testCollective.id,
+      });
+      await fakeTransaction({
+        FromCollectiveId: testFromCollective.id,
+        CollectiveId: testCollective.id,
+        HostCollectiveId: testHost.id,
+        OrderId: testOrder.id,
+        kind: TransactionKind.CONTRIBUTION,
+        amount: 1000,
+      });
+
+      const queryArgs = { slug: testCollective.slug };
+
+      // Unauthenticated user should not see location address
+      const resultUnauthenticated = await graphqlQueryV2(transactionsQuery, queryArgs);
+      resultUnauthenticated.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.be.null;
+      });
+
+      // Random user should not see location address
+      const resultRandomUser = await graphqlQueryV2(transactionsQuery, queryArgs, randomUser);
+      resultRandomUser.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.be.null;
+      });
+
+      // FromCollective admin should see their own location address
+      const resultFromCollectiveAdmin = await graphqlQueryV2(transactionsQuery, queryArgs, testFromCollectiveAdmin);
+      resultFromCollectiveAdmin.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
+      });
+
+      // Host admin should see the location address
+      const resultHostAdmin = await graphqlQueryV2(transactionsQuery, queryArgs, testHostAdmin);
+      resultHostAdmin.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
       });
     });
   });

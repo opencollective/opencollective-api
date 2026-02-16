@@ -609,6 +609,7 @@ export const TransactionFields = () => {
       resolve(transaction, _, req) {
         if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.CollectiveId);
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.CollectiveId);
         }
 
         return req.loaders.Collective.byId.load(transaction.CollectiveId);
@@ -620,6 +621,7 @@ export const TransactionFields = () => {
       resolve(transaction, _, req) {
         if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.FromCollectiveId);
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.FromCollectiveId);
         }
 
         return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
