@@ -14,7 +14,7 @@ import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
-import { Forbidden } from '../../errors';
+import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
 import { GraphQLOAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
 import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenCollection';
@@ -89,11 +89,11 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         description: 'Returns true if user is a root user. Only visible to the user themselves.',
         async resolve(account: Collective, _, req: Request) {
-          if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(account)) {
-            return false;
+          checkRemoteUserCanUseAccount(req);
+          if (req.remoteUser.CollectiveId !== account.id) {
+            throw new Unauthorized('Only visible to the logged in user');
           }
-          const user = await req.loaders.User.byCollectiveId.load(account.id);
-          return user?.isRoot() ?? false;
+          return req.remoteUser.isRoot();
         },
       },
       requiresProfileCompletion: {
