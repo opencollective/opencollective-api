@@ -1,7 +1,7 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNil, omit } from 'lodash';
 import moment from 'moment';
 import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 
@@ -9,7 +9,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
-import { hasFeature } from '../../../lib/allowed-features';
+import { getSupportedExpenseTypes } from '../../../lib/expenses';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -447,28 +447,7 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseType))),
     description: 'The list of expense types supported by this account',
     async resolve(collective: Collective, _, req) {
-      const host = collective.hasMoneyManagement
-        ? collective
-        : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
-      const parent =
-        collective.ParentCollectiveId && (await req.loaders.Collective.byId.load(collective.ParentCollectiveId));
-
-      // Aggregate all configs, using the order of priority collective > parent > host
-      const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
-      const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
-      const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
-      const supportedFromConfig = Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
-      if (supportedFromConfig.includes('GRANT')) {
-        const hasGrantsFeature = await hasFeature(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, {
-          loaders: req.loaders,
-        });
-
-        if (!hasGrantsFeature) {
-          return supportedFromConfig.filter(type => type !== 'GRANT');
-        }
-      }
-
-      return supportedFromConfig;
+      return getSupportedExpenseTypes(collective, { loaders: req.loaders });
     },
   },
   transferwise: {

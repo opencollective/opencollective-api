@@ -15,6 +15,8 @@ enum FEATURE {
   USE_EXPENSES = 'USE_EXPENSES',
   /** Whether this profile can receive expenses */
   RECEIVE_EXPENSES = 'RECEIVE_EXPENSES',
+  /** Whether this profile can receive grants */
+  RECEIVE_GRANTS = 'RECEIVE_GRANTS',
   /** Whether this account can use multi-currency expenses */
   MULTI_CURRENCY_EXPENSES = 'MULTI_CURRENCY_EXPENSES',
   /** Whether this profile can create "goals" (displayed on the collective page) */
@@ -114,6 +116,7 @@ export const CommercialFeatures = [
   FEATURE.UPDATES,
   FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
   FEATURE.RECEIVE_EXPENSES,
+  FEATURE.RECEIVE_GRANTS,
   FEATURE.ACCOUNT_MANAGEMENT,
   FEATURE.OFF_PLATFORM_TRANSACTIONS,
 ] as const;
@@ -188,6 +191,10 @@ export const FeatureDetails: Record<CommercialFeaturesType, { label: string; doc
     label: 'Receive Expenses',
     documentationUrl:
       'https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-as-a-fiscal-host',
+  },
+  RECEIVE_GRANTS: {
+    label: 'Receive Grants',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/funds-and-grants/grants',
   },
   ACCOUNT_MANAGEMENT: {
     label: 'Account Management',
