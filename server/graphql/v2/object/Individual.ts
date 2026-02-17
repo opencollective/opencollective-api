@@ -67,7 +67,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         },
       },
       emailWaitingForValidation: {
-        type: GraphQLString,
+        type: GraphQLEmailAddress,
         description: 'Email address waiting for validation. Only visible to the user themselves.',
         async resolve(account: Collective, _, req: Request) {
           if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(account)) {
