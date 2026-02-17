@@ -70,14 +70,10 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: GraphQLEmailAddress,
         description: 'Email address waiting for validation. Only visible to the user themselves.',
         async resolve(account: Collective, _, req: Request) {
-          if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(account)) {
-            return null;
+          checkRemoteUserCanUseAccount(req);
+          if (req.remoteUser.CollectiveId === account.id) {
+            return req.remoteUser.emailWaitingForValidation;
           }
-          if (!checkScope(req, 'account')) {
-            return null;
-          }
-          const user = await req.loaders.User.byCollectiveId.load(account.id);
-          return user?.emailWaitingForValidation;
         },
       },
       isLimited: {
