@@ -23,7 +23,6 @@ import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense-type';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import OrderStatuses from '../../../constants/order-status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
@@ -113,7 +112,6 @@ import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
 import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
-import { GraphQLPaymentMethod } from './PaymentMethod';
 import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
 
@@ -752,19 +750,6 @@ export const GraphQLHost = new GraphQLObjectType({
           return payoutMethod;
         },
       },
-      paypalPreApproval: {
-        type: GraphQLPaymentMethod,
-        description: 'Paypal preapproval info. Returns null if PayPal account is not connected.',
-        resolve: async host => {
-          return models.PaymentMethod.findOne({
-            where: {
-              CollectiveId: host.id,
-              service: PAYMENT_METHOD_SERVICE.PAYPAL,
-              type: PAYMENT_METHOD_TYPE.ADAPTIVE,
-            },
-          });
-        },
-      },
       paypalClientId: {
         type: GraphQLString,
         description: 'If the host supports PayPal, this will contain the client ID to use in the frontend',
@@ -785,17 +770,12 @@ export const GraphQLHost = new GraphQLObjectType({
             PayoutMethodTypes.STRIPE,
           ];
 
-          // Check for PayPal
-          if (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) {
-            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Payout
-          } else {
-            try {
-              if (await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' })) {
-                supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Adaptive
-              }
-            } catch {
-              // ignore missing paypal payment method
-            }
+          // Check for PayPal (Payouts via ConnectedAccount)
+          if (
+            (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) ||
+            host.settings?.payouts?.enableManualPayPalPayments
+          ) {
+            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
           }
 
           if (!host.settings?.disableCustomPayoutMethod) {

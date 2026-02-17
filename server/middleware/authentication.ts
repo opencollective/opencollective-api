@@ -447,18 +447,10 @@ export function authorizeClient(req: Request, res: Response, next: NextFunction)
   // TODO: we should remove those exceptions
   // those routes should only be accessed via the website (which automatically adds the api_key)
   const exceptions = [
-    {
-      method: 'GET',
-      regex: /^\/collectives\/[0-9]+\/transactions\/[0-9]+\/callback\?token=.+&paymentId=.+&PayerID=.+/,
-    }, // PayPal callback
-    {
-      method: 'GET',
-      regex: /^\/collectives\/[0-9]+\/transactions\/[0-9]+\/callback\?token=.+/,
-    }, // PayPal callback
     { method: 'POST', regex: /^\/webhooks\/(mailgun|stripe|transferwise)/ },
     {
       method: 'GET',
-      regex: /^\/connected-accounts\/(stripe|paypal)\/callback/,
+      regex: /^\/connected-accounts\/(stripe)\/callback/,
     },
     {
       method: 'GET',
