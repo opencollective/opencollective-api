@@ -14,6 +14,7 @@ import throng from 'throng';
 import setupExpress from './lib/express';
 import logger from './lib/logger';
 import { reportErrorToSentry } from './lib/sentry';
+import { checkIfSentryConfigured } from './lib/sentry/init';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
 import { startExportWorker } from './workers/exports';
@@ -34,7 +35,9 @@ async function startExpressServer(workerId) {
    */
   await routes(expressApp);
 
-  Sentry.setupExpressErrorHandler(expressApp);
+  if (checkIfSentryConfigured()) {
+    Sentry.setupExpressErrorHandler(expressApp);
+  }
 
   /**
    * Start server
