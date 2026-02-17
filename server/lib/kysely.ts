@@ -1,3 +1,4 @@
+import debugLib from 'debug';
 import { Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler } from 'kysely';
 import { KyselySequelizeDialect } from 'kysely-sequelize';
 import type { Model, ModelStatic } from 'sequelize';
@@ -6,6 +7,8 @@ import type { Database } from '../types/kysely-tables';
 import { ViewsDatabase } from '../types/kysely-views';
 
 import sequelize from './sequelize';
+
+const debug = debugLib('kysely');
 
 function rowToModel<T extends Model>(row: Record<string, unknown>, ModelClass: ModelStatic<T>): T {
   const rawAttrs = ModelClass.rawAttributes;
@@ -57,6 +60,13 @@ export function getKysely(): Kysely<DatabaseWithViews> {
           createQueryCompiler: () => new PostgresQueryCompiler(),
         },
       }),
+      log: debug.enabled
+        ? e => {
+            if (e.level === 'query') {
+              debug('Kysely query: %s\n\nParameters: %o', e.query.sql, e.query.parameters);
+            }
+          }
+        : undefined,
     });
   }
   return kyselyInstance;
