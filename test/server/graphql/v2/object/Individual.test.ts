@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import FEATURE from '../../../../../server/constants/feature';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
@@ -162,6 +163,101 @@ describe('server/graphql/v2/object/Individual', () => {
       expect(result.data.me.contributorProfiles[0].account.slug).to.eq(user.collective.slug);
       expect(result.data.me.contributorProfiles[1].account.slug).to.eq(anotherCollective.slug);
       expect(result.data.me.contributorProfiles[2].account.slug).to.eq(event.slug);
+    });
+  });
+
+  describe('emailWaitingForValidation', () => {
+    const emailWaitingForValidationQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            emailWaitingForValidation
+          }
+        }
+      }
+    `;
+
+    it('returns error if user is not logged in', async () => {
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: user.collective.slug });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('returns null when querying another user account', async () => {
+      const otherUser = await fakeUser({ emailWaitingForValidation: 'pending@test.com' });
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: otherUser.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emailWaitingForValidation).to.be.null;
+    });
+
+    it('returns the pending email for the logged-in user', async () => {
+      await user.update({ emailWaitingForValidation: 'newemail@test.com' });
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emailWaitingForValidation).to.equal('newemail@test.com');
+    });
+
+    it('returns null if there is no pending email', async () => {
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emailWaitingForValidation).to.be.null;
+    });
+  });
+
+  describe('isLimited', () => {
+    const isLimitedQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            isLimited
+          }
+        }
+      }
+    `;
+
+    it('returns false for a normal user', async () => {
+      const result = await graphqlQueryV2(isLimitedQuery, { slug: user.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isLimited).to.be.false;
+    });
+
+    it('returns true for a limited user', async () => {
+      const limitedUser = await fakeUser();
+      await limitedUser.update({ data: { features: { [FEATURE.ALL]: false } as Record<FEATURE, boolean> } });
+      const result = await graphqlQueryV2(isLimitedQuery, { slug: limitedUser.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isLimited).to.be.true;
+    });
+  });
+
+  describe('isRoot', () => {
+    const isRootQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            isRoot
+          }
+        }
+      }
+    `;
+
+    it('returns false if user is not logged in', async () => {
+      const result = await graphqlQueryV2(isRootQuery, { slug: user.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isRoot).to.be.false;
+    });
+
+    it('returns false when querying another user account', async () => {
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(isRootQuery, { slug: otherUser.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isRoot).to.be.false;
+    });
+
+    it('returns false for a non-root user querying themselves', async () => {
+      const result = await graphqlQueryV2(isRootQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isRoot).to.be.false;
     });
   });
 

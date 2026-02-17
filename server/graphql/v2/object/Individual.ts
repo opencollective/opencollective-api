@@ -5,13 +5,14 @@ import { WhereOptions } from 'sequelize';
 
 import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
 import { KYCProviderName } from '../../../lib/kyc/providers';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op } from '../../../models';
 import { KYCVerification } from '../../../models/KYCVerification';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { Forbidden } from '../../errors';
 import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
@@ -25,6 +26,7 @@ import {
 } from '../input/AccountReferenceInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
+import GraphQLEmailAddress from '../scalar/EmailAddress';
 
 import { GraphQLContributorProfile } from './ContributorProfile';
 import { GraphQLHost } from './Host';
@@ -63,6 +65,35 @@ export const GraphQLIndividual = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(account) {
           return Boolean(account.data?.isGuest);
+        },
+      },
+      emailWaitingForValidation: {
+        type: GraphQLEmailAddress,
+        description: 'Email address waiting for validation. Only visible to the user themselves.',
+        async resolve(account: Collective, _, req: Request) {
+          checkRemoteUserCanUseAccount(req);
+          if (req.remoteUser.CollectiveId === account.id) {
+            return req.remoteUser.emailWaitingForValidation;
+          }
+        },
+      },
+      isLimited: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: "Returns true if user account is limited (user can't use any feature)",
+        async resolve(account: Collective, _, req: Request) {
+          const user = await req.loaders.User.byCollectiveId.load(account.id);
+          return Boolean(user?.data?.features?.[FEATURE.ALL] === false);
+        },
+      },
+      isRoot: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns true if user is a root user. Only visible to the user themselves.',
+        async resolve(account: Collective, _, req: Request) {
+          if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(account)) {
+            return false;
+          }
+          const user = await req.loaders.User.byCollectiveId.load(account.id);
+          return user?.isRoot() ?? false;
         },
       },
       requiresProfileCompletion: {
