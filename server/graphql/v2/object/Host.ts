@@ -1765,7 +1765,7 @@ export const GraphQLHost = new GraphQLObjectType({
           order.forEach(([field, direction]) => {
             nodeQuery = nodeQuery.orderBy(field, direction);
           });
-          nodeQuery.orderBy('Collectives.createdAt', 'desc');
+          nodeQuery = nodeQuery.orderBy('Collectives.createdAt', 'desc');
 
           const nodes = () =>
             nodeQuery.limit(args.limit).offset(args.offset).execute().then(kyselyToSequelizeModels(Collective));
