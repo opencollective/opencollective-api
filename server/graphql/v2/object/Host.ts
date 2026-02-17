@@ -12,6 +12,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
+import { sql } from 'kysely';
 import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
 import { QueryTypes } from 'sequelize';
@@ -27,11 +28,12 @@ import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { getKysely, kyselyToSequelizeModels } from '../../../lib/kysely';
 import logger from '../../../lib/logger';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
-import { buildSearchConditions } from '../../../lib/sql-search';
+import { buildKyselySearchConditions, buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
@@ -83,7 +85,6 @@ import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/Amo
 import {
   ACCOUNT_BALANCE_QUERY,
   ACCOUNT_CONSOLIDATED_BALANCE_QUERY,
-  getAmountRangeQuery,
   getAmountRangeValueAndOperator,
   GraphQLAmountRangeInput,
 } from '../input/AmountRangeInput';
@@ -1582,116 +1583,200 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLAmountRangeInput,
             description: 'Only return accounts that expended within this amount range',
           },
+          orderBy: {
+            type: GraphQLOrderByInput,
+            description: 'Order of the results',
+          },
         },
-        async resolve(account, args, req) {
-          const where = {
-            ParentCollectiveId: account.id,
-            type: CollectiveType.VENDOR,
-            deactivatedAt: { [args.isArchived ? Op.not : Op.is]: null },
-          };
-
-          const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
-          const isAdmin = req.remoteUser?.isAdminOfCollective(account);
+        async resolve(host: Collective, args, req: express.Request) {
+          // Check if user is admin of the Host
+          const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+          const isAdmin = req.remoteUser?.isAdminOfCollective(host);
           if (!publicVendorPolicy && !isAdmin) {
             return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
           }
 
-          const searchTermConditions =
-            args.searchTerm &&
-            buildSearchConditions(args.searchTerm, {
-              idFields: ['id'],
-              slugFields: ['slug'],
-              textFields: ['name', 'description', 'longDescription'],
-              stringArrayFields: ['tags'],
-              stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
-            });
-          if (searchTermConditions?.length) {
-            where[Op.or] = searchTermConditions;
-          }
+          const db = getKysely();
+          let query = db
+            .with('vendor_summary', db =>
+              db
+                .selectFrom('Collectives as c')
+                .innerJoin('CommunityHostTransactionsAggregated', join =>
+                  join
+                    .onRef('CommunityHostTransactionsAggregated.FromCollectiveId', '=', 'c.id')
+                    .on('CommunityHostTransactionsAggregated.HostCollectiveId', '=', host.id),
+                )
+                .where('c.ParentCollectiveId', '=', host.id)
+                .where('c.type', '=', CollectiveType.VENDOR)
+                .where('c.deletedAt', 'is', null)
+                .select(({ ref }) => [
+                  'c.id',
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}, 1)], 0))`.as(
+                    'totalExpended',
+                  ),
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}, 1)], 0))`.as(
+                    'totalContributed',
+                  ),
+                ]),
+            )
+            .selectFrom('Collectives')
+            .leftJoin('vendor_summary', 'vendor_summary.id', 'Collectives.id');
 
-          // @ts-expect-error Property 'group' is missing => It's an error on sequelize types, as the [docs](https://sequelize.org/docs/v6/core-concepts/model-querying-finders/#findandcountall) clearly say it's opitonal
-          const findArgs: Parameters<typeof models.Collective.findAndCountAll>[0] = {
-            where,
-            limit: args.limit,
-            offset: args.offset,
-            order: [['createdAt', 'DESC']],
-          };
+          query = query
+            .where('ParentCollectiveId', '=', host.id)
+            .where('type', '=', CollectiveType.VENDOR)
+            .where('deactivatedAt', args.isArchived ? 'is not' : 'is', null)
+            // Total Expended Filtering
+            .$if(args.totalExpended?.gte, q =>
+              q.where('vendor_summary.totalExpended', '>=', getValueInCentsFromAmountInput(args.totalExpended.gte)),
+            )
+            .$if(args.totalExpended?.lte, q =>
+              q.where(({ or, eb }) =>
+                or([
+                  eb('vendor_summary.totalExpended', '<=', getValueInCentsFromAmountInput(args.totalExpended.lte)),
+                  eb('vendor_summary.totalExpended', 'is', null),
+                ]),
+              ),
+            )
+            // Total Contributed Filtering
+            .$if(args.totalContributed?.gte, q =>
+              q.where(
+                'vendor_summary.totalContributed',
+                '>=',
+                getValueInCentsFromAmountInput(args.totalContributed.gte),
+              ),
+            )
+            .$if(args.totalContributed?.lte, q =>
+              q.where(({ or, eb }) =>
+                or([
+                  eb(
+                    'vendor_summary.totalContributed',
+                    '<=',
+                    getValueInCentsFromAmountInput(args.totalContributed.lte),
+                  ),
+                  eb('vendor_summary.totalContributed', 'is', null),
+                ]),
+              ),
+            )
+            .$if(
+              args.searchTerm,
+              buildKyselySearchConditions(args.searchTerm, {
+                idFields: ['id'],
+                slugFields: ['slug'],
+                textFields: ['name', 'description', 'longDescription'],
+              }),
+            );
 
+          const selects: Array<Parameters<typeof query.select>[0]> = [];
+          const order = [];
           if (args.forAccount) {
             const account = await fetchAccountWithReference(args.forAccount);
-            findArgs['attributes'] = {
-              include: [
-                [
-                  sequelize.literal(`(
-            SELECT COUNT(*) FROM "Expenses" WHERE "deletedAt" IS NULL AND "status" = 'PAID' AND "CollectiveId" = ${account.id} AND "FromCollectiveId" = "Collective"."id"
-          )`),
-                  'expenseCount',
-                ],
-              ],
-            };
-            findArgs.order = [
-              [sequelize.literal('"expenseCount"'), 'DESC'],
-              ['createdAt', 'DESC'],
-            ];
+            if (!isAdmin) {
+              query = query.where(({ exists, selectFrom }) =>
+                exists(
+                  selectFrom('Expenses')
+                    .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
+                    .where('Expenses.deletedAt', 'is', null)
+                    .where('Expenses.status', '=', 'PAID')
+                    .where('Expenses.CollectiveId', '=', account.id)
+                    .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
+                    .limit(1),
+                ),
+              );
+            } else {
+              // Adding conditional selects is not recommended, do not use this elsewhere.
+              selects.push(({ selectFrom }) =>
+                selectFrom('Expenses')
+                  .select(({ fn }) => fn.count<number>('id').as('expenseCount'))
+                  .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
+                  .where('Expenses.deletedAt', 'is', null)
+                  .where('Expenses.status', '=', 'PAID')
+                  .where('Expenses.CollectiveId', '=', account.id)
+                  .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
+                  .as('expenseCount'),
+              );
+              order.push([eb => eb.ref('expenseCount'), 'desc']);
+            }
           }
 
-          if (args.visibleToAccounts?.length > 0) {
-            const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
+          const visibleToAccountIds =
+            args.visibleToAccounts?.length > 0 &&
+            (await fetchAccountsIdsWithReference(args.visibleToAccounts, {
               throwIfMissing: true,
-            });
-            const parentAccounts = await Collective.findAll({
+            }));
+          const parentAccounts =
+            visibleToAccountIds &&
+            (await Collective.findAll({
               where: {
                 id: visibleToAccountIds,
                 ParentCollectiveId: { [Op.ne]: null },
               },
               attributes: ['ParentCollectiveId'],
-            });
+            }));
 
-            const accountIds = compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
-            findArgs.where[Op.and] = [
-              sequelize.literal(`
-                    data#>'{visibleToAccountIds}' IS NULL
-                    OR data#>'{visibleToAccountIds}' = '[]'::jsonb
-                    OR data#>'{visibleToAccountIds}' = 'null'::jsonb
-                    OR
-                    (
-                      jsonb_typeof(data#>'{visibleToAccountIds}')='array'
-                      AND
-                      EXISTS (
-                        SELECT v FROM (
-                          SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(ARRAY[${accountIds.map(v => sequelize.escape(v)).join(',')}]::int[])
-                      )
+          const accountIds =
+            visibleToAccountIds &&
+            compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
+
+          query = query.$if(accountIds && accountIds.length > 0, q =>
+            q.where(
+              () =>
+                sql`
+                  data#>'{visibleToAccountIds}' IS NULL
+                  OR data#>'{visibleToAccountIds}' = '[]'::jsonb
+                  OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+                  OR (
+                    jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+                    AND
+                    EXISTS (
+                      SELECT v FROM (
+                        SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                      ) WHERE v = ANY(ARRAY[${sql.join(accountIds)}]::int[])
                     )
-              `),
-            ];
-          }
-
-          const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
-          if (hasCommunityHostTransactionsArgs) {
-            const prefilteredIds = await sequelize.query<{ id: number }>(
-              `
-              SELECT DISTINCT id
-                FROM
-                  "CommunityActivitySummary" cas
-                  INNER JOIN "Collectives" c ON cas."FromCollectiveId" = c.id AND c.type = 'VENDOR' AND c."ParentCollectiveId" = :hostId
-                  LEFT JOIN "CommunityHostTransactionsAggregated" chta ON chta."FromCollectiveId" = cas."FromCollectiveId" AND chta."HostCollectiveId" = cas."HostCollectiveId"
-                WHERE cas."HostCollectiveId" = :hostId
-                ${ifStr(args.totalExpended, () => `AND ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0))${getAmountRangeQuery(args.totalExpended)}`)}
-                ${ifStr(args.totalContributed, () => `AND ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0))${getAmountRangeQuery(args.totalContributed)}`)}
+                  )
               `,
-              {
-                type: QueryTypes.SELECT,
-                replacements: { hostId: account.id },
-              },
-            );
-            findArgs.where['id'] = { [Op.in]: prefilteredIds.map(row => row.id) };
+            ),
+          );
+
+          const countQuery = query.select(({ fn }) => fn.count<number>('Collectives.id').as('count'));
+
+          let nodeQuery = query
+            .selectAll('Collectives')
+            .select('vendor_summary.totalContributed')
+            .select('vendor_summary.totalExpended');
+          if (selects.length > 0) {
+            nodeQuery = nodeQuery.select(selects);
           }
 
-          const { rows, count } = await models.Collective.findAndCountAll(findArgs);
-          const vendors = args.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
+          if (args.orderBy) {
+            const direction = ob => (args.orderBy.direction === 'DESC' ? ob.desc().nullsLast() : ob.asc().nullsFirst());
+            if (args?.orderBy?.field === 'TOTAL_CONTRIBUTED' || args?.orderBy?.field === 'TOTAL_EXPENDED') {
+              nodeQuery = nodeQuery.orderBy(
+                args.orderBy.field === 'TOTAL_CONTRIBUTED'
+                  ? 'vendor_summary.totalContributed'
+                  : 'vendor_summary.totalExpended',
+                direction,
+              );
+            } else if (args?.orderBy?.field) {
+              nodeQuery = nodeQuery.orderBy(args.orderBy.field, direction);
+            }
+          }
 
-          return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
+          order.forEach(([field, direction]) => {
+            nodeQuery = nodeQuery.orderBy(field, direction);
+          });
+          nodeQuery.orderBy('Collectives.createdAt', 'desc');
+
+          const nodes = () =>
+            nodeQuery.limit(args.limit).offset(args.offset).execute().then(kyselyToSequelizeModels(Collective));
+          const totalCount = () => countQuery.executeTakeFirst().then(result => result?.count || 0);
+
+          return {
+            nodes,
+            totalCount,
+            limit: args.limit,
+            offset: args.offset,
+          };
         },
       },
       potentialVendors: {
