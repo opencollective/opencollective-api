@@ -12,7 +12,7 @@ import models, { Collective, Op } from '../../../models';
 import { KYCVerification } from '../../../models/KYCVerification';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { Forbidden } from '../../errors';
 import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
@@ -26,6 +26,7 @@ import {
 } from '../input/AccountReferenceInput';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
+import GraphQLEmailAddress from '../scalar/EmailAddress';
 
 import { GraphQLContributorProfile } from './ContributorProfile';
 import { GraphQLHost } from './Host';
