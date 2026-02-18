@@ -90,7 +90,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
         description: 'Returns true if user is a root user. Only visible to the user themselves.',
         async resolve(account: Collective, _, req: Request) {
           checkRemoteUserCanUseAccount(req);
-          if (req.remoteUser.CollectiveId !== account.id) {
+          if (req.remoteUser?.CollectiveId !== account.id) {
             throw new Unauthorized('Only visible to the logged in user');
           }
           return req.remoteUser.isRoot();
