@@ -1598,19 +1598,20 @@ export const GraphQLHost = new GraphQLObjectType({
 
           const db = getKysely();
           let query = db
-            .with('vendor_summary', db =>
+            .with('Vendors', db =>
               db
-                .selectFrom('Collectives as c')
-                .innerJoin('CommunityHostTransactionsAggregated', join =>
+                .selectFrom('Collectives')
+                .leftJoin('CommunityHostTransactionsAggregated', join =>
                   join
-                    .onRef('CommunityHostTransactionsAggregated.FromCollectiveId', '=', 'c.id')
+                    .onRef('CommunityHostTransactionsAggregated.FromCollectiveId', '=', 'Collectives.id')
                     .on('CommunityHostTransactionsAggregated.HostCollectiveId', '=', host.id),
                 )
-                .where('c.ParentCollectiveId', '=', host.id)
-                .where('c.type', '=', CollectiveType.VENDOR)
-                .where('c.deletedAt', 'is', null)
+                .where('ParentCollectiveId', '=', host.id)
+                .where('type', '=', CollectiveType.VENDOR)
+                .where('deactivatedAt', args.isArchived ? 'is not' : 'is', null)
+                .where('deletedAt', 'is', null)
+                .selectAll('Collectives')
                 .select(({ ref }) => [
-                  'c.id',
                   sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}, 1)], 0))`.as(
                     'totalExpended',
                   ),
@@ -1619,67 +1620,66 @@ export const GraphQLHost = new GraphQLObjectType({
                   ),
                 ]),
             )
-            .selectFrom('Collectives')
-            .leftJoin('vendor_summary', 'vendor_summary.id', 'Collectives.id');
+            .selectFrom('Vendors');
 
+          query = query.where('ParentCollectiveId', '=', host.id).where('type', '=', CollectiveType.VENDOR);
+
+          // Total Expended Filtering
           query = query
-            .where('ParentCollectiveId', '=', host.id)
-            .where('type', '=', CollectiveType.VENDOR)
-            .where('deactivatedAt', args.isArchived ? 'is not' : 'is', null)
-            // Total Expended Filtering
             .$if(args.totalExpended?.gte, q =>
-              q.where('vendor_summary.totalExpended', '>=', getValueInCentsFromAmountInput(args.totalExpended.gte)),
+              q.where('totalExpended', '>=', getValueInCentsFromAmountInput(args.totalExpended.gte)),
             )
             .$if(args.totalExpended?.lte, q =>
               q.where(({ or, eb }) =>
                 or([
-                  eb('vendor_summary.totalExpended', '<=', getValueInCentsFromAmountInput(args.totalExpended.lte)),
-                  eb('vendor_summary.totalExpended', 'is', null),
+                  eb('totalExpended', '<=', getValueInCentsFromAmountInput(args.totalExpended.lte)),
+                  eb('totalExpended', 'is', null),
                 ]),
               ),
-            )
-            // Total Contributed Filtering
+            );
+
+          // Total Contributed Filtering
+          query = query
             .$if(args.totalContributed?.gte, q =>
-              q.where(
-                'vendor_summary.totalContributed',
-                '>=',
-                getValueInCentsFromAmountInput(args.totalContributed.gte),
-              ),
+              q.where('totalContributed', '>=', getValueInCentsFromAmountInput(args.totalContributed.gte)),
             )
             .$if(args.totalContributed?.lte, q =>
               q.where(({ or, eb }) =>
                 or([
-                  eb(
-                    'vendor_summary.totalContributed',
-                    '<=',
-                    getValueInCentsFromAmountInput(args.totalContributed.lte),
-                  ),
-                  eb('vendor_summary.totalContributed', 'is', null),
+                  eb('totalContributed', '<=', getValueInCentsFromAmountInput(args.totalContributed.lte)),
+                  eb('totalContributed', 'is', null),
                 ]),
               ),
-            )
-            .$if(
-              args.searchTerm,
-              buildKyselySearchConditions(args.searchTerm, {
-                idFields: ['id'],
-                slugFields: ['slug'],
-                textFields: ['name', 'description', 'longDescription'],
-              }),
             );
 
+          // Search Term
+          query = query.$if(
+            args.searchTerm,
+            buildKyselySearchConditions(args.searchTerm, {
+              idFields: ['Collectives.id'],
+              slugFields: ['slug'],
+              textFields: ['name', 'description', 'longDescription'],
+            }),
+          );
+
+          // Here we'll conditionally store some selects and orders so we don't compromise the countQuery later down the line.
           const selects: Array<Parameters<typeof query.select>[0]> = [];
           const order = [];
+
+          // Conditionally filter or select expenseCount if args.forAccount exists
           if (args.forAccount) {
-            const account = await fetchAccountWithReference(args.forAccount);
+            const account = await fetchAccountWithReference(args.forAccount, {
+              throwIfMissing: true,
+              loaders: req.loaders,
+            });
             if (!isAdmin) {
               query = query.where(({ exists, selectFrom }) =>
                 exists(
                   selectFrom('Expenses')
-                    .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
+                    .whereRef('Expenses.FromCollectiveId', '=', 'Vendors.id')
                     .where('Expenses.deletedAt', 'is', null)
                     .where('Expenses.status', '=', 'PAID')
                     .where('Expenses.CollectiveId', '=', account.id)
-                    .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
                     .limit(1),
                 ),
               );
@@ -1687,41 +1687,35 @@ export const GraphQLHost = new GraphQLObjectType({
               // Adding conditional selects is not recommended, do not use this elsewhere.
               selects.push(({ selectFrom }) =>
                 selectFrom('Expenses')
-                  .select(({ fn }) => fn.count<number>('id').as('expenseCount'))
-                  .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
+                  .select(({ fn }) => fn.count<number>('Expenses.id').as('expenseCount'))
+                  .whereRef('Expenses.FromCollectiveId', '=', 'Vendors.id')
                   .where('Expenses.deletedAt', 'is', null)
                   .where('Expenses.status', '=', 'PAID')
                   .where('Expenses.CollectiveId', '=', account.id)
-                  .whereRef('Expenses.FromCollectiveId', '=', 'Collectives.id')
                   .as('expenseCount'),
               );
               order.push([eb => eb.ref('expenseCount'), 'desc']);
             }
           }
 
-          const visibleToAccountIds =
-            args.visibleToAccounts?.length > 0 &&
-            (await fetchAccountsIdsWithReference(args.visibleToAccounts, {
+          // It is fine to fork execution using conditionals because we're just changing WHERE conditionals
+          if (args.visibleToAccounts?.length > 0) {
+            const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
               throwIfMissing: true,
-            }));
-          const parentAccounts =
-            visibleToAccountIds &&
-            (await Collective.findAll({
+            });
+            const parentAccounts = await Collective.findAll({
               where: {
                 id: visibleToAccountIds,
                 ParentCollectiveId: { [Op.ne]: null },
               },
               attributes: ['ParentCollectiveId'],
-            }));
+            });
+            const accountIds = uniq(
+              compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]),
+            );
 
-          const accountIds =
-            visibleToAccountIds &&
-            compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
-
-          query = query.$if(accountIds && accountIds.length > 0, q =>
-            q.where(
-              () =>
-                sql`
+            query = query.where(
+              () => sql`
                   data#>'{visibleToAccountIds}' IS NULL
                   OR data#>'{visibleToAccountIds}' = '[]'::jsonb
                   OR data#>'{visibleToAccountIds}' = 'null'::jsonb
@@ -1735,38 +1729,37 @@ export const GraphQLHost = new GraphQLObjectType({
                     )
                   )
               `,
-            ),
-          );
+            );
+          }
 
-          const countQuery = query.select(({ fn }) => fn.count<number>('Collectives.id').as('count'));
-
-          let nodeQuery = query
-            .selectAll('Collectives')
-            .select('vendor_summary.totalContributed')
-            .select('vendor_summary.totalExpended');
+          // Forking NodeQuery and CountQuery because they're only subjected to the same WHERE conditions
+          let nodeQuery = query.selectAll('Vendors').select('totalContributed').select('totalExpended');
           if (selects.length > 0) {
             nodeQuery = nodeQuery.select(selects);
           }
-
+          // Since orderBy needs to be called after selection, we apply it here.
+          // Requested Ordering
           if (args.orderBy) {
             const direction = ob => (args.orderBy.direction === 'DESC' ? ob.desc().nullsLast() : ob.asc().nullsFirst());
             if (args?.orderBy?.field === 'TOTAL_CONTRIBUTED' || args?.orderBy?.field === 'TOTAL_EXPENDED') {
               nodeQuery = nodeQuery.orderBy(
-                args.orderBy.field === 'TOTAL_CONTRIBUTED'
-                  ? 'vendor_summary.totalContributed'
-                  : 'vendor_summary.totalExpended',
+                args.orderBy.field === 'TOTAL_CONTRIBUTED' ? 'totalContributed' : 'totalExpended',
                 direction,
               );
             } else if (args?.orderBy?.field) {
               nodeQuery = nodeQuery.orderBy(args.orderBy.field, direction);
             }
           }
-
+          // Other additional ordering that were created throughout conditionals
           order.forEach(([field, direction]) => {
             nodeQuery = nodeQuery.orderBy(field, direction);
           });
-          nodeQuery = nodeQuery.orderBy('Collectives.createdAt', 'desc');
+          // Default ordering at last
+          nodeQuery = nodeQuery.orderBy('Vendors.createdAt', 'desc');
 
+          const countQuery = query.select(({ fn }) => fn.countAll<number>().as('count'));
+
+          // Create thunks for resolving nodes and totalCount
           const nodes = () =>
             nodeQuery.limit(args.limit).offset(args.offset).execute().then(kyselyToSequelizeModels(Collective));
           const totalCount = () => countQuery.executeTakeFirst().then(result => result?.count || 0);
