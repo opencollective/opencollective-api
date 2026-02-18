@@ -84,7 +84,7 @@ export type TransactionData = {
   };
   hasPlatformTip?: boolean;
   isBalanceTransfer?: boolean;
-  rootBalanceTransfer?: boolean;
+  isRootBalanceTransfer?: boolean;
   hostFeeMigration?: string;
   hostFeeSharePercent?: number;
   hostToPlatformFxRate?: number;

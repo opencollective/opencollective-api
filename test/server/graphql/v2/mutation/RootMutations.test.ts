@@ -403,6 +403,10 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const balanceAfter = await fromCollective.getBalance();
       expect(balanceAfter).to.equal(0);
 
+      // Verify destination balance increased
+      const toBalanceAfter = await toCollective.getBalance();
+      expect(toBalanceAfter).to.equal(10000);
+
       // Verify BALANCE_TRANSFER transactions exist
       const transactions = await models.Transaction.findAll({
         where: { kind: TransactionKind.BALANCE_TRANSFER, OrderId: result.data.rootTransferBalance.legacyId },
@@ -454,9 +458,13 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.rootTransferBalance.amount.valueInCents).to.equal(3000);
 
-      // Balance should be reduced by 3000
+      // Source balance should be reduced by 3000
       const balanceAfter = await fromCollective.getBalance();
       expect(balanceAfter).to.equal(7000);
+
+      // Destination balance should increase by 3000
+      const toBalanceAfter = await toCollective.getBalance();
+      expect(toBalanceAfter).to.equal(3000);
     });
 
     it('fails when amount exceeds balance', async () => {
@@ -520,6 +528,42 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('has no host');
+    });
+
+    it('fails when accounts have different hosts', async () => {
+      const host1 = await fakeHost();
+      const host2 = await fakeHost();
+      const fromCollective = await fakeCollective({ HostCollectiveId: host1.id, currency: 'USD' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host2.id, currency: 'USD' });
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('different hosts');
+    });
+
+    it('fails when amount currency does not match host currency', async () => {
+      const host = await fakeHost({ currency: 'USD' });
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+          amount: { valueInCents: 1000, currency: 'EUR' },
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Expected currency');
     });
   });
 });

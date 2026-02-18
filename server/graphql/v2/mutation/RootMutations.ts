@@ -11,7 +11,6 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
-import { getFxRate } from '../../../lib/currency';
 import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
 import {
   banAccounts,
@@ -407,12 +406,19 @@ export default {
       if (!toAccount.HostCollectiveId) {
         throw new Error('Destination account has no host');
       }
+      if (fromAccount.HostCollectiveId !== toAccount.HostCollectiveId) {
+        throw new Error('Cannot transfer balance between accounts with different hosts');
+      }
+
+      const hostId = fromAccount.HostCollectiveId;
+      const host = await models.Collective.findByPk(hostId);
+      const hostCurrency = host.currency;
 
       const balance = await fromAccount.getBalance();
       let transferAmount: number;
       if (args.amount) {
         transferAmount = getValueInCentsFromAmountInput(args.amount, {
-          expectedCurrency: fromAccount.currency,
+          expectedCurrency: hostCurrency,
           allowNilCurrency: true,
         });
         if (transferAmount > balance) {
@@ -425,13 +431,7 @@ export default {
       if (transferAmount <= 0) {
         throw new Error('Transfer amount must be greater than zero');
       }
-
-      const hostId = fromAccount.HostCollectiveId;
-      const host = await models.Collective.findByPk(hostId);
-      const hostCurrency = host.currency;
-      const hostCurrencyFxRate = await getFxRate(fromAccount.currency, hostCurrency);
-      const amountInHostCurrency = Math.round(transferAmount * hostCurrencyFxRate);
-      const description = args.message || 'Root admin balance transfer';
+      const description = args.message || 'Balance Transfer';
 
       return sequelize.transaction(async transaction => {
         const order = await models.Order.create(
@@ -442,7 +442,7 @@ export default {
             CollectiveId: toAccount.id,
             CreatedByUserId: req.remoteUser.id,
             totalAmount: transferAmount,
-            currency: fromAccount.currency,
+            currency: hostCurrency,
             description,
             data: { isBalanceTransfer: true, isRootBalanceTransfer: true },
           },
@@ -459,16 +459,16 @@ export default {
             kind: TransactionKind.BALANCE_TRANSFER,
             amount: transferAmount,
             netAmountInCollectiveCurrency: transferAmount,
-            currency: fromAccount.currency,
+            currency: hostCurrency,
             hostCurrency,
-            hostCurrencyFxRate,
-            amountInHostCurrency,
+            hostCurrencyFxRate: 1,
+            amountInHostCurrency: transferAmount,
             hostFeeInHostCurrency: 0,
             platformFeeInHostCurrency: 0,
             paymentProcessorFeeInHostCurrency: 0,
             description,
             clearedAt: new Date(),
-            data: { isBalanceTransfer: true, rootBalanceTransfer: true },
+            data: { isBalanceTransfer: true, isRootBalanceTransfer: true },
           },
           { sequelizeTransaction: transaction },
         );
@@ -483,7 +483,7 @@ export default {
             OrderId: order.id,
             data: {
               amount: transferAmount,
-              currency: fromAccount.currency,
+              currency: hostCurrency,
               fromAccount: { id: fromAccount.id, slug: fromAccount.slug, name: fromAccount.name },
               toAccount: { id: toAccount.id, slug: toAccount.slug, name: toAccount.name },
               message: args.message,
