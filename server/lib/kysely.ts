@@ -64,6 +64,8 @@ export function getKysely(): Kysely<DatabaseWithViews> {
         ? e => {
             if (e.level === 'query') {
               debug('Kysely query: %s\n\nParameters: %o', e.query.sql, e.query.parameters);
+            } else {
+              debug('Kysely error on query: %s\n\nParameters: %o', e.query.sql, e.query.parameters);
             }
           }
         : undefined,
