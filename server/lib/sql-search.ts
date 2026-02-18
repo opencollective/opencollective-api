@@ -5,6 +5,7 @@
 import assert from 'assert';
 
 import config from 'config';
+import { SelectQueryBuilder } from 'kysely';
 import slugify from 'limax';
 import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
@@ -325,18 +326,18 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `
       AND (
         c."type" != \'VENDOR\'
-        OR data#>'{visibleToAccountIds}' IS NULL 
+        OR data#>'{visibleToAccountIds}' IS NULL
         OR data#>'{visibleToAccountIds}' = '[]'::jsonb
         OR data#>'{visibleToAccountIds}' = 'null'::jsonb
         OR
           (
             jsonb_typeof(data#>'{visibleToAccountIds}')='array'
-            AND 
+            AND
             EXISTS (
               SELECT v FROM (
                 SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
               ) WHERE v IN (:vendorVisibleToAccountIds)
-            )  
+            )
           )
       )
     `;
@@ -586,6 +587,50 @@ export const buildSearchConditions = (
   return conditions;
 };
 
+export const buildKyselySearchConditions =
+  <T>(
+    searchTerm: string,
+    {
+      slugFields = [],
+      idFields = [],
+      textFields = [],
+      emailFields = [],
+    }: {
+      slugFields?: string[];
+      idFields?: string[];
+      textFields?: string[];
+      emailFields?: string[];
+    },
+  ) =>
+  (q: SelectQueryBuilder<any, any, T>): SelectQueryBuilder<any, any, T> => {
+    const parsedTerm = parseSearchTerm(searchTerm);
+
+    // Empty search => no condition
+    if (!parsedTerm.term) {
+      return q;
+    }
+
+    // Exclusive conditions: if an ID or a slug is searched, on don't search other attributes
+    // We don't use ILIKE for them, they must match exactly
+    if (parsedTerm.type === 'slug' && slugFields?.length) {
+      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, 'ilike', parsedTerm.term))));
+    } else if (parsedTerm.type === 'id' && idFields?.length) {
+      return q.where(({ eb, or }) => or(idFields.map(field => eb(field, '=', parsedTerm.term))));
+    } else if (parsedTerm.type === 'email' && emailFields?.length) {
+      return q.where(({ eb, or }) => or(emailFields.map(field => eb(field, '=', parsedTerm.term))));
+    }
+
+    // Inclusive conditions, search all fields except
+
+    // Conditions for text fields
+    const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+    const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
+    const allTextFields = [...(slugFields || []), ...(textFields || [])];
+
+    q = q.where(({ eb, or }) => or(allTextFields.map(field => eb(field, 'ilike', iLikeQuery))));
+    return q;
+  };
+
 /**
  * Returns tags along with their frequency of use.
  */
@@ -597,7 +642,7 @@ export const getColletiveTagFrequencies = async args => {
     return sequelize.query(
       `SELECT tag AS id, tag, count
         FROM "CollectiveTagStats"
-        WHERE "HostCollectiveId" ${args.hostCollectiveId ? '= :hostCollectiveId' : 'IS NULL'} 
+        WHERE "HostCollectiveId" ${args.hostCollectiveId ? '= :hostCollectiveId' : 'IS NULL'}
         ${args.tagSearchTerm ? `AND "tag" ILIKE :sanitizedTerm` : ``}
         ORDER BY count DESC
         LIMIT :limit
@@ -618,11 +663,11 @@ export const getColletiveTagFrequencies = async args => {
     `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Collectives"
       WHERE "deletedAt" IS NULL
-      AND "deactivatedAt" IS NULL 
-      AND ((data ->> 'isGuest'::text)::boolean) IS NOT TRUE 
-      AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE 
-      AND name::text <> 'incognito'::text 
-      AND name::text <> 'anonymous'::text 
+      AND "deactivatedAt" IS NULL
+      AND ((data ->> 'isGuest'::text)::boolean) IS NOT TRUE
+      AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE
+      AND name::text <> 'incognito'::text
+      AND name::text <> 'anonymous'::text
       AND "isIncognito" = false
       ${args.hostCollectiveId ? `AND "HostCollectiveId" = :hostCollectiveId` : ``}
       ${searchConditions.sqlConditions}
