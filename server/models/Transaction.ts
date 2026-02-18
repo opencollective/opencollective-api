@@ -83,6 +83,8 @@ export type TransactionData = {
     expenseToPayoutMethod?: number;
   };
   hasPlatformTip?: boolean;
+  isBalanceTransfer?: boolean;
+  rootBalanceTransfer?: boolean;
   hostFeeMigration?: string;
   hostFeeSharePercent?: number;
   hostToPlatformFxRate?: number;

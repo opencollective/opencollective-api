@@ -4,6 +4,7 @@ import { times } from 'lodash';
 
 import { activities as ACTIVITY } from '../../../../../server/constants';
 import roles from '../../../../../server/constants/roles';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import {
@@ -11,6 +12,7 @@ import {
   fakeCollective,
   fakeComment,
   fakeExpense,
+  fakeHost,
   fakeMember,
   fakeRecurringExpense,
   fakeTransaction,
@@ -302,6 +304,222 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const result = await callEditAccountTypeMutation({ account: { legacyId: user.collective.id } }, rootUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('editAccountType does not work on guest profiles');
+    });
+  });
+
+  describe('rootTransferBalance', () => {
+    const ROOT_TRANSFER_BALANCE_MUTATION = gql`
+      mutation RootTransferBalance(
+        $fromAccount: AccountReferenceInput!
+        $toAccount: AccountReferenceInput!
+        $amount: AmountInput
+        $message: String
+      ) {
+        rootTransferBalance(fromAccount: $fromAccount, toAccount: $toAccount, amount: $amount, message: $message) {
+          id
+          legacyId
+          description
+          amount {
+            valueInCents
+            currency
+          }
+          fromAccount {
+            legacyId
+          }
+          toAccount {
+            legacyId
+          }
+        }
+      }
+    `;
+
+    const callTransferBalance = async (variables, user, useValid2FA = true) => {
+      const headers = {};
+      if (useValid2FA) {
+        headers[TwoFactorAuthenticationHeader] = generateValid2FAHeader(rootUser);
+      }
+      return graphqlQueryV2(ROOT_TRANSFER_BALANCE_MUTATION, variables, user, undefined, headers);
+    };
+
+    it('rejects non-root users', async () => {
+      const randomUser = await fakeUser();
+      const result = await callTransferBalance(
+        { fromAccount: { legacyId: 1 }, toAccount: { legacyId: 2 } },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in as root.');
+    });
+
+    it('requires 2FA', async () => {
+      const rootUserWithout2FA = await fakeUser();
+      await fakeMember({ CollectiveId: rootUserWithout2FA.id, MemberCollectiveId: 1, role: roles.ADMIN });
+      const result = await callTransferBalance(
+        { fromAccount: { legacyId: 1 }, toAccount: { legacyId: 2 } },
+        rootUserWithout2FA,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in as root.');
+    });
+
+    it('transfers full balance by default', async () => {
+      const host = await fakeHost();
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
+      // Give fromCollective a balance of 10000 cents ($100)
+      await fakeTransaction(
+        {
+          CollectiveId: fromCollective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: host.id,
+          amount: 10000,
+          currency: 'USD',
+          kind: TransactionKind.CONTRIBUTION,
+        },
+        { createDoubleEntry: true },
+      );
+
+      const balanceBefore = await fromCollective.getBalance();
+      expect(balanceBefore).to.equal(10000);
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+          message: 'Zeroing balance for unhosting',
+        },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.rootTransferBalance.amount.valueInCents).to.equal(10000);
+      expect(result.data.rootTransferBalance.description).to.equal('Zeroing balance for unhosting');
+      expect(result.data.rootTransferBalance.fromAccount.legacyId).to.equal(fromCollective.id);
+      expect(result.data.rootTransferBalance.toAccount.legacyId).to.equal(toCollective.id);
+
+      // Verify source balance is now 0
+      const balanceAfter = await fromCollective.getBalance();
+      expect(balanceAfter).to.equal(0);
+
+      // Verify BALANCE_TRANSFER transactions exist
+      const transactions = await models.Transaction.findAll({
+        where: { kind: TransactionKind.BALANCE_TRANSFER, OrderId: result.data.rootTransferBalance.legacyId },
+      });
+      expect(transactions.length).to.be.greaterThan(0);
+
+      // Verify order was created
+      const order = await models.Order.findByPk(result.data.rootTransferBalance.legacyId);
+      expect(order).to.exist;
+      expect(order.status).to.equal('PAID');
+      expect(order.data.isBalanceTransfer).to.be.true;
+      expect(order.data.isRootBalanceTransfer).to.be.true;
+
+      // Verify activity was created
+      const activity = await models.Activity.findOne({
+        where: { type: ACTIVITY.COLLECTIVE_BALANCE_TRANSFERRED, OrderId: order.id },
+      });
+      expect(activity).to.exist;
+      expect(activity.data.amount).to.equal(10000);
+    });
+
+    it('transfers partial amount when amount arg is provided', async () => {
+      const host = await fakeHost();
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
+      await fakeTransaction(
+        {
+          CollectiveId: fromCollective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: host.id,
+          amount: 10000,
+          currency: 'USD',
+          kind: TransactionKind.CONTRIBUTION,
+        },
+        { createDoubleEntry: true },
+      );
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+          amount: { valueInCents: 3000, currency: 'USD' },
+        },
+        rootUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.rootTransferBalance.amount.valueInCents).to.equal(3000);
+
+      // Balance should be reduced by 3000
+      const balanceAfter = await fromCollective.getBalance();
+      expect(balanceAfter).to.equal(7000);
+    });
+
+    it('fails when amount exceeds balance', async () => {
+      const host = await fakeHost();
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
+      await fakeTransaction(
+        {
+          CollectiveId: fromCollective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: host.id,
+          amount: 5000,
+          currency: 'USD',
+          kind: TransactionKind.CONTRIBUTION,
+        },
+        { createDoubleEntry: true },
+      );
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+          amount: { valueInCents: 10000, currency: 'USD' },
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('exceeds available balance');
+    });
+
+    it('fails when source has no balance', async () => {
+      const host = await fakeHost();
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('must be greater than zero');
+    });
+
+    it('fails when account has no HostCollectiveId', async () => {
+      const fromCollective = await fakeCollective({ HostCollectiveId: null });
+      const toCollective = await fakeCollective({ HostCollectiveId: null });
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: toCollective.id },
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('has no host');
     });
   });
 });
