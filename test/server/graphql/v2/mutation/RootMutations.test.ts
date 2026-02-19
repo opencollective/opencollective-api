@@ -352,14 +352,18 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     });
 
     it('requires 2FA', async () => {
-      const rootUserWithout2FA = await fakeUser();
-      await fakeMember({ CollectiveId: rootUserWithout2FA.id, MemberCollectiveId: 1, role: roles.ADMIN });
+      const host = await fakeHost();
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
       const result = await callTransferBalance(
-        { fromAccount: { legacyId: 1 }, toAccount: { legacyId: 2 } },
-        rootUserWithout2FA,
+        { fromAccount: { legacyId: fromCollective.id }, toAccount: { legacyId: toCollective.id } },
+        rootUser,
+        false,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be logged in as root.');
+      expect(result.errors[0].message).to.equal('Two-factor authentication required');
+      expect(result.errors[0].extensions.code).to.equal('2FA_REQUIRED');
     });
 
     it('transfers full balance by default', async () => {
@@ -528,6 +532,22 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('has no host');
+    });
+
+    it('fails when source and destination are the same account', async () => {
+      const host = await fakeHost();
+      const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+
+      const result = await callTransferBalance(
+        {
+          fromAccount: { legacyId: fromCollective.id },
+          toAccount: { legacyId: fromCollective.id },
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('same account');
     });
 
     it('fails when accounts have different hosts', async () => {

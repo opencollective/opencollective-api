@@ -400,6 +400,9 @@ export default {
       const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
 
+      if (fromAccount.id === toAccount.id) {
+        throw new Error('Cannot transfer balance to the same account');
+      }
       if (!fromAccount.HostCollectiveId) {
         throw new Error('Source account has no host');
       }
