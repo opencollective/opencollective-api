@@ -412,6 +412,9 @@ export default {
 
       const hostId = fromAccount.HostCollectiveId;
       const host = await models.Collective.findByPk(hostId);
+      if (!host) {
+        throw new Error(`Host collective #${hostId} not found`);
+      }
       const hostCurrency = host.currency;
 
       const balance = await fromAccount.getBalance();
