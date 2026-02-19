@@ -378,7 +378,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     return true;
   }
 
-  return remoteUserMeetsOneCondition(req, expense, [
+  let allowedRoles = [
     isOwner,
     isOwnerAccountant,
     isHostAdmin,
@@ -386,7 +386,17 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     isAdminOrAccountantOfHostWhoPaidExpense,
     isAdminOfCollectiveWithPermissivePayoutMethodPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
     isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated, // Virtual cards are created by the collective admins, but manually created ones are managed by host admins
-  ]);
+  ];
+
+  // Submitter can see own information until the expense is paid
+  if (expense.status === expenseStatus.PAID) {
+    const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+    if (!payoutMethod.isSaved) {
+      allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
+    }
+  }
+
+  return remoteUserMeetsOneCondition(req, expense, allowedRoles);
 };
 
 /** Checks if the user can see expense's invoice information (the generated PDF) */

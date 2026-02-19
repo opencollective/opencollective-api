@@ -31,6 +31,14 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
           return paymentMethod.id;
         },
       },
+      createdAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'The date and time this payout method was created',
+      },
+      updatedAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'The date and time this payout method was updated',
+      },
       name: {
         type: GraphQLString,
         async resolve(paymentMethod, _, req) {
@@ -168,9 +176,6 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
             return paymentMethod.expiryDate;
           }
         },
-      },
-      createdAt: {
-        type: GraphQLDateTime,
       },
       monthlyLimit: {
         type: GraphQLAmount,
