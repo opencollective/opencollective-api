@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { times } from 'lodash';
 
 import { activities as ACTIVITY } from '../../../../../server/constants';
+import PlatformConstants from '../../../../../server/constants/platform';
 import roles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
@@ -352,13 +353,23 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     });
 
     it('requires 2FA', async () => {
+      const rootUserNo2FAHeader = await fakeUser({ data: { isRoot: true } }, null, { enable2FA: true });
+      const platformCollectiveId = PlatformConstants.PlatformCollectiveId || 1;
+      const platformCollective =
+        (await models.Collective.findByPk(platformCollectiveId)) ||
+        (await fakeCollective({ id: platformCollectiveId, HostCollectiveId: null, type: 'ORGANIZATION' }));
+      await fakeMember({
+        CollectiveId: platformCollective.id,
+        MemberCollectiveId: rootUserNo2FAHeader.CollectiveId,
+        role: roles.ADMIN,
+      });
       const host = await fakeHost();
       const fromCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
       const toCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
 
       const result = await callTransferBalance(
         { fromAccount: { legacyId: fromCollective.id }, toAccount: { legacyId: toCollective.id } },
-        rootUser,
+        rootUserNo2FAHeader,
         false,
       );
       expect(result.errors).to.exist;
