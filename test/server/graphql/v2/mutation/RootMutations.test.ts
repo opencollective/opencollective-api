@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { times } from 'lodash';
 
 import { activities as ACTIVITY } from '../../../../../server/constants';
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import PlatformConstants from '../../../../../server/constants/platform';
 import roles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
@@ -357,7 +358,11 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const platformCollectiveId = PlatformConstants.PlatformCollectiveId || 1;
       const platformCollective =
         (await models.Collective.findByPk(platformCollectiveId)) ||
-        (await fakeCollective({ id: platformCollectiveId, HostCollectiveId: null, type: 'ORGANIZATION' }));
+        (await fakeCollective({
+          id: platformCollectiveId,
+          HostCollectiveId: null,
+          type: CollectiveType.ORGANIZATION,
+        }));
       await fakeMember({
         CollectiveId: platformCollective.id,
         MemberCollectiveId: rootUserNo2FAHeader.CollectiveId,
