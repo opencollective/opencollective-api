@@ -2427,7 +2427,11 @@ export async function createExpense(
 
   if (expenseData.transactionsImportRow) {
     await createTransactionsForManuallyPaidExpense(collective.host, expense, 0, expense.amount, null);
-    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+    await expense.markAsPaid({
+      user: remoteUser,
+      isManualPayout: true,
+      paidAt: expenseData.transactionsImportRow.date,
+    });
   }
 
   try {
@@ -3361,7 +3365,7 @@ async function payExpenseWithPayPalAdaptive(
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
     await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, { ...paymentResponse, clearedAt });
     // Mark Expense as Paid, create activity and send notifications
-    await expense.markAsPaid({ user: remoteUser });
+    await expense.markAsPaid({ user: remoteUser, paidAt: clearedAt });
     await paymentMethod.updateBalance();
     return expense;
   } catch (err) {
@@ -3939,7 +3943,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     }
 
     // Mark Expense as Paid, create activity and send notifications
-    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+    await expense.markAsPaid({ user: remoteUser, isManualPayout: true, paidAt: args.clearedAt });
     return expense;
   });
 
@@ -4005,7 +4009,12 @@ export async function markExpenseAsUnpaid(
 
     await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
+    await expense.update({
+      status: newExpenseStatus,
+      lastEditedById: remoteUser.id,
+      PaymentMethodId: null,
+      paidAt: null,
+    });
     return { expense, transaction };
   });
 
