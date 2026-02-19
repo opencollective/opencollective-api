@@ -26,6 +26,7 @@ export enum ExportRequestStatus {
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
+  EXPIRED = 'EXPIRED',
 }
 
 const dataSchema = z
