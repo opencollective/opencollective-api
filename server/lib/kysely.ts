@@ -7,7 +7,7 @@ import { ViewsDatabase } from '../types/kysely-views';
 
 import sequelize from './sequelize';
 
-function rowToModel<T extends Model>(row: Record<string, unknown>, ModelClass: ModelStatic<T>): T {
+function rowToModel<T extends Model>(row: object, ModelClass: ModelStatic<T>): T {
   const rawAttrs = ModelClass.rawAttributes;
   const attrs: Record<string, unknown> = {};
   for (const key of Object.keys(row)) {
@@ -26,18 +26,16 @@ function rowToModel<T extends Model>(row: Record<string, unknown>, ModelClass: M
  * Accepts a single row or an array of rows; returns a single instance or an array.
  * Instances are not persisted.
  */
-export function kyselyToSequelizeModels<T extends Model>(
-  ModelClass: ModelStatic<T>,
-): (rows: Record<string, unknown> | Array<Record<string, unknown>>) => T | T[] {
-  return (rows: Record<string, unknown> | Array<Record<string, unknown>>): T | T[] => {
+export function kyselyToSequelizeModels<T extends Model>(ModelClass: ModelStatic<T>) {
+  return function <R extends object[] | object>(rows: R): R extends unknown[] ? T[] : T {
     if (Array.isArray(rows)) {
-      return rows.map(row => rowToModel(row, ModelClass)) as T[];
+      return rows.map(row => rowToModel(row, ModelClass)) as R extends unknown[] ? T[] : T;
     }
-    return rowToModel(rows, ModelClass);
+    return rowToModel(rows, ModelClass) as R extends unknown[] ? T[] : T;
   };
 }
 
-type DatabaseWithViews = Database & ViewsDatabase;
+export type DatabaseWithViews = Database & ViewsDatabase;
 
 let kyselyInstance: Kysely<DatabaseWithViews> | null = null;
 
@@ -49,6 +47,26 @@ let kyselyInstance: Kysely<DatabaseWithViews> | null = null;
 export function getKysely(): Kysely<DatabaseWithViews> {
   if (!kyselyInstance) {
     kyselyInstance = new Kysely<DatabaseWithViews>({
+      log(event) {
+        if (process.env.DEBUG_KYSELY === 'true') {
+          if (event.level === 'error') {
+            // eslint-disable-next-line no-console
+            console.error('Query failed : ', {
+              durationMs: event.queryDurationMillis,
+              error: event.error,
+              sql: event.query.sql,
+              params: event.query.parameters,
+            });
+          } else {
+            // eslint-disable-next-line no-console
+            console.log('Query executed : ', {
+              durationMs: event.queryDurationMillis,
+              sql: event.query.sql,
+              params: event.query.parameters,
+            });
+          }
+        }
+      },
       dialect: new KyselySequelizeDialect({
         sequelize,
         kyselySubDialect: {
