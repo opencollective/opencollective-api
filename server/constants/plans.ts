@@ -252,6 +252,7 @@ export const freeFeatures: CommercialFeaturesType[] = [
   PlatformFeature.ACCOUNT_MANAGEMENT,
   PlatformFeature.USE_EXPENSES,
   PlatformFeature.RECEIVE_EXPENSES,
+  PlatformFeature.RECEIVE_GRANTS,
   PlatformFeature.UPDATES,
   PlatformFeature.VENDORS,
   PlatformFeature.RECEIVE_FINANCIAL_CONTRIBUTIONS,
