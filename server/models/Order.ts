@@ -98,6 +98,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     paypalStatusChangeNote?: string;
     savePaymentMethod?: boolean;
     isBalanceTransfer?: boolean;
+    isRootBalanceTransfer?: boolean;
     isGuest?: boolean;
     isPendingContribution?: boolean;
     isManualContribution?: boolean;

@@ -24359,6 +24359,31 @@ type Mutation {
   ): Account!
 
   """
+  [Root only] Transfers balance from one account to another, creating BALANCE_TRANSFER transactions
+  """
+  rootTransferBalance(
+    """
+    Source account (balance goes down)
+    """
+    fromAccount: AccountReferenceInput!
+
+    """
+    Destination account (balance goes up)
+    """
+    toAccount: AccountReferenceInput!
+
+    """
+    Amount to transfer. Defaults to full balance of source account.
+    """
+    amount: AmountInput
+
+    """
+    Optional reason for audit trail
+    """
+    message: String
+  ): Order!
+
+  """
   Refunds a transaction. Scope: "transactions".
   """
   refundTransaction(
