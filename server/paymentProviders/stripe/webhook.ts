@@ -269,7 +269,7 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     charge = await stripe.charges.retrieve(charge, { expand: ['balance_transaction'] }, { stripeAccount });
   }
 
-  const [expense, shouldMarkPaid] = await sequelize.transaction(async transaction => {
+  const [expense, shouldMarkPaid, paidAt] = await sequelize.transaction(async transaction => {
     const expense = await models.Expense.findOne({
       lock: transaction.LOCK.UPDATE,
       transaction,
@@ -331,11 +331,12 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
       sequelizeTransaction: transaction,
     });
 
-    return [expense, true];
+    const paidAt = moment.unix(balanceTransaction.available_on).toDate();
+    return [expense, true, paidAt];
   });
 
   if (shouldMarkPaid) {
-    await expense.markAsPaid();
+    await expense.markAsPaid({ paidAt });
   }
 }
 

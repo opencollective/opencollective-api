@@ -2432,7 +2432,11 @@ export async function createExpense(
 
   if (expenseData.transactionsImportRow) {
     await createTransactionsForManuallyPaidExpense(collective.host, expense, 0, expense.amount, null);
-    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+    await expense.markAsPaid({
+      user: remoteUser,
+      isManualPayout: true,
+      paidAt: expenseData.transactionsImportRow.date,
+    });
   }
 
   try {
@@ -3764,7 +3768,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     }
 
     // Mark Expense as Paid, create activity and send notifications
-    await expense.markAsPaid({ user: remoteUser, isManualPayout: true });
+    await expense.markAsPaid({ user: remoteUser, isManualPayout: true, paidAt: args.clearedAt || new Date() });
     return expense;
   });
 
