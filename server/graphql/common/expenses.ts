@@ -23,7 +23,6 @@ import {
   omit,
   omitBy,
   pick,
-  remove,
   set,
   size,
   uniq,
@@ -379,7 +378,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     return true;
   }
 
-  const allowedRoles = [
+  let allowedRoles = [
     isOwner,
     isOwnerAccountant,
     isHostAdmin,
@@ -393,7 +392,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
   if (expense.status === expenseStatus.PAID) {
     const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
     if (!payoutMethod.isSaved) {
-      remove(allowedRoles, [isOwner, isOwnerAccountant]);
+      allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
     }
   }
 
