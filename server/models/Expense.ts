@@ -144,6 +144,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare public tags: string[];
 
   declare public incurredAt: CreationOptional<Date>;
+  declare public paidAt: CreationOptional<Date>;
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
@@ -327,13 +328,20 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     }
   };
 
-  markAsPaid = async function ({ user = null, isManualPayout = false, skipActivity = false } = {}) {
+  markAsPaid = async function ({
+    user = null,
+    isManualPayout = false,
+    skipActivity = false,
+    paidAt = new Date() as Date,
+  } = {}) {
     const collective = this.collective || (await this.getCollective());
     const lastEditedById = user?.id || this.lastEditedById;
+
     await this.update({
       status: ExpenseStatus.PAID,
       lastEditedById,
       HostCollectiveId: collective.HostCollectiveId,
+      paidAt,
     });
 
     // Update transactions settlement
@@ -973,6 +981,11 @@ Expense.init(
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
       allowNull: false,
+    },
+
+    paidAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
     },
 
     deletedAt: {

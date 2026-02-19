@@ -88,7 +88,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
         data: { ...expenseData, missingDetails: true, ...transaction.data },
       });
       // Mark Expense as Paid, create activity and don't send notifications
-      await processingExpense.markAsPaid({ skipActivity: true });
+      await processingExpense.markAsPaid({ skipActivity: true, paidAt: transaction.clearedAt || new Date() });
 
       await models.Transaction.createDoubleEntry({
         CollectiveId: collective.id,
