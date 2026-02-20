@@ -136,12 +136,6 @@
     "enabled": true
   },
   "paypal": {
-    "classic": {
-      "appId": "APP-80W284485P519543T",
-      "userId": "xdamman+opencollective-facilitator_api1.gmail.com",
-      "password": "UYRFFTDG3TYML68L",
-      "signature": "AknyGVnC4ahUBjab.T2H-YVkWGCqAW-ZI2s7gMVZKRdZpFO7kWEOorjv"
-    },
     "rest": {
       "mode": "sandbox"
     },

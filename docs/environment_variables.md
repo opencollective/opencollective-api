@@ -70,10 +70,6 @@
 | CLOUDFLARE_ZONE                               | .cloudflare.zone                                   | CLOUDFLARE zone                                                                    |
 | KLIPPA_API_KEY                                | .klippa.apiKey                                     | The API key for Klippa                                                             |
 | KLIPPA_ENABLED                                | .klippa.enabled                                    | Whether Klippa is enabled                                                          |
-| PAYPAL_APP_ID                                 | .paypal.classic.appId                              | Paypal APP ID (legacy adaptive)                                                    |
-| PAYPAL_USER_ID                                | .paypal.classic.userId                             | Paypal USER ID (legacy adaptive)                                                   |
-| PAYPAL_PASSWORD                               | .paypal.classic.password                           | Paypal password (legacy adaptive)                                                  |
-| PAYPAL_SIGNATURE                              | .paypal.classic.signature                          | Paypal signature (legacy adaptive)                                                 |
 | PAYPAL_ENVIRONMENT                            | .paypal.payment.environment                        | PayPal payment environment                                                         |
 | PAYPAL_CLIENT_ID                              | .paypal.payment.clientId                           | PayPal client ID                                                                   |
 | PAYPAL_CLIENT_SECRET                          | .paypal.payment.clientSecret                       | PayPal client secret                                                               |

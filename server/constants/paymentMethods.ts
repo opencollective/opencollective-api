@@ -17,7 +17,7 @@ export enum PAYMENT_METHOD_TYPE {
   SUBSCRIPTION = 'subscription',
   COLLECTIVE = 'collective',
   HOST = 'host',
-  ADAPTIVE = 'adaptive',
+  ADAPTIVE = 'adaptive', // @deprecated Sunset - PayPal Adaptive Payments has been discontinued
   GIFTCARD = 'giftcard',
   MANUAL = 'manual',
   CRYPTO = 'crypto', // @deprecated

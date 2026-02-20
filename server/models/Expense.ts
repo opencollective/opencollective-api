@@ -175,6 +175,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getTransactions: HasManyGetAssociationsMixin<Transaction>;
   declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
+  declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
 
   // Association setters
   declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethod, number>;
