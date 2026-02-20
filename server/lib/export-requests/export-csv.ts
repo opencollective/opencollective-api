@@ -1,6 +1,6 @@
 import axios from 'axios';
 import config from 'config';
-import { isEmpty, isNil } from 'lodash';
+import { isEmpty, isNil, kebabCase } from 'lodash';
 import assert from 'node:assert';
 import Stream from 'node:stream';
 
@@ -145,9 +145,10 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
     abortController.abort();
   });
 
+  const fileName = kebabCase(request.name) || `transactions-export`;
   const stream = new Stream.PassThrough();
   const pUpload = UploadedFile.uploadStream(stream, 'TRANSACTIONS_CSV_EXPORT', user, {
-    fileName: `transactions-export-${Date.now()}.csv`,
+    fileName: `${fileName}-${Date.now()}.csv`,
     mimetype: 'text/csv',
     abortController,
   });

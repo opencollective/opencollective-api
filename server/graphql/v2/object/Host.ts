@@ -234,6 +234,13 @@ export const GraphQLHost = new GraphQLObjectType({
           return collective.canApply();
         },
       },
+      hasMoneyManagement: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the account has money management activated.',
+        resolve(collective) {
+          return collective.hasMoneyManagement;
+        },
+      },
       termsUrl: {
         type: URL,
         resolve(collective) {
