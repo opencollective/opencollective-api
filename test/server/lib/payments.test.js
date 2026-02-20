@@ -378,7 +378,7 @@ describe('server/lib/payments', () => {
       });
 
       // When the refund transaction is created
-      await createRefundTransaction(transaction, 0, { dataField: 'foo' }, user);
+      await createRefundTransaction(transaction, { data: { dataField: 'foo' }, user });
 
       // And when transactions for that order are retrieved
       const allTransactions = await models.Transaction.findAll({
@@ -476,7 +476,7 @@ describe('server/lib/payments', () => {
       expect(tipSettlement.status).to.eq('OWED');
 
       // Do refund
-      await createRefundTransaction(transaction, 0, null, user);
+      await createRefundTransaction(transaction, { user });
 
       // Snapshot ledger
       const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
@@ -534,7 +534,7 @@ describe('server/lib/payments', () => {
       expect(originalTransactions.filter(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE)).to.have.lengthOf(2);
 
       // Do refund
-      await createRefundTransaction(transaction, 0, null, user);
+      await createRefundTransaction(transaction, { user });
 
       // Snapshot ledger
       const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
@@ -585,7 +585,7 @@ describe('server/lib/payments', () => {
       const hostFeeTransaction = originalTransactions.find(
         t => t.kind === TransactionKind.HOST_FEE && t.type === 'CREDIT',
       );
-      await createRefundTransaction(hostFeeTransaction, 0, null, user);
+      await createRefundTransaction(hostFeeTransaction, { user });
 
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
       expect(refundedTransactions).to.have.lengthOf(2);
@@ -636,7 +636,7 @@ describe('server/lib/payments', () => {
       const platformTipTransaction = originalTransactions.find(
         t => t.kind === TransactionKind.PLATFORM_TIP && t.type === 'CREDIT',
       );
-      await createRefundTransaction(platformTipTransaction, 0, null, user);
+      await createRefundTransaction(platformTipTransaction, { user });
 
       const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
       expect(refundedTransactions).to.have.lengthOf(2);
@@ -681,7 +681,11 @@ describe('server/lib/payments', () => {
         });
 
         // When the refund transaction is created
-        await createRefundTransaction(transaction, 100, { dataField: 'foo' }, user);
+        await createRefundTransaction(transaction, {
+          refundedPaymentProcessorFeeInHostCurrency: 100,
+          data: { dataField: 'foo' },
+          user,
+        });
 
         // And when transactions for that order are retrieved
         const allTransactions = await models.Transaction.findAll({
@@ -740,7 +744,11 @@ describe('server/lib/payments', () => {
         });
 
         // When the refund transaction is created
-        await createRefundTransaction(transaction, 100, { dataField: 'foo' }, user);
+        await createRefundTransaction(transaction, {
+          refundedPaymentProcessorFeeInHostCurrency: 100,
+          data: { dataField: 'foo' },
+          user,
+        });
 
         // And when transactions for that order are retrieved
         const allTransactions = await models.Transaction.findAll({
