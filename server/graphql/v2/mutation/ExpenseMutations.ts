@@ -65,6 +65,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountingCategoryWithReference } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLExpenseCreateInput } from '../input/ExpenseCreateInput';
 import { GraphQLExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
 import {
@@ -398,9 +399,10 @@ const expenseMutations = {
               type: GraphQLInt,
               description: 'The total amount paid in host currency',
             },
-            shouldRefundPaymentProcessorFee: {
-              type: GraphQLBoolean,
-              description: 'Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID',
+            amountRefunded: {
+              type: GraphQLAmountInput,
+              description:
+                'Amount refunded when triggering MARK_AS_UNPAID. Must be > 0 and <= total amount paid. If omitted, full refund is performed. The difference (total paid - refunded) is recorded as payment processor fee.',
             },
             markAsUnPaidStatus: {
               type: new GraphQLEnumType({
@@ -490,14 +492,24 @@ const expenseMutations = {
         case 'MARK_AS_SPAM':
           expense = await markExpenseAsSpam(req, expense);
           break;
-        case 'MARK_AS_UNPAID':
+        case 'MARK_AS_UNPAID': {
+          if (!args.paymentParams?.amountRefunded) {
+            throw new ValidationFailed('amountRefunded is required when triggering MARK_AS_UNPAID');
+          }
+
+          const amountRefundedInHostCurrency = getValueInCentsFromAmountInput(args.paymentParams.amountRefunded, {
+            expectedCurrency: expense.collective.host.currency,
+            allowNilCurrency: false,
+          });
+
           expense = await markExpenseAsUnpaid(
             req,
             expense.id,
-            args.paymentParams?.shouldRefundPaymentProcessorFee || args.paymentParams?.paymentProcessorFee,
+            amountRefundedInHostCurrency,
             args.paymentParams?.markAsUnPaidStatus,
           );
           break;
+        }
         case 'SCHEDULE_FOR_PAYMENT':
           expense = await scheduleExpenseForPayment(req, expense, {
             feesPayer: args.paymentParams?.feesPayer,
