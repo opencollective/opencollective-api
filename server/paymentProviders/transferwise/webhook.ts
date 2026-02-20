@@ -150,7 +150,10 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
         include: [{ model: models.Expense }],
       });
       if (transaction) {
-        await createRefundTransaction(transaction, transaction.paymentProcessorFeeInHostCurrency, null, expense.User);
+        await createRefundTransaction(transaction, {
+          refundedPaymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
+          user: expense.User,
+        });
         logger.info(`Wise: Refunded transactions for Wise transfer #${event.data.resource.id}.`);
       } else {
         logger.info(`Wise: Wise transfer #${event.data.resource.id} has no transactions, skipping refund.`);
@@ -236,20 +239,18 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         logger.verbose('Wise: Paid Expense was partially refunded', event);
         const difference = sourceAmount - refundedAmount;
         const paymentProcessorFee = expense.data.paymentOption.fee.total;
-        await createRefundTransaction(
-          creditTransaction,
-          Math.round((paymentProcessorFee - difference) * 100),
-          pick(creditTransaction.data, ['transfer']),
-          expense.User,
-        );
+        await createRefundTransaction(creditTransaction, {
+          refundedPaymentProcessorFeeInHostCurrency: Math.round((paymentProcessorFee - difference) * 100),
+          data: pick(creditTransaction.data, ['transfer']),
+          user: expense.User,
+        });
       } else {
         logger.verbose('Wise: Paid Expense was fully refunded', event);
-        await createRefundTransaction(
-          creditTransaction,
-          paymentProcessorFee * 100,
-          pick(creditTransaction.data, ['transfer']),
-          expense.User,
-        );
+        await createRefundTransaction(creditTransaction, {
+          refundedPaymentProcessorFeeInHostCurrency: paymentProcessorFee * 100,
+          data: pick(creditTransaction.data, ['transfer']),
+          user: expense.User,
+        });
       }
 
       await expense.update({ data: { ...expense.data, refundWiseEventTimestamp, refundEvent: event } });

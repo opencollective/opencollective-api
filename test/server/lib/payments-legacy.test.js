@@ -357,7 +357,7 @@ describe('server/lib/payments-legacy', () => {
       });
 
       // When the refund transaction is created
-      await createRefundTransaction(transaction, 0, { dataField: 'foo' }, user);
+      await createRefundTransaction(transaction, { data: { dataField: 'foo' }, user });
 
       // And when transactions for that order are retrieved
       const allTransactions = await models.Transaction.findAll({
@@ -438,7 +438,7 @@ describe('server/lib/payments-legacy', () => {
       expect(tipSettlement.status).to.eq('OWED');
 
       // Do refund
-      await createRefundTransaction(transaction, 0, null, user);
+      await createRefundTransaction(transaction, { user });
 
       // Snapshot ledger
       const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
@@ -494,7 +494,7 @@ describe('server/lib/payments-legacy', () => {
       expect(originalTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
 
       // Do refund
-      await createRefundTransaction(transaction, 0, null, user);
+      await createRefundTransaction(transaction, { user });
 
       // Snapshot ledger
       const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });

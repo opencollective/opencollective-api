@@ -107,7 +107,7 @@ async function run({ dryRun, limit, force } = {}) {
             if (paymentMethodProvider.refundTransaction) {
               await refundTransaction(transaction, null, 'Contribution rejected');
             } else if (force) {
-              await createRefundTransaction(transaction, 0, null);
+              await createRefundTransaction(transaction, { refundedPaymentProcessorFeeInHostCurrency: 0 });
             } else {
               if (order.status === 'PAID' || order.status === 'CANCELLED') {
                 shouldNotifyContributor = false;

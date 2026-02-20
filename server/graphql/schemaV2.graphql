@@ -2658,6 +2658,11 @@ type Expense {
   paidAt: DateTime
 
   """
+  Payment information for this expense. Only available when the expense status is PAID.
+  """
+  paymentInfo: ExpensePaymentInformationField
+
+  """
   Whether this expense is on hold
   """
   onHold: Boolean
@@ -4371,6 +4376,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Only return accounts that expended within this amount range
     """
     totalExpended: AmountRangeInput
+
+    """
+    Order of the results
+    """
+    orderBy: OrderByInput
   ): VendorCollection!
 
   """
@@ -5203,6 +5213,7 @@ enum OrderByFieldType {
   BALANCE
   MEMBER_COUNT
   TOTAL_CONTRIBUTED
+  TOTAL_EXPENDED
   NAME
 
   """
@@ -5687,6 +5698,7 @@ enum ActivityType {
   COLLECTIVE_EDITED
   COLLECTIVE_DELETED
   COLLECTIVE_UNHOSTED
+  COLLECTIVE_BALANCE_TRANSFERRED
   COLLECTIVE_CONVERTED_TO_ORGANIZATION
   ORGANIZATION_COLLECTIVE_CREATED
   ORGANIZATION_CONVERTED_TO_COLLECTIVE
@@ -6148,6 +6160,16 @@ type PayoutMethod {
   Whether this payout method can be archived
   """
   canBeArchived: Boolean
+
+  """
+  The date and time this payout method was created
+  """
+  createdAt: DateTime!
+
+  """
+  The date and time this payout method was updated
+  """
+  updatedAt: DateTime!
 }
 
 """
@@ -6156,6 +6178,16 @@ PaymentMethod model
 type PaymentMethod {
   id: String
   legacyId: Int
+
+  """
+  The date and time this payout method was created
+  """
+  createdAt: DateTime!
+
+  """
+  The date and time this payout method was updated
+  """
+  updatedAt: DateTime!
   name: String
   service: PaymentMethodService
   type: PaymentMethodType
@@ -6178,7 +6210,6 @@ type PaymentMethod {
   data: JSON
   limitedToHosts: [Host]
   expiryDate: DateTime
-  createdAt: DateTime
 
   """
   For monthly gift cards, this field will return the monthly limit
@@ -8652,6 +8683,16 @@ enum ExpenseStatus {
   SPAM
   CANCELED
   INVITE_DECLINED
+}
+
+"""
+Payment information for a paid expense
+"""
+type ExpensePaymentInformationField {
+  """
+  The payment processor fee for this expense (in host currency)
+  """
+  processorFee: Amount
 }
 
 """
@@ -19604,6 +19645,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_EDITED
   COLLECTIVE_DELETED
   COLLECTIVE_UNHOSTED
+  COLLECTIVE_BALANCE_TRANSFERRED
   COLLECTIVE_CONVERTED_TO_ORGANIZATION
   ORGANIZATION_COLLECTIVE_CREATED
   ORGANIZATION_CONVERTED_TO_COLLECTIVE
@@ -24098,6 +24140,16 @@ type Mutation {
   Remove the given payout method. Scope: "expenses".
   """
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
+
+  """
+  Restore the given payout method. Scope: "expenses".
+  """
+  restorePayoutMethod(
+    """
+    Payout Method reference
+    """
+    payoutMethod: PayoutMethodReferenceInput!
+  ): PayoutMethod! @deprecated(reason: "2025-02-10: Payout methods cannot be restored.")
   editPayoutMethod(
     """
     Payout Method reference
@@ -25980,6 +26032,11 @@ input ProcessExpensePaymentParams {
   Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID
   """
   shouldRefundPaymentProcessorFee: Boolean
+
+  """
+  Amount refunded when triggering MARK_AS_UNPAID. Must be > 0 and <= total amount paid. If omitted, full refund is performed. The difference (total paid - refunded) is recorded as payment processor fee.
+  """
+  amountRefunded: AmountInput
 
   """
   New expense status when triggering MARK_AS_UNPAID

@@ -63,10 +63,9 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
   const refundedFees = extractFees(refundBalance, refundBalance.currency);
 
   /* Create negative transactions for the received transaction */
-  return await createRefundTransaction(
-    transaction,
-    refundedFees.stripeFee, // TODO: Ignoring `other` fees here could be a problem
-    {
+  return await createRefundTransaction(transaction, {
+    refundedPaymentProcessorFeeInHostCurrency: refundedFees.stripeFee, // TODO: Ignoring `other` fees here could be a problem
+    data: {
       ...transaction.data,
       refund,
       balanceTransaction: refundBalance, // TODO: This is overwriting the original balanceTransaction with the refund balance transaction, which remove important info
@@ -74,10 +73,8 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
       refundReason: reason,
     },
     user,
-    null,
-    null,
     refundKind,
-  );
+  });
 };
 
 /** Refund a given transaction that was already refunded
@@ -112,15 +109,12 @@ export const refundTransactionOnlyInDatabase: BasePaymentProviderService['refund
   const fees = extractFees(refundBalance, refundBalance.currency);
 
   /* Create negative transactions for the received transaction */
-  return await createRefundTransaction(
-    transaction,
-    refund ? fees.stripeFee : 0, // With disputes, we get 1500 as a value but will not handle this
-    { ...transaction.data, charge, refund, balanceTransaction: refundBalance, refundReason: reason },
+  return await createRefundTransaction(transaction, {
+    refundedPaymentProcessorFeeInHostCurrency: refund ? fees.stripeFee : 0, // With disputes, we get 1500 as a value but will not handle this
+    data: { ...transaction.data, charge, refund, balanceTransaction: refundBalance, refundReason: reason },
     user,
-    null,
-    null,
     refundKind,
-  );
+  });
 };
 
 export const createChargeTransactions = async (

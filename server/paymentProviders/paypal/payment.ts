@@ -240,15 +240,12 @@ export const refundPaypalCapture = async (
     const refundDetails = await paypalRequestV2(`payments/refunds/${result.id}`, host, 'GET');
     const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
     const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
-    return createRefundTransaction(
-      transaction,
-      refundedPaypalFee,
-      { refundReason: reason, paypalResponse: result },
+    return createRefundTransaction(transaction, {
+      refundedPaymentProcessorFeeInHostCurrency: refundedPaypalFee,
+      data: { refundReason: reason, paypalResponse: result },
       user,
-      null,
-      null,
       refundKind,
-    );
+    });
   } catch (error) {
     reportErrorToSentry(error, {
       feature: FEATURE.PAYPAL_DONATIONS,
@@ -268,15 +265,12 @@ const refundTransactionOnlyInDatabase = async (
   reason: string,
   refundKind?: RefundKind,
 ): Promise<Transaction> => {
-  return createRefundTransaction(
-    transaction,
-    0,
-    { ...transaction.data, refundReason: reason },
+  return createRefundTransaction(transaction, {
+    refundedPaymentProcessorFeeInHostCurrency: 0,
+    data: { ...transaction.data, refundReason: reason },
     user,
-    null,
-    null,
     refundKind,
-  );
+  });
 };
 
 /** Process order in paypal and create transactions in our db */

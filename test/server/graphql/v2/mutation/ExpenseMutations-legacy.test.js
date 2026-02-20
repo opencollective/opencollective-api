@@ -45,6 +45,7 @@ import {
   makeRequest,
   preloadAssociationsForTransactions,
   resetTestDB,
+  seedDefaultVendors,
   snapshotTransactions,
   waitForCondition,
 } from '../../../../utils';
@@ -1320,6 +1321,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
 
     before(async () => {
       await resetTestDB();
+      await seedDefaultVendors();
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
       host = await fakeActiveHost({
@@ -2601,6 +2603,103 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
         expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(expense.amount);
+      });
+
+      it('Marks the expense as unpaid with partial amountRefunded and creates payment processor fee for difference', async () => {
+        const testCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: testCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
+        await payExpense(makeRequest(hostAdmin), {
+          id: expense.id,
+          totalAmountPaidInHostCurrency: 1000,
+        });
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(0);
+
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'MARK_AS_UNPAID',
+          paymentParams: {
+            amountRefunded: { valueInCents: 800, currency: 'USD' },
+          },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+
+        const transactions = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id },
+          order: [['id', 'ASC']],
+        });
+        const refundTransactions = transactions.filter(t => t.isRefund);
+        const refundExpenseTxs = refundTransactions.filter(t => t.kind === TransactionKind.EXPENSE);
+        const feeTxs = transactions.filter(t => t.kind === TransactionKind.PAYMENT_PROCESSOR_FEE);
+
+        expect(refundExpenseTxs.length).to.eq(2);
+        const refundAmount = Math.abs(refundExpenseTxs.find(t => t.type === 'CREDIT').amountInHostCurrency);
+        expect(refundAmount).to.eq(800);
+
+        expect(feeTxs.length).to.be.at.least(2);
+        const partialRefundFeeTx = feeTxs.find(t => t.data?.isPartialRefundFee);
+        expect(partialRefundFeeTx).to.exist;
+        expect(Math.abs(partialRefundFeeTx.amountInHostCurrency)).to.eq(200);
+
+        expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(800);
+      });
+
+      it('Rejects amountRefunded of 0', async () => {
+        const testCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: testCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
+        await payExpense(makeRequest(hostAdmin), { id: expense.id });
+
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'MARK_AS_UNPAID',
+          paymentParams: { amountRefunded: { valueInCents: 0, currency: 'USD' } },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('cannot be 0');
+      });
+
+      it('Rejects amountRefunded exceeding total amount paid', async () => {
+        const testCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: testCollective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
+        await payExpense(makeRequest(hostAdmin), {
+          id: expense.id,
+          totalAmountPaidInHostCurrency: 1000,
+        });
+
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'MARK_AS_UNPAID',
+          paymentParams: { amountRefunded: { valueInCents: 1500, currency: 'USD' } },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('cannot exceed');
       });
 
       it('Expense needs to be paid', async () => {

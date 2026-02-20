@@ -227,8 +227,14 @@ describe('cron/monthly/host-settlement', () => {
 
     // Refund contributions that must be
     let clock = sinon.useFakeTimers({ toFake: ['Date'], now: moment(lastMonth).add(1, 'day').toDate() });
-    await createRefundTransaction(unsettledRefundedContribution, 0, null, user, fakeUUID('00000008'));
-    await createRefundTransaction(settledRefundedContribution, 0, null, user, fakeUUID('00000009'));
+    await createRefundTransaction(unsettledRefundedContribution, {
+      user,
+      transactionGroupId: fakeUUID('00000008'),
+    });
+    await createRefundTransaction(settledRefundedContribution, {
+      user,
+      transactionGroupId: fakeUUID('00000009'),
+    });
     clock.restore();
 
     // ---- EUR Host ----

@@ -42,6 +42,7 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import PlatformConstants from '../../constants/platform';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
@@ -3774,7 +3775,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
 export async function markExpenseAsUnpaid(
   req: express.Request,
   expenseId: number,
-  shouldRefundPaymentProcessorFee: boolean,
+  amountRefundedInHostCurrency?: number,
   markAsUnPaidStatus: ExpenseStatus.APPROVED | ExpenseStatus.ERROR | ExpenseStatus.INCOMPLETE = ExpenseStatus.APPROVED,
 ): Promise<Expense> {
   const newExpenseStatus = markAsUnPaidStatus || ExpenseStatus.APPROVED;
@@ -3813,22 +3814,38 @@ export async function markExpenseAsUnpaid(
         RefundTransactionId: null,
         kind: TransactionKind.EXPENSE,
         isRefund: false,
+        type: TransactionTypes.DEBIT,
       },
       include: [{ model: models.Expense }],
     });
 
-    // Load payment processor fee amount, either from the column or from the related transaction
-    let refundedPaymentProcessorFeeAmount = 0;
-    if (shouldRefundPaymentProcessorFee) {
-      refundedPaymentProcessorFeeAmount = transaction.paymentProcessorFeeInHostCurrency;
-      if (!refundedPaymentProcessorFeeAmount) {
-        refundedPaymentProcessorFeeAmount = Math.abs(
-          (await transaction.getPaymentProcessorFeeTransaction().then(t => t?.amountInHostCurrency)) || 0,
-        );
-      }
+    // Check amounts
+    const originalBaseAmountInHostCurrency = Math.abs(transaction.amountInHostCurrency || 0);
+    const originalProcessorFeeAmount =
+      transaction.paymentProcessorFeeInHostCurrency ||
+      Math.abs((await transaction.getPaymentProcessorFeeTransaction())?.amountInHostCurrency || 0);
+    const originalTotalAmountInHostCurrency = originalBaseAmountInHostCurrency + originalProcessorFeeAmount;
+
+    if (!amountRefundedInHostCurrency || amountRefundedInHostCurrency <= 0) {
+      throw new ValidationFailed('The refunded amount cannot be 0');
+    } else if (amountRefundedInHostCurrency > originalTotalAmountInHostCurrency) {
+      throw new ValidationFailed('The refunded amount cannot exceed the total amount paid');
     }
 
-    await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
+    // If refunding more than the original gross amount, refund the difference as payment processor fee (full or partial)
+    let refundedPaymentProcessorFee = 0;
+    let baseAmountToRefund = originalBaseAmountInHostCurrency;
+    if (amountRefundedInHostCurrency >= originalBaseAmountInHostCurrency) {
+      refundedPaymentProcessorFee = amountRefundedInHostCurrency - originalBaseAmountInHostCurrency;
+    } else {
+      baseAmountToRefund = originalBaseAmountInHostCurrency - amountRefundedInHostCurrency;
+    }
+
+    await createRefundTransaction(transaction, {
+      user: expense.User,
+      refundedPaymentProcessorFeeInHostCurrency: refundedPaymentProcessorFee,
+      amountRefundedInHostCurrency: baseAmountToRefund,
+    });
 
     await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
     return { expense, transaction };
