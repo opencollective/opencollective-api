@@ -171,7 +171,7 @@ mark_step_complete() {
 fetch_heroku_backup() {
   local step="heroku_backup"
   local app_dir="$TEMP_DIR/heroku/$HEROKU_APP"
-  local dump_file="$app_dir/postgres.dump"
+  local dump_file="$app_dir/postgres_${DATE}.dump"
   
   if is_step_complete "$step"; then
     log_info "Heroku backup already completed, skipping..."
@@ -207,7 +207,7 @@ fetch_heroku_backup() {
 fetch_metabase_backup() {
   local step="metabase_backup"
   local app_dir="$TEMP_DIR/heroku/$METABASE_APP"
-  local dump_file="$app_dir/postgres.dump"
+  local dump_file="$app_dir/postgres_${DATE}.dump"
   
   if is_step_complete "$step"; then
     log_info "Metabase backup already completed, skipping..."
@@ -252,7 +252,7 @@ fetch_env_files() {
   
   for app in "${HEROKU_APPS[@]}"; do
     local app_dir="$TEMP_DIR/heroku/$app"
-    local env_file="$app_dir/.env"
+    local env_file="$app_dir/.env_${DATE}"
     
     mkdir -p "$app_dir"
     log_info "Fetching environment variables for: $app"

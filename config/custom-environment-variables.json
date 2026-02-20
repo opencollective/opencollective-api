@@ -128,12 +128,6 @@
     "enabled": "KLIPPA_ENABLED"
   },
   "paypal": {
-    "classic": {
-      "appId": "PAYPAL_APP_ID",
-      "userId": "PAYPAL_USER_ID",
-      "password": "PAYPAL_PASSWORD",
-      "signature": "PAYPAL_SIGNATURE"
-    },
     "payment": {
       "environment": "PAYPAL_ENVIRONMENT",
       "clientId": "PAYPAL_CLIENT_ID",

@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { PayoutMethod } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -24,7 +24,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
     name: {
       type: GraphQLString,
       description: 'A friendly name for users to easily find their payout methods',
-      resolve: async (payoutMethod, _, req: express.Request): Promise<string> => {
+      resolve: async (payoutMethod, _, req: express.Request): Promise<string | null> => {
         const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (
           req.remoteUser?.isAdminOfCollective(collective) ||
@@ -54,10 +54,10 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
     data: {
       type: GraphQLJSON,
       description: 'The actual data for this payout method. Content depends on the type.',
-      resolve: async (payoutMethod, _, req: express.Request): Promise<Record<string, unknown>> => {
+      resolve: async (payoutMethod, _, req: express.Request): Promise<Record<string, unknown> | null> => {
         const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (
-          req.remoteUser?.isAdminOfCollective(collective) ||
+          (req.remoteUser?.isAdminOfCollective(collective) && payoutMethod.isSaved) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {
@@ -110,6 +110,14 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           return false;
         }
       },
+    },
+    createdAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+      description: 'The date and time this payout method was created',
+    },
+    updatedAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+      description: 'The date and time this payout method was updated',
     },
   }),
 });

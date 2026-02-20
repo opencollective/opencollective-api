@@ -342,7 +342,7 @@ export default async (app: express.Application) => {
    * Generic OAuth (ConnectedAccounts)
    * To keep in sync with opencollective-frontend/pages/api/connected-accounts/[service]/oauthUrl.js
    */
-  const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
+  const oauthServiceAllowlist = new Set(['github', 'stripe', 'transferwise']);
 
   /**
    * Webhooks that should bypass api key check

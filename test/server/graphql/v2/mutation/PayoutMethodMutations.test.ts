@@ -226,5 +226,25 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eql('You are authenticated but forbidden to perform this action');
     });
+
+    it('Rejects setting isSaved true on an archived payout method (restore via edit)', async () => {
+      const archivedPayoutMethod = await fakePayoutMethod({
+        CollectiveId: adminUser.CollectiveId,
+        isSaved: false,
+        name: 'Archived Bank',
+      });
+      await fakeExpense({ PayoutMethodId: archivedPayoutMethod.id, status: 'PAID' });
+      const mutationArgs = {
+        payoutMethod: {
+          id: idEncode(archivedPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+          isSaved: true,
+        },
+      };
+      const result = await graphqlQueryV2(editPayoutMethodMutation, mutationArgs, adminUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Archived payout methods cannot be restored');
+      await archivedPayoutMethod.reload();
+      expect(archivedPayoutMethod.isSaved).to.be.false;
+    });
   });
 });

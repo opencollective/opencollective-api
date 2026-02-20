@@ -17,7 +17,7 @@ import {
   fakeUser,
   fakeVirtualCard,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const hostQuery = gql`
   query Host($slug: String!, $accounts: [AccountReferenceInput]) {
@@ -472,6 +472,7 @@ describe('server/graphql/v2/object/Host', () => {
       vendorVisibleToCollectiveA,
       vendorVisibleToCollectiveAAndB;
     before(async () => {
+      await resetTestDB();
       hostAdmin = await fakeUser();
       host = await fakeActiveHost({ admin: hostAdmin });
       account = await fakeCollective({ HostCollectiveId: host.id });
@@ -582,6 +583,8 @@ describe('server/graphql/v2/object/Host', () => {
         { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }] },
         hostAdmin,
       );
+
+      result.error && console.error(result.error);
 
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),

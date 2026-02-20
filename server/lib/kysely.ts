@@ -1,3 +1,4 @@
+import debugLib from 'debug';
 import { Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler } from 'kysely';
 import { KyselySequelizeDialect } from 'kysely-sequelize';
 import type { Model, ModelStatic } from 'sequelize';
@@ -6,6 +7,8 @@ import type { Database } from '../types/kysely-tables';
 import { ViewsDatabase } from '../types/kysely-views';
 
 import sequelize from './sequelize';
+
+const debug = debugLib('kysely');
 
 function rowToModel<T extends Model>(row: object, ModelClass: ModelStatic<T>): T {
   const rawAttrs = ModelClass.rawAttributes;
@@ -47,26 +50,6 @@ let kyselyInstance: Kysely<DatabaseWithViews> | null = null;
 export function getKysely(): Kysely<DatabaseWithViews> {
   if (!kyselyInstance) {
     kyselyInstance = new Kysely<DatabaseWithViews>({
-      log(event) {
-        if (process.env.DEBUG_KYSELY === 'true') {
-          if (event.level === 'error') {
-            // eslint-disable-next-line no-console
-            console.error('Query failed : ', {
-              durationMs: event.queryDurationMillis,
-              error: event.error,
-              sql: event.query.sql,
-              params: event.query.parameters,
-            });
-          } else {
-            // eslint-disable-next-line no-console
-            console.log('Query executed : ', {
-              durationMs: event.queryDurationMillis,
-              sql: event.query.sql,
-              params: event.query.parameters,
-            });
-          }
-        }
-      },
       dialect: new KyselySequelizeDialect({
         sequelize,
         kyselySubDialect: {
@@ -75,6 +58,15 @@ export function getKysely(): Kysely<DatabaseWithViews> {
           createQueryCompiler: () => new PostgresQueryCompiler(),
         },
       }),
+      log: debug.enabled
+        ? e => {
+            if (e.level === 'query') {
+              debug('Kysely query: %s\n\nParameters: %o', e.query.sql, e.query.parameters);
+            } else {
+              debug('Kysely error on query: %s\n\nParameters: %o', e.query.sql, e.query.parameters);
+            }
+          }
+        : undefined,
     });
   }
   return kyselyInstance;

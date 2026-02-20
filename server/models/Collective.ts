@@ -114,7 +114,7 @@ import AccountingCategory from './AccountingCategory';
 import Activity from './Activity';
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
-import Expense from './Expense';
+import Expense, { ExpenseType } from './Expense';
 import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
@@ -189,6 +189,7 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  expenseTypes?: Partial<Record<ExpenseType, boolean>>;
 } & TaxSettings;
 
 type Data = Partial<{
