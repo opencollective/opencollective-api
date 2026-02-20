@@ -3,7 +3,7 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { Expression, ExpressionBuilder, expressionBuilder, OrderByDirectionExpression, sql, SqlBool } from 'kysely';
+import { Expression, ExpressionBuilder, expressionBuilder, OrderByModifiers, sql, SqlBool } from 'kysely';
 import { compact, isEmpty, isNil, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
@@ -802,14 +802,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         .$if(args.orderBy.field === 'lastChargedAt', qb =>
           qb.orderBy(
             sql<number>`COALESCE("Subscriptions"."lastChargedAt", "Orders"."createdAt")`,
-            (args.orderBy.direction?.toLowerCase() as OrderByDirectionExpression) ?? 'desc',
+            (args.orderBy.direction?.toLowerCase() as OrderByModifiers) ?? 'desc',
           ),
         )
         .$if(args.orderBy.field !== 'lastChargedAt', qb =>
-          qb.orderBy(
-            args.orderBy.field as any,
-            (args.orderBy.direction?.toLowerCase() as OrderByDirectionExpression) ?? 'desc',
-          ),
+          qb.orderBy(args.orderBy.field as any, (args.orderBy.direction?.toLowerCase() as OrderByModifiers) ?? 'desc'),
         )
         .execute()
         .then(kyselyToSequelizeModels(models.Order)),
