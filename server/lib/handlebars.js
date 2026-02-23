@@ -132,7 +132,7 @@ handlebars.registerHelper('moment', (value, props) => {
   return d.format(format);
 });
 
-handlebars.registerHelper('moment-timezone', value => {
+handlebars.registerHelper('utcOffset', value => {
   if (!value) {
     return '';
   }
