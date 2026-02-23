@@ -510,6 +510,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             switch (hostContext) {
               case 'ALL':
                 ors.push(eb('HostCollectiveId', '=', account.id));
+                ors.push(eb('id', '=', account.id));
                 break;
               case 'INTERNAL':
                 ors.push(eb('id', '=', account.id).or(eb('ParentCollectiveId', '=', account.id)));
@@ -567,7 +568,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             qb.where('id', '=', oppositeAccount.id),
           )
           .$if((!args.filter || args.filter === 'OUTGOING') && !!host, qb =>
-            qb.where('HostCollectiveId', '=', oppositeAccount.id).where('approvedAt', 'is not', null),
+            qb.where('HostCollectiveId', '=', host.id).where('approvedAt', 'is not', null),
           );
 
         if (
