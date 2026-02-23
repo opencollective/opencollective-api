@@ -1,6 +1,5 @@
 import handlebars from 'handlebars';
 import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
-import moment from 'moment';
 
 import { FeatureDetails } from '../constants/feature';
 import { freeFeatures } from '../constants/plans';
@@ -119,17 +118,49 @@ function getTimezoneOffsetString(date, timezone) {
   return gmtString === 'GMT' ? '+00:00' : gmtString.slice(3);
 }
 
-handlebars.registerHelper('moment', (value, props) => {
-  const format = (props && props.hash.format) || 'MMMM Do YYYY';
-  const d = moment(value);
-  if (props && props.hash.timezone) {
-    try {
-      d.utcOffset(getTimezoneOffsetString(value, props.hash.timezone));
-    } catch {
-      // Invalid timezone — fall back to UTC
-    }
+function ordinal(n) {
+  const num = parseInt(n, 10);
+  const mod100 = num % 100;
+  if (mod100 >= 11 && mod100 <= 13) {
+    return num + 'th';
   }
-  return d.format(format);
+  switch (num % 10) {
+    case 1:
+      return num + 'st';
+    case 2:
+      return num + 'nd';
+    case 3:
+      return num + 'rd';
+    default:
+      return num + 'th';
+  }
+}
+
+handlebars.registerHelper('formatDate', (value, props) => {
+  const format = (props && props.hash.format) || 'MMMM Do YYYY';
+  const timezone = props && props.hash.timezone;
+  const options = {
+    ...(timezone && { timeZone: timezone }),
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  };
+  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(new Date(value));
+  const get = type => parts.find(p => p.type === type)?.value || '';
+
+  const tokens = {
+    MMMM: get('month'),
+    Do: ordinal(get('day')),
+    YYYY: get('year'),
+    mm: get('minute'),
+    h: get('hour'),
+    a: get('dayPeriod').toLowerCase(),
+  };
+
+  return format.replace(/MMMM|Do|YYYY|mm|h|a/g, match => tokens[match]);
 });
 
 handlebars.registerHelper('utcOffset', value => {
