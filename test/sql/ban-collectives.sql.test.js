@@ -1,9 +1,9 @@
 /* eslint-disable camelcase */
 
+import { readFileSync } from 'fs';
 import path from 'path';
 
 import { expect } from 'chai';
-import { readFileSync } from 'fs-extra';
 import { times } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
