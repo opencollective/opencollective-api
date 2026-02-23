@@ -621,43 +621,134 @@ export const GraphQLHost = new GraphQLObjectType({
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
 
-          const query = `
-            WITH HostCollectiveIds AS (
-              SELECT "id" FROM "Collectives"
-              WHERE "id" = :hostCollectiveId
-              OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')
-            )
-            SELECT
-              DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt") AT TIME ZONE 'UTC') AS "date",
-              SUM(t."amountInHostCurrency") AS "amount",
-              (SELECT "currency" FROM "Collectives" where id = :hostCollectiveId) as "currency",
-              COUNT(o."id") AS "count",
-              CASE
-                  WHEN o."CollectiveId" IN (SELECT * FROM HostCollectiveIds) THEN TRUE ELSE FALSE
-              END AS "isHost",
-              o."AccountingCategoryId"
+          let queryResult;
 
-            FROM "Transactions" t
-            JOIN "Orders" o ON o.id = t."OrderId"
+          if (args.dateFrom) {
+            // Date-scoped query: fast due to date range, queries live AccountingCategoryId from Orders
+            const query = `
+              SELECT
+                DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt") AT TIME ZONE 'UTC') AS "date",
+                SUM(t."amountInHostCurrency") AS "amount",
+                (SELECT "currency" FROM "Collectives" WHERE id = :hostCollectiveId) AS "currency",
+                COUNT(o."id") AS "count",
+                CASE
+                    WHEN t."CollectiveId" = t."HostCollectiveId" THEN TRUE
+                    WHEN EXISTS (
+                        SELECT 1 FROM "Collectives" c
+                        WHERE c."id" = t."CollectiveId"
+                        AND c."ParentCollectiveId" = t."HostCollectiveId"
+                        AND c."type" != 'VENDOR'
+                    ) THEN TRUE
+                    ELSE FALSE
+                END AS "isHost",
+                o."AccountingCategoryId"
+              FROM "Transactions" t
+              JOIN "Orders" o ON o.id = t."OrderId"
+              WHERE
+                t."deletedAt" IS NULL
+                AND t."HostCollectiveId" = :hostCollectiveId
+                AND t."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
+                AND t."type" = 'CREDIT'
+                AND NOT t."isRefund"
+                AND t."RefundTransactionId" IS NULL
+                AND COALESCE(t."clearedAt", t."createdAt") >= :dateFrom
+                ${args.dateTo ? 'AND COALESCE(t."clearedAt", t."createdAt") <= :dateTo' : ''}
+              GROUP BY "date", "isHost", o."AccountingCategoryId"
+            `;
 
-            WHERE t."HostCollectiveId" = :hostCollectiveId
-            AND t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND t."type" = 'CREDIT' AND NOT t."isRefund" AND t."RefundTransactionId" IS NULL AND t."deletedAt" IS NULL
-            ${args.dateFrom ? 'AND COALESCE(t."clearedAt", t."createdAt") >= :dateFrom' : ''}
-            ${args.dateTo ? 'AND COALESCE(t."clearedAt", t."createdAt") <= :dateTo' : ''}
+            queryResult = await sequelize.query(query, {
+              replacements: {
+                hostCollectiveId: host.id,
+                timeUnit: args.timeUnit,
+                dateFrom: moment(args.dateFrom).utc().toISOString(),
+                dateTo: args.dateTo ? moment(args.dateTo).utc().toISOString() : null,
+              },
+              type: QueryTypes.SELECT,
+              raw: true,
+            });
+          } else {
+            // Unscoped (list view): use materialized view + fresh data CTE for speed
+            const refreshedAtResult = await sequelize.query<{ refreshedAt: Date }>(
+              `SELECT "refreshedAt" FROM "HostMonthlyContributions" LIMIT 1;`,
+              { type: QueryTypes.SELECT, raw: true },
+            );
 
-            GROUP BY "date", "isHost", o."AccountingCategoryId"
-          `;
+            const refreshedAt = refreshedAtResult[0]?.refreshedAt;
 
-          const queryResult = await sequelize.query(query, {
-            replacements: {
-              hostCollectiveId: host.id,
-              timeUnit: args.timeUnit,
-              dateTo: args.dateTo ? moment(args.dateTo).utc().toISOString() : null,
-              dateFrom: args.dateFrom ? moment(args.dateFrom).utc().toISOString() : null,
-            },
-            type: QueryTypes.SELECT,
-            raw: true,
-          });
+            const query = `
+              WITH
+                  AggregatedContributions AS (
+                      SELECT
+                          DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt") AT TIME ZONE 'UTC') AS "date",
+                          SUM(t."amountInHostCurrency") AS "amountInHostCurrency",
+                          COUNT(t."id") AS "count",
+                          t."hostCurrency",
+                          CASE
+                              WHEN t."CollectiveId" = t."HostCollectiveId" THEN TRUE
+                              WHEN EXISTS (
+                                  SELECT 1 FROM "Collectives" c
+                                  WHERE c."id" = t."CollectiveId"
+                                  AND c."ParentCollectiveId" = t."HostCollectiveId"
+                                  AND c."type" != 'VENDOR'
+                              ) THEN TRUE
+                              ELSE FALSE
+                          END AS "isHost"
+                      FROM "Transactions" t
+                      WHERE
+                          t."deletedAt" IS NULL
+                          AND t."HostCollectiveId" = :hostCollectiveId
+                          AND t."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
+                          AND t."type" = 'CREDIT'
+                          AND NOT t."isRefund"
+                          AND t."RefundTransactionId" IS NULL
+                          AND COALESCE(t."clearedAt", t."createdAt") > :refreshedAt
+                          ${args.dateTo ? 'AND COALESCE(t."clearedAt", t."createdAt") <= :dateTo' : ''}
+                      GROUP BY
+                          DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt") AT TIME ZONE 'UTC'),
+                          t."hostCurrency",
+                          "isHost"
+                  ),
+                  CombinedData AS (
+                      SELECT "date", "amountInHostCurrency", "count", "hostCurrency", "isHost"
+                      FROM AggregatedContributions
+                      UNION ALL
+                      SELECT
+                          DATE_TRUNC(:timeUnit, "date" AT TIME ZONE 'UTC') AS "date",
+                          "amountInHostCurrency",
+                          "count",
+                          "hostCurrency",
+                          "isHost"
+                      FROM "HostMonthlyContributions"
+                      WHERE
+                          "HostCollectiveId" = :hostCollectiveId
+                          ${args.dateTo ? 'AND "date" <= :dateTo' : ''}
+                  )
+              SELECT
+                  "date",
+                  SUM("amountInHostCurrency") AS "amount",
+                  (SELECT "currency" FROM "Collectives" WHERE id = :hostCollectiveId) AS "currency",
+                  SUM("count") AS "count",
+                  "isHost",
+                  "hostCurrency"
+              FROM CombinedData
+              GROUP BY
+                  "date",
+                  "isHost",
+                  "hostCurrency"
+              ORDER BY "date";
+            `;
+
+            queryResult = await sequelize.query(query, {
+              replacements: {
+                hostCollectiveId: host.id,
+                timeUnit: args.timeUnit,
+                dateTo: args.dateTo ? moment(args.dateTo).utc().toISOString() : null,
+                refreshedAt,
+              },
+              type: QueryTypes.SELECT,
+              raw: true,
+            });
+          }
 
           return {
             timeUnit: args.timeUnit,

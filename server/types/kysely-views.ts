@@ -109,6 +109,16 @@ export interface ExpenseTagStatsRow {
   CollectiveId?: number;
 }
 
+export interface HostMonthlyContributionsRow {
+  date?: string;
+  HostCollectiveId?: number;
+  amountInHostCurrency?: number;
+  count?: number;
+  hostCurrency?: string;
+  isHost?: boolean;
+  refreshedAt?: string;
+}
+
 export interface HostMonthlyTransactionsRow {
   date?: string;
   HostCollectiveId?: number;
@@ -151,6 +161,7 @@ export type ViewsDatabase = {
   CurrentCollectiveBalance: CurrentCollectiveBalanceRow;
   CurrentCollectiveTransactionStats: CurrentCollectiveTransactionStatsRow;
   ExpenseTagStats: ExpenseTagStatsRow;
+  HostMonthlyContributions: HostMonthlyContributionsRow;
   HostMonthlyTransactions: HostMonthlyTransactionsRow;
   TransactionBalances: TransactionBalancesRow;
 };

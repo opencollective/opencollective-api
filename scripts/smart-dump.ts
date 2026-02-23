@@ -227,6 +227,7 @@ program.command('restore <file>').action(async file => {
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyTransactions"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyContributions"`);
 
   await resetModelsSequences(modelsArray);
 
@@ -310,6 +311,7 @@ program.command('merge <file>').action(async file => {
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveOrderStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyTransactions"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "HostMonthlyContributions"`);
 
   logger.info('>>> Done!');
   sequelize.close();

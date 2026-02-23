@@ -7,7 +7,7 @@ import { runCronJob } from '../utils';
 
 const VIEWS = ['CollectiveOrderStats', 'ExpenseTagStats', 'CommunityHostTransactionSummary'];
 
-const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions', 'CollectiveTagStats'];
+const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions', 'HostMonthlyContributions', 'CollectiveTagStats'];
 
 /**
  * Refresh the materialized views.
