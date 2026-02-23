@@ -112,20 +112,46 @@ handlebars.registerHelper('json', obj => {
 
 /**
  * Get the UTC offset in minutes for a given IANA timezone at a specific date.
- * Uses native Intl APIs instead of moment-timezone.
+ * Uses Intl.DateTimeFormat.formatToParts to extract wall-clock components
+ * in the target timezone, then computes the offset via Date.UTC to avoid
+ * any dependency on the host machine's local timezone.
  */
 function getTimezoneOffsetMinutes(date, timezone) {
   const target = new Date(date);
-  const utcStr = target.toLocaleString('en-US', { timeZone: 'UTC' });
-  const tzStr = target.toLocaleString('en-US', { timeZone: timezone });
-  return (new Date(tzStr) - new Date(utcStr)) / 60000;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(target);
+  const get = type => parseInt(parts.find(p => p.type === type).value, 10);
+  const hour = get('hour') % 24; // midnight can be represented as 24
+  const tzAsUtc = Date.UTC(get('year'), get('month') - 1, get('day'), hour, get('minute'), get('second'));
+  return (tzAsUtc - target.getTime()) / 60000;
+}
+
+function formatOffsetString(offsetMinutes) {
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const absMinutes = Math.abs(offsetMinutes);
+  const hours = String(Math.floor(absMinutes / 60)).padStart(2, '0');
+  const mins = String(absMinutes % 60).padStart(2, '0');
+  return `${sign}${hours}:${mins}`;
 }
 
 handlebars.registerHelper('moment', (value, props) => {
   const format = (props && props.hash.format) || 'MMMM Do YYYY';
   const d = moment(value);
   if (props && props.hash.timezone) {
-    d.utcOffset(getTimezoneOffsetMinutes(new Date(value), props.hash.timezone));
+    try {
+      d.utcOffset(getTimezoneOffsetMinutes(new Date(value), props.hash.timezone));
+    } catch {
+      // Invalid timezone — fall back to UTC
+    }
   }
   return d.format(format);
 });
@@ -134,12 +160,11 @@ handlebars.registerHelper('moment-timezone', value => {
   if (!value) {
     return '';
   }
-  const offsetMinutes = getTimezoneOffsetMinutes(new Date(), value);
-  const sign = offsetMinutes >= 0 ? '+' : '-';
-  const absMinutes = Math.abs(offsetMinutes);
-  const hours = String(Math.floor(absMinutes / 60)).padStart(2, '0');
-  const mins = String(absMinutes % 60).padStart(2, '0');
-  return `${sign}${hours}:${mins}`;
+  try {
+    return formatOffsetString(getTimezoneOffsetMinutes(new Date(), value));
+  } catch {
+    return '';
+  }
 });
 
 handlebars.registerHelper('currency', (value, props) => {
