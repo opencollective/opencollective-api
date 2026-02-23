@@ -165,6 +165,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
               currency: 'USD',
               value: '1.23',
             },
+            time_processed: '2024-08-15T10:30:00Z',
           },
         ],
       });
@@ -174,6 +175,8 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
 
       expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id');
       expect(expense).to.have.property('status', 'PAID');
+      expect(expense.paidAt).to.be.a('date');
+      expect(expense.paidAt.toISOString()).to.eq(new Date('2024-08-15T10:30:00Z').toISOString());
       expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -123);
       expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10123);
     });
