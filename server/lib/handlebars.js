@@ -110,37 +110,13 @@ handlebars.registerHelper('json', obj => {
   return JSON.stringify(obj);
 });
 
-/**
- * Get the UTC offset in minutes for a given IANA timezone at a specific date.
- * Uses Intl.DateTimeFormat.formatToParts to extract wall-clock components
- * in the target timezone, then computes the offset via Date.UTC to avoid
- * any dependency on the host machine's local timezone.
- */
-function getTimezoneOffsetMinutes(date, timezone) {
-  const target = new Date(date);
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(target);
-  const get = type => parseInt(parts.find(p => p.type === type).value, 10);
-  const hour = get('hour') % 24; // midnight can be represented as 24
-  const tzAsUtc = Date.UTC(get('year'), get('month') - 1, get('day'), hour, get('minute'), get('second'));
-  return (tzAsUtc - target.getTime()) / 60000;
-}
-
-function formatOffsetString(offsetMinutes) {
-  const sign = offsetMinutes >= 0 ? '+' : '-';
-  const absMinutes = Math.abs(offsetMinutes);
-  const hours = String(Math.floor(absMinutes / 60)).padStart(2, '0');
-  const mins = String(absMinutes % 60).padStart(2, '0');
-  return `${sign}${hours}:${mins}`;
+/** Returns the UTC offset string (e.g. "-04:00", "+05:30") for a timezone at a given date. */
+function getTimezoneOffsetString(date, timezone) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, timeZoneName: 'longOffset' }).formatToParts(
+    new Date(date),
+  );
+  const gmtString = parts.find(p => p.type === 'timeZoneName').value;
+  return gmtString === 'GMT' ? '+00:00' : gmtString.slice(3);
 }
 
 handlebars.registerHelper('moment', (value, props) => {
@@ -148,7 +124,7 @@ handlebars.registerHelper('moment', (value, props) => {
   const d = moment(value);
   if (props && props.hash.timezone) {
     try {
-      d.utcOffset(getTimezoneOffsetMinutes(new Date(value), props.hash.timezone));
+      d.utcOffset(getTimezoneOffsetString(value, props.hash.timezone));
     } catch {
       // Invalid timezone — fall back to UTC
     }
@@ -161,7 +137,7 @@ handlebars.registerHelper('moment-timezone', value => {
     return '';
   }
   try {
-    return formatOffsetString(getTimezoneOffsetMinutes(new Date(), value));
+    return getTimezoneOffsetString(new Date(), value);
   } catch {
     return '';
   }
