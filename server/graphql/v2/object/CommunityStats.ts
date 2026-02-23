@@ -1,7 +1,7 @@
 import type express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, flatten, uniq } from 'lodash';
+import { compact, flatten, uniq, values } from 'lodash';
 import type { Sequelize } from 'sequelize';
 import { QueryTypes } from 'sequelize';
 
@@ -190,8 +190,14 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
       relations: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLCommunityRelationType)),
         async resolve(account) {
-          if (account.dataValues.associatedCollectives) {
-            return uniq(flatten(Object.values(account.dataValues.associatedCollectives)));
+          if (account.dataValues.associatedCollectives || account.dataValues.associatedOrganizations) {
+            return uniq(
+              flatten(
+                values(account.dataValues.associatedCollectives).concat(
+                  values(account.dataValues.associatedOrganizations),
+                ),
+              ),
+            );
           } else {
             return [];
           }
