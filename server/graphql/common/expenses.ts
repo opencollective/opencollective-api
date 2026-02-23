@@ -384,9 +384,9 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
   ];
 
   // Submitter can see own information until the expense is paid
-  if (expense.status === expenseStatus.PAID) {
+  if (expense.status === expenseStatus.PAID && expense.PayoutMethodId) {
     const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-    if (!payoutMethod.isSaved) {
+    if (payoutMethod && !payoutMethod.isSaved) {
       allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
     }
   }
