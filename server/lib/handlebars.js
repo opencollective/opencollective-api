@@ -1,6 +1,6 @@
 import handlebars from 'handlebars';
 import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
-import moment from 'moment-timezone';
+import moment from 'moment';
 
 import { FeatureDetails } from '../constants/feature';
 import { freeFeatures } from '../constants/plans';
@@ -110,11 +110,22 @@ handlebars.registerHelper('json', obj => {
   return JSON.stringify(obj);
 });
 
+/**
+ * Get the UTC offset in minutes for a given IANA timezone at a specific date.
+ * Uses native Intl APIs instead of moment-timezone.
+ */
+function getTimezoneOffsetMinutes(date, timezone) {
+  const target = new Date(date);
+  const utcStr = target.toLocaleString('en-US', { timeZone: 'UTC' });
+  const tzStr = target.toLocaleString('en-US', { timeZone: timezone });
+  return (new Date(tzStr) - new Date(utcStr)) / 60000;
+}
+
 handlebars.registerHelper('moment', (value, props) => {
   const format = (props && props.hash.format) || 'MMMM Do YYYY';
   const d = moment(value);
   if (props && props.hash.timezone) {
-    d.tz(props.hash.timezone);
+    d.utcOffset(getTimezoneOffsetMinutes(new Date(value), props.hash.timezone));
   }
   return d.format(format);
 });
@@ -122,9 +133,13 @@ handlebars.registerHelper('moment', (value, props) => {
 handlebars.registerHelper('moment-timezone', value => {
   if (!value) {
     return '';
-  } else {
-    return moment().tz(value).format('Z');
   }
+  const offsetMinutes = getTimezoneOffsetMinutes(new Date(), value);
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const absMinutes = Math.abs(offsetMinutes);
+  const hours = String(Math.floor(absMinutes / 60)).padStart(2, '0');
+  const mins = String(absMinutes % 60).padStart(2, '0');
+  return `${sign}${hours}:${mins}`;
 });
 
 handlebars.registerHelper('currency', (value, props) => {
