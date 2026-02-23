@@ -28,7 +28,6 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getKysely, kyselyToSequelizeModels } from '../../../lib/kysely';
-import logger from '../../../lib/logger';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
@@ -40,7 +39,6 @@ import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory'
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -112,7 +110,6 @@ import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
 import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
-import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
 
 const getFilterDateRange = (startDate, endDate) => {
@@ -733,21 +730,6 @@ export const GraphQLHost = new GraphQLObjectType({
               ['createdAt', 'ASC'],
             ],
           });
-        },
-      },
-      bankAccount: {
-        type: GraphQLPayoutMethod,
-        deprecationReason: '2026-01-23: Deprecated in favour of custom payment providers',
-        async resolve(collective, _, req) {
-          logger.warn('Host.bankAccount: Deprecated in favour of custom payment providers');
-          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-          const payoutMethod = payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
-          if (payoutMethod && get(collective, 'settings.paymentMethods.manual')) {
-            // Make bank account's data public if manual payment method is enabled
-            allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
-          }
-
-          return payoutMethod;
         },
       },
       paypalClientId: {
