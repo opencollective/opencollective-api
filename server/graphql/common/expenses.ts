@@ -1224,6 +1224,25 @@ export const canEditExpenseAccountingCategory = async (
     return false;
   }
 
+  // If the collective has changed hosts, only the original host can categorize past expenses
+  if (expense.HostCollectiveId) {
+    expense.collective = expense.collective ?? (await req.loaders.Collective.byId.load(expense.CollectiveId));
+    if (
+      expense.HostCollectiveId &&
+      expense.collective.HostCollectiveId !== expense.HostCollectiveId &&
+      req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && // Admin of the current host
+      !req.remoteUser.isAdmin(expense.HostCollectiveId) // but not the original host
+    ) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'This expense was processed by a different host',
+          EXPENSE_PERMISSION_ERROR_CODES.EXPENSE_BELONGS_TO_DIFFERENT_HOST,
+        );
+      }
+      return false;
+    }
+  }
+
   if (!(await hasFeature(host, FEATURE.CHART_OF_ACCOUNTS, { loaders: req.loaders }))) {
     if (options?.throw) {
       throw new Forbidden(
