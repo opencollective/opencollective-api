@@ -158,7 +158,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
   {{#if collective.updates}}
   <ul>
     {{#each collective.updates}}
-    <li>{{moment publishedAt format="MM/DD"}} <a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/updates/{{slug}}">{{title}}</a></li>
+    <li>{{formatDate publishedAt format="shortDate"}} <a href="{{config.host.website}}/dashboard/{{@root.collective.slug}}/updates/{{slug}}">{{title}}</a></li>
     {{/each}}
   </ul>
   {{else}}
@@ -222,7 +222,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
           <div class="backerInfo">
             {{#if fromCollective.website}}<a href="{{fromCollective.website}}">{{fromCollective.website}}</a><br />{{/if}}
             {{#if fromCollective.description}}<div class="description">{{fromCollective.description}}</div>{{/if}}
-            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if interval}}per {{interval}}{{/if}}) since {{moment createdAt format="MMMM YYYY"}}<br />{{/if}}
+            {{#if Tier.name}}{{Tier.name}} ({{currency totalAmount currency=currency}} {{#if interval}}per {{interval}}{{/if}}) since {{formatDate createdAt format="monthYear"}}<br />{{/if}}
             Total amount donated: {{currency totalTransactions currency=currency}}
           </div>
         </td>
@@ -246,7 +246,7 @@ Subject: {{{collective.name}}} {{month}} {{year}} Report
 
   {{#each collective.expenses}}
     <tr>
-      <td valign="top">{{moment createdAt format="MM/DD"}}</td>
+      <td valign="top">{{formatDate createdAt format="shortDate"}}</td>
       <td align="right" valign="top" nowrap class="negative">{{currency amount currency=currency}}</td>
       <td valign="top" width="100%"><a href="{{@root.config.host.website}}/{{@root.collective.slug}}/expenses#{{id}}">{{description}}</a></td>
       <td valign="top" class="{{toLowerCase status}}">{{toLowerCase status}}</td>

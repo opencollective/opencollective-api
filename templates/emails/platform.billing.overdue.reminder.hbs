@@ -173,7 +173,7 @@ Subject: Outstanding payment for your Open Collective platform subscription
                 <div style="white-space: nowrap;">
                   <strong>{{currency amount currency='USD' precision=2}}</strong>
                   {{#if dueDate}}
-                    <span style="color: #666; font-size: 14px;">- Due {{moment dueDate}}</span>
+                    <span style="color: #666; font-size: 14px;">- Due {{formatDate dueDate}}</span>
                   {{/if}}
                 </div>
                 <a href="{{../config.host.website}}/dashboard/{{../collective.slug}}/platform-subscription?ExpenseId={{id}}" style="color: {{../theme.colors.blue.[600]}}; text-decoration: none; font-size: 14px;">View →</a>

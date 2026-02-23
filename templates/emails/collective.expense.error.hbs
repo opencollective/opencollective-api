@@ -8,7 +8,7 @@ Subject: Payment from {{{collective.name}}} for {{{escapeForSubject expense.desc
     The payout for your expense, <b><a
         href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>, which
     you submitted to <a
-      href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on {{moment expense.createdAt}}, has failed.
+      href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on {{formatDate expense.createdAt}}, has failed.
     We have already notified the payer, and there's nothing you need to do right now. They may comment on the expense or contact you directly.
   </p>
 </center>

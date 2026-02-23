@@ -87,12 +87,12 @@
     </tr>
     <tr>
       <th>Due Date</th>
-      <td>{{moment bill.dueDate format="MMM Do, YYYY"}}</td>
+      <td>{{formatDate bill.dueDate format="shortDateYear"}}</td>
     </tr>
     {{#ifCond expense.status '===' 'PAID'}}
     <tr>
       <th>Payment Date</th>
-      <td>{{moment expense.updatedAt format="MMM Do, YYYY"}}</td>
+      <td>{{formatDate expense.updatedAt format="shortDateYear"}}</td>
     </tr>
     {{/ifCond}}
     {{#if expense.payoutMethod}}

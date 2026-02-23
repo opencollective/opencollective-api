@@ -11,7 +11,7 @@ Subject: Your {{currency order.totalAmount currency=order.currency}} {{order.typ
 {{/if}}
 
 <p>We regret to inform you that your contribution to {{collective.name}} in the amount of {{currency order.totalAmount
-  currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}, made on {{moment order.createdAt}} failed.</p>
+  currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}, made on {{formatDate order.createdAt}} failed.</p>
 
 {{#if reason}}
 <p>

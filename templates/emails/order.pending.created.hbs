@@ -25,7 +25,7 @@ Subject: We've been notified of incoming funds to {{toCollective.name}}
   Tier: {{tierName}}<br />
   {{/if}}
   {{#if order.expectedAt}}
-  Expected At: {{moment order.expectedAt}}<br />
+  Expected At: {{formatDate order.expectedAt}}<br />
   {{/if}}
   {{#if order.memo}}
   Info: <br /> {{order.memo}}<br />

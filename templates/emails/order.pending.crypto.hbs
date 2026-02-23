@@ -21,7 +21,7 @@ Subject: Your {{pledgeAmount}} {{pledgeCurrency}} {{order.type}} to {{{collectiv
 {{/if}}
 
 <p>Thank you for your crypto contribution to {{collective.name}} in the amount of {{pledgeAmount}} {{pledgeCurrency}}, made on
-  {{moment order.createdAt}}.</p>
+  {{formatDate order.createdAt}}.</p>
 
 <p>Your contribution is currently pending. Once you transmit the funds,
    and they have been confirmed as received by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>,

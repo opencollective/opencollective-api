@@ -14,14 +14,14 @@ Subject: {{#if erratum}}[Erratum] {{/if}}Thank you for your contribution to {{{c
 {{#if interval}}
   {{#if firstPayment }}
     <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} per {{interval}} to {{collective.name}}.
-      Your first payment was made on {{moment order.createdAt}}. Your support makes a difference!</p>
+      Your first payment was made on {{formatDate order.createdAt}}. Your support makes a difference!</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} was received on {{moment transaction.createdAt}}.</p>
+    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} was received on {{formatDate transaction.createdAt}}.</p>
   {{/if}}
 {{else}}
 
-<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} on {{moment order.createdAt}}. Your support makes a difference!</p>
+<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} on {{formatDate order.createdAt}}. Your support makes a difference!</p>
 {{/if}}
 
 <p>See our activities and transparent budget on

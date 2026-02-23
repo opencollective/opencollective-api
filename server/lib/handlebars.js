@@ -118,49 +118,43 @@ function getTimezoneOffsetString(date, timezone) {
   return gmtString === 'GMT' ? '+00:00' : gmtString.slice(3);
 }
 
-function ordinal(n) {
-  const num = parseInt(n, 10);
-  const mod100 = num % 100;
-  if (mod100 >= 11 && mod100 <= 13) {
-    return num + 'th';
-  }
-  switch (num % 10) {
-    case 1:
-      return num + 'st';
-    case 2:
-      return num + 'nd';
-    case 3:
-      return num + 'rd';
-    default:
-      return num + 'th';
-  }
-}
+const DATE_FORMATS = {
+  date: { year: 'numeric', month: 'long', day: 'numeric' },
+  monthDay: { month: 'long', day: 'numeric' },
+  time: { hour: 'numeric', minute: '2-digit', hour12: true },
+  dateTime: { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true },
+  shortDate: { month: '2-digit', day: '2-digit' },
+  shortDateYear: { year: 'numeric', month: 'short', day: 'numeric' },
+  monthYear: { year: 'numeric', month: 'long' },
+};
 
 handlebars.registerHelper('formatDate', (value, props) => {
-  const format = (props && props.hash.format) || 'MMMM Do YYYY';
+  const format = (props && props.hash.format) || 'date';
   const timezone = props && props.hash.timezone;
-  const options = {
-    ...(timezone && { timeZone: timezone }),
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  };
-  const parts = new Intl.DateTimeFormat('en-US', options).formatToParts(new Date(value));
-  const get = type => parts.find(p => p.type === type)?.value || '';
+  const tzOption = timezone ? { timeZone: timezone } : {};
 
-  const tokens = {
-    MMMM: get('month'),
-    Do: ordinal(get('day')),
-    YYYY: get('year'),
-    mm: get('minute'),
-    h: get('hour'),
-    a: get('dayPeriod').toLowerCase(),
-  };
+  if (format === 'isoDate') {
+    const parts = new Intl.DateTimeFormat('en-US', { ...tzOption, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(
+      new Date(value),
+    );
+    const get = type => parts.find(p => p.type === type).value;
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  }
 
-  return format.replace(/MMMM|Do|YYYY|mm|h|a/g, match => tokens[match]);
+  if (format === 'dateTime24') {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      ...tzOption,
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).formatToParts(new Date(value));
+    const get = type => parts.find(p => p.type === type).value;
+    return `${get('month')} ${get('day')} ${get('hour')}:${get('minute')}`;
+  }
+
+  return new Intl.DateTimeFormat('en-US', { ...DATE_FORMATS[format], ...tzOption }).format(new Date(value));
 });
 
 handlebars.registerHelper('utcOffset', value => {

@@ -10,7 +10,7 @@ Subject: Your {{currency order.totalAmount currency=order.currency}} {{order.typ
 <p>Hi!</p>
 {{/if}}
 
-<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}{{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}, made on {{moment order.createdAt}}.</p>
+<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}{{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}, made on {{formatDate order.createdAt}}.</p>
 
 <p>Your contribution is currently being processed and once it is confirmed, the amount will be credited to {{collective.name}}.</p>
 

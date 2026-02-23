@@ -189,7 +189,7 @@ Subject: Platform subscription updated for {{account.name}}
         The platform subscription for {{> linkCollective collective=account}} has been updated
         {{#if previousPlan}}from <strong>{{previousPlan.title}}</strong>{{/if}}
         to <strong>{{newPlan.title}}</strong>. {{#if newPlan.pricing.pricePerMonth}}
-        The new subscription will be charged on <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.
+        The new subscription will be charged on <strong>{{formatDate nextBillingDate format="date"}}</strong>.
         {{/if}}
       </p>
     </div>

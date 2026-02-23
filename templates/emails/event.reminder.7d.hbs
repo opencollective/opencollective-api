@@ -1,4 +1,4 @@
-Subject: ⏰ Reminder: {{ collective.name }} next week {{ formatDate collective.startsAt timezone=collective.timezone format="MMMM Do" }} {{ formatDate collective.startsAt timezone=collective.timezone format="h:mma" }} at {{ collective.location.name }}
+Subject: ⏰ Reminder: {{ collective.name }} next week {{ formatDate collective.startsAt timezone=collective.timezone format="monthDay" }} {{ formatDate collective.startsAt timezone=collective.timezone format="time" }} at {{ collective.location.name }}
 
 {{> header}}
 
@@ -16,7 +16,7 @@ Subject: ⏰ Reminder: {{ collective.name }} next week {{ formatDate collective.
 <h1>⏰</h1>
 <h2>{{collective.name}}</h2>
 <div class="description">
-  {{ formatDate collective.startsAt timezone=collective.timezone format="MMMM Do" }} at {{ formatDate collective.startsAt timezone=collective.timezone format="h:mma" }}
+  {{ formatDate collective.startsAt timezone=collective.timezone format="monthDay" }} at {{ formatDate collective.startsAt timezone=collective.timezone format="time" }}
   <br />
   {{ collective.location.name }}<br />
   ({{collective.location.address}})

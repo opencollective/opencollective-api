@@ -134,7 +134,7 @@
         </tr>
         <tr>
           {{#if order.Subscription}}
-            <td><p>You’re contributing <b>{{currency order.Subscription.amount currency=order.Subscription.currency}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.Subscription.currency}} tip to the Open Collective Platform){{/if}} per {{order.Subscription.interval}} since {{moment order.Subscription.createdAt format="MMMM YYYY"}}</p></td>
+            <td><p>You’re contributing <b>{{currency order.Subscription.amount currency=order.Subscription.currency}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.Subscription.currency}} tip to the Open Collective Platform){{/if}} per {{order.Subscription.interval}} since {{formatDate order.Subscription.createdAt format="monthYear"}}</p></td>
           {{else}}
             <td><p>You've contributed <b>{{order.totalAmount}}</b>{{#if order.platformTipAmount}} (including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}}</p></td>
           {{/if}}
@@ -146,7 +146,7 @@
               <label>Latest {{pluralize "update" n=updates.length}}:</label>
               <ul>
               {{#each updates}}
-                <li>{{moment publishedAt timezone=timezone format="MM/DD"}}
+                <li>{{formatDate publishedAt timezone=timezone format="shortDate"}}
                   <a href="{{config.host.website}}/{{../slug}}/updates/{{slug}}">{{title}}</a><br />
                 </li>
               {{/each}}
@@ -162,7 +162,7 @@
               <label>Upcoming {{pluralize "event" n=events.upcoming.length}}:</label>
               <ul>
               {{#each events.upcoming}}
-                <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{location.name}}<br />
+                <li>{{formatDate startsAt timezone=timezone format="dateTime24"}} @ {{location.name}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
                 RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
               {{/each}}
@@ -178,7 +178,7 @@
               <label>Past {{pluralize "event" n=events.past.length}}:</label>
               <ul>
               {{#each events.past}}
-                <li>{{moment startsAt timezone=timezone format="MMMM Do HH:mm"}} @ {{location.name}}<br />
+                <li>{{formatDate startsAt timezone=timezone format="dateTime24"}} @ {{location.name}}<br />
                 <a href="{{config.host.website}}/{{../slug}}/events/{{slug}}">{{name}}</a><br />
                 RSVPs: {{stats.confirmed}} {{#if stats.interested}}(+{{stats.interested}} interested){{/if}}</li>
               {{/each}}
@@ -227,7 +227,7 @@
               {{#if expenses.length}}
                 <ul>
                 {{#each expenses}}
-                <li>{{moment createdAt format="MM/DD"}} {{currency amount currency=../currency}} {{description}} {{status}}</li>
+                <li>{{formatDate createdAt format="shortDate"}} {{currency amount currency=../currency}} {{description}} {{status}}</li>
                 {{/each}}
                 </ul>
               {{else}}
