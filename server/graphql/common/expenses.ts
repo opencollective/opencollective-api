@@ -402,6 +402,8 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
 ) => {
   if (!validateExpenseScope(req)) {
     return false;
+  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id)) {
+    return true;
   }
 
   return remoteUserMeetsOneCondition(
