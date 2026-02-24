@@ -607,15 +607,19 @@ const expenseMutations = {
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
 
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
-      const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
+      const payeeReference = (expenseData.payee?.legacyId || expenseData.payee?.id || expenseData.payee?.slug) && {
+        legacyId: expenseData.payee?.legacyId || expenseData.payee?.id,
+        slug: expenseData.payee?.slug,
+      };
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
-      const payee = payeeLegacyId
-        ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
-        : expenseData.payee;
+      const existingPayee =
+        payeeReference && (await fetchAccountWithReference(payeeReference, { throwIfMissing: true }));
+
+      const payee = existingPayee?.minimal ?? expenseData.payee;
       // We need to lowercase the email to be consistent with the User table
       if (payee?.email) {
         payee.email = payee.email.toLowerCase();
@@ -623,13 +627,25 @@ const expenseMutations = {
 
       const amount = models.Expense.computeTotalAmountForExpense(items, expenseData.tax);
 
-      if (args.lockedFields?.includes(ExpenseLockableFields.AMOUNT)) {
+      const lockedFields = args.lockedFields ?? [];
+
+      if (lockedFields.includes(ExpenseLockableFields.AMOUNT)) {
         assert(items.length > 0, new ValidationFailed('You need to provide at least one item to lock the amount'));
         assert(
           items.every(item => item.amount),
           new ValidationFailed('All items must have an amount to lock the total amount'),
         );
         assert(amount > 0, new ValidationFailed('The total amount must be greater than 0'));
+      }
+
+      if (
+        existingPayee &&
+        existingPayee.id &&
+        existingPayee.HostCollectiveId &&
+        expenseData.payoutMethod.id &&
+        remoteUser.isAdmin(existingPayee.HostCollectiveId)
+      ) {
+        lockedFields.push(ExpenseLockableFields.PAYOUT_METHOD);
       }
 
       const expense = await models.Expense.create({
@@ -660,7 +676,7 @@ const expenseMutations = {
           taxes: expenseData.tax,
           reference: expenseData.reference,
           notify: !args.skipInvite,
-          lockedFields: args.lockedFields,
+          lockedFields: lockedFields,
           isNewExpenseFlow: req.header('x-is-new-expense-flow') === 'true' ? true : undefined,
         },
       });

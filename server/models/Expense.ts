@@ -82,6 +82,7 @@ export enum ExpenseLockableFields {
   PAYEE = 'PAYEE',
   DESCRIPTION = 'DESCRIPTION',
   TYPE = 'TYPE',
+  PAYOUT_METHOD = 'PAYOUT_METHOD',
 }
 
 class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
