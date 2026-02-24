@@ -331,6 +331,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
       },
     };
   },
+  ContributionAccountingCategoryRule: rule => rule,
 };
 
 export const getSanitizers = ({ isDev = false } = {}): Partial<Record<ModelNames, Sanitizer<ModelNames>>> => {

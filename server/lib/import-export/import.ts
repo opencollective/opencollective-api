@@ -133,6 +133,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   VirtualCardRequest: {},
   PlatformSubscription: {},
   KYCVerification: {},
+  ContributionAccountingCategoryRule: {},
 };
 
 /**
