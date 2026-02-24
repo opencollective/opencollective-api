@@ -749,7 +749,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       const tierIds = args.tier.map(getDatabaseIdFromTierReference);
       return qb
         .innerJoin('Tiers', 'Orders.TierId', 'Tiers.id')
-        .where('id', 'in', tierIds)
+        .where('Tiers.id', 'in', tierIds)
         .where('Tiers.deletedAt', 'is', null);
     })
     .$if(!!tier, qb => qb.where('TierId', '=', tier.id))
