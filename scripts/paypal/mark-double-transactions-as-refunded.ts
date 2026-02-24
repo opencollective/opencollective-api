@@ -5,16 +5,24 @@
 
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import logger from '../../server/lib/logger';
 import { createRefundTransaction } from '../../server/lib/payments';
 import models, { sequelize } from '../../server/models';
+
+interface DoubleTransactionInfo {
+  OrderId: number;
+  paypalId: string;
+  transactionIds: number[];
+}
 
 /**
  * Refund the wrongly recorded double transactions for PayPal payment, to make sure
  * they will be deducted from the next settlement.
  */
 const main = async (): Promise<void> => {
-  const doubleTransactionsInfos = await sequelize.query(
+  const doubleTransactionsInfos = await sequelize.query<DoubleTransactionInfo>(
     `
     SELECT t."OrderId", COALESCE(t."data" -> 'paypalSale' ->> 'id', t."data" -> 'capture' ->> 'id') AS "paypalId", array_agg(DISTINCT t.id) AS "transactionIds"
     FROM "Transactions" t 
@@ -30,7 +38,7 @@ const main = async (): Promise<void> => {
     HAVING count(t.id) > 1
     ORDER BY t."OrderId" DESC
   `,
-    { raw: true, type: sequelize.QueryTypes.SELECT },
+    { raw: true, type: QueryTypes.SELECT },
   );
 
   for (const doubleTransactionInfo of doubleTransactionsInfos) {

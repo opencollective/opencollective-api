@@ -1,10 +1,10 @@
 import config from 'config';
 import debugLib from 'debug';
 import pg from 'pg';
-import Sequelize from 'sequelize';
+import { Sequelize } from 'sequelize';
 
-import { getDBConf } from '../lib/db';
-import logger from '../lib/logger';
+import { getDBConf } from './db';
+import logger from './logger';
 
 // this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
 // like in case of the key totalOrders and raw query (like User.getTopBackers())
@@ -62,6 +62,19 @@ const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.p
   ...config.database.options,
 });
 
-export { Op, DataTypes, Model, QueryTypes, Sequelize, Transaction } from 'sequelize';
+export {
+  // @deprecated use the imports from 'sequelize' directly
+  Op,
+  // @deprecated use the imports from 'sequelize' directly
+  DataTypes,
+  // @deprecated use the imports from 'sequelize' directly
+  Model,
+  // @deprecated use the imports from 'sequelize' directly
+  QueryTypes,
+  // @deprecated use the imports from 'sequelize' directly
+  Sequelize,
+  // @deprecated use the imports from 'sequelize' directly
+  Transaction,
+} from 'sequelize';
 
 export default sequelize;

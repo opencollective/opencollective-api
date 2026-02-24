@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import moment from 'moment';
 
 import { expenseStatus } from '../../../../server/constants';
+import FEATURE from '../../../../server/constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import POLICIES from '../../../../server/constants/policies';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
@@ -12,6 +13,7 @@ import {
   canComment,
   canDeleteExpense,
   canEditExpense,
+  canEditExpenseAccountingCategory,
   canEditExpenseTags,
   canEditItemDescription,
   canEditItems,
@@ -46,6 +48,7 @@ import {
   fakeExpense,
   fakeHost,
   fakePayoutMethod,
+  fakePlatformSubscription,
   fakeTransaction,
   fakeUser,
 } from '../../../test-helpers/fake-data';
@@ -467,6 +470,47 @@ describe('server/graphql/common/expenses', () => {
           platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
+    });
+  });
+
+  describe('canEditExpenseAccountingCategory', () => {
+    it('denies new host admin when expense was paid by a different host (collective changed hosts)', async () => {
+      const oldHost = await fakeHost();
+      const newHost = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: oldHost.id });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: oldHost.id,
+        status: 'PAID',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      await fakePlatformSubscription({
+        CollectiveId: oldHost.id,
+        plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+      });
+      await fakePlatformSubscription({
+        CollectiveId: newHost.id,
+        plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+      });
+
+      const oldHostAdmin = await fakeUser();
+      const newHostAdmin = await fakeUser();
+      await oldHost.addUserWithRole(oldHostAdmin, 'ADMIN');
+      await newHost.addUserWithRole(newHostAdmin, 'ADMIN');
+      await Promise.all([oldHostAdmin, newHostAdmin].map(u => u.populateRoles()));
+
+      await collective.update({ HostCollectiveId: newHost.id });
+      await expense.reload({ include: [{ association: 'collective' }] });
+
+      expect(await canEditExpenseAccountingCategory(makeRequest(oldHostAdmin), expense)).to.be.true;
+
+      expect(await canEditExpenseAccountingCategory(makeRequest(newHostAdmin), expense)).to.be.false;
+
+      expect(
+        await getApolloErrorCode(canEditExpenseAccountingCategory(makeRequest(newHostAdmin), expense, { throw: true })),
+      ).to.equal(EXPENSE_PERMISSION_ERROR_CODES.EXPENSE_BELONGS_TO_DIFFERENT_HOST);
     });
   });
 

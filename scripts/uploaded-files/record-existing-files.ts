@@ -8,6 +8,7 @@ import '../../server/env';
 import { Command } from 'commander';
 import { pickBy, toPath } from 'lodash';
 import PQueue from 'p-queue';
+import { QueryTypes } from 'sequelize';
 
 import { FileKind } from '../../server/constants/file-kind';
 import { getFileInfoFromS3 } from '../../server/lib/awsS3';
@@ -108,7 +109,7 @@ const main = async options => {
           GROUP BY ${urlField} -- It's an anti-pattern, but in practice we have multiple records with the same URL (e.g. there are 3 collectives with the avatar https://opencollective-production.s3.us-west-1.amazonaws.com/1b4efc60-897d-11ea-a8b1-f7f3041d4994.jpg)
         `,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
           },
         );
 
@@ -156,7 +157,7 @@ const main = async options => {
         GROUP BY "url"
       `,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
           },
         );
 

@@ -1,5 +1,6 @@
 import config from 'config';
 import { difference } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
 import expenseStatus from '../constants/expense-status';
@@ -13,6 +14,8 @@ const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
 const DEFAULT_BUDGET_VERSION = 'v2';
+// TODO: Replace DEFAULT_BUDGET_VERSION checks with FAST_BALANCE_SUPPORTED_VERSIONS throughout this file
+const FAST_BALANCE_SUPPORTED_VERSIONS = ['v2', 'v3'];
 
 const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
 
@@ -96,9 +99,17 @@ export async function getBalances(
     loaders = null,
   } = {},
 ) {
+  // Note: Historical balances (endDate path) don't support withBlockedFunds - the slow path will throw
+  // an error for that combination. We must not use the fast path in that case to preserve the error.
   const fastResults =
-    useMaterializedView === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
-      ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+    useMaterializedView === true && !includeChildren
+      ? endDate
+        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds
+          ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
+          : {}
+        : version === DEFAULT_BUDGET_VERSION
+          ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+          : {}
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
@@ -918,7 +929,7 @@ export async function getYearlyBudgets(collectiveIds) {
       `,
     {
       replacements: { CollectiveIds: collectiveIds },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -1002,6 +1013,41 @@ export async function getBlockedContributionsCount(collectiveId) {
   });
 }
 
+// Get historical balance for collectives at a specific point in time using TransactionBalances materialized view.
+// Note: No separate loader needed - batching is handled by the existing `balance` loader in getBalances().
+export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
+  const results = await sequelize.query(
+    `-- DISTINCT ON is a PostgreSQL extension that returns the first row for each unique CollectiveId.
+     -- Combined with ORDER BY CollectiveId, rank DESC, it returns the most recent balance per collective.
+     -- We use rank (not createdAt) because rank is deterministic within a CollectiveId - it incorporates
+     -- time ordering (10-second buckets), TransactionGroup, kind priority, and type priority.
+     SELECT DISTINCT ON (tb."CollectiveId")
+       tb."CollectiveId",
+       tb."balance" as "netAmountInHostCurrency",
+       tb."hostCurrency"
+     FROM "TransactionBalances" tb
+     INNER JOIN "Collectives" c ON tb."CollectiveId" = c."id"
+       AND COALESCE(c."settings"->'budget'->>'version', 'v2') IN (:supportedBudgetVersions)
+     WHERE tb."CollectiveId" IN (:collectiveIds)
+       AND tb."createdAt" < :endDate
+     ORDER BY tb."CollectiveId", tb."rank" DESC`,
+    {
+      replacements: { collectiveIds, endDate, supportedBudgetVersions: FAST_BALANCE_SUPPORTED_VERSIONS },
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+    },
+  );
+
+  const totals = {};
+
+  for (const result of results) {
+    const CollectiveId = result['CollectiveId'];
+    totals[CollectiveId] = { CollectiveId, currency: result['hostCurrency'], value: result['netAmountInHostCurrency'] };
+  }
+
+  return totals;
+}
+
 // Get current balance for collective using a combination of speed and accuracy.
 export async function getCurrentCollectiveBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
   const fastResults = loaders
@@ -1012,11 +1058,11 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
         `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
-         AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+         AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
         {
           replacements: { collectiveIds },
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           raw: true,
         },
       );
@@ -1056,7 +1102,7 @@ export async function getCurrentCollectiveTransactionStats(collectiveIds, { load
         `SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`,
         {
           replacements: { collectiveIds },
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           raw: true,
         },
       );

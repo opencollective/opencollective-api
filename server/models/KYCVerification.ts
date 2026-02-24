@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model } from 'sequelize';
+import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model, QueryTypes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
@@ -42,6 +42,8 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   InferAttributes<KYCVerification>,
   KYCVerification
 > {
+  public static readonly tableName = 'KYCVerifications' as const;
+
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare RequestedByCollectiveId: ForeignKey<Collective['id']>;
@@ -105,7 +107,7 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
           
         `,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             model: KYCVerification,
             mapToModel: true,
             replacements: {

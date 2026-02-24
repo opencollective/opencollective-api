@@ -1,12 +1,13 @@
 import type Express from 'express';
 import { get } from 'lodash';
-import { QueryOptions } from 'sequelize';
+import { QueryOptions, QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { getFeatureAccess, isFeatureBlockedForAccount } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
+import { getSupportedExpenseTypes } from '../../lib/expenses';
 import { Collective, sequelize } from '../../models';
 
 import { hasMultiCurrency } from './expenses';
@@ -19,8 +20,8 @@ const checkExistsInDB = async (query: string | string[], queryOptions: QueryOpti
   const queriesArray = Array.isArray(query) ? query : [query];
   const queries = queriesArray.map(q => `EXISTS (${q})`).join(' OR ');
   return sequelize
-    .query(`SELECT ${queries} AS result`, { type: sequelize.QueryTypes.SELECT, plain: true, ...queryOptions })
-    .then(({ result }) => result);
+    .query(`SELECT ${queries} AS result`, { type: QueryTypes.SELECT, plain: true, ...queryOptions })
+    .then(returnedValue => (returnedValue as unknown as { result?: boolean }).result);
 };
 
 const checkIsActive = async (
@@ -189,6 +190,30 @@ const checkMultiCurrencyExpense = async (collective, req: Express.Request): Prom
   return FEATURE_STATUS.AVAILABLE;
 };
 
+const checkCanReceiveGrants = async (collective, req: Express.Request) => {
+  const supportedTypes = await getSupportedExpenseTypes(collective, { loaders: req.loaders });
+  if (!supportedTypes.includes('GRANT')) {
+    return FEATURE_STATUS.DISABLED;
+  } else {
+    return checkIsActiveIfExistsInDB(
+      `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" = 'GRANT'`,
+      { replacements: { CollectiveId: collective.id } },
+    );
+  }
+};
+
+const checkCanReceiveExpenses = async (collective, req: Express.Request) => {
+  const supportedTypes = await getSupportedExpenseTypes(collective, { loaders: req.loaders });
+  if (!supportedTypes.includes('INVOICE') && !supportedTypes.includes('RECEIPT')) {
+    return FEATURE_STATUS.DISABLED;
+  } else {
+    return checkIsActiveIfExistsInDB(
+      `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" IN ('INVOICE', 'RECEIPT')`,
+      { replacements: { CollectiveId: collective.id } },
+    );
+  }
+};
+
 /**
  * Returns a resolved that will give the `FEATURE_STATUS` for the given collective/feature.
  */
@@ -214,10 +239,9 @@ export const getFeatureStatusResolver =
       case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
         return checkReceiveFinancialContributions(collective, req);
       case FEATURE.RECEIVE_EXPENSES:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkCanReceiveExpenses(collective, req);
+      case FEATURE.RECEIVE_GRANTS:
+        return checkCanReceiveGrants(collective, req);
       case FEATURE.MULTI_CURRENCY_EXPENSES:
         return checkMultiCurrencyExpense(collective, req);
       case FEATURE.UPDATES:

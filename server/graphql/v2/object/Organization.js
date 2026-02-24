@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { QueryTypes } from 'sequelize';
 
 import sequelize from '../../../lib/sequelize';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -132,7 +133,7 @@ export const GraphQLOrganization = new GraphQLObjectType({
               hostid: host.id,
               orgid: organization.id,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
           });
 
           return result[0]?.canBeVendor || false;

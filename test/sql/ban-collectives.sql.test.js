@@ -1,10 +1,11 @@
 /* eslint-disable camelcase */
 
+import { readFileSync } from 'fs';
 import path from 'path';
 
 import { expect } from 'chai';
-import { readFileSync } from 'fs-extra';
 import { times } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import PlatformConstants from '../../server/constants/platform';
 import models, { sequelize } from '../../server/models';
@@ -120,7 +121,7 @@ describe('sql/ban-collectives', () => {
     const { user, collective, event, updates, members } = await createCollectiveWithData();
     const [result] = await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     expect(result).to.deep.eqInAnyOrder({
@@ -176,7 +177,7 @@ describe('sql/ban-collectives', () => {
     const { collective } = await createCollectiveWithData();
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
     const collectiveWithSameId = await models.Collective.findOne({ where: { id: collective.id }, paranoid: false });
     const collectiveWithSameSlug = await models.Collective.findOne({
@@ -191,7 +192,7 @@ describe('sql/ban-collectives', () => {
     const { user, collective, event, updates, members } = await createCollectiveWithData();
     const [result] = await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [user.collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     expect(result).to.deep.eqInAnyOrder({
@@ -251,7 +252,7 @@ describe('sql/ban-collectives', () => {
 
     const [result] = await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [user1.collective.slug, user2.collective.slug, collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     expect(result).to.deep.eqInAnyOrder({
@@ -308,7 +309,7 @@ describe('sql/ban-collectives', () => {
     const comment = await fakeComment({ UpdateId: update.id });
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [comment.fromCollective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(comment).to.be.softDeleted;
@@ -318,7 +319,7 @@ describe('sql/ban-collectives', () => {
     const expense = await fakeExpense();
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [expense.collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(expense).to.be.softDeleted;
@@ -335,7 +336,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(hostApplication).to.be.softDeleted;
@@ -353,7 +354,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [host.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(hostApplication).to.be.softDeleted;
@@ -367,7 +368,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(payoutMethod).to.be.softDeleted;
@@ -381,7 +382,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(virtualCard).to.be.softDeleted;
@@ -399,7 +400,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [host.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(virtualCard).to.be.softDeleted;
@@ -423,7 +424,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(virtualCardRequest).to.be.softDeleted;
@@ -439,7 +440,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(platformSubscription).to.be.softDeleted;
@@ -457,7 +458,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
     await expect(personalToken).to.be.softDeleted;
     await expect(otherPersonalToken).to.not.be.softDeleted;
@@ -470,7 +471,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [user.collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(personalToken).to.be.softDeleted;
@@ -486,7 +487,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [host.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(requiredLegalDocument).to.be.softDeleted;
@@ -506,7 +507,7 @@ describe('sql/ban-collectives', () => {
 
     await sequelize.query(banCollectivesQuery, {
       bind: { collectiveSlugs: [collective.slug] },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     });
 
     await expect(transactionsImportRow).to.be.softDeleted;

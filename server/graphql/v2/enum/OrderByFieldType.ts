@@ -11,6 +11,7 @@ export enum ORDER_BY_PSEUDO_FIELDS {
   MONEY_MANAGED = 'MONEY_MANAGED',
   MEMBER_COUNT = 'MEMBER_COUNT',
   TOTAL_CONTRIBUTED = 'TOTAL_CONTRIBUTED',
+  TOTAL_EXPENDED = 'TOTAL_EXPENDED',
   STARTS_AT = 'STARTS_AT',
   ENDS_AT = 'ENDS_AT',
   UNHOSTED_AT = 'UNHOSTED_AT',
@@ -30,6 +31,7 @@ export const GraphQLOrderByFieldType = new GraphQLEnumType({
     BALANCE: {},
     MEMBER_COUNT: {},
     TOTAL_CONTRIBUTED: {},
+    TOTAL_EXPENDED: {},
     NAME: {
       value: 'name',
     },

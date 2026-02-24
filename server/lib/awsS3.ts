@@ -20,6 +20,7 @@ import {
   PutObjectCommandOutput,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { type Options, Progress, Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import config from 'config';
 
@@ -85,6 +86,28 @@ export const uploadToS3 = async (
       logger.info,
     );
     return { url: `file://${filePath}` };
+  }
+};
+
+export const streamToS3 = (
+  params: Options['params'],
+  {
+    onProgress,
+    abortController,
+  }: { onProgress?: (progress: Progress) => void; abortController?: AbortController } = {},
+) => {
+  if (s3) {
+    const upload = new Upload({
+      client: s3,
+      params: { ...params, ChecksumAlgorithm: 'SHA256' },
+      abortController,
+    });
+
+    if (onProgress) {
+      upload.on('httpUploadProgress', onProgress);
+    }
+
+    return upload;
   }
 };
 

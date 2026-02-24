@@ -12,8 +12,10 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
+import { sql } from 'kysely';
 import { compact, find, get, isEmpty, isNil, keyBy, mapValues, set, uniq } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../../constants';
 import ActivityTypes from '../../../constants/activities';
@@ -21,15 +23,15 @@ import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense-type';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import OrderStatuses from '../../../constants/order-status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import POLICIES from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { getKysely, kyselyToSequelizeModels } from '../../../lib/kysely';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
-import { buildSearchConditions } from '../../../lib/sql-search';
+import { buildKyselySearchConditions, buildSearchConditions } from '../../../lib/sql-search';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
@@ -37,7 +39,6 @@ import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory'
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
@@ -63,8 +64,9 @@ import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
 import { GraphQLLastCommentBy } from '../enum/LastCommentByType';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
+import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
-import { GraphQLTimeUnit } from '../enum/TimeUnit';
+import { GraphQLTimeUnit, TimeUnit } from '../enum/TimeUnit';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportStatus } from '../enum/TransactionsImportStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
@@ -106,9 +108,8 @@ import { GraphQLHostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { GraphQLHostPlan } from './HostPlan';
 import { GraphQLHostStats } from './HostStats';
 import { GraphQLHostTransactionReports } from './HostTransactionReports';
+import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLTransactionsImportStats } from './OffPlatformTransactionsStats';
-import { GraphQLPaymentMethod } from './PaymentMethod';
-import GraphQLPayoutMethod from './PayoutMethod';
 import { GraphQLStripeConnectedAccount } from './StripeConnectedAccount';
 
 const getFilterDateRange = (startDate, endDate) => {
@@ -230,6 +231,13 @@ export const GraphQLHost = new GraphQLObjectType({
           return collective.canApply();
         },
       },
+      hasMoneyManagement: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the account has money management activated.',
+        resolve(collective) {
+          return collective.hasMoneyManagement;
+        },
+      },
       termsUrl: {
         type: URL,
         resolve(collective) {
@@ -266,11 +274,11 @@ export const GraphQLHost = new GraphQLObjectType({
             SELECT "refreshedAt" FROM "HostMonthlyTransactions" LIMIT 1;
           `;
 
-          const refreshedAtResult = await sequelize.query(refreshedAtQuery, {
+          const refreshedAtResult = await sequelize.query<{ refreshedAt: Date }>(refreshedAtQuery, {
             replacements: {
               hostCollectiveId: host.id,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -419,7 +427,7 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               refreshedAt,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -544,11 +552,7 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
           },
         },
-        /**
-         * @param {import("../../../models/Collective").default} host
-         * @param {{ timeUnit: import("../enum/TimeUnit").TimeUnit; dateFrom: Date; dateTo: Date }} args
-         */
-        resolve: async (host, args) => {
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
           if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
             throw new Error('Only monthly, quarterly and yearly reports are supported.');
           }
@@ -589,7 +593,73 @@ export const GraphQLHost = new GraphQLObjectType({
               dateTo: moment(args.dateTo).utc().toISOString(),
               dateFrom: moment(args.dateFrom).utc().toISOString(),
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
+            raw: true,
+          });
+
+          return {
+            timeUnit: args.timeUnit,
+            dateFrom: args.dateFrom,
+            dateTo: args.dateTo,
+            nodes: queryResult,
+          };
+        },
+      },
+      hostContributionsReport: {
+        type: GraphQLHostExpensesReports,
+        description: 'EXPERIMENTAL (this may change or be removed)',
+        args: {
+          timeUnit: {
+            type: GraphQLTimeUnit,
+            defaultValue: 'MONTH',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+          },
+        },
+        resolve: async (host: Collective, args: { timeUnit: TimeUnit; dateFrom: Date; dateTo: Date }) => {
+          if (args.timeUnit !== 'MONTH' && args.timeUnit !== 'QUARTER' && args.timeUnit !== 'YEAR') {
+            throw new Error('Only monthly, quarterly and yearly reports are supported.');
+          }
+
+          const query = `
+            WITH HostCollectiveIds AS (
+              SELECT "id" FROM "Collectives"
+              WHERE "id" = :hostCollectiveId
+              OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')
+            )
+            SELECT
+              DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt") AT TIME ZONE 'UTC') AS "date",
+              SUM(t."amountInHostCurrency") AS "amount",
+              (SELECT "currency" FROM "Collectives" where id = :hostCollectiveId) as "currency",
+              COUNT(o."id") AS "count",
+              CASE
+                  WHEN o."CollectiveId" IN (SELECT * FROM HostCollectiveIds) THEN TRUE ELSE FALSE
+              END AS "isHost",
+              o."AccountingCategoryId"
+
+            FROM "Transactions" t
+            JOIN "Orders" o ON o.id = t."OrderId"
+
+            WHERE t."HostCollectiveId" = :hostCollectiveId
+            AND t."kind" in ('CONTRIBUTION', 'ADDED_FUNDS') AND t."type" = 'CREDIT' AND NOT t."isRefund" AND t."RefundTransactionId" IS NULL AND t."deletedAt" IS NULL
+            ${args.dateFrom ? 'AND COALESCE(t."clearedAt", t."createdAt") >= :dateFrom' : ''}
+            ${args.dateTo ? 'AND COALESCE(t."clearedAt", t."createdAt") <= :dateTo' : ''}
+
+            GROUP BY "date", "isHost", o."AccountingCategoryId"
+          `;
+
+          const queryResult = await sequelize.query(query, {
+            replacements: {
+              hostCollectiveId: host.id,
+              timeUnit: args.timeUnit,
+              dateTo: args.dateTo ? moment(args.dateTo).utc().toISOString() : null,
+              dateFrom: args.dateFrom ? moment(args.dateFrom).utc().toISOString() : null,
+            },
+            type: QueryTypes.SELECT,
             raw: true,
           });
 
@@ -625,48 +695,47 @@ export const GraphQLHost = new GraphQLObjectType({
             supportedPaymentMethods.push('PAYPAL');
           }
 
-          // bank transfer = manual in host settings
-          if (get(collective, 'settings.paymentMethods.manual', null)) {
-            // these accounts do not have a structured bank detail in the payment instructions
-            if (get(collective, 'settings.paymentMethods.manual.legacy', false)) {
-              supportedPaymentMethods.push('BANK_TRANSFER');
-            } else {
-              const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-              const hasManualBankTransferMethod = payoutMethods.some(
-                c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer,
-              );
-              if (hasManualBankTransferMethod) {
-                supportedPaymentMethods.push('BANK_TRANSFER');
-              }
-            }
+          // Check for manual payment providers from the model
+          const nbManualProviders = await models.ManualPaymentProvider.count({
+            where: { CollectiveId: collective.id, archivedAt: null },
+          });
+
+          if (nbManualProviders > 0) {
+            // The legacy "BANK_TRANSFER" type represents all types of manual payment providers
+            supportedPaymentMethods.push('BANK_TRANSFER');
           }
 
           return supportedPaymentMethods;
         },
       },
-      bankAccount: {
-        type: GraphQLPayoutMethod,
-        async resolve(collective, _, req) {
-          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-          const payoutMethod = payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
-          if (payoutMethod && get(collective, 'settings.paymentMethods.manual')) {
-            // Make bank account's data public if manual payment method is enabled
-            allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
-          }
-
-          return payoutMethod;
+      manualPaymentProviders: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProvider))),
+        description: 'Manual payment providers configured for this host',
+        args: {
+          type: {
+            type: GraphQLManualPaymentProviderType,
+            description: 'Filter by provider type',
+          },
+          includeArchived: {
+            type: new GraphQLNonNull(GraphQLBoolean),
+            defaultValue: false,
+            description: 'Whether to include archived providers',
+          },
         },
-      },
-      paypalPreApproval: {
-        type: GraphQLPaymentMethod,
-        description: 'Paypal preapproval info. Returns null if PayPal account is not connected.',
-        resolve: async host => {
-          return models.PaymentMethod.findOne({
-            where: {
-              CollectiveId: host.id,
-              service: PAYMENT_METHOD_SERVICE.PAYPAL,
-              type: PAYMENT_METHOD_TYPE.ADAPTIVE,
-            },
+        async resolve(collective, args) {
+          const where: Record<string, unknown> = { CollectiveId: collective.id };
+          if (args.type) {
+            where.type = args.type;
+          }
+          if (!args.includeArchived) {
+            where.archivedAt = null;
+          }
+          return models.ManualPaymentProvider.findAll({
+            where,
+            order: [
+              ['order', 'ASC'],
+              ['createdAt', 'ASC'],
+            ],
           });
         },
       },
@@ -690,17 +759,12 @@ export const GraphQLHost = new GraphQLObjectType({
             PayoutMethodTypes.STRIPE,
           ];
 
-          // Check for PayPal
-          if (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) {
-            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Payout
-          } else {
-            try {
-              if (await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' })) {
-                supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Adaptive
-              }
-            } catch {
-              // ignore missing paypal payment method
-            }
+          // Check for PayPal (Payouts via ConnectedAccount)
+          if (
+            (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) ||
+            host.settings?.payouts?.enableManualPayPalPayments
+          ) {
+            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
           }
 
           if (!host.settings?.disableCustomPayoutMethod) {
@@ -1059,7 +1123,7 @@ export const GraphQLHost = new GraphQLObjectType({
           const nodes = () =>
             sequelize.query(pageQuery, {
               replacements: queryReplacements,
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
               model: models.VirtualCard,
             });
 
@@ -1480,59 +1544,130 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLString,
             description: 'Search vendors related to this term based on name, description, tags, slug, and location',
           },
+          totalContributed: {
+            type: GraphQLAmountRangeInput,
+            description: 'Only return accounts that contributed within this amount range',
+          },
+          totalExpended: {
+            type: GraphQLAmountRangeInput,
+            description: 'Only return accounts that expended within this amount range',
+          },
+          orderBy: {
+            type: GraphQLOrderByInput,
+            description: 'Order of the results',
+          },
         },
-        async resolve(account, args, req) {
-          const where = {
-            ParentCollectiveId: account.id,
-            type: CollectiveType.VENDOR,
-            deactivatedAt: { [args.isArchived ? Op.not : Op.is]: null },
-          };
-
-          const publicVendorPolicy = await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
-          const isAdmin = req.remoteUser?.isAdminOfCollective(account);
+        async resolve(host: Collective, args, req: express.Request) {
+          // Check if user is admin of the Host
+          const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+          const isAdmin = req.remoteUser?.isAdminOfCollective(host);
           if (!publicVendorPolicy && !isAdmin) {
             return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
           }
 
-          const searchTermConditions =
-            args.searchTerm &&
-            buildSearchConditions(args.searchTerm, {
-              idFields: ['id'],
+          const db = getKysely();
+          let query = db
+            .with('Vendors', db =>
+              db
+                .selectFrom('Collectives')
+                .leftJoin('CommunityHostTransactionsAggregated', join =>
+                  join
+                    .onRef('CommunityHostTransactionsAggregated.FromCollectiveId', '=', 'Collectives.id')
+                    .on('CommunityHostTransactionsAggregated.HostCollectiveId', '=', host.id),
+                )
+                .where('ParentCollectiveId', '=', host.id)
+                .where('type', '=', CollectiveType.VENDOR)
+                .where('deactivatedAt', args.isArchived ? 'is not' : 'is', null)
+                .where('deletedAt', 'is', null)
+                .selectAll('Collectives')
+                .select(({ ref }) => [
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}, 1)], 0))`.as(
+                    'totalExpended',
+                  ),
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}, 1)], 0))`.as(
+                    'totalContributed',
+                  ),
+                ]),
+            )
+            .selectFrom('Vendors');
+
+          query = query.where('ParentCollectiveId', '=', host.id).where('type', '=', CollectiveType.VENDOR);
+
+          // Total Expended Filtering
+          query = query
+            .$if(args.totalExpended?.gte, q =>
+              q.where('totalExpended', '>=', getValueInCentsFromAmountInput(args.totalExpended.gte)),
+            )
+            .$if(args.totalExpended?.lte, q =>
+              q.where(({ or, eb }) =>
+                or([
+                  eb('totalExpended', '<=', getValueInCentsFromAmountInput(args.totalExpended.lte)),
+                  eb('totalExpended', 'is', null),
+                ]),
+              ),
+            );
+
+          // Total Contributed Filtering
+          query = query
+            .$if(args.totalContributed?.gte, q =>
+              q.where('totalContributed', '>=', getValueInCentsFromAmountInput(args.totalContributed.gte)),
+            )
+            .$if(args.totalContributed?.lte, q =>
+              q.where(({ or, eb }) =>
+                or([
+                  eb('totalContributed', '<=', getValueInCentsFromAmountInput(args.totalContributed.lte)),
+                  eb('totalContributed', 'is', null),
+                ]),
+              ),
+            );
+
+          // Search Term
+          query = query.$if(
+            args.searchTerm,
+            buildKyselySearchConditions(args.searchTerm, {
+              idFields: ['Collectives.id'],
               slugFields: ['slug'],
               textFields: ['name', 'description', 'longDescription'],
-              stringArrayFields: ['tags'],
-              stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
-            });
-          if (searchTermConditions?.length) {
-            where[Op.or] = searchTermConditions;
-          }
+            }),
+          );
 
-          // @ts-expect-error Property 'group' is missing => It's an error on sequelize types, as the [docs](https://sequelize.org/docs/v6/core-concepts/model-querying-finders/#findandcountall) clearly say it's opitonal
-          const findArgs: Parameters<typeof models.Collective.findAndCountAll>[0] = {
-            where,
-            limit: args.limit,
-            offset: args.offset,
-            order: [['createdAt', 'DESC']],
-          };
+          // Here we'll conditionally store some selects and orders so we don't compromise the countQuery later down the line.
+          const selects: Array<Parameters<typeof query.select>[0]> = [];
+          const order = [];
 
+          // Conditionally filter or select expenseCount if args.forAccount exists
           if (args.forAccount) {
-            const account = await fetchAccountWithReference(args.forAccount);
-            findArgs['attributes'] = {
-              include: [
-                [
-                  sequelize.literal(`(
-            SELECT COUNT(*) FROM "Expenses" WHERE "deletedAt" IS NULL AND "status" = 'PAID' AND "CollectiveId" = ${account.id} AND "FromCollectiveId" = "Collective"."id"
-          )`),
-                  'expenseCount',
-                ],
-              ],
-            };
-            findArgs.order = [
-              [sequelize.literal('"expenseCount"'), 'DESC'],
-              ['createdAt', 'DESC'],
-            ];
+            const account = await fetchAccountWithReference(args.forAccount, {
+              throwIfMissing: true,
+              loaders: req.loaders,
+            });
+            if (!isAdmin) {
+              query = query.where(({ exists, selectFrom }) =>
+                exists(
+                  selectFrom('Expenses')
+                    .whereRef('Expenses.FromCollectiveId', '=', 'Vendors.id')
+                    .where('Expenses.deletedAt', 'is', null)
+                    .where('Expenses.status', '=', 'PAID')
+                    .where('Expenses.CollectiveId', '=', account.id)
+                    .limit(1),
+                ),
+              );
+            } else {
+              // Adding conditional selects is not recommended, do not use this elsewhere.
+              selects.push(({ selectFrom }) =>
+                selectFrom('Expenses')
+                  .select(({ fn }) => fn.count<number>('Expenses.id').as('expenseCount'))
+                  .whereRef('Expenses.FromCollectiveId', '=', 'Vendors.id')
+                  .where('Expenses.deletedAt', 'is', null)
+                  .where('Expenses.status', '=', 'PAID')
+                  .where('Expenses.CollectiveId', '=', account.id)
+                  .as('expenseCount'),
+              );
+              order.push([eb => eb.ref('expenseCount'), 'desc']);
+            }
           }
 
+          // It is fine to fork execution using conditionals because we're just changing WHERE conditionals
           if (args.visibleToAccounts?.length > 0) {
             const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
               throwIfMissing: true,
@@ -1544,30 +1679,66 @@ export const GraphQLHost = new GraphQLObjectType({
               },
               attributes: ['ParentCollectiveId'],
             });
+            const accountIds = uniq(
+              compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]),
+            );
 
-            const accountIds = compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]);
-            findArgs.where[Op.and] = [
-              sequelize.literal(`
-                    data#>'{visibleToAccountIds}' IS NULL 
-                    OR data#>'{visibleToAccountIds}' = '[]'::jsonb
-                    OR data#>'{visibleToAccountIds}' = 'null'::jsonb
-                    OR
-                    (
-                      jsonb_typeof(data#>'{visibleToAccountIds}')='array'
-                      AND 
-                      EXISTS (
-                        SELECT v FROM (
-                          SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
-                        ) WHERE v = ANY(${sequelize.escape(accountIds)})
-                      )  
+            query = query.where(
+              () => sql`
+                  data#>'{visibleToAccountIds}' IS NULL
+                  OR data#>'{visibleToAccountIds}' = '[]'::jsonb
+                  OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+                  OR (
+                    jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+                    AND
+                    EXISTS (
+                      SELECT v FROM (
+                        SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                      ) WHERE v = ANY(ARRAY[${sql.join(accountIds)}]::int[])
                     )
-              `),
-            ];
+                  )
+              `,
+            );
           }
-          const { rows, count } = await models.Collective.findAndCountAll(findArgs);
-          const vendors = args.forAccount && !isAdmin ? rows.filter(v => v.dataValues['expenseCount'] > 0) : rows;
 
-          return { nodes: vendors, totalCount: count, limit: args.limit, offset: args.offset };
+          // Forking NodeQuery and CountQuery because they're only subjected to the same WHERE conditions
+          let nodeQuery = query.selectAll('Vendors').select('totalContributed').select('totalExpended');
+          if (selects.length > 0) {
+            nodeQuery = nodeQuery.select(selects);
+          }
+          // Since orderBy needs to be called after selection, we apply it here.
+          // Requested Ordering
+          if (args.orderBy) {
+            const direction = ob => (args.orderBy.direction === 'DESC' ? ob.desc().nullsLast() : ob.asc().nullsFirst());
+            if (args?.orderBy?.field === 'TOTAL_CONTRIBUTED' || args?.orderBy?.field === 'TOTAL_EXPENDED') {
+              nodeQuery = nodeQuery.orderBy(
+                args.orderBy.field === 'TOTAL_CONTRIBUTED' ? 'totalContributed' : 'totalExpended',
+                direction,
+              );
+            } else if (args?.orderBy?.field) {
+              nodeQuery = nodeQuery.orderBy(args.orderBy.field, direction);
+            }
+          }
+          // Other additional ordering that were created throughout conditionals
+          order.forEach(([field, direction]) => {
+            nodeQuery = nodeQuery.orderBy(field, direction);
+          });
+          // Default ordering at last
+          nodeQuery = nodeQuery.orderBy('Vendors.createdAt', 'desc');
+
+          const countQuery = query.select(({ fn }) => fn.countAll<number>().as('count'));
+
+          // Create thunks for resolving nodes and totalCount
+          const nodes = () =>
+            nodeQuery.limit(args.limit).offset(args.offset).execute().then(kyselyToSequelizeModels(Collective));
+          const totalCount = () => countQuery.executeTakeFirst().then(result => result?.count || 0);
+
+          return {
+            nodes,
+            totalCount,
+            limit: args.limit,
+            offset: args.offset,
+          };
         },
       },
       potentialVendors: {
@@ -1626,7 +1797,7 @@ export const GraphQLHost = new GraphQLObjectType({
               limit: args.limit,
               offset: args.offset,
             },
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             model: models.Collective,
           });
 
@@ -1683,11 +1854,20 @@ export const GraphQLHost = new GraphQLObjectType({
             type: new GraphQLList(GraphQLString),
             description: 'Filter by specific Account currencies',
           },
+          startsAtFrom: {
+            type: GraphQLDateTime,
+            description: 'Filter for accounts (Events) that started at a specific date range',
+          },
+          startsAtTo: {
+            type: GraphQLDateTime,
+            description: 'Filter for accounts (Events) that started at a specific date range',
+          },
         },
         async resolve(host, args) {
           const where: Parameters<typeof models.Collective.findAndCountAll>[0]['where'] = {
             HostCollectiveId: host.id,
             id: { [Op.not]: host.id },
+            [Op.and]: [],
           };
 
           if (args.accountType && args.accountType.length > 0) {
@@ -1729,12 +1909,6 @@ export const GraphQLHost = new GraphQLObjectType({
               assert(args.balance.lte.currency === host.currency, 'Balance currency must match host currency');
             }
 
-            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-            if (!where[Op.and]) {
-              // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-              where[Op.and] = [];
-            }
-
             const { operator, value } = getAmountRangeValueAndOperator(args.balance);
             // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             where[Op.and].push(sequelize.where(ACCOUNT_BALANCE_QUERY, operator, value));
@@ -1753,12 +1927,6 @@ export const GraphQLHost = new GraphQLObjectType({
                 args.consolidatedBalance.lte.currency === host.currency,
                 'Consolidated Balance currency must match host currency',
               );
-            }
-
-            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-            if (!where[Op.and]) {
-              // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
-              where[Op.and] = [];
             }
 
             const { operator, value } = getAmountRangeValueAndOperator(args.consolidatedBalance);
@@ -1799,6 +1967,15 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.or] = searchTermConditions;
           }
 
+          if (args.startsAtFrom) {
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            where[Op.and].push({ startsAt: { [Op.gte]: args.startsAtFrom } });
+          }
+          if (args.startsAtTo) {
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            where[Op.and].push({ startsAt: { [Op.lte]: args.startsAtTo } });
+          }
+
           const orderBy = [];
           if (args.orderBy) {
             const { field, direction } = args.orderBy;
@@ -1816,6 +1993,9 @@ export const GraphQLHost = new GraphQLObjectType({
                 ),
                 direction,
               ]);
+            } else if (field === ORDER_BY_PSEUDO_FIELDS.STARTS_AT) {
+              where['startsAt'] = { [Op.not]: null };
+              orderBy.push(['startsAt', direction]);
             } else {
               orderBy.push([field, direction]);
             }
@@ -2106,7 +2286,8 @@ export const GraphQLHost = new GraphQLObjectType({
               required: true,
               where: {
                 ...((args.importType && { type: args.importType }) || {}),
-                ...((args.importId && { id: args.importId.map(id => idDecode(id, 'transactions-import')) }) || {}),
+                ...((args.importId && { id: uniq(args.importId.map(id => idDecode(id, 'transactions-import'))) }) ||
+                  {}),
                 CollectiveId: host.id,
               },
             },

@@ -3,7 +3,8 @@
   "env": "OC_ENV",
   "services": {
     "server": "ENABLE_SERVICE_SERVER",
-    "searchSync": "ENABLE_SERVICE_SEARCH_SYNC"
+    "searchSync": "ENABLE_SERVICE_SEARCH_SYNC",
+    "exports": "ENABLE_SERVICE_EXPORTS"
   },
   "mailpit": {
     "client": "MAILPIT_CLIENT",
@@ -14,6 +15,9 @@
     "url": "OPENSEARCH_URL",
     "maxSyncDelay": "OPENSEARCH_MAX_SYNC_DELAY",
     "indexesPrefix": "OPENSEARCH_INDEXES_PREFIX"
+  },
+  "exports": {
+    "concurrency": "EXPORTS_CONCURRENCY"
   },
   "database": {
     "url": "PG_URL",
@@ -76,6 +80,14 @@
     "slowMiddleware": "LOG_SLOW_MIDDLEWARE",
     "slowMiddlewareThreshold": "LOG_SLOW_MIDDLEWARE_THRESHOLD"
   },
+  "platform": {
+    "collectiveId": "OC_PLATFORM_COLLECTIVE_ID",
+    "userId": "OC_PLATFORM_USER_ID",
+    "currency": "OC_PLATFORM_CURRENCY",
+    "address": "OC_PLATFORM_ADDRESS",
+    "country": "OC_PLATFORM_COUNTRY",
+    "name": "OC_PLATFORM_NAME"
+  },
   "gocardless": {
     "secretId": "GOCARDLESS_SECRET_ID",
     "secretKey": "GOCARDLESS_SECRET_KEY"
@@ -116,12 +128,6 @@
     "enabled": "KLIPPA_ENABLED"
   },
   "paypal": {
-    "classic": {
-      "appId": "PAYPAL_APP_ID",
-      "userId": "PAYPAL_USER_ID",
-      "password": "PAYPAL_PASSWORD",
-      "signature": "PAYPAL_SIGNATURE"
-    },
     "payment": {
       "environment": "PAYPAL_ENVIRONMENT",
       "clientId": "PAYPAL_CLIENT_ID",

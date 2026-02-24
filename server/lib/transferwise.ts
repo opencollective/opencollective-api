@@ -8,7 +8,7 @@ import axios, { AxiosError, AxiosResponse } from 'axios';
 import config from 'config';
 import Debug from 'debug';
 import { Request } from 'express';
-import { cloneDeep, isNull, omitBy, pick, set, startCase, toUpper } from 'lodash';
+import { cloneDeep, escape, isNull, omitBy, pick, set, startCase, toUpper } from 'lodash';
 import moment from 'moment';
 
 import ActivityTypes from '../constants/activities';
@@ -774,36 +774,61 @@ export const verifyEvent = (req: Request & { rawBody: string }): WebhookEvent =>
   return req.body;
 };
 
-export const formatAccountDetails = (payoutMethodData: Record<string, unknown>): string => {
+export const formatAccountDetails = (
+  payoutMethodData: Record<string, unknown>,
+  { asSafeHTML = false }: { asSafeHTML?: boolean } = {},
+): string => {
+  if (!payoutMethodData) {
+    return '';
+  }
+
+  const separator = asSafeHTML ? '<br />' : '\n';
   const ignoredKeys = ['type', 'isManualBankTransfer', 'currency'];
   const labels = {
-    abartn: 'Routing Number',
+    abartn: 'Routing Number: ',
+    firstLine: '',
   };
 
-  const formatKey = (s: string): string => {
-    if (labels[s]) {
+  const formatKey = s => {
+    if (labels[s] !== undefined) {
       return labels[s];
     }
     if (toUpper(s) === s) {
-      return s;
+      return `${s}: `;
     }
-    return startCase(s);
+    return `${startCase(s)}: `;
   };
 
-  const renderObject = (object: Record<string, unknown>, prefix = ''): string[] =>
-    Object.entries(object).reduce((acc, [key, value]) => {
-      if (ignoredKeys.includes(key)) {
-        return acc;
-      }
-      if (typeof value === 'object') {
-        return [...acc, formatKey(key), ...renderObject(<Record<string, unknown>>value, '  ')];
-      }
-      return [...acc, `${prefix}${formatKey(key)}: ${value}`];
-    }, []);
+  const escapeValue = (value: unknown): string => {
+    return asSafeHTML ? escape(String(value)) : String(value);
+  };
 
-  const { accountHolderName, currency, ...data } = payoutMethodData;
-  const lines = renderObject({ accountHolderName, currency, ...data });
-  return lines.join('\n');
+  const renderObject = (object, prefix = '', isTopLevel = true) =>
+    Object.entries(object)
+      .sort(a => (typeof a[1] === 'object' ? 1 : -1))
+      .reduce((acc, [key, value]) => {
+        if (ignoredKeys.includes(key)) {
+          return acc;
+        }
+        const formattedKey = formatKey(key);
+        const escapedKey = asSafeHTML ? escape(formattedKey) : formattedKey;
+
+        if (typeof value === 'object') {
+          if (key === 'details') {
+            return [...acc, ...renderObject(value, '', isTopLevel)];
+          }
+          const keyLabel = asSafeHTML && isTopLevel ? `<strong>${escapedKey}</strong>` : escapedKey;
+          return [...acc, keyLabel, ...renderObject(value, '  ', false)];
+        }
+
+        const escapedValue = escapeValue(value);
+        const keyLabel = asSafeHTML && isTopLevel ? `<strong>${escapedKey}</strong>` : escapedKey;
+        return [...acc, `${prefix}${keyLabel}${escapedValue}`];
+      }, []);
+
+  const lines = renderObject(payoutMethodData);
+
+  return lines.join(separator);
 };
 
 export const getOAuthUrl = (state: string): string => {

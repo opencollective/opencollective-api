@@ -58,57 +58,6 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(result.data).to.exist;
       expect(result.data.createPayoutMethod).to.deep.include(payoutMethod);
     });
-
-    it('should upsert a existing payout method if data.isManualBankTransfer is passed', async () => {
-      const payoutMethod = {
-        name: 'Test Bank',
-        type: PayoutMethodTypes.BANK_ACCOUNT,
-        data: {
-          isManualBankTransfer: true,
-          accountHolderName: 'Nicolas Cage',
-          currency: 'EUR',
-          type: 'IBAN',
-          details: {
-            iban: 'FR893219828398123',
-          },
-        },
-      };
-
-      await graphqlQueryV2(
-        createPayoutMethodMutation,
-        {
-          payoutMethod,
-          account: { legacyId: collective.id },
-        },
-        user,
-      );
-
-      const updatedPayoutMethod = {
-        ...payoutMethod,
-        name: 'New Bank Account',
-        data: {
-          ...payoutMethod.data,
-          accountHolderName: 'John Malkovich',
-        },
-      };
-
-      const result = await graphqlQueryV2(
-        createPayoutMethodMutation,
-        {
-          payoutMethod: updatedPayoutMethod,
-          account: { legacyId: collective.id },
-        },
-        user,
-      );
-
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data).to.exist;
-      expect(result.data.createPayoutMethod).to.deep.include(updatedPayoutMethod);
-
-      const existingPayoutMethods = await collective.getPayoutMethods();
-      expect(existingPayoutMethods).to.have.length(1);
-    });
   });
 
   describe('removePayoutMethod', () => {
@@ -276,6 +225,26 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       const result = await graphqlQueryV2(editPayoutMethodMutation, mutationArgs, adminUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eql('You are authenticated but forbidden to perform this action');
+    });
+
+    it('Rejects setting isSaved true on an archived payout method (restore via edit)', async () => {
+      const archivedPayoutMethod = await fakePayoutMethod({
+        CollectiveId: adminUser.CollectiveId,
+        isSaved: false,
+        name: 'Archived Bank',
+      });
+      await fakeExpense({ PayoutMethodId: archivedPayoutMethod.id, status: 'PAID' });
+      const mutationArgs = {
+        payoutMethod: {
+          id: idEncode(archivedPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+          isSaved: true,
+        },
+      };
+      const result = await graphqlQueryV2(editPayoutMethodMutation, mutationArgs, adminUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('Archived payout methods cannot be restored');
+      await archivedPayoutMethod.reload();
+      expect(archivedPayoutMethod.isSaved).to.be.false;
     });
   });
 });

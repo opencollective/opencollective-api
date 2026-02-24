@@ -1,8 +1,9 @@
 import type express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, flatten, uniq } from 'lodash';
+import { compact, flatten, uniq, values } from 'lodash';
 import type { Sequelize } from 'sequelize';
+import { QueryTypes } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { Activity, Collective, Op, sequelize } from '../../../models';
@@ -105,22 +106,18 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
             t."HostCollectiveId",
             t."CollectiveId",
             h.currency AS "hostCurrency",
-            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = 'EXPENSE'::"enum_Transactions_kind"),
-                    0::bigint) AS "expenseTotal",
-            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE'), 0::bigint) AS "expenseCount",
-            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = 'CONTRIBUTION'::"enum_Transactions_kind"),
-                    0::bigint) AS "contributionTotal",
-            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = 'CONTRIBUTION'),
-                    0::bigint) AS "contributionCount",
-            COALESCE(COUNT(DISTINCT t."OrderId") FILTER (WHERE t.kind = 'CONTRIBUTION'::"enum_Transactions_kind"),
-                    0::bigint) AS "orderCount"
+            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = 'EXPENSE'), 0) AS "expenseTotal",
+            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE'), 0) AS "expenseCount",
+            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = ANY('{CONTRIBUTION,ADDED_FUNDS}'::"enum_Transactions_kind"[])), 0) AS "contributionTotal",
+            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = ANY('{CONTRIBUTION,ADDED_FUNDS}'::"enum_Transactions_kind"[])), 0) AS "contributionCount",
+            COALESCE(COUNT(DISTINCT t."OrderId") FILTER (WHERE t.kind = ANY('{CONTRIBUTION,ADDED_FUNDS}'::"enum_Transactions_kind"[])), 0) AS "orderCount"
           FROM
             "Transactions" t
             JOIN "Collectives" h ON t."HostCollectiveId" = h.id
           WHERE t."deletedAt" IS NULL
             AND t."RefundTransactionId" IS NULL
             AND t."isRefund" = FALSE
-            AND (t.kind = ANY (ARRAY ['CONTRIBUTION'::"enum_Transactions_kind", 'EXPENSE'::"enum_Transactions_kind"]))
+            AND (t.kind = ANY ('{CONTRIBUTION,ADDED_FUNDS,EXPENSE}'::"enum_Transactions_kind"[]))
             AND t."hostCurrency" = h.currency
             AND t."FromCollectiveId" = :FromCollectiveId
             AND t."CollectiveId" = :CollectiveId
@@ -130,7 +127,7 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
           `,
           {
             raw: true,
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             replacements: { FromCollectiveId, HostCollectiveId, CollectiveId },
           },
         );
@@ -193,8 +190,14 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
       relations: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLCommunityRelationType)),
         async resolve(account) {
-          if (account.dataValues.associatedCollectives) {
-            return uniq(flatten(Object.values(account.dataValues.associatedCollectives)));
+          if (account.dataValues.associatedCollectives || account.dataValues.associatedOrganizations) {
+            return uniq(
+              flatten(
+                values(account.dataValues.associatedCollectives).concat(
+                  values(account.dataValues.associatedOrganizations),
+                ),
+              ),
+            );
           } else {
             return [];
           }
@@ -226,7 +229,7 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
               AND "HostCollectiveId" = :HostCollectiveId
             ORDER BY year DESC;
             `,
-            { raw: true, type: sequelize.QueryTypes.SELECT, replacements: { FromCollectiveId, HostCollectiveId } },
+            { raw: true, type: QueryTypes.SELECT, replacements: { FromCollectiveId, HostCollectiveId } },
           );
 
           return results.map(result => ({

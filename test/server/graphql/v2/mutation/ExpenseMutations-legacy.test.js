@@ -22,7 +22,6 @@ import models from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
-import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway';
 import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeAccountingCategory,
@@ -34,7 +33,6 @@ import {
   fakeExpenseItem,
   fakeHost,
   fakeOrganization,
-  fakePaymentMethod,
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
@@ -1318,7 +1316,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
   });
 
   describe('processExpense', () => {
-    let collective, host, collectiveAdmin, hostAdmin, hostPaypalPm;
+    let collective, host, collectiveAdmin, hostAdmin;
 
     before(async () => {
       await resetTestDB();
@@ -1338,14 +1336,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         currency: 'USD',
       });
       await hostAdmin.populateRoles();
-      hostPaypalPm = await fakePaymentMethod({
-        name: randEmail(),
-        service: 'paypal',
-        type: 'adaptive',
-        CollectiveId: host.id,
-        token: 'abcdefg',
-        confirmedAt: new Date(),
-      });
       await fakeConnectedAccount({
         CollectiveId: host.id,
         service: 'transferwise',
@@ -1590,7 +1580,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq(
-          'Collective does not have enough funds to cover for the fees of this payment method. Current balance: $10.00, Expense amount: $10.00, Estimated PAYPAL fees: $0.69.',
+          'Collective does not have enough funds to cover for the fees of this payment method. Current balance: $10.00, Expense amount: $10.00, Estimated PAYPAL fees: $0.20.',
         );
       });
 
@@ -1793,15 +1783,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
       });
 
       describe('With PayPal', () => {
-        it('fails if not enough funds on the paypal preapproved key', async () => {
-          const callPaypal = sandbox.stub(paypalAdaptive, 'callPaypal').callsFake(() => {
-            return Promise.reject(
-              new Error(
-                'PayPal error: The total amount of all payments exceeds the maximum total amount for all payments (error id: 579031)',
-              ),
-            );
-          });
-
+        it('rejects Pay action and directs to Schedule for Payment', async () => {
           const fromUser = await fakeUser();
           const payoutMethod = await fakePayoutMethod({ type: 'PAYPAL', CollectiveId: fromUser.CollectiveId });
           const expense = await fakeExpense({
@@ -1813,57 +1795,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
             FromCollectiveId: fromUser.CollectiveId,
           });
 
-          // Updates the collective balance and pay the expense
-          const estimatedPayPalFees = 1000;
           await fakeTransaction({
             type: 'CREDIT',
             CollectiveId: collective.id,
-            amount: expense.amount + estimatedPayPalFees,
+            amount: expense.amount + 1000,
           });
 
           const mutationParams = { expenseId: expense.id, action: 'PAY' };
           const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
 
           expect(res.errors).to.exist;
-          expect(res.errors[0].message).to.contain('Not enough funds in your existing Paypal preapproval');
-
-          expect(callPaypal.firstCall.args[0]).to.equal('pay');
-          expect(callPaypal.firstCall.args[1].currencyCode).to.equal(expense.currency);
-          expect(callPaypal.firstCall.args[1].memo).to.include('Reimbursement from');
-          expect(callPaypal.firstCall.args[1].memo).to.include(expense.description);
+          expect(res.errors[0].message).to.contain('Schedule for Payment');
+          expect(res.errors[0].message).to.contain('PayPal Adaptive');
           const updatedExpense = await models.Expense.findByPk(expense.id);
           expect(updatedExpense.status).to.equal('APPROVED');
-          const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
-          expect(transactions.length).to.equal(0);
-          transactions.forEach(transaction => expect(transaction.kind).to.eq(TransactionKind.Expense));
-        });
-
-        it('when hosts paypal and payout method paypal are the same', async () => {
-          const callPaypal = sandbox.stub(paypalAdaptive, 'callPaypal');
-          const fromUser = await fakeUser();
-          const payoutMethod = await fakePayoutMethod({
-            type: 'PAYPAL',
-            CollectiveId: fromUser.CollectiveId,
-            data: { email: hostPaypalPm.name },
-          });
-          const expense = await fakeExpense({
-            amount: 1000,
-            CollectiveId: collective.id,
-            status: 'APPROVED',
-            PayoutMethodId: payoutMethod.id,
-            UserId: fromUser.id,
-            FromCollectiveId: fromUser.CollectiveId,
-          });
-
-          // Updates the collective balance and pay the expense
-          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
-
-          const mutationParams = { expenseId: expense.id, action: 'PAY' };
-          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
-          res.errors && console.error(res.errors);
-          expect(res.errors).to.not.exist;
-          expect(res.data.processExpense.status).to.equal('PAID');
-          expect(callPaypal.called).to.be.false;
         });
       });
 

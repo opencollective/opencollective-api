@@ -1,6 +1,6 @@
 import config from 'config';
 import debugLib from 'debug';
-import { cloneDeep, compact, get } from 'lodash';
+import { cloneDeep, compact, get, uniq } from 'lodash';
 import PQueue from 'p-queue';
 
 import { roles } from '../../constants';
@@ -114,7 +114,7 @@ export const notify = {
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
-      UserId: cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id)),
+      UserId: uniq(cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id))),
       attributes: ['id'],
     });
 
@@ -216,6 +216,8 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
     case ActivityTypes.USER_CARD_CLAIMED:
+    case ActivityTypes.EXPORT_REQUEST_COMPLETED:
+    case ActivityTypes.EXPORT_REQUEST_FAILED:
       await notify.user(activity);
       break;
 

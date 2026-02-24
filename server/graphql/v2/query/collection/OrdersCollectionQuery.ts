@@ -3,10 +3,11 @@ import assert from 'assert';
 import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { compact, isEmpty, isNil, uniq } from 'lodash';
+import { compact, isEmpty, isNil, pickBy, uniq } from 'lodash';
 import { Includeable, Order, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import OrderStatuses from '../../../../constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { AccountingCategory, Collective, Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -30,6 +31,10 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
+import {
+  fetchManualPaymentProvidersWithReferences,
+  GraphQLManualPaymentProviderReferenceInput,
+} from '../../input/ManualPaymentProviderInput';
 import {
   fetchPaymentMethodWithReferences,
   GraphQLPaymentMethodReferenceInput,
@@ -192,6 +197,10 @@ export const OrdersCollectionArgs = {
   paymentMethodType: {
     type: new GraphQLList(GraphQLPaymentMethodType),
     description: 'Only return orders that match these payment method types',
+  },
+  manualPaymentProvider: {
+    type: new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProviderReferenceInput)),
+    description: 'Only return orders that used this manual payment provider.',
   },
   includeIncognito: {
     type: GraphQLBoolean,
@@ -442,16 +451,46 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['PaymentMethodId'] = { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] };
   }
 
+  if (args.manualPaymentProvider) {
+    const providers = await fetchManualPaymentProvidersWithReferences(args.manualPaymentProvider, {
+      loaders: req.loaders,
+      throwIfMissing: true,
+    });
+
+    providers.forEach(provider => {
+      assert(
+        req.remoteUser?.isAdmin(provider.CollectiveId),
+        new Forbidden('You need to be an admin of the host that owns this payment provider to filter by it'),
+      );
+    });
+
+    where['ManualPaymentProviderId'] = providers.map(provider => provider.id);
+  }
+
   // Filter on payment method service/type
   if (args.paymentMethodService || args.paymentMethodType) {
-    const paymentMethodInclude = { association: 'paymentMethod', required: true, where: {} };
-    if (args.paymentMethodService) {
-      paymentMethodInclude.where['service'] = args.paymentMethodService;
+    const services = uniq(args.paymentMethodService);
+    const hasOpenCollective = !services?.length || services.includes(PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE);
+    const types = uniq(args.paymentMethodType?.map(type => type || PAYMENT_METHOD_TYPE.MANUAL)); // We historically used 'null' to fetch for manual payments
+    const hasManual = hasOpenCollective && (!types?.length || types.includes(PAYMENT_METHOD_TYPE.MANUAL));
+    const hasOnlyManual = hasManual && services?.length <= 1 && types?.length === 1;
+
+    if (hasOnlyManual) {
+      // Simplest case: we only need to filter on PaymentMethodId
+      where['PaymentMethodId'] = { [Op.is]: null };
+    } else {
+      include.push({
+        association: 'paymentMethod',
+        required: !hasManual, // INNER JOIN when not fetching manual, otherwise LEFT JOIN to filter on PaymentMethodId below
+        where: pickBy({ service: !isEmpty(services) && services, type: !isEmpty(types) && types }, Boolean),
+      });
+
+      if (hasManual) {
+        where[Op.and].push({
+          [Op.or]: [{ PaymentMethodId: { [Op.is]: null } }, { '$paymentMethod.id$': { [Op.not]: null } }],
+        });
+      }
     }
-    if (args.paymentMethodType) {
-      paymentMethodInclude.where['type'] = args.paymentMethodType;
-    }
-    include.push(paymentMethodInclude);
   }
 
   const isHostAdmin = account?.hasMoneyManagement && req.remoteUser?.isAdminOfCollective(account);
@@ -656,9 +695,21 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     order = [[args.orderBy.field, args.orderBy.direction]];
   }
   const { offset, limit } = args;
+
   return {
-    nodes: () => models.Order.findAll({ include, where, order, offset, limit }),
-    totalCount: () => models.Order.count({ include, where }),
+    nodes: () =>
+      models.Order.findAll({
+        include,
+        where,
+        order,
+        offset,
+        limit,
+      }),
+    totalCount: () =>
+      models.Order.count({
+        include,
+        where,
+      }),
     limit: args.limit,
     offset: args.offset,
     createdByUsers: async (subArgs: { limit?: number; offset?: number; searchTerm?: string } = {}) => {

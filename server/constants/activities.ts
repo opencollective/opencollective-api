@@ -19,6 +19,7 @@ enum ActivityTypes {
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
+  COLLECTIVE_BALANCE_TRANSFERRED = 'collective.balance.transferred',
   COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
   ORGANIZATION_CONVERTED_TO_COLLECTIVE = 'organization.convertedToCollective',
@@ -82,6 +83,9 @@ enum ActivityTypes {
   // Transactions imports
   TRANSACTIONS_IMPORT_CREATED = 'transactions.import.created',
   TRANSACTIONS_IMPORT_ROW_UPDATED = 'transactions.import.updated',
+  // Export requests
+  EXPORT_REQUEST_COMPLETED = 'export.request.completed',
+  EXPORT_REQUEST_FAILED = 'export.request.failed',
   // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',
@@ -114,6 +118,12 @@ enum ActivityTypes {
   VENDOR_CREATED = 'vendor.created',
   VENDOR_EDITED = 'vendor.edited',
   VENDOR_DELETED = 'vendor.deleted',
+
+  // Manual payment providers
+  MANUAL_PAYMENT_PROVIDER_CREATED = 'manual_payment_provider.created',
+  MANUAL_PAYMENT_PROVIDER_UPDATED = 'manual_payment_provider.updated',
+  MANUAL_PAYMENT_PROVIDER_DELETED = 'manual_payment_provider.deleted',
+  MANUAL_PAYMENT_PROVIDER_ARCHIVED = 'manual_payment_provider.archived',
 
   // PENDING CONTRIBUTIONS
   ORDER_PENDING_CREATED = 'order.pending.created',
@@ -205,6 +215,8 @@ export const TransactionalActivities = [
   ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
   ActivityTypes.PLATFORM_BILLING_OVERDUE_REMINDER,
   ActivityTypes.PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION,
+  ActivityTypes.EXPORT_REQUEST_COMPLETED,
+  ActivityTypes.EXPORT_REQUEST_FAILED,
 ];
 
 export enum ActivityClasses {

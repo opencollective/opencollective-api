@@ -357,6 +357,8 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
   return { startDate, endDate };
 };
 
+const thunk = fnOrVal => (typeof fnOrVal === 'function' ? fnOrVal() : fnOrVal);
+
 /**
  * Returns string if given condition is truthy, otherwise returns empty string.
  * @param {*} condition
@@ -364,7 +366,7 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
  * @returns string
  */
 export const ifStr = (condition, trueExpression, falseExpression = undefined) =>
-  condition ? trueExpression : falseExpression || '';
+  condition ? thunk(trueExpression) : thunk(falseExpression) || '';
 
 export const redactSensitiveFields = fastRedact({
   serialize: false,

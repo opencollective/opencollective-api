@@ -4,18 +4,18 @@ import { Parser } from '@json2csv/plainjs';
 import config from 'config';
 import { groupBy, min, sumBy } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
-import { getPlatformConstantsForDate, PLATFORM_MIGRATION_DATE } from '../../server/constants/platform';
+import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
-import { CommentType } from '../../server/models/Comment';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { runCronJob } from '../utils';
@@ -99,7 +99,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   const month = momentDate.month();
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 1);
-  const PlatformConstants = getPlatformConstantsForDate(momentDate);
 
   console.info(`Invoicing hosts pending fees and tips for ${momentDate.format('MMMM')}.`);
 
@@ -125,7 +124,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     `,
     {
       mapToModel: true,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
       replacements: {
         startDate: startDate,
@@ -333,18 +332,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
       const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
       await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
-
-      // If running for the month of `PLATFORM_MIGRATION_DATE`, add a comment to explain why we're using a different profile
-      if (momentDate.isSame(PLATFORM_MIGRATION_DATE, 'month') && momentDate.isSame(PLATFORM_MIGRATION_DATE, 'year')) {
-        await models.Comment.create({
-          CreatedByUserId: platformUser.id,
-          FromCollectiveId: platformUser.CollectiveId,
-          CollectiveId: host.id,
-          ExpenseId: expense.id,
-          type: CommentType.COMMENT,
-          html: `<div>Dear ${host.name},<br /><br /></div><div>You may notice that this expense comes from the "<a href="https://opencollective.com/ofitech">Ofitech</a>" profile instead of "<a href="https://opencollective.com/opencollective">Open Collective</a>". This change is part of a recent transition of the Open Collective platform to a community-governed non-profit. For more information, you can read the full announcement <a href="https://blog.opencollective.com/the-open-collective-platform-is-moving-to-a-community-governed-non-profit/">here</a>.<br /><br />As always, if you have any questions or need assistance, please reach out via <a href="https://opencollective.com/contact">our contact page</a>.<br /><br />Thank you for your understanding and continued support!</div>`,
-        });
-      }
     }
   }
 }

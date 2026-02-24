@@ -267,8 +267,8 @@ const getNotificationLabel = (template): string => {
 };
 
 const isAuthorizedEmailDomain = email => {
-  const domain = email.split('@');
-  return authorizedEmailDomains.includes(domain[1].toLowerCase());
+  const domain = email.substring(email.lastIndexOf('@') + 1).toLowerCase();
+  return authorizedEmailDomains.includes(domain);
 };
 
 /*

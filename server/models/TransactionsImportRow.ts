@@ -17,6 +17,8 @@ class TransactionsImportRow extends Model<
   InferAttributes<TransactionsImportRow>,
   InferCreationAttributes<TransactionsImportRow>
 > {
+  public static readonly tableName = 'TransactionsImportsRows' as const;
+
   declare public id: CreationOptional<number>;
   declare public TransactionsImportId: ForeignKey<TransactionsImport['id']>;
   declare public ExpenseId: ForeignKey<Expense['id']>;

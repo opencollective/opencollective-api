@@ -2,7 +2,6 @@ import assert from 'assert';
 
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
-import debugLib from 'debug';
 import type express from 'express';
 import {
   cloneDeep,
@@ -47,22 +46,20 @@ import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
-import errors from '../../lib/errors';
 import { formatAddress } from '../../lib/format-address';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
-import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
-import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import { reportErrorToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { deepJSONBSet } from '../../lib/sql';
 import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { CreateTransfer } from '../../lib/transferwise';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
-import { formatCurrency, parseToBoolean } from '../../lib/utils';
+import { formatCurrency } from '../../lib/utils';
 import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, {
@@ -78,7 +75,7 @@ import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
-import paypalAdaptive from '../../paymentProviders/paypal/adaptiveGateway';
+import { estimatePaypalPayoutFee } from '../../paymentProviders/paypal/payouts';
 import { Location } from '../../types/Location';
 import {
   Quote as WiseQuote,
@@ -105,8 +102,6 @@ import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchan
 import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
-
-const debug = debugLib('expenses');
 
 const loadHostForExpense = async (req: express.Request, expense: Expense): Promise<Collective | null> => {
   if (expense.host) {
@@ -378,7 +373,7 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     return true;
   }
 
-  return remoteUserMeetsOneCondition(req, expense, [
+  let allowedRoles = [
     isOwner,
     isOwnerAccountant,
     isHostAdmin,
@@ -386,7 +381,17 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     isAdminOrAccountantOfHostWhoPaidExpense,
     isAdminOfCollectiveWithPermissivePayoutMethodPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
     isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated, // Virtual cards are created by the collective admins, but manually created ones are managed by host admins
-  ]);
+  ];
+
+  // Submitter can see own information until the expense is paid
+  if (expense.status === expenseStatus.PAID && expense.PayoutMethodId) {
+    const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+    if (payoutMethod && !payoutMethod.isSaved) {
+      allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
+    }
+  }
+
+  return remoteUserMeetsOneCondition(req, expense, allowedRoles);
 };
 
 /** Checks if the user can see expense's invoice information (the generated PDF) */
@@ -1219,6 +1224,25 @@ export const canEditExpenseAccountingCategory = async (
     return false;
   }
 
+  // If the collective has changed hosts, only the original host can categorize past expenses
+  if (expense.HostCollectiveId) {
+    expense.collective = expense.collective ?? (await req.loaders.Collective.byId.load(expense.CollectiveId));
+    if (
+      expense.HostCollectiveId &&
+      expense.collective.HostCollectiveId !== expense.HostCollectiveId &&
+      req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && // Admin of the current host
+      !req.remoteUser.isAdmin(expense.HostCollectiveId) // but not the original host
+    ) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'This expense was processed by a different host',
+          EXPENSE_PERMISSION_ERROR_CODES.EXPENSE_BELONGS_TO_DIFFERENT_HOST,
+        );
+      }
+      return false;
+    }
+  }
+
   if (!(await hasFeature(host, FEATURE.CHART_OF_ACCOUNTS, { loaders: req.loaders }))) {
     if (options?.throw) {
       throw new Forbidden(
@@ -1932,6 +1956,38 @@ const checkCanUseAccountingCategory = (
   }
 };
 
+const checkFromCollective = async (
+  fromCollective: Collective,
+  remoteUser: User,
+  collective: Collective,
+  { skipPermissionCheck = false } = {},
+) => {
+  if (!fromCollective.canBeUsedAsPayoutProfile()) {
+    throw new ValidationFailed('This account cannot be used for payouts');
+  }
+
+  if (fromCollective.type === CollectiveType.VENDOR) {
+    const host = await collective.getHostCollective();
+    assert(
+      fromCollective.ParentCollectiveId === collective.HostCollectiveId,
+      new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
+    );
+
+    if (!skipPermissionCheck) {
+      const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+      const isVendorVisibleByCollective = fromCollective.data?.visibleToAccountIds?.includes(collective.id);
+      assert(
+        publicVendorPolicy ||
+          remoteUser.isAdminOfCollective(fromCollective) ||
+          (isVendorVisibleByCollective && remoteUser.isAdminOfCollective(collective)),
+        new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
+      );
+    }
+  } else if (!skipPermissionCheck && !remoteUser.isAdminOfCollective(fromCollective)) {
+    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
+  }
+};
+
 export async function prepareAttachedFiles(req: express.Request, attachedFiles: ExpenseData['attachedFiles']) {
   if (!attachedFiles) {
     return null;
@@ -2258,25 +2314,7 @@ export async function createExpense(
   }
 
   // Check payee
-  if (fromCollective.type === CollectiveType.VENDOR) {
-    const host = await collective.getHostCollective();
-    assert(
-      fromCollective.ParentCollectiveId === collective.HostCollectiveId,
-      new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
-    );
-    const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
-    const isVendorVisibleByCollective = fromCollective.data?.visibleToAccountIds?.includes(collective.id);
-    assert(
-      publicVendorPolicy ||
-        remoteUser.isAdminOfCollective(fromCollective) ||
-        (isVendorVisibleByCollective && remoteUser.isAdminOfCollective(collective)),
-      new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
-    );
-  } else if (!remoteUser.isAdminOfCollective(fromCollective)) {
-    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
-  } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
-    throw new ValidationFailed('This account cannot be used for payouts');
-  }
+  await checkFromCollective(fromCollective, remoteUser, collective);
 
   // Update payee's location
   const existingLocation = await fromCollective.getLocation();
@@ -2966,18 +3004,9 @@ export async function editExpense(
 
   // Check payee
   if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
-    if (!options?.skipPermissionCheck && !remoteUser.isAdminOfCollective(fromCollective)) {
-      throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
-    } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
-      throw new ValidationFailed('This account cannot be used for payouts');
-    }
-    // If payee is a vendor, make sure it belongs to the same Fiscal Host as the collective
-    if (fromCollective.type === CollectiveType.VENDOR) {
-      assert(
-        fromCollective.ParentCollectiveId === collective.HostCollectiveId,
-        new ValidationFailed('Vendor must belong to the same Fiscal Host as the Collective'),
-      );
-    }
+    await checkFromCollective(expenseData.fromCollective, remoteUser, collective, {
+      skipPermissionCheck: options?.skipPermissionCheck,
+    });
   }
 
   await checkLockedFields(expense, {
@@ -3235,155 +3264,6 @@ export async function deleteExpense(req: express.Request, expenseId: number): Pr
   return expense.reload({ paranoid: false });
 }
 
-async function payExpenseWithPayPalAdaptive(
-  remoteUser,
-  expense,
-  host,
-  paymentMethod,
-  toPaypalEmail,
-  fees = {},
-): Promise<Expense> {
-  debug('payExpenseWithPayPalAdaptive', expense.id);
-
-  if (expense.currency !== expense.collective.currency) {
-    throw new Error(
-      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts: https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-paypal',
-    );
-  }
-
-  if (parseToBoolean(process.env.DISABLE_PAYPAL_ADAPTIVE) && !remoteUser.isRoot()) {
-    throw new Error('PayPal adaptive is currently under maintenance. Please try again later.');
-  }
-
-  let paymentResponse: Awaited<ReturnType<typeof paymentProviders.paypal.types.adaptive.pay>> = null;
-  try {
-    paymentResponse = await paymentProviders.paypal.types['adaptive'].pay(
-      expense.collective,
-      expense,
-      toPaypalEmail,
-      paymentMethod.token,
-    );
-
-    const { createPaymentResponse, executePaymentResponse } = paymentResponse;
-    switch (executePaymentResponse.paymentExecStatus) {
-      case 'COMPLETED':
-        break;
-
-      case 'CREATED':
-        /*
-         * When we don't provide a preapprovalKey (paymentMethod.token) to payServices['paypal'](),
-         * it creates a payKey that we can use to redirect the user to PayPal.com to manually approve that payment
-         * TODO We should handle that case on the frontend
-         */
-        throw new errors.BadRequest(
-          `Please approve this payment manually on ${createPaymentResponse.paymentApprovalUrl}`,
-        );
-
-      case 'ERROR':
-        // Backward compatible error message parsing
-        // eslint-disable-next-line no-case-declarations
-        const errorMessage =
-          (executePaymentResponse.payErrorList as any)?.payError?.[0].error?.message ||
-          executePaymentResponse.payErrorList?.[0].error?.message;
-        throw new errors.ServerError(
-          `Error while paying the expense with PayPal: "${errorMessage}". Please contact support@opencollective.com or pay it manually through PayPal.`,
-        );
-
-      default:
-        throw new errors.ServerError(
-          `Error while paying the expense with PayPal. Please contact support@opencollective.com or pay it manually through PayPal.`,
-        );
-    }
-
-    // Warning senderFees can be null
-    let senderFees = 0;
-    const { defaultFundingPlan } = createPaymentResponse;
-    if (defaultFundingPlan) {
-      const senderFeesAmountFromFundingPlan = defaultFundingPlan.senderFees?.amount;
-      if (senderFeesAmountFromFundingPlan) {
-        senderFees = floatAmountToCents(parseFloat(senderFeesAmountFromFundingPlan));
-      } else {
-        // PayPal stopped providing senderFees in the response, we need to compute it ourselves
-        // We don't have to check for feesPayer here because it is not supported for PayPal adaptive
-        const { fundingAmount } = defaultFundingPlan;
-        const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
-        const amountReceivedByPayee = expense.amount;
-        senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee) || 0;
-
-        // No example yet, but we want to know if this ever happens
-        if (fundingAmount.code !== expense.currency) {
-          reportMessageToSentry(`PayPal adaptive got a funding amount with a different currency than the expense`, {
-            severity: 'error',
-          });
-        }
-      }
-    } else {
-      // PayPal randomly omits the defaultFundingPlan, even though the transaction has payment processor fees attached.
-      // We therefore need to fetch the information from the API
-      // See https://github.com/opencollective/opencollective/issues/6581
-      try {
-        const payKey = createPaymentResponse.payKey;
-        // Retrieve transaction ID
-        const paymentDetails = await paypalAdaptive.paymentDetails({ payKey });
-        const transactionId = paymentDetails.paymentInfoList.paymentInfo[0].transactionId;
-        const toDate = moment().add(1, 'day'); // The transaction normally happened a few seconds ago, hit the API with a 1 day buffer to make sure we won't miss it
-        const fromDate = moment(toDate).subtract(15, 'days');
-        const { transactions } = await listPayPalTransactions(host, fromDate, toDate, {
-          fields: 'transaction_info',
-          currentPage: 1,
-          transactionId,
-        });
-        senderFees = Math.abs(parseFloat(transactions[0].transaction_info.fee_amount.value));
-        reportMessageToSentry('Transaction was missing defaultFundingPlan', {
-          user: remoteUser,
-          severity: 'warning',
-          feature: FEATURE.PAYPAL_PAYOUTS,
-          extra: { paymentResponse, payKey, transactionId, senderFees, expense: expense.info },
-        });
-      } catch (e) {
-        reportErrorToSentry(e, {
-          user: remoteUser,
-          severity: 'error', // We want to be alerted, as this will prevent the expense fees from being recorded correctly
-          feature: FEATURE.PAYPAL_PAYOUTS,
-          extra: { paymentResponse, expense: expense.info },
-        });
-      }
-    }
-
-    const clearedAt = new Date(executePaymentResponse.responseEnvelope.timestamp);
-    const currencyConversion = defaultFundingPlan?.currencyConversion || { exchangeRate: 1 };
-    const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
-    fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
-
-    // Set the paymentMethod so it's persisted to Expense and Transactions
-    expense.setPaymentMethod(paymentMethod);
-    await expense.save();
-    // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
-    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, { ...paymentResponse, clearedAt });
-    // Mark Expense as Paid, create activity and send notifications
-    await expense.markAsPaid({ user: remoteUser });
-    await paymentMethod.updateBalance();
-    return expense;
-  } catch (err) {
-    debug('paypal> error', JSON.stringify(err, null, '  '));
-    if (
-      err.message.indexOf('The total amount of all payments exceeds the maximum total amount for all payments') !== -1
-    ) {
-      throw new ValidationFailed(
-        'Not enough funds in your existing Paypal preapproval. Please refill your PayPal payment balance.',
-      );
-    } else {
-      reportErrorToSentry(err, {
-        user: remoteUser,
-        feature: FEATURE.PAYPAL_PAYOUTS,
-        extra: { paymentResponse, toPaypalEmail, expense: expense.info },
-      });
-
-      throw new BadRequest(err.message);
-    }
-  }
-}
-
 const matchFxRateWithCurrency = (
   expectedSourceCurrency: string,
   expectedTargetCurrency: string,
@@ -3536,11 +3416,7 @@ export const getExpenseFees = async (
       );
     }
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = await paymentProviders.paypal.types['adaptive'].fees({
-      amount: expense.amount,
-      currency: expense.collective.currency,
-      host,
-    });
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = await estimatePaypalPayoutFee(host, expense);
   }
 
   // Build fees in host currency
@@ -3840,36 +3716,9 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
         await checkFeatureAccess(host, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
 
-        if (expense.collective.currency !== host.currency) {
-          throw new Error(
-            'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-paypal',
-          );
-        }
-
-        const paypalEmail = payoutMethod.data['email'];
-        let paypalPaymentMethod = null;
-        try {
-          paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' });
-        } catch {
-          // ignore missing paypal payment method
-        }
-        // If the expense has been filed with the same paypal email than the host paypal
-        // then we simply mark the expense as paid
-        if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
-          feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
-        } else if (paypalPaymentMethod) {
-          return payExpenseWithPayPalAdaptive(
-            remoteUser,
-            expense,
-            host,
-            paypalPaymentMethod,
-            paypalEmail,
-            feesInHostCurrency,
-          );
-        } else {
-          throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
-        }
+        throw new BadRequest(
+          'To pay via PayPal, please use "Schedule for Payment" instead of "Pay". PayPal Adaptive (instant payment) has been discontinued. See: https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-with-paypal',
+        );
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
         if (host.settings?.transferwise?.ott === true) {
           throw new Error('You cannot pay this expense directly without Scheduling it for payment first.');

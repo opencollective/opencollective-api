@@ -136,6 +136,23 @@ export const optsSanitizeHtmlForSimplified: SanitizeOptions = buildSanitizerOpti
   links: true,
 });
 
+export const optsSanitizeOnlyTextFormatting = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+});
+
+/**
+ * For rich text editor in simplified mode with imageUploadEnabled=true.
+ */
+export const optsSanitizedSimplifiedWithImages = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+  images: true,
+  mainTitles: true,
+  titles: true,
+});
+
 /**
  * Sanitize the given input to strip the HTML content.
  *

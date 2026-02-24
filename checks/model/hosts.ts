@@ -1,5 +1,7 @@
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
@@ -8,14 +10,16 @@ import { runAllChecksThenExit } from './_utils';
 async function checkHostFeePercent({ fix = false } = {}) {
   const message = 'Host without hostFeePercent';
 
-  const results = await sequelize.query(
-    `SELECT COUNT(*) as count
+  const results = await sequelize.query<{ count: number }>(
+    `
+     SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "deletedAt" IS NULL
      AND "hostFeePercent" IS NULL
      AND "hasMoneyManagement" IS TRUE
-     AND "type" IN ('ORGANIZATION', 'USER')`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+     AND "type" IN ('ORGANIZATION', 'USER')
+    `,
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
@@ -23,14 +27,14 @@ async function checkHostFeePercent({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(
-        `UPDATE "Collectives"
+      await sequelize.query(`
+        UPDATE "Collectives"
          SET "hostFeePercent" = 0
          WHERE "deletedAt" IS NULL
          AND "hostFeePercent" IS NULL
          AND "hasMoneyManagement" IS TRUE
-         AND "type" IN ('ORGANIZATION', 'USER')`,
-      );
+         AND "type" IN ('ORGANIZATION', 'USER')
+      `);
     }
   }
 }
@@ -38,8 +42,9 @@ async function checkHostFeePercent({ fix = false } = {}) {
 async function checkHostMemberEntry({ fix = false } = {}) {
   const message = 'No Collective with approved host without host member entry';
 
-  const results = await sequelize.query(
-    `SELECT COUNT(*) as count
+  const results = await sequelize.query<{ count: number }>(
+    `
+     SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "HostCollectiveId" IS NOT NULL
      AND "approvedAt" IS NOT NULL
@@ -56,8 +61,9 @@ async function checkHostMemberEntry({ fix = false } = {}) {
        SELECT * FROM "Collectives" c2
        WHERE "Collectives"."id" = c2."HostCollectiveId"
        AND c2."deletedAt" IS NULL
-     )`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+     )
+    `,
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
@@ -65,8 +71,8 @@ async function checkHostMemberEntry({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(
-        `INSERT INTO "Members" (
+      await sequelize.query(`
+        INSERT INTO "Members" (
            "createdAt",
            "updatedAt",
            "CreatedByUserId",
@@ -99,8 +105,8 @@ async function checkHostMemberEntry({ fix = false } = {}) {
            SELECT * FROM "Collectives" c2
            WHERE "Collectives"."id" = c2."HostCollectiveId"
            AND c2."deletedAt" IS NULL
-         )`,
-      );
+         )
+      `);
     }
   }
 }
@@ -108,15 +114,17 @@ async function checkHostMemberEntry({ fix = false } = {}) {
 async function checkHostActive({ fix = false } = {}) {
   const message = 'Host with isActive=false';
 
-  const results = await sequelize.query(
-    `SELECT COUNT(*) as count
+  const results = await sequelize.query<{ count: number }>(
+    `
+     SELECT COUNT(*) as count
      FROM "Collectives"
      WHERE "hasMoneyManagement" IS TRUE
      AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
      AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
      AND "isActive" IS FALSE
-     AND COALESCE(("settings"->'forceHostAccountInactive')::boolean, false) IS FALSE`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+     AND COALESCE(("settings"->'forceHostAccountInactive')::boolean, false) IS FALSE
+    `,
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
@@ -124,15 +132,15 @@ async function checkHostActive({ fix = false } = {}) {
       throw new Error(message);
     } else {
       logger.warn(`Fixing: ${message}`);
-      await sequelize.query(
-        `UPDATE "Collectives"
+      await sequelize.query(`
+        UPDATE "Collectives"
          SET "isActive" = TRUE
          WHERE "hasMoneyManagement" IS TRUE
          AND "deletedAt" IS NULL AND "deactivatedAt" IS NULL
          AND "approvedAt" IS NOT NULL AND "HostCollectiveId" = "id"
          AND "isActive" IS FALSE
-         AND COALESCE(("settings"->'forceHostAccountInactive')::boolean, false) IS FALSE`,
-      );
+         AND COALESCE(("settings"->'forceHostAccountInactive')::boolean, false) IS FALSE
+      `);
     }
   }
 }

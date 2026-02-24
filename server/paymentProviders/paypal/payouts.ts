@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
+import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
 import { getFxRate } from '../../lib/currency';
@@ -210,4 +211,74 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
     throw new Error('There was an error fetching the batch info.');
   }
   return batch;
+};
+
+// See https://www.paypal.com/lu/business/paypal-business-fees#statement-10
+const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
+  Record<SupportedCurrency, { domesticMax: number; internationalMax: number }>
+> = {
+  AUD: { domesticMax: 16_00, internationalMax: 100_00 },
+  BRL: { domesticMax: 24_00, internationalMax: 150_00 },
+  CAD: { domesticMax: 14_00, internationalMax: 90_00 },
+  CZK: { domesticMax: 280_00, internationalMax: 1700_00 },
+  DKK: { domesticMax: 84_00, internationalMax: 500_00 },
+  EUR: { domesticMax: 12_00, internationalMax: 70_00 },
+  HKD: { domesticMax: 110_00, internationalMax: 660_00 },
+  HUF: { domesticMax: 3080_00, internationalMax: 18_500_00 },
+  ILS: { domesticMax: 50_00, internationalMax: 320_00 },
+  JPY: { domesticMax: 1200, internationalMax: 8000 },
+  MYR: { domesticMax: 50_00, internationalMax: 300_00 },
+  MXN: { domesticMax: 170_00, internationalMax: 1080_00 },
+  TWD: { domesticMax: 440_00, internationalMax: 2700_00 },
+  NZD: { domesticMax: 20_00, internationalMax: 120_00 },
+  NOK: { domesticMax: 90_00, internationalMax: 540_00 },
+  PHP: { domesticMax: 640_00, internationalMax: 3800_00 },
+  PLN: { domesticMax: 46_00, internationalMax: 280_00 },
+  RUB: { domesticMax: 480_00, internationalMax: 2800_00 },
+  SGD: { domesticMax: 20_00, internationalMax: 120_00 },
+  SEK: { domesticMax: 100_00, internationalMax: 640_00 },
+  CHF: { domesticMax: 16_00, internationalMax: 100_00 },
+  THB: { domesticMax: 460_00, internationalMax: 2800_00 },
+  GBP: { domesticMax: 10_00, internationalMax: 60_00 },
+  USD: { domesticMax: 14_00, internationalMax: 90_00 },
+};
+
+/**
+ * Tries its best to estimate PayPal payout fees for an expense. The result is an approximate amount that should **NOT**
+ * be used for accounting purposes, and should be presented to the user as an estimate.
+ *
+ * PayPal does not provide a dedicated API endpoint for pre-calculating Payout fees, so this function implements the standard formula based on official documentation:
+ * > fee = min(payout_amount * 0.02, fee_cap)
+ * where fee_cap varies by currency and whether the transaction is domestic or international.
+ *
+ * ## Key Considerations:
+ * - **No dry-run API**: Fees are only finalized post-transaction, but batch creation responses include a `fees` estimate.
+ * - **Factors affecting fees**:
+ *   - Sender's country (domestic vs. international caps).
+ *   - Recipient currency (conversion fees may apply).
+ *   - US API users: Sometimes a flat $0.25 USD per transaction.
+ *
+ * ## Docs:
+ * - Official Payouts Fees: https://developer.paypal.com/docs/payouts/standard/reference/fees/
+ * - All fees: https://www.paypal.com/lu/business/paypal-business-fees
+ * - Merchant Fees (caps per currency): https://www.paypal.com/us/webapps/mpp/merchant-fees#paypal-payouts
+ * - Payouts API Reference: https://developer.paypal.com/docs/api/payments.payouts-batch/v1/
+ * - Fee Calculation Details: https://www.paypal.com/us/cshelp/article/how-are-fees-for-payouts-calculated-and-reported-ts2216
+ */
+export const estimatePaypalPayoutFee = async (host: Collective, expense: Expense): Promise<number> => {
+  const hostCountry = host.countryISO;
+  const payee = expense.fromCollective || (await expense.getFromCollective());
+  const hostCurrency = host.currency;
+  const payeeCountry = payee.countryISO;
+  const isDomestic = hostCountry === payeeCountry;
+  const baseFee = Math.round(expense.amount * 0.02);
+  const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[hostCurrency];
+
+  // No known cap for this currency => best-effort: return 2% uncapped (can overestimate for large payouts).
+  if (!caps) {
+    return baseFee;
+  }
+
+  // Return the minimum of the base fee and the cap
+  return Math.min(baseFee, isDomestic ? caps.domesticMax : caps.internationalMax);
 };

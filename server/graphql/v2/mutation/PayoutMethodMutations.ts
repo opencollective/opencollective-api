@@ -3,8 +3,6 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import ExpenseStatuses from '../../../constants/expense-status';
-import logger from '../../../lib/logger';
-import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -41,25 +39,7 @@ const payoutMethodMutations = {
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
-      if (args.payoutMethod.data?.isManualBankTransfer) {
-        try {
-          await collective.setCurrency(args.payoutMethod.data.currency);
-        } catch (error) {
-          logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
-          reportErrorToSentry(error);
-        }
-
-        const existingBankAccount = await models.PayoutMethod.findOne({
-          where: {
-            data: { isManualBankTransfer: true },
-            CollectiveId: collective.id,
-            isSaved: true,
-          },
-        });
-        if (existingBankAccount) {
-          return await existingBankAccount.update(pick(args.payoutMethod, ['name', 'data']));
-        }
-      } else if (args.payoutMethod.type === PayoutMethodTypes.OTHER && !args.payoutMethod.data) {
+      if (args.payoutMethod.type === PayoutMethodTypes.OTHER && !args.payoutMethod.data) {
         throw new ValidationFailed(
           'Custom payout methods must have a `data` object with a `content` and a `currency` field',
         );
@@ -101,10 +81,6 @@ const payoutMethodMutations = {
       } else if (await payoutMethod.canBeArchived()) {
         return payoutMethod.update({
           isSaved: false,
-          data: {
-            ...payoutMethod.data,
-            ...(payoutMethod.data['isManualBankTransfer'] ? { isManualBankTransfer: false } : {}),
-          },
         });
       } else {
         throw new Forbidden();
@@ -113,6 +89,7 @@ const payoutMethodMutations = {
   },
   restorePayoutMethod: {
     description: 'Restore the given payout method. Scope: "expenses".',
+    deprecationReason: '2025-02-10: Payout methods cannot be restored.',
     type: new GraphQLNonNull(GraphQLPayoutMethod),
     args: {
       payoutMethod: {
@@ -120,17 +97,8 @@ const payoutMethodMutations = {
         description: 'Payout Method reference',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<PayoutMethodModel> {
-      checkRemoteUserCanUseExpenses(req);
-
-      const payoutMethod = await fetchPayoutMethodWithReference(args.payoutMethod);
-
-      const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Forbidden();
-      }
-
-      return payoutMethod.update({ isSaved: true });
+    async resolve() {
+      throw new Forbidden('Payout methods cannot be restored.');
     },
   },
   editPayoutMethod: {
@@ -153,6 +121,10 @@ const payoutMethodMutations = {
 
       // Enforce 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
+
+      if (!payoutMethod.isSaved && args.payoutMethod.isSaved === true) {
+        throw new Forbidden('Archived payout methods cannot be restored.');
+      }
 
       if (await payoutMethod.canBeEdited()) {
         return await payoutMethod.update({

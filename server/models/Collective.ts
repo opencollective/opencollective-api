@@ -114,7 +114,7 @@ import AccountingCategory from './AccountingCategory';
 import Activity from './Activity';
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
-import Expense from './Expense';
+import Expense, { ExpenseType } from './Expense';
 import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
@@ -189,6 +189,7 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  expenseTypes?: Partial<Record<ExpenseType, boolean>>;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -294,6 +295,8 @@ class Collective extends Model<
   >,
   InferCreationAttributes<Collective>
 > {
+  public static readonly tableName = 'Collectives' as const;
+
   declare public id: number;
   declare public type: CollectiveType;
   declare public slug: string;
@@ -1097,13 +1100,6 @@ class Collective extends Model<
     unset(settings, 'paymentMethods.manual');
 
     await this.update({ hasMoneyManagement: false, plan: null, settings });
-
-    await PayoutMethod.destroy({
-      where: {
-        data: { isManualBankTransfer: true },
-        CollectiveId: this.id,
-      },
-    });
 
     await ConnectedAccount.destroy({
       where: {

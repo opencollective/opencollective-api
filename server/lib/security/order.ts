@@ -2,6 +2,7 @@ import config from 'config';
 import debugLib from 'debug';
 import express from 'express';
 import { pick, toLower, toString } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { ValidationFailed } from '../../graphql/errors';
@@ -44,7 +45,7 @@ export const getUserStats = async (user: User, interval?: string): Promise<Fraud
     AND o."deletedAt" IS NULL
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
-    { replacements: { userId: user.id, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    { replacements: { userId: user.id, interval }, type: QueryTypes.SELECT, raw: true, plain: true },
   );
 };
 
@@ -57,7 +58,7 @@ export const getEmailStats = async (email: string, interval?: string): Promise<F
     AND o."deletedAt" IS NULL
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
-    { replacements: { email, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    { replacements: { email, interval }, type: QueryTypes.SELECT, raw: true, plain: true },
   );
 };
 
@@ -69,7 +70,7 @@ export const getIpStats = async (ip: string, interval?: string): Promise<FraudSt
     AND o."deletedAt" IS NULL
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
-    { replacements: { ip, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    { replacements: { ip, interval }, type: QueryTypes.SELECT, raw: true, plain: true },
   );
 };
 
@@ -99,7 +100,7 @@ export const getCreditCardStats = async (
     `,
     {
       replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, interval, fingerprint },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       raw: true,
       plain: true,
     },
