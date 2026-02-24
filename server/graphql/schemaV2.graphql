@@ -25397,7 +25397,7 @@ input ContributionAccountingCategoryRuleInput {
   """
   The ID of the contribution accounting category rule to edit
   """
-  id: String!
+  id: String
 
   """
   The accounting category to apply the rule to

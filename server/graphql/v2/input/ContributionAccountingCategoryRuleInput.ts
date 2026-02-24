@@ -8,7 +8,7 @@ export const GraphQLContributionAccountingCategoryRuleInput = new GraphQLInputOb
   description: 'Input for creating or updating a contribution accounting category rule',
   fields: {
     id: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
       description: 'The ID of the contribution accounting category rule to edit',
     },
     accountingCategory: {
