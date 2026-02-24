@@ -1,17 +1,21 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { cloneDeep, isNil, pick, uniq } from 'lodash';
+import { Transaction } from 'sequelize';
 
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import { normalizeContributionAccountingCategoryRulePredicate } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
 import models, { sequelize } from '../../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
+import { ContributionAccountingCategoryRule } from '../../../models/ContributionAccountingCategoryRule';
 import { enforceScope } from '../../common/scope-check';
 import { Forbidden, ValidationFailed } from '../../errors';
-import { idDecode } from '../identifiers';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountingCategoryInput, AccountingCategoryInputFields } from '../input/AccountingCategoryInput';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLContributionAccountingCategoryRuleInput } from '../input/ContributionAccountingCategoryRuleInput';
 import { GraphQLAccount } from '../interface/Account';
 
 type AccountingCategoryInputWithNormalizedId = Omit<AccountingCategoryInputFields, 'id'> & { id?: number };
@@ -134,6 +138,79 @@ export default {
           throw e;
         }
       }
+
+      return account;
+    },
+  },
+  updateContributionAccountingCategoryRules: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Update the contribution accounting category rules. Returns the account with the updated rules.',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'The host to update the contribution accounting category rules for',
+      },
+      rules: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLContributionAccountingCategoryRuleInput))),
+        description: 'The contribution accounting category rules to update',
+      },
+    },
+    resolve: async (_: void, args, req) => {
+      // Check scope
+      enforceScope(req, 'host');
+
+      // Load & validate account
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      if (!req.remoteUser?.isAdminOfCollective(account)) {
+        throw new Forbidden(
+          'You must be logged in as an admin of this account to update its contribution accounting category rules',
+        );
+      } else if (!account.hasMoneyManagement) {
+        throw new ValidationFailed('Contribution accounting category rules can only be set at the host level');
+      }
+
+      await checkFeatureAccess(account, FEATURE.CONTRIBUTION_CATEGORIZATION_RULES, { loaders: req.loaders });
+
+      const rules = await Promise.all(
+        args.rules.map(async (rule, ruleIndex) => {
+          const normalizedPredicates = [];
+          for (let predicateIndex = 0; predicateIndex < (rule.predicates?.length || 0); predicateIndex++) {
+            const predicate = rule.predicates[predicateIndex];
+            const normalizedPredicate = await normalizeContributionAccountingCategoryRulePredicate(predicate);
+            normalizedPredicates[predicateIndex] = normalizedPredicate;
+          }
+
+          return {
+            id: rule.id ? idDecode(rule.id, IDENTIFIER_TYPES.CONTRIBUTION_ACCOUNTING_CATEGORY_RULE) : null,
+            CollectiveId: account.id,
+            AccountingCategoryId: idDecode(rule.accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
+            name: rule.name,
+            enabled: isNil(rule.enabled) ? true : rule.enabled,
+            predicates: normalizedPredicates,
+            order: ruleIndex,
+          };
+        }),
+      );
+
+      await sequelize.transaction(async transaction => {
+        const existingRules = await ContributionAccountingCategoryRule.findAll({
+          where: { CollectiveId: account.id },
+          transaction,
+          lock: Transaction.LOCK.UPDATE,
+        });
+
+        const toDelete = existingRules.filter(rule => !rules.some(r => r.id === rule.id));
+
+        await ContributionAccountingCategoryRule.destroy({
+          where: { id: toDelete.map(r => r.id) },
+          transaction,
+        });
+
+        await ContributionAccountingCategoryRule.bulkCreate(rules, {
+          transaction,
+          updateOnDuplicate: ['order', 'enabled', 'name', 'predicates', 'AccountingCategoryId', 'updatedAt'],
+        });
+      });
 
       return account;
     },
