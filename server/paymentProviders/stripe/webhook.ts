@@ -180,23 +180,23 @@ export const mandateUpdated = async (event: Stripe.Event) => {
   });
 };
 
-export async function paymentIntentSucceeded(event: Stripe.Event) {
+export async function paymentIntentSucceeded(event: Stripe.Event, opts: { skipNotify?: boolean } = {}) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
   const target = await paymentIntentTarget(paymentIntent);
 
   switch (target) {
     case 'EXPENSE': {
-      return handleExpensePaymentIntentSucceeded(event);
+      return handleExpensePaymentIntentSucceeded(event, opts);
     }
     case 'ORDER':
     default: {
-      return handleOrderPaymentIntentSucceeded(event);
+      return handleOrderPaymentIntentSucceeded(event, opts);
     }
   }
 }
 
-const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
+const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event, opts: { skipNotify?: boolean } = {}) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
@@ -256,11 +256,13 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     sideEffects.push(subscription.update({ lastChargedAt: transaction.clearedAt }));
   }
 
-  sendEmailNotifications(order, transaction);
+  if (!opts.skipNotify) {
+    sendEmailNotifications(order, transaction);
+  }
   await Promise.all(sideEffects);
 };
 
-async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
+async function handleExpensePaymentIntentSucceeded(event: Stripe.Event, opts: { skipNotify?: boolean } = {}) {
   const stripeAccount = event.account ?? config.stripe.accountId;
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
@@ -335,7 +337,7 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
   });
 
   if (shouldMarkPaid) {
-    await expense.markAsPaid();
+    await expense.markAsPaid({ skipActivity: opts.skipNotify });
   }
 }
 
@@ -531,7 +533,7 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
   });
 }
 
-export async function paymentIntentFailed(event: Stripe.Event) {
+export async function paymentIntentFailed(event: Stripe.Event, opts: { skipNotify?: boolean } = {}) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
   const target = await paymentIntentTarget(paymentIntent);
@@ -542,12 +544,12 @@ export async function paymentIntentFailed(event: Stripe.Event) {
     }
     case 'ORDER':
     default: {
-      return handleOrderPaymentIntentFailed(event);
+      return handleOrderPaymentIntentFailed(event, opts);
     }
   }
 }
 
-const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
+const handleOrderPaymentIntentFailed = async (event: Stripe.Event, opts: { skipNotify?: boolean } = {}) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
@@ -576,7 +578,9 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
 
   const userFriendlyError = userFriendlyErrorMessage({ message: reason }) || UNKNOWN_ERROR_MSG;
 
-  sendOrderFailedEmail(order, userFriendlyError);
+  if (!opts.skipNotify) {
+    sendOrderFailedEmail(order, userFriendlyError);
+  }
 };
 
 async function handleExpensePaymentIntentFailed(event: Stripe.Event) {
