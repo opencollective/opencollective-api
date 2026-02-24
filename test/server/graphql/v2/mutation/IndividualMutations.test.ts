@@ -141,6 +141,18 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal('Invalid current password while attempting to change password.');
       });
+
+      it('should throw an error if the new password is the same as current password', async () => {
+        const user = await fakeUser({ passwordHash: null });
+        await user.setPassword('samepassword');
+        const result = await graphqlQueryV2(
+          setPasswordMutation,
+          { password: 'samepassword', currentPassword: 'samepassword' },
+          user,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('New password must be different from current password.');
+      });
     });
 
     describe('using a reset token', () => {
@@ -183,6 +195,22 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
         expect(user.passwordUpdatedAt).to.exist;
         expect(await bcrypt.compare('oldpassword', user.passwordHash)).to.be.false;
         expect(await bcrypt.compare('newpassword', user.passwordHash)).to.be.true;
+      });
+
+      it('should throw an error if the new password matches current during reset', async () => {
+        const user = await fakeUser({ passwordHash: null });
+        await user.setPassword('oldpassword');
+        const resetUrl = await user.generateResetPasswordLink();
+        const token = resetUrl.split('/').pop();
+
+        const res = await request(expressApp)
+          .post('/graphql')
+          .send({ query: resetPasswordMutation, variables: { password: 'oldpassword' } })
+          .set('Authorization', `Bearer ${token}`)
+          .expect(200);
+
+        expect(res.body.errors).to.exist;
+        expect(res.body.errors[0].message).to.equal('New password must be different from current password.');
       });
 
       it('should throw an error if the email does not match', async () => {
