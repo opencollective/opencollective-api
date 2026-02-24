@@ -22,7 +22,7 @@ const debug = debugLib('export-requests-worker');
 
 const CHANNEL_NAME = 'export-requests';
 const FUNCTION_NAME = 'notify_export_requests_on_change';
-const TICK_INTERVAL = 5 * 60_000;
+const TICK_INTERVAL = 1 * 60_000;
 const ABORT_ERROR = 'Process aborted';
 const MAX_RETRIES = 3;
 const TABLES = [{ tableName: 'ExportRequests', triggerPrefix: 'export_requests' }];
