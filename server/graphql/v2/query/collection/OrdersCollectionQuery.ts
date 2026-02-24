@@ -335,7 +335,10 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
-  let account: Collective, oppositeAccount: Collective, hostedAccounts: Collective[], hostContext: OrdersCollectionArgsType['hostContext'];
+  let account: Collective,
+    oppositeAccount: Collective,
+    hostedAccounts: Collective[],
+    hostContext: OrdersCollectionArgsType['hostContext'];
 
   // Use deprecated includeHostedAccounts argument
   if (args.includeHostedAccounts === true && isNil(args.hostContext)) {
@@ -496,7 +499,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           return or(ors);
         });
     })
-    .$if(account, qb => {
+    .$if(!!account, qb => {
       return qb.where(({ eb, or }) => {
         const ors: Expression<SqlBool>[] = [];
 
@@ -545,7 +548,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           .select('id')
           .where('Collectives.deletedAt', 'is', null)
           .$if(fromCollectiveOrConditions.length > 0, qb => qb.where(({ or }) => or(fromCollectiveOrConditions)))
-          .$if((!args.filter || args.filter === 'INCOMING') && oppositeAccount, qb =>
+          .$if((!args.filter || args.filter === 'INCOMING') && !!oppositeAccount, qb =>
             qb.where('id', '=', oppositeAccount.id),
           );
 
@@ -564,7 +567,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           .select('id')
           .where('Collectives.deletedAt', 'is', null)
           .$if(toCollectiveOrConditions.length > 0, qb => qb.where(({ or }) => or(toCollectiveOrConditions)))
-          .$if((!args.filter || args.filter === 'OUTGOING') && oppositeAccount, qb =>
+          .$if((!args.filter || args.filter === 'OUTGOING') && !!oppositeAccount, qb =>
             qb.where('id', '=', oppositeAccount.id),
           )
           .$if((!args.filter || args.filter === 'OUTGOING') && !!host, qb =>
