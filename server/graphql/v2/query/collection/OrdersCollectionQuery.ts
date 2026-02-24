@@ -335,7 +335,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
-  let account, oppositeAccount, hostedAccounts: Collective[], hostContext;
+  let account: Collective, oppositeAccount: Collective, hostedAccounts: Collective[], hostContext: OrdersCollectionArgsType['hostContext'];
 
   // Use deprecated includeHostedAccounts argument
   if (args.includeHostedAccounts === true && isNil(args.hostContext)) {
