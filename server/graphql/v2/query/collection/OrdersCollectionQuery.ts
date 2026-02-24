@@ -628,7 +628,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb('Orders.tags', '&&', [args.searchTerm.toLowerCase()]));
+        ors.push(eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`));
 
         return or(ors);
       });
