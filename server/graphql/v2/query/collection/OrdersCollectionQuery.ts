@@ -628,6 +628,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
+        ors.push(eb('Orders.tags', '&&', [args.searchTerm.toLowerCase()]));
 
         return or(ors);
       });
@@ -781,7 +782,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         const ors: Expression<SqlBool>[] = [];
 
         ors.push(eb('SubscriptionId', 'is not', null));
-        ors.push(eb('interval', 'in', ['year', 'month']).and(eb('status', '=', OrderStatuses.PROCESSING)));
+        ors.push(eb('Orders.interval', 'in', ['year', 'month']).and(eb('status', '=', OrderStatuses.PROCESSING)));
 
         return or(ors);
       });
