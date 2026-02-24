@@ -20,7 +20,6 @@ import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
-import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
 import Subscription from '../models/Subscription';
 import Transaction, { TransactionCreationAttributes, TransactionData } from '../models/Transaction';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
@@ -31,12 +30,10 @@ import {
   type PaymentProviderService,
   type PaymentProviderServiceWithInternalRecurringManagement,
 } from '../paymentProviders/types';
-import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import { notify } from './notifications/email';
 import { getFxRate } from './currency';
 import emailLib from './email';
-import logger from './logger';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
@@ -1083,32 +1080,18 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   let providerAccount = null;
   let providerInstructions = null;
   let providerName = null;
-  // TODO: This parameter should become mandatory once we push the new frontend
-  if (order.ManualPaymentProviderId) {
-    const manualPaymentProvider = await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId);
-    if (!manualPaymentProvider) {
-      throw new Error(`Manual payment provider not found for order ${order.id}`);
-    } else {
-      providerInstructions = manualPaymentProvider.instructions || null;
-      providerName = manualPaymentProvider.name || null;
-      providerAccount =
-        manualPaymentProvider.type === ManualPaymentProviderTypes.BANK_TRANSFER
-          ? formatAccountDetails(manualPaymentProvider.data, { asSafeHTML: true })
-          : '';
-    }
-  } else {
-    // Fall back to legacy manual bank transfer settings
-    logger.warn('Order email: No manual payment provider provided, using default one');
-    const manualPayoutMethod = await PayoutMethod.findOne({
-      where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
-    });
 
-    providerInstructions = get(host, 'settings.paymentMethods.manual.instructions', null);
+  const manualPaymentProvider =
+    order.ManualPaymentProviderId && (await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId));
+  if (!manualPaymentProvider) {
+    throw new Error(`Manual payment provider not found for order ${order.id}`);
+  } else {
+    providerInstructions = manualPaymentProvider.instructions || null;
+    providerName = manualPaymentProvider.name || null;
     providerAccount =
-      manualPayoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT
-        ? formatAccountDetails(manualPayoutMethod.data as BankAccountPayoutMethodData)
+      manualPaymentProvider.type === ManualPaymentProviderTypes.BANK_TRANSFER
+        ? formatAccountDetails(manualPaymentProvider.data, { asSafeHTML: true })
         : '';
-    providerName = 'Bank Transfer';
   }
 
   const data = {
