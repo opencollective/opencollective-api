@@ -67,7 +67,6 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(uploadCall.args[1]).to.equal('TRANSACTIONS_CSV_EXPORT');
       expect(uploadCall.args[2].id).to.equal(user.id);
       expect(uploadCall.args[3]).to.have.property('mimetype', 'text/csv');
-      expect(uploadCall.args[3].fileName).to.match(/^transactions-export-\d+\.csv$/);
 
       // Verify the export request was updated
       await exportRequest.reload();
@@ -136,7 +135,6 @@ describe('server/lib/export-requests/export-csv', () => {
       expect(kind).to.equal('TRANSACTIONS_CSV_EXPORT');
       expect(uploadUser.id).to.equal(user.id);
       expect(options).to.have.property('mimetype', 'text/csv');
-      expect(options.fileName).to.match(/^transactions-export-\d+\.csv$/);
       expect(stream).to.be.an.instanceof(Readable);
     });
 

@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExportRequest from '../../../models/ExportRequest';
@@ -89,6 +89,13 @@ export const GraphQLExportRequest = new GraphQLObjectType({
       description: 'The error message if the export request failed',
       resolve(exportRequest: ExportRequest) {
         return exportRequest.data?.error ?? null;
+      },
+    },
+    willRetry: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether a failed export request will be retried automatically',
+      resolve(exportRequest: ExportRequest) {
+        return exportRequest.data?.shouldRetry === true;
       },
     },
     createdAt: {

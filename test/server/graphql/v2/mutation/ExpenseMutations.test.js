@@ -1907,6 +1907,84 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type receipt are not allowed by the host');
     });
 
+    describe('vendor permissions', () => {
+      it('host admins can edit an expense to set a vendor', async () => {
+        const hostAdminUser = await fakeUser();
+        const host = await fakeHost({ admin: hostAdminUser });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
+      });
+
+      it('collective admins can edit an expense to set a vendor if the policy explicitly allows it', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
+      });
+
+      it('collective admins cannot edit an expense to set a vendor if the policy does not explicitly allow it', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost();
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('random users cannot edit an expense to set a vendor', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        // The random user is the expense submitter so they can edit it, but they cannot change the payee to a vendor
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+    });
+
     describe('editOnlyTagsAndAccountingCategory', () => {
       it('can update the tags as admin (even if the expense is PAID)', async () => {
         const adminUser = await fakeUser();
