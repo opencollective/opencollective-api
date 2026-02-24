@@ -562,7 +562,7 @@ export const GraphQLHost = new GraphQLObjectType({
               SELECT "id" FROM "Collectives"
               WHERE (
                  "id" = :hostCollectiveId
-                OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR'
+                OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')
               ) AND "deletedAt" IS NULL
             )
             SELECT
