@@ -637,9 +637,9 @@ export const GraphQLHost = new GraphQLObjectType({
               DATE_TRUNC(:timeUnit, COALESCE(t."clearedAt", t."createdAt") AT TIME ZONE 'UTC') AS "date",
               SUM(t."amountInHostCurrency") AS "amount",
               (SELECT "currency" FROM "Collectives" where id = :hostCollectiveId) as "currency",
-              COUNT(t."id") AS "count",
+              COUNT(o."id") AS "count",
               CASE
-                  WHEN t."CollectiveId" IN (SELECT * FROM HostCollectiveIds) THEN TRUE ELSE FALSE
+                  WHEN o."CollectiveId" IN (SELECT * FROM HostCollectiveIds) THEN TRUE ELSE FALSE
               END AS "isHost",
               o."AccountingCategoryId"
 
