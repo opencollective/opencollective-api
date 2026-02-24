@@ -116,6 +116,10 @@
       "endpoint": "AWS_S3_ENDPOINT",
       "sslEnabled": "AWS_S3_SSL_ENABLED",
       "forcePathStyle": "AWS_S3_FORCE_PATH_STYLE"
+    },
+    "ses": {
+      "smtpUser": "AWS_SES_SMTP_USER",
+      "smtpPassword": "AWS_SES_SMTP_PASSWORD"
     }
   },
   "cloudflare": {

@@ -51,6 +51,21 @@ export const getMailer = () => {
       port: config.mailpit.smtpPort,
     });
   }
+
+  // Check for AWS SES credentials
+  if (get(config, 'aws.ses.smtpUser') && get(config, 'aws.ses.smtpPassword')) {
+    return nodemailer.createTransport({
+      port: 465,
+      host: 'email-smtp.us-west-1.amazonaws.com',
+      secure: true,
+      auth: {
+        user: get(config, 'aws.ses.smtpUser'),
+        pass: get(config, 'aws.ses.smtpPassword'),
+      },
+    });
+  }
+
+  // Fallback to Mailgun if configured
   if (get(config, 'mailgun.user') && get(config, 'mailgun.password')) {
     return nodemailer.createTransport({
       service: 'Mailgun',
