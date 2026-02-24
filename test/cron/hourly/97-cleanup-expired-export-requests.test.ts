@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 import sinon from 'sinon';
 
-import { cleanupExpiredExports } from '../../../cron/daily/97-cleanup-expired-export-requests';
+import { cleanupExpiredExports } from '../../../cron/hourly/97-cleanup-expired-export-requests';
 import * as awsS3 from '../../../server/lib/awsS3';
 import models from '../../../server/models';
 import { ExportRequestStatus, ExportRequestTypes } from '../../../server/models/ExportRequest';
