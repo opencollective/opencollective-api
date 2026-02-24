@@ -289,7 +289,7 @@ export const GraphQLHost = new GraphQLObjectType({
                 HostCollectiveIds AS (
                     SELECT "id"
                     FROM "Collectives"
-                    WHERE "id" = :hostCollectiveId OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')
+                    WHERE ("id" = :hostCollectiveId OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')) AND "deletedAt" IS NULL
                 ),
                 AggregatedTransactions AS (
                     SELECT
@@ -560,8 +560,10 @@ export const GraphQLHost = new GraphQLObjectType({
           const query = `
             WITH HostCollectiveIds AS (
               SELECT "id" FROM "Collectives"
-              WHERE "id" = :hostCollectiveId
-              OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR')
+              WHERE (
+                 "id" = :hostCollectiveId
+                OR ("ParentCollectiveId" = :hostCollectiveId AND "type" != 'VENDOR'
+              ) AND "deletedAt" IS NULL
             )
             SELECT
               DATE_TRUNC(:timeUnit, e."createdAt" AT TIME ZONE 'UTC') AS "date",
