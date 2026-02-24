@@ -687,7 +687,22 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     .$if(!!args.expectedDateTo, qb => qb.where(sql`"Orders".data->>'expectedAt'"`, '<=', args.expectedDateTo))
 
     .$if(!!args.chargedDateFrom || !!args.chargedDateTo, qb => {
-      assert(Math.abs(moment(args.chargedDateFrom).diff(args.chargedDateTo, 'days')) <= 366, new Forbidden());
+      if (args.chargedDateFrom && args.chargedDateTo) {
+        assert(
+          Math.abs(moment(args.chargedDateFrom).diff(args.chargedDateTo, 'days')) <= 366,
+          new Forbidden('Cannot query more than 366 days at a time for charged date range'),
+        );
+      } else if (args.chargedDateFrom) {
+        assert(
+          Math.abs(moment(args.chargedDateFrom).diff(moment().utc(), 'days')) <= 366,
+          new Forbidden('Cannot query more than 366 days at a time for charged date range'),
+        );
+      } else if (args.chargedDateTo) {
+        assert(
+          Math.abs(moment('2015-01-01').diff(args.chargedDateTo, 'days')) <= 366,
+          new Forbidden('Cannot query more than 366 days at a time for charged date range'),
+        );
+      }
 
       return qb.innerJoin(
         expressionBuilder<DatabaseWithViews, 'Transactions'>()
