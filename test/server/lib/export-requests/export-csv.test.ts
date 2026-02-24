@@ -72,6 +72,7 @@ describe('server/lib/export-requests/export-csv', () => {
       await exportRequest.reload();
       expect(exportRequest.status).to.equal(ExportRequestStatus.COMPLETED);
       expect(exportRequest.UploadedFileId).to.equal(uploadedFile.id);
+      expect(exportRequest.expiresAt).to.not.be.null;
     });
 
     it('should pass the authorization header with API token', async () => {

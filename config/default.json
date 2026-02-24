@@ -292,5 +292,11 @@
   },
   "settlement": {
     "minimumAmountInUSD": 1000
+  },
+  "exports": {
+    "expirationDays": {
+      "TRANSACTIONS": 30,
+      "HOSTED_COLLECTIVES": 30
+    }
   }
 }
