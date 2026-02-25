@@ -3,6 +3,11 @@ An OAuth application.
 """
 type Application {
   id: String!
+
+  """
+  The resource public id (ie: app_xxxxxxxx)
+  """
+  publicId: String!
   legacyId: Int!
   type: ApplicationType
     @deprecated(
@@ -44,6 +49,11 @@ An OAuth authorization
 """
 type OAuthAuthorization {
   id: String
+
+  """
+  The resource public id (ie: utok_xxxxxxxx)
+  """
+  publicId: String!
   account: Individual!
   application: Application!
 
@@ -1912,6 +1922,11 @@ enum ImageFormat {
 
 input AccountReferenceInput {
   """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -2018,6 +2033,11 @@ enum OrderDirection {
 
 input TierReferenceInput {
   """
+  The resource public id (ie: tier_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The id assigned to the Tier
   """
   id: String
@@ -2040,6 +2060,11 @@ type MemberInvitation {
   id: String!
 
   """
+  The resource public id (ie: minvite_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The person who invited the member, if any
   """
   inviter: Individual
@@ -2057,6 +2082,11 @@ Tier model
 """
 type Tier {
   id: String!
+
+  """
+  The resource public id (ie: tier_xxxxxxxx)
+  """
+  publicId: String!
   legacyId: Int!
   slug: String
   name: String
@@ -2151,6 +2181,11 @@ Order model
 """
 type Order {
   id: String!
+
+  """
+  The resource public id (ie: ord_xxxxxxxx)
+  """
+  publicId: String!
   legacyId: Int!
   description: String
 
@@ -2563,6 +2598,11 @@ type Expense {
   id: String!
 
   """
+  The resource public id (ie: expense_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   Legacy ID as returned by API V1. Avoid relying on this field as it may be removed in the future.
   """
   legacyId: Int!
@@ -2871,6 +2911,11 @@ Fields for an accounting category
 """
 type AccountingCategory {
   id: String!
+
+  """
+  The resource public id (ie: acat_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   The code of the accounting category
@@ -4053,6 +4098,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   totalHostedCollectives: Int @deprecated(reason: "2023-03-20: Renamed to totalHostedAccounts")
   totalHostedAccounts: Int
   isOpenToApplications: Boolean
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean!
   termsUrl: URL
   plan: HostPlan!
 
@@ -4128,7 +4178,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     includeArchived: Boolean! = false
   ): [ManualPaymentProvider!]!
-  bankAccount: PayoutMethod @deprecated(reason: "2026-01-23: Deprecated in favour of custom payment providers")
 
   """
   If the host supports PayPal, this will contain the client ID to use in the frontend
@@ -4371,6 +4420,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Only return accounts that expended within this amount range
     """
     totalExpended: AmountRangeInput
+
+    """
+    Order of the results
+    """
+    orderBy: OrderByInput
   ): VendorCollection!
 
   """
@@ -4977,6 +5031,11 @@ type HostPlan {
   id: String
 
   """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The name of the plan
   """
   name: String
@@ -5055,6 +5114,11 @@ type LegalDocument {
   Unique identifier for this legal document
   """
   id: String!
+
+  """
+  The resource public id (ie: ldoc_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   The year this legal document is for
@@ -5203,6 +5267,7 @@ enum OrderByFieldType {
   BALANCE
   MEMBER_COUNT
   TOTAL_CONTRIBUTED
+  TOTAL_EXPENDED
   NAME
 
   """
@@ -5391,6 +5456,11 @@ enum CurrencyExchangeRateSourceType {
 
 input ExpenseReferenceInput {
   """
+  The resource public id (ie: expense_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -5448,6 +5518,11 @@ enum ExpenseType {
 
 input OrderReferenceInput {
   """
+  The resource public id (ie: ord_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -5460,16 +5535,30 @@ input OrderReferenceInput {
 
 input ManualPaymentProviderReferenceInput {
   """
+  The resource public id (ie: mpprov_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The unique identifier of the manual payment provider
   """
   id: String!
 }
 
 input VirtualCardReferenceInput {
+  """
+  The resource public id (ie: vcard_xxxxxxxx)
+  """
+  publicId: String
   id: String
 }
 
 input PaymentMethodReferenceInput {
+  """
+  The resource public id (ie: pymt_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The id assigned to the payment method
   """
@@ -5477,6 +5566,11 @@ input PaymentMethodReferenceInput {
 }
 
 input PayoutMethodReferenceInput {
+  """
+  The resource public id (ie: payout_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The id assigned to the payout method
   """
@@ -5687,6 +5781,7 @@ enum ActivityType {
   COLLECTIVE_EDITED
   COLLECTIVE_DELETED
   COLLECTIVE_UNHOSTED
+  COLLECTIVE_BALANCE_TRANSFERRED
   COLLECTIVE_CONVERTED_TO_ORGANIZATION
   ORGANIZATION_COLLECTIVE_CREATED
   ORGANIZATION_CONVERTED_TO_COLLECTIVE
@@ -5844,6 +5939,11 @@ A conversation thread
 """
 type Conversation {
   id: String!
+
+  """
+  The resource public id (ie: conv_xxxxxxxx)
+  """
+  publicId: String!
   slug: String!
   title: String!
   createdAt: DateTime!
@@ -5871,6 +5971,11 @@ This represents an Comment
 """
 type Comment {
   id: String
+
+  """
+  The resource public id (ie: cmt_xxxxxxxx)
+  """
+  publicId: String!
   createdAt: DateTime
   html: String
   fromAccount: Account
@@ -5914,6 +6019,11 @@ enum CommentType {
 
 type HostApplication {
   id: String!
+
+  """
+  The resource public id (ie: happ_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   The account who applied to this host
@@ -5977,6 +6087,11 @@ This represents an Update
 """
 type Update {
   id: String!
+
+  """
+  The resource public id (ie: upd_xxxxxxxx)
+  """
+  publicId: String!
   legacyId: Int
   slug: String!
 
@@ -6115,6 +6230,11 @@ type PayoutMethod {
   id: String!
 
   """
+  The resource public id (ie: payout_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The type of this payout method (usually the payment provider)
   """
   type: PayoutMethodType
@@ -6148,6 +6268,16 @@ type PayoutMethod {
   Whether this payout method can be archived
   """
   canBeArchived: Boolean
+
+  """
+  The date and time this payout method was created
+  """
+  createdAt: DateTime!
+
+  """
+  The date and time this payout method was updated
+  """
+  updatedAt: DateTime!
 }
 
 """
@@ -6155,7 +6285,22 @@ PaymentMethod model
 """
 type PaymentMethod {
   id: String
+
+  """
+  The resource public id (ie: pymt_xxxxxxxx)
+  """
+  publicId: String!
   legacyId: Int
+
+  """
+  The date and time this payout method was created
+  """
+  createdAt: DateTime!
+
+  """
+  The date and time this payout method was updated
+  """
+  updatedAt: DateTime!
   name: String
   service: PaymentMethodService
   type: PaymentMethodType
@@ -6178,7 +6323,6 @@ type PaymentMethod {
   data: JSON
   limitedToHosts: [Host]
   expiryDate: DateTime
-  createdAt: DateTime
 
   """
   For monthly gift cards, this field will return the monthly limit
@@ -6376,6 +6520,11 @@ type ConnectedAccount {
   id: String!
 
   """
+  The resource public id (ie: conn_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The internal database identifier of the Connected Account (ie: 580)
   """
   legacyId: Int @deprecated(reason: "2020-05-01: should only be used during the transition to GraphQL API v2.")
@@ -6476,6 +6625,11 @@ Stats for the Account
 """
 type AccountStats {
   id: String
+
+  """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   Amount of money in cents in the currency of the collective currently available to spend
@@ -7203,6 +7357,11 @@ enum VirtualCardStatus {
 
 type Policies {
   id: String
+
+  """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String!
   EXPENSE_POLICIES: EXPENSE_POLICIES
   EXPENSE_AUTHOR_CANNOT_APPROVE: EXPENSE_AUTHOR_CANNOT_APPROVE
   REQUIRE_2FA_FOR_ADMINS: Boolean
@@ -7273,6 +7432,11 @@ type ActivitySubscription {
   id: String!
 
   """
+  The resource public id (ie: notif_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The channel this setting is notifying through
   """
   channel: ActivityChannel!
@@ -7321,6 +7485,11 @@ type AccountPermissions {
   id: String!
 
   """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   Whether the current user can add funds to this account
   """
   addFunds: Permission!
@@ -7360,6 +7529,11 @@ type Activity {
   Unique identifier for this activity
   """
   id: String!
+
+  """
+  The resource public id (ie: activity_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   The type of the activity
@@ -7600,6 +7774,11 @@ type KYCVerification {
   id: String!
 
   """
+  The resource public id (ie: kyc_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   Provider used to make this KYC verification
   """
   provider: KYCProvider!
@@ -7699,6 +7878,11 @@ An webhook attached to an account
 """
 type Webhook {
   id: String!
+
+  """
+  The resource public id (ie: notif_xxxxxxxx)
+  """
+  publicId: String!
   legacyId: Int!
   activityType: ActivityType
   webhookUrl: URL
@@ -8010,6 +8194,11 @@ type ManualPaymentProvider {
   id: String!
 
   """
+  The resource public id (ie: mpprov_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The type of manual payment provider
   """
   type: ManualPaymentProviderType!
@@ -8141,6 +8330,11 @@ An agreement
 """
 type Agreement {
   id: String
+
+  """
+  The resource public id (ie: agreement_xxxxxxxx)
+  """
+  publicId: String!
   title: String!
 
   """
@@ -8205,6 +8399,11 @@ type TransactionsImport {
   The public id of the import
   """
   id: String!
+
+  """
+  The resource public id (ie: timp_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   Account that holds the import
@@ -8424,6 +8623,11 @@ type TransactionsImportRow {
   id: String!
 
   """
+  The resource public id (ie: txnimportrow_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The source id of the row
   """
   sourceId: NonEmptyString!
@@ -8614,6 +8818,11 @@ type ExpenseValuesByRole {
   id: NonEmptyString!
 
   """
+  The resource public id (ie: expense_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The values provided by the expense submitter(s)
   """
   submitter: ExpenseValuesRoleDetails
@@ -8662,6 +8871,11 @@ type ExpenseAttachedFile {
   Unique identifier for this file
   """
   id: String!
+
+  """
+  The resource public id (ie: eafile_xxxxxxxx)
+  """
+  publicId: String!
   url: URL
 
   """
@@ -8683,6 +8897,11 @@ type ExpenseItem {
   Unique identifier for this expense item
   """
   id: String!
+
+  """
+  The resource public id (ie: expi_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   Amount of this item
@@ -8773,6 +8992,11 @@ Fields for the user permissions on an expense
 """
 type ExpensePermissions {
   id: String!
+
+  """
+  The resource public id (ie: expense_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   Whether the current user can edit the expense
@@ -9021,6 +9245,11 @@ type RecurringExpense {
   id: String!
 
   """
+  The resource public id (ie: reccexp_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   The interval in which this recurring expense is created
   """
   interval: RecurringExpenseInterval!
@@ -9161,6 +9390,11 @@ type OrderPermissions {
   id: String!
 
   """
+  The resource public id (ie: ord_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   Whether the current user can mark this order as expired
   """
   canMarkAsExpired: Boolean!
@@ -9246,6 +9480,11 @@ Stats about a tier
 """
 type TierStats {
   id: String!
+
+  """
+  The resource public id (ie: tier_xxxxxxxx)
+  """
+  publicId: String!
 
   """
   Total amount donated for this tier, in cents.
@@ -14357,6 +14596,11 @@ type PersonalToken {
   id: String!
 
   """
+  The resource public id (ie: ptok_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   A friendly name for users to easily find their personal tokens
   """
   name: String
@@ -14402,6 +14646,11 @@ User two factor authentication method
 """
 type UserTwoFactorMethod {
   id: String!
+
+  """
+  The resource public id (ie: u2f_xxxxxxxx)
+  """
+  publicId: String!
   method: TwoFactorMethod!
   name: String!
   createdAt: DateTime!
@@ -14460,6 +14709,11 @@ This represents a Member relationship (ie: Organization backing a Collective)
 """
 type Member {
   id: String!
+
+  """
+  The resource public id (ie: memb_xxxxxxxx)
+  """
+  publicId: String!
   role: MemberRole!
   tier: Tier
   createdAt: DateTime!
@@ -14498,6 +14752,11 @@ This represents a MemberOf relationship (ie: Collective backed by an Organizatio
 """
 type MemberOf {
   id: String!
+
+  """
+  The resource public id (ie: memb_xxxxxxxx)
+  """
+  publicId: String!
   role: MemberRole!
   tier: Tier
   createdAt: DateTime!
@@ -15676,6 +15935,11 @@ type TransferWise {
   Unique identifier for this Wise object
   """
   id: String!
+
+  """
+  The resource public id (ie: payout_xxxxxxxx)
+  """
+  publicId: String!
   requiredFields(
     """
     The 3 letter code identifying the currency you want to receive (ie: USD, EUR, BRL, GBP)
@@ -16848,6 +17112,11 @@ A Virtual Card used to pay expenses
 """
 type VirtualCard {
   id: String
+
+  """
+  The resource public id (ie: vcard_xxxxxxxx)
+  """
+  publicId: String!
   account: Account
   host: Host
   assignee: Individual
@@ -16881,6 +17150,11 @@ A Virtual Card request
 """
 type VirtualCardRequest {
   id: String!
+
+  """
+  The resource public id (ie: vcardreq_xxxxxxxx)
+  """
+  publicId: String!
   legacyId: Int
   purpose: String
   notes: String
@@ -17162,6 +17436,11 @@ type Query {
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
   ): ActivityCollection!
   application(
+    """
+    The resource public id (ie: app_xxxxxxxx)
+    """
+    publicId: String
+
     """
     The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
@@ -18261,6 +18540,11 @@ type Query {
   Get a personal token by reference
   """
   personalToken(
+    """
+    The resource public id (ie: ptok_xxxxxxxx)
+    """
+    publicId: String
+
     """
     The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
@@ -19604,6 +19888,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_EDITED
   COLLECTIVE_DELETED
   COLLECTIVE_UNHOSTED
+  COLLECTIVE_BALANCE_TRANSFERRED
   COLLECTIVE_CONVERTED_TO_ORGANIZATION
   ORGANIZATION_COLLECTIVE_CREATED
   ORGANIZATION_CONVERTED_TO_COLLECTIVE
@@ -19793,6 +20078,11 @@ type ExportRequest {
   id: NonEmptyString!
 
   """
+  The resource public id (ie: exprt_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
   Legacy numeric ID of this export request
   """
   legacyId: Int!
@@ -19843,6 +20133,11 @@ type ExportRequest {
   error: String
 
   """
+  Whether a failed export request will be retried automatically
+  """
+  willRetry: Boolean!
+
+  """
   The time the export request was created
   """
   createdAt: DateTime!
@@ -19881,12 +20176,18 @@ enum ExportRequestStatus {
   PROCESSING
   COMPLETED
   FAILED
+  EXPIRED
 }
 
 """
 Input type for referencing an ExportRequest
 """
 input ExportRequestReferenceInput {
+  """
+  The resource public id (ie: exprt_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the export request
   """
@@ -22486,6 +22787,11 @@ type SearchResultsUpdates {
 
 input TransactionReferenceInput {
   """
+  The resource public id (ie: txn_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -22504,6 +22810,10 @@ type PaypalPlan {
 }
 
 input VirtualCardRequestReferenceInput {
+  """
+  The resource public id (ie: vcardreq_xxxxxxxx)
+  """
+  publicId: String
   id: String
   legacyId: Int
 }
@@ -22519,6 +22829,11 @@ type VirtualCardRequestCollection implements Collection {
 }
 
 input HostApplicationReferenceInput {
+  """
+  The resource public id (ie: happ_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the host application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
@@ -24098,6 +24413,16 @@ type Mutation {
   Remove the given payout method. Scope: "expenses".
   """
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
+
+  """
+  Restore the given payout method. Scope: "expenses".
+  """
+  restorePayoutMethod(
+    """
+    Payout Method reference
+    """
+    payoutMethod: PayoutMethodReferenceInput!
+  ): PayoutMethod! @deprecated(reason: "2025-02-10: Payout methods cannot be restored.")
   editPayoutMethod(
     """
     Payout Method reference
@@ -25154,6 +25479,10 @@ type AddTwoFactorAuthTokenToIndividualResponse {
 }
 
 input UserTwoFactorMethodReferenceInput {
+  """
+  The resource public id (ie: u2f_xxxxxxxx)
+  """
+  publicId: String
   id: String
   legacyId: Int
 }
@@ -25348,6 +25677,11 @@ Reference to an accounting category
 """
 input AccountingCategoryReferenceInput {
   """
+  The resource public id (ie: acat_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The ID of the accounting category
   """
   id: NonEmptyString!
@@ -25380,6 +25714,11 @@ Input type for Application
 """
 input ApplicationUpdateInput {
   """
+  The resource public id (ie: app_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -25399,6 +25738,11 @@ input ApplicationUpdateInput {
 }
 
 input ApplicationReferenceInput {
+  """
+  The resource public id (ie: app_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
@@ -25452,6 +25796,11 @@ input CommentCreateInput {
 
 input ConversationReferenceInput {
   """
+  The resource public id (ie: conv_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the conversation
   """
   id: String
@@ -25459,6 +25808,11 @@ input ConversationReferenceInput {
 }
 
 input UpdateReferenceInput {
+  """
+  The resource public id (ie: upd_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the update
   """
@@ -25504,6 +25858,11 @@ input ConnectedAccountCreateInput {
 
 input ConnectedAccountReferenceInput {
   """
+  The resource public id (ie: conn_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the connected account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -25527,6 +25886,11 @@ type EmojiReactionResponse {
 }
 
 input CommentReferenceInput {
+  """
+  The resource public id (ie: cmt_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the comment
   """
@@ -25858,6 +26222,11 @@ input ExpenseItemInput {
 }
 
 input NewAccountOrReferenceInput {
+  """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
@@ -26248,6 +26617,11 @@ type IndividualConfirmEmailResponse {
 
 input MemberInvitationReferenceInput {
   """
+  The resource public id (ie: minvite_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the member invitation (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -26318,6 +26692,11 @@ type UnfollowAccountResult {
 }
 
 input OAuthAuthorizationReferenceInput {
+  """
+  The resource public id (ie: utok_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
@@ -26920,6 +27299,11 @@ type PlaidLinkTokenCreateResponse {
 
 input TransactionsImportReferenceInput {
   """
+  The resource public id (ie: timp_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The id of the row
   """
   id: NonEmptyString!
@@ -27338,6 +27722,11 @@ Input type to update a Webhook
 """
 input WebhookUpdateInput {
   """
+  The resource public id (ie: notif_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -27351,6 +27740,11 @@ input WebhookUpdateInput {
 }
 
 input WebhookReferenceInput {
+  """
+  The resource public id (ie: notif_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
@@ -27426,6 +27820,11 @@ Input type for PersonalToken
 """
 input PersonalTokenUpdateInput {
   """
+  The resource public id (ie: ptok_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -27446,6 +27845,11 @@ input PersonalTokenUpdateInput {
 
 input PersonalTokenReferenceInput {
   """
+  The resource public id (ie: ptok_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
@@ -27462,6 +27866,11 @@ type TagResponse {
 }
 
 input AgreementReferenceInput {
+  """
+  The resource public id (ie: agreement_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the agreement (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
@@ -27515,6 +27924,11 @@ input VendorContactInput {
 }
 
 input VendorEditInput {
+  """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String
+
   """
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
