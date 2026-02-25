@@ -274,9 +274,6 @@
     "apiUrl": "GITBOOK_API_URL",
     "spaceId": "GITBOOK_SPACE_ID"
   },
-  "opentelemetry": {
-    "enabled": "OPENTELEMETRY_ENABLED"
-  },
   "features": {
     "newPricing": "NEW_PRICING"
   },

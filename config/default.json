@@ -272,9 +272,6 @@
     "apiKey": "UNDEFINED_GITBOOK_API_KEY",
     "spaceId": "NDB6a9zS8ZMISyZwm7K9"
   },
-  "opentelemetry": {
-    "enabled": false
-  },
   "plaid": {
     "env": "sandbox"
   },
