@@ -8,6 +8,10 @@ export const GraphQLExportRequestReferenceInput = new GraphQLInputObjectType({
   name: 'ExportRequestReferenceInput',
   description: 'Input type for referencing an ExportRequest',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${ExportRequest.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: GraphQLString,
       description: 'The public id identifying the export request',
@@ -20,6 +24,7 @@ export const GraphQLExportRequestReferenceInput = new GraphQLInputObjectType({
 });
 
 type ExportRequestReferenceInputType = {
+  publicId?: string;
   id?: string;
   legacyId?: number;
 };
@@ -28,8 +33,26 @@ export const fetchExportRequestWithReference = async (
   input: ExportRequestReferenceInputType,
   opts?: { throwIfMissing?: boolean },
 ): Promise<ExportRequest | null> => {
-  if (!input.id && !input.legacyId) {
-    throw new Error('Please provide an id or a legacyId');
+  if (!input.publicId && !input.id && !input.legacyId) {
+    throw new Error('Please provide a publicId, id or a legacyId');
+  }
+
+  if (input.publicId) {
+    const expectedPrefix = ExportRequest.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for ExportRequest, expected prefix ${expectedPrefix}_`);
+    }
+
+    const exportRequest = await ExportRequest.findOne({ where: { publicId: input.publicId } });
+    if (exportRequest) {
+      return exportRequest;
+    }
+
+    if (opts?.throwIfMissing) {
+      throw new NotFound('ExportRequest Not Found');
+    }
+
+    return null;
   }
 
   const legacyId = input.legacyId || idDecode(input.id, IDENTIFIER_TYPES.EXPORT_REQUEST);

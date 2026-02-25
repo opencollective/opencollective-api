@@ -7,6 +7,10 @@ import { NotFound } from '../../errors';
 const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
   name: 'TransactionReferenceInput',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${Transaction.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: GraphQLString,
       description: 'The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -22,11 +26,18 @@ const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
  * Retrieve an expense from an `ExpenseReferenceInput`
  */
 const fetchTransactionWithReference = async (
-  input: { id?: string; legacyId?: number },
+  input: { publicId?: string; id?: string; legacyId?: number },
   { loaders = null, throwIfMissing = false } = {},
 ): Promise<Transaction> => {
   let transaction = null;
-  if (input.id) {
+  if (input.publicId) {
+    const expectedPrefix = Transaction.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for Transaction, expected prefix ${expectedPrefix}_`);
+    }
+
+    transaction = await models.Transaction.findOne({ where: { publicId: input.publicId } });
+  } else if (input.id) {
     transaction = await models.Transaction.findOne({ where: { uuid: input.id } });
   } else if (input.legacyId) {
     transaction = await (loaders

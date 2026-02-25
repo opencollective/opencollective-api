@@ -75,7 +75,8 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
 // Reference
 
 export type GraphQLAccountingCategoryReferenceInputFields = {
-  id: string;
+  publicId?: string;
+  id?: string;
 };
 
 /**
@@ -86,6 +87,10 @@ export const GraphQLAccountingCategoryReferenceInput = new GraphQLInputObjectTyp
   name: 'AccountingCategoryReferenceInput',
   description: 'Reference to an accounting category',
   fields: (): Record<keyof GraphQLAccountingCategoryReferenceInputFields, GraphQLInputFieldConfig> => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${models.AccountingCategory.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The ID of the accounting category',
@@ -97,8 +102,18 @@ export const fetchAccountingCategoryWithReference = async (
   input: GraphQLAccountingCategoryReferenceInputFields,
   { loaders = null, throwIfMissing = false } = {},
 ) => {
-  const id = idDecode(input.id, 'accounting-category');
-  const category = await (loaders ? loaders.AccountingCategory.byId.load(id) : models.AccountingCategory.findByPk(id));
+  let category;
+  if (input.publicId) {
+    const expectedPrefix = models.AccountingCategory.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for AccountingCategory, expected prefix ${expectedPrefix}_`);
+    }
+
+    category = await models.AccountingCategory.findOne({ where: { publicId: input.publicId } });
+  } else if (input.id) {
+    const id = idDecode(input.id, 'accounting-category');
+    category = await (loaders ? loaders.AccountingCategory.byId.load(id) : models.AccountingCategory.findByPk(id));
+  }
   if (!category && throwIfMissing) {
     throw new Error(`Accounting category with id ${input.id} not found`);
   }

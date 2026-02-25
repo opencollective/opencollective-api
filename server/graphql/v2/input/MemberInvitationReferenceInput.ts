@@ -10,6 +10,10 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLMemberInvitationReferenceInput = new GraphQLInputObjectType({
   name: 'MemberInvitationReferenceInput',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${models.MemberInvitation.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: GraphQLString,
       description: 'The public id identifying the member invitation (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -26,7 +30,14 @@ export const fetchMemberInvitationWithReference = async (
   { throwIfMissing } = { throwIfMissing: false },
 ): Promise<any> => {
   let memberInvitation;
-  if (input.id) {
+  if (input.publicId) {
+    const expectedPrefix = models.MemberInvitation.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for MemberInvitation, expected prefix ${expectedPrefix}_`);
+    }
+
+    memberInvitation = await models.MemberInvitation.findOne({ where: { publicId: input.publicId } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.MEMBER_INVITATION);
     memberInvitation = await models.MemberInvitation.findByPk(id);
   } else if (input.legacyId) {

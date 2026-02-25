@@ -10,6 +10,10 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
   name: 'UpdateReferenceInput',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${models.Update.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: GraphQLString,
       description: 'The public id identifying the update',
@@ -32,10 +36,19 @@ export const getDatabaseIdFromUpdateReference = input => {
  */
 // ts-unused-exports:disable-next-line
 export const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
-  const dbId = getDatabaseIdFromUpdateReference(input);
   let update = null;
-  if (dbId) {
-    update = await (loaders ? loaders.Update.byId.load(dbId) : models.Update.findByPk(dbId));
+  if (input.publicId) {
+    const expectedPrefix = models.Update.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for Update, expected prefix ${expectedPrefix}_`);
+    }
+
+    update = await models.Update.findOne({ where: { publicId: input.publicId } });
+  } else {
+    const dbId = getDatabaseIdFromUpdateReference(input);
+    if (dbId) {
+      update = await (loaders ? loaders.Update.byId.load(dbId) : models.Update.findByPk(dbId));
+    }
   }
 
   if (!update && throwIfMissing) {

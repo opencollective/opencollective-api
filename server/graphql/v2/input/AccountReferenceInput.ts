@@ -7,6 +7,10 @@ import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
 export const AccountReferenceInputFields = {
+  publicId: {
+    type: GraphQLString,
+    description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
+  },
   id: {
     type: GraphQLString,
     description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
@@ -61,6 +65,7 @@ export const GraphQLNewAccountOrReferenceInput = new GraphQLInputObjectType({
 });
 
 export type AccountReferenceInput = {
+  publicId?: string;
   id?: string;
   legacyId?: number;
   slug?: string;
@@ -69,6 +74,7 @@ export type AccountReferenceInput = {
 // This type is required because, in https://github.com/opencollective/opencollective-api/blame/883ce648b63f8f90fa0a3635d95c0801496579e2/server/graphql/v2/mutation/ExpenseMutations.ts#L160,
 // some collective models stored in JSON are being passed as inputs.
 type FailoverAccountReferenceInput = {
+  publicId?: string;
   id?: number;
   slug?: string;
 };
@@ -95,7 +101,19 @@ export const fetchAccountWithReference = async (
   };
 
   let collective;
-  if (input.id && typeof input.id === 'string') {
+  if (input.publicId && typeof input.publicId === 'string') {
+    const expectedPrefix = Collective.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for Account, expected prefix ${expectedPrefix}_`);
+    }
+
+    collective = await models.Collective.findOne({
+      where: { publicId: input.publicId },
+      paranoid,
+      transaction: dbTransaction,
+      lock,
+    });
+  } else if (input.id && typeof input.id === 'string') {
     const id = idDecode(input.id, 'account');
     collective = await loadCollectiveById(id);
   } else if (input['legacyId'] || typeof input.id === 'number') {
@@ -151,7 +169,14 @@ export const fetchAccountsWithReferences = async (
   const getSQLConditionFromAccountReferenceInput = inputs => {
     const conditions = [];
     inputs.forEach(input => {
-      if (input.id) {
+      if (input.publicId) {
+        const expectedPrefix = Collective.nanoIdPrefix;
+        if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+          throw new Error(`Invalid publicId for Account, expected prefix ${expectedPrefix}_`);
+        }
+
+        conditions.push({ publicId: input.publicId });
+      } else if (input.id) {
         conditions.push({ id: idDecode(input.id, 'account') });
       } else if (input.legacyId) {
         conditions.push({ id: input.legacyId });
@@ -167,7 +192,9 @@ export const fetchAccountsWithReferences = async (
 
   // Checks whether the given account and input matches
   const accountMatchesInput = (account, input) => {
-    if (input.id) {
+    if (input.publicId) {
+      return account.publicId === input.publicId;
+    } else if (input.id) {
       return account.id === idDecode(input.id, 'account');
     } else if (input.legacyId) {
       return account.id === input.legacyId;

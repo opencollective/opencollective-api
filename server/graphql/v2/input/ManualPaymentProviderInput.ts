@@ -14,6 +14,10 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLManualPaymentProviderReferenceInput = new GraphQLInputObjectType({
   name: 'ManualPaymentProviderReferenceInput',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${models.ManualPaymentProvider.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The unique identifier of the manual payment provider',
@@ -79,16 +83,25 @@ export const GraphQLManualPaymentProviderUpdateInput = new GraphQLInputObjectTyp
  * Retrieves a ManualPaymentProvider by reference
  */
 export const fetchManualPaymentProviderWithReference = async (
-  input: { id: string },
+  input: { publicId?: string; id?: string },
   { loaders, throwIfMissing = false }: { loaders?: Express.Request['loaders']; throwIfMissing?: boolean } = {},
 ): Promise<ManualPaymentProvider | null> => {
-  const id = idDecode(input.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER);
-
   let provider: ManualPaymentProvider | null = null;
-  if (loaders) {
-    provider = await loaders.ManualPaymentProvider.byId.load(id);
-  } else {
-    provider = await models.ManualPaymentProvider.findByPk(id);
+  if (input.publicId) {
+    const expectedPrefix = models.ManualPaymentProvider.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for ManualPaymentProvider, expected prefix ${expectedPrefix}_`);
+    }
+
+    provider = await models.ManualPaymentProvider.findOne({ where: { publicId: input.publicId } });
+  } else if (input.id) {
+    const id = idDecode(input.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER);
+
+    if (loaders) {
+      provider = await loaders.ManualPaymentProvider.byId.load(id);
+    } else {
+      provider = await models.ManualPaymentProvider.findByPk(id);
+    }
   }
 
   if (!provider && throwIfMissing) {
