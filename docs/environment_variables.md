@@ -147,6 +147,5 @@
 | FRAUD_ORDER_IP                                | .fraud.order.ip                                    | Fraud order IP settings                                                            |
 | FRAUD_PROTECTION_SUSPEND_ASSET                | .fraud.enforceSuspendedAsset                       | Enforce suspended asset for fraud protection                                       |
 | GITBOOK_API_KEY                               | .gitbook.apiKey                                    | GitBook API key                                                                    |
-| OPENTELEMETRY_ENABLED                         | .opentelemetry.enabled                             | Enable OpenTelemetry                                                               |
 | SETTLEMENT_MINIMUM_AMOUNT_IN_USD              | .settlement.minimumAmountInUSD                     | Minimum settlement amount in USD                                                   |
 | NEW_PRICING                                   | .features.newPricing                               | New pricing feature                                                                |
