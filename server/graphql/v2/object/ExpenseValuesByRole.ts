@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { Expense } from '../../../models';
@@ -26,6 +26,10 @@ export const GraphQLExpenseValuesByRole = new GraphQLObjectType({
   name: 'ExpenseValuesByRole',
   fields: () => ({
     id: { type: new GraphQLNonNull(GraphQLNonEmptyString), resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE) },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Expense.nanoIdPrefix}_xxxxxxxx)`,
+    },
     submitter: {
       type: GraphQLExpenseValuesRoleDetails,
       description: 'The values provided by the expense submitter(s)',

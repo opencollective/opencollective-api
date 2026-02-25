@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
 
 import ExpenseStatus from '../../../constants/expense-status';
@@ -31,6 +31,10 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
   description: 'A Virtual Card used to pay expenses',
   fields: () => ({
     id: { type: GraphQLString },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${VirtualCard.nanoIdPrefix}_xxxxxxxx)`,
+    },
     account: {
       type: GraphQLAccount,
       resolve(virtualCard, _, req) {

@@ -3150,7 +3150,10 @@ export async function editExpense(
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
-          models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
+          models.ExpenseAttachedFile.update(
+            { url: file.url as string },
+            { where: { id: file.id, ExpenseId: expense.id } },
+          ),
         ),
       );
     }

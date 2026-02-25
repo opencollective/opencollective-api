@@ -1,5 +1,6 @@
-import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { Collective } from '../../../models';
 import { idEncode } from '../identifiers';
 
 export const GraphQLHostPlan = new GraphQLObjectType({
@@ -12,6 +13,10 @@ export const GraphQLHostPlan = new GraphQLObjectType({
       resolve(account) {
         return idEncode(account.id, 'account');
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
     },
     name: {
       type: GraphQLString,

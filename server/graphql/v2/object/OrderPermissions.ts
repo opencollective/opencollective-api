@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 
 import ORDER_STATUS from '../../../constants/order-status';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { Order } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -14,6 +15,10 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ORDER),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Order.nanoIdPrefix}_xxxxxxxx)`,
     },
     canMarkAsExpired: {
       type: new GraphQLNonNull(GraphQLBoolean),
