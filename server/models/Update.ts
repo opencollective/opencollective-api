@@ -63,7 +63,7 @@ const PRIVATE_UPDATE_TARGET_ROLES = [
 const PUBLIC_UPDATE_TARGET_ROLES = [...PRIVATE_UPDATE_TARGET_ROLES, MemberRoles.FOLLOWER];
 
 class Update extends ModelWithPublicId<InferAttributes<Update>, InferCreationAttributes<Update>> {
-  public static readonly nanoIdPrefix = 'update' as const;
+  public static readonly nanoIdPrefix = 'upd' as const;
   public static readonly tableName = 'Updates' as const;
 
   declare public id: CreationOptional<number>;

@@ -27,7 +27,7 @@ class VirtualCardRequest extends ModelWithPublicId<
   InferAttributes<VirtualCardRequest>,
   InferCreationAttributes<VirtualCardRequest>
 > {
-  public static readonly nanoIdPrefix = 'vreq' as const;
+  public static readonly nanoIdPrefix = 'vcardreq' as const;
   public static readonly tableName = 'VirtualCardRequests' as const;
 
   declare id: CreationOptional<number>;

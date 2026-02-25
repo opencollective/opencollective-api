@@ -40,7 +40,7 @@ type RecurringExpenseCreateAttributes =
   | Pick<RecurringExpenseAttributes, 'endsAt' | 'lastDraftedAt'>;
 
 class RecurringExpense extends ModelWithPublicId<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
-  public static readonly nanoIdPrefix = 'recurring-expense' as const;
+  public static readonly nanoIdPrefix = 'reccexp' as const;
   public static readonly tableName = 'RecurringExpenses' as const;
 
   declare public id: number;

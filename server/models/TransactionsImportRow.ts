@@ -18,7 +18,7 @@ class TransactionsImportRow extends ModelWithPublicId<
   InferAttributes<TransactionsImportRow>,
   InferCreationAttributes<TransactionsImportRow>
 > {
-  public static readonly nanoIdPrefix = 'txn_import' as const;
+  public static readonly nanoIdPrefix = 'txnimportrow' as const;
   public static readonly tableName = 'TransactionsImportsRows' as const;
 
   declare public id: CreationOptional<number>;
