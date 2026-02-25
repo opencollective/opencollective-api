@@ -130,9 +130,7 @@ export const getSearchTermSQLConditions = (term: string, collectiveTable?: strin
         if (splitTerm.length === 1) {
           tsQueryFunc = 'to_tsquery';
           tsQueryArg = `concat(:sanitizedTerm, ':*')`;
-          sqlConditions = `
-          AND (${getField('searchTsVector')} @@ to_tsquery('english', concat(:sanitizedTerm, ':*'))
-          OR ${getField('searchTsVector')} @@ to_tsquery('simple', concat(:sanitizedTerm, ':*')))`;
+          sqlConditions = `AND ${getField('searchTsVector')} @@ to_tsquery('simple', concat(:sanitizedTerm, ':*'))`;
         } else {
           // Search terms with more than word (seperated by spaces) should be searched for
           // both with and without the spaces.
@@ -166,27 +164,40 @@ const getSortSubQuery = (
   orderBy: { field?: string | ORDER_BY_PSEUDO_FIELDS; direction?: string } = null,
 ) => {
   const sortSubQueries = {
-    [ORDER_BY_PSEUDO_FIELDS.ACTIVITY]: `COALESCE(transaction_stats."count", 0)`,
-    [ORDER_BY_PSEUDO_FIELDS.LAST_TRANSACTION_CREATED_AT]: `COALESCE(transaction_stats."LatestTransactionCreatedAt", '2015-11-23')`,
-    [ORDER_BY_PSEUDO_FIELDS.RANK]: `
-      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTermForILike) THEN
-        1
-      ELSE
-        ${
-          searchTermConditions.tsQueryFunc
-            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
-            : '0'
-        }
+    [ORDER_BY_PSEUDO_FIELDS.ACTIVITY]: {
+      query: `COALESCE(transaction_stats."count", 0)`,
+      requiredJoin: 'transaction_stats',
+    },
+    [ORDER_BY_PSEUDO_FIELDS.LAST_TRANSACTION_CREATED_AT]: {
+      query: `COALESCE(transaction_stats."LatestTransactionCreatedAt", '2015-11-23')`,
+      requiredJoin: 'transaction_stats',
+    },
+    [ORDER_BY_PSEUDO_FIELDS.RANK]: {
+      query: `
+      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTermForILike)
+        THEN 1
+        ELSE
+          ${
+            searchTermConditions.tsQueryFunc
+              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
+              : '0'
+          }
       END`,
-    [ORDER_BY_PSEUDO_FIELDS.CREATED_AT]: `c."createdAt"`,
-    [ORDER_BY_PSEUDO_FIELDS.HOSTED_COLLECTIVES_COUNT]: `
-      SELECT COUNT(1) FROM "Collectives" hosted
-      WHERE hosted."HostCollectiveId" = c.id
-      AND hosted."deletedAt" IS NULL
-      AND hosted."isActive" = TRUE
-      AND hosted."type" IN ('COLLECTIVE', 'FUND')
-    `,
-    [ORDER_BY_PSEUDO_FIELDS.HOST_RANK]: `
+    },
+    [ORDER_BY_PSEUDO_FIELDS.CREATED_AT]: {
+      query: `c."createdAt"`,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.HOSTED_COLLECTIVES_COUNT]: {
+      query: `
+        SELECT COUNT(1) FROM "Collectives" hosted
+        WHERE hosted."HostCollectiveId" = c.id
+        AND hosted."deletedAt" IS NULL
+        AND hosted."isActive" = TRUE
+        AND hosted."type" IN ('COLLECTIVE', 'FUND')
+      `,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.HOST_RANK]: {
+      query: `
         SELECT
           ARRAY [
             -- is host trusted or first party
@@ -205,14 +216,18 @@ const getSortSubQuery = (
             AND hosted."deletedAt" IS NULL
             AND hosted."isActive" = TRUE
             AND hosted."type" IN ('COLLECTIVE', 'FUND'))
-          ]
-    `,
-    [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: `
-      COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
-      * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
-    `,
-    [ORDER_BY_PSEUDO_FIELDS.BALANCE]: CONSOLIDATED_BALANCE_SUBQUERY,
-  };
+          ]`,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: {
+      query: `
+        COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
+        * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
+      `,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.BALANCE]: {
+      query: CONSOLIDATED_BALANCE_SUBQUERY,
+    },
+  } as const;
 
   let sortQueryType = orderBy?.field || 'RANK';
   if (!searchTermConditions.sanitizedTerm && sortQueryType === 'RANK') {
@@ -222,7 +237,11 @@ const getSortSubQuery = (
   if (!(sortQueryType in sortSubQueries)) {
     throw new Error(`Sort field ${sortQueryType} is not supported for this query`);
   } else {
-    return sortSubQueries[sortQueryType];
+    return {
+      type: sortQueryType,
+      query: sortSubQueries[sortQueryType].query,
+      requiredJoin: sortSubQueries[sortQueryType].requiredJoin,
+    };
   }
 };
 
@@ -416,16 +435,21 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND transaction_stats."LatestTransactionCreatedAt" <= :lastTransactionTo `;
   }
 
+  // Small optimization: determine if we need to join the transaction stats table
+  const sortSubQuery = getSortSubQuery(searchTermConditions, orderBy);
+  const needsTransactionStatsJoin =
+    sortSubQuery.requiredJoin === 'transaction_stats' || args.lastTransactionFrom || args.lastTransactionTo;
+
   // Build the query
   const result = await sequelize.query(
     `
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      (${getSortSubQuery(searchTermConditions, orderBy)}) as __sort__
+      (${sortSubQuery.query}) as __sort__
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
-    LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id
+    ${needsTransactionStatsJoin ? 'LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id' : ''}
     WHERE c."deletedAt" IS NULL
     AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
     AND c.name != 'incognito'
