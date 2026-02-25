@@ -809,7 +809,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       analyzed_expenses."FromCollectiveId",
       analyzed_expenses.id as "expenseId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
-      EXTRACT('year' FROM analyzed_expenses."incurredAt") AS "year",
+      EXTRACT('year' FROM analyzed_expenses."createdAt") AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -861,7 +861,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND all_expenses.type NOT IN (:ignoredExpenseTypes)
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
+    AND date_trunc('year', all_expenses."createdAt") = date_trunc('year', analyzed_expenses."createdAt") -- TODO: Should ideally be looking at the paidAt date
     AND ld.id IS NULL -- Ignore documents that have already been received
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
   `,
@@ -909,7 +909,7 @@ const getTaxFormsRequiredForAccounts = async ({
     SELECT
       account.id as "collectiveId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
-      EXTRACT('year' FROM all_expenses."incurredAt") AS "year",
+      EXTRACT('year' FROM all_expenses."createdAt") AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -957,9 +957,9 @@ const getTaxFormsRequiredForAccounts = async ({
     AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    ${ifStr(!allTime, `AND EXTRACT('year' FROM all_expenses."incurredAt") = :year`)}
+    ${ifStr(!allTime, `AND EXTRACT('year' FROM all_expenses."createdAt") = :year`)} -- TODO: Should ideally be looking at the paidAt date
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
-    GROUP BY account.id, d."documentType", EXTRACT('year' FROM all_expenses."incurredAt"), COALESCE(pm."type", 'OTHER')
+    GROUP BY account.id, d."documentType", EXTRACT('year' FROM all_expenses."createdAt"), COALESCE(pm."type", 'OTHER') -- TODO: Should ideally be looking at the paidAt date
   `,
     {
       raw: true,
