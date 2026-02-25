@@ -4,6 +4,7 @@ import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import stripe from '../../../lib/stripe';
+import { PaymentMethod } from '../../../models';
 import { GraphQLPaymentMethodLegacyType } from '../enum';
 import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
@@ -21,6 +22,12 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The id assigned to the payment method',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    // TODO(henrique): fix this for publicId support
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${PaymentMethod.nanoIdPrefix}_xxxxxxxx)`,
     },
     service: {
       type: GraphQLPaymentMethodService,

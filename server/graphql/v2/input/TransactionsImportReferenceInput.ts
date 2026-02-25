@@ -1,5 +1,4 @@
-import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLNonEmptyString } from 'graphql-scalars';
+import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
 import { TransactionsImport } from '../../../models';
 import { idDecode } from '../identifiers';
@@ -17,7 +16,7 @@ export const GraphQLTransactionsImportReferenceInput = new GraphQLInputObjectTyp
       description: `The resource public id (ie: ${TransactionsImport.nanoIdPrefix}_xxxxxxxx)`,
     },
     id: {
-      type: new GraphQLNonNull(GraphQLNonEmptyString),
+      type: GraphQLString,
       description: 'The id of the row',
       deprecationReason: '2026-02-25: use publicId',
     },

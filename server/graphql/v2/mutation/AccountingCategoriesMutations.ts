@@ -59,6 +59,7 @@ export default {
 
       const isIndependentCollective = account.type === CollectiveType.COLLECTIVE;
 
+      // TODO(henrique): fix this for publicId support
       const normalizedInputs: AccountingCategoryInputWithNormalizedId[] = args.categories.map(input => {
         return {
           ...input,

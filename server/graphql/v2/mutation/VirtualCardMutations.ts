@@ -268,6 +268,7 @@ const virtualCardMutations = {
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
       checkRemoteUserCanUseVirtualCards(req);
 
+      // TODO(henrique): fix this for publicId support
       const virtualCard = await models.VirtualCard.findOne({
         where: { id: args.virtualCard.id },
         include: [

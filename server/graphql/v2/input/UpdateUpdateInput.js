@@ -1,6 +1,7 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { Update } from '../../../models';
 import { GraphQLUpdateAudienceType } from '../enum';
 
 import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
@@ -9,7 +10,8 @@ export const GraphQLUpdateUpdateInput = new GraphQLInputObjectType({
   name: 'UpdateUpdateInput',
   description: 'Input type for UpdateType',
   fields: () => ({
-    id: { type: new GraphQLNonNull(GraphQLString) },
+    id: { type: GraphQLString, deprecationReason: '2026-02-25: use publicId' },
+    publicId: { type: GraphQLString, description: `The resource public id (ie: ${Update.nanoIdPrefix}_xxxxxxxx)` },
     slug: { type: GraphQLString },
     title: { type: GraphQLString },
     isPrivate: { type: GraphQLBoolean },

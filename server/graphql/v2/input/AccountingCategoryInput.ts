@@ -10,7 +10,7 @@ import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExpenseTypes from '../../../constants/expense-type';
 import { TransactionKind } from '../../../constants/transaction-kind';
-import models from '../../../models';
+import models, { AccountingCategory } from '../../../models';
 import { AccountingCategoryAppliesTo, AccountingCategoryKind } from '../../../models/AccountingCategory';
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
@@ -18,6 +18,7 @@ import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';
 
 export type AccountingCategoryInputFields = {
+  publicId?: string;
   id?: string;
   code?: string;
   name?: string;
@@ -34,8 +35,13 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
   description: 'Input for creating or updating an account category',
   fields: (): Record<keyof AccountingCategoryInputFields, GraphQLInputFieldConfig> => ({
     id: {
-      type: GraphQLNonEmptyString,
+      type: GraphQLString,
       description: 'The ID of the accounting category to edit',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${AccountingCategory.nanoIdPrefix}_xxxxxxxx)`,
     },
     kind: {
       type: new GraphQLNonNull(GraphQLAccountingCategoryKind),
@@ -92,7 +98,7 @@ export const GraphQLAccountingCategoryReferenceInput = new GraphQLInputObjectTyp
       description: `The resource public id (ie: ${models.AccountingCategory.nanoIdPrefix}_xxxxxxxx)`,
     },
     id: {
-      type: new GraphQLNonNull(GraphQLNonEmptyString),
+      type: GraphQLString,
       description: 'The ID of the accounting category',
       deprecationReason: '2026-02-25: use publicId',
     },

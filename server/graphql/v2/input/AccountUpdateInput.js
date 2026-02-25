@@ -8,6 +8,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { Collective } from '../../../models';
 import { GraphQLCurrency } from '../enum/Currency';
 import GraphQLURL from '../scalar/URL';
 
@@ -18,8 +19,14 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
   name: 'AccountUpdateInput',
   fields: () => ({
     id: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
       description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    // TODO(henrique): fix this for publicId support
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
     },
     name: { type: GraphQLString },
     legalName: { type: GraphQLString },
