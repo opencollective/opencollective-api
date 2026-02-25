@@ -8,6 +8,7 @@ import { GraphQLTransactionsImportRowReferenceInput } from './TransactionsImport
 export const GraphQLOrderUpdateInput = new GraphQLInputObjectType({
   name: 'OrderUpdateInput',
   fields: () => ({
+    // TODO(henrique): fix this for publicId support
     id: {
       type: GraphQLString,
       description: 'The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',

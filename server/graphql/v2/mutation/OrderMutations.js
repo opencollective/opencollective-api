@@ -603,6 +603,7 @@ const orderMutations = {
           );
         }
 
+        // TODO(henrique): fix this for publicId support
         const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
         if (hasChanges) {
           const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;

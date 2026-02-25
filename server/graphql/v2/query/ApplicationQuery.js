@@ -10,7 +10,7 @@ const ApplicationQuery = {
   },
   async resolve(_, args) {
     // Read https://github.com/opencollective/opencollective/issues/4656
-    const applicationReference = pick(args, ['id', 'legacyId', 'clientId']);
+    const applicationReference = pick(args, ['id', 'legacyId', 'clientId', 'publicId']);
     return fetchApplicationWithReference(applicationReference);
   },
 };

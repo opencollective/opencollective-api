@@ -81,6 +81,7 @@ import {
 import { GraphQLExpense } from '../object/Expense';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 
+// TODO(henrique): fix this for publicId support
 const populatePayoutMethodId = (payoutMethod: { id?: string | number; legacyId?: number }) => {
   if (payoutMethod?.legacyId) {
     payoutMethod.id = payoutMethod.legacyId;
@@ -126,6 +127,7 @@ const expenseMutations = {
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
       const payoutMethod = args.expense.payoutMethod;
+      // TODO(henrique): fix this for publicId support
       populatePayoutMethodId(payoutMethod);
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
@@ -199,8 +201,12 @@ const expenseMutations = {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
-      const isExistingAccountReference = (reference: { id?: string | number; legacyId?: number; slug?: string }) =>
-        reference?.id || reference?.legacyId || reference?.slug;
+      const isExistingAccountReference = (reference: {
+        id?: string | number;
+        legacyId?: number;
+        slug?: string;
+        publicId?: string;
+      }) => reference?.id || reference?.legacyId || reference?.slug || reference?.publicId;
 
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
@@ -607,6 +613,7 @@ const expenseMutations = {
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
 
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
+      // TODO(henrique): fix this for publicId support
       const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
