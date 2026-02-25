@@ -14,6 +14,7 @@ export const GraphQLApplication = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(order) {
         return idEncode(order.id, 'order');
       },
@@ -24,6 +25,7 @@ export const GraphQLApplication = new GraphQLObjectType({
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(order) {
         return order.id;
       },

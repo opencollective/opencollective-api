@@ -15,10 +15,12 @@ export const GraphQLExportRequestReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the export request',
+      deprecationReason: '2026-02-25: use publicId',
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the export request',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

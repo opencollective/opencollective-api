@@ -13,6 +13,7 @@ export const GraphQLTierStats = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
+        deprecationReason: '2026-02-25: use publicId',
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.TIER),
       },
       publicId: {

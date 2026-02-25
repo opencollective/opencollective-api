@@ -94,6 +94,7 @@ export const GraphQLAccountingCategoryReferenceInput = new GraphQLInputObjectTyp
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The ID of the accounting category',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

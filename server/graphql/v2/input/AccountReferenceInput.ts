@@ -14,11 +14,12 @@ export const AccountReferenceInputFields = {
   id: {
     type: GraphQLString,
     description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    deprecationReason: '2026-02-25: use publicId',
   },
   legacyId: {
     type: GraphQLInt,
     description: 'The internal id of the account (ie: 580)',
-    deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
+    deprecationReason: '2026-02-25: use publicId',
   },
   slug: {
     type: GraphQLString,

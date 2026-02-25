@@ -19,6 +19,7 @@ export const GraphQLTier = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
+        deprecationReason: '2026-02-25: use publicId',
         resolve(tier) {
           return idEncode(tier.id, IDENTIFIER_TYPES.TIER);
         },
@@ -29,6 +30,7 @@ export const GraphQLTier = new GraphQLObjectType({
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
+        deprecationReason: '2026-02-25: use publicId',
         resolve(tier) {
           return tier.id;
         },

@@ -14,10 +14,12 @@ export const GraphQLTierReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The id assigned to the Tier',
+      deprecationReason: '2026-02-25: use publicId',
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The DB id assigned to the Tier',
+      deprecationReason: '2026-02-25: use publicId',
     },
     isCustom: {
       type: GraphQLBoolean,

@@ -17,9 +17,11 @@ export const GraphQLConversationReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the conversation',
+      deprecationReason: '2026-02-25: use publicId',
     },
     legacyId: {
       type: GraphQLInt,
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

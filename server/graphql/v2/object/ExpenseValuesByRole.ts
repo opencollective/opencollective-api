@@ -25,7 +25,11 @@ const GraphQLExpenseValuesRoleDetails = new GraphQLObjectType({
 export const GraphQLExpenseValuesByRole = new GraphQLObjectType({
   name: 'ExpenseValuesByRole',
   fields: () => ({
-    id: { type: new GraphQLNonNull(GraphQLNonEmptyString), resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE) },
+    id: {
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
+      deprecationReason: '2026-02-25: use publicId',
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+    },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),
       description: `The resource public id (ie: ${Expense.nanoIdPrefix}_xxxxxxxx)`,

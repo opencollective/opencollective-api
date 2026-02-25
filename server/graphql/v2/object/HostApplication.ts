@@ -18,6 +18,7 @@ export const GraphQLHostApplication = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve: async application => {
         if (application.id) {
           return idEncode(application.id, IDENTIFIER_TYPES.HOST_APPLICATION);

@@ -12,10 +12,12 @@ export const WebhookReferenceFields = {
   id: {
     type: GraphQLString,
     description: 'The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    deprecationReason: '2026-02-25: use publicId',
   },
   legacyId: {
     type: GraphQLInt,
     description: 'The legacy public id identifying the webhook (ie: 4242)',
+    deprecationReason: '2026-02-25: use publicId',
   },
 };
 

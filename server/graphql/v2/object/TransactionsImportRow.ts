@@ -20,6 +20,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id of the imported row',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver('transactions-import-row'),
     },
     publicId: {

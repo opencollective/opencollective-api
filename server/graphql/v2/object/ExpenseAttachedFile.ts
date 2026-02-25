@@ -14,6 +14,7 @@ const GraphQLExpenseAttachedFile = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this file',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
     },
     publicId: {

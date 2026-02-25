@@ -17,10 +17,12 @@ export const GraphQLConnectedAccountReferenceInput = new GraphQLInputObjectType(
     id: {
       type: GraphQLString,
       description: 'The public id identifying the connected account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      deprecationReason: '2026-02-25: use publicId',
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the account (ie: 580)',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

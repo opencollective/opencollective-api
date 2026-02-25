@@ -16,6 +16,7 @@ export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The id assigned to the payment method',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

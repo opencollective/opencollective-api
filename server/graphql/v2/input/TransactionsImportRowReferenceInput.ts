@@ -14,6 +14,7 @@ export const GraphQLTransactionsImportRowReferenceInput = new GraphQLInputObject
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The id of the row',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

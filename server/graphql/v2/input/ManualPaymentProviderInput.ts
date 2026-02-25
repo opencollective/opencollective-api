@@ -21,6 +21,7 @@ export const GraphQLManualPaymentProviderReferenceInput = new GraphQLInputObject
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The unique identifier of the manual payment provider',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

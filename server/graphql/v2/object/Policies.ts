@@ -22,6 +22,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
     },
     publicId: {

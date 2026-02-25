@@ -17,6 +17,7 @@ export const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the update',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

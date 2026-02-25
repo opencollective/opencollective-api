@@ -15,6 +15,7 @@ export const GraphQLActivitySubscription = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this notification setting',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.NOTIFICATION),
     },
     publicId: {

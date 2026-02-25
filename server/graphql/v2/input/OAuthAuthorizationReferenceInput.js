@@ -12,6 +12,7 @@ const OAuthAuthorizationReferenceFields = {
   id: {
     type: GraphQLString,
     description: 'The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    deprecationReason: '2026-02-25: use publicId',
   },
 };
 

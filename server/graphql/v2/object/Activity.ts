@@ -24,6 +24,7 @@ export const GraphQLActivity = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this activity',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACTIVITY),
     },
     publicId: {

@@ -20,6 +20,7 @@ export const GraphQLComment = new GraphQLObjectType({
     return {
       id: {
         type: GraphQLString,
+        deprecationReason: '2026-02-25: use publicId',
         resolve: getIdEncodeResolver('comment'),
       },
       publicId: {

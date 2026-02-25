@@ -12,6 +12,7 @@ export const GraphQLWebhook = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(notification) {
         return idEncode(notification.id, 'notification');
       },
@@ -22,6 +23,7 @@ export const GraphQLWebhook = new GraphQLObjectType({
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(notification) {
         return notification.id;
       },

@@ -30,7 +30,10 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
   name: 'VirtualCard',
   description: 'A Virtual Card used to pay expenses',
   fields: () => ({
-    id: { type: GraphQLString },
+    id: {
+      type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
+    },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),
       description: `The resource public id (ie: ${VirtualCard.nanoIdPrefix}_xxxxxxxx)`,

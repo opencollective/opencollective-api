@@ -14,6 +14,7 @@ export const GraphQLPayoutMethodReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The id assigned to the payout method',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

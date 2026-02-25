@@ -14,6 +14,7 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ORDER),
     },
     publicId: {

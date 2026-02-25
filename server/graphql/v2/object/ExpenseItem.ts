@@ -20,6 +20,7 @@ const GraphQLExpenseItem = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this expense item',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ITEM),
     },
     publicId: {

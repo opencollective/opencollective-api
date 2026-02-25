@@ -58,6 +58,7 @@ export const GraphQLTransferWise = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this Wise object',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
     },
     publicId: {

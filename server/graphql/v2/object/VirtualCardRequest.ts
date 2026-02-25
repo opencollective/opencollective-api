@@ -18,6 +18,7 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(virtualCardRequest: VirtualCardRequest) {
         return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
       },
@@ -28,6 +29,7 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
     },
     legacyId: {
       type: GraphQLInt,
+      deprecationReason: '2026-02-25: use publicId',
       resolve(virtualCardRequest: VirtualCardRequest) {
         return virtualCardRequest.id;
       },

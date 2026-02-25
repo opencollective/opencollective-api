@@ -14,10 +14,12 @@ export const GraphQLAgreementReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the agreement (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      deprecationReason: '2026-02-25: use publicId',
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the agreement (ie: 580)',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

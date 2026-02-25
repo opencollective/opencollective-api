@@ -14,10 +14,12 @@ const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      deprecationReason: '2026-02-25: use publicId',
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the transaction (ie: 580)',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

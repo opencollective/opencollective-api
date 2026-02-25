@@ -17,6 +17,7 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
     },
     publicId: {

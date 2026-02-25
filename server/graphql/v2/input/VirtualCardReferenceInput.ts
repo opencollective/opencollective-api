@@ -9,6 +9,9 @@ export const GraphQLVirtualCardReferenceInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: `The resource public id (ie: ${models.VirtualCard.nanoIdPrefix}_xxxxxxxx)`,
     },
-    id: { type: GraphQLString },
+    id: {
+      type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
+    },
   }),
 });

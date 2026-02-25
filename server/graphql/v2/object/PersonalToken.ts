@@ -17,6 +17,7 @@ export const GraphQLPersonalToken = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PERSONAL_TOKEN),
       description: 'Unique identifier for this personal token',
+      deprecationReason: '2026-02-25: use publicId',
     },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),

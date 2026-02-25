@@ -16,6 +16,7 @@ const GraphQLRecurringExpense = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.RECURRING_EXPENSE),
       description: 'Unique identifier for this recurring expense',
+      deprecationReason: '2026-02-25: use publicId',
     },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),

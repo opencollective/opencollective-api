@@ -24,6 +24,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id of the import',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver('transactions-import'),
     },
     publicId: {

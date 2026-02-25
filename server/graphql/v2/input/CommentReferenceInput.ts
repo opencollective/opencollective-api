@@ -15,6 +15,7 @@ export const GraphQLCommentReferenceInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the comment',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });

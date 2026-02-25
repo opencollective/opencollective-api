@@ -22,6 +22,7 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
     return {
       id: {
         type: GraphQLString,
+        deprecationReason: '2026-02-25: use publicId',
         resolve(paymentMethod) {
           return idEncode(paymentMethod.id, 'paymentMethod');
         },

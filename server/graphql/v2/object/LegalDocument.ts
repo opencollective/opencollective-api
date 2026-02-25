@@ -17,6 +17,7 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this legal document',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.LEGAL_DOCUMENT),
     },
     publicId: {
