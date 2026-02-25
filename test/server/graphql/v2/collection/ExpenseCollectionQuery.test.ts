@@ -477,6 +477,58 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         throw new Error(`Missing expenses: ${missingExpenses.map(e => JSON.stringify(e['info']))}`);
       }
     });
+
+    it('Includes v3 collective expenses when v2 balance would be insufficient', async () => {
+      // Collective on budget v3: v3 excludes HostCollectiveId=null transactions, v2 includes all
+      // Add DEBIT with HostCollectiveId=null to reduce v2 balance but not v3
+      // Result: v2 balance = $200, v3 balance = $1000. Expense $500 would fail with v2, pass with v3
+      const v3Collective = await fakeCollective({
+        HostCollectiveId: host.id,
+        currency: 'USD',
+        settings: { budget: { version: 'v3' } },
+      });
+      const fromCollective = await fakeCollective();
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: v3Collective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: host.id,
+          amount: 100000,
+          netAmountInCollectiveCurrency: 100000,
+          amountInHostCurrency: 100000,
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'DEBIT',
+          amount: -80000,
+          CollectiveId: v3Collective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: null,
+          netAmountInCollectiveCurrency: -80000,
+          amountInHostCurrency: -80000,
+          hostCurrency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      const v3Expense = await fakeExpense({
+        CollectiveId: v3Collective.id,
+        type: 'RECEIPT',
+        status: 'APPROVED',
+        amount: 50000,
+        currency: 'USD',
+        PayoutMethodId: otherPayoutMethod.id,
+        description: 'Ready (v3 collective, sufficient v3 balance)',
+      });
+      const queryParams = { host: { legacyId: host.id }, status: 'READY_TO_PAY' };
+      const result = await graphqlQueryV2(expensesQuery, queryParams);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const readyExpenseIds = result.data.expenses.nodes.map(e => e.legacyId || e.id);
+      expect(readyExpenseIds).to.include(v3Expense.id);
+    });
   });
 
   describe('Activity filter', () => {
