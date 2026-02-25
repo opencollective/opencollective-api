@@ -22,6 +22,10 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
         return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
       },
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${VirtualCardRequest.nanoIdPrefix}_xxxxxxxx)`,
+    },
     legacyId: {
       type: GraphQLInt,
       resolve(virtualCardRequest: VirtualCardRequest) {

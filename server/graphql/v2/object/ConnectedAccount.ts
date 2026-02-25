@@ -16,6 +16,10 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
       description: 'Unique identifier for this connected account',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONNECTED_ACCOUNT),
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ConnectedAccount.nanoIdPrefix}_xxxxxxxx)`,
+    },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal database identifier of the Connected Account (ie: 580)',

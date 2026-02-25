@@ -26,6 +26,10 @@ export const GraphQLHostApplication = new GraphQLObjectType({
         }
       },
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${models.HostApplication.nanoIdPrefix}_xxxxxxxx)`,
+    },
     account: {
       type: new GraphQLNonNull(GraphQLAccount),
       description: 'The account who applied to this host',

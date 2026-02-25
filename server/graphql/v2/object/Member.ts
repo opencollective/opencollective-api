@@ -16,6 +16,10 @@ const getMemberFields = () => ({
       return idEncode(member.id, 'member');
     },
   },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${Member.nanoIdPrefix}_xxxxxxxx)`,
+  },
   role: {
     type: new GraphQLNonNull(GraphQLMemberRole),
     resolve(member) {

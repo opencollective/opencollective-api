@@ -21,6 +21,10 @@ const GraphQLUpdate = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.UPDATE),
       },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Update.nanoIdPrefix}_xxxxxxxx)`,
+      },
       legacyId: {
         type: GraphQLInt,
         resolve(update) {

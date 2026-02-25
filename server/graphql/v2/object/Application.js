@@ -18,6 +18,10 @@ export const GraphQLApplication = new GraphQLObjectType({
         return idEncode(order.id, 'order');
       },
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${models.Application.nanoIdPrefix}_xxxxxxxx)`,
+    },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
       resolve(order) {

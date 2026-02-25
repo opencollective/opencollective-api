@@ -113,6 +113,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
       },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${ExpenseModel.nanoIdPrefix}_xxxxxxxx)`,
+      },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
         description: 'Legacy ID as returned by API V1. Avoid relying on this field as it may be removed in the future.',

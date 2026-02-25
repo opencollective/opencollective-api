@@ -4,6 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
 import type { UploadedFile } from '../../../models';
+import models from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLFileInfo } from '../interface/FileInfo';
@@ -20,6 +21,10 @@ const GraphQLExpenseItem = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this expense item',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ITEM),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${models.ExpenseItem.nanoIdPrefix}_xxxxxxxx)`,
     },
     amount: {
       type: new GraphQLNonNull(GraphQLInt),

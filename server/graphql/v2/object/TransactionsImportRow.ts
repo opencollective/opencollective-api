@@ -22,6 +22,10 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
       description: 'The public id of the imported row',
       resolve: getIdEncodeResolver('transactions-import-row'),
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${TransactionsImportRow.nanoIdPrefix}_xxxxxxxx)`,
+    },
     sourceId: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The source id of the row',

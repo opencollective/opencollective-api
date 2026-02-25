@@ -3,6 +3,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import type { Collective } from '../../../models';
+import MemberInvitationModel from '../../../models/MemberInvitation';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -18,6 +19,10 @@ export const GraphQLMemberInvitation = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.MEMBER_INVITATION),
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${MemberInvitationModel.nanoIdPrefix}_xxxxxxxx)`,
       },
       inviter: {
         type: GraphQLIndividual,

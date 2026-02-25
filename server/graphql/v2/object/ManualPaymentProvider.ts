@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
-import { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvider';
+import ManualPaymentProviderModel, { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvider';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -13,6 +13,10 @@ export const GraphQLManualPaymentProvider = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this provider',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ManualPaymentProviderModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     type: {
       type: new GraphQLNonNull(GraphQLManualPaymentProviderType),

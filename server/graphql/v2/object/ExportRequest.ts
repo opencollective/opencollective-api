@@ -19,6 +19,10 @@ export const GraphQLExportRequest = new GraphQLObjectType({
       description: 'Unique identifier for this export request',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPORT_REQUEST),
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ExportRequest.nanoIdPrefix}_xxxxxxxx)`,
+    },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
       description: 'Legacy numeric ID of this export request',

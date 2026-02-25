@@ -2,7 +2,7 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { LEGAL_DOCUMENT_REQUEST_STATUS } from '../../../models/LegalDocument';
+import LegalDocumentModel, { LEGAL_DOCUMENT_REQUEST_STATUS } from '../../../models/LegalDocument';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentService } from '../enum/LegalDocumentService';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
@@ -18,6 +18,10 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this legal document',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.LEGAL_DOCUMENT),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${LegalDocumentModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     year: {
       type: new GraphQLNonNull(GraphQLInt),

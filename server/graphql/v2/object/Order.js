@@ -82,6 +82,10 @@ export const GraphQLOrder = new GraphQLObjectType({
           return idEncode(order.id, 'order');
         },
       },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Order.nanoIdPrefix}_xxxxxxxx)`,
+      },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
         resolve(order) {

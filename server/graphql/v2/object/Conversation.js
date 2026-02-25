@@ -18,6 +18,10 @@ const GraphQLConversation = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONVERSATION),
       },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Conversation.nanoIdPrefix}_xxxxxxxx)`,
+      },
       slug: { type: new GraphQLNonNull(GraphQLString) },
       title: { type: new GraphQLNonNull(GraphQLString) },
       createdAt: { type: new GraphQLNonNull(GraphQLDateTime) },

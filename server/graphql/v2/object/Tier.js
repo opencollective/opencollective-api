@@ -23,6 +23,10 @@ export const GraphQLTier = new GraphQLObjectType({
           return idEncode(tier.id, IDENTIFIER_TYPES.TIER);
         },
       },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Tier.nanoIdPrefix}_xxxxxxxx)`,
+      },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
         resolve(tier) {

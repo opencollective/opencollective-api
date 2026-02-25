@@ -26,6 +26,10 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       description: 'The public id of the import',
       resolve: getIdEncodeResolver('transactions-import'),
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${TransactionsImport.nanoIdPrefix}_xxxxxxxx)`,
+    },
     account: {
       type: new GraphQLNonNull(GraphQLAccount),
       description: 'Account that holds the import',

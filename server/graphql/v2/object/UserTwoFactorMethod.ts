@@ -15,6 +15,10 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.USER_TWO_FACTOR_METHOD),
       },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${UserTwoFactorMethodModel.nanoIdPrefix}_xxxxxxxx)`,
+      },
       method: {
         type: new GraphQLNonNull(GraphQLTwoFactorMethodEnum),
       },

@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
 import { floatAmountToCents } from '../../../lib/math';
-import models, { Op } from '../../../models';
+import models, { Op, PayoutMethod } from '../../../models';
 import transferwise from '../../../paymentProviders/transferwise';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -59,6 +59,10 @@ export const GraphQLTransferWise = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this Wise object',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${PayoutMethod.nanoIdPrefix}_xxxxxxxx)`,
     },
     requiredFields: {
       args: {
