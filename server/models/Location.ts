@@ -2,18 +2,22 @@ import { isNil } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import validator from 'validator';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import { StructuredAddress } from '../types/Location';
+
+import { ModelWithPublicId } from './ModelWithPublicId';
 
 type GeoLocationLatLong = {
   type: 'Point';
   coordinates: [number, number];
 };
 
-class Location extends Model<InferAttributes<Location>, InferCreationAttributes<Location>> {
+class Location extends ModelWithPublicId<InferAttributes<Location>, InferCreationAttributes<Location>> {
+  public static readonly nanoIdPrefix = 'loc' as const;
   public static readonly tableName = 'Locations' as const;
 
   declare id: CreationOptional<number>;
+  declare public readonly publicId: string;
 
   declare name: CreationOptional<string>;
   declare country: CreationOptional<string>;
@@ -41,6 +45,11 @@ Location.init(
       autoIncrement: true,
       primaryKey: true,
       type: DataTypes.INTEGER,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     name: {
       type: DataTypes.STRING,

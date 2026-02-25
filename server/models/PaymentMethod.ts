@@ -1,7 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { InferAttributes, InferCreationAttributes, Model } from 'sequelize';
+import { InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import { SupportedCurrency } from '../constants/currencies';
 import { maxInteger } from '../constants/math';
@@ -24,15 +24,18 @@ import { formatArrayToString, formatCurrency } from '../lib/utils';
 
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import User from './User';
 
 const debug = debugLib('models:PaymentMethod');
 
-class PaymentMethod extends Model<InferAttributes<PaymentMethod>, InferCreationAttributes<PaymentMethod>> {
+class PaymentMethod extends ModelWithPublicId<InferAttributes<PaymentMethod>, InferCreationAttributes<PaymentMethod>> {
+  public static readonly nanoIdPrefix = 'pymt' as const;
   public static readonly tableName = 'PaymentMethods' as const;
 
   declare id: number;
+  declare public readonly publicId: string;
   declare uuid: string;
   declare CreatedByUserId: number;
   declare CollectiveId: number;
@@ -122,6 +125,12 @@ PaymentMethod.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
 
     uuid: {

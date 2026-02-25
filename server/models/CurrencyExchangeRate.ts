@@ -1,6 +1,8 @@
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, QueryTypes } from '../lib/sequelize';
+
+import { ModelWithPublicId } from './ModelWithPublicId';
 
 export enum FX_RATE_SOURCE {
   OPENCOLLECTIVE = 'OPENCOLLECTIVE',
@@ -12,13 +14,15 @@ export enum FX_RATE_SOURCE {
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */
-class CurrencyExchangeRate extends Model<
+class CurrencyExchangeRate extends ModelWithPublicId<
   InferAttributes<CurrencyExchangeRate>,
   InferCreationAttributes<CurrencyExchangeRate>
 > {
+  public static readonly nanoIdPrefix = 'fxrate' as const;
   public static readonly tableName = 'CurrencyExchangeRates' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public rate: number;
   declare public from: string;
   declare public to: string;
@@ -77,6 +81,11 @@ CurrencyExchangeRate.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     rate: {
       type: DataTypes.FLOAT,

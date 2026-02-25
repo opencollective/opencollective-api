@@ -3,7 +3,9 @@ import type { CreationOptional, InferAttributes, InferCreationAttributes } from 
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import logger from '../lib/logger';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
+
+import { ModelWithPublicId } from './ModelWithPublicId';
 
 export enum AssetType {
   USER = 'USER',
@@ -16,10 +18,15 @@ export enum AssetType {
 /**
  * Sequelize model to represent an SuspendedAsset, linked to the `SuspendedAssets` table.
  */
-class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreationAttributes<SuspendedAsset>> {
+class SuspendedAsset extends ModelWithPublicId<
+  InferAttributes<SuspendedAsset>,
+  InferCreationAttributes<SuspendedAsset>
+> {
+  public static readonly nanoIdPrefix = 'sasset' as const;
   public static readonly tableName = 'SuspendedAssets' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public type: AssetType;
   declare public reason: string;
   declare public fingerprint: string;
@@ -68,6 +75,11 @@ SuspendedAsset.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     type: {
       type: DataTypes.ENUM(...Object.values(AssetType)),

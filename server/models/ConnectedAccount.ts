@@ -10,19 +10,22 @@ import {
 
 import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import type Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import type User from './User';
 
-class ConnectedAccount extends Model<
+class ConnectedAccount extends ModelWithPublicId<
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
   InferCreationAttributes<ConnectedAccount>
 > {
+  public static readonly nanoIdPrefix = 'conn' as const;
   public static readonly tableName = 'ConnectedAccounts' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public service: string;
   declare public username: string;
   declare public clientId: string;
@@ -78,6 +81,11 @@ ConnectedAccount.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     service: {
       type: DataTypes.STRING,

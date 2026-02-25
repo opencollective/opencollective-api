@@ -7,19 +7,22 @@ import type {
 } from 'sequelize';
 
 import { TransactionsImportRowStatus } from '../graphql/v2/enum/TransactionsImportRowStatus';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import TransactionsImport from './TransactionsImport';
 
-class TransactionsImportRow extends Model<
+class TransactionsImportRow extends ModelWithPublicId<
   InferAttributes<TransactionsImportRow>,
   InferCreationAttributes<TransactionsImportRow>
 > {
+  public static readonly nanoIdPrefix = 'txn_import' as const;
   public static readonly tableName = 'TransactionsImportsRows' as const;
 
   declare public id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public TransactionsImportId: ForeignKey<TransactionsImport['id']>;
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public OrderId: ForeignKey<Order['id']>;
@@ -56,6 +59,11 @@ TransactionsImportRow.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     TransactionsImportId: {
       type: DataTypes.INTEGER,

@@ -1,5 +1,5 @@
 import DataLoader from 'dataloader';
-import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model, QueryTypes } from 'sequelize';
+import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, QueryTypes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
@@ -8,6 +8,7 @@ import { KYCProviderName } from '../lib/kyc/providers';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum KYCVerificationStatus {
@@ -33,13 +34,15 @@ type KYCData<Provider extends KYCProviderName = KYCProviderName> = Provider exte
   ? KycProviderData[Provider]
   : unknown;
 
-export class KYCVerification<Provider extends KYCProviderName = KYCProviderName> extends Model<
+export class KYCVerification<Provider extends KYCProviderName = KYCProviderName> extends ModelWithPublicId<
   InferAttributes<KYCVerification>,
   KYCVerification
 > {
+  public static readonly nanoIdPrefix = 'kyc' as const;
   public static readonly tableName = 'KYCVerifications' as const;
 
   declare id: number;
+  declare public readonly publicId: string;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare RequestedByCollectiveId: ForeignKey<Collective['id']>;
   declare CreatedByUserId: ForeignKey<User['id']>;
@@ -132,6 +135,11 @@ KYCVerification.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

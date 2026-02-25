@@ -1,16 +1,19 @@
-import { CreationOptional, InferAttributes, Model } from 'sequelize';
+import { CreationOptional, InferAttributes } from 'sequelize';
 
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 import { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
+import { ModelWithPublicId } from './ModelWithPublicId';
 
-class RequiredLegalDocument extends Model<
+class RequiredLegalDocument extends ModelWithPublicId<
   InferAttributes<RequiredLegalDocument>,
   InferAttributes<RequiredLegalDocument>
 > {
+  public static readonly nanoIdPrefix = 'reqdoc' as const;
   public static readonly tableName = 'RequiredLegalDocuments' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public documentType: LEGAL_DOCUMENT_TYPE;
   declare public HostCollectiveId: number;
 
@@ -25,6 +28,11 @@ RequiredLegalDocument.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     documentType: {
       type: DataTypes.ENUM,

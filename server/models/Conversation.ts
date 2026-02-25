@@ -4,19 +4,22 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes,
 import { activities } from '../constants';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { generateSummaryForHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import Comment from './Comment';
 import ConversationFollower from './ConversationFollower';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
-class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
+class Conversation extends ModelWithPublicId<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
+  public static readonly nanoIdPrefix = 'conv' as const;
   public static readonly tableName = 'Conversations' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public title: string;
   declare public slug: string;
   declare public summary: string;
@@ -165,6 +168,11 @@ Conversation.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     title: {
       type: DataTypes.STRING,

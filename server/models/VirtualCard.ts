@@ -11,11 +11,12 @@ import type {
 import { SupportedCurrency } from '../constants/currencies';
 import VirtualCardProviders from '../constants/virtual-card-providers';
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
 import Collective from './Collective';
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 import VirtualCardRequest from './VirtualCardRequest';
 
@@ -25,10 +26,15 @@ export enum VirtualCardStatus {
   CANCELED = 'canceled',
 }
 
-class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
+class VirtualCard extends ModelWithPublicId<
+  InferAttributes<VirtualCard, { omit: 'info' }>,
+  InferCreationAttributes<VirtualCard>
+> {
+  public static readonly nanoIdPrefix = 'vcard' as const;
   public static readonly tableName = 'VirtualCards' as const;
 
   declare public id: CreationOptional<string>;
+  declare public readonly publicId: string;
   declare public CollectiveId: number;
   declare public HostCollectiveId: number;
   declare public UserId: ForeignKey<User['id']>;
@@ -144,6 +150,11 @@ VirtualCard.init(
     id: {
       type: DataTypes.STRING,
       primaryKey: true,
+      allowNull: false,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
       allowNull: false,
     },
     CollectiveId: {

@@ -6,7 +6,6 @@ import {
   DataTypes,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   Op,
 } from 'sequelize';
@@ -24,6 +23,7 @@ import { isValidURL, prependHttp } from '../lib/url-utils';
 
 import Activity from './Activity';
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum LEGAL_DOCUMENT_TYPE {
@@ -51,10 +51,12 @@ const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 
 export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
 
-class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttributes<LegalDocument>> {
+class LegalDocument extends ModelWithPublicId<LegalDocumentAttributes, InferCreationAttributes<LegalDocument>> {
+  public static readonly nanoIdPrefix = 'ldoc' as const;
   public static readonly tableName = 'LegalDocuments' as const;
 
   declare public id: number;
+  declare public readonly publicId: string;
   declare public year: number;
   declare public documentType: string;
   declare public documentLink: string;
@@ -411,6 +413,11 @@ LegalDocument.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     year: {
       type: DataTypes.INTEGER,

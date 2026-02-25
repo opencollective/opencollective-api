@@ -1,18 +1,21 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import oAuthScopes from '../constants/oauth-scopes';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Application from './Application';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
-class OAuthAuthorizationCode extends Model<
+class OAuthAuthorizationCode extends ModelWithPublicId<
   InferAttributes<OAuthAuthorizationCode>,
   InferCreationAttributes<OAuthAuthorizationCode>
 > {
+  public static readonly nanoIdPrefix = 'oacode' as const;
   public static readonly tableName = 'OAuthAuthorizationCodes' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public code: string;
   declare public redirectUri: string;
   declare public expiresAt: Date;
@@ -36,6 +39,11 @@ OAuthAuthorizationCode.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     code: {
       type: DataTypes.STRING,

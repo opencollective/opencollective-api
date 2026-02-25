@@ -9,7 +9,6 @@ import {
   CreationOptional,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
 import Stripe from 'stripe';
@@ -40,6 +39,7 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order, { OrderTax } from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
@@ -124,10 +124,12 @@ export type TransactionData = {
   };
 };
 
-class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
+class Transaction extends ModelWithPublicId<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
+  public static readonly nanoIdPrefix = 'txn' as const;
   public static readonly tableName = 'Transactions' as const;
 
   declare id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare type: TransactionTypes | `${TransactionTypes}`;
   declare kind: TransactionKind;
   declare uuid: CreationOptional<string>;
@@ -1493,6 +1495,11 @@ Transaction.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
 
     type: DataTypes.STRING, // DEBIT or CREDIT

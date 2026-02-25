@@ -5,7 +5,6 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
 } from 'sequelize';
 
@@ -13,13 +12,16 @@ import { roles } from '../constants';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import UploadedFile from './UploadedFile';
 import User from './User';
 
-class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
+class Agreement extends ModelWithPublicId<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
+  public static readonly nanoIdPrefix = 'agreement' as const;
   public static readonly tableName = 'Agreements' as const;
 
   declare id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare title: string;
   declare notes: string;
   declare expiresAt: CreationOptional<Date>;
@@ -89,6 +91,11 @@ Agreement.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     title: {
       type: DataTypes.STRING,

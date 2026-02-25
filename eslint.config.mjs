@@ -3,6 +3,7 @@ import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.confi
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
 
+import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
 import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
 
 export default [
@@ -144,11 +145,13 @@ export default [
       'sequelize-model': {
         rules: {
           'require-table-name': sequelizeModelRequireTableName,
+          'require-public-id-prefix': sequelizeModelRequirePublicIdPrefix,
         },
       },
     },
     rules: {
       'sequelize-model/require-table-name': 'error',
+      'sequelize-model/require-public-id-prefix': 'error',
     },
   },
   // Tests

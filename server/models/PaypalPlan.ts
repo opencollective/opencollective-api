@@ -1,8 +1,9 @@
 import type { InferAttributes } from 'sequelize';
 
 import { SupportedCurrency } from '../constants/currencies';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import { PaypalProductCreateAttributes } from './PaypalProduct';
 
 interface PaypalPlanCommonCreateAttributes {
@@ -22,10 +23,12 @@ interface PaypalPlanCreateWithProductAttributes extends PaypalPlanCommonCreateAt
 
 type PaypalPlanCreateAttributes = PaypalPlanCreateWithProductIdAttributes | PaypalPlanCreateWithProductAttributes;
 
-class PaypalPlan extends Model<InferAttributes<PaypalPlan>, PaypalPlanCreateAttributes> {
+class PaypalPlan extends ModelWithPublicId<InferAttributes<PaypalPlan>, PaypalPlanCreateAttributes> {
+  public static readonly nanoIdPrefix = 'pplan' as const;
   public static readonly tableName = 'PaypalPlans' as const;
 
   declare public id: string;
+  declare public readonly publicId: string;
   declare public ProductId: string;
   declare public currency: SupportedCurrency;
   declare public interval: string;
@@ -40,6 +43,11 @@ PaypalPlan.init(
     id: {
       type: DataTypes.STRING,
       primaryKey: true,
+      allowNull: false,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
       allowNull: false,
     },
     amount: {

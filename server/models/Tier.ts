@@ -7,13 +7,14 @@ import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import Transaction from './Transaction';
 
@@ -30,10 +31,12 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
 
 export type TierType = 'TIER' | 'MEMBERSHIP' | 'DONATION' | 'TICKET' | 'PRODUCT' | 'SERVICE';
 
-class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
+class Tier extends ModelWithPublicId<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
+  public static readonly nanoIdPrefix = 'tier' as const;
   public static readonly tableName = 'Tiers' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public CollectiveId: number;
   declare public slug: string;
   declare public name: string;
@@ -230,6 +233,12 @@ Tier.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
 
     CollectiveId: {

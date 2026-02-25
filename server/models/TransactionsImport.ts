@@ -17,11 +17,12 @@ import { Service } from '../constants/connected-account';
 import { formatZodError } from '../lib/errors';
 import { disconnectGoCardlessAccount } from '../lib/gocardless/connect';
 import { disconnectPlaidAccount } from '../lib/plaid/connect';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import ConnectedAccount from './ConnectedAccount';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import TransactionsImportRow from './TransactionsImportRow';
 import UploadedFile from './UploadedFile';
 import User from './User';
@@ -104,10 +105,12 @@ export class TransactionsImportLockedError extends Error {
   }
 }
 
-class TransactionsImport extends Model<InferAttributes<TransactionsImport>, CreationAttributes> {
+class TransactionsImport extends ModelWithPublicId<InferAttributes<TransactionsImport>, CreationAttributes> {
+  public static readonly nanoIdPrefix = 'timp' as const;
   public static readonly tableName = 'TransactionsImports' as const;
 
   declare public id: number;
+  declare public readonly publicId: string;
   declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public UploadedFileId: ForeignKey<UploadedFile['id']>;
   declare public ConnectedAccountId: ForeignKey<ConnectedAccount['id']>;
@@ -261,6 +264,11 @@ TransactionsImport.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

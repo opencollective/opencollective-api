@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * Custom ESLint rule: sequelize-model/require-table-name
+ * Custom ESLint rule: sequelize-model/require-public-id-prefix
  *
- * Ensures every Sequelize model class (extends Model) has:
- *   public static readonly tableName = 'TableName' as const;
+ * Ensures every Sequelize model class (extends ModelWithPublicId) has:
+ *   public static readonly nanoIdPrefix = '<prefix>' as const;
  */
 
 const NODE_TYPES = {
@@ -28,13 +28,7 @@ function isSequelizeModelClass(node) {
 
   const superClass = node.superClass;
   if (superClass.type === NODE_TYPES.Identifier) {
-    return superClass.name === 'Model' || superClass.name === 'ModelWithPublicId';
-  }
-  if (superClass.type === NODE_TYPES.MemberExpression) {
-    const { object, property } = superClass;
-    const objectName = object.type === NODE_TYPES.Identifier ? object.name : null;
-    const propertyName = property.type === NODE_TYPES.Identifier ? property.name : null;
-    return propertyName === 'Model' && (objectName === 'sequelize' || objectName === 'Sequelize');
+    return superClass.name === 'ModelWithPublicId';
   }
   return false;
 }
@@ -63,7 +57,7 @@ function isStringLiteralWithAsConst(valueNode) {
   return inner.type === NODE_TYPES.Literal && typeof inner.value === 'string';
 }
 
-function findTableNameProperty(classBody) {
+function findNanoIdPrefixProperty(classBody) {
   if (!classBody || !classBody.body) {
     return null;
   }
@@ -74,7 +68,7 @@ function findTableNameProperty(classBody) {
     if (!member.static) {
       continue;
     }
-    if (getPropertyKeyName(member.key) !== 'tableName') {
+    if (getPropertyKeyName(member.key) !== 'nanoIdPrefix') {
       continue;
     }
     return member;
@@ -88,13 +82,14 @@ module.exports = {
     type: 'problem',
     docs: {
       description:
-        "Require Sequelize model classes to declare `public static readonly tableName = 'TableName' as const;`",
+        "Require model inheriting from ModelWithPublicId classes to declare `public static readonly nanoIdPrefix = '<prefix>' as const;`",
     },
     schema: [],
     messages: {
-      missing: "Sequelize model must have: public static readonly tableName = 'TableName' as const;",
+      missing:
+        "Model inheriting from ModelWithPublicId must have: public static readonly nanoIdPrefix = '<prefix>' as const;",
       invalidValue:
-        "tableName must be a string literal with 'as const' (e.g. public static readonly tableName = 'TableName' as const;).",
+        "nanoIdPrefix must be a string literal with 'as const' (e.g. public static readonly nanoIdPrefix = '<prefix>' as const;).",
     },
   },
   create(context) {
@@ -104,9 +99,9 @@ module.exports = {
           return;
         }
 
-        const tableNameProp = findTableNameProperty(node.body);
+        const nanoIdPrefixProp = findNanoIdPrefixProperty(node.body);
 
-        if (!tableNameProp) {
+        if (!nanoIdPrefixProp) {
           context.report({
             node: node.id,
             messageId: 'missing',
@@ -114,9 +109,9 @@ module.exports = {
           return;
         }
 
-        if (!isStringLiteralWithAsConst(tableNameProp.value)) {
+        if (!isStringLiteralWithAsConst(nanoIdPrefixProp.value)) {
           context.report({
-            node: tableNameProp,
+            node: nanoIdPrefixProp,
             messageId: 'invalidValue',
           });
         }

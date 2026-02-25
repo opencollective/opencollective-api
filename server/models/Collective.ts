@@ -39,7 +39,6 @@ import {
   HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   WhereOptions,
 } from 'sequelize';
@@ -120,6 +119,7 @@ import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
@@ -276,7 +276,7 @@ const sanitizeSettingsValue = value => {
   return value;
 };
 
-class Collective extends Model<
+class Collective extends ModelWithPublicId<
   InferAttributes<
     Collective,
     {
@@ -295,9 +295,11 @@ class Collective extends Model<
   >,
   InferCreationAttributes<Collective>
 > {
+  public static readonly nanoIdPrefix = 'acc' as const;
   public static readonly tableName = 'Collectives' as const;
 
   declare public id: number;
+  declare public readonly publicId: string;
   declare public type: CollectiveType;
   declare public slug: string;
   declare public name: string;
@@ -3634,6 +3636,12 @@ Collective.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
 
     type: {

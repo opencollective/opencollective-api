@@ -19,7 +19,6 @@ import {
   HasManySetAssociationsMixin,
   InferAttributes,
   InferCreationAttributes,
-  Model,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -43,6 +42,7 @@ import Collective from './Collective';
 import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PaymentMethod from './PaymentMethod';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -62,10 +62,12 @@ export type OrderTax = {
   taxIDNumberFrom?: string;
 };
 
-class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
+class Order extends ModelWithPublicId<InferAttributes<Order>, InferCreationAttributes<Order>> {
+  public static readonly nanoIdPrefix = 'ord' as const;
   public static readonly tableName = 'Orders' as const;
 
-  declare id: CreationOptional<number>;
+  declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare CreatedByUserId: ForeignKey<User['id']>;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare currency: SupportedCurrency;
@@ -502,6 +504,12 @@ Order.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
 
     CreatedByUserId: {

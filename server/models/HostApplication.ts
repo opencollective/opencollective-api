@@ -9,10 +9,11 @@ import {
 } from 'sequelize';
 
 import { activities } from '../constants';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum HostApplicationStatus {
@@ -22,10 +23,15 @@ export enum HostApplicationStatus {
   EXPIRED = 'EXPIRED',
 }
 
-class HostApplication extends Model<InferAttributes<HostApplication>, InferCreationAttributes<HostApplication>> {
+class HostApplication extends ModelWithPublicId<
+  InferAttributes<HostApplication>,
+  InferCreationAttributes<HostApplication>
+> {
+  public static readonly nanoIdPrefix = 'happ' as const;
   public static readonly tableName = 'HostApplications' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public CollectiveId: number;
   declare public HostCollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;
@@ -116,6 +122,11 @@ HostApplication.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,
