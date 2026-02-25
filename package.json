@@ -32,9 +32,9 @@
   "dependencies": {
     "@apollo/server": "5.4.0",
     "@as-integrations/express5": "1.1.2",
-    "@aws-sdk/client-s3": "3.995.0",
-    "@aws-sdk/lib-storage": "3.995.0",
-    "@aws-sdk/s3-request-presigner": "3.995.0",
+    "@aws-sdk/client-s3": "3.997.0",
+    "@aws-sdk/lib-storage": "3.997.0",
+    "@aws-sdk/s3-request-presigner": "3.997.0",
     "@babel/core": "7.29.0",
     "@babel/node": "7.29.0",
     "@babel/plugin-transform-typescript": "7.28.6",
