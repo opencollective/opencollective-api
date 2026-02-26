@@ -116,7 +116,7 @@
     "p-queue": "9.1.0",
     "passport": "0.7.0",
     "passport-github": "1.1.0",
-    "pg": "8.18.0",
+    "pg": "8.19.0",
     "pg-connection-string": "2.11.0",
     "pg-format": "1.0.4",
     "pg-listen": "1.7.0",
