@@ -161,7 +161,6 @@
     "chai-as-promised": "^7.1.1",
     "chai-jest-snapshot": "^2.0.0",
     "chai-sorted": "^0.2.0",
-    "chai-subset": "^1.6.0",
     "cheerio": "^1.1.2",
     "chokidar": "^4.0.1",
     "commitizen": "^4.3.1",
