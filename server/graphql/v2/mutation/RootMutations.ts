@@ -151,6 +151,19 @@ export default {
 
         // Change the type of the original USER account to Organization
         await account.update({ type: CollectiveType.ORGANIZATION }, { transaction });
+
+        // Transfer outbound ADMIN/ACCOUNTANT memberships from old collective to new user collective
+        await models.Member.update(
+          { MemberCollectiveId: collective.id },
+          {
+            where: {
+              MemberCollectiveId: account.id,
+              role: [roles.ADMIN, roles.ACCOUNTANT],
+              deletedAt: null,
+            },
+            transaction,
+          },
+        );
       });
 
       // Add admin user for the new Organization
