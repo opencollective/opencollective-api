@@ -24,7 +24,6 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
       description: 'The id assigned to the payment method',
       deprecationReason: '2026-02-25: use publicId',
     },
-    // TODO(henrique): fix this for publicId support
     publicId: {
       type: GraphQLString,
       description: `The resource public id (ie: ${PaymentMethod.nanoIdPrefix}_xxxxxxxx)`,
@@ -86,7 +85,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
 ): Promise<Record<string, unknown> | { service: string; type: PAYMENT_METHOD_TYPE }> => {
   if (!pm) {
     return null;
-  } else if (pm.id) {
+  } else if (pm.id || pm.publicId) {
     return fetchPaymentMethodWithReference(pm);
   }
 

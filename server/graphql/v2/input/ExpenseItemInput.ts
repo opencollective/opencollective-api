@@ -17,7 +17,6 @@ export const GraphQLExpenseItemInput = new GraphQLInputObjectType({
       description: 'ID of the item',
       deprecationReason: '2026-02-25: use publicId',
     },
-    // TODO(henrique): fix this for publicId support
     publicId: {
       type: GraphQLString,
       description: `The resource public id (ie: ${ExpenseItem.nanoIdPrefix}_xxxxxxxx)`,

@@ -79,7 +79,6 @@ export const GraphQLPlatformSubscriptionInput = new GraphQLInputObjectType({
       description: 'The ID of the platform subscription to update',
       deprecationReason: '2026-02-25: use publicId',
     },
-    // TODO(henrique): fix this for publicId support
     publicId: {
       type: GraphQLString,
       description: `The resource public id (ie: ${PlatformSubscription.nanoIdPrefix}_xxxxxxxx)`,

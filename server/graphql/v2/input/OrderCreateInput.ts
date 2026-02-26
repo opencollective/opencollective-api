@@ -196,7 +196,6 @@ export const GraphQLPendingOrderEditInput = new GraphQLInputObjectType({
   name: 'PendingOrderEditInput',
   description: 'Input to edit an existing pending order',
   fields: () => ({
-    // TODO(henrique): fix this for publicId support
     id: {
       type: GraphQLString,
       description: 'The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',

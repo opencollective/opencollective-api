@@ -59,15 +59,22 @@ export default {
 
       const isIndependentCollective = account.type === CollectiveType.COLLECTIVE;
 
-      // TODO(henrique): fix this for publicId support
-      const normalizedInputs: AccountingCategoryInputWithNormalizedId[] = args.categories.map(input => {
-        return {
-          ...input,
-          id: input.id ? idDecode(input.id, 'accounting-category') : null,
-          expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
-          appliesTo: input.appliesTo,
-        };
-      });
+      const normalizedInputs = await Promise.all(
+        args.categories.map(async input => {
+          let id = input.id ? idDecode(input.id, 'accounting-category') : null;
+          if (id === null && input.publicId) {
+            id = await models.AccountingCategory.findOne({ where: { publicId: input.publicId } }).then(
+              accountingCategory => accountingCategory?.id,
+            );
+          }
+          return {
+            ...input,
+            id,
+            expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
+            appliesTo: input.appliesTo,
+          };
+        }),
+      );
 
       if (
         isIndependentCollective &&

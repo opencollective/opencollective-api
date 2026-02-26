@@ -15,7 +15,6 @@ export const GraphQLPayoutMethodInput = new GraphQLInputObjectType({
       description: 'The unique identifier of the payout method',
       deprecationReason: '2026-02-25: use publicId',
     },
-    // TODO(henrique): fix this for publicId support
     publicId: {
       type: GraphQLString,
       description: `The resource public id (ie: ${PayoutMethod.nanoIdPrefix}_xxxxxxxx)`,
