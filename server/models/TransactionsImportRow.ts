@@ -63,7 +63,6 @@ TransactionsImportRow.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     TransactionsImportId: {
       type: DataTypes.INTEGER,

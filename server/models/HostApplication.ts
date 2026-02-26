@@ -126,7 +126,6 @@ HostApplication.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

@@ -117,7 +117,6 @@ ExpenseItem.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     amount: {
       type: DataTypes.INTEGER,

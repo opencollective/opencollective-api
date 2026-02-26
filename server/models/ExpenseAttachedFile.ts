@@ -71,7 +71,6 @@ ExpenseAttachedFile.init(
     },
     publicId: {
       type: DataTypes.STRING,
-      allowNull: false,
     },
     ExpenseId: {
       type: DataTypes.INTEGER,

@@ -85,7 +85,6 @@ ConnectedAccount.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     service: {
       type: DataTypes.STRING,

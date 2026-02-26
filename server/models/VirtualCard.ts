@@ -150,7 +150,6 @@ VirtualCard.init(
     id: {
       type: DataTypes.STRING,
       primaryKey: true,
-      allowNull: false,
     },
     publicId: {
       type: DataTypes.STRING,

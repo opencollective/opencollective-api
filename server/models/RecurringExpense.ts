@@ -179,7 +179,6 @@ RecurringExpense.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     createdAt: {
       type: DataTypes.DATE,

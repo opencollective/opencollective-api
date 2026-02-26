@@ -148,7 +148,6 @@ Member.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
 
     CreatedByUserId: {

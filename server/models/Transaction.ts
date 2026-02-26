@@ -1499,7 +1499,6 @@ Transaction.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
 
     type: DataTypes.STRING, // DEBIT or CREDIT

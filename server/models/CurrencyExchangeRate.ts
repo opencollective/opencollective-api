@@ -85,7 +85,6 @@ CurrencyExchangeRate.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     rate: {
       type: DataTypes.FLOAT,

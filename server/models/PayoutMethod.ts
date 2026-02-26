@@ -280,7 +280,6 @@ PayoutMethod.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     id: {
       type: DataTypes.INTEGER,

@@ -66,7 +66,6 @@ MigrationLog.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     type: {
       type: DataTypes.ENUM(...Object.values(MigrationLogType)),

@@ -172,7 +172,6 @@ Conversation.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     title: {
       type: DataTypes.STRING,

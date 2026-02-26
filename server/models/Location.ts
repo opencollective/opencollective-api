@@ -49,7 +49,6 @@ Location.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     name: {
       type: DataTypes.STRING,

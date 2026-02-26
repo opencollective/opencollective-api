@@ -3641,7 +3641,6 @@ Collective.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
 
     type: {

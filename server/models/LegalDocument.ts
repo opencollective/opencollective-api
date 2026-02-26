@@ -417,7 +417,6 @@ LegalDocument.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     year: {
       type: DataTypes.INTEGER,

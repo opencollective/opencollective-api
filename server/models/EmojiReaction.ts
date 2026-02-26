@@ -81,7 +81,6 @@ EmojiReaction.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     UserId: {
       type: DataTypes.INTEGER,

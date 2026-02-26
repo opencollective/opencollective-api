@@ -106,7 +106,6 @@ VirtualCardRequest.init(
     publicId: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false,
     },
     purpose: {
       type: DataTypes.STRING,
