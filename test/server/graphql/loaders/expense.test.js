@@ -256,13 +256,15 @@ describe('server/graphql/loaders/expense', () => {
 
       it('When expenses were submitted last year', async () => {
         const user = await fakeUser();
+        const lastYear = moment().subtract(1, 'year');
         const firstExpense = await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 1000,
           CollectiveId: collective.id,
           FromCollectiveId: user.CollectiveId,
           UserId: user.id,
           type: 'INVOICE',
-          incurredAt: moment(new Date()).subtract(1, 'year').set('month', 11).set('date', 30),
+          incurredAt: lastYear.clone().set('month', 11).set('date', 30).toDate(),
+          createdAt: lastYear.clone().set('month', 11).set('date', 30).toDate(),
           PayoutMethodId: otherPayoutMethod.id,
         });
         const secondExpense = await fakeExpense({
@@ -332,12 +334,14 @@ describe('server/graphql/loaders/expense', () => {
         PayoutMethodId: otherPayoutMethod.id,
       });
 
+      const lastYear = moment().subtract(1, 'year').toDate();
       expenseWithTaxFormFromLastYear = await fakeExpense({
         amount: US_TAX_FORM_THRESHOLD + 100e2,
         FromCollectiveId: fromCollective2.id,
         CollectiveId: collective.id,
         type: 'INVOICE',
-        incurredAt: new moment().subtract(1, 'year').toDate(),
+        incurredAt: lastYear,
+        createdAt: lastYear,
         status: 'APPROVED',
         PayoutMethodId: otherPayoutMethod.id,
       });
