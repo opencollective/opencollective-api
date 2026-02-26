@@ -82,15 +82,14 @@ import { GraphQLExpense } from '../object/Expense';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 
 const populatePayoutMethodId = async (payoutMethod: { id?: string | number; legacyId?: number; publicId?: string }) => {
-  let id = payoutMethod.id ? idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD) : null;
-  if (id === null && payoutMethod.publicId) {
-    id = await models.PayoutMethod.findOne({ where: { publicId: payoutMethod.publicId } }).then(
+  const id = payoutMethod?.id ? idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD) : null;
+  if (id === null && payoutMethod?.publicId) {
+    payoutMethod.id = await models.PayoutMethod.findOne({ where: { publicId: payoutMethod.publicId } }).then(
       payoutMethod => payoutMethod?.id,
     );
-  } else if (payoutMethod.legacyId) {
-    id = payoutMethod.legacyId;
+  } else if (payoutMethod?.legacyId) {
+    payoutMethod.id = payoutMethod.legacyId;
   }
-  payoutMethod.id = id;
 };
 
 const expenseMutations = {
