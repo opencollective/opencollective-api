@@ -1163,7 +1163,7 @@ type PlanType {
 }
 
 type Policies {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: acc_xxxxxxxx)

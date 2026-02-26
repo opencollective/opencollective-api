@@ -8,7 +8,7 @@ export const GraphQLHostPlan = new GraphQLObjectType({
   description: 'The name of the current plan and its characteristics.',
   fields: () => ({
     id: {
-      type: GraphQLString,
+      type: new GraphQLNonNull(GraphQLString),
       description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
       deprecationReason: '2026-02-25: use publicId',
       resolve(account) {

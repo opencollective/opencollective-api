@@ -2,13 +2,13 @@
 An OAuth application.
 """
 type Application {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: app_xxxxxxxx)
   """
   publicId: String!
-  legacyId: Int!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
   type: ApplicationType
     @deprecated(
       reason: "2022-06-16: This Application object will only be used for OAuth tokens. Use PersonalToken for user tokens"
@@ -48,7 +48,7 @@ scalar URL
 An OAuth authorization
 """
 type OAuthAuthorization {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: utok_xxxxxxxx)
@@ -1929,12 +1929,12 @@ input AccountReferenceInput {
   """
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the account (ie: 580)
   """
-  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
@@ -2040,12 +2040,12 @@ input TierReferenceInput {
   """
   The id assigned to the Tier
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The DB id assigned to the Tier
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   Pass this flag to reference the custom tier (/donate)
@@ -2057,7 +2057,7 @@ input TierReferenceInput {
 An invitation to join the members of a collective
 """
 type MemberInvitation {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: minvite_xxxxxxxx)
@@ -2081,13 +2081,13 @@ type MemberInvitation {
 Tier model
 """
 type Tier {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: tier_xxxxxxxx)
   """
   publicId: String!
-  legacyId: Int!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
   slug: String
   name: String
   description: String
@@ -2180,13 +2180,13 @@ type OrderCollection implements Collection {
 Order model
 """
 type Order {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: ord_xxxxxxxx)
   """
   publicId: String!
-  legacyId: Int!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
   description: String
 
   """
@@ -2595,7 +2595,7 @@ enum TaxType {
 This represents an Expense
 """
 type Expense {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: expense_xxxxxxxx)
@@ -2605,7 +2605,7 @@ type Expense {
   """
   Legacy ID as returned by API V1. Avoid relying on this field as it may be removed in the future.
   """
-  legacyId: Int!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   Title/main description for this expense
@@ -2910,7 +2910,7 @@ enum ExpenseCurrencySource {
 Fields for an accounting category
 """
 type AccountingCategory {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: acat_xxxxxxxx)
@@ -5028,7 +5028,7 @@ type HostPlan {
   """
   The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)
   """
-  id: String
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: acc_xxxxxxxx)
@@ -5113,7 +5113,7 @@ type LegalDocument {
   """
   Unique identifier for this legal document
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: ldoc_xxxxxxxx)
@@ -5463,12 +5463,12 @@ input ExpenseReferenceInput {
   """
   The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the expense (ie: 580)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 """
@@ -5525,12 +5525,12 @@ input OrderReferenceInput {
   """
   The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The legacy public id identifying the order (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input ManualPaymentProviderReferenceInput {
@@ -5542,7 +5542,7 @@ input ManualPaymentProviderReferenceInput {
   """
   The unique identifier of the manual payment provider
   """
-  id: String!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input VirtualCardReferenceInput {
@@ -5550,7 +5550,7 @@ input VirtualCardReferenceInput {
   The resource public id (ie: vcard_xxxxxxxx)
   """
   publicId: String
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input PaymentMethodReferenceInput {
@@ -5562,7 +5562,7 @@ input PaymentMethodReferenceInput {
   """
   The id assigned to the payment method
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input PayoutMethodReferenceInput {
@@ -5574,7 +5574,7 @@ input PayoutMethodReferenceInput {
   """
   The id assigned to the payout method
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 enum HostContext {
@@ -5938,7 +5938,7 @@ type ConversationCollection implements Collection {
 A conversation thread
 """
 type Conversation {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: conv_xxxxxxxx)
@@ -5970,7 +5970,7 @@ type Conversation {
 This represents an Comment
 """
 type Comment {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: cmt_xxxxxxxx)
@@ -6018,7 +6018,7 @@ enum CommentType {
 }
 
 type HostApplication {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: happ_xxxxxxxx)
@@ -6086,13 +6086,13 @@ type CommentCollection implements Collection {
 This represents an Update
 """
 type Update {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: upd_xxxxxxxx)
   """
   publicId: String!
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
   slug: String!
 
   """
@@ -6227,7 +6227,7 @@ type PayoutMethod {
   """
   Unique identifier for this payout method
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: payout_xxxxxxxx)
@@ -6284,7 +6284,7 @@ type PayoutMethod {
 PaymentMethod model
 """
 type PaymentMethod {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: pymt_xxxxxxxx)
@@ -6517,7 +6517,7 @@ type ConnectedAccount {
   """
   Unique identifier for this connected account
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: conn_xxxxxxxx)
@@ -6527,7 +6527,7 @@ type ConnectedAccount {
   """
   The internal database identifier of the Connected Account (ie: 580)
   """
-  legacyId: Int @deprecated(reason: "2020-05-01: should only be used during the transition to GraphQL API v2.")
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The date on which the ConnectedAccount was created
@@ -6624,7 +6624,7 @@ type Location {
 Stats for the Account
 """
 type AccountStats {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: acc_xxxxxxxx)
@@ -7356,7 +7356,7 @@ enum VirtualCardStatus {
 }
 
 type Policies {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: acc_xxxxxxxx)
@@ -7429,7 +7429,7 @@ type ActivitySubscription {
   """
   Unique identifier for this notification setting
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: notif_xxxxxxxx)
@@ -7482,7 +7482,7 @@ enum ActivityChannel {
 Fields for the user permissions on an account
 """
 type AccountPermissions {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: acc_xxxxxxxx)
@@ -7528,7 +7528,7 @@ type Activity {
   """
   Unique identifier for this activity
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: activity_xxxxxxxx)
@@ -7771,7 +7771,7 @@ type KYCVerification {
   """
   Unique identifier for this KYC verification
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: kyc_xxxxxxxx)
@@ -7877,13 +7877,13 @@ type WebhookCollection implements Collection {
 An webhook attached to an account
 """
 type Webhook {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: notif_xxxxxxxx)
   """
   publicId: String!
-  legacyId: Int!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
   activityType: ActivityType
   webhookUrl: URL
   account: Account!
@@ -8191,7 +8191,7 @@ type ManualPaymentProvider {
   """
   Unique identifier for this provider
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: mpprov_xxxxxxxx)
@@ -8329,7 +8329,7 @@ type AgreementCollection implements Collection {
 An agreement
 """
 type Agreement {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: agreement_xxxxxxxx)
@@ -8398,7 +8398,7 @@ type TransactionsImport {
   """
   The public id of the import
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: timp_xxxxxxxx)
@@ -8620,7 +8620,7 @@ type TransactionsImportRow {
   """
   The public id of the imported row
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: txnimportrow_xxxxxxxx)
@@ -8815,7 +8815,7 @@ enum AccountingCategoryAppliesTo {
 }
 
 type ExpenseValuesByRole {
-  id: NonEmptyString!
+  id: NonEmptyString! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: expense_xxxxxxxx)
@@ -8870,7 +8870,7 @@ type ExpenseAttachedFile {
   """
   Unique identifier for this file
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: eafile_xxxxxxxx)
@@ -8896,7 +8896,7 @@ type ExpenseItem {
   """
   Unique identifier for this expense item
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: expi_xxxxxxxx)
@@ -8991,7 +8991,7 @@ enum FeesPayer {
 Fields for the user permissions on an expense
 """
 type ExpensePermissions {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: expense_xxxxxxxx)
@@ -9242,7 +9242,7 @@ type RecurringExpense {
   """
   Unique identifier for this recurring expense
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: reccexp_xxxxxxxx)
@@ -9387,7 +9387,7 @@ type OrderTax {
 Fields for the user permissions on an order
 """
 type OrderPermissions {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: ord_xxxxxxxx)
@@ -9479,7 +9479,7 @@ enum TierAmountType {
 Stats about a tier
 """
 type TierStats {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: tier_xxxxxxxx)
@@ -14593,7 +14593,7 @@ type PersonalToken {
   """
   Unique identifier for this personal token
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: ptok_xxxxxxxx)
@@ -14645,7 +14645,7 @@ type PersonalToken {
 User two factor authentication method
 """
 type UserTwoFactorMethod {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: u2f_xxxxxxxx)
@@ -14708,7 +14708,7 @@ type KYCStatus {
 This represents a Member relationship (ie: Organization backing a Collective)
 """
 type Member {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: memb_xxxxxxxx)
@@ -14751,7 +14751,7 @@ type Member {
 This represents a MemberOf relationship (ie: Collective backed by an Organization)
 """
 type MemberOf {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: memb_xxxxxxxx)
@@ -15934,7 +15934,7 @@ type TransferWise {
   """
   Unique identifier for this Wise object
   """
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: payout_xxxxxxxx)
@@ -17111,7 +17111,7 @@ type VendorContact {
 A Virtual Card used to pay expenses
 """
 type VirtualCard {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: vcard_xxxxxxxx)
@@ -17149,13 +17149,13 @@ enum VirtualCardLimitInterval {
 A Virtual Card request
 """
 type VirtualCardRequest {
-  id: String!
+  id: String! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: vcardreq_xxxxxxxx)
   """
   publicId: String!
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
   purpose: String
   notes: String
   status: VirtualCardRequestStatus
@@ -17444,12 +17444,12 @@ type Query {
     """
     The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
-    id: String
+    id: String @deprecated(reason: "2026-02-25: use publicId")
 
     """
     The legacy public id identifying the application (ie: 4242)
     """
-    legacyId: Int
+    legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
     """
     The clientId for the application.
@@ -18548,12 +18548,12 @@ type Query {
     """
     The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
-    id: String
+    id: String @deprecated(reason: "2026-02-25: use publicId")
 
     """
     The legacy public id identifying the personal-token (ie: 4242)
     """
-    legacyId: Int
+    legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
   ): PersonalToken
   virtualCard(
     """
@@ -20075,7 +20075,7 @@ type ExportRequest {
   """
   Unique identifier for this export request
   """
-  id: NonEmptyString!
+  id: NonEmptyString! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The resource public id (ie: exprt_xxxxxxxx)
@@ -20085,7 +20085,7 @@ type ExportRequest {
   """
   Legacy numeric ID of this export request
   """
-  legacyId: Int!
+  legacyId: Int! @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The name of the export request
@@ -20191,12 +20191,12 @@ input ExportRequestReferenceInput {
   """
   The public id identifying the export request
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the export request
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 """
@@ -22794,12 +22794,12 @@ input TransactionReferenceInput {
   """
   The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the transaction (ie: 580)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 """
@@ -22814,8 +22814,8 @@ input VirtualCardRequestReferenceInput {
   The resource public id (ie: vcardreq_xxxxxxxx)
   """
   publicId: String
-  id: String
-  legacyId: Int
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 """
@@ -22837,7 +22837,7 @@ input HostApplicationReferenceInput {
   """
   The public id identifying the host application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 """
@@ -25483,15 +25483,20 @@ input UserTwoFactorMethodReferenceInput {
   The resource public id (ie: u2f_xxxxxxxx)
   """
   publicId: String
-  id: String
-  legacyId: Int
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input AccountUpdateInput {
   """
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: acc_xxxxxxxx)
+  """
+  publicId: String
   name: String
   legalName: String
   slug: String
@@ -25607,7 +25612,12 @@ input AccountingCategoryInput {
   """
   The ID of the accounting category to edit
   """
-  id: NonEmptyString
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: acat_xxxxxxxx)
+  """
+  publicId: String
   kind: AccountingCategoryKind! = EXPENSE
 
   """
@@ -25684,14 +25694,19 @@ input AccountingCategoryReferenceInput {
   """
   The ID of the accounting category
   """
-  id: NonEmptyString!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input TransactionsImportRowReferenceInput {
   """
+  The resource public id (ie: txnimportrow_xxxxxxxx)
+  """
+  publicId: String
+
+  """
   The id of the row
   """
-  id: NonEmptyString!
+  id: NonEmptyString @deprecated(reason: "2026-02-25: use publicId")
 }
 
 """
@@ -25721,12 +25736,12 @@ input ApplicationUpdateInput {
   """
   The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The legacy public id identifying the application (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The clientId for the application.
@@ -25746,12 +25761,12 @@ input ApplicationReferenceInput {
   """
   The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The legacy public id identifying the application (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The clientId for the application.
@@ -25760,7 +25775,12 @@ input ApplicationReferenceInput {
 }
 
 input CommentUpdateInput {
-  id: String!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: cmt_xxxxxxxx)
+  """
+  publicId: String
   html: String
 }
 
@@ -25803,8 +25823,8 @@ input ConversationReferenceInput {
   """
   The public id identifying the conversation
   """
-  id: String
-  legacyId: Int
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input UpdateReferenceInput {
@@ -25816,7 +25836,7 @@ input UpdateReferenceInput {
   """
   The public id identifying the update
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input ConnectedAccountCreateInput {
@@ -25865,12 +25885,12 @@ input ConnectedAccountReferenceInput {
   """
   The public id identifying the connected account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the account (ie: 580)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 type EmojiReactionResponse {
@@ -25894,7 +25914,7 @@ input CommentReferenceInput {
   """
   The public id identifying the comment
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input ExpenseCreateInput {
@@ -25988,12 +26008,17 @@ input PayoutMethodInput {
   """
   The unique identifier of the payout method
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: payout_xxxxxxxx)
+  """
+  publicId: String
 
   """
   The legacy identifier used in older systems
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   Additional data specific to the payout method type. For custom payout methods (type=OTHER), must contain only `content` (string) and `currency` fields. For other types, may contain type-specific details (e.g., bank account details, PayPal email)
@@ -26047,7 +26072,12 @@ input ExpenseAttachedFileInput {
   """
   ID of the file
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: eafile_xxxxxxxx)
+  """
+  publicId: String
 
   """
   Original filename
@@ -26096,7 +26126,12 @@ input ExpenseUpdateInput {
   """
   ID of the expense that you are trying to edit
   """
-  id: String!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: expense_xxxxxxxx)
+  """
+  publicId: String
 
   """
   Main title of the expense
@@ -26193,7 +26228,12 @@ input ExpenseItemInput {
   """
   ID of the item
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: expi_xxxxxxxx)
+  """
+  publicId: String
 
   """
   Amount in cents
@@ -26230,12 +26270,12 @@ input NewAccountOrReferenceInput {
   """
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the account (ie: 580)
   """
-  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
@@ -26624,12 +26664,12 @@ input MemberInvitationReferenceInput {
   """
   The public id identifying the member invitation (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the invitation (ie: 580)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input ManualPaymentProviderCreateInput {
@@ -26700,7 +26740,7 @@ input OAuthAuthorizationReferenceInput {
   """
   The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 type OrderWithPayment {
@@ -26883,7 +26923,12 @@ input PaymentMethodInput {
   """
   The id assigned to the payment method
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: pymt_xxxxxxxx)
+  """
+  publicId: String
 
   """
   Service of this payment method
@@ -27132,12 +27177,17 @@ input PendingOrderEditInput {
   """
   The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: ord_xxxxxxxx)
+  """
+  publicId: String
 
   """
   The legacy public id identifying the order (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The contribution amount, without platform contribution and taxes
@@ -27306,7 +27356,7 @@ input TransactionsImportReferenceInput {
   """
   The id of the row
   """
-  id: NonEmptyString!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 }
 
 """
@@ -27503,7 +27553,12 @@ input TransactionsImportRowUpdateInput {
   """
   The id of the row
   """
-  id: NonEmptyString!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: txnimportrow_xxxxxxxx)
+  """
+  publicId: String
 
   """
   The source id of the row
@@ -27580,7 +27635,12 @@ input UpdateCreateInput {
 Input type for UpdateType
 """
 input UpdateUpdateInput {
-  id: String!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: upd_xxxxxxxx)
+  """
+  publicId: String
   slug: String
   title: String
   isPrivate: Boolean
@@ -27692,7 +27752,12 @@ input OCRParsingOptionsInput {
 }
 
 input VirtualCardInput {
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: vcard_xxxxxxxx)
+  """
+  publicId: String
   name: String
   last4: String
   data: JSONObject
@@ -27729,12 +27794,12 @@ input WebhookUpdateInput {
   """
   The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The legacy public id identifying the webhook (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
   activityType: ActivityType! = ACTIVITY_ALL
   webhookUrl: URL!
 }
@@ -27748,19 +27813,24 @@ input WebhookReferenceInput {
   """
   The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The legacy public id identifying the webhook (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input TierUpdateInput {
   """
   The public id identifying the tier (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String!
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: tier_xxxxxxxx)
+  """
+  publicId: String
   amount: AmountInput
   name: NonEmptyString
   description: String
@@ -27827,12 +27897,12 @@ input PersonalTokenUpdateInput {
   """
   The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The legacy public id identifying the personal-token (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
   name: String
   scope: [OAuthScope]
   expiresAt: String
@@ -27852,12 +27922,12 @@ input PersonalTokenReferenceInput {
   """
   The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The legacy public id identifying the personal-token (ie: 4242)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 type TagResponse {
@@ -27874,12 +27944,12 @@ input AgreementReferenceInput {
   """
   The public id identifying the agreement (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the agreement (ie: 580)
   """
-  legacyId: Int
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 }
 
 input VendorCreateInput {
@@ -27932,12 +28002,12 @@ input VendorEditInput {
   """
   The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The internal id of the account (ie: 580)
   """
-  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
+  legacyId: Int @deprecated(reason: "2026-02-25: use publicId")
 
   """
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
@@ -27967,7 +28037,12 @@ input PlatformSubscriptionInput {
   """
   The ID of the platform subscription to update
   """
-  id: String
+  id: String @deprecated(reason: "2026-02-25: use publicId")
+
+  """
+  The resource public id (ie: psub_xxxxxxxx)
+  """
+  publicId: String
 
   """
   The new platform subscription plan to apply to the account
