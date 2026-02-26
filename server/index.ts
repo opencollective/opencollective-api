@@ -1,6 +1,5 @@
 import './env';
 import './lib/sentry/init';
-import './open-telemetry';
 
 import { AddressInfo } from 'net';
 import os from 'os';
