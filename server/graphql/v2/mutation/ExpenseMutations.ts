@@ -90,7 +90,7 @@ const populatePayoutMethodId = async (payoutMethod: { id?: string | number; lega
   } else if (payoutMethod.legacyId) {
     id = payoutMethod.legacyId;
   }
-  return id;
+  payoutMethod.id = id;
 };
 
 const expenseMutations = {
