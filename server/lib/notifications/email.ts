@@ -616,7 +616,7 @@ export const notifyByEmail = async (activity: Activity) => {
         });
       } else {
         await notify.collective(activity, {
-          collectiveId: activity.CollectiveId,
+          collectiveId: activity.data.host.id,
           template: 'host.application.comment.created.host',
         });
       }
