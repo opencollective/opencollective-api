@@ -40,7 +40,7 @@ const duplicateCollectiveProfile = async (
   try {
     newAccount = await Collective.create(
       {
-        ...omit(account.dataValues, ['id', 'slug', 'createdAt', 'updatedAt', ...hostAndParentFields]),
+        ...omit(account.dataValues, ['id', 'publicId', 'slug', 'createdAt', 'updatedAt', ...hostAndParentFields]),
         // For projects and events, we can safely copy the fields related to hosting. Other account types would need to be approved by the host.
         ...([CollectiveType.PROJECT, CollectiveType.EVENT].includes(account.type)
           ? pick(account.dataValues, hostAndParentFields)
@@ -73,7 +73,7 @@ const duplicateCollectiveProfile = async (
   if (location.length > 0) {
     await Location.bulkCreate(
       location.map(loc => ({
-        ...omit(loc.dataValues, ['createdAt', 'updatedAt', 'id', 'CollectiveId']),
+        ...omit(loc.dataValues, ['createdAt', 'updatedAt', 'id', 'publicId', 'CollectiveId']),
         CollectiveId: newAccount.id,
       })),
       { transaction },
@@ -154,7 +154,7 @@ export const duplicateAccount = async (
       const tiers = await account.getTiers({ transaction });
       await Tier.bulkCreate(
         tiers.map(tier => ({
-          ...omit(tier.dataValues, ['createdAt', 'updatedAt', 'id', 'CollectiveId']),
+          ...omit(tier.dataValues, ['createdAt', 'updatedAt', 'id', 'publicId', 'CollectiveId']),
           CollectiveId: newAccount.id,
         })),
         { transaction },

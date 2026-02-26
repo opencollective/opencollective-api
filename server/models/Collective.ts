@@ -2457,7 +2457,7 @@ class Collective extends ModelWithPublicId<
         // and we recreate new ones
         tiers.map(t => {
           if (t.currency !== hostCollective.currency) {
-            const newTierData = omit(t.dataValues, ['id']);
+            const newTierData = omit(t.dataValues, ['id', 'publicId']);
             newTierData.currency = hostCollective.currency;
             promises.push(Tier.create(newTierData));
             promises.push(t.destroy());
