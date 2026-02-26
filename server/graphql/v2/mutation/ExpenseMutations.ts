@@ -87,6 +87,8 @@ const populatePayoutMethodId = async (payoutMethod: { id?: string | number; lega
     payoutMethod.id = await models.PayoutMethod.findOne({ where: { publicId: payoutMethod.publicId } }).then(
       payoutMethod => payoutMethod?.id,
     );
+  } else if (id) {
+    payoutMethod.id = id;
   } else if (payoutMethod?.legacyId) {
     payoutMethod.id = payoutMethod.legacyId;
   }
@@ -224,21 +226,23 @@ const expenseMutations = {
       await populatePayoutMethodId(payoutMethod);
 
       // TODO(henrique): fix this for publicId support, use loader
-      const mapItemPublicIdToId = groupBy(
-        await Promise.all(
-          items
-            ?.filter(item => item.publicId)
-            .map(item =>
-              models.ExpenseItem.findOne({ where: { publicId: item.publicId } }).then(expenseItem => {
-                if (!expenseItem) {
-                  throw new NotFound('Expense item not found');
-                }
-                return { publicId: item.publicId, id: expenseItem.id };
-              }),
+      const mapItemPublicIdToId = items?.length
+        ? groupBy(
+            await Promise.all(
+              items
+                ?.filter(item => item.publicId)
+                .map(item =>
+                  models.ExpenseItem.findOne({ where: { publicId: item.publicId } }).then(expenseItem => {
+                    if (!expenseItem) {
+                      throw new NotFound('Expense item not found');
+                    }
+                    return { publicId: item.publicId, id: expenseItem.id };
+                  }),
+                ),
             ),
-        ),
-        'publicId',
-      );
+            'publicId',
+          )
+        : {};
 
       const itemsWithIds = items?.map(item => ({
         ...item,
