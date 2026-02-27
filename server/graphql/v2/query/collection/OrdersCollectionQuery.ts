@@ -4,6 +4,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Expression, ExpressionBuilder, expressionBuilder, OrderByModifiers, sql, SqlBool } from 'kysely';
+import { KyselifyModel } from 'kysely-sequelize';
 import { compact, isEmpty, isNil, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
@@ -470,6 +471,12 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         });
     })
     .selectFrom('Orders')
+    .innerJoin('Collectives as collective', join =>
+      join.onRef('collective.id', '=', 'Orders.CollectiveId').on('collective.deletedAt', 'is', null),
+    )
+    .innerJoin('Collectives as fromCollective', join =>
+      join.onRef('fromCollective.id', '=', 'Orders.FromCollectiveId').on('fromCollective.deletedAt', 'is', null),
+    )
     .where('Orders.deletedAt', 'is', null)
     .$if(account && !isEmpty(hostedAccounts), qb => {
       return qb.where(({ or, eb }) => {
@@ -499,89 +506,72 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           return or(ors);
         });
     })
-    .$if(!!account, qb => {
+    .$if(!!account && !!oppositeAccount, qb => {
       return qb.where(({ eb, or }) => {
         const ors: Expression<SqlBool>[] = [];
+        ors.push(eb('Orders.CollectiveId', '=', oppositeAccount.id));
+        ors.push(eb('Orders.FromCollectiveId', '=', oppositeAccount.id));
+        return or(ors);
+      });
+    })
+    .$if(!!host, qb => {
+      return qb.where('collective.HostCollectiveId', '=', host.id).where('collective.approvedAt', 'is not', null);
+    })
+    .$if(!!account, qb => {
+      function accountConditionOrs(
+        join: 'collective' | 'fromCollective',
+        eb: ExpressionBuilder<
+          DatabaseWithViews & { collective: KyselifyModel<Collective>; fromCollective: KyselifyModel<Collective> },
+          'collective' | 'fromCollective' | 'Orders'
+        >,
+      ) {
+        const ors: Expression<SqlBool>[] = [];
 
-        function accountOrConditions(
-          eb: ExpressionBuilder<DatabaseWithViews, 'Collectives'>,
-          direction: 'INCOMING' | 'OUTGOING',
-        ) {
-          const ors: Expression<SqlBool>[] = [];
-
-          if (!args.filter || args.filter === direction) {
-            switch (hostContext) {
-              case 'ALL':
-                ors.push(eb('HostCollectiveId', '=', account.id));
-                ors.push(eb('id', '=', account.id));
-                break;
-              case 'INTERNAL':
-                ors.push(eb('id', '=', account.id).or(eb('ParentCollectiveId', '=', account.id)));
-                break;
-              case 'HOSTED':
-                ors.push(
-                  eb('HostCollectiveId', '=', account.id)
-                    .and(eb('approvedAt', 'is not', null))
-                    .and(eb('id', '!=', account.id))
-                    .and(eb('ParentCollectiveId', '!=', account.id).or(eb('ParentCollectiveId', 'is', null))),
-                );
-                break;
-              default:
-                ors.push(eb('id', '=', account.id));
-                if (args.includeChildrenAccounts) {
-                  ors.push(eb('ParentCollectiveId', '=', account.id));
-                }
+        switch (hostContext) {
+          case 'ALL':
+            ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(eb(`${join}.approvedAt`, 'is not', null)));
+            break;
+          case 'INTERNAL':
+            ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
+            ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
+            break;
+          case 'HOSTED':
+            ors.push(
+              eb(`${join}.HostCollectiveId`, '=', account.id)
+                .and(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '!=', account.id))
+                .and(eb(`${join}.approvedAt`, 'is not', null))
+                .and(
+                  eb(`${join}.ParentCollectiveId`, '!=', account.id).or(eb(`${join}.ParentCollectiveId`, 'is', null)),
+                ),
+            );
+            break;
+          default:
+            ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
+            if (args.includeChildrenAccounts) {
+              ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
             }
 
             if (incognitoProfile) {
-              ors.push(eb('id', '=', incognitoProfile.id));
+              ors.push(
+                eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', incognitoProfile.id),
+              );
             }
-          }
-          return ors;
+            break;
         }
 
-        const fromCollectiveId = expressionBuilder<DatabaseWithViews, 'Collectives'>();
-        const fromCollectiveOrConditions = accountOrConditions(fromCollectiveId, 'OUTGOING');
+        return ors;
+      }
 
-        const fromCollectiveIdExpression = fromCollectiveId
-          .selectFrom('Collectives')
-          .select('id')
-          .where('Collectives.deletedAt', 'is', null)
-          .$if(fromCollectiveOrConditions.length > 0, qb => qb.where(({ or }) => or(fromCollectiveOrConditions)))
-          .$if((!args.filter || args.filter === 'INCOMING') && !!oppositeAccount, qb =>
-            qb.where('id', '=', oppositeAccount.id),
-          );
-
-        if (
-          fromCollectiveOrConditions.length > 0 ||
-          ((!args.filter || args.filter === 'INCOMING') && oppositeAccount)
-        ) {
-          ors.push(eb('Orders.FromCollectiveId', 'in', fromCollectiveIdExpression));
+      return qb.where(({ eb, or }) => {
+        const ors: Expression<SqlBool>[] = [];
+        if (!args.filter || args.filter === 'INCOMING') {
+          ors.push(...accountConditionOrs('collective', eb));
+        }
+        if (!args.filter || args.filter === 'OUTGOING') {
+          ors.push(...accountConditionOrs('fromCollective', eb));
         }
 
-        const toCollectiveId = expressionBuilder<DatabaseWithViews, 'Collectives'>();
-        const toCollectiveOrConditions = accountOrConditions(toCollectiveId, 'INCOMING');
-
-        const toCollectiveIdExpression = toCollectiveId
-          .selectFrom('Collectives')
-          .select('id')
-          .where('Collectives.deletedAt', 'is', null)
-          .$if(toCollectiveOrConditions.length > 0, qb => qb.where(({ or }) => or(toCollectiveOrConditions)))
-          .$if((!args.filter || args.filter === 'OUTGOING') && !!oppositeAccount, qb =>
-            qb.where('id', '=', oppositeAccount.id),
-          )
-          .$if((!args.filter || args.filter === 'OUTGOING') && !!host, qb =>
-            qb.where('HostCollectiveId', '=', host.id).where('approvedAt', 'is not', null),
-          );
-
-        if (
-          toCollectiveOrConditions.length > 0 ||
-          ((!args.filter || args.filter === 'OUTGOING') && (oppositeAccount || !!host))
-        ) {
-          ors.push(eb('Orders.CollectiveId', 'in', toCollectiveIdExpression));
-        }
-
-        return ors.length > 0 ? or(ors) : sql`true`;
+        return or(ors);
       });
     })
     .$if(paymentMethods.length > 0, qb => qb.where('PaymentMethodId', 'in', uniq(paymentMethods.map(pm => pm.id))))
