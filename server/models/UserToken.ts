@@ -2,19 +2,22 @@ import type OAuth2Server from '@node-oauth/oauth2-server';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import oAuthScopes from '../constants/oauth-scopes';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Application from './Application';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum TokenType {
   OAUTH = 'OAUTH',
 }
 
-class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttributes<UserToken>> {
+class UserToken extends ModelWithPublicId<InferAttributes<UserToken>, InferCreationAttributes<UserToken>> {
+  public static readonly nanoIdPrefix = 'utok' as const;
   public static readonly tableName = 'UserTokens' as const;
 
   declare public id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public type: 'OAUTH';
   declare public accessToken: string;
   declare public accessTokenExpiresAt: Date;
@@ -46,6 +49,10 @@ UserToken.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     type: {
       type: DataTypes.ENUM('OAUTH'),

@@ -3,6 +3,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, omit, pick } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { getLegacyPaymentMethodType, GraphQLPaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
@@ -21,9 +22,14 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
     return {
       id: {
         type: GraphQLString,
+        deprecationReason: '2026-02-25: use publicId',
         resolve(paymentMethod) {
           return idEncode(paymentMethod.id, 'paymentMethod');
         },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.PaymentMethod.nanoIdPrefix}_xxxxxxxx)`,
       },
       legacyId: {
         type: GraphQLInt,

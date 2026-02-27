@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
+import PersonalTokenModel from '../../../models/PersonalToken';
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -16,6 +17,11 @@ export const GraphQLPersonalToken = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PERSONAL_TOKEN),
       description: 'Unique identifier for this personal token',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${PersonalTokenModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     name: {
       type: GraphQLString,

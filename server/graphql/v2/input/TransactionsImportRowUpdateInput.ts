@@ -1,6 +1,7 @@
-import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { TransactionsImportRow } from '../../../models';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 
 import { AmountInputType, GraphQLAmountInput } from './AmountInput';
@@ -24,8 +25,13 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
   name: 'TransactionsImportRowUpdateInput',
   fields: () => ({
     id: {
-      type: new GraphQLNonNull(GraphQLNonEmptyString),
+      type: GraphQLString,
       description: 'The id of the row',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${TransactionsImportRow.nanoIdPrefix}_xxxxxxxx)`,
     },
     sourceId: {
       type: GraphQLNonEmptyString,

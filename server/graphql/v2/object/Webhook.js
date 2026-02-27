@@ -1,5 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import models from '../../../models';
 import { GraphQLActivityType } from '../enum';
 import { idEncode } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -11,12 +12,18 @@ export const GraphQLWebhook = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(notification) {
         return idEncode(notification.id, 'notification');
       },
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${models.Notification.nanoIdPrefix}_xxxxxxxx)`,
+    },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(notification) {
         return notification.id;
       },

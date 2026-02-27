@@ -7,13 +7,19 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLTierReferenceInput = new GraphQLInputObjectType({
   name: 'TierReferenceInput',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${Tier.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: GraphQLString,
       description: 'The id assigned to the Tier',
+      deprecationReason: '2026-02-25: use publicId',
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The DB id assigned to the Tier',
+      deprecationReason: '2026-02-25: use publicId',
     },
     isCustom: {
       type: GraphQLBoolean,
@@ -33,7 +39,14 @@ export const fetchTierWithReference = async (
 ): Promise<Tier | null> => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : Tier.findByPk(id));
   let tier;
-  if (input.id) {
+  if (input.publicId) {
+    const expectedPrefix = Tier.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for Tier, expected prefix ${expectedPrefix}_`);
+    }
+
+    tier = await Tier.findOne({ where: { publicId: input.publicId } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.TIER);
     tier = await loadTier(id);
   } else if (input.legacyId) {
@@ -47,8 +60,14 @@ export const fetchTierWithReference = async (
   return tier;
 };
 
-export const getDatabaseIdFromTierReference = (input: { id?: string; legacyId?: number }): number => {
-  if (input.id) {
+export const getDatabaseIdFromTierReference = (input: {
+  publicId?: string;
+  id?: string;
+  legacyId?: number;
+}): number => {
+  if (input.publicId) {
+    throw new Error('getDatabaseIdFromTierReference does not support publicId; please query by publicId directly');
+  } else if (input.id) {
     return idDecode(input.id, IDENTIFIER_TYPES.TIER);
   } else if (input.legacyId) {
     return input.legacyId;

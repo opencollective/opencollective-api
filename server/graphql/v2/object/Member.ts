@@ -12,9 +12,14 @@ import { GraphQLTier } from '../object/Tier';
 const getMemberFields = () => ({
   id: {
     type: new GraphQLNonNull(GraphQLString),
+    deprecationReason: '2026-02-25: use publicId',
     resolve(member) {
       return idEncode(member.id, 'member');
     },
+  },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${Member.nanoIdPrefix}_xxxxxxxx)`,
   },
   role: {
     type: new GraphQLNonNull(GraphQLMemberRole),

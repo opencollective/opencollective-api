@@ -5,7 +5,6 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
 } from 'sequelize';
 
@@ -14,6 +13,7 @@ import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 import VirtualCard from './VirtualCard';
 
@@ -23,13 +23,15 @@ export enum VirtualCardRequestStatus {
   PENDING = 'PENDING',
 }
 
-class VirtualCardRequest extends Model<
+class VirtualCardRequest extends ModelWithPublicId<
   InferAttributes<VirtualCardRequest>,
   InferCreationAttributes<VirtualCardRequest>
 > {
+  public static readonly nanoIdPrefix = 'vcardreq' as const;
   public static readonly tableName = 'VirtualCardRequests' as const;
 
   declare id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare purpose: string;
   declare notes: string;
   declare status: VirtualCardRequestStatus;
@@ -100,6 +102,10 @@ VirtualCardRequest.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     purpose: {
       type: DataTypes.STRING,

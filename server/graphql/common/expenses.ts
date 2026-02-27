@@ -153,7 +153,7 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
     return false;
   }
 
-  const payeeReference = pick(expense.data?.payee, ['id', 'legacyId', 'slug']);
+  const payeeReference = pick(expense.data?.payee, ['id', 'legacyId', 'slug', 'publicId']);
 
   if (isEmpty(payeeReference)) {
     if (expense.data?.payee?.email) {
@@ -2681,7 +2681,9 @@ const isDifferentInvitedPayee = (expense: Expense, payee): boolean => {
 
 const checkLockedFields = async (
   existing: Expense,
-  updated: ExpenseData & { payee?: Collective | { legacyId: number } | { email: string; name: string } },
+  updated: ExpenseData & {
+    payee?: Collective | { legacyId?: number; publicId?: string } | { email: string; name: string };
+  },
 ): Promise<void> => {
   const lockedFields = existing?.data?.lockedFields;
   if (!lockedFields) {
@@ -2697,15 +2699,23 @@ const checkLockedFields = async (
   }
 
   if (lockedFields.includes(ExpenseLockableFields.PAYEE) && updated.payee) {
+    const updatedPayeeId =
+      'legacyId' in updated.payee
+        ? updated.payee.legacyId
+        : typeof updated.payee['id'] === 'number'
+          ? updated.payee['id']
+          : updated.payee['publicId']
+            ? (await fetchAccountWithReference(updated.payee as { publicId: string }, { throwIfMissing: true })).id
+            : null;
+
     const expectedPayee = existing.data.payee;
     if ('id' in expectedPayee) {
-      const updatedId = 'legacyId' in updated.payee ? updated.payee.legacyId : (updated.payee as Collective).id;
-      assert(updatedId && expectedPayee.id === updatedId, new Forbidden('Payee cannot be edited'));
+      assert(updatedPayeeId && expectedPayee.id === updatedPayeeId, new Forbidden('Payee cannot be edited'));
     } else if ('email' in expectedPayee) {
       if ('email' in updated.payee) {
         assert(expectedPayee.email === updated.payee.email, new Forbidden('Payee cannot be edited'));
       } else {
-        const updatedId = 'legacyId' in updated.payee ? updated.payee.legacyId : updated.payee.id;
+        const updatedId = 'legacyId' in updated.payee ? updated.payee.legacyId : updated.payee['id'];
         const user = await models.User.findOne({ where: { CollectiveId: updatedId } });
         assert(user && expectedPayee.email === user.email, new Forbidden('Payee cannot be edited'));
       }
@@ -3151,7 +3161,10 @@ export async function editExpense(
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
-          models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
+          models.ExpenseAttachedFile.update(
+            { url: file.url as string },
+            { where: { id: file.id, ExpenseId: expense.id } },
+          ),
         ),
       );
     }

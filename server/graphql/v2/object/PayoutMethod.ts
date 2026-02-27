@@ -16,6 +16,11 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
       description: 'Unique identifier for this payout method',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${PayoutMethod.nanoIdPrefix}_xxxxxxxx)`,
     },
     type: {
       type: GraphQLPayoutMethodType,

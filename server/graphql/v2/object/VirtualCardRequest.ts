@@ -18,12 +18,18 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(virtualCardRequest: VirtualCardRequest) {
         return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
       },
     },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${VirtualCardRequest.nanoIdPrefix}_xxxxxxxx)`,
+    },
     legacyId: {
       type: GraphQLInt,
+      deprecationReason: '2026-02-25: use publicId',
       resolve(virtualCardRequest: VirtualCardRequest) {
         return virtualCardRequest.id;
       },

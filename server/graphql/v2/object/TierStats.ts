@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import INTERVALS from '../../../constants/intervals';
+import { Tier } from '../../../models';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
@@ -12,7 +13,12 @@ export const GraphQLTierStats = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
+        deprecationReason: '2026-02-25: use publicId',
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.TIER),
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${Tier.nanoIdPrefix}_xxxxxxxx)`,
       },
       totalAmountReceived: {
         description: 'Total amount donated for this tier, in cents.',

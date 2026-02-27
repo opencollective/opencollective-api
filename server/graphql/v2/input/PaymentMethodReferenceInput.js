@@ -9,9 +9,14 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
   name: 'PaymentMethodReferenceInput',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${models.PaymentMethod.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: GraphQLString,
       description: 'The id assigned to the payment method',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });
@@ -28,11 +33,18 @@ export const fetchPaymentMethodWithReference = async (input, { sequelizeOpts } =
   };
 
   let paymentMethod;
-  if (input.id) {
+  if (input.publicId) {
+    const expectedPrefix = models.PaymentMethod.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for PaymentMethod, expected prefix ${expectedPrefix}_`);
+    }
+
+    paymentMethod = await models.PaymentMethod.findOne({ where: { publicId: input.publicId }, ...sequelizeOpts });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PAYMENT_METHOD);
     paymentMethod = await loadPaymentById(id);
   } else {
-    throw new Error('Please provide an id');
+    throw new Error('Please provide an id or publicId');
   }
   if (!paymentMethod) {
     throw new NotFound('Payment Method Not Found');

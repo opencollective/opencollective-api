@@ -1,6 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import models from '../../../models';
 import { canSeeComment, collectiveResolver, fromCollectiveResolver } from '../../common/comment';
 import { GraphQLCommentType } from '../enum/CommentType';
 import { getIdEncodeResolver } from '../identifiers';
@@ -19,7 +20,12 @@ export const GraphQLComment = new GraphQLObjectType({
     return {
       id: {
         type: GraphQLString,
+        deprecationReason: '2026-02-25: use publicId',
         resolve: getIdEncodeResolver('comment'),
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Comment.nanoIdPrefix}_xxxxxxxx)`,
       },
       createdAt: {
         type: GraphQLDateTime,

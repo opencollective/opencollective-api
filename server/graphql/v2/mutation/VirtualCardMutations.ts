@@ -268,8 +268,12 @@ const virtualCardMutations = {
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
       checkRemoteUserCanUseVirtualCards(req);
 
+      if (!args.virtualCard.id && !args.virtualCard.publicId) {
+        throw new BadRequest('Virtual Card reference is required');
+      }
+
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: args.virtualCard.id ? { id: args.virtualCard.id } : { publicId: args.virtualCard.publicId },
         include: [
           { association: 'host', required: true },
           { association: 'collective', required: true },

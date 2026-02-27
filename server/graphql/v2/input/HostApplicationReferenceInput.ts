@@ -5,21 +5,31 @@ import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 interface HostApplcationReferenceInputFields {
+  publicId?: string;
   id?: string;
 }
 
 export const GraphQLHostApplicationReferenceInput = new GraphQLInputObjectType({
   name: 'HostApplicationReferenceInput',
   fields: () => ({
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${HostApplication.nanoIdPrefix}_xxxxxxxx)`,
+    },
     id: {
       type: GraphQLString,
       description: 'The public id identifying the host application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      deprecationReason: '2026-02-25: use publicId',
     },
   }),
 });
 
 export const getDatabaseIdFromHostApplicationReference = (input: HostApplcationReferenceInputFields): number => {
-  return idDecode(input['id'], IDENTIFIER_TYPES.HOST_APPLICATION);
+  if (input.id) {
+    return idDecode(input['id'], IDENTIFIER_TYPES.HOST_APPLICATION);
+  } else {
+    return null;
+  }
 };
 
 /**
@@ -29,10 +39,21 @@ export const fetchHostApplicationWithReference = async (
   input: HostApplcationReferenceInputFields,
   { loaders = null, throwIfMissing = false } = {},
 ): Promise<HostApplication> => {
-  const dbId = getDatabaseIdFromHostApplicationReference(input);
   let hostApplication = null;
-  if (dbId) {
-    hostApplication = await (loaders ? loaders.HostApplication.byId.load(dbId) : models.HostApplication.findByPk(dbId));
+  if (input.publicId) {
+    const expectedPrefix = HostApplication.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for HostApplication, expected prefix ${expectedPrefix}_`);
+    }
+
+    hostApplication = await models.HostApplication.findOne({ where: { publicId: input.publicId } });
+  } else {
+    const dbId = getDatabaseIdFromHostApplicationReference(input);
+    if (dbId) {
+      hostApplication = await (loaders
+        ? loaders.HostApplication.byId.load(dbId)
+        : models.HostApplication.findByPk(dbId));
+    }
   }
 
   if (!hostApplication && throwIfMissing) {

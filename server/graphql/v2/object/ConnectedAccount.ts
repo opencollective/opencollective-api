@@ -14,12 +14,17 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this connected account',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONNECTED_ACCOUNT),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ConnectedAccount.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal database identifier of the Connected Account (ie: 580)',
-      deprecationReason: '2020-05-01: should only be used during the transition to GraphQL API v2.',
+      deprecationReason: '2026-02-25: use publicId',
       resolve(connectedAccount): number {
         return connectedAccount.id;
       },

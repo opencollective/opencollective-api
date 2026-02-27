@@ -2,14 +2,17 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes 
 
 import ActivityTypes from '../constants/activities';
 import dispatch from '../lib/notifications';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 
-class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
+class Activity extends ModelWithPublicId<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
+  public static readonly nanoIdPrefix = 'activity' as const;
   public static readonly tableName = 'Activities' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public type: ActivityTypes;
   declare public data: CreationOptional<Record<string, any> & { notify?: boolean }>;
   declare public CollectiveId: CreationOptional<number>;
@@ -29,6 +32,10 @@ Activity.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     type: DataTypes.STRING,
 

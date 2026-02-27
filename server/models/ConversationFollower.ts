@@ -1,17 +1,20 @@
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, Model, NonAttribute } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Conversation from './Conversation';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
-class ConversationFollower extends Model<
+class ConversationFollower extends ModelWithPublicId<
   InferAttributes<ConversationFollower>,
   InferCreationAttributes<ConversationFollower>
 > {
+  public static readonly nanoIdPrefix = 'confoll' as const;
   public static readonly tableName = 'ConversationFollowers' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public UserId: ForeignKey<User['id']>;
   declare public ConversationId: ForeignKey<Conversation['id']>;
   declare public isActive: boolean;
@@ -86,6 +89,10 @@ class ConversationFollower extends Model<
 
 ConversationFollower.init(
   {
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,

@@ -12,13 +12,15 @@ import type {
 } from 'sequelize';
 
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export type ApplicationType = 'apiKey' | 'oAuth';
 
-class Application extends Model<InferAttributes<Application>, InferCreationAttributes<Application>> {
+class Application extends ModelWithPublicId<InferAttributes<Application>, InferCreationAttributes<Application>> {
+  public static readonly nanoIdPrefix = 'app' as const;
   public static readonly tableName = 'Applications' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -77,6 +79,10 @@ Application.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

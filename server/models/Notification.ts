@@ -7,11 +7,12 @@ import isIP from 'validator/lib/isIP';
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses, TransactionalActivities } from '../constants/activities';
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { getRootDomain, prependHttp } from '../lib/url-utils';
 
 import Collective from './Collective';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 const debug = debugLib('models:Notification');
@@ -22,10 +23,12 @@ const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
   [channels.WEBHOOK]: false,
 };
 
-class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
+class Notification extends ModelWithPublicId<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
+  public static readonly nanoIdPrefix = 'notif' as const;
   public static readonly tableName = 'Notifications' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public channel: channels;
   declare public type: ActivityTypes | ActivityClasses | string;
   declare public active: boolean;
@@ -340,6 +343,10 @@ Notification.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     channel: {

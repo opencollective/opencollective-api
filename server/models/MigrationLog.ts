@@ -1,7 +1,8 @@
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum MigrationLogType {
@@ -25,10 +26,12 @@ export type MigrationLogDataForMergeAccounts = {
 
 type MigrationLogData = MigrationLogDataForMergeAccounts | Record<string, unknown>;
 
-class MigrationLog extends Model<InferAttributes<MigrationLog>, InferCreationAttributes<MigrationLog>> {
+class MigrationLog extends ModelWithPublicId<InferAttributes<MigrationLog>, InferCreationAttributes<MigrationLog>> {
+  public static readonly nanoIdPrefix = 'migr' as const;
   public static readonly tableName = 'MigrationLogs' as const;
 
   declare public id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public type: MigrationLogType;
   declare public createdAt: CreationOptional<Date>;
   declare public description: string;
@@ -59,6 +62,10 @@ MigrationLog.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     type: {
       type: DataTypes.ENUM(...Object.values(MigrationLogType)),

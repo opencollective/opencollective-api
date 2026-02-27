@@ -17,11 +17,17 @@ export const GraphQLExportRequest = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'Unique identifier for this export request',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPORT_REQUEST),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ExportRequest.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
       description: 'Legacy numeric ID of this export request',
+      deprecationReason: '2026-02-25: use publicId',
       resolve(exportRequest: ExportRequest) {
         return exportRequest.id;
       },

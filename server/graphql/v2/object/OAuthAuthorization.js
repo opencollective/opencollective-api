@@ -13,7 +13,12 @@ export const GraphQLOAuthAuthorization = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.USER_TOKEN),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${models.UserToken.nanoIdPrefix}_xxxxxxxx)`,
     },
     account: {
       type: new GraphQLNonNull(GraphQLIndividual),

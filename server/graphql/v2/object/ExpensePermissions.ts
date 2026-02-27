@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { Expense } from '../../../models';
 import * as ExpenseLib from '../../common/expenses';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -12,7 +13,12 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Expense.nanoIdPrefix}_xxxxxxxx)`,
     },
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),

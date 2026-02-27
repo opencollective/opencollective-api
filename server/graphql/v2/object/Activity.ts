@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import type { Collective, Conversation, Expense, Order, Transaction, Update } from '../../../models';
+import ActivityModel from '../../../models/Activity';
 import { sanitizeActivityData } from '../../common/activities';
 import { GraphQLActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -23,7 +24,12 @@ export const GraphQLActivity = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this activity',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACTIVITY),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ActivityModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     type: {
       type: new GraphQLNonNull(GraphQLActivityType),

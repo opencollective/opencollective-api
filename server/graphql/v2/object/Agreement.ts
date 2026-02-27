@@ -13,7 +13,15 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
   name: 'Agreement',
   description: 'An agreement',
   fields: () => ({
-    id: { type: GraphQLString, resolve: getIdEncodeResolver(IDENTIFIER_TYPES.AGREEMENT) },
+    id: {
+      type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.AGREEMENT),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${AgreementModel.nanoIdPrefix}_xxxxxxxx)`,
+    },
     title: { type: new GraphQLNonNull(GraphQLString) },
     notes: {
       type: GraphQLString,

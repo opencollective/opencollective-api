@@ -2,7 +2,7 @@ import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { Collective } from '../../../models';
+import models, { Collective } from '../../../models';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -15,7 +15,12 @@ export const GraphQLActivitySubscription = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this notification setting',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.NOTIFICATION),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${models.Notification.nanoIdPrefix}_xxxxxxxx)`,
     },
     channel: {
       type: new GraphQLNonNull(GraphQLActivityChannel),

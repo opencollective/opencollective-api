@@ -6,7 +6,6 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   Op,
   QueryTypes,
@@ -26,6 +25,7 @@ import sequelize from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 import models from '.';
 
@@ -84,13 +84,15 @@ const UtilizationTypeToPricePlanKeyMap: Record<UtilizationType, keyof PlatformSu
 
 type PeriodUtilization = Record<UtilizationType, number>;
 
-class PlatformSubscription extends Model<
+class PlatformSubscription extends ModelWithPublicId<
   InferAttributes<PlatformSubscription>,
   InferCreationAttributes<PlatformSubscription>
 > {
+  public static readonly nanoIdPrefix = 'psub' as const;
   public static readonly tableName = 'PlatformSubscriptions' as const;
 
   declare id: number;
+  declare public readonly publicId: string;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare plan: Partial<PlatformSubscriptionPlan>;
   declare period: Range<Date>;
@@ -614,6 +616,10 @@ PlatformSubscription.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

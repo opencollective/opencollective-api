@@ -24,10 +24,11 @@ import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
 import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import streamToBuffer from '../lib/stream-to-buffer';
 import { isValidURL } from '../lib/url-utils';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 // Types
@@ -102,10 +103,12 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
 /**
  * A file uploaded to our S3 bucket.
  */
-class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAttributes<UploadedFile>> {
+class UploadedFile extends ModelWithPublicId<InferAttributes<UploadedFile>, InferCreationAttributes<UploadedFile>> {
+  public static readonly nanoIdPrefix = 'ufile' as const;
   public static readonly tableName = 'UploadedFiles' as const;
 
   declare id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare kind: CreationOptional<FileKind>;
   declare fileName: CreationOptional<string>;
   declare fileSize: CreationOptional<number>; // In bytes
@@ -417,6 +420,10 @@ UploadedFile.init(
       autoIncrement: true,
       primaryKey: true,
       type: DataTypes.INTEGER,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     kind: {
       type: DataTypes.STRING,

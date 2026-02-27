@@ -295,7 +295,7 @@ interface OrdersCollectionArgsType {
   hostContext?: 'ALL' | 'INTERNAL' | 'HOSTED';
   includeChildrenAccounts: boolean;
   pausedBy?: string[];
-  paymentMethod?: Array<{ id: string; legacyId?: number }>;
+  paymentMethod?: Array<{ id: string; legacyId?: number; publicId?: string }>;
   paymentMethodService?: string[];
   paymentMethodType?: string[];
   manualPaymentProvider?: Array<{ id: string }>;
@@ -318,7 +318,7 @@ interface OrdersCollectionArgsType {
   chargedDateTo?: Date;
   searchTerm?: string;
   tierSlug?: string;
-  tier?: Array<{ id?: string; legacyId?: number; slug?: string }>;
+  tier?: Array<{ id?: string; legacyId?: number; slug?: string; publicId?: string }>;
   onlySubscriptions?: boolean;
   onlyActiveSubscriptions?: boolean;
   expectedFundsFilter?: 'ALL_EXPECTED_FUNDS' | 'ONLY_PENDING' | 'ONLY_MANUAL';
@@ -741,10 +741,30 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       qb.where(sql`"Orders".data->>'pausedBy'`, 'in', args.pausedBy),
     )
     .$if(!isEmpty(args.tier), qb => {
-      const tierIds = args.tier.map(getDatabaseIdFromTierReference);
+      const tierIds = args.tier.filter(tier => !tier.publicId).map(getDatabaseIdFromTierReference);
       return qb
         .innerJoin('Tiers', 'Orders.TierId', 'Tiers.id')
-        .where('Tiers.id', 'in', tierIds)
+        .where(qb => {
+          const ors: Expression<SqlBool>[] = [];
+          if (tierIds.length) {
+            ors.push(qb.eb('Tiers.id', 'in', tierIds));
+          }
+          if (args.tier.some(tier => tier.publicId)) {
+            ors.push(
+              qb.eb(
+                'Tiers.publicId',
+                'in',
+                args.tier.filter(tier => tier.publicId).map(tier => tier.publicId),
+              ),
+            );
+          }
+
+          if (ors.length === 1) {
+            return ors[0];
+          }
+
+          return qb.or(ors);
+        })
         .where('Tiers.deletedAt', 'is', null);
     })
     .$if(!!tier, qb => qb.where('TierId', '=', tier.id))

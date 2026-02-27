@@ -1,5 +1,5 @@
 import config from 'config';
-import { DataTypes, ForeignKey, Model, NonAttribute, Transaction } from 'sequelize';
+import { DataTypes, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
@@ -7,16 +7,22 @@ import sequelize from '../lib/sequelize';
 import { isValidRESTServiceURL, isValidURL } from '../lib/url-utils';
 
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
-class ExpenseAttachedFile extends Model {
+class ExpenseAttachedFile extends ModelWithPublicId<
+  InferAttributes<ExpenseAttachedFile>,
+  InferCreationAttributes<ExpenseAttachedFile>
+> {
+  public static readonly nanoIdPrefix = 'eafile' as const;
   public static readonly tableName = 'ExpenseAttachedFiles' as const;
 
   declare public readonly id: number;
+  declare public readonly publicId: string;
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public url: string;
@@ -62,6 +68,9 @@ ExpenseAttachedFile.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
     },
     ExpenseId: {
       type: DataTypes.INTEGER,

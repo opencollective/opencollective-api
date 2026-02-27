@@ -12,11 +12,12 @@ import ActivityTypes from '../constants/activities';
 import ExpenseTypes from '../constants/expense-type';
 import { TransactionKind } from '../constants/transaction-kind';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import User from './User';
 
@@ -49,10 +50,15 @@ class ExpenseTypesEnum extends DataTypes.ABSTRACT {
   key = `"enum_Expenses_type"`;
 }
 
-class AccountingCategory extends Model<InferAttributes<AccountingCategory>, AccountingCategoryCreationAttributes> {
+class AccountingCategory extends ModelWithPublicId<
+  InferAttributes<AccountingCategory>,
+  AccountingCategoryCreationAttributes
+> {
+  public static readonly nanoIdPrefix = 'acat' as const;
   public static readonly tableName = 'AccountingCategories' as const;
 
   declare id: number;
+  declare public readonly publicId: string;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare code: string;
   declare name: string;
@@ -121,6 +127,10 @@ AccountingCategory.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     code: {
       type: DataTypes.STRING,

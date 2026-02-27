@@ -18,6 +18,7 @@ export const GraphQLHostApplication = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve: async application => {
         if (application.id) {
           return idEncode(application.id, IDENTIFIER_TYPES.HOST_APPLICATION);
@@ -25,6 +26,10 @@ export const GraphQLHostApplication = new GraphQLObjectType({
           return idEncode(application.collective.id, IDENTIFIER_TYPES.ACCOUNT);
         }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${models.HostApplication.nanoIdPrefix}_xxxxxxxx)`,
     },
     account: {
       type: new GraphQLNonNull(GraphQLAccount),

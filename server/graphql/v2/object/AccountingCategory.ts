@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import AccountingCategoryModel from '../../../models/AccountingCategory';
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
@@ -16,7 +17,12 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${AccountingCategoryModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     code: {
       type: new GraphQLNonNull(GraphQLString),

@@ -1,10 +1,11 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { get, isNil, mapValues } from 'lodash';
 
 import POLICIES, { Policies } from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import { getFxRate } from '../../../lib/currency';
 import { getPolicy } from '../../../lib/policies';
+import { Collective } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -21,7 +22,12 @@ export const GraphQLPolicies = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
     },
     [POLICIES.EXPENSE_POLICIES]: {
       type: new GraphQLObjectType({

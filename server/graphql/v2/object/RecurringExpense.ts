@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import RecurringExpenseModel from '../../../models/RecurringExpense';
 import { GraphQLRecurringExpenseInterval } from '../enum/RecurringExpenseInterval';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -15,6 +16,11 @@ const GraphQLRecurringExpense = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.RECURRING_EXPENSE),
       description: 'Unique identifier for this recurring expense',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${RecurringExpenseModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     interval: {
       type: new GraphQLNonNull(GraphQLRecurringExpenseInterval),

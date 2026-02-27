@@ -2,12 +2,13 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes,
 import Temporal from 'sequelize-temporal';
 
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Collective from './Collective';
 import Conversation from './Conversation';
 import Expense from './Expense';
 import HostApplication from './HostApplication';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 // Options for sanitizing comment's body
@@ -23,10 +24,12 @@ export enum CommentType {
   PRIVATE_NOTE = 'PRIVATE_NOTE',
 }
 
-class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Comment>> {
+class Comment extends ModelWithPublicId<InferAttributes<Comment>, InferCreationAttributes<Comment>> {
+  public static readonly nanoIdPrefix = 'cmt' as const;
   public static readonly tableName = 'Comments' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public CollectiveId: number;
   declare public FromCollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;
@@ -84,6 +87,11 @@ Comment.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CollectiveId: {

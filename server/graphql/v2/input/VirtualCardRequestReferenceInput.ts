@@ -7,8 +7,18 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLVirtualCardRequestReferenceInput = new GraphQLInputObjectType({
   name: 'VirtualCardRequestReferenceInput',
   fields: () => ({
-    id: { type: GraphQLString },
-    legacyId: { type: GraphQLInt },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${VirtualCardRequest.nanoIdPrefix}_xxxxxxxx)`,
+    },
+    id: {
+      type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    legacyId: {
+      type: GraphQLInt,
+      deprecationReason: '2026-02-25: use publicId',
+    },
   }),
 });
 
@@ -18,7 +28,14 @@ export async function fetchVirtualCardRequestWithReference(input, { include = nu
   };
 
   let virtualCardRequest: VirtualCardRequest;
-  if (input.id) {
+  if (input.publicId) {
+    const expectedPrefix = VirtualCardRequest.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for VirtualCardRequest, expected prefix ${expectedPrefix}_`);
+    }
+
+    virtualCardRequest = await VirtualCardRequest.findOne({ where: { publicId: input.publicId }, include });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
     virtualCardRequest = await loadVirtualCardRequestById(id);
   } else if (input.legacyId) {

@@ -109,11 +109,17 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
+        deprecationReason: '2026-02-25: use publicId',
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${ExpenseModel.nanoIdPrefix}_xxxxxxxx)`,
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
         description: 'Legacy ID as returned by API V1. Avoid relying on this field as it may be removed in the future.',
+        deprecationReason: '2026-02-25: use publicId',
         resolve(expense) {
           return expense.id;
         },

@@ -19,10 +19,16 @@ const GraphQLUpdate = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
+        deprecationReason: '2026-02-25: use publicId',
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.UPDATE),
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Update.nanoIdPrefix}_xxxxxxxx)`,
       },
       legacyId: {
         type: GraphQLInt,
+        deprecationReason: '2026-02-25: use publicId',
         resolve(update) {
           return update.id;
         },

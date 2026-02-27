@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { ExpenseAttachedFile } from '../../../models';
 import URL from '../scalar/URL';
 
 /**
@@ -11,6 +12,11 @@ export const GraphQLExpenseAttachedFileInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'ID of the file',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${ExpenseAttachedFile.nanoIdPrefix}_xxxxxxxx)`,
     },
     name: {
       type: GraphQLString,

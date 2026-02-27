@@ -26,7 +26,7 @@ import logger from '../lib/logger';
 import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
@@ -46,6 +46,7 @@ import Collective from './Collective';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import { Billing } from './PlatformSubscription';
@@ -84,10 +85,12 @@ export enum ExpenseLockableFields {
   TYPE = 'TYPE',
 }
 
-class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
+class Expense extends ModelWithPublicId<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
+  public static readonly nanoIdPrefix = 'expense' as const;
   public static readonly tableName = 'Expenses' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public UserId: ForeignKey<User['id']>;
   declare public lastEditedById: ForeignKey<User['id']>;
   declare public HostCollectiveId: number;
@@ -762,6 +765,11 @@ Expense.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     UserId: {

@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { CommercialFeatures } from '../../../constants/feature';
+import { PlatformSubscription } from '../../../models';
 import { GraphQLAmountInput } from '../input/AmountInput';
 
 const GraphQLPlatformSubscriptionFeaturesInput = new GraphQLInputObjectType({
@@ -76,6 +77,11 @@ export const GraphQLPlatformSubscriptionInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The ID of the platform subscription to update',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${PlatformSubscription.nanoIdPrefix}_xxxxxxxx)`,
     },
     plan: {
       type: new GraphQLNonNull(GraphQLPlatformSubscriptionPlanInput),

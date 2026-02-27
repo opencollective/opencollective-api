@@ -12,7 +12,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNil, pick, size } from 'lodash';
+import { groupBy, isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../../../constants/collectives';
@@ -81,11 +81,16 @@ import {
 import { GraphQLExpense } from '../object/Expense';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 
-const populatePayoutMethodId = (payoutMethod: { id?: string | number; legacyId?: number }) => {
-  if (payoutMethod?.legacyId) {
+const populatePayoutMethodId = async (payoutMethod: { id?: string | number; legacyId?: number; publicId?: string }) => {
+  const id = payoutMethod?.id ? idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD) : null;
+  if (id === null && payoutMethod?.publicId) {
+    payoutMethod.id = await models.PayoutMethod.findOne({ where: { publicId: payoutMethod.publicId } }).then(
+      payoutMethod => payoutMethod?.id,
+    );
+  } else if (id) {
+    payoutMethod.id = id;
+  } else if (payoutMethod?.legacyId) {
     payoutMethod.id = payoutMethod.legacyId;
-  } else if (payoutMethod?.id) {
-    payoutMethod.id = idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD);
   }
 };
 
@@ -126,7 +131,7 @@ const expenseMutations = {
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
       const payoutMethod = args.expense.payoutMethod;
-      populatePayoutMethodId(payoutMethod);
+      await populatePayoutMethodId(payoutMethod);
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
@@ -199,8 +204,12 @@ const expenseMutations = {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
-      const isExistingAccountReference = (reference: { id?: string | number; legacyId?: number; slug?: string }) =>
-        reference?.id || reference?.legacyId || reference?.slug;
+      const isExistingAccountReference = (reference: {
+        id?: string | number;
+        legacyId?: number;
+        slug?: string;
+        publicId?: string;
+      }) => reference?.id || reference?.legacyId || reference?.slug || reference?.publicId;
 
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
@@ -214,7 +223,35 @@ const expenseMutations = {
         (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
 
       const payoutMethod = expense.payoutMethod;
-      populatePayoutMethodId(payoutMethod);
+      await populatePayoutMethodId(payoutMethod);
+
+      // TODO(henrique): fix this for publicId support, use loader
+      const mapItemPublicIdToId = items?.length
+        ? groupBy(
+            await Promise.all(
+              items
+                ?.filter(item => item.publicId)
+                .map(item =>
+                  models.ExpenseItem.findOne({ where: { publicId: item.publicId } }).then(expenseItem => {
+                    if (!expenseItem) {
+                      throw new NotFound('Expense item not found');
+                    }
+                    return { publicId: item.publicId, id: expenseItem.id };
+                  }),
+                ),
+            ),
+            'publicId',
+          )
+        : {};
+
+      const itemsWithIds = items?.map(item => ({
+        ...item,
+        id: item.id
+          ? idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM)
+          : item.publicId
+            ? mapItemPublicIdToId[item.publicId][0].id
+            : null,
+      }));
 
       const expenseData = {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
@@ -228,7 +265,7 @@ const expenseMutations = {
         customData: expense.customData,
         payoutMethod,
         reference: expense.reference,
-        items: items?.map(item => ({ ...item, id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) })),
+        items: itemsWithIds,
         tax: expense.tax,
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
@@ -607,16 +644,26 @@ const expenseMutations = {
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
 
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
-      const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
-      const payee = payeeLegacyId
-        ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
-        : expenseData.payee;
-      // We need to lowercase the email to be consistent with the User table
+      let payee = null;
+
+      if (expenseData.payee?.legacyId || expenseData.payee?.id) {
+        payee = (
+          await fetchAccountWithReference(
+            { legacyId: expenseData.payee?.legacyId || expenseData.payee?.id },
+            { throwIfMissing: true },
+          )
+        )?.minimal;
+      } else if (expenseData.payee?.publicId) {
+        payee = (await models.Collective.findOne({ where: { publicId: expenseData.payee.publicId } }))?.minimal;
+      } else {
+        payee = expenseData.payee;
+      }
+
       if (payee?.email) {
         payee.email = payee.email.toLowerCase();
       }

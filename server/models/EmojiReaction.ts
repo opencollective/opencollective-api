@@ -1,14 +1,17 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import { REACTION_EMOJI, ReactionEmoji } from '../constants/reaction-emoji';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
-class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationAttributes<EmojiReaction>> {
+class EmojiReaction extends ModelWithPublicId<InferAttributes<EmojiReaction>, InferCreationAttributes<EmojiReaction>> {
+  public static readonly nanoIdPrefix = 'emoj' as const;
   public static readonly tableName = 'EmojiReactions' as const;
 
   declare public readonly id: CreationOptional<number>;
+  declare public readonly publicId: string;
   declare public UserId: ForeignKey<User['id']>;
   declare public FromCollectiveId: number;
   declare public CommentId: number;
@@ -74,6 +77,10 @@ EmojiReaction.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     UserId: {
       type: DataTypes.INTEGER,

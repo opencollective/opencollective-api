@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { ExpenseAttachedFile } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLFileInfo } from '../interface/FileInfo';
@@ -13,7 +14,12 @@ const GraphQLExpenseAttachedFile = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this file',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ExpenseAttachedFile.nanoIdPrefix}_xxxxxxxx)`,
     },
     url: {
       type: URL,

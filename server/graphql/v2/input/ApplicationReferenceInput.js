@@ -5,13 +5,19 @@ import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const ApplicationReferenceFields = {
+  publicId: {
+    type: GraphQLString,
+    description: `The resource public id (ie: ${models.Application.nanoIdPrefix}_xxxxxxxx)`,
+  },
   id: {
     type: GraphQLString,
     description: 'The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    deprecationReason: '2026-02-25: use publicId',
   },
   legacyId: {
     type: GraphQLInt,
     description: 'The legacy public id identifying the application (ie: 4242)',
+    deprecationReason: '2026-02-25: use publicId',
   },
   clientId: {
     type: GraphQLString,
@@ -31,7 +37,14 @@ export const GraphQLApplicationReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchApplicationWithReference = async (input, sequelizeOps = undefined) => {
   let application;
-  if (input.id) {
+  if (input.publicId) {
+    const expectedPrefix = models.Application.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for Application, expected prefix ${expectedPrefix}_`);
+    }
+
+    application = await models.Application.findOne({ where: { publicId: input.publicId } }, sequelizeOps);
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.APPLICATION);
     application = await models.Application.findByPk(id, sequelizeOps);
   } else if (input.legacyId) {

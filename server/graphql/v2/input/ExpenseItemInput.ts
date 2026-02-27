@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { ExpenseItem } from '../../../models';
 import URL from '../scalar/URL';
 
 import { GraphQLAmountInput } from './AmountInput';
@@ -14,6 +15,11 @@ export const GraphQLExpenseItemInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'ID of the item',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${ExpenseItem.nanoIdPrefix}_xxxxxxxx)`,
     },
     amount: {
       type: GraphQLInt,

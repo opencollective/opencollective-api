@@ -17,7 +17,12 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this KYC verification',
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.KYC_VERIFICATION),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${KYCVerification.nanoIdPrefix}_xxxxxxxx)`,
     },
     provider: {
       description: 'Provider used to make this KYC verification',

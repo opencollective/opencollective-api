@@ -238,8 +238,8 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
   const similarAttachments = compact(
     flatten(
       await Promise.all([
-        await req.loaders.ExpenseItem.byUrl.loadMany(similarFilesUrls),
-        await req.loaders.ExpenseAttachedFile.byUrl.loadMany(similarFilesUrls),
+        (await req.loaders.ExpenseItem.byUrl.loadMany(similarFilesUrls)) as Array<unknown>,
+        (await req.loaders.ExpenseAttachedFile.byUrl.loadMany(similarFilesUrls)) as Array<unknown>,
       ]),
     ) as Array<ExpenseItem | ExpenseAttachedFile>,
   );

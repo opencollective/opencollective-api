@@ -10,7 +10,7 @@ import { getFxRate } from '../../../lib/currency';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
-import models from '../../../models';
+import models, { Collective } from '../../../models';
 import { ValidationFailed } from '../../errors';
 import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLCurrency } from '../enum/Currency';
@@ -63,9 +63,14 @@ export const GraphQLAccountStats = new GraphQLObjectType({
     return {
       id: {
         type: GraphQLString,
+        deprecationReason: '2026-02-25: use publicId',
         resolve(collective) {
           return idEncode(collective.id);
         },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
       },
       balanceWithBlockedFunds: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',

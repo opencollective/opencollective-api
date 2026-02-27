@@ -222,7 +222,7 @@ const vendorMutations = {
       if (args.vendor.payoutMethod) {
         let payoutMethod;
         const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
-        if (!args.vendor.payoutMethod.id) {
+        if (!args.vendor.payoutMethod.id && !args.vendor.payoutMethod.publicId) {
           if (!isEmpty(existingPayoutMethods)) {
             existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
           }
@@ -234,10 +234,16 @@ const vendorMutations = {
             isSaved: true,
           });
         } else {
-          const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
-          payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
+          if (args.vendor.payoutMethod.publicId) {
+            payoutMethod = await models.PayoutMethod.findOne({
+              where: { publicId: args.vendor.payoutMethod.publicId },
+            });
+          } else {
+            const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+            payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
+          }
           await Promise.all(
-            existingPayoutMethods.filter(pm => pm.id !== payoutMethodId).map(pm => pm.update({ isSaved: false })),
+            existingPayoutMethods.filter(pm => pm.id !== payoutMethod.id).map(pm => pm.update({ isSaved: false })),
           );
         }
 

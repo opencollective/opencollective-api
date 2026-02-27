@@ -4,6 +4,7 @@ import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import stripe from '../../../lib/stripe';
+import { PaymentMethod } from '../../../models';
 import { GraphQLPaymentMethodLegacyType } from '../enum';
 import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
 import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
@@ -21,6 +22,11 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The id assigned to the payment method',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${PaymentMethod.nanoIdPrefix}_xxxxxxxx)`,
     },
     service: {
       type: GraphQLPaymentMethodService,
@@ -79,7 +85,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
 ): Promise<Record<string, unknown> | { service: string; type: PAYMENT_METHOD_TYPE }> => {
   if (!pm) {
     return null;
-  } else if (pm.id) {
+  } else if (pm.id || pm.publicId) {
     return fetchPaymentMethodWithReference(pm);
   }
 

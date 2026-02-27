@@ -8,8 +8,18 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLUserTwoFactorMethodReferenceInput = new GraphQLInputObjectType({
   name: 'UserTwoFactorMethodReferenceInput',
   fields: () => ({
-    id: { type: GraphQLString },
-    legacyId: { type: GraphQLInt },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${UserTwoFactorMethod.nanoIdPrefix}_xxxxxxxx)`,
+    },
+    id: {
+      type: GraphQLString,
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    legacyId: {
+      type: GraphQLInt,
+      deprecationReason: '2026-02-25: use publicId',
+    },
   }),
 });
 
@@ -19,7 +29,14 @@ export async function fetchUserTwoFactorMethodWithReference(input, { include = n
   };
 
   let userTwoFactorMethod: UserTwoFactorMethod<Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>>;
-  if (input.id) {
+  if (input.publicId) {
+    const expectedPrefix = UserTwoFactorMethod.nanoIdPrefix;
+    if (!input.publicId.startsWith(`${expectedPrefix}_`)) {
+      throw new Error(`Invalid publicId for UserTwoFactorMethod, expected prefix ${expectedPrefix}_`);
+    }
+
+    userTwoFactorMethod = await UserTwoFactorMethod.findOne({ where: { publicId: input.publicId }, include });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.USER_TWO_FACTOR_METHOD);
     userTwoFactorMethod = await loadUserTwoFactorMethodById(id);
   } else if (input.legacyId) {

@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
+import { Expense } from '../../../models';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 
@@ -19,8 +20,13 @@ export const GraphQLExpenseUpdateInput = new GraphQLInputObjectType({
   name: 'ExpenseUpdateInput',
   fields: () => ({
     id: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
       description: 'ID of the expense that you are trying to edit',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${Expense.nanoIdPrefix}_xxxxxxxx)`,
     },
     description: {
       type: GraphQLString,

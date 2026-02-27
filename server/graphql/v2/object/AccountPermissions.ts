@@ -4,6 +4,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import FEATURE from '../../../constants/feature';
 import { hasFeature } from '../../../lib/allowed-features';
 import { canUseFeature } from '../../../lib/user-permissions';
+import { Collective } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -15,7 +16,12 @@ const GraphQLAccountPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
+      deprecationReason: '2026-02-25: use publicId',
       resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
     },
     addFunds: {
       type: new GraphQLNonNull(GraphQLPermission),

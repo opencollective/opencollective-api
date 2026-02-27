@@ -97,6 +97,7 @@ if [ "$USE_POSTGIS" = "1" ]; then
 fi
 
 $CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
+$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
 
 # cool trick: all stdout ignored in this block
 {
@@ -109,6 +110,7 @@ $CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXIST
 # Update table permissions
 echo "Updating table permissions"
 $CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "GRANT ALL ON SCHEMA public TO ${LOCALDBUSER};"
+$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER;"
 
 # The first time we run it, we will trigger FK constraints errors
 set +e

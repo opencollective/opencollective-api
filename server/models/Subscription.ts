@@ -1,4 +1,4 @@
-import { InferAttributes, InferCreationAttributes, Model } from 'sequelize';
+import { InferAttributes, InferCreationAttributes } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { SupportedCurrency } from '../constants/currencies';
@@ -7,11 +7,14 @@ import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscriptio
 
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import { ModelWithPublicId } from './ModelWithPublicId';
 
-class Subscription extends Model<InferAttributes<Subscription>, InferCreationAttributes<Subscription>> {
+class Subscription extends ModelWithPublicId<InferAttributes<Subscription>, InferCreationAttributes<Subscription>> {
+  public static readonly nanoIdPrefix = 'sub' as const;
   public static readonly tableName = 'Subscriptions' as const;
 
   declare id: number;
+  declare public readonly publicId: string;
   declare amount: number;
   declare currency: SupportedCurrency;
   declare interval: 'month' | 'year' | null;
@@ -43,6 +46,11 @@ Subscription.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     amount: {
