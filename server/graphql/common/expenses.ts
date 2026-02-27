@@ -361,6 +361,7 @@ export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, 
     isCollectiveAdmin, // Collective admins need to be able to check private notes, to verify that the receipt is for something legit to approve the expense; and they need to be able to upload documentation for virtual cards
     isCollectiveOrHostAccountant,
     isHostAdmin,
+    isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
 };
