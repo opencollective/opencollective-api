@@ -266,7 +266,7 @@ const PAYPAL_PAYOUT_CAPS_BY_CURRENCY: Partial<
  * - Payouts API Reference: https://developer.paypal.com/docs/api/payments.payouts-batch/v1/
  * - Fee Calculation Details: https://www.paypal.com/us/cshelp/article/how-are-fees-for-payouts-calculated-and-reported-ts2216
  */
-export const estimatePaypalPayoutFee = async (host: Collective, expense: Expense): Promise<number> => {
+export const estimatePaypalPayoutFeeInExpenseCurrency = async (host: Collective, expense: Expense): Promise<number> => {
   const hostCountry = host.countryISO;
   const payee = expense.fromCollective || (await expense.getFromCollective());
   const hostCurrency = host.currency;

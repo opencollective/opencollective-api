@@ -75,7 +75,7 @@ import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
-import { estimatePaypalPayoutFee } from '../../paymentProviders/paypal/payouts';
+import { estimatePaypalPayoutFeeInExpenseCurrency } from '../../paymentProviders/paypal/payouts';
 import { Location } from '../../types/Location';
 import {
   Quote as WiseQuote,
@@ -3394,6 +3394,7 @@ export const getExpenseFees = async (
 
   const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
+  const collectiveToExpenseFxRate = await getFxRate(expense.collective.currency, expense.currency);
 
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     const existingQuote = expense.data?.quote;
@@ -3420,7 +3421,10 @@ export const getExpenseFees = async (
       );
     }
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = await estimatePaypalPayoutFee(host, expense);
+    const paypalFeesInExpenseCurrency = await estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = Math.round(
+      paypalFeesInExpenseCurrency / collectiveToExpenseFxRate,
+    );
   }
 
   // Build fees in host currency
@@ -3447,7 +3451,6 @@ export const getExpenseFees = async (
       platformFee: resultFees['platformFeeInCollectiveCurrency'],
     };
   } else {
-    const collectiveToExpenseFxRate = await getFxRate(expense.collective.currency, expense.currency);
     const applyCollectiveToExpenseFxRate = (amount: number) => Math.round((amount || 0) * collectiveToExpenseFxRate);
     feesInExpenseCurrency = {
       paymentProcessorFee: applyCollectiveToExpenseFxRate(resultFees['paymentProcessorFeeInCollectiveCurrency']),

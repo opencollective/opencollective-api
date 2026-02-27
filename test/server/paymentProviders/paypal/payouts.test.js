@@ -316,7 +316,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(200); // 2% of $100 = $2 = 200 cents
     });
@@ -333,7 +333,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(1400); // USD domestic cap = $14 = 1400 cents
     });
@@ -350,7 +350,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(200); // 2% of $100 = $2 = 200 cents
     });
@@ -367,7 +367,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(9000); // USD international cap = $90 = 9000 cents
     });
@@ -384,7 +384,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'INR',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(2000); // 2% of 100000 = 2000 (no cap for INR)
     });
@@ -402,7 +402,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       });
       delete expense.fromCollective;
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(200); // 2% of €100 = 200 cents, domestic
     });
