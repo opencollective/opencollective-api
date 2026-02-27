@@ -2,7 +2,8 @@ import '../../server/env';
 
 import config from 'config';
 
-import { checkAllModels } from '../../checks/model';
+import { allModelChecks } from '../../checks/model';
+import { logChecksErrors, runAllChecks } from '../../checks/model/_utils';
 import email from '../../server/lib/email';
 import logger from '../../server/lib/logger';
 import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
@@ -18,7 +19,8 @@ const fixMessage = 'To fix the models, try:';
 const fixCommand = 'npm run script checks/model -- --fix';
 
 async function run() {
-  const { errors } = await checkAllModels();
+  const errors = await runAllChecks(allModelChecks);
+  logChecksErrors(errors);
 
   if (errors.length > 0) {
     // Post on Slack

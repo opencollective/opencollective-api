@@ -1,8 +1,6 @@
 import '../../server/env';
 
-import { sequelize } from '../../server/models';
-
-import { CheckFn, logChecksErrors, runAllChecks } from './_utils';
+import { CheckFn, runAllChecksThenExit } from './_utils';
 import { checks as collectivesChecks } from './collectives';
 import { checks as deadLocksChecks } from './dead-locks';
 import { checks as expensesChecks } from './expenses';
@@ -17,7 +15,7 @@ import { checks as transactionsChecks } from './transactions';
 import { checks as usersChecks } from './users';
 import { checks as virtualCardsChecks } from './virtual-cards';
 
-const allModelChecks: CheckFn[] = [
+export const allModelChecks: CheckFn[] = [
   ...collectivesChecks,
   ...deadLocksChecks,
   ...expensesChecks,
@@ -33,15 +31,6 @@ const allModelChecks: CheckFn[] = [
   ...virtualCardsChecks,
 ];
 
-export async function checkAllModels({ closeConnection = false }: { closeConnection?: boolean } = {}) {
-  const errors = await runAllChecks(allModelChecks);
-  logChecksErrors(errors);
-  if (closeConnection) {
-    await sequelize.close();
-  }
-  return { errors };
-}
-
 if (!module.parent) {
-  checkAllModels({ closeConnection: true });
+  runAllChecksThenExit(allModelChecks);
 }
