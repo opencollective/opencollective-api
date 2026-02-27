@@ -24,7 +24,7 @@ const processVirtualCard = async (expenses: Array<Expense>) => {
   const data = {
     expenses: expenses.map(e => ({
       ...e.info,
-      url: `${config.host.website}/${collective.slug}/expenses/${e.id}?edit=1`,
+      url: `${config.host.website}/${collective.slug}/expenses/${e.id}`,
     })),
     virtualCard,
     host: host.info,

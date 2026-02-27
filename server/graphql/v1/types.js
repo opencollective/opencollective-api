@@ -26,8 +26,7 @@ import { filterContributors } from '../../lib/contributors';
 import { sanitizeStripeError } from '../../lib/stripe';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../models';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethodPrivateDetails } from '../common/expenses';
+import { canSeeExpenseAttachments } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { Unauthorized } from '../errors';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -82,36 +81,6 @@ const IsoDateString = new GraphQLScalarType({
     }
     return date;
   },
-});
-
-const PayoutMethodTypeEnum = new GraphQLEnumType({
-  name: 'PayoutMethodTypeEnum',
-  values: Object.keys(PayoutMethodTypes).reduce((values, key) => {
-    return { ...values, [key]: { value: PayoutMethodTypes[key] } };
-  }, {}),
-});
-
-// @deprecated Still used in Collective.payoutMethods by `expenseFormPayeeStepCollectivePickerSearchQuery`
-export const PayoutMethodType = new GraphQLObjectType({
-  name: 'PayoutMethod',
-  description: 'A payout method for expenses',
-  fields: () => ({
-    id: {
-      type: GraphQLInt,
-    },
-    type: {
-      type: PayoutMethodTypeEnum,
-    },
-    name: {
-      type: GraphQLString,
-    },
-    isSaved: {
-      type: GraphQLBoolean,
-    },
-    data: {
-      type: GraphQLJSON,
-    },
-  }),
 });
 
 export const UserType = new GraphQLObjectType({
@@ -796,17 +765,6 @@ export const ExpenseType = new GraphQLObjectType({
         type: GraphQLString,
         resolve(expense) {
           return expense.type;
-        },
-      },
-      PayoutMethod: {
-        type: PayoutMethodType,
-        deprecationReason: '2024-12-13: Please move to GraphQL v2',
-        async resolve(expense, _, req) {
-          if (!expense.PayoutMethodId || !(await canSeeExpensePayoutMethodPrivateDetails(req, expense))) {
-            return null;
-          } else {
-            return expense.payoutMethod || req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-          }
         },
       },
       privateMessage: {
