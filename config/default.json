@@ -295,8 +295,8 @@
   },
   "exports": {
     "expirationDays": {
-      "TRANSACTIONS": 30,
-      "HOSTED_COLLECTIVES": 30
+      "TRANSACTIONS": 90,
+      "HOSTED_COLLECTIVES": 90
     }
   }
 }
