@@ -24,6 +24,7 @@ import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
@@ -90,6 +91,7 @@ import {
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
+import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 import { GraphQLStripeError } from '../object/StripeError';
@@ -519,7 +521,23 @@ const orderMutations = {
       // Trigger update
       const previousAccountingCategory = order.accountingCategory;
       if (previousAccountingCategory?.id !== newAccountingCategory?.id) {
-        await order.update({ AccountingCategoryId: newAccountingCategory?.id || null });
+        const valuesByRole = {
+          ...(order.data?.valuesByRole ?? {}),
+          ...{
+            hostAdmin: {
+              accountingCategory: newAccountingCategory?.id
+                ? newAccountingCategory?.publicInfo
+                : { code: UncategorizedValue },
+            },
+          },
+        };
+        await order.update({
+          AccountingCategoryId: newAccountingCategory?.id || null,
+          data: {
+            ...order.data,
+            valuesByRole,
+          },
+        });
         await models.Activity.create({
           type: activities.ORDER_UPDATED,
           UserId: req.remoteUser.id,
@@ -1144,8 +1162,9 @@ const orderMutations = {
 
       // Check accounting category
       let AccountingCategoryId = null;
+      let accountingCategory = null;
       if (args.order.accountingCategory) {
-        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
           throwIfMissing: true,
           loaders: req.loaders,
         });
@@ -1175,6 +1194,17 @@ const orderMutations = {
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
+
+      const valuesByRole = {
+        ...(accountingCategory
+          ? {
+              hostAdmin: {
+                accountingCategory: accountingCategory?.publicInfo,
+              },
+            }
+          : {}),
+      };
+
       const orderProps = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
@@ -1195,6 +1225,7 @@ const orderMutations = {
           isPendingContribution: true,
           hostFeePercent: args.order.hostFeePercent,
           tax: taxInfo,
+          valuesByRole,
         },
         status: OrderStatuses.PENDING,
       };
@@ -1207,6 +1238,9 @@ const orderMutations = {
       }
 
       const order = await models.Order.create(orderProps);
+      if (!AccountingCategoryId) {
+        await applyContributionAccountingCategoryRules(order);
+      }
 
       await models.Activity.create({
         type: activities.ORDER_PENDING_CREATED,
@@ -1292,8 +1326,9 @@ const orderMutations = {
 
       // Check accounting category
       let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;
+      let accountingCategory = null;
       if (args.order.accountingCategory) {
-        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
           throwIfMissing: true,
           loaders: req.loaders,
         });
@@ -1326,6 +1361,20 @@ const orderMutations = {
       const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
       const platformTip = args.order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+
+      const valuesByRole = {
+        ...(order.data.valuesByRole || {}),
+        ...(isUndefined(args.order.accountingCategory)
+          ? {}
+          : {
+              hostAdmin: {
+                accountingCategory: accountingCategory?.id
+                  ? accountingCategory?.publicInfo
+                  : { code: UncategorizedValue },
+              },
+            }),
+      };
+
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
         TierId: tier?.id || undefined,
@@ -1350,6 +1399,7 @@ const orderMutations = {
             },
             isUndefined,
           ),
+          valuesByRole,
         },
         status: OrderStatuses.PENDING,
       });

@@ -4,7 +4,9 @@ import { get } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import { FEATURE } from '../../../../../server/lib/allowed-features';
 import models from '../../../../../server/models';
+import { ContributionAccountingCategoryRule } from '../../../../../server/models/ContributionAccountingCategoryRule';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -289,6 +291,266 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       expect(activities[2].data.removed).to.have.length(2);
       expect(activities[2].data.edited).to.have.length(0);
       expect(activities[2].data).to.containSubset({ removed: [{ code: '003' }] });
+    });
+  });
+
+  describe('updateContributionAccountingCategoryRules', () => {
+    const updateContributionAccountingCategoryRulesMutation = gql`
+      mutation UpdateContributionAccountingCategoryRules(
+        $account: AccountReferenceInput!
+        $rules: [ContributionAccountingCategoryRuleInput!]!
+      ) {
+        updateContributionAccountingCategoryRules(account: $account, rules: $rules) {
+          id
+        }
+      }
+    `;
+
+    it('fails if user is not authenticated', async () => {
+      const host = await fakeActiveHost();
+      const result = await graphqlQueryV2(updateContributionAccountingCategoryRulesMutation, {
+        account: { legacyId: host.id },
+        rules: [],
+      });
+
+      expect(result.errors[0].message).to.equal(
+        'You must be logged in as an admin of this account to update its contribution accounting category rules',
+      );
+    });
+
+    it('fails if the token does not have the right scope', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const userToken = await fakeUserToken({ scope: ['account'], UserId: admin.id });
+      const result = await oAuthGraphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        { account: { legacyId: host.id }, rules: [] },
+        userToken,
+      );
+
+      expect(result.errors[0].message).to.equal('The User Token is not allowed for operations in scope "host".');
+    });
+
+    it('fails if user is not authorized to update contribution accounting category rules', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const randomUser = await fakeUser();
+      const result = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        { account: { legacyId: host.id }, rules: [] },
+        randomUser,
+      );
+
+      expect(result.errors[0].message).to.equal(
+        'You must be logged in as an admin of this account to update its contribution accounting category rules',
+      );
+    });
+
+    it('fails if contribution accounting category rules are not set at the host level', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        hasMoneyManagement: false,
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const result = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        { account: { legacyId: host.id }, rules: [] },
+        admin,
+      );
+
+      expect(result.errors[0].message).to.equal(
+        'Contribution accounting category rules can only be set at the host level',
+      );
+    });
+
+    it('updates contribution accounting category rules successfully', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
+
+      const initialRulesInput = [
+        {
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+          name: 'Rule A',
+          enabled: true,
+          predicates: [
+            {
+              subject: 'description',
+              operator: 'contains',
+              value: 'foo',
+            },
+          ],
+        },
+        {
+          accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+          name: 'Rule B',
+          enabled: true,
+          predicates: [
+            {
+              subject: 'amount',
+              operator: 'gte',
+              value: 1000,
+            },
+          ],
+        },
+      ];
+
+      const result1 = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        { account: { legacyId: host.id }, rules: initialRulesInput },
+        admin,
+      );
+
+      expect(result1.errors).to.not.exist;
+
+      const createdRules = await ContributionAccountingCategoryRule.findAll({
+        where: { CollectiveId: host.id },
+        order: [['order', 'ASC']],
+      });
+      expect(createdRules).to.have.length(2);
+      expect(createdRules[0].name).to.equal('Rule A');
+      expect(createdRules[1].name).to.equal('Rule B');
+      expect(createdRules[0].order).to.equal(0);
+      expect(createdRules[1].order).to.equal(1);
+      expect(createdRules[0].AccountingCategoryId).to.equal(accountingCategory.id);
+      expect(createdRules[1].AccountingCategoryId).to.equal(accountingCategory.id);
+
+      // Update + Add (and implicitly remove the second initial rule)
+      const result2 = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        {
+          account: { legacyId: host.id },
+          rules: [
+            {
+              id: idEncode(createdRules[0].id, 'contribution-accounting-category-rule'),
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              name: 'Rule A - edited',
+              enabled: false,
+              predicates: [
+                {
+                  subject: 'description',
+                  operator: 'contains',
+                  value: 'bar',
+                },
+              ],
+            },
+            {
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              name: 'Rule C',
+              enabled: true,
+              predicates: [
+                {
+                  subject: 'currency',
+                  operator: 'eq',
+                  value: 'USD',
+                },
+              ],
+            },
+          ],
+        },
+        admin,
+      );
+
+      expect(result2.errors).to.not.exist;
+
+      const updatedRules = await ContributionAccountingCategoryRule.findAll({
+        where: { CollectiveId: host.id },
+        order: [['order', 'ASC']],
+      });
+      expect(updatedRules).to.have.length(2);
+
+      const updatedRuleA = updatedRules.find(r => r.id === createdRules[0].id);
+      const ruleC = updatedRules.find(r => r.name === 'Rule C');
+
+      expect(updatedRuleA).to.exist;
+      expect(updatedRuleA.enabled).to.be.false;
+      expect(updatedRuleA.name).to.equal('Rule A - edited');
+      expect(updatedRuleA.order).to.equal(0);
+
+      expect(ruleC).to.exist;
+      expect(ruleC.enabled).to.be.true;
+      expect(ruleC.order).to.equal(1);
+
+      // The original "Rule B" should have been deleted
+      expect(updatedRules.find(r => r.id === createdRules[1].id)).to.not.exist;
+    });
+
+    it('fails if predicate "toAccount" references an unknown account', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        {
+          account: { legacyId: host.id },
+          rules: [
+            {
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              name: 'Invalid toAccount rule',
+              enabled: true,
+              predicates: [
+                {
+                  subject: 'toAccount',
+                  operator: 'eq',
+                  // Encodes a non-existing account id
+                  value: idEncode(9999999, 'account'),
+                },
+              ],
+            },
+          ],
+        },
+        admin,
+      );
+
+      expect(result.errors[0].message).to.include('Invalid value');
+    });
+
+    it('fails if predicate expecting an array receives a string', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        {
+          account: { legacyId: host.id },
+          rules: [
+            {
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              name: 'Invalid frequency rule',
+              enabled: true,
+              predicates: [
+                {
+                  subject: 'frequency',
+                  operator: 'in',
+                  // Should be an array of intervals, but is a single string
+                  value: 'month',
+                },
+              ],
+            },
+          ],
+        },
+        admin,
+      );
+
+      expect(result.errors[0].message).to.include('Invalid value');
     });
   });
 });

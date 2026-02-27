@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
 
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
@@ -60,4 +60,34 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
       description: 'If the category is applicable to the Host or Hosted Collectives',
     },
   }),
+});
+
+export const GraphQLContributionAccountingCategoryRule = new GraphQLObjectType({
+  name: 'ContributionAccountingCategoryRule',
+  description: 'A rule for categorizing contributions',
+  fields: {
+    id: {
+      type: new GraphQLNonNull(GraphQLString),
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONTRIBUTION_ACCOUNTING_CATEGORY_RULE),
+    },
+    name: {
+      type: new GraphQLNonNull(GraphQLString),
+    },
+    enabled: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+    },
+    predicates: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLJSONObject))),
+    },
+    accountingCategory: {
+      type: new GraphQLNonNull(GraphQLAccountingCategory),
+      resolve: ({ AccountingCategoryId }, _, req) => req.loaders.AccountingCategory.byId.load(AccountingCategoryId),
+    },
+    createdAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+    },
+    updatedAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+    },
+  },
 });

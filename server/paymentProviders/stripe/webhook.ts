@@ -17,6 +17,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } fro
 import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { applyContributionAccountingCategoryRules } from '../../lib/accounting/categorization/contribution-rules';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import {
@@ -251,9 +252,12 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   // and the subscription is managed by us.
   if (order.interval && !order.SubscriptionId) {
     sideEffects.push(createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }));
+    sideEffects.push(applyContributionAccountingCategoryRules(order));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
     sideEffects.push(subscription.update({ lastChargedAt: transaction.clearedAt }));
+  } else {
+    sideEffects.push(applyContributionAccountingCategoryRules(order));
   }
 
   sendEmailNotifications(order, transaction);

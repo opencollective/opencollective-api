@@ -7,6 +7,7 @@ import Application from './Application';
 import Collective from './Collective';
 import Comment from './Comment';
 import ConnectedAccount from './ConnectedAccount';
+import { ContributionAccountingCategoryRule } from './ContributionAccountingCategoryRule';
 import Conversation from './Conversation';
 import ConversationFollower from './ConversationFollower';
 import CurrencyExchangeRate from './CurrencyExchangeRate';
@@ -103,6 +104,7 @@ const models = {
   KYCVerification,
   VirtualCard,
   VirtualCardRequest,
+  ContributionAccountingCategoryRule,
 } as const;
 
 /**
@@ -375,6 +377,13 @@ PlatformSubscription.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'co
 // KYCVerification
 KYCVerification.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 KYCVerification.belongsTo(Collective, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
+
+// ContributionAccountingCategoryRule
+ContributionAccountingCategoryRule.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+ContributionAccountingCategoryRule.belongsTo(AccountingCategory, {
+  foreignKey: 'AccountingCategoryId',
+  as: 'accountingCategory',
+});
 
 export default models;
 
