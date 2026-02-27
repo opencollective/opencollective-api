@@ -165,6 +165,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
               currency: 'USD',
               value: '1.23',
             },
+            time_processed: '2024-08-15T10:30:00Z',
           },
         ],
       });
@@ -174,6 +175,8 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
 
       expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id');
       expect(expense).to.have.property('status', 'PAID');
+      expect(expense.paidAt).to.be.a('date');
+      expect(expense.paidAt.toISOString()).to.eq(new Date('2024-08-15T10:30:00Z').toISOString());
       expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -123);
       expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10123);
     });
@@ -313,7 +316,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(200); // 2% of $100 = $2 = 200 cents
     });
@@ -330,7 +333,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(1400); // USD domestic cap = $14 = 1400 cents
     });
@@ -347,7 +350,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(200); // 2% of $100 = $2 = 200 cents
     });
@@ -364,7 +367,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'USD',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(9000); // USD international cap = $90 = 9000 cents
     });
@@ -381,7 +384,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
         currency: 'INR',
       });
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(2000); // 2% of 100000 = 2000 (no cap for INR)
     });
@@ -399,7 +402,7 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       });
       delete expense.fromCollective;
 
-      const fee = await paypalPayouts.estimatePaypalPayoutFee(host, expense);
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
 
       expect(fee).to.equal(200); // 2% of €100 = 200 cents, domestic
     });

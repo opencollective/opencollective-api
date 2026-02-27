@@ -18,7 +18,7 @@ import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import MemberRoles from '../../../../constants/roles';
-import { getBalances } from '../../../../lib/budget';
+import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
@@ -105,11 +105,14 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
     // Check the balances for these collectives. The following will emit an SQL like:
     // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
     const collectiveIds = uniq(expensesWithoutPendingTaxForm.map(e => e.CollectiveId));
-    // TODO: this can conflict for collectives stuck on balance v1 as this is now using balance v2 by default
-    const balances = await getBalances(collectiveIds, { withBlockedFunds: true });
+    const balances = await getBalancesWithVersionPerCollective(collectiveIds, {
+      withBlockedFunds: true,
+      loaders,
+    });
+    const expensesWithBalance = expensesWithoutPendingTaxForm.filter(e => balances[e.CollectiveId]);
     const fxRates = await loadFxRatesMap(
       uniq(
-        expensesWithoutPendingTaxForm.map(expense => {
+        expensesWithBalance.map(expense => {
           const collectiveBalance = balances[expense.CollectiveId];
           return { fromCurrency: expense.currency, toCurrency: collectiveBalance.currency as SupportedCurrency };
         }),
@@ -120,6 +123,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
       .filter(expense => {
         const collectiveBalance = balances[expense.CollectiveId];
         const hasBalance =
+          collectiveBalance &&
           expense.amount * fxRates['latest'][expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
 
         return !hasBalance;
@@ -713,23 +717,9 @@ export const ExpensesCollectionQueryResolver = async (
     include.push({ association: 'activities', required: true, attributes: [], where: activitiesConditions });
   }
 
-  // Handle ordering - paidAt requires a subquery to the Transaction table
   let order: OrderItem[];
   if (args.orderBy.field === 'paidAt') {
-    // Use NULLS LAST to ensure unpaid expenses (with NULL paidAt) always appear at the end
-    order = [
-      sequelize.literal(`(
-        SELECT COALESCE(t."clearedAt", t."createdAt")
-        FROM "Transactions" t
-        WHERE t."ExpenseId" = "Expense"."id"
-          AND t."type" = 'DEBIT'
-          AND t."kind" = 'EXPENSE'
-          AND t."isRefund" = false
-          AND t."RefundTransactionId" IS NULL
-          AND t."deletedAt" IS NULL
-        LIMIT 1
-      ) ${args.orderBy.direction} NULLS LAST`),
-    ];
+    order = [['paidAt', `${args.orderBy.direction} NULLS LAST`]];
   } else {
     order = [[args.orderBy.field, args.orderBy.direction]];
   }

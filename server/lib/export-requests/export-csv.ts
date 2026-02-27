@@ -1,6 +1,7 @@
 import axios from 'axios';
 import config from 'config';
 import { isEmpty, isNil, kebabCase } from 'lodash';
+import moment from 'moment';
 import assert from 'node:assert';
 import Stream from 'node:stream';
 
@@ -165,7 +166,16 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
     });
 
   const [uploadedFile] = await Promise.all([pUpload, pDownload]);
-  await request.update({ UploadedFileId: uploadedFile.id, status: ExportRequestStatus.COMPLETED });
+
+  // Set expiration date based on export type
+  const expirationDays = config.exports?.expirationDays?.[request.type] || 30;
+  const expiresAt = moment().add(expirationDays, 'days').toDate();
+
+  await request.update({
+    UploadedFileId: uploadedFile.id,
+    status: ExportRequestStatus.COMPLETED,
+    expiresAt,
+  });
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

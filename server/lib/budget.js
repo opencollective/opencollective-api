@@ -1,5 +1,5 @@
 import config from 'config';
-import { difference } from 'lodash';
+import { difference, groupBy } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
@@ -127,6 +127,38 @@ export async function getBalances(
   });
 
   return { ...fastResults, ...results };
+}
+
+/**
+ * Same as getBalances but uses each collective's budget version (from settings.budget.version)
+ * instead of a single default. Required for Ready to Pay and other features where collectives
+ * may have different budget versions (v2 vs v3).
+ *
+ * @return {Promise<Record<number, { CollectiveId: number, currency: string, value: number }>>}
+ */
+export async function getBalancesWithVersionPerCollective(collectiveIds, options = {}) {
+  if (!collectiveIds?.length) {
+    return {};
+  }
+
+  const collectives = await models.Collective.findAll({
+    where: { id: collectiveIds },
+    attributes: ['id', 'settings'],
+    raw: true,
+  });
+
+  const idsByVersion = groupBy(collectiveIds, id => {
+    const collective = collectives.find(c => c.id === id);
+    return collective?.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
+  });
+
+  const allBalances = {};
+  for (const [version, ids] of Object.entries(idsByVersion)) {
+    const balances = await getBalances(ids, { ...options, version });
+    Object.assign(allBalances, balances);
+  }
+
+  return allBalances;
 }
 
 export async function getTotalAmountReceivedAmount(

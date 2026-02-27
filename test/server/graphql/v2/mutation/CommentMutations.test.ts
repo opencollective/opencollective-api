@@ -14,6 +14,7 @@ import {
   fakeCollective,
   fakeComment,
   fakeExpense,
+  fakeHostApplication,
   fakeMember,
   fakeProject,
   fakeUser,
@@ -153,6 +154,121 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       assert.neverCalledWithMatch(sendEmailSpy, admin.email);
       assert.neverCalledWithMatch(sendEmailSpy, expenseSubmitter.email);
       assert.calledWithMatch(sendEmailSpy, anotherHostAdmin.email, expectedTitle);
+    });
+
+    it('creates a host application comment from the applicant and notifies the host admin', async () => {
+      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: hostAdmin.CollectiveId, role: roles.ADMIN });
+
+      const collectiveAdmin = await fakeUser();
+      const applyingCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        admin: collectiveAdmin,
+        isActive: false,
+        approvedAt: null,
+      });
+      const hostApplication = await fakeHostApplication({
+        CollectiveId: applyingCollective.id,
+        HostCollectiveId: host.id,
+      });
+
+      const hostApplicationCommentInput = {
+        html: '<p>Host application comment</p>',
+        hostApplication: { id: idEncode(hostApplication.id, 'host-application') },
+      };
+
+      const result = await utils.graphqlQueryV2(
+        createCommentMutation,
+        { comment: hostApplicationCommentInput },
+        collectiveAdmin,
+      );
+      utils.expectNoErrorsFromResult(result);
+      const createdComment = result.data.createComment;
+      expect(createdComment.html).to.equal('<p>Host application comment</p>');
+
+      const commentId = idDecode(createdComment.id, 'comment');
+
+      const activity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(activity).to.exist;
+      expect(activity.data.CommentId).to.equal(commentId);
+      expect(activity.data.HostApplicationId).to.equal(hostApplication.id);
+      expect(activity.data.host.id).to.equal(host.id);
+      expect(activity.data.collective.id).to.equal(applyingCollective.id);
+
+      await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
+      expect(sendEmailSpy.callCount).to.be.greaterThan(0);
+
+      const isHostAdminEmailSent = sendEmailSpy
+        .getCalls()
+        .some(
+          call => call.args[0] === hostAdmin.email && call.lastArg.template === 'host.application.comment.created.host',
+        );
+      expect(isHostAdminEmailSent).to.be.true;
+    });
+
+    it('creates a host application comment from the host admin and notifies the collective admin', async () => {
+      const host = await fakeActiveHost();
+      const hostAdmin = await fakeUser();
+      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: hostAdmin.CollectiveId, role: roles.ADMIN });
+
+      const collectiveAdmin = await fakeUser();
+      const applyingCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        admin: collectiveAdmin,
+        isActive: false,
+        approvedAt: null,
+      });
+      const hostApplication = await fakeHostApplication({
+        CollectiveId: applyingCollective.id,
+        HostCollectiveId: host.id,
+      });
+
+      const hostApplicationCommentInput = {
+        html: '<p>Host application comment from host admin</p>',
+        hostApplication: { id: idEncode(hostApplication.id, 'host-application') },
+      };
+
+      const result = await utils.graphqlQueryV2(
+        createCommentMutation,
+        { comment: hostApplicationCommentInput },
+        hostAdmin,
+      );
+      utils.expectNoErrorsFromResult(result);
+      const createdComment = result.data.createComment;
+      expect(createdComment.html).to.equal('<p>Host application comment from host admin</p>');
+
+      const commentId = idDecode(createdComment.id, 'comment');
+
+      const activity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
+        },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(activity).to.exist;
+      expect(activity.data.CommentId).to.equal(commentId);
+      expect(activity.data.HostApplicationId).to.equal(hostApplication.id);
+      expect(activity.data.host.id).to.equal(host.id);
+      expect(activity.data.collective.id).to.equal(applyingCollective.id);
+
+      await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
+      expect(sendEmailSpy.callCount).to.be.greaterThan(0);
+
+      console.log('getCalls', sendEmailSpy.getCalls());
+      const isCollectiveAdminEmailSent = sendEmailSpy
+        .getCalls()
+        .some(
+          call => call.args[0] === collectiveAdmin.email && call.args[1].includes('New message about your application'),
+        );
+      expect(isCollectiveAdminEmailSent).to.be.true;
     });
   });
 
