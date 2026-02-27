@@ -40,15 +40,15 @@ export type PersonaInquiry = {
   attributes: {
     status: 'created' | 'pending' | 'completed' | 'expired' | 'failed' | 'needs_review' | 'approved' | 'declined';
     fields: {
-      name_first: PersonaInquiryField<'string'>;
-      name_last: PersonaInquiryField<'string'>;
-      name_middle: PersonaInquiryField<'string'>;
-      address_city: PersonaInquiryField<'string'>;
-      address_street_1: PersonaInquiryField<'string'>;
-      address_street_2: PersonaInquiryField<'string'>;
-      address_postal_code: PersonaInquiryField<'string'>;
-      address_subdivision: PersonaInquiryField<'string'>;
-      address_country_code: PersonaInquiryField<'string'>;
+      name_first?: PersonaInquiryField<'string'>;
+      name_last?: PersonaInquiryField<'string'>;
+      name_middle?: PersonaInquiryField<'string'>;
+      address_city?: PersonaInquiryField<'string'>;
+      address_street_1?: PersonaInquiryField<'string'>;
+      address_street_2?: PersonaInquiryField<'string'>;
+      address_postal_code?: PersonaInquiryField<'string'>;
+      address_subdivision?: PersonaInquiryField<'string'>;
+      address_country_code?: PersonaInquiryField<'string'>;
     } & Record<string, PersonaInquiryField>;
   };
 };

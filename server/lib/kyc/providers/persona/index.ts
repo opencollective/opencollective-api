@@ -321,9 +321,9 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
   }
 
   private verifiedDataFromInquiry(inquiry: PersonaInquiry): KYCVerifiedData {
-    const firstName = inquiry.attributes.fields.name_first.value ?? '';
-    const middleName = inquiry.attributes.fields.name_middle.value ?? '';
-    const lastName = inquiry.attributes.fields.name_last.value ?? '';
+    const firstName = inquiry.attributes.fields.name_first?.value ?? '';
+    const middleName = inquiry.attributes.fields.name_middle?.value ?? '';
+    const lastName = inquiry.attributes.fields.name_last?.value ?? '';
     let legalName = firstName;
     if (legalName && middleName) {
       legalName += ` ${middleName}`;
@@ -332,7 +332,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       legalName += ` ${lastName}`;
     }
 
-    const legalAddress = inquiry.attributes.fields.address_street_1.value;
+    const legalAddress = inquiry.attributes.fields.address_street_1?.value;
     return {
       legalName,
       legalAddress,
