@@ -22,7 +22,8 @@
     "images": "https://images.opencollective.com",
     "pdf": "https://pdf.opencollective.com",
     "rest": "https://rest.opencollective.com",
-    "ml": "https://ml.opencollective.com"
+    "ml": "https://ml.opencollective.com",
+    "webhooks": "https://api.opencollective.com/webhooks"
   },
   "log": {
     "slowRequest": true

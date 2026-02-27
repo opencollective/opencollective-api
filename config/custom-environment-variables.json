@@ -146,7 +146,8 @@
     "website": "WEBSITE_URL",
     "pdf": "PDF_SERVICE_URL",
     "rest": "REST_URL",
-    "ml": "ML_SERVICE_URL"
+    "ml": "ML_SERVICE_URL",
+    "webhooks": "WEBHOOKS_URL"
   },
   "limits": {
     "ordersPerHour": {

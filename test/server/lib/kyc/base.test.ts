@@ -13,7 +13,7 @@ class TestProvider extends KYCProvider<unknown> {
     super('test' as KYCProviderName);
   }
 
-  request(): Promise<KYCVerification> {
+  requestVerification(): Promise<KYCVerification> {
     throw new Error('Method not implemented.');
   }
 }
