@@ -237,8 +237,8 @@
   },
   "ledger": {
     "fastBalance": true,
-    "separatePaymentProcessorFees": false,
-    "separateTaxes": false,
+    "separatePaymentProcessorFees": true,
+    "separateTaxes": true,
     "orderedTransactions": false
   },
   "timeline": {

@@ -53,12 +53,10 @@ const main = async (): Promise<void> => {
     } else {
       await Promise.all(
         transactionsToRefund.map(async transaction => {
-          await createRefundTransaction(
-            transaction,
-            transaction.paymentProcessorFeeInHostCurrency,
-            { refundedFromDoubleTransactionsScript: true },
-            null,
-          );
+          await createRefundTransaction(transaction, {
+            refundedPaymentProcessorFeeInHostCurrency: transaction.paymentProcessorFeeInHostCurrency,
+            data: { refundedFromDoubleTransactionsScript: true },
+          });
         }),
       );
     }

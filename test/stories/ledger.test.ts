@@ -317,7 +317,7 @@ describe('test/stories/ledger', () => {
         where: { OrderId: order.id, kind: 'CONTRIBUTION', type: 'CREDIT' },
       });
 
-      await createRefundTransaction(contributionTransaction, 0, null, null);
+      await createRefundTransaction(contributionTransaction);
 
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS);
@@ -391,7 +391,7 @@ describe('test/stories/ledger', () => {
         expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(100000 + 500); // $1000 (expense) + $5 (expense processor fee)
       }
 
-      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, false);
+      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, 100_000);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
@@ -441,7 +441,7 @@ describe('test/stories/ledger', () => {
         expect(await collective.getTotalAmountSpent({ useMaterializedView, net: true })).to.eq(100000 + 500);
       }
 
-      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, true);
+      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, 100_000 + 500);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
@@ -516,7 +516,7 @@ describe('test/stories/ledger', () => {
         where: { OrderId: order.id, kind: 'CONTRIBUTION', type: 'CREDIT' },
       });
 
-      await createRefundTransaction(contributionTransaction, 0, null, null);
+      await createRefundTransaction(contributionTransaction);
 
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
@@ -658,7 +658,7 @@ describe('test/stories/ledger', () => {
         where: { OrderId: order.id, kind: 'CONTRIBUTION', type: 'CREDIT' },
       });
 
-      await createRefundTransaction(contributionTransaction, 0, null, null);
+      await createRefundTransaction(contributionTransaction);
 
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);

@@ -52,6 +52,7 @@ import { GraphQLActivity } from './Activity';
 import { GraphQLAmount } from './Amount';
 import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
 import GraphQLExpenseItem from './ExpenseItem';
+import { GraphQLExpensePaymentInformationField } from './ExpensePaymentInformationField';
 import GraphQLExpensePermissions from './ExpensePermissions';
 import GraphQLExpenseQuote from './ExpenseQuote';
 import { GraphQLExpenseValuesByRole } from './ExpenseValuesByRole';
@@ -288,6 +289,15 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         description: 'The date on which the expense was paid',
         resolve(expense) {
           return expense.paidAt || null;
+        },
+      },
+      paymentInfo: {
+        type: GraphQLExpensePaymentInformationField,
+        description: 'Payment information for this expense. Only available when the expense status is PAID.',
+        resolve(expense) {
+          if (expense.status === expenseStatus.PAID) {
+            return expense;
+          }
         },
       },
       onHold: {

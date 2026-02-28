@@ -772,19 +772,17 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
 
       // Create refund transaction for the fraudulent charge
       if (!chargeTransaction.RefundTransactionId) {
-        await createRefundTransaction(
-          chargeTransaction,
-          0,
-          {
+        await createRefundTransaction(chargeTransaction, {
+          refundedPaymentProcessorFeeInHostCurrency: 0,
+          data: {
             ...chargeTransaction.data,
             dispute,
             refundTransactionId: chargeTransaction.id,
           },
-          null,
-          refundTransactionGroup,
+          transactionGroupId: refundTransactionGroup,
           clearedAt,
-          RefundKind.DISPUTE,
-        );
+          refundKind: RefundKind.DISPUTE,
+        });
       }
       // A won dispute means it was decided as not fraudulent
     } else if (dispute.status === 'won') {
@@ -1011,18 +1009,16 @@ export const reviewClosed = async (event: Stripe.Event) => {
 
       // Create refund transaction for the fraudulent charge
       const transactionGroup = uuid();
-      await createRefundTransaction(
-        paymentIntentTransaction,
-        0,
-        {
+      await createRefundTransaction(paymentIntentTransaction, {
+        refundedPaymentProcessorFeeInHostCurrency: 0,
+        data: {
           ...paymentIntentTransaction.data,
           review: event,
           refundTransactionId: paymentIntentTransaction.id,
         },
-        null,
-        transactionGroup,
+        transactionGroupId: transactionGroup,
         clearedAt,
-      );
+      });
 
       // charge review was determined to be fraudulent
       if (closedReason === 'refunded_as_fraud') {

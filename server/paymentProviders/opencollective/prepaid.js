@@ -147,7 +147,7 @@ async function processOrder(order) {
 
 async function refundTransaction(transaction, user, reason, refundKind) {
   /* Create negative transactions for the received transaction */
-  return await createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
+  return await createRefundTransaction(transaction, { user, refundKind, refundedPaymentProcessorFeeInHostCurrency: 0 });
 }
 
 /* Expected API of a Payment Method Type */

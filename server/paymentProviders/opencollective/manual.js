@@ -96,15 +96,12 @@ async function processOrder(order) {
  * they want to actually refund the money.
  */
 const refundTransaction = async (transaction, user, reason, refundKind) => {
-  return createRefundTransaction(
-    transaction,
-    0,
-    { ...transaction.data, refundReason: reason },
+  return createRefundTransaction(transaction, {
+    refundedPaymentProcessorFeeInHostCurrency: 0,
+    data: { ...transaction.data, refundReason: reason },
     user,
-    null,
-    null,
     refundKind,
-  );
+  });
 };
 
 /* Expected API of a Payment Method Type */

@@ -1,4 +1,6 @@
 /** @module lib/payments */
+import assert from 'assert';
+
 import config from 'config';
 import DataLoader from 'dataloader';
 import debugLib from 'debug';
@@ -659,12 +661,23 @@ async function refundTax(
  */
 export async function createRefundTransaction(
   transaction: Transaction,
-  refundedPaymentProcessorFeeInHostCurrency: number,
-  data: TransactionData,
-  user: User,
-  transactionGroupId?: string,
-  clearedAt?: Date,
-  refundKind: RefundKind = RefundKind.REFUND,
+  {
+    data = {},
+    user = null,
+    transactionGroupId = uuid(),
+    clearedAt = new Date(),
+    refundKind = RefundKind.REFUND,
+    refundedPaymentProcessorFeeInHostCurrency = 0,
+    amountRefundedInHostCurrency = undefined,
+  }: {
+    data?: TransactionData;
+    user?: User;
+    transactionGroupId?: string;
+    clearedAt?: Date;
+    refundKind?: RefundKind;
+    refundedPaymentProcessorFeeInHostCurrency?: number;
+    amountRefundedInHostCurrency?: number;
+  } = {},
 ): Promise<Transaction> {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
@@ -682,6 +695,12 @@ export async function createRefundTransaction(
     throw new Error('Cannot find any CREDIT transaction to refund');
   } else if (transaction.RefundTransactionId) {
     throw new Error('This transaction has already been refunded');
+  } else if (!isNil(amountRefundedInHostCurrency)) {
+    assert(amountRefundedInHostCurrency > 0, 'Amount refunded in host currency must be positive');
+    assert(
+      amountRefundedInHostCurrency <= transaction.amountInHostCurrency,
+      'Amount refunded in host currency must be less than or equal to the transaction amount in host currency',
+    );
   }
 
   const transactionGroup = transactionGroupId || uuid();
@@ -755,6 +774,8 @@ export async function createRefundTransaction(
   await refundTax(transaction, user, transactionGroup, clearedAt, refundKind);
 
   // Refund main transaction
+  // TODO: handle amountRefundedInHostCurrency here
+  // TODO: to discuss with François: should this be recorded here (refund less than original) or as a payment processor fee?
   const creditTransactionRefund = buildRefund(transaction);
   const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund);
   return associateTransactionRefundId(transaction, refundTransaction, data, refundKind);

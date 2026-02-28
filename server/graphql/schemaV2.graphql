@@ -2658,6 +2658,11 @@ type Expense {
   paidAt: DateTime
 
   """
+  Payment information for this expense. Only available when the expense status is PAID.
+  """
+  paymentInfo: ExpensePaymentInformationField
+
+  """
   Whether this expense is on hold
   """
   onHold: Boolean
@@ -8710,6 +8715,16 @@ enum ExpenseStatus {
   SPAM
   CANCELED
   INVITE_DECLINED
+}
+
+"""
+Payment information for a paid expense
+"""
+type ExpensePaymentInformationField {
+  """
+  The payment processor fee for this expense (in host currency)
+  """
+  processorFee: Amount
 }
 
 """
@@ -26056,6 +26071,11 @@ input ProcessExpensePaymentParams {
   Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID
   """
   shouldRefundPaymentProcessorFee: Boolean
+
+  """
+  Amount refunded when triggering MARK_AS_UNPAID. Must be > 0 and <= total amount paid. If omitted, full refund is performed. The difference (total paid - refunded) is recorded as payment processor fee.
+  """
+  amountRefunded: AmountInput
 
   """
   New expense status when triggering MARK_AS_UNPAID

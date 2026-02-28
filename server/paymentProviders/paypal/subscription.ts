@@ -439,15 +439,12 @@ const PaymentMethodServicePayPalSubscription: PaymentMethodServiceWithExternalRe
     reason: string,
     refundKind: RefundKind,
   ): Promise<Transaction> {
-    return createRefundTransaction(
-      transaction,
-      0,
-      { ...transaction.data, refundReason: reason },
+    return createRefundTransaction(transaction, {
+      refundedPaymentProcessorFeeInHostCurrency: 0,
+      data: { ...transaction.data, refundReason: reason },
       user,
-      null,
-      null,
       refundKind,
-    );
+    });
   },
 
   async pauseSubscription(order: Order, reason: string): Promise<void> {
