@@ -22,6 +22,11 @@
       "maxPerDay": 1000
     }
   },
+  "paypal": {
+    "connect": {
+      "redirectUri": "http://localhost:3060/connected-accounts/paypal/callback"
+    }
+  },
   "log": {
     "slowRequest": true
   },

@@ -1,3 +1,4 @@
+import config from 'config';
 import type Express from 'express';
 import { get } from 'lodash';
 import { QueryOptions, QueryTypes } from 'sequelize';
@@ -222,6 +223,12 @@ export const getFeatureStatusResolver =
   async (collective: Collective, _, req): Promise<FEATURE_STATUS> => {
     if (!collective) {
       return FEATURE_STATUS.UNSUPPORTED;
+    }
+
+    // PAYPAL_CONNECT is a platform-level feature: check server config, ignore account settings
+    if (feature === FEATURE.PAYPAL_CONNECT) {
+      const clientId = config.paypal?.connect?.clientId;
+      return clientId ? FEATURE_STATUS.AVAILABLE : FEATURE_STATUS.DISABLED;
     }
 
     const { access } = await getFeatureAccess(collective, feature, { loaders: req?.loaders });

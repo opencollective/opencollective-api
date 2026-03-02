@@ -58,8 +58,11 @@ export const IDENTIFIABLE_DATA_FIELDS = [
 ];
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
-interface PaypalPayoutMethodData {
+export interface PaypalPayoutMethodData {
   email: string;
+  /** ID of the ConnectedAccount that verified this PayPal account via OAuth */
+  connectedAccountId?: number;
+  currency?: string;
 }
 
 interface StripePayoutMethodData {
@@ -104,8 +107,16 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */
   get data(): PayoutMethodDataType {
     switch (this.type) {
-      case PayoutMethodTypes.PAYPAL:
-        return { email: this.data['email'] } as PaypalPayoutMethodData;
+      case PayoutMethodTypes.PAYPAL: {
+        const paypalData: PaypalPayoutMethodData = { email: this.data['email'] };
+        if (this.data['currency']) {
+          paypalData.currency = this.data['currency'] as string;
+        }
+        if (this.data['connectedAccountId']) {
+          paypalData.connectedAccountId = this.data['connectedAccountId'] as number;
+        }
+        return paypalData;
+      }
       case PayoutMethodTypes.OTHER:
         return { content: this.data['content'] } as OtherPayoutMethodData;
       case PayoutMethodTypes.BANK_ACCOUNT:
@@ -307,7 +318,9 @@ PayoutMethod.init(
           if (this.type === PayoutMethodTypes.PAYPAL) {
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
-            } else if (!objHasOnlyKeys(value, ['email', 'currency'])) {
+            } else if (
+              !objHasOnlyKeys(value, ['email', 'currency', 'connectedAccountId', 'isPayPalOAuth', 'userInfo'])
+            ) {
               throw new Error('Data for this payout method contains too much information');
             }
           } else if (this.type === PayoutMethodTypes.OTHER) {

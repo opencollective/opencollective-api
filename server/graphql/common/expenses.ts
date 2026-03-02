@@ -2350,6 +2350,50 @@ export async function createExpense(
     throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
   }
 
+  // Enforce REQUIRE_PAYPAL_VERIFICATION host policy
+  if (payoutMethod?.type === PayoutMethodTypes.PAYPAL && collective.host) {
+    const paypalVerificationPolicy = await getPolicy(collective.host, POLICIES.REQUIRE_PAYPAL_VERIFICATION);
+    const policyAppliesToThisExpense =
+      paypalVerificationPolicy?.enabled &&
+      (collective.host.id === fromCollective.id || paypalVerificationPolicy.appliesToHostedCollectives);
+    if (policyAppliesToThisExpense) {
+      const connectedAccountId = payoutMethod.unfilteredData?.connectedAccountId as number | undefined;
+      if (!connectedAccountId) {
+        throw new ValidationFailed(
+          'This host requires a verified PayPal account. Please connect your PayPal account before submitting this expense.',
+          'PAYPAL_VERIFICATION_REQUIRED',
+        );
+      }
+      // Check the connected account is still marked as verified
+      const connectedAccount = await models.ConnectedAccount.findByPk(connectedAccountId);
+      if (!connectedAccount?.data?.verified) {
+        throw new ValidationFailed(
+          'Your PayPal account could not be confirmed as verified. Please reconnect your PayPal account.',
+          'PAYPAL_VERIFICATION_REQUIRED',
+        );
+      }
+      // If the policy has a validity period, check if the verification is still fresh
+      if (paypalVerificationPolicy.verificationValidityDays) {
+        const verifiedAt = connectedAccount.data?.verifiedAt
+          ? new Date(connectedAccount.data.verifiedAt as string)
+          : null;
+        if (!verifiedAt) {
+          throw new ValidationFailed(
+            'Your PayPal account verification has no timestamp. Please reconnect your PayPal account.',
+            'PAYPAL_VERIFICATION_REQUIRED',
+          );
+        }
+        const ageInDays = (Date.now() - verifiedAt.getTime()) / (1000 * 60 * 60 * 24);
+        if (ageInDays > paypalVerificationPolicy.verificationValidityDays) {
+          throw new ValidationFailed(
+            `Your PayPal account verification has expired (verified ${Math.floor(ageInDays)} days ago, policy requires refresh every ${paypalVerificationPolicy.verificationValidityDays} days). Please reconnect your PayPal account.`,
+            'PAYPAL_VERIFICATION_EXPIRED',
+          );
+        }
+      }
+    }
+  }
+
   // Create and validate TransferWise recipient
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {

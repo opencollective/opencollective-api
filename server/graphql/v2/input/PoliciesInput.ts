@@ -68,5 +68,15 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
         }),
       }),
     },
+    [POLICIES.REQUIRE_PAYPAL_VERIFICATION]: {
+      type: new GraphQLInputObjectType({
+        name: 'PoliciesRequirePaypalVerificationInput',
+        fields: () => ({
+          enabled: { type: GraphQLBoolean },
+          appliesToHostedCollectives: { type: GraphQLBoolean },
+          verificationValidityDays: { type: GraphQLInt },
+        }),
+      }),
+    },
   }),
 });

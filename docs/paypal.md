@@ -2,6 +2,10 @@
 
 ## Developing / testing sandbox
 
+## Identity API / OAuth
+
+1. Start ngrok: docker run --net=host -it -e NGROK_AUTHTOKEN=**YOUR_NGROK_TOKEN** ngrok/ngrok:latest http --url=hyphenic-tammara-unpreceded.ngrok-free.dev 3000
+
 ### Buyer account
 
 This is the account you'll use to make the (fake) payment. Go to [https://developer.paypal.com/developer/accounts/create](https://developer.paypal.com/developer/accounts/create), login with your personnal PayPal account then create a test account.

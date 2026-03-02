@@ -20,6 +20,7 @@ import * as email from './controllers/services/email';
 import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import { paypalWebhook, plaidWebhook, stripeWebhook, transferwiseWebhook } from './controllers/webhooks';
+import paypal from './paymentProviders/paypal';
 import { getGraphqlCacheProperties } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -343,7 +344,7 @@ export default async (app: express.Application) => {
    * Generic OAuth (ConnectedAccounts)
    * To keep in sync with opencollective-frontend/pages/api/connected-accounts/[service]/oauthUrl.js
    */
-  const oauthServiceAllowlist = new Set(['github', 'stripe', 'transferwise']);
+  const oauthServiceAllowlist = new Set(['github', 'stripe', 'transferwise', 'paypal']);
 
   /**
    * Webhooks that should bypass api key check
@@ -364,6 +365,11 @@ export default async (app: express.Application) => {
     noCache,
     authentication.authenticateServiceDisconnect,
   );
+
+  /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
+  app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);
+  /** PayPal Connect JSON endpoint (used by the PayPal SDK button in the expense form) */
+  app.post('/connected-accounts/paypal/connect', noCache, paypal.oauth.connect);
 
   /**
    * Contact Form

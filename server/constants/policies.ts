@@ -22,6 +22,8 @@ enum POLICIES {
   EXPENSE_POLICIES = 'EXPENSE_POLICIES',
   /** Enforces contributor information requirements based on yearly contribution amount thresholds */
   CONTRIBUTOR_INFO_THRESHOLDS = 'CONTRIBUTOR_INFO_THRESHOLDS',
+  /** When enabled, expenses using PayPal as payout method must be linked to a verified PayPal account via OAuth. */
+  REQUIRE_PAYPAL_VERIFICATION = 'REQUIRE_PAYPAL_VERIFICATION',
 }
 
 export type Policies = Partial<{
@@ -57,6 +59,17 @@ export type Policies = Partial<{
   [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: {
     legalName?: number;
     address?: number;
+  };
+  [POLICIES.REQUIRE_PAYPAL_VERIFICATION]: {
+    /** Whether the policy is enabled */
+    enabled: boolean;
+    /** When true, applies to all collectives hosted by this host, not only the host itself */
+    appliesToHostedCollectives: boolean;
+    /**
+     * Number of days after which a PayPal verification is considered stale and must be refreshed.
+     * If null/undefined, verifications never expire.
+     */
+    verificationValidityDays?: number;
   };
 }>;
 
@@ -97,6 +110,11 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: false,
   [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: false,
   [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: undefined,
+  [POLICIES.REQUIRE_PAYPAL_VERIFICATION]: {
+    enabled: false,
+    appliesToHostedCollectives: false,
+    verificationValidityDays: undefined,
+  },
 };
 
 export default POLICIES;
