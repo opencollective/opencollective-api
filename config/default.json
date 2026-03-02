@@ -139,11 +139,13 @@
     "enabled": true
   },
   "paypal": {
-    "rest": {
-      "mode": "sandbox"
-    },
     "payment": {
       "environment": "sandbox"
+    },
+    "connect": {
+      "clientId": null,
+      "clientSecret": null,
+      "redirectUri": null
     }
   },
   "github": {

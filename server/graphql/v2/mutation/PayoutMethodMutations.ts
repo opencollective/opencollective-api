@@ -1,11 +1,13 @@
+import assert from 'assert';
+
 import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
+import { isEqual, isUndefined, pick } from 'lodash';
 
 import ExpenseStatuses from '../../../constants/expense-status';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
-import PayoutMethodModel, { PayoutMethodTypes } from '../../../models/PayoutMethod';
+import PayoutMethodModel, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -124,6 +126,16 @@ const payoutMethodMutations = {
 
       if (!payoutMethod.isSaved && args.payoutMethod.isSaved === true) {
         throw new Forbidden('Archived payout methods cannot be restored.');
+      } else if (
+        payoutMethod.type === PayoutMethodTypes.PAYPAL &&
+        (payoutMethod.data as PaypalPayoutMethodData)?.connectedAccountId
+      ) {
+        // Verified PayPal accounts have some restrictions on editing: only the name, isSaved and currency can be edited
+        if (!isUndefined(args.payoutMethod.data) && !isEqual(args.payoutMethod.data, payoutMethod.data)) {
+          throw new Forbidden(
+            'Verified PayPal accounts can only be edited to change the name, saved status and currency',
+          );
+        }
       }
 
       if (await payoutMethod.canBeEdited()) {

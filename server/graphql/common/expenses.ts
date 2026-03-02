@@ -2350,6 +2350,29 @@ export async function createExpense(
     throw new ValidationFailed('Stripe payout method can only be used with settlement expenses.');
   }
 
+  // Enforce REQUIRE_PAYPAL_VERIFICATION host policy
+  if (
+    payoutMethod?.type === PayoutMethodTypes.PAYPAL &&
+    collective.host &&
+    (await getPolicy(collective.host, POLICIES.REQUIRE_PAYPAL_VERIFICATION))?.enabled
+  ) {
+    const connectedAccountId = payoutMethod.unfilteredData?.connectedAccountId as number | undefined;
+    if (!connectedAccountId) {
+      throw new ValidationFailed(
+        'This host requires a verified PayPal account. Please connect your PayPal account before submitting this expense.',
+        'PAYPAL_VERIFICATION_REQUIRED',
+      );
+    }
+    // Check the connected account is still marked as verified
+    const connectedAccount = await models.ConnectedAccount.findByPk(connectedAccountId);
+    if (!connectedAccount?.data?.verified) {
+      throw new ValidationFailed(
+        'Your PayPal account could not be confirmed as verified. Please reconnect your PayPal account.',
+        'PAYPAL_VERIFICATION_REQUIRED',
+      );
+    }
+  }
+
   // Create and validate TransferWise recipient
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {

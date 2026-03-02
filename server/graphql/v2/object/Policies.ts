@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { get, isNil, mapValues } from 'lodash';
 
 import POLICIES, { Policies } from '../../../constants/policies';
@@ -137,6 +137,19 @@ export const GraphQLPolicies = new GraphQLObjectType({
       async resolve(account, _, req) {
         if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
           return getPolicy(account, POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS);
+        }
+      },
+    },
+    [POLICIES.REQUIRE_PAYPAL_VERIFICATION]: {
+      type: new GraphQLObjectType({
+        name: POLICIES.REQUIRE_PAYPAL_VERIFICATION,
+        fields: () => ({
+          enabled: { type: new GraphQLNonNull(GraphQLBoolean) },
+        }),
+      }),
+      async resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
+          return await getPolicy(account, POLICIES.REQUIRE_PAYPAL_VERIFICATION);
         }
       },
     },

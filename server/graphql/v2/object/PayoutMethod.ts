@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { PayoutMethod } from '../../../models';
+import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
@@ -109,6 +110,54 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
         } else {
           return false;
         }
+      },
+    },
+    isVerified: {
+      type: GraphQLBoolean,
+      description:
+        'For PayPal payout methods: whether the PayPal account has been verified via OAuth. Null for other types.',
+      resolve: async (payoutMethod: PayoutMethod, _, req: express.Request): Promise<boolean | null> => {
+        if (payoutMethod.type !== PayoutMethodTypes.PAYPAL) {
+          return null;
+        }
+        const connectedAccountId = payoutMethod.unfilteredData?.connectedAccountId as number | undefined;
+        if (!connectedAccountId) {
+          return false;
+        }
+        const connectedAccount = await req.loaders.ConnectedAccount.byId.load(connectedAccountId);
+        return Boolean(connectedAccount?.data?.verified);
+      },
+    },
+    paypalInfo: {
+      type: GraphQLJSON,
+      description:
+        'For PayPal payout methods: identity details from the linked ConnectedAccount (name, email, payerId, verifiedAt). Visible to admins of the payee collective and host admins.',
+      resolve: async (payoutMethod: PayoutMethod, _, req: express.Request): Promise<Record<string, unknown> | null> => {
+        if (payoutMethod.type !== PayoutMethodTypes.PAYPAL) {
+          return null;
+        }
+        const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
+        const canSee =
+          req.remoteUser?.isAdminOfCollective(collective) ||
+          getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
+        if (!canSee || !checkScope(req, 'expenses')) {
+          return null;
+        }
+        const connectedAccountId = payoutMethod.unfilteredData?.connectedAccountId as number | undefined;
+        if (!connectedAccountId) {
+          return null;
+        }
+        const connectedAccount = await req.loaders.ConnectedAccount.byId.load(connectedAccountId);
+        if (!connectedAccount) {
+          return null;
+        }
+        return {
+          payerId: connectedAccount.data?.payerId,
+          name: connectedAccount.data?.name,
+          email: connectedAccount.username,
+          verified: connectedAccount.data?.verified,
+          verifiedAt: connectedAccount.data?.verifiedAt,
+        };
       },
     },
     createdAt: {

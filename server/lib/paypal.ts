@@ -388,3 +388,44 @@ export async function listPayPalTransactions(
 }
 
 export { paypal };
+
+/**
+ * Refresh a payee's PayPal user ConnectedAccount using the stored refresh token.
+ * Updates the access token, refresh token, and re-fetches identity information from PayPal.
+ * Returns the updated ConnectedAccount, or null if the refresh failed (e.g. account was disconnected).
+ */
+export const refreshPaypalUserAccount = async (
+  connectedAccount: ConnectedAccount,
+): Promise<ConnectedAccount | null> => {
+  const { refreshPaypalUserToken, retrievePaypalUserInfo } = await import('../paymentProviders/paypal/api');
+
+  const storedRefreshToken = connectedAccount.refreshToken;
+  if (!storedRefreshToken) {
+    logger.warn(`refreshPaypalUserAccount: ConnectedAccount #${connectedAccount.id} has no refresh token — skipping`);
+    return null;
+  }
+
+  try {
+    const tokenResult = await refreshPaypalUserToken(storedRefreshToken);
+    const userInfo = await retrievePaypalUserInfo(tokenResult.access_token);
+
+    await connectedAccount.update({
+      token: tokenResult.access_token,
+      refreshToken: tokenResult.refresh_token,
+      username: userInfo.email,
+      data: {
+        ...connectedAccount.data,
+        payerId: userInfo.user_id,
+        verified: userInfo.verified_account,
+        name: userInfo.name,
+        email: userInfo.email,
+        verifiedAt: new Date().toISOString(),
+      },
+    });
+
+    return connectedAccount;
+  } catch (e) {
+    logger.error(`refreshPaypalUserAccount: failed to refresh ConnectedAccount #${connectedAccount.id} — ${e.message}`);
+    return null;
+  }
+};
