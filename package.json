@@ -146,6 +146,7 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.209.0",
     "@opentelemetry/resources": "^1.20.0",
     "@opentelemetry/sdk-trace-node": "^1.20.0",
+    "@sentry/cli": "^2.58.5",
     "@types/express": "^5.0.6",
     "@types/graphql-upload": "16.0.7",
     "@types/jsonwebtoken": "^9.0.10",
@@ -200,7 +201,7 @@
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
     "build:clean": "rm -rf dist && mkdir dist",
-    "build:server": "babel server --copy-files --extensions .js,.ts -d ./dist",
+    "build:server": "babel server --copy-files --source-maps true --extensions .js,.ts -d ./dist",
     "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
     "clean": "npm run build:clean && npm run test:clean",
     "commit": "git-cz",
@@ -270,7 +271,8 @@
     "ts-unused-exports": "ts-unused-exports tsconfig.json --ignoreFiles=server/types --ignoreFiles=server/paymentProviders/types",
     "type:check": "tsc",
     "prepare": "husky",
-    "lint-staged": "lint-staged"
+    "lint-staged": "lint-staged",
+    "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh"
   },
   "engines": {
     "node": "24.x",
@@ -309,7 +311,8 @@
       "@opentelemetry/context-async-hooks",
       "eslint-import-resolver-typescript",
       "mocha-junit-reporter",
-      "typescript-eslint"
+      "typescript-eslint",
+      "@sentry/cli"
     ]
   }
 }
