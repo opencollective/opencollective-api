@@ -1,7 +1,8 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
-import { uniq } from 'lodash';
-import { Includeable } from 'sequelize';
+import { partition, uniq } from 'lodash';
+import { Includeable, Op } from 'sequelize';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -11,11 +12,12 @@ export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${models.Order.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The legacy public id identifying the order (ie: 4242)',
+      deprecationReason: '2026-02-25: use id',
     },
   }),
 });
@@ -43,8 +45,13 @@ export const fetchOrderWithReference = async (
     return models.Order.findByPk(id, { include });
   };
 
-  const id = getDatabaseIdFromOrderReference(input);
-  const order = await loadOrderById(id);
+  let order;
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Order)) {
+    order = await models.Order.findOne({ where: { publicId: input.id }, include });
+  } else {
+    const id = getDatabaseIdFromOrderReference(input);
+    order = await loadOrderById(id);
+  }
   if (!order && throwIfMissing) {
     throw new NotFound('Order Not Found');
   }
@@ -59,16 +66,34 @@ export const fetchOrdersWithReferences = async (
     return [];
   }
 
+  const [inputsWithPublicId, inputsWithoutPublicId] = partition(inputs, input =>
+    isEntityPublicId(input.id, EntityShortIdPrefix.Order),
+  );
+
+  const ids = uniq(inputsWithoutPublicId.map(getDatabaseIdFromOrderReference));
+  const publicIds = uniq(inputsWithPublicId.map(input => input.id!));
+
+  const where: any = {};
+  if (ids.length && publicIds.length) {
+    where[Op.or] = [{ id: ids }, { publicId: publicIds }];
+  } else if (ids.length) {
+    where.id = ids;
+  } else if (publicIds.length) {
+    where.publicId = publicIds;
+  }
+
   // Fetch orders
   const orders = await models.Order.findAll({
-    where: { id: uniq(inputs.map(getDatabaseIdFromOrderReference)) },
+    where,
     include,
   });
 
   // Check if all orders were found
   const inputHasMatchingOrder = input => {
     return orders.some(order => {
-      if (input.id) {
+      if (isEntityPublicId(input.id, EntityShortIdPrefix.Order)) {
+        return order.publicId === input.id;
+      } else if (input.id) {
         return order.id === idDecode(input.id, IDENTIFIER_TYPES.ORDER);
       } else if (input.legacyId) {
         return order.id === input.legacyId;
@@ -80,7 +105,11 @@ export const fetchOrdersWithReferences = async (
     throw new NotFound(
       `Orders not found for some of the given inputs (${inputs
         .filter(i => !inputHasMatchingOrder(i))
-        .map(input => `#${input.legacyId || idDecode(input.id, IDENTIFIER_TYPES.ORDER)}`)
+        .map(input =>
+          isEntityPublicId(input.id, EntityShortIdPrefix.Order)
+            ? `#${input.id}`
+            : `#${input.legacyId || idDecode(input.id, IDENTIFIER_TYPES.ORDER)}`,
+        )
         .join(', ')})`,
     );
   }

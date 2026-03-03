@@ -4,15 +4,16 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   Transaction,
 } from 'sequelize';
 
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizedSimplifiedWithImages, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 import { RecipientAccount } from '../types/transferwise';
 
 import type { Collective } from '.';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import { Order } from '.';
 
 /**
@@ -34,10 +35,12 @@ export const sanitizeManualPaymentProviderInstructions = (instructions: string):
  * These are custom payment methods that hosts can define for contributors to use when making
  * manual payments (bank transfers, etc).
  */
-class ManualPaymentProvider extends Model<
+class ManualPaymentProvider extends ModelWithPublicId<
+  EntityShortIdPrefix.ManualPaymentProvider,
   InferAttributes<ManualPaymentProvider>,
   InferCreationAttributes<ManualPaymentProvider>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.ManualPaymentProvider;
   public static readonly tableName = 'ManualPaymentProviders' as const;
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: ForeignKey<Collective['id']>;
@@ -94,6 +97,10 @@ class ManualPaymentProvider extends Model<
 // Link the model to database fields
 ManualPaymentProvider.init(
   {
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,

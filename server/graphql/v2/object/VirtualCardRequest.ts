@@ -1,5 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import moment from 'moment';
 
 import VirtualCardRequest from '../../../models/VirtualCardRequest';
 import { GraphQLCurrency } from '../enum';
@@ -19,11 +20,20 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(virtualCardRequest: VirtualCardRequest) {
-        return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
+        if (moment(virtualCardRequest.createdAt).isAfter(moment('2026-03-03'))) {
+          return virtualCardRequest.publicId;
+        } else {
+          return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
+        }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${VirtualCardRequest.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
+      deprecationReason: '2026-02-25: use publicId',
       resolve(virtualCardRequest: VirtualCardRequest) {
         return virtualCardRequest.id;
       },

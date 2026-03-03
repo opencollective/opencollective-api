@@ -1,7 +1,9 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import moment from 'moment';
 
 import INTERVALS from '../../../constants/intervals';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { Tier } from '../../../models';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
 
@@ -12,7 +14,17 @@ export const GraphQLTierStats = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.TIER),
+        resolve: tier => {
+          if (moment(tier.createdAt).isAfter(moment('2026-03-03'))) {
+            return tier.publicId;
+          } else {
+            return idEncode(tier.id, IDENTIFIER_TYPES.TIER);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${Tier.nanoIdPrefix}_xxxxxxxx)`,
       },
       totalAmountReceived: {
         description: 'Total amount donated for this tier, in cents.',

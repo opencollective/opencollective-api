@@ -1,7 +1,9 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick } from 'lodash';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import { Unauthorized } from '../../errors';
@@ -19,12 +21,20 @@ export const GraphQLHostApplication = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: async application => {
-        if (application.id) {
-          return idEncode(application.id, IDENTIFIER_TYPES.HOST_APPLICATION);
+        if (moment(application.createdAt).isAfter(moment('2026-03-03'))) {
+          return application.publicId;
         } else {
-          return idEncode(application.collective.id, IDENTIFIER_TYPES.ACCOUNT);
+          if (application.id) {
+            return idEncode(application.id, IDENTIFIER_TYPES.HOST_APPLICATION);
+          } else {
+            return idEncode(application.collective.id, IDENTIFIER_TYPES.ACCOUNT);
+          }
         }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.HostApplication}_xxxxxxxx)`,
     },
     account: {
       type: new GraphQLNonNull(GraphQLAccount),

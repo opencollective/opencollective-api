@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { HostApplication } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -13,13 +14,17 @@ export const GraphQLHostApplicationReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the host application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the host application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.HostApplication}_xxxxxxxx)`,
     },
   }),
 });
 
 export const getDatabaseIdFromHostApplicationReference = (input: HostApplcationReferenceInputFields): number => {
-  return idDecode(input['id'], IDENTIFIER_TYPES.HOST_APPLICATION);
+  if (input.id) {
+    return idDecode(input['id'], IDENTIFIER_TYPES.HOST_APPLICATION);
+  } else {
+    return null;
+  }
 };
 
 /**
@@ -29,10 +34,16 @@ export const fetchHostApplicationWithReference = async (
   input: HostApplcationReferenceInputFields,
   { loaders = null, throwIfMissing = false } = {},
 ): Promise<HostApplication> => {
-  const dbId = getDatabaseIdFromHostApplicationReference(input);
   let hostApplication = null;
-  if (dbId) {
-    hostApplication = await (loaders ? loaders.HostApplication.byId.load(dbId) : models.HostApplication.findByPk(dbId));
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.HostApplication)) {
+    hostApplication = await models.HostApplication.findOne({ where: { publicId: input.id } });
+  } else {
+    const dbId = getDatabaseIdFromHostApplicationReference(input);
+    if (dbId) {
+      hostApplication = await (loaders
+        ? loaders.HostApplication.byId.load(dbId)
+        : models.HostApplication.findByPk(dbId));
+    }
   }
 
   if (!hostApplication && throwIfMissing) {

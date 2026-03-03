@@ -1,10 +1,12 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import ExportRequest from '../../../models/ExportRequest';
 import { GraphQLExportRequestStatus } from '../enum/ExportRequestStatus';
 import { GraphQLExportRequestType } from '../enum/ExportRequestType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
@@ -17,11 +19,22 @@ export const GraphQLExportRequest = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'Unique identifier for this export request',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPORT_REQUEST),
+      resolve(exportRequest: ExportRequest) {
+        if (moment(exportRequest.createdAt).isAfter(moment('2026-03-03'))) {
+          return exportRequest.publicId;
+        } else {
+          return idEncode(exportRequest.id, IDENTIFIER_TYPES.EXPORT_REQUEST);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.ExportRequest}_xxxxxxxx)`,
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
       description: 'Legacy numeric ID of this export request',
+      deprecationReason: '2026-02-25: use publicId',
       resolve(exportRequest: ExportRequest) {
         return exportRequest.id;
       },

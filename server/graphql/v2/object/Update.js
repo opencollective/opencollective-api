@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import moment from 'moment';
 
 import { CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
@@ -7,7 +8,7 @@ import { UpdateChannel } from '../../../models/Update';
 import { canSeeUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLUpdateAudienceType } from '../enum';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLUpdateAudienceStats } from './UpdateAudienceStats';
@@ -19,10 +20,21 @@ const GraphQLUpdate = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.UPDATE),
+        resolve: update => {
+          if (moment(update.createdAt).isAfter(moment('2026-03-03'))) {
+            return update.publicId;
+          } else {
+            return idEncode(update.id, IDENTIFIER_TYPES.UPDATE);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Update.nanoIdPrefix}_xxxxxxxx)`,
       },
       legacyId: {
         type: GraphQLInt,
+        deprecationReason: '2026-02-25: use publicId',
         resolve(update) {
           return update.id;
         },

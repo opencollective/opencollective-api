@@ -9,10 +9,12 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, pick, round } from 'lodash';
+import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { getHostFeePercent } from '../../../lib/payments';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -79,11 +81,20 @@ export const GraphQLOrder = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve(order) {
-          return idEncode(order.id, 'order');
+          if (moment(order.createdAt).isAfter(moment('2026-03-03'))) {
+            return order.publicId;
+          } else {
+            return idEncode(order.id, 'order');
+          }
         },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.Order}_xxxxxxxx)`,
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
+        deprecationReason: '2026-02-25: use publicId',
         resolve(order) {
           return order.id;
         },

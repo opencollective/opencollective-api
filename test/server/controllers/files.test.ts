@@ -25,7 +25,8 @@ async function makeRequest(
   remoteUser?: User,
   options?: { thumbnail?: boolean; expenseId?: string; draftKey?: string },
 ): Promise<httpMocks.MockResponse<any>> {
-  const encodedId = idEncode(id, IDENTIFIER_TYPES.UPLOADED_FILE);
+  const uploadedFile = await UploadedFile.findByPk(id);
+  const encodedId = uploadedFile.publicId;
   const request = httpMocks.createRequest({
     method: 'GET',
     url: `/api/files/${encodedId}`,

@@ -5,6 +5,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { sequelize } from '../../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import { enforceScope } from '../../common/scope-check';
@@ -14,7 +15,9 @@ import { AccountingCategoryInput, AccountingCategoryInputFields } from '../input
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
 
-type AccountingCategoryInputWithNormalizedId = Omit<AccountingCategoryInputFields, 'id'> & { id?: number };
+type AccountingCategoryInputWithNormalizedId = Omit<AccountingCategoryInputFields, 'id'> & {
+  id?: number;
+};
 
 const EDITABLE_FIELDS: readonly (keyof AccountingCategoryInputFields)[] = [
   'kind',
@@ -59,14 +62,28 @@ export default {
 
       const isIndependentCollective = account.type === CollectiveType.COLLECTIVE;
 
-      const normalizedInputs: AccountingCategoryInputWithNormalizedId[] = args.categories.map(input => {
-        return {
-          ...input,
-          id: input.id ? idDecode(input.id, 'accounting-category') : null,
-          expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
-          appliesTo: input.appliesTo,
-        };
-      });
+      const normalizedInputs = await Promise.all(
+        args.categories.map(async input => {
+          let id;
+          if (isEntityPublicId(input.id, EntityShortIdPrefix.AccountingCategory)) {
+            id = await models.AccountingCategory.findOne({ where: { publicId: input.id } }).then(
+              accountingCategory => accountingCategory?.id,
+            );
+            if (!id) {
+              throw new ValidationFailed(`Accounting category with public id ${input.id} not found`);
+            }
+          } else {
+            id = idDecode(input.id, 'accounting-category');
+          }
+
+          return {
+            ...input,
+            id,
+            expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
+            appliesTo: input.appliesTo,
+          };
+        }),
+      );
 
       if (
         isIndependentCollective &&

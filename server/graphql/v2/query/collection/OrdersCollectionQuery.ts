@@ -14,6 +14,7 @@ import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -295,7 +296,7 @@ interface OrdersCollectionArgsType {
   hostContext?: 'ALL' | 'INTERNAL' | 'HOSTED';
   includeChildrenAccounts: boolean;
   pausedBy?: string[];
-  paymentMethod?: Array<{ id: string; legacyId?: number }>;
+  paymentMethod?: Array<{ id: string; legacyId?: number; publicId?: string }>;
   paymentMethodService?: string[];
   paymentMethodType?: string[];
   manualPaymentProvider?: Array<{ id: string }>;
@@ -612,6 +613,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         const ors: Expression<SqlBool>[] = [];
         if (isHostAdmin && looksLikeAnEmail) {
           ors.push(eb('Users.email', '=', args.searchTerm));
+          ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
         }
 
         if (isFinite(Number(args.searchTerm))) {
@@ -621,7 +623,6 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`));
 
         return or(ors);
@@ -741,10 +742,32 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       qb.where(sql`"Orders".data->>'pausedBy'`, 'in', args.pausedBy),
     )
     .$if(!isEmpty(args.tier), qb => {
-      const tierIds = args.tier.map(getDatabaseIdFromTierReference);
+      const tierIds = args.tier
+        .filter(tier => tier.legacyId || !isEntityPublicId(tier.id as string, EntityShortIdPrefix.Tier))
+        .map(getDatabaseIdFromTierReference);
       return qb
         .innerJoin('Tiers', 'Orders.TierId', 'Tiers.id')
-        .where('Tiers.id', 'in', tierIds)
+        .where(qb => {
+          const ors: Expression<SqlBool>[] = [];
+          if (tierIds.length) {
+            ors.push(qb.eb('Tiers.id', 'in', tierIds));
+          }
+          if (args.tier.some(tier => isEntityPublicId(tier.id, EntityShortIdPrefix.Tier))) {
+            ors.push(
+              qb.eb(
+                'Tiers.publicId',
+                'in',
+                args.tier.map(tier => tier.id).filter(id => isEntityPublicId(id, EntityShortIdPrefix.Tier)),
+              ),
+            );
+          }
+
+          if (ors.length === 1) {
+            return ors[0];
+          }
+
+          return qb.or(ors);
+        })
         .where('Tiers.deletedAt', 'is', null);
     })
     .$if(!!tier, qb => qb.where('TierId', '=', tier.id))

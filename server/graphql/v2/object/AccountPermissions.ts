@@ -1,11 +1,14 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import moment from 'moment';
 
 import FEATURE from '../../../constants/feature';
 import { hasFeature } from '../../../lib/allowed-features';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { canUseFeature } from '../../../lib/user-permissions';
+import { Collective } from '../../../models';
 import { checkScope } from '../../common/scope-check';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLPermission, PermissionFields } from './Permission';
 
@@ -15,7 +18,18 @@ const GraphQLAccountPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
+      // TODO(henrique): remove this once we have migrated all the data
+      resolve(collective: Collective) {
+        if (moment().isAfter(moment('2026-03-03'))) {
+          return collective.publicId;
+        } else {
+          return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
     },
     addFunds: {
       type: new GraphQLNonNull(GraphQLPermission),

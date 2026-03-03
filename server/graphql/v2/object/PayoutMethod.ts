@@ -1,12 +1,14 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { PayoutMethod } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 const GraphQLPayoutMethod = new GraphQLObjectType({
   name: 'PayoutMethod',
@@ -14,8 +16,18 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
+      resolve: payoutMethod => {
+        if (moment(payoutMethod.createdAt).isAfter(moment('2026-03-03'))) {
+          return payoutMethod.publicId;
+        } else {
+          return idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+        }
+      },
       description: 'Unique identifier for this payout method',
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.PayoutMethod}_xxxxxxxx)`,
     },
     type: {
       type: GraphQLPayoutMethodType,

@@ -10,6 +10,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
 import { getSupportedExpenseTypes } from '../../../lib/expenses';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -113,11 +114,23 @@ const accountFieldsDefinition = () => ({
   id: {
     type: new GraphQLNonNull(GraphQLString),
     description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
+    // TODO(henrique): move check to a central place
+    resolve(collective: Collective) {
+      if (moment().isAfter(moment('2026-03-03'))) {
+        return collective.publicId;
+      } else {
+        return collective.id;
+      }
+    },
   },
   legacyId: {
     type: new GraphQLNonNull(GraphQLInt),
     description: 'The internal database identifier of the collective (ie: 580)',
     deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
+  },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
   },
   slug: {
     type: new GraphQLNonNull(GraphQLString),

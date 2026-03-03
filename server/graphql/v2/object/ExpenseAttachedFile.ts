@@ -1,8 +1,10 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 import URL from '../scalar/URL';
 
@@ -13,7 +15,17 @@ const GraphQLExpenseAttachedFile = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this file',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
+      resolve(expenseAttachedFile) {
+        if (moment(expenseAttachedFile.createdAt).isAfter(moment('2026-03-03'))) {
+          return expenseAttachedFile.publicId;
+        } else {
+          return idEncode(expenseAttachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.ExpenseAttachedFile}_xxxxxxxx)`,
     },
     url: {
       type: URL,

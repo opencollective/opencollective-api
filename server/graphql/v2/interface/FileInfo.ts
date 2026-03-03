@@ -1,14 +1,26 @@
 import { GraphQLInt, GraphQLInterfaceType, GraphQLNonNull, GraphQLString } from 'graphql';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { UploadedFile } from '../../../models';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import URL from '../scalar/URL';
 
 export const fileInfoFields = {
   id: {
     type: new GraphQLNonNull(GraphQLString),
     description: 'Unique identifier for the file',
-    resolve: getIdEncodeResolver(IDENTIFIER_TYPES.UPLOADED_FILE, 'id'),
+    resolve: file => {
+      if (moment(file.createdAt).isAfter(moment('2026-03-03'))) {
+        return file.publicId;
+      } else {
+        return idEncode(file.id, IDENTIFIER_TYPES.UPLOADED_FILE);
+      }
+    },
+  },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${EntityShortIdPrefix.UploadedFile}_xxxxxxxx)`,
   },
   url: {
     type: new GraphQLNonNull(URL),

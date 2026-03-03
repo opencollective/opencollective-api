@@ -1,10 +1,11 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import moment from 'moment';
 
 import models, { Op } from '../../../models';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CommentCollection } from '../collection/CommentCollection';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLComment } from './Comment';
@@ -16,7 +17,17 @@ const GraphQLConversation = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONVERSATION),
+        resolve(conversation) {
+          if (moment(conversation.createdAt).isAfter(moment('2026-03-03'))) {
+            return conversation.publicId;
+          } else {
+            return idEncode(conversation.id, IDENTIFIER_TYPES.CONVERSATION);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Conversation.nanoIdPrefix}_xxxxxxxx)`,
       },
       slug: { type: new GraphQLNonNull(GraphQLString) },
       title: { type: new GraphQLNonNull(GraphQLString) },
@@ -88,7 +99,13 @@ const GraphQLConversation = new GraphQLObjectType({
           fields: () => ({
             id: {
               type: new GraphQLNonNull(GraphQLString),
-              resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONVERSATION),
+              resolve(conversation) {
+                if (conversation.createdAt && moment(conversation.createdAt).isAfter(moment('2026-03-03'))) {
+                  return conversation.publicId;
+                } else {
+                  return idEncode(conversation.id, IDENTIFIER_TYPES.CONVERSATION);
+                }
+              },
             },
             commentsCount: {
               type: GraphQLInt,

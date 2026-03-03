@@ -33,15 +33,13 @@ export async function getFile(req: Request, res: Response) {
     return res.status(400).send({ message: 'Invalid id' });
   }
 
-  let decodedId: number;
+  let uploadedFile: UploadedFile;
   try {
-    decodedId = idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE);
+    uploadedFile = await UploadedFile.findByPk(idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE));
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (err) {
-    return res.status(400).send({ message: 'Invalid id' });
+    uploadedFile = await UploadedFile.findOne({ where: { publicId: uploadedFileId } });
   }
-
-  const uploadedFile = await UploadedFile.findByPk(decodedId);
 
   if (!uploadedFile) {
     return res.status(403).send({ message: 'Unauthorized' });

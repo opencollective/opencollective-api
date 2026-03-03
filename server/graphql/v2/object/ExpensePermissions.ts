@@ -1,8 +1,10 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import moment from 'moment';
 
+import { Expense } from '../../../models';
 import * as ExpenseLib from '../../common/expenses';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLPermission, parsePermissionFromEvaluator } from './Permission';
 
@@ -12,7 +14,17 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+      resolve(expense) {
+        if (moment(expense.createdAt).isAfter(moment('2026-03-03'))) {
+          return expense.publicId;
+        } else {
+          return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Expense.nanoIdPrefix}_xxxxxxxx)`,
     },
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),

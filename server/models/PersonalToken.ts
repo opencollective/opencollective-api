@@ -4,10 +4,12 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes,
 import { z } from 'zod';
 
 import oAuthScopes from '../constants/oauth-scopes';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Application from './Application';
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 const personelTokenDataSchema = z
@@ -18,7 +20,12 @@ const personelTokenDataSchema = z
   .optional()
   .nullable();
 
-class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
+class PersonalToken extends ModelWithPublicId<
+  EntityShortIdPrefix.PersonalToken,
+  InferAttributes<PersonalToken>,
+  InferCreationAttributes<PersonalToken>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.PersonalToken;
   public static readonly tableName = 'PersonalTokens' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -35,9 +42,9 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   declare public name: string;
   declare public preAuthorize2FA: CreationOptional<boolean>;
 
-  declare public application?: NonAttribute<typeof Application>;
+  declare public application?: NonAttribute<Application>;
   declare public user?: NonAttribute<User>;
-  declare public collective?: NonAttribute<typeof Collective>;
+  declare public collective?: NonAttribute<Collective>;
 
   public static generateToken(): string {
     return randomBytes(20).toString('hex');
@@ -54,6 +61,10 @@ PersonalToken.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     name: {
       type: DataTypes.STRING,

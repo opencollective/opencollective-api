@@ -9,6 +9,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { Order } from '../../../models';
 import { GraphQLContributionFrequency } from '../enum';
 
 import { GraphQLAccountingCategoryReferenceInput } from './AccountingCategoryInput';
@@ -197,11 +198,12 @@ export const GraphQLPendingOrderEditInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${Order.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The legacy public id identifying the order (ie: 4242)',
+      deprecationReason: '2026-02-25: use id',
     },
     amount: {
       type: new GraphQLNonNull(GraphQLAmountInput),

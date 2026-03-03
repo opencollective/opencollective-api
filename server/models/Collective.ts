@@ -39,7 +39,6 @@ import {
   HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   WhereOptions,
 } from 'sequelize';
@@ -97,6 +96,7 @@ import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
@@ -120,6 +120,7 @@ import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
@@ -276,7 +277,8 @@ const sanitizeSettingsValue = value => {
   return value;
 };
 
-class Collective extends Model<
+class Collective extends ModelWithPublicId<
+  EntityShortIdPrefix.Collective,
   InferAttributes<
     Collective,
     {
@@ -295,6 +297,7 @@ class Collective extends Model<
   >,
   InferCreationAttributes<Collective>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Collective;
   public static readonly tableName = 'Collectives' as const;
 
   declare public id: number;
@@ -2455,7 +2458,7 @@ class Collective extends Model<
         // and we recreate new ones
         tiers.map(t => {
           if (t.currency !== hostCollective.currency) {
-            const newTierData = omit(t.dataValues, ['id']);
+            const newTierData = omit(t.dataValues, ['id', 'publicId']);
             newTierData.currency = hostCollective.currency;
             promises.push(Tier.create(newTierData));
             promises.push(t.destroy());
@@ -3634,6 +3637,11 @@ Collective.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     type: {

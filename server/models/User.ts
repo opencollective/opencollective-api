@@ -17,7 +17,8 @@ import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
@@ -25,6 +26,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import ConnectedAccount from './ConnectedAccount';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 
 const debug = debugLib('models:User');
@@ -39,7 +41,8 @@ type UserData = {
   requiresVerification?: boolean;
 };
 
-class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
+class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<User>, InferCreationAttributes<User>> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.User;
   public static readonly tableName = 'Users' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -677,6 +680,11 @@ User.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CollectiveId: {

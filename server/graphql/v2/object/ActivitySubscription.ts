@@ -1,10 +1,12 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import moment from 'moment';
 
-import { Collective } from '../../../models';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import Collective from '../../../models/Collective';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLIndividual } from './Individual';
@@ -15,7 +17,17 @@ export const GraphQLActivitySubscription = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this notification setting',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.NOTIFICATION),
+      resolve(notification) {
+        if (moment(notification.createdAt).isAfter(moment('2026-03-03'))) {
+          return notification.publicId;
+        } else {
+          return idEncode(notification.id, IDENTIFIER_TYPES.NOTIFICATION);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Notification}_xxxxxxxx)`,
     },
     channel: {
       type: new GraphQLNonNull(GraphQLActivityChannel),

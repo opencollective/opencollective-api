@@ -1,10 +1,12 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLIndividual } from './Individual';
 
@@ -14,8 +16,18 @@ export const GraphQLPersonalToken = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PERSONAL_TOKEN),
+      resolve: personalToken => {
+        if (moment(personalToken.createdAt).isAfter(moment('2026-03-03'))) {
+          return personalToken.publicId;
+        } else {
+          return idEncode(personalToken.id, IDENTIFIER_TYPES.PERSONAL_TOKEN);
+        }
+      },
       description: 'Unique identifier for this personal token',
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.PersonalToken}_xxxxxxxx)`,
     },
     name: {
       type: GraphQLString,

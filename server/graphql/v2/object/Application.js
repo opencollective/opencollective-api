@@ -1,5 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLApplicationType } from '../enum';
@@ -15,11 +17,20 @@ export const GraphQLApplication = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(order) {
-        return idEncode(order.id, 'order');
+        if (moment(order.createdAt).isAfter(moment('2026-03-03'))) {
+          return order.publicId;
+        } else {
+          return idEncode(order.id, 'order');
+        }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Application}_xxxxxxxx)`,
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(order) {
         return order.id;
       },

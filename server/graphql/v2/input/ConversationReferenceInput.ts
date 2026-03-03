@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -12,10 +13,11 @@ export const GraphQLConversationReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the conversation',
+      description: `The public id identifying the conversation (ie: ${EntityShortIdPrefix.Conversation}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
+      deprecationReason: '2026-02-25: use id',
     },
   }),
 });
@@ -36,9 +38,13 @@ export const getConversationDatabaseIdFromReference = input => {
 // ts-unused-exports:disable-next-line
 export const fetchConversationWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   let conversation = null;
-  const dbId = getConversationDatabaseIdFromReference(input);
-  if (dbId) {
-    conversation = await (loaders ? loaders.Conversation.byId.load(dbId) : models.Conversation.findByPk(dbId));
+  if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Conversation}_`)) {
+    conversation = await models.Conversation.findOne({ where: { publicId: input.id } });
+  } else {
+    const dbId = getConversationDatabaseIdFromReference(input);
+    if (dbId) {
+      conversation = await (loaders ? loaders.Conversation.byId.load(dbId) : models.Conversation.findByPk(dbId));
+    }
   }
 
   if (!conversation && throwIfMissing) {

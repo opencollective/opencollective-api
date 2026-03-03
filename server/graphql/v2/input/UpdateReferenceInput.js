@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -12,7 +13,7 @@ export const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the update',
+      description: `The public id identifying the update (ie: ${EntityShortIdPrefix.Update}_xxxxxxxx)`,
     },
   }),
 });
@@ -32,10 +33,14 @@ export const getDatabaseIdFromUpdateReference = input => {
  */
 // ts-unused-exports:disable-next-line
 export const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
-  const dbId = getDatabaseIdFromUpdateReference(input);
   let update = null;
-  if (dbId) {
-    update = await (loaders ? loaders.Update.byId.load(dbId) : models.Update.findByPk(dbId));
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Update)) {
+    update = await models.Update.findOne({ where: { publicId: input.id } });
+  } else {
+    const dbId = getDatabaseIdFromUpdateReference(input);
+    if (dbId) {
+      update = await (loaders ? loaders.Update.byId.load(dbId) : models.Update.findByPk(dbId));
+    }
   }
 
   if (!update && throwIfMissing) {

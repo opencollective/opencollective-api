@@ -1,9 +1,10 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
+import moment from 'moment';
 
 import { TransactionsImportRow } from '../../../models';
 import { GraphQLTransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
-import { getIdEncodeResolver } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLAmount } from './Amount';
@@ -20,7 +21,17 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id of the imported row',
-      resolve: getIdEncodeResolver('transactions-import-row'),
+      resolve: row => {
+        if (moment(row.createdAt).isAfter(moment('2026-03-03'))) {
+          return row.publicId;
+        } else {
+          return idEncode(row.id, IDENTIFIER_TYPES.TRANSACTIONS_IMPORT_ROW);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${TransactionsImportRow.nanoIdPrefix}_xxxxxxxx)`,
     },
     sourceId: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),

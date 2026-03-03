@@ -1,6 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import moment from 'moment';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import models, { Op } from '../../../models';
 import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -20,11 +22,20 @@ export const GraphQLTier = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve(tier) {
-          return idEncode(tier.id, IDENTIFIER_TYPES.TIER);
+          if (moment(tier.createdAt).isAfter(moment('2026-03-03'))) {
+            return tier.publicId;
+          } else {
+            return idEncode(tier.id, IDENTIFIER_TYPES.TIER);
+          }
         },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.Tier}_xxxxxxxx)`,
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
+        deprecationReason: '2026-02-25: use publicId',
         resolve(tier) {
           return tier.id;
         },

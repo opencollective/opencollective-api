@@ -88,6 +88,10 @@ const transactionFieldsDefinition = () => ({
   legacyId: {
     type: new GraphQLNonNull(GraphQLInt),
   },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${Transaction.nanoIdPrefix}_xxxxxxxx)`,
+  },
   uuid: {
     type: new GraphQLNonNull(GraphQLString),
     deprecationReason: '2021-08-15: Use id instead.',

@@ -1,11 +1,13 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import moment from 'moment';
 
 import type { Collective, Conversation, Expense, Order, Transaction, Update } from '../../../models';
+import ActivityModel from '../../../models/Activity';
 import { sanitizeActivityData } from '../../common/activities';
 import { GraphQLActivityType } from '../enum';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLTransaction } from '../interface/Transaction';
 
@@ -23,7 +25,17 @@ export const GraphQLActivity = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this activity',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACTIVITY),
+      resolve(activity: ActivityModel) {
+        if (moment(activity.createdAt).isAfter(moment('2026-03-03'))) {
+          return activity.publicId;
+        } else {
+          return idEncode(activity.id, IDENTIFIER_TYPES.ACTIVITY);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${ActivityModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     type: {
       type: new GraphQLNonNull(GraphQLActivityType),

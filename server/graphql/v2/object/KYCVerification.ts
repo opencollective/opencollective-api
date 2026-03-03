@@ -1,11 +1,12 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString, GraphQLUnionType } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import moment from 'moment';
 
 import { KYCProviderName } from '../../../lib/kyc/providers';
 import { KYCVerification } from '../../../models/KYCVerification';
 import { GraphQLKYCProvider } from '../enum/KYCProvider';
 import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLKYCVerificationPermissions } from './KYCVerificationPermissions';
@@ -17,7 +18,17 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this KYC verification',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.KYC_VERIFICATION),
+      resolve(kycVerification: KYCVerification) {
+        if (moment(kycVerification.createdAt).isAfter(moment('2026-03-03'))) {
+          return kycVerification.publicId;
+        } else {
+          return idEncode(kycVerification.id, IDENTIFIER_TYPES.KYC_VERIFICATION);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${KYCVerification.nanoIdPrefix}_xxxxxxxx)`,
     },
     provider: {
       description: 'Provider used to make this KYC verification',

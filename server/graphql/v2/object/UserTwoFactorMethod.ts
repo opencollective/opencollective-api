@@ -1,10 +1,11 @@
 import { GraphQLFieldConfig, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import moment from 'moment';
 
 import { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import UserTwoFactorMethodModel from '../../../models/UserTwoFactorMethod';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const UserTwoFactorMethod = new GraphQLObjectType({
   name: 'UserTwoFactorMethod',
@@ -13,7 +14,17 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.USER_TWO_FACTOR_METHOD),
+        resolve: userTwoFactorMethod => {
+          if (moment(userTwoFactorMethod.createdAt).isAfter(moment('2026-03-03'))) {
+            return userTwoFactorMethod.publicId;
+          } else {
+            return idEncode(userTwoFactorMethod.id, IDENTIFIER_TYPES.USER_TWO_FACTOR_METHOD);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${UserTwoFactorMethodModel.nanoIdPrefix}_xxxxxxxx)`,
       },
       method: {
         type: new GraphQLNonNull(GraphQLTwoFactorMethodEnum),
