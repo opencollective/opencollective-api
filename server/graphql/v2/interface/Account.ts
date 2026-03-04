@@ -59,7 +59,6 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
-import { idEncode } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountWithReference,

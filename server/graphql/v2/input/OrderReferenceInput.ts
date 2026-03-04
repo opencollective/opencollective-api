@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
-import { partition, uniq } from 'lodash';
-import { Includeable, Op } from 'sequelize';
+import { uniq } from 'lodash';
+import { Includeable } from 'sequelize';
 
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
@@ -24,8 +24,17 @@ export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
 
 export type OrderReferenceInputGraphQLType = { id?: string; legacyId?: number };
 
-export const getDatabaseIdFromOrderReference = (input: OrderReferenceInputGraphQLType): number => {
-  if (input.id) {
+export const getDatabaseIdFromOrderReference = async (
+  input: OrderReferenceInputGraphQLType,
+): Promise<number | null> => {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Order)) {
+    return models.Order.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(order => {
+      if (!order) {
+        throw new NotFound(`Order with public id ${input.id} not found`);
+      }
+      return order.id;
+    });
+  } else if (input.id) {
     return idDecode(input.id, IDENTIFIER_TYPES.ORDER);
   } else if (input.legacyId) {
     return input.legacyId;
@@ -49,7 +58,7 @@ export const fetchOrderWithReference = async (
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Order)) {
     order = await models.Order.findOne({ where: { publicId: input.id }, include });
   } else {
-    const id = getDatabaseIdFromOrderReference(input);
+    const id = await getDatabaseIdFromOrderReference(input);
     order = await loadOrderById(id);
   }
   if (!order && throwIfMissing) {
@@ -66,21 +75,9 @@ export const fetchOrdersWithReferences = async (
     return [];
   }
 
-  const [inputsWithPublicId, inputsWithoutPublicId] = partition(inputs, input =>
-    isEntityPublicId(input.id, EntityShortIdPrefix.Order),
-  );
+  const ids = uniq(await Promise.all(inputs.map(getDatabaseIdFromOrderReference)));
 
-  const ids = uniq(inputsWithoutPublicId.map(getDatabaseIdFromOrderReference));
-  const publicIds = uniq(inputsWithPublicId.map(input => input.id!));
-
-  const where: any = {};
-  if (ids.length && publicIds.length) {
-    where[Op.or] = [{ id: ids }, { publicId: publicIds }];
-  } else if (ids.length) {
-    where.id = ids;
-  } else if (publicIds.length) {
-    where.publicId = publicIds;
-  }
+  const where = { id: ids };
 
   // Fetch orders
   const orders = await models.Order.findAll({

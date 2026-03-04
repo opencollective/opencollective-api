@@ -1,5 +1,5 @@
 import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
-import { partition, uniq } from 'lodash';
+import { uniq } from 'lodash';
 import { Includeable, Op } from 'sequelize';
 
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
@@ -28,8 +28,15 @@ const GraphQLExpenseReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-const getDatabaseIdFromExpenseReference = (input: ExpenseReferenceInputFields): number => {
-  if (input['id']) {
+const getDatabaseIdFromExpenseReference = async (input: ExpenseReferenceInputFields): Promise<number | null> => {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Expense)) {
+    return models.Expense.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(expense => {
+      if (!expense) {
+        throw new NotFound(`Expense with public id ${input.id} not found`);
+      }
+      return expense.id;
+    });
+  } else if (input['id']) {
     return idDecode(input['id'], IDENTIFIER_TYPES.EXPENSE);
   } else if (input['legacyId']) {
     return <number>input['legacyId'];
@@ -49,7 +56,7 @@ const fetchExpenseWithReference = async (
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Expense)) {
     expense = await Expense.findOne({ where: { publicId: input.id } });
   } else {
-    const dbId = getDatabaseIdFromExpenseReference(input);
+    const dbId = await getDatabaseIdFromExpenseReference(input);
     if (dbId) {
       expense = await (loaders ? loaders.Expense.byId.load(dbId) : models.Expense.findByPk(dbId));
     }
@@ -77,30 +84,18 @@ const fetchExpensesWithReferences = async (
     return [];
   }
 
-  const [inputsWithPublicId, inputsWithoutPublicId] = partition(
-    inputs,
-    input => input.id && isEntityPublicId(input.id, EntityShortIdPrefix.Expense),
-  );
-
-  const ids = uniq(inputsWithoutPublicId.map(getDatabaseIdFromExpenseReference));
-  const publicIds = uniq(inputsWithPublicId.map(input => input.id));
+  const ids = uniq(await Promise.all(inputs.map(getDatabaseIdFromExpenseReference)));
 
   const where: { [key: string]: unknown } & { [Op.or]?: unknown } = {};
-  if (ids.length && publicIds.length) {
-    where[Op.or] = [{ id: ids }, { publicId: publicIds }];
-  } else if (ids.length) {
+  if (ids.length) {
     where.id = ids;
-  } else if (publicIds.length) {
-    where.publicId = publicIds;
   }
 
   const expenses = await models.Expense.findAll({ where, include: opts.include });
 
   // Check if all expenses were found
   if (opts.throwIfMissing && ids.length !== expenses.length) {
-    const missingExpenseIds = [...ids, ...publicIds].filter(
-      id => !expenses.find(expense => expense.id === id || expense.publicId === id),
-    );
+    const missingExpenseIds = ids.filter(id => !expenses.find(expense => expense.id === id));
     throw new NotFound(`Could not find expenses with ids: ${missingExpenseIds.join(', ')}`);
   }
 

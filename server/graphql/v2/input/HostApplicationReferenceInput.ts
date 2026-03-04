@@ -19,12 +19,22 @@ export const GraphQLHostApplicationReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getDatabaseIdFromHostApplicationReference = (input: HostApplcationReferenceInputFields): number => {
-  if (input.id) {
+export const getDatabaseIdFromHostApplicationReference = async (
+  input: HostApplcationReferenceInputFields,
+): Promise<number | null> => {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.HostApplication)) {
+    return models.HostApplication.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(
+      hostApplication => {
+        if (!hostApplication) {
+          throw new NotFound(`Host application with public id ${input.id} not found`);
+        }
+        return hostApplication.id;
+      },
+    );
+  } else if (input.id) {
     return idDecode(input['id'], IDENTIFIER_TYPES.HOST_APPLICATION);
-  } else {
-    return null;
   }
+  return null;
 };
 
 /**
@@ -38,7 +48,7 @@ export const fetchHostApplicationWithReference = async (
   if (isEntityPublicId(input.id, EntityShortIdPrefix.HostApplication)) {
     hostApplication = await models.HostApplication.findOne({ where: { publicId: input.id } });
   } else {
-    const dbId = getDatabaseIdFromHostApplicationReference(input);
+    const dbId = await getDatabaseIdFromHostApplicationReference(input);
     if (dbId) {
       hostApplication = await (loaders
         ? loaders.HostApplication.byId.load(dbId)

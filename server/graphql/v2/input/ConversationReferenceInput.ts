@@ -22,8 +22,15 @@ export const GraphQLConversationReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getConversationDatabaseIdFromReference = input => {
-  if (input['id']) {
+export const getConversationDatabaseIdFromReference = async input => {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Conversation)) {
+    return models.Conversation.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(conversation => {
+      if (!conversation) {
+        throw new NotFound(`Conversation with public id ${input.id} not found`);
+      }
+      return conversation.id;
+    });
+  } else if (input['id']) {
     return idDecode(input['id'], IDENTIFIER_TYPES.CONVERSATION);
   } else if (input['legacyId']) {
     return input['legacyId'];
@@ -41,7 +48,7 @@ export const fetchConversationWithReference = async (input, { loaders = null, th
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Conversation)) {
     conversation = await models.Conversation.findOne({ where: { publicId: input.id } });
   } else {
-    const dbId = getConversationDatabaseIdFromReference(input);
+    const dbId = await getConversationDatabaseIdFromReference(input);
     if (dbId) {
       conversation = await (loaders ? loaders.Conversation.byId.load(dbId) : models.Conversation.findByPk(dbId));
     }

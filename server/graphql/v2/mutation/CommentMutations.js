@@ -51,23 +51,17 @@ const commentMutations = {
 
       // Associate the comment with the correct entity
       if (comment.ConversationId) {
-        // TODO(henrique): fix this for publicId support
         comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
       } else if (comment.conversation) {
-        // TODO(henrique): fix this for publicId support
-        comment.ConversationId = getConversationDatabaseIdFromReference(comment.conversation);
+        comment.ConversationId = await getConversationDatabaseIdFromReference(comment.conversation);
       } else if (comment.update) {
-        // TODO(henrique): fix this for publicId support
-        comment.UpdateId = getDatabaseIdFromUpdateReference(comment.update);
+        comment.UpdateId = await getDatabaseIdFromUpdateReference(comment.update);
       } else if (comment.expense) {
-        // TODO(henrique): fix this for publicId support
-        comment.ExpenseId = getDatabaseIdFromExpenseReference(comment.expense);
+        comment.ExpenseId = await getDatabaseIdFromExpenseReference(comment.expense);
       } else if (comment.order) {
-        // TODO(henrique): fix this for publicId support
-        comment.OrderId = getDatabaseIdFromOrderReference(comment.order);
+        comment.OrderId = await getDatabaseIdFromOrderReference(comment.order);
       } else if (comment.hostApplication) {
-        // TODO(henrique): fix this for publicId support
-        comment.HostApplicationId = getDatabaseIdFromHostApplicationReference(comment.hostApplication);
+        comment.HostApplicationId = await getDatabaseIdFromHostApplicationReference(comment.hostApplication);
       } else {
         throw new Error('Please provide a conversation, update, expense, order or host application');
       }

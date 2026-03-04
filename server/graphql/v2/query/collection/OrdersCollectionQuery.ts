@@ -14,7 +14,6 @@ import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
-import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -428,6 +427,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     }
   }
 
+  let tierIds: number[] | null = null;
+  if (args.tier?.length > 0) {
+    tierIds = await Promise.all(args.tier.map(getDatabaseIdFromTierReference));
+  }
+
   let createdByUsers: User[] = [];
   if (!isEmpty(args.createdBy)) {
     assert(args.createdBy.length <= 1000, '"Created by" is limited to 1000 users');
@@ -742,33 +746,10 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     .$if(!isEmpty(args.status) && args.status.includes(OrderStatuses.PAUSED) && !isEmpty(args.pausedBy), qb =>
       qb.where(sql`"Orders".data->>'pausedBy'`, 'in', args.pausedBy),
     )
-    .$if(!isEmpty(args.tier), qb => {
-      const tierIds = args.tier
-        .filter(tier => tier.legacyId || !isEntityPublicId(tier.id as string, EntityShortIdPrefix.Tier))
-        .map(getDatabaseIdFromTierReference);
+    .$if(!isEmpty(tierIds), qb => {
       return qb
         .innerJoin('Tiers', 'Orders.TierId', 'Tiers.id')
-        .where(qb => {
-          const ors: Expression<SqlBool>[] = [];
-          if (tierIds.length) {
-            ors.push(qb.eb('Tiers.id', 'in', tierIds));
-          }
-          if (args.tier.some(tier => isEntityPublicId(tier.id, EntityShortIdPrefix.Tier))) {
-            ors.push(
-              qb.eb(
-                'Tiers.publicId',
-                'in',
-                args.tier.map(tier => tier.id).filter(id => isEntityPublicId(id, EntityShortIdPrefix.Tier)),
-              ),
-            );
-          }
-
-          if (ors.length === 1) {
-            return ors[0];
-          }
-
-          return qb.or(ors);
-        })
+        .where('Tiers.id', 'in', tierIds)
         .where('Tiers.deletedAt', 'is', null);
     })
     .$if(!!tier, qb => qb.where('TierId', '=', tier.id))

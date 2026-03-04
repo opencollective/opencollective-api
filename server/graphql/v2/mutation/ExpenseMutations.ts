@@ -325,7 +325,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
       const expense = await models.Expense.findByPk(expenseId, {
         // Need to load the collective/fromCollective because canEditPaidBy checks these
         include: [
@@ -376,7 +376,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
       const expense = await models.Expense.findByPk(expenseId, {
         // Need to load the collective because canDeleteExpense checks expense.collective.HostCollectiveId
         include: [
@@ -728,7 +728,7 @@ const expenseMutations = {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
 
       const rateLimit = new RateLimit(`resend_draft_invite_${expenseId}`, 2, 10);
       if (!(await rateLimit.registerCall())) {
@@ -764,7 +764,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request) {
       checkRemoteUserCanUseExpenses(req);
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
 
       const expense = await models.Expense.findByPk(expenseId, {
         include: [
