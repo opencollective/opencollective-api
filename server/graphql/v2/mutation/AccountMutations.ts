@@ -994,13 +994,16 @@ const accountMutations = {
       }
 
       if (parseToBoolean(config.features?.newPricing)) {
-        await PlatformSubscription.createSubscription(
-          account,
-          new Date(),
-          PlatformSubscriptionTiers.find(t => t.id === 'discover-1'),
-          req.remoteUser,
-          { notify: false },
-        );
+        const existingSubscription = await PlatformSubscription.getCurrentSubscription(account.id);
+        if (!existingSubscription) {
+          await PlatformSubscription.createSubscription(
+            account,
+            new Date(),
+            PlatformSubscriptionTiers.find(t => t.id === 'discover-1'),
+            req.remoteUser,
+            { notify: false },
+          );
+        }
       }
 
       await models.Activity.create({
