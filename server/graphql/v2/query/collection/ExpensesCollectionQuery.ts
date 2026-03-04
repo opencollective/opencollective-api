@@ -409,17 +409,27 @@ export const ExpensesCollectionQueryResolver = async (
     const hostAssoc = direction === 'SUBMITTED' ? 'fromCollective' : 'collective';
     include.push({ association: hostAssoc, attributes: [], required: true });
 
-    // Base condition: the expense belongs to an account hosted by this host
-    where[Op.and].push({
-      [Op.or]: [
-        { HostCollectiveId: host.id },
-        {
-          HostCollectiveId: { [Op.is]: null },
-          [`$${hostAssoc}.HostCollectiveId$`]: host.id,
-          [`$${hostAssoc}.approvedAt$`]: { [Op.not]: null },
-        },
-      ],
-    });
+    // Base condition: the expense belongs to an account hosted by this host.
+    // Expense.HostCollectiveId is set to the *payer's* host when paid, so it's only
+    // usable as a shortcut for RECEIVED direction. For SUBMITTED we must always check
+    // via the fromCollective association.
+    if (direction === 'RECEIVED') {
+      where[Op.and].push({
+        [Op.or]: [
+          { HostCollectiveId: host.id },
+          {
+            HostCollectiveId: { [Op.is]: null },
+            [`$${hostAssoc}.HostCollectiveId$`]: host.id,
+            [`$${hostAssoc}.approvedAt$`]: { [Op.not]: null },
+          },
+        ],
+      });
+    } else {
+      where[Op.and].push({
+        [`$${hostAssoc}.HostCollectiveId$`]: host.id,
+        [`$${hostAssoc}.approvedAt$`]: { [Op.not]: null },
+      });
+    }
 
     // When specific accounts are provided, skip hostContext-based filtering (accounts are already validated above)
     // hostContext filtering only applies when no specific accounts are selected
@@ -857,9 +867,13 @@ const fetchExpensesPayees = async (
   if (host) {
     const hostJoinField = direction === 'SUBMITTED' ? 'FromCollectiveId' : 'CollectiveId';
     collectiveJoin = `INNER JOIN "Collectives" AS ec ON ec."id" = e."${hostJoinField}"`;
-    expenseConditions.push(
-      '(e."HostCollectiveId" = :hostId OR (e."HostCollectiveId" IS NULL AND ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL))',
-    );
+    if (direction === 'RECEIVED') {
+      expenseConditions.push(
+        '(e."HostCollectiveId" = :hostId OR (e."HostCollectiveId" IS NULL AND ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL))',
+      );
+    } else {
+      expenseConditions.push('ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL');
+    }
     replacements.hostId = host.id;
 
     // Host context: filter on the expense's collective (on the direction side)

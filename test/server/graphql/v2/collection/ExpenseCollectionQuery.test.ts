@@ -1363,6 +1363,33 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(expenseIds).to.not.include(expenseFromHostedToHosted.id);
     });
 
+    it('SUBMITTED direction excludes paid expenses matched only by payer HostCollectiveId', async () => {
+      // When an expense is paid, Expense.HostCollectiveId is set to the *payer's* host.
+      // With direction=SUBMITTED, that column should NOT be used as a shortcut, because
+      // it reflects the payer side, not the submitter side.
+      const paidExpenseFromExternalToHosted = await fakeExpense({
+        FromCollectiveId: externalCollective.id,
+        CollectiveId: hostedCollective.id,
+        HostCollectiveId: host.id,
+        status: 'PAID',
+        description: 'Paid expense: external submits to hosted collective',
+      });
+
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // The external collective is the submitter and is NOT hosted by our host,
+      // so this expense must not appear in SUBMITTED results for this host
+      expect(expenseIds).to.not.include(paidExpenseFromExternalToHosted.id);
+      // Sanity check: expenses where hosted collectives are the submitter still appear
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+
+      await paidExpenseFromExternalToHosted.destroy();
+    });
+
     it('throws error when using fromAccount with direction SUBMITTED', async () => {
       const fromAccountQuery = gql`
         query ExpensesWithDirectionAndFromAccount($direction: ExpenseDirection, $fromAccount: AccountReferenceInput) {
