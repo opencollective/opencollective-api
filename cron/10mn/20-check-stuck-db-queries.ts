@@ -1,5 +1,6 @@
 import '../../server/env';
 
+import { truncate } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
@@ -23,6 +24,24 @@ type StuckQuery = {
   wait_event: string | null;
 };
 
+const postOnSlack = async (str: string) => {
+  try {
+    await slackLib.postMessageToOpenCollectiveSlack(str, OPEN_COLLECTIVE_SLACK_CHANNEL.ENGINEERING_ALERTS);
+  } catch (error) {
+    reportErrorToSentry(error, { handler: HandlerType.CRON, extra: { str } });
+  }
+};
+
+const formatStuckQuery = (q: StuckQuery): string => {
+  return [
+    `*PID:* ${q.pid} | *User:* ${q.user} | *State:* ${q.state} | *Running for:* ${q.query_time}`,
+    q.wait_event_type ? `*Wait:* ${q.wait_event_type} / ${q.wait_event}` : null,
+    `\`\`\`${truncate(q.query, { length: 30_000 })}\`\`\``,
+  ]
+    .filter(Boolean)
+    .join('\n');
+};
+
 async function run() {
   const stuckQueries = await sequelize.query<StuckQuery>(
     `
@@ -42,6 +61,7 @@ async function run() {
       E'SHOW extwlist.extensions\n;',
       'SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED'
     )
+    AND query NOT LIKE '%pg_backup_start%'
     `,
     {
       raw: true,
@@ -59,27 +79,14 @@ async function run() {
     `Found ${stuckQueries.length} stuck query(ies) running for more than ${STUCK_QUERY_THRESHOLD_MINUTES} minutes.`,
   );
 
-  const lines: string[] = [
-    `:warning: *${stuckQueries.length} stuck DB query(ies)* running for more than ${STUCK_QUERY_THRESHOLD_MINUTES} minutes:`,
-    '',
-  ];
-
-  for (const q of stuckQueries) {
-    lines.push(
-      [
-        `*PID:* ${q.pid} | *User:* ${q.user} | *State:* ${q.state} | *Running for:* ${q.query_time}`,
-        q.wait_event_type ? `*Wait:* ${q.wait_event_type} / ${q.wait_event}` : null,
-        `\`\`\`${q.query.substring(0, 500)}${q.query.length > 500 ? '…' : ''}\`\`\``,
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    );
-  }
-
-  try {
-    await slackLib.postMessageToOpenCollectiveSlack(lines.join('\n'), OPEN_COLLECTIVE_SLACK_CHANNEL.ENGINEERING_ALERTS);
-  } catch (error) {
-    reportErrorToSentry(error, { handler: HandlerType.CRON, extra: { stuckQueries } });
+  const summary = `:warning: *${stuckQueries.length} stuck DB query(ies)* running for more than ${STUCK_QUERY_THRESHOLD_MINUTES} minutes:`;
+  if (stuckQueries.length === 1) {
+    await postOnSlack(`${summary}\n${formatStuckQuery(stuckQueries[0])}`);
+  } else {
+    await postOnSlack(summary);
+    for (const q of stuckQueries) {
+      await postOnSlack(formatStuckQuery(q));
+    }
   }
 }
 
