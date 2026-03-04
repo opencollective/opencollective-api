@@ -635,7 +635,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
       const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
 
-      return qb.where(({ eb, and }) => {
+      return qb.where(({ eb }) => {
         const converted = eb
           .case()
           .when(eb('Orders.currency', '=', currency as SupportedCurrency))
