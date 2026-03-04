@@ -72,7 +72,7 @@ export default {
             if (!id) {
               throw new ValidationFailed(`Accounting category with public id ${input.id} not found`);
             }
-          } else {
+          } else if (input.id) {
             id = idDecode(input.id, 'accounting-category');
           }
 
