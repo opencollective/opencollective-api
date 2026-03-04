@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models, { Op } from '../../../models';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -18,7 +18,7 @@ const GraphQLConversation = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve(conversation) {
-          if (moment(conversation.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Conversation, conversation.createdAt)) {
             return conversation.publicId;
           } else {
             return idEncode(conversation.id, IDENTIFIER_TYPES.CONVERSATION);
@@ -100,7 +100,10 @@ const GraphQLConversation = new GraphQLObjectType({
             id: {
               type: new GraphQLNonNull(GraphQLString),
               resolve(conversation) {
-                if (conversation.createdAt && moment(conversation.createdAt).isAfter(moment('2026-03-03'))) {
+                if (
+                  conversation.createdAt &&
+                  isEntityMigratedToPublicId(EntityShortIdPrefix.Conversation, conversation.createdAt)
+                ) {
                   return conversation.publicId;
                 } else {
                   return idEncode(conversation.id, IDENTIFIER_TYPES.CONVERSATION);

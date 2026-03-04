@@ -1,7 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { GraphQLActivityType } from '../enum';
 import { idEncode } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -14,7 +13,7 @@ export const GraphQLWebhook = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(notification) {
-        if (moment(notification.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Notification, notification.createdAt)) {
           return notification.publicId;
         } else {
           return idEncode(notification.id, 'notification');

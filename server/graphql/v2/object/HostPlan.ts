@@ -1,7 +1,6 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { idEncode } from '../identifiers';
 
 export const GraphQLHostPlan = new GraphQLObjectType({
@@ -12,7 +11,7 @@ export const GraphQLHostPlan = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
       resolve(account) {
-        if (moment(account.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, account.createdAt)) {
           return account.publicId;
         } else {
           return idEncode(account.id, 'account');

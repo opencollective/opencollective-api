@@ -1,7 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
 import INTERVALS from '../../../constants/intervals';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Tier } from '../../../models';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -15,7 +15,7 @@ export const GraphQLTierStats = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve: tier => {
-          if (moment(tier.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Tier, tier.createdAt)) {
             return tier.publicId;
           } else {
             return idEncode(tier.id, IDENTIFIER_TYPES.TIER);

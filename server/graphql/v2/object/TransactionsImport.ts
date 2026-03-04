@@ -1,8 +1,7 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { Op, TransactionsImport } from '../../../models';
 import TransactionsImportRow from '../../../models/TransactionsImportRow';
@@ -27,7 +26,7 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id of the import',
       resolve: importInstance => {
-        if (moment(importInstance.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.TransactionsImport, importInstance.createdAt)) {
           return importInstance.publicId;
         } else {
           return idEncode(importInstance.id, IDENTIFIER_TYPES.TRANSACTIONS_IMPORT);

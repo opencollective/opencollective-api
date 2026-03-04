@@ -1,10 +1,9 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
-import moment from 'moment';
 
 import ExpenseStatus from '../../../constants/expense-status';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getSpendingLimitIntervalDates } from '../../../lib/stripe';
 import models, { Op, VirtualCard } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -35,7 +34,7 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
     id: {
       type: GraphQLString,
       resolve: virtualCard => {
-        if (moment(virtualCard.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.VirtualCard, virtualCard.createdAt)) {
           return virtualCard.publicId;
         } else {
           return virtualCard.id;

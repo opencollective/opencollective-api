@@ -2705,7 +2705,9 @@ const checkLockedFields = async (
         ? updated.payee.legacyId
         : typeof updated.payee['id'] === 'number'
           ? updated.payee['id']
-          : (await fetchAccountWithReference(updated.payee as { id: string }, { throwIfMissing: true }))?.id;
+          : await fetchAccountWithReference(updated.payee as { id: string }, { throwIfMissing: true })
+              .then(collective => collective?.id)
+              .catch(() => null);
 
     const expectedPayee = existing.data.payee;
     if ('id' in expectedPayee) {

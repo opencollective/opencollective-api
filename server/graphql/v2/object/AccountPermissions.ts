@@ -1,10 +1,9 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
 import FEATURE from '../../../constants/feature';
 import { hasFeature } from '../../../lib/allowed-features';
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { Collective } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -20,7 +19,7 @@ const GraphQLAccountPermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       // TODO(henrique): remove this once we have migrated all the data
       resolve(collective: Collective) {
-        if (moment().isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
           return collective.publicId;
         } else {
           return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);

@@ -1,8 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models, { Op } from '../../../models';
 import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
@@ -22,7 +21,7 @@ export const GraphQLTier = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve(tier) {
-          if (moment(tier.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Tier, tier.createdAt)) {
             return tier.publicId;
           } else {
             return idEncode(tier.id, IDENTIFIER_TYPES.TIER);

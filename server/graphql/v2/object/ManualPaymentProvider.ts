@@ -1,8 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvider';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -15,7 +14,7 @@ export const GraphQLManualPaymentProvider = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this provider',
       resolve: provider => {
-        if (moment(provider.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ManualPaymentProvider, provider.createdAt)) {
           return provider.publicId;
         } else {
           return idEncode(provider.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER);

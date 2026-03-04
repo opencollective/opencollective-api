@@ -1,8 +1,7 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
@@ -17,7 +16,7 @@ export const GraphQLPersonalToken = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: personalToken => {
-        if (moment(personalToken.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.PersonalToken, personalToken.createdAt)) {
           return personalToken.publicId;
         } else {
           return idEncode(personalToken.id, IDENTIFIER_TYPES.PERSONAL_TOKEN);

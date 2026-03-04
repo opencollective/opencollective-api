@@ -1,8 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Expense } from '../../../models';
 import { ExpenseDataValuesRoleDetails } from '../../../models/Expense';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -30,7 +29,7 @@ export const GraphQLExpenseValuesByRole = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       resolve: (expense: Expense) => {
-        if (moment(expense.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Expense, expense.createdAt)) {
           return expense.publicId;
         } else {
           return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);

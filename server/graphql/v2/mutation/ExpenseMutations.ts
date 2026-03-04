@@ -230,7 +230,7 @@ const expenseMutations = {
         ? groupBy(
             await Promise.all(
               items
-                ?.filter(item => item.id && isEntityPublicId(item.id as string, EntityShortIdPrefix.ExpenseItem))
+                ?.filter(item => isEntityPublicId(item.id, EntityShortIdPrefix.ExpenseItem))
                 .map(item =>
                   models.ExpenseItem.findOne({ where: { publicId: item.id }, attributes: ['publicId', 'id'] }).then(
                     expenseItem => {
@@ -248,12 +248,11 @@ const expenseMutations = {
 
       const itemsWithIds = items?.map(item => ({
         ...item,
-        id:
-          item.id && isEntityPublicId(item.id as string, EntityShortIdPrefix.ExpenseItem)
-            ? mapItemPublicIdToId[item.id][0].id
-            : item.id
-              ? idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM)
-              : null,
+        id: isEntityPublicId(item.id, EntityShortIdPrefix.ExpenseItem)
+          ? mapItemPublicIdToId[item.id][0].id
+          : item.id
+            ? idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM)
+            : null,
       }));
 
       const expenseData = {

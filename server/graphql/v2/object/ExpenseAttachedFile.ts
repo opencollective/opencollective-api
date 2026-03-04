@@ -1,8 +1,7 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLFileInfo } from '../interface/FileInfo';
@@ -16,7 +15,7 @@ const GraphQLExpenseAttachedFile = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this file',
       resolve(expenseAttachedFile) {
-        if (moment(expenseAttachedFile.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ExpenseAttachedFile, expenseAttachedFile.createdAt)) {
           return expenseAttachedFile.publicId;
         } else {
           return idEncode(expenseAttachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE);

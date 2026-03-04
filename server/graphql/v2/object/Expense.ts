@@ -10,7 +10,6 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
-import moment from 'moment';
 import { WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
@@ -19,7 +18,7 @@ import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
 import OAuthScopes from '../../../constants/oauth-scopes';
 import { floatAmountToCents } from '../../../lib/math';
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -112,7 +111,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve(expense) {
-          if (moment(expense.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Expense, expense.createdAt)) {
             return expense.publicId;
           } else {
             return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);

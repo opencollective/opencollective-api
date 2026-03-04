@@ -1,9 +1,8 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Collective } from '../../../models';
 import { GraphQLMemberRole } from '../enum/MemberRole';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -20,7 +19,7 @@ export const GraphQLMemberInvitation = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve: memberInvitation => {
-          if (moment(memberInvitation.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.MemberInvitation, memberInvitation.createdAt)) {
             return memberInvitation.publicId;
           } else {
             return idEncode(memberInvitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION);

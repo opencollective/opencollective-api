@@ -1,7 +1,7 @@
 import { GraphQLFieldConfig, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import UserTwoFactorMethodModel from '../../../models/UserTwoFactorMethod';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
@@ -15,7 +15,7 @@ export const UserTwoFactorMethod = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve: userTwoFactorMethod => {
-          if (moment(userTwoFactorMethod.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.UserTwoFactorMethod, userTwoFactorMethod.createdAt)) {
             return userTwoFactorMethod.publicId;
           } else {
             return idEncode(userTwoFactorMethod.id, IDENTIFIER_TYPES.USER_TWO_FACTOR_METHOD);

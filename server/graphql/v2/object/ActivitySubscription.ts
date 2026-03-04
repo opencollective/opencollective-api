@@ -1,9 +1,8 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import Collective from '../../../models/Collective';
 import { GraphQLActivityChannel } from '../enum/ActivityChannel';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -18,7 +17,7 @@ export const GraphQLActivitySubscription = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this notification setting',
       resolve(notification) {
-        if (moment(notification.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Notification, notification.createdAt)) {
           return notification.publicId;
         } else {
           return idEncode(notification.id, IDENTIFIER_TYPES.NOTIFICATION);

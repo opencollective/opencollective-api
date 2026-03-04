@@ -1,8 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import moment from 'moment';
 
 import { CollectiveType } from '../../../constants/collectives';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { UpdateChannel } from '../../../models/Update';
 import { canSeeUpdate } from '../../common/update';
@@ -21,7 +21,7 @@ const GraphQLUpdate = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve: update => {
-          if (moment(update.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Update, update.createdAt)) {
             return update.publicId;
           } else {
             return idEncode(update.id, IDENTIFIER_TYPES.UPDATE);

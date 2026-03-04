@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Expense } from '../../../models';
 import * as ExpenseLib from '../../common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -15,7 +15,7 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(expense) {
-        if (moment(expense.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Expense, expense.createdAt)) {
           return expense.publicId;
         } else {
           return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);

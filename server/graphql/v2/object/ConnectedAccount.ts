@@ -1,8 +1,7 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Collective, ConnectedAccount } from '../../../models';
 import { Unauthorized } from '../../errors';
 import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
@@ -17,7 +16,7 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this connected account',
       resolve(connectedAccount) {
-        if (moment(connectedAccount.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ConnectedAccount, connectedAccount.createdAt)) {
           return connectedAccount.publicId;
         } else {
           return idEncode(connectedAccount.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);

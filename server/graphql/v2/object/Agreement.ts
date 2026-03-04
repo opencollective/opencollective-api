@@ -1,8 +1,8 @@
 import type express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import AgreementModel from '../../../models/Agreement';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -17,7 +17,7 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
     id: {
       type: GraphQLString,
       resolve(agreement: AgreementModel) {
-        if (moment(agreement.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Agreement, agreement.createdAt)) {
           return agreement.publicId;
         } else {
           return idEncode(agreement.id, IDENTIFIER_TYPES.AGREEMENT);

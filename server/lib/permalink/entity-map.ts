@@ -1,3 +1,5 @@
+import moment from 'moment';
+
 export enum EntityShortIdPrefix {
   AccountingCategory = 'acat',
   Activity = 'act',
@@ -44,4 +46,12 @@ export function isEntityPublicId<E extends EntityShortIdPrefix>(
   EntityShortIdPrefix: E,
 ): publicId is EntityPublicId<E> {
   return publicId && typeof publicId === 'string' && publicId.startsWith(`${EntityShortIdPrefix}_`);
+}
+
+export function isEntityMigratedToPublicId(entity: EntityShortIdPrefix, createdAt: Date) {
+  if (process.env.NODE_ENV === 'test' || process.env.CI === 'true') {
+    return false;
+  }
+
+  return moment(createdAt).isAfter(moment('2026-04-03'));
 }

@@ -1,8 +1,7 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import AccountingCategoryModel from '../../../models/AccountingCategory';
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
@@ -20,7 +19,7 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(accountingCategory: AccountingCategoryModel) {
-        if (moment(accountingCategory.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.AccountingCategory, accountingCategory.createdAt)) {
           return accountingCategory.publicId;
         } else {
           return idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY);

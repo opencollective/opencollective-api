@@ -3,7 +3,7 @@ import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'gr
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { UploadedFile } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -21,7 +21,7 @@ const GraphQLExpenseItem = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this expense item',
       resolve(expenseItem) {
-        if (moment(expenseItem.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ExpenseItem, expenseItem.createdAt)) {
           return expenseItem.publicId;
         } else {
           return idEncode(expenseItem.id, IDENTIFIER_TYPES.EXPENSE_ITEM);

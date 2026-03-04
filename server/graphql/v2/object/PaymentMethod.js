@@ -1,10 +1,9 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, omit, pick } from 'lodash';
-import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { getLegacyPaymentMethodType, GraphQLPaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
@@ -24,7 +23,7 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
       id: {
         type: GraphQLString,
         resolve(paymentMethod) {
-          if (moment(paymentMethod.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.PaymentMethod, paymentMethod.createdAt)) {
             return paymentMethod.publicId;
           } else {
             return idEncode(paymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD);

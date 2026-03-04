@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import VirtualCardRequest from '../../../models/VirtualCardRequest';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
@@ -20,7 +20,7 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(virtualCardRequest: VirtualCardRequest) {
-        if (moment(virtualCardRequest.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.VirtualCardRequest, virtualCardRequest.createdAt)) {
           return virtualCardRequest.publicId;
         } else {
           return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);

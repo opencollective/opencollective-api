@@ -17,12 +17,12 @@ import sharp from 'sharp';
 import { v4 as uuid } from 'uuid';
 
 import { FileKind, SUPPORTED_FILE_KINDS } from '../constants/file-kind';
-import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
+import { idDecode, idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { checkS3Configured, streamToS3, uploadToS3 } from '../lib/awsS3';
 import { isOpenCollectiveProtectedS3BucketURL, isOpenCollectiveS3BucketURL } from '../lib/images';
 import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
-import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes } from '../lib/sequelize';
@@ -165,6 +165,9 @@ class UploadedFile extends ModelWithPublicId<
     }
 
     const encodedId = match[1];
+    if (isEntityPublicId(encodedId, EntityShortIdPrefix.UploadedFile)) {
+      return UploadedFile.findOne({ where: { publicId: encodedId } });
+    }
 
     return UploadedFile.findByPk(idDecode(encodedId, IDENTIFIER_TYPES.UPLOADED_FILE));
   }
@@ -176,7 +179,7 @@ class UploadedFile extends ModelWithPublicId<
     const url = new URL(`${config.host.website}/api/files/${uploadedFile.publicId}`);
 
     if (options?.expenseId) {
-      url.searchParams.set('expenseId', uploadedFile.publicId);
+      url.searchParams.set('expenseId', idEncode(options.expenseId, IDENTIFIER_TYPES.EXPENSE));
 
       if (options?.draftKey) {
         url.searchParams.set('draftKey', options.draftKey);

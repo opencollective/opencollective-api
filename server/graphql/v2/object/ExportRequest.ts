@@ -1,8 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import ExportRequest from '../../../models/ExportRequest';
 import { GraphQLExportRequestStatus } from '../enum/ExportRequestStatus';
 import { GraphQLExportRequestType } from '../enum/ExportRequestType';
@@ -20,7 +19,7 @@ export const GraphQLExportRequest = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'Unique identifier for this export request',
       resolve(exportRequest: ExportRequest) {
-        if (moment(exportRequest.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ExportRequest, exportRequest.createdAt)) {
           return exportRequest.publicId;
         } else {
           return idEncode(exportRequest.id, IDENTIFIER_TYPES.EXPORT_REQUEST);

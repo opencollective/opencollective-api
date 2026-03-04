@@ -1,9 +1,8 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { LEGAL_DOCUMENT_REQUEST_STATUS } from '../../../models/LegalDocument';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentService } from '../enum/LegalDocumentService';
@@ -20,7 +19,7 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this legal document',
       resolve: document => {
-        if (moment(document.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.LegalDocument, document.createdAt)) {
           return document.publicId;
         } else {
           return idEncode(document.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);

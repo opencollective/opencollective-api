@@ -1,10 +1,10 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { get, isNil, mapValues } from 'lodash';
-import moment from 'moment';
 
 import POLICIES, { Policies } from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import { getFxRate } from '../../../lib/currency';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getPolicy } from '../../../lib/policies';
 import { Collective } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -24,7 +24,7 @@ export const GraphQLPolicies = new GraphQLObjectType({
     id: {
       type: GraphQLString,
       resolve: account => {
-        if (moment(account.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, account.createdAt)) {
           return account.publicId;
         } else {
           return idEncode(account.id, IDENTIFIER_TYPES.ACCOUNT);

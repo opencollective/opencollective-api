@@ -7,7 +7,7 @@ import { EntityShortIdPrefix } from '../server/lib/permalink/entity-map';
 const modelsWithHistory = [
   'Collectives',
   'Comments',
-  'Expense',
+  'Expenses',
   'KYCVerifications',
   'Orders',
   'PlatformSubscriptions',

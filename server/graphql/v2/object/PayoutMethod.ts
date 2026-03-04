@@ -1,9 +1,8 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { PayoutMethod } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
@@ -17,7 +16,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: payoutMethod => {
-        if (moment(payoutMethod.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.PayoutMethod, payoutMethod.createdAt)) {
           return payoutMethod.publicId;
         } else {
           return idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);

@@ -1,8 +1,8 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import type { Collective, Conversation, Expense, Order, Transaction, Update } from '../../../models';
 import ActivityModel from '../../../models/Activity';
 import { sanitizeActivityData } from '../../common/activities';
@@ -26,7 +26,7 @@ export const GraphQLActivity = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this activity',
       resolve(activity: ActivityModel) {
-        if (moment(activity.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Activity, activity.createdAt)) {
           return activity.publicId;
         } else {
           return idEncode(activity.id, IDENTIFIER_TYPES.ACTIVITY);

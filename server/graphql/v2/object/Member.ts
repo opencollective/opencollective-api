@@ -1,8 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Member } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLMemberRole } from '../enum/MemberRole';
@@ -15,7 +14,7 @@ const getMemberFields = () => ({
   id: {
     type: new GraphQLNonNull(GraphQLString),
     resolve(member) {
-      if (moment(member.createdAt).isAfter(moment('2026-03-03'))) {
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.Member, member.createdAt)) {
         return member.publicId;
       } else {
         return idEncode(member.id, 'member');

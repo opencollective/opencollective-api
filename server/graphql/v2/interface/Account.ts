@@ -10,7 +10,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
 import { getSupportedExpenseTypes } from '../../../lib/expenses';
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -116,7 +116,7 @@ const accountFieldsDefinition = () => ({
     description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
     // TODO(henrique): move check to a central place
     resolve(collective: Collective) {
-      if (moment().isAfter(moment('2026-03-03'))) {
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
         return collective.publicId;
       } else {
         return collective.id;

@@ -1,7 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLApplicationType } from '../enum';
@@ -17,7 +16,7 @@ export const GraphQLApplication = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(order) {
-        if (moment(order.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Application, order.createdAt)) {
           return order.publicId;
         } else {
           return idEncode(order.id, 'order');

@@ -1,8 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { canSeeComment, collectiveResolver, fromCollectiveResolver } from '../../common/comment';
 import { GraphQLCommentType } from '../enum/CommentType';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -22,7 +21,7 @@ export const GraphQLComment = new GraphQLObjectType({
       id: {
         type: GraphQLString,
         resolve(comment) {
-          if (moment(comment.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Comment, comment.createdAt)) {
             return comment.publicId;
           } else {
             return idEncode(comment.id, IDENTIFIER_TYPES.COMMENT);

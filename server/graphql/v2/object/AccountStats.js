@@ -7,6 +7,7 @@ import assert from 'node:assert';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { getCollectiveIds } from '../../../lib/budget';
 import { getFxRate } from '../../../lib/currency';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
@@ -65,7 +66,7 @@ export const GraphQLAccountStats = new GraphQLObjectType({
         type: GraphQLString,
         // TODO(henrique): remove this once we have migrated all the data
         resolve(collective) {
-          if (moment(collective.createdAt).isAfter(moment('2026-03-03'))) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
             return collective.publicId;
           } else {
             return idEncode(collective.id);

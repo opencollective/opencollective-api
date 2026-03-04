@@ -1,7 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { TransactionsImportRow } from '../../../models';
 import { GraphQLTransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -22,7 +22,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id of the imported row',
       resolve: row => {
-        if (moment(row.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.TransactionsImportRow, row.createdAt)) {
           return row.publicId;
         } else {
           return idEncode(row.id, IDENTIFIER_TYPES.TRANSACTIONS_IMPORT_ROW);
@@ -31,7 +31,7 @@ export const GraphQLTransactionsImportRow = new GraphQLObjectType({
     },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),
-      description: `The resource public id (ie: ${TransactionsImportRow.nanoIdPrefix}_xxxxxxxx)`,
+      description: `The resource public id (ie: ${EntityShortIdPrefix.TransactionsImportRow}_xxxxxxxx)`,
     },
     sourceId: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),

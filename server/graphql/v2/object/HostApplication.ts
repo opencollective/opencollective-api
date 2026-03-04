@@ -1,9 +1,8 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick } from 'lodash';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import { Unauthorized } from '../../errors';
@@ -21,7 +20,7 @@ export const GraphQLHostApplication = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: async application => {
-        if (moment(application.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.HostApplication, application.createdAt)) {
           return application.publicId;
         } else {
           if (application.id) {

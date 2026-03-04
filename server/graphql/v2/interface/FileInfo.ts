@@ -1,7 +1,6 @@
 import { GraphQLInt, GraphQLInterfaceType, GraphQLNonNull, GraphQLString } from 'graphql';
-import moment from 'moment';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { UploadedFile } from '../../../models';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import URL from '../scalar/URL';
@@ -11,7 +10,7 @@ export const fileInfoFields = {
     type: new GraphQLNonNull(GraphQLString),
     description: 'Unique identifier for the file',
     resolve: file => {
-      if (moment(file.createdAt).isAfter(moment('2026-03-03'))) {
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.UploadedFile, file.createdAt)) {
         return file.publicId;
       } else {
         return idEncode(file.id, IDENTIFIER_TYPES.UPLOADED_FILE);

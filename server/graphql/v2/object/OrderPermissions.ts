@@ -1,9 +1,9 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import moment from 'moment';
 
 import ORDER_STATUS from '../../../constants/order-status';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Order } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
@@ -16,7 +16,7 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: order => {
-        if (moment(order.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Order, order.createdAt)) {
           return order.publicId;
         } else {
           return idEncode(order.id, IDENTIFIER_TYPES.ORDER);

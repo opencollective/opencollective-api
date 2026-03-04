@@ -1,9 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
-import moment from 'moment';
 
 import { floatAmountToCents } from '../../../lib/math';
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models, { Op } from '../../../models';
 import transferwise from '../../../paymentProviders/transferwise';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -61,7 +60,7 @@ export const GraphQLTransferWise = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this Wise object',
       resolve: host => {
-        if (moment(host.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.PayoutMethod, host.createdAt)) {
           return host.publicId;
         } else {
           return idEncode(host.id, IDENTIFIER_TYPES.PAYOUT_METHOD);

@@ -1,6 +1,7 @@
 import type Express from 'express';
 import { QueryTypes } from 'sequelize';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../lib/permalink/entity-map';
 import { Expense, sequelize, UploadedFile } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
 import ExportRequest from '../../models/ExportRequest';
@@ -24,7 +25,14 @@ export async function hasProtectedUrlPermission(req: Express.Request, url: strin
   }
 
   let expenseId: number;
-  if (encodedExpenseId) {
+  if (isEntityPublicId(encodedExpenseId, EntityShortIdPrefix.Expense)) {
+    expenseId = await Expense.findOne({ where: { publicId: encodedExpenseId }, attributes: ['id'] }).then(
+      expense => expense?.id,
+    );
+    if (!expenseId) {
+      return false;
+    }
+  } else if (encodedExpenseId) {
     expenseId = idDecode(encodedExpenseId, IDENTIFIER_TYPES.EXPENSE);
   }
 

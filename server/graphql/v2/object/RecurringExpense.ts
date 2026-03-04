@@ -1,7 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import moment from 'moment';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import RecurringExpenseModel from '../../../models/RecurringExpense';
 import { GraphQLRecurringExpenseInterval } from '../enum/RecurringExpenseInterval';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
@@ -16,7 +16,7 @@ const GraphQLRecurringExpense = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve: recurringExpense => {
-        if (moment(recurringExpense.createdAt).isAfter(moment('2026-03-03'))) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.RecurringExpense, recurringExpense.createdAt)) {
           return recurringExpense.publicId;
         } else {
           return idEncode(recurringExpense.id, IDENTIFIER_TYPES.RECURRING_EXPENSE);
