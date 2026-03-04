@@ -179,7 +179,7 @@ export default {
         await PlatformSubscription.createSubscription(
           organization,
           new Date(),
-          PlatformSubscriptionTiers.find(t => (t.id = 'discover-1')),
+          PlatformSubscriptionTiers.find(t => t.id === 'discover-1'),
           user,
           { notify: false },
         );

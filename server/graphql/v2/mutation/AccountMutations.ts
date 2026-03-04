@@ -1,3 +1,4 @@
+import config from 'config';
 import cryptoRandomString from 'crypto-random-string';
 import express from 'express';
 import {
@@ -14,6 +15,7 @@ import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, 
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import { PlatformSubscriptionTiers } from '../../../constants/plans';
 import POLICIES from '../../../constants/policies';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
@@ -25,7 +27,8 @@ import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
-import models, { Collective, HostApplication, sequelize } from '../../../models';
+import { parseToBoolean } from '../../../lib/utils';
+import models, { Collective, HostApplication, PlatformSubscription, sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
@@ -988,6 +991,16 @@ const accountMutations = {
 
       if (args.hasMoneyManagement === true) {
         await account.activateMoneyManagement(req.remoteUser, { silent: true });
+      }
+
+      if (parseToBoolean(config.features?.newPricing)) {
+        await PlatformSubscription.createSubscription(
+          account,
+          new Date(),
+          PlatformSubscriptionTiers.find(t => t.id === 'discover-1'),
+          req.remoteUser,
+          { notify: false },
+        );
       }
 
       await models.Activity.create({
