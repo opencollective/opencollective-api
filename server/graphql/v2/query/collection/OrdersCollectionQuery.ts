@@ -529,7 +529,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
         switch (hostContext) {
           case 'ALL':
-            ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(eb(`${join}.approvedAt`, 'is not', null)));
+            if (account.hasMoneyManagement) {
+              ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(eb(`${join}.approvedAt`, 'is not', null)));
+            } else {
+              ors.push(eb(`${join}.id`, '=', account.id));
+            }
             break;
           case 'INTERNAL':
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
