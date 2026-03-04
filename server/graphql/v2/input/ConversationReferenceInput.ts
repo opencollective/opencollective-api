@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -38,7 +38,7 @@ export const getConversationDatabaseIdFromReference = input => {
 // ts-unused-exports:disable-next-line
 export const fetchConversationWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   let conversation = null;
-  if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Conversation}_`)) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Conversation)) {
     conversation = await models.Conversation.findOne({ where: { publicId: input.id } });
   } else {
     const dbId = getConversationDatabaseIdFromReference(input);

@@ -56,8 +56,10 @@ const emojiReactionMutations = {
       }
 
       if (args.comment) {
+        // TODO(henrique): fix this for publicId support
         return addReactionToCommentOrUpdate(args.comment.id, req, args.emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (args.update) {
+        // TODO(henrique): fix this for publicId support
         return addReactionToCommentOrUpdate(args.update.id, req, args.emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
@@ -82,7 +84,7 @@ const emojiReactionMutations = {
       if (!args.comment && !args.update) {
         throw new Error('A comment or update must be provided');
       }
-
+      // TODO(henrique): fix this for publicId support
       if (args.comment) {
         // TODO: replace with a fetchCommentWithReference utility
         const commentId = idDecode(args.comment.id, IDENTIFIER_TYPES.COMMENT);
@@ -90,9 +92,11 @@ const emojiReactionMutations = {
         if (comment) {
           checkRemoteUserCanUseComment(comment, req);
         }
+        // TODO(henrique): fix this for publicId support
         return removeReactionFromCommentOrUpdate(args.comment.id, req.remoteUser, args.emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (args.update) {
         checkRemoteUserCanUseUpdates(req);
+        // TODO(henrique): fix this for publicId support
         return removeReactionFromCommentOrUpdate(args.update.id, req.remoteUser, args.emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },

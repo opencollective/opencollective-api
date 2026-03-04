@@ -1231,7 +1231,11 @@ export const AccountFields = {
   id: {
     type: new GraphQLNonNull(GraphQLString),
     resolve(collective: Collective) {
-      return idEncode(collective.id, 'account');
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
+        return collective.publicId;
+      } else {
+        return collective.id;
+      }
     },
   },
   legacyId: {

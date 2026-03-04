@@ -405,6 +405,7 @@ const transactionImportsMutations = {
               }
 
               if (row.order) {
+                // TODO(henrique): fix this for publicId support
                 const orderId = getDatabaseIdFromOrderReference(row.order);
                 const order = await req.loaders.Order.byId.load(orderId);
                 const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));

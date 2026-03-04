@@ -522,6 +522,7 @@ export const TransactionsCollectionResolver = async (
     });
   }
   if (args.order) {
+    // TODO(henrique): fix this for publicId support
     const orderId = getDatabaseIdFromOrderReference(args.order);
     where.push({ OrderId: orderId });
   }

@@ -16,6 +16,7 @@ import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import PlatformConstants from '../../../constants/platform';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import { generateDescription } from '../../../lib/transactions';
 import PaymentMethod from '../../../models/PaymentMethod';
@@ -25,7 +26,6 @@ import * as TransactionLib from '../../common/transactions';
 import { GraphQLRefundKind } from '../enum/RefundKind';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
@@ -61,7 +61,13 @@ const GraphQLTransactionPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.TRANSACTION),
+      resolve(transaction) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Transaction, transaction.createdAt)) {
+          return transaction.publicId;
+        } else {
+          return transaction.id;
+        }
+      },
     },
     canRefund: {
       type: new GraphQLNonNull(GraphQLBoolean),
