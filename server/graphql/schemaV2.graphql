@@ -727,13 +727,13 @@ interface Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -747,9 +747,9 @@ interface Account {
     direction: ExpenseDirection
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -3515,13 +3515,13 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -3539,9 +3539,9 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -9932,13 +9932,13 @@ type Bot implements Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -9956,9 +9956,9 @@ type Bot implements Account {
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -10972,13 +10972,13 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -10996,9 +10996,9 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -12572,13 +12572,13 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -12596,9 +12596,9 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -13886,13 +13886,13 @@ type Individual implements Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -13910,9 +13910,9 @@ type Individual implements Account {
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -15232,13 +15232,13 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -15256,9 +15256,9 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -16412,13 +16412,13 @@ type Vendor implements Account & AccountWithContributions {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -16436,9 +16436,9 @@ type Vendor implements Account & AccountWithContributions {
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -17436,13 +17436,13 @@ type Query {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -17460,9 +17460,9 @@ type Query {
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -20648,13 +20648,13 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -20672,9 +20672,9 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host
@@ -21835,13 +21835,13 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead")
+      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -21859,9 +21859,9 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     direction: ExpenseDirection = RECEIVED
 
     """
-    Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.
+    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
     """
-    oppositeAccount: AccountReferenceInput
+    oppositeAccounts: [AccountReferenceInput]
 
     """
     Return expenses only for this host

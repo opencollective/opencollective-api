@@ -140,12 +140,12 @@ export const ExpensesCollectionQueryArgs = {
   fromAccount: {
     type: GraphQLAccountReferenceInput,
     description: 'Reference of an account that is the payee of an expense',
-    deprecationReason: '2026-03-04: Use oppositeAccount or direction=SUBMITTED and account/accounts instead',
+    deprecationReason: '2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead',
   },
   fromAccounts: {
     type: new GraphQLList(GraphQLAccountReferenceInput),
     description: 'An alternative to filter by fromAccount (singular), both cannot be used together',
-    deprecationReason: '2026-03-04: Use oppositeAccount direction=SUBMITTED and account/accounts instead',
+    deprecationReason: '2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead',
   },
   account: {
     type: GraphQLAccountReferenceInput,
@@ -161,10 +161,10 @@ export const ExpensesCollectionQueryArgs = {
     description:
       'Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.',
   },
-  oppositeAccount: {
-    type: GraphQLAccountReferenceInput,
+  oppositeAccounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
     description:
-      'Filter by the account on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results.',
+      'Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.',
   },
   host: {
     type: GraphQLAccountReferenceInput,
@@ -289,12 +289,11 @@ const loadAllAccountsFromArgs = async (
   accounts: Collective[];
   host: Collective;
   createdByAccount: Collective;
-  oppositeAccount: Collective;
+  oppositeAccounts: Collective[];
 }> => {
   if (args.accounts && args.account) {
     throw new Error('accounts and account cannot be used together');
   }
-
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const getAccountsPromise = async (): Promise<Collective[]> => {
     if (args.account) {
@@ -316,15 +315,22 @@ const loadAllAccountsFromArgs = async (
     }
   };
 
-  const [accounts, fromAccounts, host, createdByAccount, oppositeAccount] = await Promise.all([
+  const getOppositeAccountsPromise = async (): Promise<Collective[]> => {
+    if (args.oppositeAccounts && args.oppositeAccounts.length > 0) {
+      return fetchAccountsWithReferences(args.oppositeAccounts, fetchAccountParams);
+    }
+    return [];
+  };
+
+  const [accounts, fromAccounts, host, createdByAccount, oppositeAccounts] = await Promise.all([
     getAccountsPromise(),
     getFromAccountPromise(),
     args.host && fetchAccountWithReference(args.host, fetchAccountParams),
     args.createdByAccount && fetchAccountWithReference(args.createdByAccount, fetchAccountParams),
-    args.oppositeAccount && fetchAccountWithReference(args.oppositeAccount, fetchAccountParams),
+    getOppositeAccountsPromise(),
   ]);
 
-  return { fromAccounts, accounts, host, createdByAccount, oppositeAccount };
+  return { fromAccounts, accounts, host, createdByAccount, oppositeAccounts };
 };
 
 export const ExpensesCollectionQueryResolver = async (
@@ -341,7 +347,7 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // Load accounts
-  const { fromAccounts, accounts, host, createdByAccount, oppositeAccount } = await loadAllAccountsFromArgs(args, req);
+  const { fromAccounts, accounts, host, createdByAccount, oppositeAccounts } = await loadAllAccountsFromArgs(args, req);
 
   // Normalize direction
   const direction = args.direction || 'RECEIVED';
@@ -349,7 +355,7 @@ export const ExpensesCollectionQueryResolver = async (
   // Validate: fromAccount/fromAccounts cannot be combined with direction=SUBMITTED
   if (direction === 'SUBMITTED' && fromAccounts.length > 0) {
     throw new Error(
-      'fromAccount/fromAccounts cannot be used with direction SUBMITTED. Use account/accounts + oppositeAccount instead.',
+      'fromAccount/fromAccounts cannot be used with direction SUBMITTED. Use account/accounts + oppositeAccounts instead.',
     );
   }
 
@@ -398,10 +404,12 @@ export const ExpensesCollectionQueryResolver = async (
     where[accountField] = uniq(accountIds);
   }
 
-  // oppositeAccount filters the other side
-  if (oppositeAccount) {
-    where[oppositeField] = oppositeAccount.id;
+  // oppositeAccounts filter the other side
+  if (oppositeAccounts.length > 0) {
+    const oppositeIds = oppositeAccounts.map(a => a.id);
+    where[oppositeField] = oppositeIds.length === 1 ? oppositeIds[0] : { [Op.in]: oppositeIds };
   }
+
   if (host) {
     // The association to join depends on direction:
     // RECEIVED (default) -> join 'collective' (the account that owes the expense)
@@ -409,17 +417,27 @@ export const ExpensesCollectionQueryResolver = async (
     const hostAssoc = direction === 'SUBMITTED' ? 'fromCollective' : 'collective';
     include.push({ association: hostAssoc, attributes: [], required: true });
 
-    // Base condition: the expense belongs to an account hosted by this host
-    where[Op.and].push({
-      [Op.or]: [
-        { HostCollectiveId: host.id },
-        {
-          HostCollectiveId: { [Op.is]: null },
-          [`$${hostAssoc}.HostCollectiveId$`]: host.id,
-          [`$${hostAssoc}.approvedAt$`]: { [Op.not]: null },
-        },
-      ],
-    });
+    // Base condition: the expense belongs to an account hosted by this host.
+    // Expense.HostCollectiveId is set to the *payer's* host when paid, so it's only
+    // usable as a shortcut for RECEIVED direction. For SUBMITTED we must always check
+    // via the fromCollective association.
+    if (direction === 'RECEIVED') {
+      where[Op.and].push({
+        [Op.or]: [
+          { HostCollectiveId: host.id },
+          {
+            HostCollectiveId: { [Op.is]: null },
+            [`$${hostAssoc}.HostCollectiveId$`]: host.id,
+            [`$${hostAssoc}.approvedAt$`]: { [Op.not]: null },
+          },
+        ],
+      });
+    } else {
+      where[Op.and].push({
+        [`$${hostAssoc}.HostCollectiveId$`]: host.id,
+        [`$${hostAssoc}.approvedAt$`]: { [Op.not]: null },
+      });
+    }
 
     // When specific accounts are provided, skip hostContext-based filtering (accounts are already validated above)
     // hostContext filtering only applies when no specific accounts are selected
@@ -857,9 +875,13 @@ const fetchExpensesPayees = async (
   if (host) {
     const hostJoinField = direction === 'SUBMITTED' ? 'FromCollectiveId' : 'CollectiveId';
     collectiveJoin = `INNER JOIN "Collectives" AS ec ON ec."id" = e."${hostJoinField}"`;
-    expenseConditions.push(
-      '(e."HostCollectiveId" = :hostId OR (e."HostCollectiveId" IS NULL AND ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL))',
-    );
+    if (direction === 'RECEIVED') {
+      expenseConditions.push(
+        '(e."HostCollectiveId" = :hostId OR (e."HostCollectiveId" IS NULL AND ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL))',
+      );
+    } else {
+      expenseConditions.push('ec."HostCollectiveId" = :hostId AND ec."approvedAt" IS NOT NULL');
+    }
     replacements.hostId = host.id;
 
     // Host context: filter on the expense's collective (on the direction side)

@@ -1176,14 +1176,14 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         $account: AccountReferenceInput
         $host: AccountReferenceInput
         $hostContext: HostContext
-        $oppositeAccount: AccountReferenceInput
+        $oppositeAccounts: [AccountReferenceInput]
       ) {
         expenses(
           direction: $direction
           account: $account
           host: $host
           hostContext: $hostContext
-          oppositeAccount: $oppositeAccount
+          oppositeAccounts: $oppositeAccounts
         ) {
           totalCount
           nodes {
@@ -1334,33 +1334,74 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(expenseIds).to.not.include(expenseFromExternalToHosted.id);
     });
 
-    it('oppositeAccount filters the other side', async () => {
+    it('oppositeAccounts (single) filters the other side', async () => {
       const result = await graphqlQueryV2(directionQuery, {
         direction: 'SUBMITTED',
         host: { legacyId: host.id },
-        oppositeAccount: { legacyId: externalCollective.id },
+        oppositeAccounts: [{ legacyId: externalCollective.id }],
       });
       expect(result.errors).to.not.exist;
       const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
-      // SUBMITTED + oppositeAccount: submitter side is host's collectives, opposite (CollectiveId) is external
+      // SUBMITTED + oppositeAccounts: submitter side is host's collectives, opposite (CollectiveId) is external
       expect(expenseIds).to.include(expenseFromHostedToExternal.id);
       expect(expenseIds).to.include(expenseFromHostChildToExternal.id);
       // This one goes to hostedCollective, not externalCollective
       expect(expenseIds).to.not.include(expenseFromHostedToHosted.id);
     });
 
-    it('oppositeAccount works with RECEIVED direction too', async () => {
+    it('oppositeAccounts works with RECEIVED direction too', async () => {
       const result = await graphqlQueryV2(directionQuery, {
         direction: 'RECEIVED',
         account: { legacyId: hostedCollective.id },
-        oppositeAccount: { legacyId: externalCollective.id },
+        oppositeAccounts: [{ legacyId: externalCollective.id }],
       });
       expect(result.errors).to.not.exist;
       const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
-      // RECEIVED direction: account=hostedCollective is the receiver (CollectiveId), oppositeAccount filters FromCollectiveId
+      // RECEIVED direction: account=hostedCollective is the receiver (CollectiveId), oppositeAccounts filters FromCollectiveId
       expect(expenseIds).to.include(expenseFromExternalToHosted.id);
       expect(expenseIds).to.not.include(expenseFromHostedToExternal.id);
       expect(expenseIds).to.not.include(expenseFromHostedToHosted.id);
+    });
+
+    it('oppositeAccounts filters by multiple opposite accounts', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+        oppositeAccounts: [{ legacyId: externalCollective.id }, { legacyId: hostedCollective.id }],
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // SUBMITTED + oppositeAccounts [external, hosted]: expenses where CollectiveId is external OR hosted
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostChildToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostedToHosted.id);
+    });
+
+    it('SUBMITTED direction excludes paid expenses matched only by payer HostCollectiveId', async () => {
+      // When an expense is paid, Expense.HostCollectiveId is set to the *payer's* host.
+      // With direction=SUBMITTED, that column should NOT be used as a shortcut, because
+      // it reflects the payer side, not the submitter side.
+      const paidExpenseFromExternalToHosted = await fakeExpense({
+        FromCollectiveId: externalCollective.id,
+        CollectiveId: hostedCollective.id,
+        HostCollectiveId: host.id,
+        status: 'PAID',
+        description: 'Paid expense: external submits to hosted collective',
+      });
+
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // The external collective is the submitter and is NOT hosted by our host,
+      // so this expense must not appear in SUBMITTED results for this host
+      expect(expenseIds).to.not.include(paidExpenseFromExternalToHosted.id);
+      // Sanity check: expenses where hosted collectives are the submitter still appear
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+
+      await paidExpenseFromExternalToHosted.destroy();
     });
 
     it('throws error when using fromAccount with direction SUBMITTED', async () => {
