@@ -529,8 +529,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
         switch (hostContext) {
           case 'ALL':
-            ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(eb(`${join}.approvedAt`, 'is not', null)));
-            ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
+            if (account.hasMoneyManagement) {
+              ors.push(eb(`${join}.HostCollectiveId`, '=', account.id).and(eb(`${join}.approvedAt`, 'is not', null)));
+            } else {
+              ors.push(eb(`${join}.id`, '=', account.id));
+            }
             break;
           case 'INTERNAL':
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
@@ -636,7 +639,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
       const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
 
-      return qb.where(({ eb, and }) => {
+      return qb.where(({ eb }) => {
         const converted = eb
           .case()
           .when(eb('Orders.currency', '=', currency as SupportedCurrency))
@@ -648,8 +651,8 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
                 .select(sql<number>`rate * ${eb.ref('Orders.totalAmount')}`.as('totalAmount'))
                 .where('from', '=', eb.ref('Orders.currency'))
                 .where('to', '=', currency as SupportedCurrency)
-                .where('createdAt', '<=', eb.fn.coalesce(eb.ref('processedAt'), eb.ref('createdAt')))
-                .orderBy('createdAt', 'desc')
+                .where('createdAt', '<=', eb.fn.coalesce(eb.ref('Orders.processedAt'), eb.ref('Orders.createdAt')))
+                .orderBy('CurrencyExchangeRates.createdAt', 'desc')
                 .limit(1),
               eb.ref('Orders.totalAmount'),
             ),
@@ -659,16 +662,14 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         if (gte === lte) {
           return eb(converted, '=', gte);
         }
-        const ands: Expression<SqlBool>[] = [];
+        if (gte && lte) {
+          return sql`${converted} between ${gte} and ${lte}`;
+        }
         if (gte) {
-          ands.push(eb(converted, '>=', gte));
+          return eb(converted, '>=', gte);
         }
 
-        if (lte) {
-          ands.push(eb(converted, '<=', lte));
-        }
-
-        return and(ands);
+        return eb(converted, '<=', lte);
       });
     })
     .$if(!(!!args.amount?.gte?.valueInCents || !!args.amount?.lte?.valueInCents), qb =>
