@@ -285,6 +285,15 @@ export default {
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
 
+      if (parseToBoolean(config.features?.newPricing)) {
+        const currentSubscription = await PlatformSubscription.getCurrentSubscription(organization.id);
+        if (currentSubscription) {
+          await currentSubscription.update({
+            period: [currentSubscription.start, { value: new Date(), inclusive: false }],
+          });
+        }
+      }
+
       const collective = await organization.update({ type: COLLECTIVE });
 
       await models.Activity.create({
