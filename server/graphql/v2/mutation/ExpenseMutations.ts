@@ -225,7 +225,6 @@ const expenseMutations = {
       const payoutMethod = expense.payoutMethod;
       await populatePayoutMethodId(payoutMethod);
 
-      // TODO(henrique): fix this for publicId support, use loader
       const mapItemPublicIdToId = items?.length
         ? groupBy(
             await Promise.all(

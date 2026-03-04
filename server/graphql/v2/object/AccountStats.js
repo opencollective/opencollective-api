@@ -64,7 +64,6 @@ export const GraphQLAccountStats = new GraphQLObjectType({
     return {
       id: {
         type: GraphQLString,
-        // TODO(henrique): remove this once we have migrated all the data
         resolve(collective) {
           if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
             return collective.publicId;

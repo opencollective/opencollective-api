@@ -51,7 +51,6 @@ export const fetchTierWithReference = async (
   return tier;
 };
 
-// TODO(henrique): fix this
 export const getDatabaseIdFromTierReference = (input: { id?: string; legacyId?: number }): number => {
   if (input.id) {
     return idDecode(input.id, IDENTIFIER_TYPES.TIER);

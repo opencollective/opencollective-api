@@ -17,7 +17,6 @@ const GraphQLAccountPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      // TODO(henrique): remove this once we have migrated all the data
       resolve(collective: Collective) {
         if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
           return collective.publicId;

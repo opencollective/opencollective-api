@@ -114,7 +114,6 @@ const accountFieldsDefinition = () => ({
   id: {
     type: new GraphQLNonNull(GraphQLString),
     description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
-    // TODO(henrique): move check to a central place
     resolve(collective: Collective) {
       if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
         return collective.publicId;

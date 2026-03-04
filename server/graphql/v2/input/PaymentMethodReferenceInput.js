@@ -2,7 +2,7 @@ import assert from 'assert';
 
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -29,7 +29,7 @@ export const fetchPaymentMethodWithReference = async (input, { sequelizeOpts } =
   };
 
   let paymentMethod;
-  if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.PaymentMethod}_`)) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.PaymentMethod)) {
     paymentMethod = await models.PaymentMethod.findOne({ where: { publicId: input.id }, ...sequelizeOpts });
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PAYMENT_METHOD);
