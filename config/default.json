@@ -18,7 +18,10 @@
         "acquire": 1200000
       },
       "logging": false,
-      "benchmark": true
+      "benchmark": true,
+      "dialectOptions": {
+        "application_name": "opencollective-api"
+      }
     },
     "readOnly": false
   },
