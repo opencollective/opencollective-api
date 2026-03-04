@@ -32,6 +32,9 @@
       "pool": {
         "min": "PG_MIN_CONNECTIONS",
         "max": "PG_MAX_CONNECTIONS"
+      },
+      "dialectOptions": {
+        "application_name": "PG_APPLICATION_NAME"
       }
     },
     "readOnly": "DATABASE_READ_ONLY"
