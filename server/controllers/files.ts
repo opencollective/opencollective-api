@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { hasUploadedFilePermission } from '../graphql/common/uploaded-file';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
+import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import { UploadedFile } from '../models';
 import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
@@ -34,11 +35,16 @@ export async function getFile(req: Request, res: Response) {
   }
 
   let uploadedFile: UploadedFile;
-  try {
-    uploadedFile = await UploadedFile.findByPk(idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE));
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {
+
+  if (isEntityPublicId(uploadedFileId, EntityShortIdPrefix.UploadedFile)) {
     uploadedFile = await UploadedFile.findOne({ where: { publicId: uploadedFileId } });
+  } else {
+    try {
+      uploadedFile = await UploadedFile.findByPk(idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (err) {
+      return res.status(400).send({ message: 'Invalid id' });
+    }
   }
 
   if (!uploadedFile) {
