@@ -13,7 +13,7 @@ import { runCronJob } from '../utils';
 const PRINT_TO_LOCAL = parseToBoolean(process.env.PRINT_TO_LOCAL);
 const STUCK_QUERY_THRESHOLD_MINUTES = process.env.STUCK_QUERY_THRESHOLD_MINUTES
   ? parseInt(process.env.STUCK_QUERY_THRESHOLD_MINUTES)
-  : 3;
+  : 5;
 
 type StuckQueryGroup = {
   pids: number[];
@@ -54,9 +54,9 @@ const formatStuckQueryGroup = (g: StuckQueryGroup): string => {
 
   return [
     [
-      `*PIDs:* ${g.pids.join(', ')}`,
-      `*User:* ${g.user}`,
-      g.application_name ? `*App:* ${g.application_name}` : null,
+      `*PIDs:* ${g.pids.map(pid => `\`${pid}\``).join(', ')}`,
+      `*User:* \`${g.user}\``,
+      g.application_name ? `*App:* \`${g.application_name}\`` : null,
       g.count > 1 ? `*Duplicate queries:* ${g.count}` : null,
       `*States:* ${statesStr}`,
       `*${numPids > 1 ? 'Longest run' : 'Run'} duration:* ${g.longest_run}`,
@@ -76,7 +76,7 @@ async function run() {
       application_name,
       count(*)::int AS count,
       query,
-      array_agg(DISTINCT state ORDER BY state) AS states,
+      array_agg(state ORDER BY state) AS states,
       max(now() - query_start)::varchar AS longest_run
     FROM pg_stat_activity
     WHERE (now() - query_start) > (:threshold * interval '1 minute')
