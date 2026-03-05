@@ -4,7 +4,7 @@ import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/pe
 import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLApplicationType } from '../enum';
-import { idEncode } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization';
 import URL from '../scalar/URL';
@@ -15,11 +15,11 @@ export const GraphQLApplication = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve(order) {
-        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Application, order.createdAt)) {
-          return order.publicId;
+      resolve(application) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Application, application.createdAt)) {
+          return application.publicId;
         } else {
-          return idEncode(order.id, 'order');
+          return idEncode(application.id, IDENTIFIER_TYPES.APPLICATION);
         }
       },
     },

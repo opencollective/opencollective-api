@@ -60,16 +60,16 @@ export const GraphQLTransferWise = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this Wise object',
       resolve: host => {
-        if (isEntityMigratedToPublicId(EntityShortIdPrefix.PayoutMethod, host.createdAt)) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, host.createdAt)) {
           return host.publicId;
         } else {
-          return idEncode(host.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+          return idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT);
         }
       },
     },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),
-      description: `The resource public id (ie: ${EntityShortIdPrefix.PayoutMethod}_xxxxxxxx)`,
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
     },
     requiredFields: {
       args: {
