@@ -175,7 +175,7 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "exif-reader": "^2.0.3",
     "fake-tag": "^3.0.0",
-    "geoip-lite": "^1.4.10",
+    "geoip-lite": "^2.0.0",
     "globals": "^17.0.0",
     "husky": "^9.0.10",
     "lint-staged": "^16.0.0",
