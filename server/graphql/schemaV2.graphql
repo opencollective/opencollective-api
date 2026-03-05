@@ -5551,14 +5551,9 @@ input PaymentMethodReferenceInput {
 
 input PayoutMethodReferenceInput {
   """
-  The resource public id (ie: po_xxxxxxxx)
+  The id assigned to the payout method (ie: po_xxxxxxxx)
   """
-  publicId: String
-
-  """
-  The id assigned to the payout method
-  """
-  id: String @deprecated(reason: "2026-02-25: use publicId")
+  id: String
 }
 
 enum HostContext {
@@ -16000,7 +15995,7 @@ type TransferWise {
   id: String!
 
   """
-  The resource public id (ie: po_xxxxxxxx)
+  The resource public id (ie: acc_xxxxxxxx)
   """
   publicId: String!
   requiredFields(
