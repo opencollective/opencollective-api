@@ -26,6 +26,7 @@ import * as TransactionLib from '../../common/transactions';
 import { GraphQLRefundKind } from '../enum/RefundKind';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
@@ -65,7 +66,7 @@ const GraphQLTransactionPermissions = new GraphQLObjectType({
         if (isEntityMigratedToPublicId(EntityShortIdPrefix.Transaction, transaction.createdAt)) {
           return transaction.publicId;
         } else {
-          return transaction.id;
+          return idEncode(transaction.id, IDENTIFIER_TYPES.TRANSACTION);
         }
       },
     },

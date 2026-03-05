@@ -59,6 +59,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountWithReference,
@@ -117,7 +118,7 @@ const accountFieldsDefinition = () => ({
       if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
         return collective.publicId;
       } else {
-        return collective.id;
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
       }
     },
   },
@@ -1233,7 +1234,7 @@ export const AccountFields = {
       if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
         return collective.publicId;
       } else {
-        return collective.id;
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
       }
     },
   },
