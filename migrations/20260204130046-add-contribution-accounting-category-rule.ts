@@ -63,7 +63,7 @@ module.exports = {
       },
     });
 
-    await queryInterface.addIndex('AccountingCategoryRules', ['CollectiveId', 'order'], {
+    await queryInterface.addIndex('AccountingCategoryRules', ['CollectiveId'], {
       where: { deletedAt: null },
     });
   },
