@@ -1363,7 +1363,7 @@ const orderMutations = {
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
 
       const valuesByRole = {
-        ...(order.data.valuesByRole || {}),
+        ...(order.data?.valuesByRole || {}),
         ...(isUndefined(args.order.accountingCategory)
           ? {}
           : {
