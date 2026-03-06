@@ -1,8 +1,11 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
+import { CollectiveType } from '../../../../../server/constants/collectives';
 import { ContributionRoles } from '../../../../../server/constants/contribution-roles';
 import FEATURE from '../../../../../server/constants/feature';
+import { PAYMENT_METHOD_SERVICE } from '../../../../../server/constants/paymentMethods';
+import Tiers from '../../../../../server/constants/tiers';
 import { TierFrequencyKey } from '../../../../../server/graphql/v2/enum/TierFrequency';
 import {
   applyContributionAccountingCategoryRules,
@@ -109,6 +112,63 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
       expect(inResult.value).to.deep.equal([account.slug]);
     });
 
+    it('normalizes account types with eq and in', async () => {
+      const eqToAccountTypePredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.toAccountType,
+        operator: ContributionAccountingCategoryRuleOperator.eq,
+        value: CollectiveType.ORGANIZATION,
+      };
+      const inFromAccountTypePredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.fromAccountType,
+        operator: ContributionAccountingCategoryRuleOperator.in,
+        value: [CollectiveType.USER, CollectiveType.ORGANIZATION],
+      };
+
+      const eqResult = await normalizeContributionAccountingCategoryRulePredicate(eqToAccountTypePredicate);
+      const inResult = await normalizeContributionAccountingCategoryRulePredicate(inFromAccountTypePredicate);
+
+      expect(eqResult.value).to.equal(CollectiveType.ORGANIZATION);
+      expect(inResult.value).to.deep.equal([CollectiveType.USER, CollectiveType.ORGANIZATION]);
+    });
+
+    it('normalizes tierType with eq and in', async () => {
+      const eqPredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.tierType,
+        operator: ContributionAccountingCategoryRuleOperator.eq,
+        value: Tiers.MEMBERSHIP,
+      };
+      const inPredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.tierType,
+        operator: ContributionAccountingCategoryRuleOperator.in,
+        value: [Tiers.DONATION, Tiers.SERVICE],
+      };
+
+      const eqResult = await normalizeContributionAccountingCategoryRulePredicate(eqPredicate);
+      const inResult = await normalizeContributionAccountingCategoryRulePredicate(inPredicate);
+
+      expect(eqResult.value).to.equal(Tiers.MEMBERSHIP);
+      expect(inResult.value).to.deep.equal([Tiers.DONATION, Tiers.SERVICE]);
+    });
+
+    it('normalizes paymentProcessor with eq and in', async () => {
+      const eqPredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.paymentProcessor,
+        operator: ContributionAccountingCategoryRuleOperator.eq,
+        value: PAYMENT_METHOD_SERVICE.STRIPE.toUpperCase(),
+      };
+      const inPredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.paymentProcessor,
+        operator: ContributionAccountingCategoryRuleOperator.in,
+        value: [PAYMENT_METHOD_SERVICE.PAYPAL, PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE.toUpperCase()],
+      };
+
+      const eqResult = await normalizeContributionAccountingCategoryRulePredicate(eqPredicate);
+      const inResult = await normalizeContributionAccountingCategoryRulePredicate(inPredicate);
+
+      expect(eqResult.value).to.equal('STRIPE');
+      expect(inResult.value).to.deep.equal([PAYMENT_METHOD_SERVICE.PAYPAL, 'OPENCOLLECTIVE']);
+    });
+
     it('throws for invalid subject', async () => {
       const predicate = {
         subject: 'invalid-subject',
@@ -139,6 +199,47 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
         operator: ContributionAccountingCategoryRuleOperator.eq,
         // invalid: must be a non-negative number
         value: -1,
+      };
+
+      await expect(normalizeContributionAccountingCategoryRulePredicate(predicate)).to.be.rejectedWith('Invalid value');
+    });
+
+    it('throws for flexible frequency values', async () => {
+      const eqPredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.frequency,
+        operator: ContributionAccountingCategoryRuleOperator.eq,
+        value: TierFrequencyKey.FLEXIBLE,
+      };
+      const inPredicate = {
+        subject: ContributionAccountingCategoryRuleSubject.frequency,
+        operator: ContributionAccountingCategoryRuleOperator.in,
+        value: [TierFrequencyKey.MONTHLY, TierFrequencyKey.FLEXIBLE],
+      };
+
+      await expect(normalizeContributionAccountingCategoryRulePredicate(eqPredicate)).to.be.rejectedWith(
+        'Invalid value',
+      );
+      await expect(normalizeContributionAccountingCategoryRulePredicate(inPredicate)).to.be.rejectedWith(
+        'Invalid value',
+      );
+    });
+
+    it('throws when toAccount in contains unknown slugs', async () => {
+      const knownAccount = await fakeCollective();
+      const predicate = {
+        subject: ContributionAccountingCategoryRuleSubject.toAccount,
+        operator: ContributionAccountingCategoryRuleOperator.in,
+        value: [knownAccount.slug, 'this-account-does-not-exist'],
+      };
+
+      await expect(normalizeContributionAccountingCategoryRulePredicate(predicate)).to.be.rejectedWith('Invalid value');
+    });
+
+    it('throws when a non-empty string is expected', async () => {
+      const predicate = {
+        subject: ContributionAccountingCategoryRuleSubject.description,
+        operator: ContributionAccountingCategoryRuleOperator.contains,
+        value: '',
       };
 
       await expect(normalizeContributionAccountingCategoryRulePredicate(predicate)).to.be.rejectedWith('Invalid value');

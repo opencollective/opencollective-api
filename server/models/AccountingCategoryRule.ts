@@ -1,6 +1,9 @@
 import { CreationOptional, DataTypes, ForeignKey, InferAttributes, InferCreationAttributes, Model } from 'sequelize';
 
-import { ContributionAccountingCategoryRulePredicate } from '../lib/accounting/categorization/types';
+import {
+  ContributionAccountingCategoryRulePredicate,
+  validateAndNormalizeContributionAccountingCategoryRulePredicate,
+} from '../lib/accounting/categorization/types';
 import sequelize from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
@@ -73,6 +76,23 @@ AccountingCategoryRule.init(
       type: DataTypes.JSONB,
       allowNull: false,
       defaultValue: [],
+      validate: {
+        async isValidPredicates(value: unknown) {
+          if (!Array.isArray(value)) {
+            throw new Error('Predicates must be an array');
+          }
+
+          const normalizedPredicates = await Promise.all(
+            value.map(predicate =>
+              validateAndNormalizeContributionAccountingCategoryRulePredicate(
+                predicate as ContributionAccountingCategoryRulePredicate,
+              ),
+            ),
+          );
+
+          (this as AccountingCategoryRule).setDataValue('predicates', normalizedPredicates);
+        },
+      },
     },
     createdAt: {
       type: DataTypes.DATE,
