@@ -75,12 +75,10 @@ Sentry.init({
   tracesSampler: samplingContext => {
     if (!TRACES_SAMPLE_RATE || !samplingContext) {
       return 0;
-    } else if (samplingContext.parentSampled !== undefined) {
-      return samplingContext.parentSampled;
     } else if (samplingContext.normalizedRequest?.headers?.['x-sentry-force-sample']) {
       return 1;
     } else {
-      return TRACES_SAMPLE_RATE;
+      return samplingContext.inheritOrSampleWith(TRACES_SAMPLE_RATE);
     }
   },
   // Relative to tracesSampler

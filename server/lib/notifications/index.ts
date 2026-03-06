@@ -89,7 +89,10 @@ const dispatch = async (
             notifConfig.recordSuccess(); // No need to await
           } else if (notifConfig.channel === channels.WEBHOOK) {
             // Send message to Webhook and ignore any failures
-            const success = await publishToWebhook(notifConfig, activity).catch(e => logger.error(e));
+            const success = await publishToWebhook(notifConfig, activity).catch(e => {
+              logger.error(`Error notifying webhook #${notifConfig.id} to ${notifConfig.webhookUrl}`);
+              logger.debug(e);
+            });
             if (success) {
               notifConfig.recordSuccess(); // No need to await
             }

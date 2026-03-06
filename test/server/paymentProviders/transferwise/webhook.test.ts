@@ -135,6 +135,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
       await expense.reload();
       expect(expense).to.have.property('status', status.PAID);
+      expect(expense.paidAt).to.be.a('date');
+      expect(expense.paidAt.toISOString()).to.eq(new Date(event.data.occurred_at).toISOString());
       const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
       expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
       expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11000);

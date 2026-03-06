@@ -93,6 +93,12 @@ describe('server/lib/search', () => {
       expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
+    it('escapes ILIKE special characters (\\, %, _) to avoid "LIKE pattern must not end with escape character"', async () => {
+      const [results] = await searchCollectivesInDB('le 47 \\');
+      expect(results).to.be.an('array');
+      // No error should be thrown; the search completes successfully
+    });
+
     describe('Works with punctuation', async () => {
       it('with an apostrophe', async () => {
         const name = "The Watchers' defense Collective";

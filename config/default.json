@@ -18,7 +18,10 @@
         "acquire": 1200000
       },
       "logging": false,
-      "benchmark": true
+      "benchmark": true,
+      "dialectOptions": {
+        "application_name": "opencollective-api"
+      }
     },
     "readOnly": false
   },
@@ -295,8 +298,8 @@
   },
   "exports": {
     "expirationDays": {
-      "TRANSACTIONS": 30,
-      "HOSTED_COLLECTIVES": 30
+      "TRANSACTIONS": 90,
+      "HOSTED_COLLECTIVES": 90
     }
   }
 }

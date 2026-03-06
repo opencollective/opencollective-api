@@ -168,7 +168,7 @@ export const processTransactionsRequest: ExportProcessor = async (request, worke
   const [uploadedFile] = await Promise.all([pUpload, pDownload]);
 
   // Set expiration date based on export type
-  const expirationDays = config.exports?.expirationDays?.[request.type] || 30;
+  const expirationDays = config.exports?.expirationDays?.[request.type] || 90;
   const expiresAt = moment().add(expirationDays, 'days').toDate();
 
   await request.update({

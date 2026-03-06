@@ -27,6 +27,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
 import { crypto } from '../../server/lib/encryption';
 import { KYCProviderName } from '../../server/lib/kyc/providers';
+import { PersonaInquiry } from '../../server/lib/kyc/providers/persona/client';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
@@ -1400,6 +1401,14 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
       case KYCProviderName.MANUAL:
         (providerData as KYCVerification<KYCProviderName.MANUAL>['providerData']) = {
           notes: randStr('notes'),
+        };
+        break;
+      case KYCProviderName.PERSONA:
+        (providerData as KYCVerification<KYCProviderName.PERSONA>['providerData']) = {
+          inquiry: {
+            id: randStr('inquiry-id'),
+          } as PersonaInquiry,
+          imported: false,
         };
         break;
     }

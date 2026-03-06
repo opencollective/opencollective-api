@@ -24,7 +24,7 @@ describe('server/lib/kyc/manual', () => {
       });
 
       await expect(
-        manualKycProvider.request(
+        manualKycProvider.requestVerification(
           {
             CollectiveId: user.collective.id,
             RequestedByCollectiveId: org.id,
@@ -58,7 +58,7 @@ describe('server/lib/kyc/manual', () => {
         status: KYCVerificationStatus.REVOKED,
       });
 
-      const kycVerification = await manualKycProvider.request(
+      const kycVerification = await manualKycProvider.requestVerification(
         {
           CollectiveId: org.id,
           RequestedByCollectiveId: user.collective.id,
@@ -100,7 +100,7 @@ describe('server/lib/kyc/manual', () => {
       const org = await fakeOrganization();
       const user = await fakeUser();
 
-      const kycVerification = await manualKycProvider.request(
+      const kycVerification = await manualKycProvider.requestVerification(
         {
           CollectiveId: org.id,
           RequestedByCollectiveId: user.collective.id,

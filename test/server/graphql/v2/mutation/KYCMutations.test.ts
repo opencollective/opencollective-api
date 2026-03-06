@@ -177,7 +177,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
     });
 
     it('returns error if provider request fails', async () => {
-      sandbox.stub(manualKycProvider, 'request').rejects(new Error('Request failed'));
+      sandbox.stub(manualKycProvider, 'requestVerification').rejects(new Error('Request failed'));
       const orgAdmin = await fakeUser();
       const org = await setupOrg({ admin: orgAdmin });
       const user = await fakeUser();
@@ -210,7 +210,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         CreatedByUserId: orgAdmin.id,
       });
 
-      const kycProviderStub = sandbox.stub(manualKycProvider, 'request').resolves(expected);
+      const kycProviderStub = sandbox.stub(manualKycProvider, 'requestVerification').resolves(expected);
 
       const result = await graphqlQueryV2(
         mutation,
@@ -256,7 +256,7 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
         provider: KYCProviderName.MANUAL,
       });
 
-      const kycProviderStub = sandbox.stub(manualKycProvider, 'request').resolves(expected);
+      const kycProviderStub = sandbox.stub(manualKycProvider, 'requestVerification').resolves(expected);
 
       const result = await graphqlQueryV2(
         mutation,

@@ -47,7 +47,7 @@ const KYCMutations = {
       const provider = getKYCProvider(args.provider);
       const providerRequest = args.request[provider.providerName];
 
-      return await provider.request(
+      return await provider.requestVerification(
         {
           RequestedByCollectiveId: requestedByAccount.id,
           CollectiveId: verifyAccount.id,

@@ -1045,7 +1045,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const collective = await fakeCollective({ HostCollectiveId: host.id });
         const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
         const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
-        const transactionsImportRow = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
+        const importRowDate = new Date('2025-06-15T12:00:00Z');
+        const transactionsImportRow = await fakeTransactionsImportRow({
+          TransactionsImportId: transactionsImport.id,
+          date: importRowDate,
+        });
 
         const result = await graphqlQueryV2(
           createExpenseMutation,
@@ -1060,6 +1064,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.createExpense.status).to.eq('PAID');
+
+        // Check paidAt matches the import row date
+        const expense = await models.Expense.findByPk(result.data.createExpense.legacyId);
+        expect(expense.paidAt).to.be.a('date');
+        expect(expense.paidAt.toISOString()).to.eq(importRowDate.toISOString());
 
         const transactions = await models.Transaction.findAll({
           order: [['id', 'ASC']],
@@ -4026,6 +4035,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance);
         result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
+
+        // Check paidAt is set
+        await expense.reload();
+        expect(expense.paidAt).to.be.a('date');
+        expect(moment(expense.paidAt).diff(moment(), 'seconds')).to.be.within(-10, 0);
 
         // Check transactions
         const debitTransaction = await models.Transaction.findOne({

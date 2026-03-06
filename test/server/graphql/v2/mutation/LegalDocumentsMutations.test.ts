@@ -261,13 +261,17 @@ describe('LegalDocumentsMutations', () => {
         CollectiveId: payee.CollectiveId,
         type: PayoutMethodTypes.BANK_ACCOUNT,
       });
+      const oldDate = moment()
+        .subtract(US_TAX_FORM_VALIDITY_IN_YEARS + 1, 'year')
+        .toDate();
       const expense = await fakeExpense({
         type: 'INVOICE',
         status: 'APPROVED',
         CollectiveId: host.id,
         amount: 1000e2,
         PayoutMethodId: payoutMethod.id,
-        incurredAt: moment().subtract(US_TAX_FORM_VALIDITY_IN_YEARS + 1, 'year'),
+        incurredAt: oldDate,
+        createdAt: oldDate,
       });
       const legalDocument = await fakeLegalDocument({
         documentType: 'US_TAX_FORM',

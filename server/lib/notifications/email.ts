@@ -614,6 +614,11 @@ export const notifyByEmail = async (activity: Activity) => {
         await notify.collective(activity, {
           replyTo: activity.data.host.data?.replyToEmail || undefined,
         });
+      } else {
+        await notify.collective(activity, {
+          collectiveId: activity.data.host.id,
+          template: 'host.application.comment.created.host',
+        });
       }
 
       break;

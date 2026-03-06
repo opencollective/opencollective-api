@@ -13,6 +13,7 @@ import throng from 'throng';
 
 import setupExpress from './lib/express';
 import logger from './lib/logger';
+import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { reportErrorToSentry } from './lib/sentry';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
@@ -27,7 +28,8 @@ async function startExpressServer(workerId) {
   const expressApp = express();
 
   await updateCachedFidoMetadata();
-  await setupExpress(expressApp);
+  const redisClient = await createRedisClient(RedisInstanceType.SESSION);
+  setupExpress(expressApp, redisClient);
 
   /**
    * Routes.
