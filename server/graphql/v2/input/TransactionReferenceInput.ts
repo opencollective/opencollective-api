@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import Transaction from '../../../models/Transaction';
 import { NotFound } from '../../errors';
@@ -9,11 +10,12 @@ const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the transaction (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Transaction}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the transaction (ie: 580)',
+      deprecationReason: '2026-02-25: use id',
     },
   }),
 });
@@ -26,7 +28,9 @@ const fetchTransactionWithReference = async (
   { loaders = null, throwIfMissing = false } = {},
 ): Promise<Transaction> => {
   let transaction = null;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Transaction)) {
+    transaction = await models.Transaction.findOne({ where: { publicId: input.id } });
+  } else if (input.id) {
     transaction = await models.Transaction.findOne({ where: { uuid: input.id } });
   } else if (input.legacyId) {
     transaction = await (loaders

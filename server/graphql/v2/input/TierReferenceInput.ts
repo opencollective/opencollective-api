@@ -1,5 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
+import models from '../../../models';
 import Tier from '../../../models/Tier';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -9,11 +11,12 @@ export const GraphQLTierReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The id assigned to the Tier',
+      description: `The id assigned to the Tier (ie: ${EntityShortIdPrefix.Tier}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The DB id assigned to the Tier',
+      deprecationReason: '2026-02-25: use id',
     },
     isCustom: {
       type: GraphQLBoolean,
@@ -33,7 +36,9 @@ export const fetchTierWithReference = async (
 ): Promise<Tier | null> => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : Tier.findByPk(id));
   let tier;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Tier)) {
+    tier = await Tier.findOne({ where: { publicId: input.id } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.TIER);
     tier = await loadTier(id);
   } else if (input.legacyId) {
@@ -47,8 +52,18 @@ export const fetchTierWithReference = async (
   return tier;
 };
 
-export const getDatabaseIdFromTierReference = (input: { id?: string; legacyId?: number }): number => {
-  if (input.id) {
+export const getDatabaseIdFromTierReference = async (input: {
+  id?: string;
+  legacyId?: number;
+}): Promise<number | null> => {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Tier)) {
+    return models.Tier.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(tier => {
+      if (!tier) {
+        throw new NotFound(`Tier with public id ${input.id} not found`);
+      }
+      return tier.id;
+    });
+  } else if (input.id) {
     return idDecode(input.id, IDENTIFIER_TYPES.TIER);
   } else if (input.legacyId) {
     return input.legacyId;

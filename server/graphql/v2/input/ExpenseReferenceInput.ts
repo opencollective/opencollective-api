@@ -1,7 +1,8 @@
 import { GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { uniq } from 'lodash';
-import { Includeable } from 'sequelize';
+import { Includeable, Op } from 'sequelize';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import Expense from '../../../models/Expense';
 import { NotFound } from '../../errors';
@@ -17,17 +18,25 @@ const GraphQLExpenseReferenceInput = new GraphQLInputObjectType({
   fields: (): Record<keyof ExpenseReferenceInputFields, GraphQLInputFieldConfig> => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Expense}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the expense (ie: 580)',
+      deprecationReason: '2026-02-25: use id',
     },
   }),
 });
 
-const getDatabaseIdFromExpenseReference = (input: ExpenseReferenceInputFields): number => {
-  if (input['id']) {
+const getDatabaseIdFromExpenseReference = async (input: ExpenseReferenceInputFields): Promise<number | null> => {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Expense)) {
+    return models.Expense.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(expense => {
+      if (!expense) {
+        throw new NotFound(`Expense with public id ${input.id} not found`);
+      }
+      return expense.id;
+    });
+  } else if (input['id']) {
     return idDecode(input['id'], IDENTIFIER_TYPES.EXPENSE);
   } else if (input['legacyId']) {
     return <number>input['legacyId'];
@@ -43,10 +52,14 @@ const fetchExpenseWithReference = async (
   input: ExpenseReferenceInputFields,
   { loaders = null, throwIfMissing = false } = {},
 ): Promise<Expense> => {
-  const dbId = getDatabaseIdFromExpenseReference(input);
   let expense = null;
-  if (dbId) {
-    expense = await (loaders ? loaders.Expense.byId.load(dbId) : models.Expense.findByPk(dbId));
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Expense)) {
+    expense = await Expense.findOne({ where: { publicId: input.id } });
+  } else {
+    const dbId = await getDatabaseIdFromExpenseReference(input);
+    if (dbId) {
+      expense = await (loaders ? loaders.Expense.byId.load(dbId) : models.Expense.findByPk(dbId));
+    }
   }
 
   if (!expense && throwIfMissing) {
@@ -71,8 +84,14 @@ const fetchExpensesWithReferences = async (
     return [];
   }
 
-  const ids = uniq(inputs.map(getDatabaseIdFromExpenseReference));
-  const expenses = await models.Expense.findAll({ where: { id: ids }, include: opts.include });
+  const ids = uniq(await Promise.all(inputs.map(getDatabaseIdFromExpenseReference)));
+
+  const where: { [key: string]: unknown } & { [Op.or]?: unknown } = {};
+  if (ids.length) {
+    where.id = ids;
+  }
+
+  const expenses = await models.Expense.findAll({ where, include: opts.include });
 
   // Check if all expenses were found
   if (opts.throwIfMissing && ids.length !== expenses.length) {

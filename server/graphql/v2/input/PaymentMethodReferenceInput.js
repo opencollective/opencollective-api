@@ -2,6 +2,7 @@ import assert from 'assert';
 
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -11,7 +12,7 @@ export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The id assigned to the payment method',
+      description: `The id assigned to the payment method (ie: ${EntityShortIdPrefix.PaymentMethod}_xxxxxxxx)`,
     },
   }),
 });
@@ -28,7 +29,9 @@ export const fetchPaymentMethodWithReference = async (input, { sequelizeOpts } =
   };
 
   let paymentMethod;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.PaymentMethod)) {
+    paymentMethod = await models.PaymentMethod.findOne({ where: { publicId: input.id }, ...sequelizeOpts });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PAYMENT_METHOD);
     paymentMethod = await loadPaymentById(id);
   } else {

@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { PayoutMethod } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -9,7 +10,7 @@ export const GraphQLPayoutMethodReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The id assigned to the payout method',
+      description: `The id assigned to the payout method (ie: ${EntityShortIdPrefix.PayoutMethod}_xxxxxxxx)`,
     },
   }),
 });
@@ -31,7 +32,9 @@ export const fetchPayoutMethodWithReference = async (
     loaders ? loaders.PayoutMethod.byId.load(id) : models.PayoutMethod.findByPk(id, sequelizeOpts);
 
   let payoutMethod: PayoutMethod;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.PayoutMethod)) {
+    payoutMethod = await models.PayoutMethod.findOne({ where: { publicId: input.id }, ...sequelizeOpts });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
     payoutMethod = await loadPayoutById(id);
   } else {

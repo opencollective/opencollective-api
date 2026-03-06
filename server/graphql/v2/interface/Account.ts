@@ -10,6 +10,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
 import { getSupportedExpenseTypes } from '../../../lib/expenses';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -58,7 +59,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
-import { idEncode } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountWithReference,
@@ -113,11 +114,22 @@ const accountFieldsDefinition = () => ({
   id: {
     type: new GraphQLNonNull(GraphQLString),
     description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
+    resolve(collective: Collective) {
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
+        return collective.publicId;
+      } else {
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      }
+    },
   },
   legacyId: {
     type: new GraphQLNonNull(GraphQLInt),
     description: 'The internal database identifier of the collective (ie: 580)',
     deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
+  },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
   },
   slug: {
     type: new GraphQLNonNull(GraphQLString),
@@ -1219,7 +1231,11 @@ export const AccountFields = {
   id: {
     type: new GraphQLNonNull(GraphQLString),
     resolve(collective: Collective) {
-      return idEncode(collective.id, 'account');
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
+        return collective.publicId;
+      } else {
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      }
     },
   },
   legacyId: {

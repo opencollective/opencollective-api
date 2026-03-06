@@ -12,13 +12,14 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNil, pick, size } from 'lodash';
+import { groupBy, isNil, pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import { CollectiveType } from '../../../constants/collectives';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import logger from '../../../lib/logger';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import RateLimit from '../../../lib/rate-limit';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
@@ -81,11 +82,19 @@ import {
 import { GraphQLExpense } from '../object/Expense';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 
-const populatePayoutMethodId = (payoutMethod: { id?: string | number; legacyId?: number }) => {
-  if (payoutMethod?.legacyId) {
-    payoutMethod.id = payoutMethod.legacyId;
+const populatePayoutMethodId = async (payoutMethod: { id?: string | number; legacyId?: number }) => {
+  if (isEntityPublicId(payoutMethod?.id as string, EntityShortIdPrefix.PayoutMethod)) {
+    const id = await models.PayoutMethod.findOne({ where: { publicId: payoutMethod.id } }).then(
+      payoutMethod => payoutMethod?.id,
+    );
+    if (!id) {
+      throw new ValidationFailed(`Payout method with public id ${payoutMethod.id} not found`);
+    }
+    payoutMethod.id = id;
   } else if (payoutMethod?.id) {
     payoutMethod.id = idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD);
+  } else if (payoutMethod?.legacyId) {
+    payoutMethod.id = payoutMethod.legacyId;
   }
 };
 
@@ -126,7 +135,7 @@ const expenseMutations = {
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
       const payoutMethod = args.expense.payoutMethod;
-      populatePayoutMethodId(payoutMethod);
+      await populatePayoutMethodId(payoutMethod);
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
@@ -214,7 +223,36 @@ const expenseMutations = {
         (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
 
       const payoutMethod = expense.payoutMethod;
-      populatePayoutMethodId(payoutMethod);
+      await populatePayoutMethodId(payoutMethod);
+
+      const mapItemPublicIdToId = items?.length
+        ? groupBy(
+            await Promise.all(
+              items
+                ?.filter(item => isEntityPublicId(item.id, EntityShortIdPrefix.ExpenseItem))
+                .map(item =>
+                  models.ExpenseItem.findOne({ where: { publicId: item.id }, attributes: ['publicId', 'id'] }).then(
+                    expenseItem => {
+                      if (!expenseItem) {
+                        throw new NotFound('Expense item not found');
+                      }
+                      return { publicId: expenseItem.publicId, id: expenseItem.id };
+                    },
+                  ),
+                ),
+            ),
+            'publicId',
+          )
+        : {};
+
+      const itemsWithIds = items?.map(item => ({
+        ...item,
+        id: isEntityPublicId(item.id, EntityShortIdPrefix.ExpenseItem)
+          ? mapItemPublicIdToId[item.id][0].id
+          : item.id
+            ? idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM)
+            : null,
+      }));
 
       const expenseData = {
         id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
@@ -228,7 +266,7 @@ const expenseMutations = {
         customData: expense.customData,
         payoutMethod,
         reference: expense.reference,
-        items: items?.map(item => ({ ...item, id: item.id && idDecode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) })),
+        items: itemsWithIds,
         tax: expense.tax,
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
@@ -287,7 +325,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
       const expense = await models.Expense.findByPk(expenseId, {
         // Need to load the collective/fromCollective because canEditPaidBy checks these
         include: [
@@ -338,7 +376,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
       const expense = await models.Expense.findByPk(expenseId, {
         // Need to load the collective because canDeleteExpense checks expense.collective.HostCollectiveId
         include: [
@@ -607,16 +645,23 @@ const expenseMutations = {
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
 
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
-      const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
-      const payee = payeeLegacyId
-        ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
-        : expenseData.payee;
-      // We need to lowercase the email to be consistent with the User table
+      let payee = null;
+      if (expenseData.payee?.legacyId || expenseData.payee?.id) {
+        payee = (
+          await fetchAccountWithReference(
+            { legacyId: expenseData.payee?.legacyId || expenseData.payee?.id, id: expenseData.payee?.id },
+            { throwIfMissing: true },
+          )
+        )?.minimal;
+      } else {
+        payee = expenseData.payee;
+      }
+
       if (payee?.email) {
         payee.email = payee.email.toLowerCase();
       }
@@ -683,7 +728,7 @@ const expenseMutations = {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
 
       const rateLimit = new RateLimit(`resend_draft_invite_${expenseId}`, 2, 10);
       if (!(await rateLimit.registerCall())) {
@@ -719,7 +764,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request) {
       checkRemoteUserCanUseExpenses(req);
 
-      const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+      const expenseId = await getDatabaseIdFromExpenseReference(args.expense);
 
       const expense = await models.Expense.findByPk(expenseId, {
         include: [

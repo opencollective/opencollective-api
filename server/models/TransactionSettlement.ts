@@ -5,12 +5,13 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
+  Model,
   QueryTypes,
 } from 'sequelize';
 
 import expenseType from '../constants/expense-type';
 import { TransactionKind } from '../constants/transaction-kind';
-import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Transaction as SQLTransaction } from '../lib/sequelize';
 
 import Collective from './Collective';
 import Expense from './Expense';

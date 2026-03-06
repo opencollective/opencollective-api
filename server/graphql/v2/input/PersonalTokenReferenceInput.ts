@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -7,11 +8,12 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const PersonalTokenReferenceFields = {
   id: {
     type: GraphQLString,
-    description: 'The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    description: `The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.PersonalToken}_xxxxxxxx)`,
   },
   legacyId: {
     type: GraphQLInt,
     description: 'The legacy public id identifying the personal-token (ie: 4242)',
+    deprecationReason: '2026-02-25: use id',
   },
 };
 
@@ -25,7 +27,9 @@ export const GraphQLPersonalTokenReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchPersonalTokenWithReference = async (input, sequelizeOps = undefined) => {
   let personalToken;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.PersonalToken)) {
+    personalToken = await models.PersonalToken.findOne({ ...sequelizeOps, where: { publicId: input.id } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PERSONAL_TOKEN);
     personalToken = await models.PersonalToken.findByPk(id, sequelizeOps);
   } else if (input.legacyId) {

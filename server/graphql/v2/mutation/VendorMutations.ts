@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { Activity, Collective, LegalDocument, Op } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -234,10 +235,16 @@ const vendorMutations = {
             isSaved: true,
           });
         } else {
-          const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
-          payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
+          if (isEntityPublicId(args.vendor.payoutMethod.id, EntityShortIdPrefix.PayoutMethod)) {
+            payoutMethod = await models.PayoutMethod.findOne({
+              where: { publicId: args.vendor.payoutMethod.id },
+            });
+          } else {
+            const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+            payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
+          }
           await Promise.all(
-            existingPayoutMethods.filter(pm => pm.id !== payoutMethodId).map(pm => pm.update({ isSaved: false })),
+            existingPayoutMethods.filter(pm => pm.id !== payoutMethod.id).map(pm => pm.update({ isSaved: false })),
           );
         }
 

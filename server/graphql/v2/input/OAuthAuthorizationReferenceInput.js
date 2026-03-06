@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -7,7 +8,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 const OAuthAuthorizationReferenceFields = {
   id: {
     type: GraphQLString,
-    description: 'The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    description: `The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.UserToken}_xxxxxxxx)`,
   },
 };
 
@@ -23,7 +24,9 @@ export const GraphQLOAuthAuthorizationReferenceInput = new GraphQLInputObjectTyp
  */
 export const fetchOAuthAuthorizationWithReference = async input => {
   let userToken;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.UserToken)) {
+    userToken = await models.UserToken.findOne({ where: { publicId: input.id } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.USER_TOKEN);
     userToken = await models.UserToken.findByPk(id);
   } else {

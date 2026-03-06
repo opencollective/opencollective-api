@@ -3,17 +3,24 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes,
 
 import { activities } from '../constants';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { generateSummaryForHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import Comment from './Comment';
 import ConversationFollower from './ConversationFollower';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
-class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
+class Conversation extends ModelWithPublicId<
+  EntityShortIdPrefix.Conversation,
+  InferAttributes<Conversation>,
+  InferCreationAttributes<Conversation>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Conversation;
   public static readonly tableName = 'Conversations' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -165,6 +172,10 @@ Conversation.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     title: {
       type: DataTypes.STRING,

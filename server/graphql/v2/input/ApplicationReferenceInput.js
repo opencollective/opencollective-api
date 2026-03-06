@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -7,11 +8,12 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const ApplicationReferenceFields = {
   id: {
     type: GraphQLString,
-    description: 'The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    description: `The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Application}_xxxxxxxx)`,
   },
   legacyId: {
     type: GraphQLInt,
     description: 'The legacy public id identifying the application (ie: 4242)',
+    deprecationReason: '2026-02-25: use id',
   },
   clientId: {
     type: GraphQLString,
@@ -31,7 +33,9 @@ export const GraphQLApplicationReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchApplicationWithReference = async (input, sequelizeOps = undefined) => {
   let application;
-  if (input.id) {
+  if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Application}_`)) {
+    application = await models.Application.findOne({ where: { publicId: input.id } }, sequelizeOps);
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.APPLICATION);
     application = await models.Application.findByPk(id, sequelizeOps);
   } else if (input.legacyId) {
