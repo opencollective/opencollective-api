@@ -7181,7 +7181,7 @@ type CollectiveFeatures {
   PAYPAL_PAYOUTS: CollectiveFeatureStatus
   RECEIVE_HOST_APPLICATIONS: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
-  CONTRIBUTION_CATEGORIZATION_RULES: CollectiveFeatureStatus
+  ACCOUNTING_CATEGORIZATION_RULES: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
@@ -7789,14 +7789,19 @@ enum AccountingCategoryKind {
 A rule for categorizing contributions
 """
 type ContributionAccountingCategoryRule {
-  id: String!
-  name: String!
+  id: NonEmptyString!
+  name: NonEmptyString!
   enabled: Boolean!
   predicates: [JSONObject!]!
   accountingCategory: AccountingCategory!
   createdAt: DateTime!
   updatedAt: DateTime!
 }
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
 
 """
 The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
@@ -8135,11 +8140,6 @@ enum ManualPaymentProviderType {
   BANK_TRANSFER
   OTHER
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Stripe connected account properties
@@ -25436,7 +25436,7 @@ input ContributionAccountingCategoryRuleInput {
   """
   The name of the rule
   """
-  name: String!
+  name: NonEmptyString!
 
   """
   Whether the rule is enabled
