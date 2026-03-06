@@ -236,32 +236,39 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
   const transaction = await createChargeTransactions(charge, { order });
-  const sideEffects: Promise<unknown>[] = [
-    order.update({
-      status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
-      processedAt: new Date(),
-      data: {
-        ...omit(order.data, 'paymentIntent'),
-        previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
-      },
-    }),
-    order.getOrCreateMembers(),
+  const sideEffects: (() => Promise<unknown>)[] = [
+    () =>
+      order.update({
+        status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
+        processedAt: new Date(),
+        data: {
+          ...omit(order.data, 'paymentIntent'),
+          previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+        },
+      }),
+    () => order.getOrCreateMembers(),
   ];
 
   // after successful first payment of a recurring subscription where the payment confirmation is async
   // and the subscription is managed by us.
   if (order.interval && !order.SubscriptionId) {
-    sideEffects.push(createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }));
-    sideEffects.push(applyContributionAccountingCategoryRules(order));
+    sideEffects.push(() =>
+      createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }),
+    );
+    sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
-    sideEffects.push(subscription.update({ lastChargedAt: transaction.clearedAt }));
+    sideEffects.push(() => subscription.update({ lastChargedAt: transaction.clearedAt }));
   } else {
-    sideEffects.push(applyContributionAccountingCategoryRules(order));
+    sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   }
 
   sendEmailNotifications(order, transaction);
-  await Promise.all(sideEffects);
+
+  await sideEffects.reduce(async (promise, effect) => {
+    await promise;
+    return effect();
+  }, Promise.resolve());
 };
 
 async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
