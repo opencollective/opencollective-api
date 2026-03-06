@@ -9,6 +9,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/con
 import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import * as applyContributionAccountingCategoryRules from '../../../server/lib/accounting/categorization/contribution-rules';
 import emailLib from '../../../server/lib/email';
 import {
   createRefundTransaction,
@@ -23,6 +24,7 @@ import models from '../../../server/models';
 import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeHost,
   fakeManualPaymentProvider,
@@ -1320,6 +1322,85 @@ describe('server/lib/payments', () => {
         const feePercent = await getHostFeePercent(noHostOrder);
         expect(feePercent).to.equal(5);
       });
+    });
+  });
+
+  describe('applyContributionAccountingCategoryRules', () => {
+    let sandbox;
+    let user, collective;
+    beforeEach(async () => {
+      sandbox = createSandbox();
+      user = await fakeUser();
+      const host = await fakeActiveHost();
+      await models.ConnectedAccount.create({
+        service: 'stripe',
+        token: 'abc',
+        CollectiveId: host.id,
+        username: 'stripeAccount',
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing stripe order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      await order.setPaymentMethod({ token: STRIPE_TOKEN });
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing paypal order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      await order.setPaymentMethod({ paypalToken: 'abc' });
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing manual order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      };
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
     });
   });
 });

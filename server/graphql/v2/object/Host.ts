@@ -36,6 +36,7 @@ import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-repo
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
+import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -100,6 +101,7 @@ import {
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
+import { GraphQLContributionAccountingCategoryRule } from './AccountingCategory';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHostExpensesReports } from './HostExpensesReport';
@@ -204,6 +206,18 @@ export const GraphQLHost = new GraphQLObjectType({
             limit: categories.length,
             offset: 0,
           };
+        },
+      },
+      contributionAccountingCategoryRules: {
+        type: new GraphQLList(new GraphQLNonNull(GraphQLContributionAccountingCategoryRule)),
+        resolve(host, _, req) {
+          if (!req?.remoteUser?.isAdmin(host.id)) {
+            return [];
+          }
+          return AccountingCategoryRule.findAll({
+            where: { CollectiveId: host.id, type: 'CONTRIBUTION' },
+            order: [['order', 'ASC']],
+          });
         },
       },
       hostFeePercent: {
