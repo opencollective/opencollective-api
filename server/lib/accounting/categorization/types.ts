@@ -270,9 +270,9 @@ export const ContributionAccountingCategoryRuleSubjectMatcher = {
 
     switch (operator) {
       case ContributionAccountingCategoryRuleOperator.eq:
-        return tier.id === value;
+        return tier.type === value;
       case ContributionAccountingCategoryRuleOperator.in:
-        return Array.isArray(value) && value.length > 0 && value.includes(tier.id);
+        return Array.isArray(value) && value.length > 0 && value.includes(tier.type);
     }
   },
   [ContributionAccountingCategoryRuleSubject.paymentProcessor]: async (
@@ -284,6 +284,16 @@ export const ContributionAccountingCategoryRuleSubjectMatcher = {
     if (!paymentMethod) {
       return false;
     }
-    return paymentMethod.service.toLowerCase() === (value as string).toLowerCase();
+    const paymentMethodService = paymentMethod.service.toLowerCase();
+    switch (operator) {
+      case ContributionAccountingCategoryRuleOperator.eq:
+        return typeof value === 'string' && paymentMethodService === value.toLowerCase();
+      case ContributionAccountingCategoryRuleOperator.in:
+        return (
+          Array.isArray(value) &&
+          value.length > 0 &&
+          value.some(v => typeof v === 'string' && paymentMethodService === v.toLowerCase())
+        );
+    }
   },
 };

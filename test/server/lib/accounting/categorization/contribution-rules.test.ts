@@ -19,7 +19,7 @@ import {
 } from '../../../../../server/lib/accounting/categorization/types';
 import models, { Collective, Order } from '../../../../../server/models';
 import { AccountingCategoryRule } from '../../../../../server/models/AccountingCategoryRule';
-import { fakeActiveHost, fakeCollective, fakeOrder } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakeOrder, fakePaymentMethod } from '../../../../test-helpers/fake-data';
 
 describe('server/lib/accounting/categorization/contribution-rules', () => {
   let sandbox: sinon.SinonSandbox;
@@ -704,9 +704,11 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
     });
 
     describe('tierType', () => {
-      it('matches eq and in based on tier id', async () => {
+      it('matches eq and in based on tier type', async () => {
         const orderWithTier = await fakeOrder({}, { withTier: true });
         const reloadedOrder = await models.Order.findByPk(orderWithTier.id, { include: ['Tier'] });
+        const tierType = reloadedOrder.Tier.type;
+        const anotherTierType = tierType === Tiers.TICKET ? Tiers.DONATION : Tiers.TICKET;
 
         const accountingCategory1 = { id: 1 };
         const eqRule = {
@@ -716,7 +718,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
             {
               subject: ContributionAccountingCategoryRuleSubject.tierType,
               operator: ContributionAccountingCategoryRuleOperator.eq,
-              value: reloadedOrder.TierId,
+              value: tierType,
             },
           ],
           type: 'CONTRIBUTION',
@@ -730,7 +732,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
             {
               subject: ContributionAccountingCategoryRuleSubject.tierType,
               operator: ContributionAccountingCategoryRuleOperator.in,
-              value: [reloadedOrder.TierId],
+              value: [tierType],
             },
           ],
           type: 'CONTRIBUTION',
@@ -744,7 +746,61 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
             {
               subject: ContributionAccountingCategoryRuleSubject.tierType,
               operator: ContributionAccountingCategoryRuleOperator.eq,
-              value: (reloadedOrder.TierId || 0) + 1,
+              value: anotherTierType,
+            },
+          ],
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
+
+        expect((await resolveContributionAccountingCategory([eqRule], reloadedOrder as Order))?.id).to.equal(1);
+        expect((await resolveContributionAccountingCategory([inRule], reloadedOrder as Order))?.id).to.equal(2);
+        expect(await resolveContributionAccountingCategory([noMatchRule], reloadedOrder as Order)).to.be.null;
+      });
+    });
+
+    describe('paymentProcessor', () => {
+      it('matches eq and in based on payment method service', async () => {
+        const paymentMethod = await fakePaymentMethod({ service: PAYMENT_METHOD_SERVICE.STRIPE });
+        const order = await fakeOrder({ PaymentMethodId: paymentMethod.id });
+        const reloadedOrder = await models.Order.findByPk(order.id, { include: ['paymentMethod'] });
+
+        const accountingCategory1 = { id: 1 };
+        const eqRule = {
+          AccountingCategoryId: 1,
+          accountingCategory: accountingCategory1,
+          predicates: [
+            {
+              subject: ContributionAccountingCategoryRuleSubject.paymentProcessor,
+              operator: ContributionAccountingCategoryRuleOperator.eq,
+              value: PAYMENT_METHOD_SERVICE.STRIPE.toUpperCase(),
+            },
+          ],
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
+
+        const accountingCategory2 = { id: 2 };
+        const inRule = {
+          AccountingCategoryId: 2,
+          accountingCategory: accountingCategory2,
+          predicates: [
+            {
+              subject: ContributionAccountingCategoryRuleSubject.paymentProcessor,
+              operator: ContributionAccountingCategoryRuleOperator.in,
+              value: [PAYMENT_METHOD_SERVICE.PAYPAL, PAYMENT_METHOD_SERVICE.STRIPE.toUpperCase()],
+            },
+          ],
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
+
+        const accountingCategory3 = { id: 3 };
+        const noMatchRule = {
+          AccountingCategoryId: 3,
+          accountingCategory: accountingCategory3,
+          predicates: [
+            {
+              subject: ContributionAccountingCategoryRuleSubject.paymentProcessor,
+              operator: ContributionAccountingCategoryRuleOperator.eq,
+              value: PAYMENT_METHOD_SERVICE.PAYPAL,
             },
           ],
           type: 'CONTRIBUTION',
