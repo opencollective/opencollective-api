@@ -1585,10 +1585,10 @@ export const GraphQLHost = new GraphQLObjectType({
                 .where('deletedAt', 'is', null)
                 .selectAll('Collectives')
                 .select(({ ref }) => [
-                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}, 1)], 0))`.as(
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.debitTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.debitTotalAcc')}, 1)], 0))`.as(
                     'totalExpended',
                   ),
-                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}, 1)], 0))`.as(
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.creditTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.creditTotalAcc')}, 1)], 0))`.as(
                     'totalContributed',
                   ),
                 ]),

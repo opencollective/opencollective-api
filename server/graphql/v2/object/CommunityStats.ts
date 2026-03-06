@@ -20,34 +20,28 @@ const GraphQLCommunityTransactionSummary = new GraphQLObjectType({
     year: {
       type: GraphQLInt,
     },
-    expenseTotal: {
+    debitTotal: {
       type: new GraphQLNonNull(GraphQLAmount),
     },
-    expenseCount: {
+    debitCount: {
       type: new GraphQLNonNull(GraphQLInt),
     },
-    contributionTotal: {
+    creditTotal: {
       type: new GraphQLNonNull(GraphQLAmount),
     },
-    contributionCount: {
+    creditCount: {
       type: new GraphQLNonNull(GraphQLInt),
     },
-    expenseTotalAcc: {
+    debitTotalAcc: {
       type: new GraphQLNonNull(GraphQLAmount),
     },
-    expenseCountAcc: {
+    debitCountAcc: {
       type: new GraphQLNonNull(GraphQLInt),
     },
-    contributionTotalAcc: {
+    creditTotalAcc: {
       type: new GraphQLNonNull(GraphQLAmount),
     },
-    contributionCountAcc: {
-      type: new GraphQLNonNull(GraphQLInt),
-    },
-    orderCount: {
-      type: new GraphQLNonNull(GraphQLInt),
-    },
-    orderCountAcc: {
+    creditCountAcc: {
       type: new GraphQLNonNull(GraphQLInt),
     },
   }),
@@ -94,11 +88,10 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
         const { FromCollectiveId, HostCollectiveId, CollectiveId } = associatedAccount;
         const results = await (sequelize as Sequelize).query<{
           hostCurrency: string;
-          expenseTotal: number;
-          expenseCount: number;
-          contributionTotal: number;
-          contributionCount: number;
-          orderCount: number;
+          debitTotal: number;
+          debitCount: number;
+          creditTotal: number;
+          creditCount: number;
         }>(
           `
           SELECT
@@ -106,11 +99,10 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
             t."HostCollectiveId",
             t."CollectiveId",
             h.currency AS "hostCurrency",
-            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = 'EXPENSE'), 0) AS "expenseTotal",
-            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = 'EXPENSE'), 0) AS "expenseCount",
-            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.kind = ANY('{CONTRIBUTION,ADDED_FUNDS}'::"enum_Transactions_kind"[])), 0) AS "contributionTotal",
-            COALESCE(COUNT(t.id) FILTER (WHERE t.kind = ANY('{CONTRIBUTION,ADDED_FUNDS}'::"enum_Transactions_kind"[])), 0) AS "contributionCount",
-            COALESCE(COUNT(DISTINCT t."OrderId") FILTER (WHERE t.kind = ANY('{CONTRIBUTION,ADDED_FUNDS}'::"enum_Transactions_kind"[])), 0) AS "orderCount"
+            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'DEBIT'), 0) AS "debitTotal",
+            COALESCE(COUNT(t.id) FILTER (WHERE t.type = 'DEBIT'), 0) AS "debitCount",
+            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'CREDIT'), 0) AS "creditTotal",
+            COALESCE(COUNT(t.id) FILTER (WHERE t.type = 'CREDIT'), 0) AS "creditCount"
           FROM
             "Transactions" t
             JOIN "Collectives" h ON t."HostCollectiveId" = h.id
@@ -133,16 +125,14 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
         );
         const result = results[0];
         return {
-          expenseTotal: { value: result?.expenseTotal || 0, currency: result?.hostCurrency || 'USD' },
-          expenseTotalAcc: { value: result?.expenseTotal || 0, currency: result?.hostCurrency || 'USD' },
-          expenseCount: result?.expenseCount || 0,
-          expenseCountAcc: result?.expenseCount || 0,
-          contributionTotal: { value: result?.contributionTotal || 0, currency: result?.hostCurrency || 'USD' },
-          contributionTotalAcc: { value: result?.contributionTotal || 0, currency: result?.hostCurrency || 'USD' },
-          contributionCount: result?.contributionCount || 0,
-          contributionCountAcc: result?.contributionCount || 0,
-          orderCount: result?.orderCount || 0,
-          orderCountAcc: result?.orderCount || 0,
+          debitTotal: { value: result?.debitTotal || 0, currency: result?.hostCurrency || 'USD' },
+          debitTotalAcc: { value: result?.debitTotal || 0, currency: result?.hostCurrency || 'USD' },
+          debitCount: result?.debitCount || 0,
+          debitCountAcc: result?.debitCount || 0,
+          creditTotal: { value: result?.creditTotal || 0, currency: result?.hostCurrency || 'USD' },
+          creditTotalAcc: { value: result?.creditTotal || 0, currency: result?.hostCurrency || 'USD' },
+          creditCount: result?.creditCount || 0,
+          creditCountAcc: result?.creditCount || 0,
         };
       },
     },
@@ -212,16 +202,14 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
           const results = await (sequelize as Sequelize).query<{
             year: number;
             hostCurrency: string;
-            expenseTotal: number;
-            expenseCount: number;
-            contributionTotal: number;
-            contributionCount: number;
-            expenseTotalAcc: number;
-            expenseCountAcc: number;
-            contributionTotalAcc: number;
-            contributionCountAcc: number;
-            orderCount: number;
-            orderCountAcc: number;
+            debitTotal: number;
+            debitCount: number;
+            creditTotal: number;
+            creditCount: number;
+            debitTotalAcc: number;
+            debitCountAcc: number;
+            creditTotalAcc: number;
+            creditCountAcc: number;
           }>(
             `
             SELECT * FROM "CommunityHostTransactionSummary"
@@ -234,16 +222,14 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
 
           return results.map(result => ({
             year: result.year,
-            expenseTotal: { value: result.expenseTotal, currency: result.hostCurrency },
-            expenseCount: result.expenseCount,
-            contributionTotal: { value: result.contributionTotal, currency: result.hostCurrency },
-            contributionCount: result.contributionCount,
-            expenseTotalAcc: { value: result.expenseTotalAcc, currency: result.hostCurrency },
-            expenseCountAcc: result.expenseCountAcc,
-            contributionTotalAcc: { value: result.contributionTotalAcc, currency: result.hostCurrency },
-            contributionCountAcc: result.contributionCountAcc,
-            orderCount: result.orderCount,
-            orderCountAcc: result.orderCountAcc,
+            debitTotal: { value: result.debitTotal, currency: result.hostCurrency },
+            debitCount: result.debitCount,
+            creditTotal: { value: result.creditTotal, currency: result.hostCurrency },
+            creditCount: result.creditCount,
+            debitTotalAcc: { value: result.debitTotalAcc, currency: result.hostCurrency },
+            debitCountAcc: result.debitCountAcc,
+            creditTotalAcc: { value: result.creditTotalAcc, currency: result.hostCurrency },
+            creditCountAcc: result.creditCountAcc,
           }));
         },
       },

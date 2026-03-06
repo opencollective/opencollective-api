@@ -108,8 +108,8 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       ${ifStr('CollectiveId' in replacements, `AND cas."CollectiveId" = :CollectiveId`)}
       ${ifStr('type' in replacements, `AND fc.type IN (:type)`)}
       ${ifStr('relation' in replacements && replacements.relation.length > 0, `AND cas."relations" @> :relation`)}
-      ${ifStr(replacements.totalExpendedExpression, () => `AND ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0))${replacements.totalExpendedExpression}`)}
-      ${ifStr(replacements.totalContributedExpression, () => `AND ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0))${replacements.totalContributedExpression}`)}
+      ${ifStr(replacements.totalExpendedExpression, () => `AND ABS(COALESCE(chta."debitTotalAcc"[ARRAY_UPPER(chta."debitTotalAcc", 1)], 0))${replacements.totalExpendedExpression}`)}
+      ${ifStr(replacements.totalContributedExpression, () => `AND ABS(COALESCE(chta."creditTotalAcc"[ARRAY_UPPER(chta."creditTotalAcc", 1)], 0))${replacements.totalContributedExpression}`)}
       ${searchConditions.whereClause}
     `;
 
@@ -124,14 +124,12 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
         orderBy.push(`fc.name ${direction}`);
         break;
       case 'TOTAL_CONTRIBUTED':
-        orderBy.push(
-          `ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) ${direction}`,
-        );
-        groupBy.push('chta."contributionTotalAcc"');
+        orderBy.push(`ABS(COALESCE(chta."creditTotalAcc"[ARRAY_UPPER(chta."creditTotalAcc", 1)], 0)) ${direction}`);
+        groupBy.push('chta."creditTotalAcc"');
         break;
       case 'TOTAL_EXPENDED':
-        orderBy.push(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) ${direction}`);
-        groupBy.push('chta."expenseTotalAcc"');
+        orderBy.push(`ABS(COALESCE(chta."debitTotalAcc"[ARRAY_UPPER(chta."debitTotalAcc", 1)], 0)) ${direction}`);
+        groupBy.push('chta."debitTotalAcc"');
         break;
       default:
         orderBy.push('fc.name ASC');
@@ -139,12 +137,12 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
   } else {
     // Default ordering when filters are applied
     if (replacements.totalExpendedExpression) {
-      orderBy.push(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) DESC`);
-      groupBy.push('chta."expenseTotalAcc"');
+      orderBy.push(`ABS(COALESCE(chta."debitTotalAcc"[ARRAY_UPPER(chta."debitTotalAcc", 1)], 0)) DESC`);
+      groupBy.push('chta."debitTotalAcc"');
     }
     if (replacements.totalContributedExpression) {
-      orderBy.push(`ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) DESC`);
-      groupBy.push('chta."contributionTotalAcc"');
+      orderBy.push(`ABS(COALESCE(chta."creditTotalAcc"[ARRAY_UPPER(chta."creditTotalAcc", 1)], 0)) DESC`);
+      groupBy.push('chta."creditTotalAcc"');
     }
     orderBy.push('fc.name ASC');
   }

@@ -59,14 +59,14 @@ export interface CommunityHostTransactionsAggregatedRow {
   HostCollectiveId?: number;
   hostCurrency?: string;
   years?: number[];
-  expenseTotal?: number[];
-  expenseCount?: number[];
-  contributionTotal?: number[];
-  contributionCount?: number[];
-  expenseTotalAcc?: number[];
-  expenseCountAcc?: number[];
-  contributionTotalAcc?: number[];
-  contributionCountAcc?: number[];
+  debitTotal?: number[];
+  debitCount?: number[];
+  creditTotal?: number[];
+  creditCount?: number[];
+  debitTotalAcc?: number[];
+  debitCountAcc?: number[];
+  creditTotalAcc?: number[];
+  creditCountAcc?: number[];
 }
 
 export interface CommunityHostTransactionSummaryRow {
@@ -74,16 +74,14 @@ export interface CommunityHostTransactionSummaryRow {
   HostCollectiveId?: number;
   year?: number;
   hostCurrency?: string;
-  expenseTotal?: number;
-  expenseCount?: number;
-  contributionTotal?: number;
-  contributionCount?: number;
-  orderCount?: number;
-  expenseTotalAcc?: number;
-  expenseCountAcc?: number;
-  contributionTotalAcc?: number;
-  contributionCountAcc?: number;
-  orderCountAcc?: number;
+  debitTotal?: number;
+  debitCount?: number;
+  creditTotal?: number;
+  creditCount?: number;
+  debitTotalAcc?: number;
+  debitCountAcc?: number;
+  creditTotalAcc?: number;
+  creditCountAcc?: number;
 }
 
 export interface CurrentCollectiveBalanceRow {
