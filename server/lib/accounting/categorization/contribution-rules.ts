@@ -6,25 +6,14 @@ import { reportErrorToSentry } from '../../sentry';
 
 import {
   ContributionAccountingCategoryRulePredicate,
-  ContributionAccountingCategoryRuleSubjectDefinition,
+  ContributionAccountingCategoryRuleSubjectMatcher,
+  validateAndNormalizeContributionAccountingCategoryRulePredicate,
 } from './types';
 
 export async function normalizeContributionAccountingCategoryRulePredicate(
   predicate: ContributionAccountingCategoryRulePredicate,
 ): Promise<ContributionAccountingCategoryRulePredicate> {
-  const subjectDefinition = ContributionAccountingCategoryRuleSubjectDefinition[predicate.subject];
-  if (!subjectDefinition) {
-    throw new Error(`Invalid subject: ${predicate.subject}`);
-  }
-  if (!subjectDefinition.operators.includes(predicate.operator)) {
-    throw new Error(`Invalid operator: ${predicate.operator}`);
-  }
-
-  return {
-    subject: predicate.subject,
-    operator: predicate.operator,
-    value: await subjectDefinition.normalize(predicate.operator, predicate.value),
-  };
+  return validateAndNormalizeContributionAccountingCategoryRulePredicate(predicate);
 }
 
 export async function resolveContributionAccountingCategory(
@@ -35,11 +24,11 @@ export async function resolveContributionAccountingCategory(
     const matches = (
       await Promise.all(
         rule.predicates.map(async predicate => {
-          const subjectDefinition = ContributionAccountingCategoryRuleSubjectDefinition[predicate.subject];
-          if (!subjectDefinition) {
+          const subjectMatcher = ContributionAccountingCategoryRuleSubjectMatcher[predicate.subject];
+          if (!subjectMatcher) {
             throw new Error(`Invalid subject: ${predicate.subject}`);
           }
-          return subjectDefinition.matches(predicate.operator, predicate.value, order);
+          return subjectMatcher(predicate.operator, predicate.value, order);
         }),
       )
     ).every(match => match);
