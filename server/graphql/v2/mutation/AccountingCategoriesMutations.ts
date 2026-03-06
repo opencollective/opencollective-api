@@ -9,7 +9,7 @@ import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
 import models, { sequelize } from '../../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
-import { ContributionAccountingCategoryRule } from '../../../models/ContributionAccountingCategoryRule';
+import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import { enforceScope } from '../../common/scope-check';
 import { Forbidden, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -169,14 +169,18 @@ export default {
         throw new ValidationFailed('Contribution accounting category rules can only be set at the host level');
       }
 
-      await checkFeatureAccess(account, FEATURE.CONTRIBUTION_CATEGORIZATION_RULES, { loaders: req.loaders });
+      await checkFeatureAccess(account, FEATURE.ACCOUNTING_CATEGORIZATION_RULES, { loaders: req.loaders });
 
       const rules = await Promise.all(
         args.rules.map(async (rule, ruleIndex) => {
           if (rule.id) {
-            const existingRule = await ContributionAccountingCategoryRule.findByPk(
-              idDecode(rule.id, IDENTIFIER_TYPES.CONTRIBUTION_ACCOUNTING_CATEGORY_RULE),
+            const existingRule = await AccountingCategoryRule.findByPk(
+              idDecode(rule.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE),
             );
+
+            if (existingRule && existingRule.type !== 'CONTRIBUTION') {
+              throw new ValidationFailed('This mutation can only update contribution accounting category rules');
+            }
 
             if (existingRule && existingRule.CollectiveId !== account.id) {
               throw new Forbidden('You are not authorized to update this rule');
@@ -191,11 +195,12 @@ export default {
           }
 
           return {
-            id: rule.id ? idDecode(rule.id, IDENTIFIER_TYPES.CONTRIBUTION_ACCOUNTING_CATEGORY_RULE) : null,
+            id: rule.id ? idDecode(rule.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE) : null,
             CollectiveId: account.id,
             AccountingCategoryId: idDecode(rule.accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
             name: rule.name,
             enabled: isNil(rule.enabled) ? true : rule.enabled,
+            type: 'CONTRIBUTION',
             predicates: normalizedPredicates,
             order: ruleIndex,
           };
@@ -203,20 +208,20 @@ export default {
       );
 
       await sequelize.transaction(async transaction => {
-        const existingRules = await ContributionAccountingCategoryRule.findAll({
-          where: { CollectiveId: account.id },
+        const existingRules = await AccountingCategoryRule.findAll({
+          where: { CollectiveId: account.id, type: 'CONTRIBUTION' },
           transaction,
           lock: Transaction.LOCK.UPDATE,
         });
 
         const toDelete = existingRules.filter(rule => !rules.some(r => r.id === rule.id));
 
-        await ContributionAccountingCategoryRule.destroy({
+        await AccountingCategoryRule.destroy({
           where: { id: toDelete.map(r => r.id) },
           transaction,
         });
 
-        await ContributionAccountingCategoryRule.bulkCreate(rules, {
+        await AccountingCategoryRule.bulkCreate(rules, {
           transaction,
           updateOnDuplicate: ['order', 'enabled', 'name', 'predicates', 'AccountingCategoryId', 'updatedAt'],
         });

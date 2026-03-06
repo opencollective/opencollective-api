@@ -6,16 +6,17 @@ import sequelize from '../lib/sequelize';
 import AccountingCategory from './AccountingCategory';
 import Collective from './Collective';
 
-export class ContributionAccountingCategoryRule extends Model<
-  InferAttributes<ContributionAccountingCategoryRule>,
-  InferCreationAttributes<ContributionAccountingCategoryRule>
+export class AccountingCategoryRule extends Model<
+  InferAttributes<AccountingCategoryRule>,
+  InferCreationAttributes<AccountingCategoryRule>
 > {
-  public static readonly tableName = 'ContributionAccountingCategoryRules' as const;
+  public static readonly tableName = 'AccountingCategoryRules' as const;
   declare id: CreationOptional<number>;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
   declare name: string;
   declare enabled: boolean;
+  declare type: 'CONTRIBUTION';
   declare order: number;
   declare predicates: ContributionAccountingCategoryRulePredicate[];
   declare createdAt: CreationOptional<Date>;
@@ -25,21 +26,24 @@ export class ContributionAccountingCategoryRule extends Model<
   declare collective?: Collective;
   declare accountingCategory?: AccountingCategory;
 
-  public static async getRulesForCollective(collectiveId: number): Promise<ContributionAccountingCategoryRule[]> {
-    return ContributionAccountingCategoryRule.findAll({
+  public static async getRulesForCollective(
+    collectiveId: number,
+    type: AccountingCategoryRule['type'],
+  ): Promise<AccountingCategoryRule[]> {
+    return AccountingCategoryRule.findAll({
       include: [
         {
           model: AccountingCategory,
           as: 'accountingCategory',
         },
       ],
-      where: { CollectiveId: collectiveId, enabled: true },
+      where: { CollectiveId: collectiveId, enabled: true, type },
       order: [['order', 'asc']],
     });
   }
 }
 
-ContributionAccountingCategoryRule.init(
+AccountingCategoryRule.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -55,6 +59,10 @@ ContributionAccountingCategoryRule.init(
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: true,
+    },
+    type: {
+      type: DataTypes.ENUM('CONTRIBUTION'),
+      allowNull: false,
     },
     order: {
       type: DataTypes.INTEGER,
@@ -96,7 +104,7 @@ ContributionAccountingCategoryRule.init(
   },
   {
     sequelize,
-    tableName: 'ContributionAccountingCategoryRules',
+    tableName: 'AccountingCategoryRules',
     paranoid: true,
   },
 );

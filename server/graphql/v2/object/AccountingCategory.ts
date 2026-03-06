@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
@@ -67,11 +67,11 @@ export const GraphQLContributionAccountingCategoryRule = new GraphQLObjectType({
   description: 'A rule for categorizing contributions',
   fields: {
     id: {
-      type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONTRIBUTION_ACCOUNTING_CATEGORY_RULE),
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE),
     },
     name: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
     },
     enabled: {
       type: new GraphQLNonNull(GraphQLBoolean),

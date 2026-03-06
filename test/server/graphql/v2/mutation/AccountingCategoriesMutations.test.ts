@@ -3,14 +3,14 @@ import gql from 'fake-tag';
 import { get } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
-import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import {
   ContributionAccountingCategoryRuleOperator,
   ContributionAccountingCategoryRuleSubject,
 } from '../../../../../server/lib/accounting/categorization/types';
 import { FEATURE } from '../../../../../server/lib/allowed-features';
 import models from '../../../../../server/models';
-import { ContributionAccountingCategoryRule } from '../../../../../server/models/ContributionAccountingCategoryRule';
+import { AccountingCategoryRule } from '../../../../../server/models/AccountingCategoryRule';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -325,7 +325,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
     it('fails if the token does not have the right scope', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin,
       });
       const userToken = await fakeUserToken({ scope: ['account'], UserId: admin.id });
@@ -341,7 +341,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
     it('fails if user is not authorized to update contribution accounting category rules', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin,
       });
       const randomUser = await fakeUser();
@@ -360,7 +360,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({
         hasMoneyManagement: false,
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin,
       });
       const result = await graphqlQueryV2(
@@ -377,7 +377,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
     it('updates contribution accounting category rules successfully', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin,
       });
       const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
@@ -417,7 +417,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
       expect(result1.errors).to.not.exist;
 
-      const createdRules = await ContributionAccountingCategoryRule.findAll({
+      const createdRules = await AccountingCategoryRule.findAll({
         where: { CollectiveId: host.id },
         order: [['order', 'ASC']],
       });
@@ -436,7 +436,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
           account: { legacyId: host.id },
           rules: [
             {
-              id: idEncode(createdRules[0].id, 'contribution-accounting-category-rule'),
+              id: idEncode(createdRules[0].id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE),
               accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
               name: 'Rule A - edited',
               enabled: false,
@@ -467,7 +467,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
       expect(result2.errors).to.not.exist;
 
-      const updatedRules = await ContributionAccountingCategoryRule.findAll({
+      const updatedRules = await AccountingCategoryRule.findAll({
         where: { CollectiveId: host.id },
         order: [['order', 'ASC']],
       });
@@ -492,21 +492,22 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
     it('fails if trying to update a rule from another account by passing its id', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin,
       });
       const anotherHostAdmin = await fakeUser();
       const anotherHost = await fakeActiveHost({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin: anotherHostAdmin,
       });
       const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
       const anotherHostAccountingCategory = await fakeAccountingCategory({ CollectiveId: anotherHost.id });
-      const anotherHostRule = await ContributionAccountingCategoryRule.create({
+      const anotherHostRule = await AccountingCategoryRule.create({
         CollectiveId: anotherHost.id,
         AccountingCategoryId: anotherHostAccountingCategory.id,
         name: 'Another host rule',
         enabled: true,
+        type: 'CONTRIBUTION',
         predicates: [
           {
             subject: ContributionAccountingCategoryRuleSubject.description,
@@ -523,7 +524,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
           account: { legacyId: host.id },
           rules: [
             {
-              id: idEncode(anotherHostRule.id, 'contribution-accounting-category-rule'),
+              id: idEncode(anotherHostRule.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE),
               accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
               name: 'Malicious update',
               enabled: false,
@@ -536,21 +537,21 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
       expect(result.errors).to.exist;
 
-      const updatedAnotherHostRule = await ContributionAccountingCategoryRule.findByPk(anotherHostRule.id);
+      const updatedAnotherHostRule = await AccountingCategoryRule.findByPk(anotherHostRule.id);
       expect(updatedAnotherHostRule.name).to.equal('Another host rule');
       expect(updatedAnotherHostRule.enabled).to.be.true;
       expect(updatedAnotherHostRule.predicates).to.deep.equal([
         { subject: 'description', operator: 'contains', value: 'other-host' },
       ]);
 
-      const hostRules = await ContributionAccountingCategoryRule.findAll({ where: { CollectiveId: host.id } });
+      const hostRules = await AccountingCategoryRule.findAll({ where: { CollectiveId: host.id } });
       expect(hostRules).to.have.length(0);
     });
 
     it('fails if predicate "toAccount" references an unknown account', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin,
       });
       const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
@@ -584,7 +585,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
     it('fails if predicate expecting an array receives a string', async () => {
       const admin = await fakeUser();
       const host = await fakeActiveHost({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
         admin,
       });
       const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });

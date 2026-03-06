@@ -5,7 +5,7 @@ import type { QueryInterface } from 'sequelize';
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface: QueryInterface, Sequelize) {
-    await queryInterface.createTable('ContributionAccountingCategoryRules', {
+    await queryInterface.createTable('AccountingCategoryRules', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -27,6 +27,10 @@ module.exports = {
         references: { key: 'id', model: 'AccountingCategories' },
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
+        allowNull: false,
+      },
+      type: {
+        type: Sequelize.ENUM('CONTRIBUTION', 'EXPENSE'),
         allowNull: false,
       },
       enabled: {
@@ -59,12 +63,12 @@ module.exports = {
       },
     });
 
-    await queryInterface.addIndex('ContributionAccountingCategoryRules', ['CollectiveId', 'order'], {
+    await queryInterface.addIndex('AccountingCategoryRules', ['CollectiveId', 'order'], {
       where: { deletedAt: null },
     });
   },
 
   async down(queryInterface: QueryInterface) {
-    await queryInterface.dropTable('ContributionAccountingCategoryRules');
+    await queryInterface.dropTable('AccountingCategoryRules');
   },
 };

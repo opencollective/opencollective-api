@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { GraphQLAccountingCategoryReferenceInput } from './AccountingCategoryInput';
 import { GraphQLContributionAccountingCategoryRulePredicateInput } from './ContributionAccountingCategoryRulePredicateInput';
@@ -16,7 +17,7 @@ export const GraphQLContributionAccountingCategoryRuleInput = new GraphQLInputOb
       description: 'The accounting category to apply the rule to',
     },
     name: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
       description: 'The name of the rule',
     },
     enabled: {

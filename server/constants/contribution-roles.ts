@@ -1,8 +1,8 @@
 /**
- * Defines the possible roles for a user on an contribution.
+ * Defines the possible roles that can interact with a contribution.
  */
 
 export enum ContributionRoles {
   hostAdmin = 'hostAdmin',
-  accountingRules = 'accountingRules',
+  accountingRulesEngine = 'accountingRulesEngine',
 }

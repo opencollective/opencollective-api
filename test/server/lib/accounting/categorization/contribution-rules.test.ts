@@ -15,7 +15,7 @@ import {
   ContributionAccountingCategoryRuleSubject,
 } from '../../../../../server/lib/accounting/categorization/types';
 import models, { Collective, Order } from '../../../../../server/models';
-import { ContributionAccountingCategoryRule } from '../../../../../server/models/ContributionAccountingCategoryRule';
+import { AccountingCategoryRule } from '../../../../../server/models/AccountingCategoryRule';
 import { fakeActiveHost, fakeCollective, fakeOrder } from '../../../../test-helpers/fake-data';
 
 describe('server/lib/accounting/categorization/contribution-rules', () => {
@@ -165,6 +165,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 200,
             },
           ],
+          type: 'CONTRIBUTION',
         },
         {
           AccountingCategoryId: 2,
@@ -176,8 +177,9 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 100,
             },
           ],
+          type: 'CONTRIBUTION',
         },
-      ] as ContributionAccountingCategoryRule[];
+      ] as AccountingCategoryRule[];
 
       const order = await fakeOrder({ totalAmount: 150 });
 
@@ -209,6 +211,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: usdOrder.currency,
             },
           ],
+          type: 'CONTRIBUTION',
         },
         {
           AccountingCategoryId: 2,
@@ -225,8 +228,9 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: eurOrder.currency,
             },
           ],
+          type: 'CONTRIBUTION',
         },
-      ] as ContributionAccountingCategoryRule[];
+      ] as AccountingCategoryRule[];
 
       const usdResult = await resolveContributionAccountingCategory(rules, usdOrder);
       const eurResult = await resolveContributionAccountingCategory(rules, eurOrder);
@@ -248,8 +252,9 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 'foo',
             },
           ],
+          type: 'CONTRIBUTION',
         },
-      ] as unknown as ContributionAccountingCategoryRule[];
+      ] as unknown as AccountingCategoryRule[];
       const order = (await fakeOrder({ description: 'foo' })) as Order;
       await expect(resolveContributionAccountingCategory(rules, order)).to.be.rejectedWith(
         'Invalid subject: invalid-subject',
@@ -274,8 +279,9 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               AccountingCategoryId: 1,
               accountingCategory,
               predicates: [predicate],
+              type: 'CONTRIBUTION',
             },
-          ] as ContributionAccountingCategoryRule[],
+          ] as AccountingCategoryRule[],
           order,
         );
         expect(result?.id).to.equal(1);
@@ -297,7 +303,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 100,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory2 = { id: 2 };
         const gteRule = {
@@ -310,7 +317,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 50,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory3 = { id: 3 };
         const lteRule = {
@@ -323,7 +331,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 150,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory4 = { id: 4 };
         const noMatchRule = {
@@ -336,7 +345,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 999,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         expect((await resolveContributionAccountingCategory([eqRule], order))?.id).to.equal(1);
         expect((await resolveContributionAccountingCategory([gteRule], order))?.id).to.equal(2);
@@ -360,7 +370,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 'USD',
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory2 = { id: 2 };
         const noMatchRule = {
@@ -373,7 +384,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 'EUR',
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         expect((await resolveContributionAccountingCategory([rule], order))?.id).to.equal(1);
         expect(await resolveContributionAccountingCategory([noMatchRule], order)).to.be.null;
@@ -395,7 +407,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 'MONTHLY',
             },
           ],
-        } as ContributionAccountingCategoryRule;
+        } as AccountingCategoryRule;
 
         const accountingCategory2 = { id: 2 };
         const inRule = {
@@ -408,7 +420,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: ['MONTHLY', 'YEARLY'],
             },
           ],
-        } as ContributionAccountingCategoryRule;
+        } as AccountingCategoryRule;
 
         const accountingCategory3 = { id: 3 };
         const noMatchRule = {
@@ -421,7 +433,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 'YEARLY',
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         expect((await resolveContributionAccountingCategory([eqRule], order))?.id).to.equal(1);
         expect((await resolveContributionAccountingCategory([inRule], order))?.id).to.equal(2);
@@ -445,7 +458,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: order.collective.slug,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory2 = { id: 2 };
         const inRule = {
@@ -458,7 +472,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: [order.collective.slug],
             },
           ],
-        } as ContributionAccountingCategoryRule;
+        } as AccountingCategoryRule;
 
         const accountingCategory3 = { id: 3 };
         const noMatchRule = {
@@ -471,7 +485,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: randomCol.slug,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         expect((await resolveContributionAccountingCategory([eqRule], order))?.id).to.equal(1);
         expect((await resolveContributionAccountingCategory([inRule], order))?.id).to.equal(2);
@@ -496,7 +511,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: collective.type,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory2 = { id: 2 };
         const inRule = {
@@ -509,7 +525,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: [collective.type],
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory3 = { id: 3 };
         const noMatchRule = {
@@ -522,7 +539,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 'VENDOR',
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         expect((await resolveContributionAccountingCategory([eqRule], reloadedOrder as Order))?.id).to.equal(1);
         expect((await resolveContributionAccountingCategory([inRule], reloadedOrder as Order))?.id).to.equal(2);
@@ -547,7 +565,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: fromCollective.type,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory2 = { id: 2 };
         const inRule = {
@@ -560,7 +579,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: [fromCollective.type],
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory3 = { id: 3 };
         const noMatchRule = {
@@ -573,7 +593,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 'VENDOR',
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         expect((await resolveContributionAccountingCategory([eqRule], reloadedOrder as Order))?.id).to.equal(1);
         expect((await resolveContributionAccountingCategory([inRule], reloadedOrder as Order))?.id).to.equal(2);
@@ -597,7 +618,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: reloadedOrder.TierId,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory2 = { id: 2 };
         const inRule = {
@@ -610,7 +632,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: [reloadedOrder.TierId],
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         const accountingCategory3 = { id: 3 };
         const noMatchRule = {
@@ -623,7 +646,8 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: (reloadedOrder.TierId || 0) + 1,
             },
           ],
-        } as ContributionAccountingCategoryRule;
+          type: 'CONTRIBUTION',
+        } as AccountingCategoryRule;
 
         expect((await resolveContributionAccountingCategory([eqRule], reloadedOrder as Order))?.id).to.equal(1);
         expect((await resolveContributionAccountingCategory([inRule], reloadedOrder as Order))?.id).to.equal(2);
@@ -638,7 +662,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
     before(async () => {
       host = await fakeActiveHost();
       await host.update({
-        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        data: { features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
       });
       collective = await fakeCollective({ HostCollectiveId: host.id });
     });
@@ -649,7 +673,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
       });
       order.AccountingCategoryId = 123;
 
-      const getRulesSpy = sandbox.spy(ContributionAccountingCategoryRule, 'getRulesForCollective');
+      const getRulesSpy = sandbox.spy(AccountingCategoryRule, 'getRulesForCollective');
       const updateSpy = sandbox.spy(order, 'update');
 
       await applyContributionAccountingCategoryRules(order);
@@ -669,7 +693,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
         },
       };
 
-      const getRulesSpy = sandbox.spy(ContributionAccountingCategoryRule, 'getRulesForCollective');
+      const getRulesSpy = sandbox.spy(AccountingCategoryRule, 'getRulesForCollective');
       const updateSpy = sandbox.spy(order, 'update');
 
       await applyContributionAccountingCategoryRules(order);
@@ -683,7 +707,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
       order.AccountingCategoryId = null;
       order.data = {};
 
-      const getRulesStub = sandbox.stub(ContributionAccountingCategoryRule, 'getRulesForCollective').resolves([]);
+      const getRulesStub = sandbox.stub(AccountingCategoryRule, 'getRulesForCollective').resolves([]);
       const updateSpy = sandbox.spy(order, 'update');
 
       await applyContributionAccountingCategoryRules(order);
@@ -699,7 +723,7 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
       order.AccountingCategoryId = null;
       order.data = {};
 
-      const getRulesSpy = sandbox.spy(ContributionAccountingCategoryRule, 'getRulesForCollective');
+      const getRulesSpy = sandbox.spy(AccountingCategoryRule, 'getRulesForCollective');
       const updateSpy = sandbox.spy(order, 'update');
 
       await applyContributionAccountingCategoryRules(order);
@@ -726,10 +750,11 @@ describe('server/lib/accounting/categorization/contribution-rules', () => {
               value: 100,
             },
           ],
+          type: 'CONTRIBUTION',
         },
-      ] as ContributionAccountingCategoryRule[];
+      ] as AccountingCategoryRule[];
 
-      const getRulesStub = sandbox.stub(ContributionAccountingCategoryRule, 'getRulesForCollective').resolves(rules);
+      const getRulesStub = sandbox.stub(AccountingCategoryRule, 'getRulesForCollective').resolves(rules);
       const updateStub = sandbox.stub(order, 'update').resolves(order);
 
       await applyContributionAccountingCategoryRules(order);

@@ -1,6 +1,6 @@
 import { ContributionRoles } from '../../../constants/contribution-roles';
 import { AccountingCategory, Order } from '../../../models';
-import { ContributionAccountingCategoryRule } from '../../../models/ContributionAccountingCategoryRule';
+import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import { FEATURE, hasFeature } from '../../allowed-features';
 import { reportErrorToSentry } from '../../sentry';
 
@@ -28,7 +28,7 @@ export async function normalizeContributionAccountingCategoryRulePredicate(
 }
 
 export async function resolveContributionAccountingCategory(
-  rules: ContributionAccountingCategoryRule[],
+  rules: AccountingCategoryRule[],
   order: Order,
 ): Promise<AccountingCategory | null> {
   for (const rule of rules) {
@@ -72,11 +72,11 @@ export async function applyContributionAccountingCategoryRules(order: Order): Pr
       return;
     }
 
-    if (!(await hasFeature(host, FEATURE.CONTRIBUTION_CATEGORIZATION_RULES))) {
+    if (!(await hasFeature(host, FEATURE.ACCOUNTING_CATEGORIZATION_RULES))) {
       return;
     }
 
-    const rules = await ContributionAccountingCategoryRule.getRulesForCollective(collective.HostCollectiveId);
+    const rules = await AccountingCategoryRule.getRulesForCollective(collective.HostCollectiveId, 'CONTRIBUTION');
     if (!rules.length) {
       return;
     }
@@ -91,7 +91,7 @@ export async function applyContributionAccountingCategoryRules(order: Order): Pr
           valuesByRole: {
             ...(order.data.valuesByRole || {}),
             ...{
-              [ContributionRoles.accountingRules]: {
+              [ContributionRoles.accountingRulesEngine]: {
                 accountingCategory: accountingCategory?.publicInfo,
               },
             },
