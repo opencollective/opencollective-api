@@ -4,6 +4,10 @@ import { get } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import {
+  ContributionAccountingCategoryRuleOperator,
+  ContributionAccountingCategoryRuleSubject,
+} from '../../../../../server/lib/accounting/categorization/types';
 import { FEATURE } from '../../../../../server/lib/allowed-features';
 import models from '../../../../../server/models';
 import { ContributionAccountingCategoryRule } from '../../../../../server/models/ContributionAccountingCategoryRule';
@@ -483,6 +487,64 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
 
       // The original "Rule B" should have been deleted
       expect(updatedRules.find(r => r.id === createdRules[1].id)).to.not.exist;
+    });
+
+    it('fails if trying to update a rule from another account by passing its id', async () => {
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin,
+      });
+      const anotherHostAdmin = await fakeUser();
+      const anotherHost = await fakeActiveHost({
+        data: { features: { [FEATURE.CONTRIBUTION_CATEGORIZATION_RULES]: true }, isFirstPartyHost: true },
+        admin: anotherHostAdmin,
+      });
+      const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id });
+      const anotherHostAccountingCategory = await fakeAccountingCategory({ CollectiveId: anotherHost.id });
+      const anotherHostRule = await ContributionAccountingCategoryRule.create({
+        CollectiveId: anotherHost.id,
+        AccountingCategoryId: anotherHostAccountingCategory.id,
+        name: 'Another host rule',
+        enabled: true,
+        predicates: [
+          {
+            subject: ContributionAccountingCategoryRuleSubject.description,
+            operator: ContributionAccountingCategoryRuleOperator.contains,
+            value: 'other-host',
+          },
+        ],
+        order: 0,
+      });
+
+      const result = await graphqlQueryV2(
+        updateContributionAccountingCategoryRulesMutation,
+        {
+          account: { legacyId: host.id },
+          rules: [
+            {
+              id: idEncode(anotherHostRule.id, 'contribution-accounting-category-rule'),
+              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              name: 'Malicious update',
+              enabled: false,
+              predicates: [{ subject: 'description', operator: 'contains', value: 'hacked' }],
+            },
+          ],
+        },
+        admin,
+      );
+
+      expect(result.errors).to.exist;
+
+      const updatedAnotherHostRule = await ContributionAccountingCategoryRule.findByPk(anotherHostRule.id);
+      expect(updatedAnotherHostRule.name).to.equal('Another host rule');
+      expect(updatedAnotherHostRule.enabled).to.be.true;
+      expect(updatedAnotherHostRule.predicates).to.deep.equal([
+        { subject: 'description', operator: 'contains', value: 'other-host' },
+      ]);
+
+      const hostRules = await ContributionAccountingCategoryRule.findAll({ where: { CollectiveId: host.id } });
+      expect(hostRules).to.have.length(0);
     });
 
     it('fails if predicate "toAccount" references an unknown account', async () => {

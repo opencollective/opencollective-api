@@ -173,6 +173,16 @@ export default {
 
       const rules = await Promise.all(
         args.rules.map(async (rule, ruleIndex) => {
+          if (rule.id) {
+            const existingRule = await ContributionAccountingCategoryRule.findByPk(
+              idDecode(rule.id, IDENTIFIER_TYPES.CONTRIBUTION_ACCOUNTING_CATEGORY_RULE),
+            );
+
+            if (existingRule && existingRule.CollectiveId !== account.id) {
+              throw new Forbidden('You are not authorized to update this rule');
+            }
+          }
+
           const normalizedPredicates = [];
           for (let predicateIndex = 0; predicateIndex < (rule.predicates?.length || 0); predicateIndex++) {
             const predicate = rule.predicates[predicateIndex];
