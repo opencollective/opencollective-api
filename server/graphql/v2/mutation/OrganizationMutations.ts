@@ -179,7 +179,7 @@ export default {
         await PlatformSubscription.createSubscription(
           organization,
           new Date(),
-          PlatformSubscriptionTiers.find(t => (t.id = 'discover-1')),
+          PlatformSubscriptionTiers.find(t => t.id === 'discover-1'),
           user,
           { notify: false },
         );
@@ -284,6 +284,15 @@ export default {
       }
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
+
+      if (parseToBoolean(config.features?.newPricing)) {
+        const currentSubscription = await PlatformSubscription.getCurrentSubscription(organization.id);
+        if (currentSubscription) {
+          await currentSubscription.update({
+            period: [currentSubscription.start, { value: new Date(), inclusive: false }],
+          });
+        }
+      }
 
       const collective = await organization.update({ type: COLLECTIVE });
 
