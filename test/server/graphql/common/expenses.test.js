@@ -992,9 +992,9 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: false,
+          collectiveAdmin: true,
           collectiveAccountant: false,
-          hostAdmin: false,
+          hostAdmin: context.isSelfHosted,
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
