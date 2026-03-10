@@ -9,6 +9,7 @@ import { Collective, ConnectedAccount, Op, sequelize } from '../models';
 import { paypalRequest } from '../paymentProviders/paypal/api';
 import {
   PayoutBatchDetails,
+  PayoutError,
   PayoutRequestBody,
   PayoutRequestResult,
   PaypalTransactionSearchResult,
@@ -63,10 +64,22 @@ const executeRequest = async (
 export const executePayouts = async (
   connectedAccount: ConnectedAccount,
   requestBody: PayoutRequestBody,
-): Promise<PayoutRequestResult> => {
+): Promise<PayoutRequestResult | PayoutError> => {
   const request = new paypal.payouts.PayoutsPostRequest();
   request.requestBody(requestBody);
-  return executeRequest(connectedAccount, request);
+  try {
+    return executeRequest(connectedAccount, request);
+  } catch (e) {
+    if (e.statusCode) {
+      try {
+        const parsedError = JSON.parse(e.message);
+        return parsedError;
+      } catch {
+        throw e;
+      }
+    }
+    throw e;
+  }
 };
 
 export const getBatchInfo = async (

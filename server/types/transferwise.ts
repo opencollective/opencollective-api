@@ -499,3 +499,15 @@ export type TransactionRequirementsType = {
   title: string;
   fields: Array<TransactionRequiredFields>;
 };
+
+export type TransferwiseErrorObject = {
+  message: string;
+  extensions: {
+    tracing: {
+      'x-trace-id': string;
+      'cf-ray': string;
+    };
+    id: string;
+    code: string;
+  };
+};
