@@ -10,6 +10,11 @@ const VIEWS = [
   'TransactionBalances',
   'CollectiveBalanceCheckpoint',
   'CommunityActivitySummary',
+  'CommunityTransactionSummary',
+
+  // We need to refresh these two views after 'CommunityTransactionSummary' because they depend on it.
+  'CommunityHostYearlyTransactionSummary',
+  'CommunityHostTransactionSummary',
 ];
 
 /**
