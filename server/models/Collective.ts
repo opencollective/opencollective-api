@@ -7,6 +7,7 @@ import * as ics from 'ics';
 import slugify from 'limax';
 import {
   cloneDeep,
+  compact,
   defaults,
   differenceBy,
   differenceWith,
@@ -426,36 +427,56 @@ class Collective extends Model<
    *
    * @param [array] suggestions Array of suggested base slugs in order of priority.
    */
-  static generateSlug = (suggestions, useSlugify = true) => {
+  static generateSlug = async (suggestions, useSlugify = true): Promise<string> => {
     /*
      * Checks a given slug against existing and reserved slugs. Increments count if non-unique/reserved and
-     * recursively checks again until acceptable slug is found.
+     * iterates until an acceptable slug is found.
      */
-    const slugSuggestionHelper = (slugToCheck, slugList, count): string => {
-      const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
-      if (slugList.indexOf(slug) === -1 && !isCollectiveSlugReserved(slug)) {
-        return slug;
-      } else {
-        return slugSuggestionHelper(`${slugToCheck}`, slugList, count + 1);
+    const slugSuggestionHelper = (slugToCheck, slugList): string | undefined => {
+      for (let count = 0; count < 1000; count++) {
+        const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
+        if (slugList.indexOf(slug) === -1 && !isCollectiveSlugReserved(slug)) {
+          return slug;
+        }
       }
     };
 
-    suggestions = suggestions.filter(slug => (slug ? true : false)); // filter out any nulls
+    const generateRandomSlug = () => {
+      return `user-${uuid().split('-')[0]}`;
+    };
+
+    suggestions = compact(suggestions); // filter out any nulls
     let baseSlug = suggestions[0]; // Use the first non-null suggestion as the base
+    if (baseSlug === 'incognito') {
+      return generateRandomSlug();
+    }
 
     if (useSlugify) {
       baseSlug = slugify(baseSlug); // Will also trim, lowercase and remove + signs
     }
 
     // fetch any existing slugs which match or start with baseSlug. Used as list for helper function.
-    return Collective.findAll({
+    const allEntries = await Collective.findAll({
       attributes: ['slug'],
       where: { slug: { [Op.startsWith]: baseSlug } },
       paranoid: false,
       raw: true,
-    })
-      .then(userObjectList => userObjectList.map(user => user.slug))
-      .then(slugList => slugSuggestionHelper(baseSlug, slugList, 0));
+      order: [['slug', 'ASC']],
+      limit: 1000,
+    });
+
+    if (allEntries.length === 1000) {
+      return generateRandomSlug();
+    } else if (allEntries.length === 0) {
+      return baseSlug;
+    } else {
+      return (
+        slugSuggestionHelper(
+          baseSlug,
+          allEntries.map(entry => entry.slug),
+        ) || generateRandomSlug()
+      );
+    }
   };
 
   static findBySlug = (slug, options = {}, throwIfMissing = true) => {
