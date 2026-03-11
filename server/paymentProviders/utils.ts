@@ -176,12 +176,10 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
       });
       if (originalCreditTransaction?.amount === amount) {
         if (!originalCreditTransaction.RefundTransactionId) {
-          await createRefundTransaction(
-            originalCreditTransaction,
-            0,
-            { refundTransactionId: transactionId, transaction },
-            null,
-          );
+          await createRefundTransaction(originalCreditTransaction, {
+            refundedPaymentProcessorFeeInHostCurrency: 0,
+            data: { refundTransactionId: transactionId, transaction },
+          });
         }
         return;
       }

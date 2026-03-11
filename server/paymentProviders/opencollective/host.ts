@@ -38,7 +38,7 @@ const paymentMethodProvider: BasePaymentProviderService = {
       }
     }
 
-    return createRefundTransaction(transaction, 0, null, user, null, null, refundKind);
+    return createRefundTransaction(transaction, { user, refundKind, refundedPaymentProcessorFeeInHostCurrency: 0 });
   },
 
   // We don't check balance for "Added Funds"

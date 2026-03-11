@@ -292,7 +292,10 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
     const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
     const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
     const dataPayload = { paypalResponse: refundDetails, isRefundedFromPayPal: true };
-    await createRefundTransaction(transaction, refundedPaypalFee, dataPayload, null);
+    await createRefundTransaction(transaction, {
+      refundedPaymentProcessorFeeInHostCurrency: refundedPaypalFee,
+      data: dataPayload,
+    });
   });
 }
 
