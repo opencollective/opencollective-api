@@ -6,6 +6,7 @@ import models from '../../../models';
 import { canComment } from '../../common/expenses';
 import { checkRemoteUserCanUseComment, checkRemoteUserCanUseUpdates } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLCommentReferenceInput } from '../input/CommentReferenceInput';
 import { getDatabaseIdFromUpdateReference, GraphQLUpdateReferenceInput } from '../input/UpdateReferenceInput';
@@ -155,13 +156,20 @@ const removeReactionFromCommentOrUpdate = async (commentOrUpdateId, remoteUser, 
   }
 };
 
-function getDatabaseIdFromCommentReference(comment: { id: string }): Promise<number> {
+function getDatabaseIdFromCommentReference(
+  comment: { id: string },
+  { loaders = null }: { loaders?: Loaders } = {},
+): Promise<number> {
   if (isEntityPublicId(comment.id, EntityShortIdPrefix.Comment)) {
-    return models.Comment.findOne({ where: { publicId: comment.id }, attributes: ['id'] }).then(comment => {
-      if (!comment) {
+    return (
+      loaders
+        ? loaders.Comment.byPublicId.load(comment.id)
+        : models.Comment.findOne({ where: { publicId: comment.id }, attributes: ['id'] })
+    ).then(resolvedComment => {
+      if (!resolvedComment) {
         throw new NotFound(`Comment with public id ${comment.id} not found`);
       }
-      return comment.id;
+      return resolvedComment.id;
     });
   } else if (comment.id) {
     return Promise.resolve(idDecode(comment.id, IDENTIFIER_TYPES.COMMENT));

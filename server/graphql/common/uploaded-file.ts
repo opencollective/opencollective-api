@@ -26,9 +26,7 @@ export async function hasProtectedUrlPermission(req: Express.Request, url: strin
 
   let expenseId: number;
   if (isEntityPublicId(encodedExpenseId, EntityShortIdPrefix.Expense)) {
-    expenseId = await Expense.findOne({ where: { publicId: encodedExpenseId }, attributes: ['id'] }).then(
-      expense => expense?.id,
-    );
+    expenseId = await req.loaders.Expense.idByPublicId.load(encodedExpenseId);
     if (!expenseId) {
       return false;
     }

@@ -87,6 +87,7 @@ module.exports = {
 
     for (const [tableName, nanoIdPrefix] of Object.entries(ModelsWithPublicIds)) {
       console.log(`Adding publicId column to ${tableName}`);
+      // UNIQUE will automatically create an index on the column
       await queryInterface.sequelize.query(`
         ALTER TABLE "${tableName}" ADD COLUMN IF NOT EXISTS "publicId" TEXT UNIQUE;
       `);

@@ -13,6 +13,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { AccountingCategoryAppliesTo, AccountingCategoryKind } from '../../../models/AccountingCategory';
+import { Loaders } from '../../loaders';
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
@@ -96,11 +97,13 @@ export const GraphQLAccountingCategoryReferenceInput = new GraphQLInputObjectTyp
 
 export const fetchAccountingCategoryWithReference = async (
   input: GraphQLAccountingCategoryReferenceInputFields,
-  { loaders = null, throwIfMissing = false } = {},
+  { loaders = null, throwIfMissing = false }: { loaders?: Loaders; throwIfMissing?: boolean } = {},
 ) => {
   let category;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.AccountingCategory)) {
-    category = await models.AccountingCategory.findOne({ where: { publicId: input.id } });
+    category = await (loaders
+      ? loaders.AccountingCategory.byPublicId.load(input.id)
+      : models.AccountingCategory.findOne({ where: { publicId: input.id } }));
   } else if (input.id && typeof input.id === 'string') {
     const id = idDecode(input.id, 'accounting-category');
     category = await (loaders ? loaders.AccountingCategory.byId.load(id) : models.AccountingCategory.findByPk(id));

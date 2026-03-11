@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } fro
 import { intersection, uniq } from 'lodash';
 import { FindOptions, InferAttributes, ProjectionAlias } from 'sequelize';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { Collective, Op } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
@@ -95,14 +95,17 @@ export const fetchAccountWithReference = async (
     }
   };
 
+  const loadCollectiveByPublicId = publicId => {
+    if (!loaders || dbTransaction) {
+      return models.Collective.findOne({ where: { publicId }, paranoid, transaction: dbTransaction, lock });
+    } else {
+      return loaders.Collective.byPublicId.load(publicId);
+    }
+  };
+
   let collective;
   if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Collective}_`)) {
-    collective = await models.Collective.findOne({
-      where: { publicId: input.id },
-      paranoid,
-      transaction: dbTransaction,
-      lock,
-    });
+    collective = await loadCollectiveByPublicId(input.id);
   } else if (input.id && typeof input.id === 'string') {
     const id = idDecode(input.id, 'account');
     collective = await loadCollectiveById(id);
@@ -159,7 +162,7 @@ export const fetchAccountsWithReferences = async (
   const getSQLConditionFromAccountReferenceInput = inputs => {
     const conditions = [];
     inputs.forEach(input => {
-      if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Collective}_`)) {
+      if (isEntityPublicId(input.id, EntityShortIdPrefix.Collective)) {
         conditions.push({ publicId: input.id });
       } else if (input.id) {
         conditions.push({ id: idDecode(input.id, 'account') });
@@ -177,7 +180,7 @@ export const fetchAccountsWithReferences = async (
 
   // Checks whether the given account and input matches
   const accountMatchesInput = (account, input) => {
-    if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Collective}_`)) {
+    if (isEntityPublicId(input.id, EntityShortIdPrefix.Collective)) {
       return account.publicId === input.id;
     } else if (input.id) {
       return account.id === idDecode(input.id, 'account');

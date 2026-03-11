@@ -510,6 +510,7 @@ const orderMutations = {
       } else if (args.accountingCategory) {
         newAccountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
           throwIfMissing: true,
+          loaders: req.loaders,
         });
       }
 

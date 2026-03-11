@@ -1,8 +1,10 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { FindOptions, InferAttributes } from 'sequelize';
 
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
-import models from '../../../models';
+import models, { PersonalToken } from '../../../models';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const PersonalTokenReferenceFields = {
@@ -25,10 +27,15 @@ export const GraphQLPersonalTokenReferenceInput = new GraphQLInputObjectType({
 /**
  * Retrieves a personal token
  */
-export const fetchPersonalTokenWithReference = async (input, sequelizeOps = undefined) => {
+export const fetchPersonalTokenWithReference = async (
+  input,
+  { loaders = null, ...sequelizeOps }: { loaders?: Loaders } & FindOptions<InferAttributes<PersonalToken>> = {},
+) => {
   let personalToken;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.PersonalToken)) {
-    personalToken = await models.PersonalToken.findOne({ ...sequelizeOps, where: { publicId: input.id } });
+    personalToken = await (loaders
+      ? loaders.PersonalToken.byPublicId.load(input.id)
+      : models.PersonalToken.findOne({ ...sequelizeOps, where: { publicId: input.id } }));
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PERSONAL_TOKEN);
     personalToken = await models.PersonalToken.findByPk(id, sequelizeOps);

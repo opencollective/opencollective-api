@@ -44,7 +44,11 @@ export default {
         description: 'The list of categories to edit',
       },
     },
-    resolve: async (_: void, args: { account: any; categories: AccountingCategoryInputFields[] }, req) => {
+    resolve: async (
+      _: void,
+      args: { account: any; categories: AccountingCategoryInputFields[] },
+      req: Express.Request,
+    ) => {
       // Check scope
       enforceScope(req, 'host');
 
@@ -66,9 +70,7 @@ export default {
         args.categories.map(async input => {
           let id;
           if (isEntityPublicId(input.id, EntityShortIdPrefix.AccountingCategory)) {
-            id = await models.AccountingCategory.findOne({ where: { publicId: input.id } }).then(
-              accountingCategory => accountingCategory?.id,
-            );
+            id = await req.loaders.AccountingCategory.idByPublicId.load(input.id);
             if (!id) {
               throw new ValidationFailed(`Accounting category with public id ${input.id} not found`);
             }

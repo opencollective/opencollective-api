@@ -59,6 +59,7 @@ import {
 } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { Loaders } from '../../loaders';
 import { GraphQLExpenseLockableFields } from '../enum/ExpenseLockableFields';
 import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
@@ -82,14 +83,16 @@ import {
 import { GraphQLExpense } from '../object/Expense';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 
-const populatePayoutMethodId = async (payoutMethod: { id?: string | number; legacyId?: number }) => {
+const populatePayoutMethodId = async (
+  payoutMethod: { id?: string | number; legacyId?: number },
+  { loaders = null }: { loaders?: Loaders } = {},
+) => {
   if (isEntityPublicId(payoutMethod?.id as string, EntityShortIdPrefix.PayoutMethod)) {
-    const id = await models.PayoutMethod.findOne({ where: { publicId: payoutMethod.id } }).then(
-      payoutMethod => payoutMethod?.id,
-    );
-    if (!id) {
-      throw new ValidationFailed(`Payout method with public id ${payoutMethod.id} not found`);
-    }
+    const id = await (
+      loaders
+        ? loaders.PayoutMethod.idByPublicId.load(payoutMethod.id as string)
+        : models.PayoutMethod.findOne({ where: { publicId: payoutMethod.id as string } })
+    ).then(payoutMethod => payoutMethod?.id);
     payoutMethod.id = id;
   } else if (payoutMethod?.id) {
     payoutMethod.id = idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD);
@@ -135,7 +138,7 @@ const expenseMutations = {
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
       const payoutMethod = args.expense.payoutMethod;
-      await populatePayoutMethodId(payoutMethod);
+      await populatePayoutMethodId(payoutMethod, { loaders: req.loaders });
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
@@ -223,7 +226,7 @@ const expenseMutations = {
         (await fetchAccountWithReference(existingExpense.data.payee, { throwIfMissing: false }));
 
       const payoutMethod = expense.payoutMethod;
-      await populatePayoutMethodId(payoutMethod);
+      await populatePayoutMethodId(payoutMethod, { loaders: req.loaders });
 
       const mapItemPublicIdToId = items?.length
         ? groupBy(
@@ -276,7 +279,10 @@ const expenseMutations = {
         fromCollective: requestedPayee,
         accountingCategory: isNil(args.expense.accountingCategory)
           ? args.expense.accountingCategory // This will make sure we pass either `null` (to remove the category) or `undefined` (to keep the existing one)
-          : await fetchAccountingCategoryWithReference(args.expense.accountingCategory, { throwIfMissing: true }),
+          : await fetchAccountingCategoryWithReference(args.expense.accountingCategory, {
+              throwIfMissing: true,
+              loaders: req.loaders,
+            }),
       };
 
       const userIsOriginalPayee = originalPayee && req.remoteUser?.isAdminOfCollective(originalPayee);

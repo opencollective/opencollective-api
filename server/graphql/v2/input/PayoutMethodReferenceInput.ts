@@ -33,7 +33,9 @@ export const fetchPayoutMethodWithReference = async (
 
   let payoutMethod: PayoutMethod;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.PayoutMethod)) {
-    payoutMethod = await models.PayoutMethod.findOne({ where: { publicId: input.id }, ...sequelizeOpts });
+    payoutMethod = await (loaders
+      ? loaders.PayoutMethod.byPublicId.load(input.id)
+      : models.PayoutMethod.findOne({ where: { publicId: input.id }, ...sequelizeOpts }));
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
     payoutMethod = await loadPayoutById(id);

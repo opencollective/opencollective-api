@@ -18,9 +18,13 @@ export const GraphQLUpdateReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getDatabaseIdFromUpdateReference = async input => {
+export const getDatabaseIdFromUpdateReference = async (input, { loaders = null } = {}) => {
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Update)) {
-    return models.Update.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(update => {
+    return (
+      loaders
+        ? loaders.Update.byPublicId.load(input.id)
+        : models.Update.findOne({ where: { publicId: input.id }, attributes: ['id'] })
+    ).then(update => {
       if (!update) {
         throw new NotFound(`Update with public id ${input.id} not found`);
       }
@@ -42,9 +46,11 @@ export const getDatabaseIdFromUpdateReference = async input => {
 export const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   let update = null;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Update)) {
-    update = await models.Update.findOne({ where: { publicId: input.id } });
+    update = await (loaders
+      ? loaders.Update.byPublicId.load(input.id)
+      : models.Update.findOne({ where: { publicId: input.id } }));
   } else {
-    const dbId = await getDatabaseIdFromUpdateReference(input);
+    const dbId = await getDatabaseIdFromUpdateReference(input, { loaders });
     if (dbId) {
       update = await (loaders ? loaders.Update.byId.load(dbId) : models.Update.findByPk(dbId));
     }

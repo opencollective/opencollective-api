@@ -139,7 +139,7 @@ const vendorMutations = {
         description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
       },
     },
-    resolve: async (_, args, req) => {
+    resolve: async (_, args, req: Express.Request) => {
       checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
@@ -239,9 +239,7 @@ const vendorMutations = {
         // Otherwise the user is only selecting another existing payout method, we just need to update the isSaved flag
         else {
           if (isEntityPublicId(args.vendor.payoutMethod.id, EntityShortIdPrefix.PayoutMethod)) {
-            payoutMethod = await models.PayoutMethod.findOne({
-              where: { publicId: args.vendor.payoutMethod.id },
-            });
+            payoutMethod = await req.loaders.PayoutMethod.byPublicId.load(args.vendor.payoutMethod.id);
           } else {
             const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
             payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);

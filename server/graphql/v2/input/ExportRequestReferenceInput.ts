@@ -3,6 +3,7 @@ import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import ExportRequest from '../../../models/ExportRequest';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLExportRequestReferenceInput = new GraphQLInputObjectType({
@@ -28,14 +29,16 @@ type ExportRequestReferenceInputType = {
 
 export const fetchExportRequestWithReference = async (
   input: ExportRequestReferenceInputType,
-  opts?: { throwIfMissing?: boolean },
+  opts?: { throwIfMissing?: boolean; loaders?: Loaders },
 ): Promise<ExportRequest | null> => {
   if (!input.id && !input.legacyId) {
     throw new Error('Please provide a id or a legacyId');
   }
 
   if (isEntityPublicId(input.id, EntityShortIdPrefix.ExportRequest)) {
-    const exportRequest = await ExportRequest.findOne({ where: { publicId: input.id } });
+    const exportRequest = await (opts?.loaders
+      ? opts.loaders.ExportRequest.byPublicId.load(input.id)
+      : ExportRequest.findOne({ where: { publicId: input.id } }));
     if (exportRequest) {
       return exportRequest;
     }

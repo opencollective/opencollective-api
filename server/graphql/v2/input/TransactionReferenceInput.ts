@@ -4,6 +4,7 @@ import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/en
 import models from '../../../models';
 import Transaction from '../../../models/Transaction';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 
 const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
   name: 'TransactionReferenceInput',
@@ -25,11 +26,13 @@ const GraphQLTransactionReferenceInput = new GraphQLInputObjectType({
  */
 const fetchTransactionWithReference = async (
   input: { id?: string; legacyId?: number },
-  { loaders = null, throwIfMissing = false } = {},
+  { loaders = null, throwIfMissing = false }: { loaders?: Loaders; throwIfMissing?: boolean } = {},
 ): Promise<Transaction> => {
-  let transaction = null;
+  let transaction: Transaction | null = null;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Transaction)) {
-    transaction = await models.Transaction.findOne({ where: { publicId: input.id } });
+    transaction = await (loaders
+      ? loaders.Transaction.byPublicId.load(input.id)
+      : models.Transaction.findOne({ where: { publicId: input.id } }));
   } else if (input.id) {
     transaction = await models.Transaction.findOne({ where: { uuid: input.id } });
   } else if (input.legacyId) {

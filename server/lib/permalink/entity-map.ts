@@ -53,5 +53,9 @@ export function isEntityMigratedToPublicId(entity: EntityShortIdPrefix, createdA
     return false;
   }
 
+  if (entity === EntityShortIdPrefix.Transaction) {
+    return false;
+  }
+
   return moment(createdAt).isAfter(moment('2026-04-03'));
 }

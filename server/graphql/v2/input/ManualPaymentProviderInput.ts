@@ -86,7 +86,9 @@ export const fetchManualPaymentProviderWithReference = async (
 ): Promise<ManualPaymentProvider | null> => {
   let provider: ManualPaymentProvider | null = null;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.ManualPaymentProvider)) {
-    provider = await models.ManualPaymentProvider.findOne({ where: { publicId: input.id } });
+    provider = await (loaders
+      ? loaders.ManualPaymentProvider.byPublicId.load(input.id)
+      : models.ManualPaymentProvider.findOne({ where: { publicId: input.id } }));
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER);
 

@@ -22,9 +22,16 @@ export const GraphQLConversationReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getConversationDatabaseIdFromReference = async input => {
+export const getConversationDatabaseIdFromReference = async (input, { loaders = null } = {}) => {
+  const loadConversationByPublicId = publicId => {
+    if (!loaders) {
+      return models.Conversation.findOne({ where: { publicId } });
+    } else {
+      return loaders.Conversation.byPublicId.load(publicId);
+    }
+  };
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Conversation)) {
-    return models.Conversation.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(conversation => {
+    return loadConversationByPublicId(input.id).then(conversation => {
       if (!conversation) {
         throw new NotFound(`Conversation with public id ${input.id} not found`);
       }
@@ -45,10 +52,17 @@ export const getConversationDatabaseIdFromReference = async input => {
 // ts-unused-exports:disable-next-line
 export const fetchConversationWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   let conversation = null;
+  const loadConversationByPublicId = publicId => {
+    if (!loaders) {
+      return models.Conversation.findOne({ where: { publicId } });
+    } else {
+      return loaders.Conversation.byPublicId.load(publicId);
+    }
+  };
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Conversation)) {
-    conversation = await models.Conversation.findOne({ where: { publicId: input.id } });
+    conversation = await loadConversationByPublicId(input.id);
   } else {
-    const dbId = await getConversationDatabaseIdFromReference(input);
+    const dbId = await getConversationDatabaseIdFromReference(input, { loaders });
     if (dbId) {
       conversation = await (loaders ? loaders.Conversation.byId.load(dbId) : models.Conversation.findByPk(dbId));
     }

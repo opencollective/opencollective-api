@@ -3,6 +3,7 @@ import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import Agreement from '../../../models/Agreement';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLAgreementReferenceInput = new GraphQLInputObjectType({
@@ -25,14 +26,16 @@ export const fetchAgreementWithReference = async (
     id: string;
     legacyId?: number;
   },
-  opts?: { throwIfMissing?: boolean },
+  opts?: { loaders?: Loaders; throwIfMissing?: boolean },
 ) => {
   if (!input.id && !input.legacyId) {
     throw new Error('Please provide a id or a legacyId');
   }
 
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Agreement)) {
-    const agreement = await Agreement.findOne({ where: { publicId: input.id } });
+    const agreement = await (opts?.loaders
+      ? opts.loaders.Agreement.byPublicId.load(input.id)
+      : Agreement.findOne({ where: { publicId: input.id } }));
     if (agreement) {
       return agreement;
     }

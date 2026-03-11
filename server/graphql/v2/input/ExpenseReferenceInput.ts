@@ -6,6 +6,7 @@ import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/en
 import models from '../../../models';
 import Expense from '../../../models/Expense';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export interface ExpenseReferenceInputFields {
@@ -28,9 +29,16 @@ const GraphQLExpenseReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-const getDatabaseIdFromExpenseReference = async (input: ExpenseReferenceInputFields): Promise<number | null> => {
+const getDatabaseIdFromExpenseReference = async (
+  input: ExpenseReferenceInputFields,
+  { loaders = null } = {},
+): Promise<number | null> => {
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Expense)) {
-    return models.Expense.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(expense => {
+    return (
+      loaders
+        ? loaders.Expense.byPublicId.load(input.id)
+        : models.Expense.findOne({ where: { publicId: input.id }, attributes: ['id'] })
+    ).then(expense => {
       if (!expense) {
         throw new NotFound(`Expense with public id ${input.id} not found`);
       }
@@ -50,13 +58,15 @@ const getDatabaseIdFromExpenseReference = async (input: ExpenseReferenceInputFie
  */
 const fetchExpenseWithReference = async (
   input: ExpenseReferenceInputFields,
-  { loaders = null, throwIfMissing = false } = {},
+  { loaders = null, throwIfMissing = false }: { loaders?: Loaders; throwIfMissing?: boolean } = {},
 ): Promise<Expense> => {
-  let expense = null;
+  let expense: Expense | null = null;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Expense)) {
-    expense = await Expense.findOne({ where: { publicId: input.id } });
+    expense = await (loaders
+      ? loaders.Expense.byPublicId.load(input.id)
+      : Expense.findOne({ where: { publicId: input.id } }));
   } else {
-    const dbId = await getDatabaseIdFromExpenseReference(input);
+    const dbId = await getDatabaseIdFromExpenseReference(input, { loaders });
     if (dbId) {
       expense = await (loaders ? loaders.Expense.byId.load(dbId) : models.Expense.findByPk(dbId));
     }
@@ -78,13 +88,15 @@ const fetchExpenseWithReference = async (
  */
 const fetchExpensesWithReferences = async (
   inputs: ExpenseReferenceInputFields[],
-  opts: { throwIfMissing?: boolean; include?: Includeable } = {},
+  opts: { throwIfMissing?: boolean; include?: Includeable; loaders?: Loaders } = {},
 ): Promise<Expense[]> => {
   if (inputs.length === 0) {
     return [];
   }
 
-  const ids = uniq(await Promise.all(inputs.map(getDatabaseIdFromExpenseReference)));
+  const ids = uniq(
+    await Promise.all(inputs.map(input => getDatabaseIdFromExpenseReference(input, { loaders: opts?.loaders }))),
+  );
 
   const where: { [key: string]: unknown } & { [Op.or]?: unknown } = {};
   if (ids.length) {

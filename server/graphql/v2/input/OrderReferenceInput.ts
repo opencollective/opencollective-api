@@ -3,8 +3,9 @@ import { uniq } from 'lodash';
 import { Includeable } from 'sequelize';
 
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
-import models from '../../../models';
+import models, { Order } from '../../../models';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
@@ -26,9 +27,14 @@ export type OrderReferenceInputGraphQLType = { id?: string; legacyId?: number };
 
 export const getDatabaseIdFromOrderReference = async (
   input: OrderReferenceInputGraphQLType,
+  { loaders = null }: { loaders?: Loaders } = {},
 ): Promise<number | null> => {
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Order)) {
-    return models.Order.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(order => {
+    return (
+      loaders
+        ? loaders.Order.byPublicId.load(input.id)
+        : models.Order.findOne({ where: { publicId: input.id }, attributes: ['id'] })
+    ).then(order => {
       if (!order) {
         throw new NotFound(`Order with public id ${input.id} not found`);
       }
@@ -46,19 +52,22 @@ export const getDatabaseIdFromOrderReference = async (
 export const fetchOrderWithReference = async (
   input: OrderReferenceInputGraphQLType,
   {
+    loaders = null,
     include = undefined,
     throwIfMissing = true,
-  }: { include?: Includeable | Includeable[]; throwIfMissing?: boolean } = {},
+  }: { loaders?: Loaders; include?: Includeable | Includeable[]; throwIfMissing?: boolean } = {},
 ) => {
   const loadOrderById = id => {
     return models.Order.findByPk(id, { include });
   };
 
-  let order;
+  let order: Order | null = null;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Order)) {
-    order = await models.Order.findOne({ where: { publicId: input.id }, include });
+    order = await (loaders
+      ? loaders.Order.byPublicId.load(input.id)
+      : models.Order.findOne({ where: { publicId: input.id }, include }));
   } else {
-    const id = await getDatabaseIdFromOrderReference(input);
+    const id = await getDatabaseIdFromOrderReference(input, { loaders });
     order = await loadOrderById(id);
   }
   if (!order && throwIfMissing) {
@@ -69,13 +78,13 @@ export const fetchOrderWithReference = async (
 
 export const fetchOrdersWithReferences = async (
   inputs: OrderReferenceInputGraphQLType[],
-  { include }: { include?: Includeable | Includeable[] },
+  { loaders = null, include }: { loaders?: Loaders; include?: Includeable | Includeable[] },
 ) => {
   if (inputs.length === 0) {
     return [];
   }
 
-  const ids = uniq(await Promise.all(inputs.map(getDatabaseIdFromOrderReference)));
+  const ids = uniq(await Promise.all(inputs.map(input => getDatabaseIdFromOrderReference(input, { loaders }))));
 
   const where = { id: ids };
 

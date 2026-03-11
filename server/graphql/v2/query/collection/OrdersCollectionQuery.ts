@@ -295,7 +295,7 @@ interface OrdersCollectionArgsType {
   hostContext?: 'ALL' | 'INTERNAL' | 'HOSTED';
   includeChildrenAccounts: boolean;
   pausedBy?: string[];
-  paymentMethod?: Array<{ id: string; legacyId?: number; publicId?: string }>;
+  paymentMethod?: Array<{ id: string; legacyId?: number }>;
   paymentMethodService?: string[];
   paymentMethodType?: string[];
   manualPaymentProvider?: Array<{ id: string }>;
@@ -393,6 +393,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   let paymentMethods: PaymentMethod[] = [];
   if (args.paymentMethod) {
     paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod, {
+      loaders: req.loaders,
       sequelizeOpts: { attributes: ['id'], include: [{ model: models.Collective }] },
     });
     if (!paymentMethods.every(paymentMethod => req.remoteUser?.isAdminOfCollective(paymentMethod.Collective))) {
@@ -429,7 +430,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
   let tierIds: number[] | null = null;
   if (args.tier?.length > 0) {
-    tierIds = await Promise.all(args.tier.map(getDatabaseIdFromTierReference));
+    tierIds = await Promise.all(
+      args.tier.map(input => getDatabaseIdFromTierReference(input, { loaders: req.loaders })),
+    );
   }
 
   let createdByUsers: User[] = [];

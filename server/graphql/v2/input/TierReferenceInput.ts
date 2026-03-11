@@ -4,6 +4,7 @@ import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/en
 import models from '../../../models';
 import Tier from '../../../models/Tier';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLTierReferenceInput = new GraphQLInputObjectType({
@@ -37,7 +38,7 @@ export const fetchTierWithReference = async (
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : Tier.findByPk(id));
   let tier;
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Tier)) {
-    tier = await Tier.findOne({ where: { publicId: input.id } });
+    tier = await (loaders ? loaders.Tier.byPublicId.load(input.id) : Tier.findOne({ where: { publicId: input.id } }));
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.TIER);
     tier = await loadTier(id);
@@ -52,12 +53,19 @@ export const fetchTierWithReference = async (
   return tier;
 };
 
-export const getDatabaseIdFromTierReference = async (input: {
-  id?: string;
-  legacyId?: number;
-}): Promise<number | null> => {
+export const getDatabaseIdFromTierReference = async (
+  input: {
+    id?: string;
+    legacyId?: number;
+  },
+  { loaders = null }: { loaders?: Loaders } = {},
+): Promise<number | null> => {
   if (isEntityPublicId(input.id, EntityShortIdPrefix.Tier)) {
-    return models.Tier.findOne({ where: { publicId: input.id }, attributes: ['id'] }).then(tier => {
+    return (
+      loaders
+        ? loaders.Tier.byPublicId.load(input.id)
+        : models.Tier.findOne({ where: { publicId: input.id }, attributes: ['id'] })
+    ).then(tier => {
       if (!tier) {
         throw new NotFound(`Tier with public id ${input.id} not found`);
       }
