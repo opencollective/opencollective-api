@@ -52,7 +52,6 @@ import {
   PaginatedPaymentMethodsType,
   PaymentMethodBatchInfo,
   PaymentMethodType,
-  PayoutMethodType,
   TierType,
   UserType,
 } from './types';
@@ -607,10 +606,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             description: 'Defines if the host "collective" payment method should be returned',
           },
         },
-      },
-      payoutMethods: {
-        type: new GraphQLList(PayoutMethodType),
-        description: 'The list of payout methods that this collective can use to get paid',
       },
       giftCardsBatches: {
         type: new GraphQLList(PaymentMethodBatchInfo),
@@ -1647,24 +1642,6 @@ const CollectiveFields = () => {
 
         const now = new Date();
         return paymentMethods.filter(pm => !pm.expiryDate || pm.expiryDate > now);
-      },
-    },
-    payoutMethods: {
-      type: new GraphQLList(PayoutMethodType),
-      description: 'The list of payout methods that this collective can use to get paid',
-      async resolve(collective, _, req) {
-        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-          return null;
-        } else {
-          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-          return payoutMethods.filter(pm => {
-            if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
-              return false;
-            }
-
-            return true;
-          });
-        }
       },
     },
     giftCardsBatches: {
