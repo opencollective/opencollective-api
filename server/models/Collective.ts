@@ -421,61 +421,34 @@ class Collective extends Model<
     return res && res.MemberCollectiveId;
   };
 
-  /*
-   * Generates best unique slug by checking a base slug and adding a count if it is reserved/non-unique.
-   * If multiple suggestions are provided, the first non-null suggestion is used as the base.
-   *
-   * @param [array] suggestions Array of suggested base slugs in order of priority.
+  /**
+   * Generates a unique slug based on the provided base, appending a random suffix if needed.
+   * E.g. "Hello World" -> "hello-world". If taken: "hello-world-agb5d6".
    */
-  static generateSlug = async (suggestions, useSlugify = true): Promise<string> => {
-    /*
-     * Checks a given slug against existing and reserved slugs. Increments count if non-unique/reserved and
-     * iterates until an acceptable slug is found.
-     */
-    const slugSuggestionHelper = (slugToCheck, slugList): string | undefined => {
-      for (let count = 0; count < 1000; count++) {
-        const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
-        if (slugList.indexOf(slug) === -1 && !isCollectiveSlugReserved(slug)) {
-          return slug;
-        }
-      }
-    };
-
-    const generateRandomSlug = () => {
-      return `user-${uuid().split('-')[0]}`;
-    };
-
-    suggestions = compact(suggestions); // filter out any nulls
-    let baseSlug = suggestions[0]; // Use the first non-null suggestion as the base
-    if (baseSlug === 'incognito') {
+  static generateSlug = async (nameOrSlug: string): Promise<string> => {
+    const getRandomHash = () => uuid().split('-')[0];
+    const generateRandomSlug = () => `user-${getRandomHash()}`;
+    if (!nameOrSlug) {
       return generateRandomSlug();
     }
 
-    if (useSlugify) {
-      baseSlug = slugify(baseSlug); // Will also trim, lowercase and remove + signs
+    const baseSlug = slugify(nameOrSlug);
+    if (!baseSlug || isCollectiveSlugReserved(baseSlug)) {
+      return generateRandomSlug();
+    } else if (baseSlug === 'incognito') {
+      return `incognito-${getRandomHash()}`;
     }
 
-    // fetch any existing slugs which match or start with baseSlug. Used as list for helper function.
-    const allEntries = await Collective.findAll({
-      attributes: ['slug'],
-      where: { slug: { [Op.startsWith]: baseSlug } },
+    const slugExists = await Collective.findOne({
+      attributes: ['id'],
+      where: { slug: baseSlug },
       paranoid: false,
-      raw: true,
-      order: [['slug', 'ASC']],
-      limit: 1000,
     });
 
-    if (allEntries.length === 1000) {
-      return generateRandomSlug();
-    } else if (allEntries.length === 0) {
+    if (!slugExists) {
       return baseSlug;
     } else {
-      return (
-        slugSuggestionHelper(
-          baseSlug,
-          allEntries.map(entry => entry.slug),
-        ) || generateRandomSlug()
-      );
+      return `${baseSlug}-${getRandomHash()}`;
     }
   };
 
@@ -4161,23 +4134,24 @@ Collective.init(
         if (instance.slug) {
           return Promise.resolve();
         }
-        let potentialSlugs,
-          useSlugify = true;
+
         // Populate potentialSlugs, priority of choices is the same as order in the array
         if (instance.isIncognito) {
-          useSlugify = false;
-          potentialSlugs = [`incognito-${uuid().split('-')[0]}`];
-        } else {
-          potentialSlugs = [
-            instance.name ? instance.name.replace(/ /g, '-') : null,
-            instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
-            instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
-            `${instance.type || 'account'}-${uuid().split('-')[0]}`,
-          ];
+          instance.slug = `incognito-${uuid().split('-')[0]}`;
+          return Promise.resolve();
         }
-        return Collective.generateSlug(potentialSlugs, useSlugify).then(slug => {
+
+        const potentialSlugs: (string | null)[] = [
+          instance.name ? instance.name.replace(/ /g, '-') : null,
+          instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
+          instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
+          `${instance.type || 'account'}-${uuid().split('-')[0]}`,
+        ];
+
+        const baseSlug = compact(potentialSlugs)[0];
+        return Collective.generateSlug(baseSlug).then(slug => {
           if (!slug) {
-            return Promise.reject(new Error("We couldn't generate a unique slug for this collective", potentialSlugs));
+            return Promise.reject(new Error("We couldn't generate a unique slug for this collective"));
           }
           instance.slug = slug;
           return Promise.resolve();

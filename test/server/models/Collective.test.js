@@ -230,11 +230,11 @@ describe('server/models/Collective', () => {
     await Collective.create({ name: 'piamancini2' });
 
     const collective3 = await Collective.create({ name: 'PiaMancini', twitterHandle: '@piamancini' });
-    expect(collective3.slug).to.equal('piamancini1');
+    expect(collective3.slug).to.match(/^piamancini-[0-9a-f]{8}$/);
     expect(collective3.twitterHandle).to.equal('piamancini');
 
     const collective4 = await Collective.create({ name: 'XavierDamman' });
-    expect(collective4.slug).to.equal('xavierdamman1');
+    expect(collective4.slug).to.match(/^xavierdamman-[0-9a-f]{8}$/);
 
     const collective5 = await Collective.create({ name: 'hélène & les g.arçons' });
     expect(collective5.slug).to.equal('helene-and-les-g-arcons');
@@ -266,11 +266,9 @@ describe('server/models/Collective', () => {
   it('does not create collective with a blocked slug', () => {
     return Collective.create({ name: 'learn more' }).then(collective => {
       // `https://host/learn-more` is a protected page.
+      // When the slugified name is reserved, a random user-* slug is generated instead.
       expect(collective.slug).to.not.equal('learn-more');
-      // However we'd like to keep the base slug: if an collective with the
-      // name "Learn More" is created, we expect to have an URL like
-      // `https://host/learn-more1`
-      expect(collective.slug.startsWith('learn-more')).to.equal(true);
+      expect(collective.slug).to.match(/^user-[0-9a-f]{8}$/);
     });
   });
 
@@ -1571,6 +1569,43 @@ describe('server/models/Collective', () => {
 
       const account = await collective.getAccountForPaymentProvider('transferwise');
       expect(account.id).to.equal(connectedAccount.id);
+    });
+  });
+
+  describe('generateSlug', () => {
+    it('returns the base slug when available', async () => {
+      const slug = await Collective.generateSlug('completely-unique-test-slug');
+      expect(slug).to.equal('completely-unique-test-slug');
+    });
+
+    it('slugifies by default', async () => {
+      const slug = await Collective.generateSlug('My Cool Collective!');
+      expect(slug).to.equal('my-cool-collective');
+    });
+
+    it('appends a random suffix when the slug is taken', async () => {
+      const existing = await fakeCollective({ slug: 'taken-slug' });
+      try {
+        const slug = await Collective.generateSlug('taken-slug');
+        expect(slug).to.match(/^taken-slug-[0-9a-f]{8}$/);
+      } finally {
+        await existing.destroy();
+      }
+    });
+
+    it('returns an incognito-prefixed slug for "incognito"', async () => {
+      const slug = await Collective.generateSlug('incognito');
+      expect(slug).to.match(/^incognito(-[0-9a-f]{8})?$/);
+    });
+
+    it('returns a random user-* slug for falsy input', async () => {
+      const slug = await Collective.generateSlug('');
+      expect(slug).to.match(/^user-[0-9a-f]{8}$/);
+    });
+
+    it('returns a random user-* slug for reserved slugs', async () => {
+      const slug = await Collective.generateSlug('about');
+      expect(slug).to.match(/^user-[0-9a-f]{8}$/);
     });
   });
 });
