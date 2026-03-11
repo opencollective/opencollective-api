@@ -761,7 +761,7 @@ const accountMutations = {
           (updateParams.name || ![DEFAULT_GUEST_NAME, 'Incognito'].includes(account.name)) &&
           (!updateParams.slug || account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
         ) {
-          updateParams.slug = await Collective.generateSlug([updateParams.name, account.name].filter(Boolean), true);
+          updateParams.slug = await Collective.generateSlug((updateParams.name as string) || account.name);
           previousData.slug = account.slug;
           newData.slug = updateParams.slug;
         }

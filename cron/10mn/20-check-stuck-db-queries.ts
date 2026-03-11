@@ -1,3 +1,12 @@
+/**
+ * A CRON job to check for stuck DB queries.
+ *
+ * Dev hint: you can simulate a stuck query by running:
+ * ```
+ * SELECT pg_sleep(5000);
+ * ```
+ */
+
 import '../../server/env';
 
 import { truncate } from 'lodash';
@@ -11,9 +20,9 @@ import { sequelize } from '../../server/models';
 import { runCronJob } from '../utils';
 
 const PRINT_TO_LOCAL = parseToBoolean(process.env.PRINT_TO_LOCAL);
-const STUCK_QUERY_THRESHOLD_MINUTES = process.env.STUCK_QUERY_THRESHOLD_MINUTES
-  ? parseInt(process.env.STUCK_QUERY_THRESHOLD_MINUTES)
-  : 3;
+const STUCK_QUERY_THRESHOLD_SECONDS = process.env.STUCK_QUERY_THRESHOLD_SECONDS
+  ? parseInt(process.env.STUCK_QUERY_THRESHOLD_SECONDS)
+  : 3 * 30;
 
 type StuckQueryGroup = {
   pids: number[];
@@ -21,7 +30,6 @@ type StuckQueryGroup = {
   application_name: string | null;
   count: number;
   query: string;
-  states: (string | null)[];
   longest_run: string;
 };
 
@@ -40,26 +48,13 @@ const postOnSlack = async (str: string) => {
 
 const formatStuckQueryGroup = (g: StuckQueryGroup): string => {
   const numPids = g.pids.length;
-  const stateCounts = g.states.reduce(
-    (acc, s) => {
-      const key = s ?? 'unknown';
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-  const statesStr = Object.entries(stateCounts)
-    .map(([s, n]) => `${n} ${s}`)
-    .join(', ');
-
   return [
     [
-      `*PIDs:* ${g.pids.join(', ')}`,
-      `*User:* ${g.user}`,
-      g.application_name ? `*App:* ${g.application_name}` : null,
+      `*PIDs:* ${g.pids.map(pid => `\`${pid}\``).join(', ')}`,
+      `*User:* \`${g.user}\``,
+      g.application_name ? `*App:* \`${g.application_name}\`` : null,
       g.count > 1 ? `*Duplicate queries:* ${g.count}` : null,
-      `*States:* ${statesStr}`,
-      `*${numPids > 1 ? 'Longest run' : 'Run'} duration:* ${g.longest_run}`,
+      `*${numPids > 1 ? 'Longest run' : 'Run'} duration:* \`${g.longest_run}\``,
     ]
       .filter(Boolean)
       .join(' | '),
@@ -76,23 +71,23 @@ async function run() {
       application_name,
       count(*)::int AS count,
       query,
-      array_agg(DISTINCT state ORDER BY state) AS states,
       max(now() - query_start)::varchar AS longest_run
     FROM pg_stat_activity
-    WHERE (now() - query_start) > (:threshold * interval '1 minute')
+    WHERE state = 'active'
+    AND application_name != 'Heroku Postgres Backups'
+    AND (now() - query_start) > (:threshold * interval '1 second')
     AND query NOT IN (
       'SHOW TRANSACTION ISOLATION LEVEL',
       E'SHOW extwlist.extensions\n;',
       'SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED'
     )
-    AND query NOT LIKE '%pg_backup_start%'
     GROUP BY usename, application_name, query
     ORDER BY max(now() - query_start) DESC
     `,
     {
       raw: true,
       type: QueryTypes.SELECT,
-      replacements: { threshold: STUCK_QUERY_THRESHOLD_MINUTES },
+      replacements: { threshold: STUCK_QUERY_THRESHOLD_SECONDS },
     },
   );
 
@@ -105,9 +100,9 @@ async function run() {
   const numGroups = stuckQueries.length;
   const distinctLabel = numGroups < totalQueries ? ` (${numGroups} distinct)` : '';
 
-  logger.warn(`Found ${totalQueries} stuck query(ies) running for more than ${STUCK_QUERY_THRESHOLD_MINUTES} minutes.`);
+  logger.warn(`Found ${totalQueries} stuck query(ies) running for more than ${STUCK_QUERY_THRESHOLD_SECONDS} seconds.`);
 
-  const summary = `:warning: *${totalQueries} stuck DB query(ies)*${distinctLabel} running for more than ${STUCK_QUERY_THRESHOLD_MINUTES} minutes:`;
+  const summary = `:warning: *${totalQueries} stuck DB query(ies)*${distinctLabel} running for more than ${STUCK_QUERY_THRESHOLD_SECONDS} seconds:`;
   if (numGroups === 1) {
     await postOnSlack(`${summary}\n${formatStuckQueryGroup(stuckQueries[0])}`);
   } else {

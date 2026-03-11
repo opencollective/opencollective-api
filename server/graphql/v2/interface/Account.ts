@@ -1,7 +1,7 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNil, omit } from 'lodash';
+import { assign, get, invert, isEmpty, isNil } from 'lodash';
 import moment from 'moment';
 import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 
@@ -421,10 +421,10 @@ const accountFieldsDefinition = () => ({
   expenses: {
     type: new GraphQLNonNull(GraphQLExpenseCollection),
     args: {
+      ...ExpensesCollectionQueryArgs,
       direction: {
         type: GraphQLExpenseDirection,
       },
-      ...ExpensesCollectionQueryArgs,
     },
   },
   settings: {
@@ -1333,23 +1333,10 @@ export const AccountFields = {
   orders: accountOrders,
   expenses: {
     type: new GraphQLNonNull(GraphQLExpenseCollection),
-    args: {
-      direction: {
-        type: GraphQLExpenseDirection,
-      },
-      ...ExpensesCollectionQueryArgs,
-    },
+    args: ExpensesCollectionQueryArgs,
     resolve(collective: Collective, args, req) {
-      const accountConditions = {};
-      if (!args.direction || args.direction === 'SUBMITTED') {
-        accountConditions['fromAccount'] = { legacyId: collective.id };
-      }
-      if (!args.direction || args.direction === 'RECEIVED') {
-        accountConditions['account'] = { legacyId: collective.id };
-      }
-
-      args = omit({ ...args, ...accountConditions }, ['direction']);
-      return ExpensesCollectionQueryResolver(undefined, args, req);
+      const accountRef = { legacyId: collective.id };
+      return ExpensesCollectionQueryResolver(undefined, { ...args, account: accountRef }, req);
     },
   },
   conversations: {

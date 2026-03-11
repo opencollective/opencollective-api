@@ -32,9 +32,9 @@
   "dependencies": {
     "@apollo/server": "5.4.0",
     "@as-integrations/express5": "1.1.2",
-    "@aws-sdk/client-s3": "3.1000.0",
-    "@aws-sdk/lib-storage": "3.1000.0",
-    "@aws-sdk/s3-request-presigner": "3.1000.0",
+    "@aws-sdk/client-s3": "3.1006.0",
+    "@aws-sdk/lib-storage": "3.1006.0",
+    "@aws-sdk/s3-request-presigner": "3.1006.0",
     "@babel/core": "7.29.0",
     "@babel/node": "7.29.0",
     "@babel/plugin-transform-typescript": "7.28.6",
@@ -88,7 +88,7 @@
     "fast-redact": "3.5.0",
     "get-urls": "10.0.1",
     "gqlmin": "0.1.1",
-    "graphql": "16.13.0",
+    "graphql": "16.13.1",
     "graphql-scalars": "1.25.0",
     "graphql-upload": "15.0.2",
     "handlebars": "4.7.8",
@@ -107,7 +107,7 @@
     "lru-cache": "11.2.6",
     "moment": "2.30.1",
     "moment-timezone": "0.6.0",
-    "multer": "2.1.0",
+    "multer": "2.1.1",
     "node-fetch": "2.7.0",
     "nodemailer": "7.0.13",
     "nordigen-node": "1.4.1",
@@ -116,14 +116,14 @@
     "p-queue": "9.1.0",
     "passport": "0.7.0",
     "passport-github": "1.1.0",
-    "pg": "8.19.0",
+    "pg": "8.20.0",
     "pg-connection-string": "2.11.0",
     "pg-format": "1.0.4",
     "pg-listen": "1.7.0",
     "plaid": "31.1.0",
     "redis": "5.11.0",
     "sanitize-html": "2.17.1",
-    "sequelize": "6.37.7",
+    "sequelize": "6.37.8",
     "sequelize-cli": "6.6.5",
     "sequelize-temporal": "2.1.1",
     "sharp": "0.34.5",
@@ -146,6 +146,7 @@
     "@opentelemetry/exporter-trace-otlp-proto": "^0.209.0",
     "@opentelemetry/resources": "^1.20.0",
     "@opentelemetry/sdk-trace-node": "^1.20.0",
+    "@sentry/cli": "^2.58.5",
     "@types/express": "^5.0.6",
     "@types/graphql-upload": "16.0.7",
     "@types/jsonwebtoken": "^9.0.10",
@@ -175,7 +176,7 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "exif-reader": "^2.0.3",
     "fake-tag": "^3.0.0",
-    "geoip-lite": "^1.4.10",
+    "geoip-lite": "^2.0.0",
     "globals": "^17.0.0",
     "husky": "^9.0.10",
     "lint-staged": "^16.0.0",
@@ -200,7 +201,7 @@
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
     "build:clean": "rm -rf dist && mkdir dist",
-    "build:server": "babel server --copy-files --extensions .js,.ts -d ./dist",
+    "build:server": "babel server --copy-files --source-maps true --extensions .js,.ts -d ./dist",
     "build:updates": "npm --prefix node_modules/cloudflare-ip run update-list",
     "clean": "npm run build:clean && npm run test:clean",
     "commit": "git-cz",
@@ -270,7 +271,8 @@
     "ts-unused-exports": "ts-unused-exports tsconfig.json --ignoreFiles=server/types --ignoreFiles=server/paymentProviders/types",
     "type:check": "tsc",
     "prepare": "husky",
-    "lint-staged": "lint-staged"
+    "lint-staged": "lint-staged",
+    "heroku-postbuild": "npm run build && ./scripts/upload-sourcemaps.sh"
   },
   "engines": {
     "node": "24.x",
@@ -309,7 +311,8 @@
       "@opentelemetry/context-async-hooks",
       "eslint-import-resolver-typescript",
       "mocha-junit-reporter",
-      "typescript-eslint"
+      "typescript-eslint",
+      "@sentry/cli"
     ]
   }
 }

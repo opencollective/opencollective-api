@@ -1168,4 +1168,256 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       });
     });
   });
+
+  describe('direction argument', () => {
+    const directionQuery = gql`
+      query ExpensesWithDirection(
+        $direction: ExpenseDirection
+        $account: AccountReferenceInput
+        $host: AccountReferenceInput
+        $hostContext: HostContext
+        $oppositeAccounts: [AccountReferenceInput]
+      ) {
+        expenses(
+          direction: $direction
+          account: $account
+          host: $host
+          hostContext: $hostContext
+          oppositeAccounts: $oppositeAccounts
+        ) {
+          totalCount
+          nodes {
+            id
+            legacyId
+            account {
+              legacyId
+            }
+            payee {
+              legacyId
+            }
+          }
+        }
+      }
+    `;
+
+    let host,
+      hostChild,
+      hostedCollective,
+      hostedCollectiveChild,
+      externalCollective,
+      expenseFromHostedToExternal,
+      expenseFromHostChildToExternal,
+      expenseFromExternalToHosted,
+      expenseFromHostedToHosted;
+
+    before(async () => {
+      host = await fakeActiveHost();
+
+      hostChild = await fakeEvent({
+        ParentCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+      });
+
+      hostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+      });
+
+      hostedCollectiveChild = await fakeProject({
+        ParentCollectiveId: hostedCollective.id,
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+      });
+
+      externalCollective = await fakeCollective();
+
+      // Expenses submitted BY hosted collectives TO external accounts
+      expenseFromHostedToExternal = await fakeExpense({
+        FromCollectiveId: hostedCollective.id,
+        CollectiveId: externalCollective.id,
+        status: 'APPROVED',
+        description: 'Hosted collective submits to external',
+      });
+
+      expenseFromHostChildToExternal = await fakeExpense({
+        FromCollectiveId: hostChild.id,
+        CollectiveId: externalCollective.id,
+        status: 'APPROVED',
+        description: 'Host child submits to external',
+      });
+
+      // Expense submitted BY external TO hosted collective (the normal received case)
+      expenseFromExternalToHosted = await fakeExpense({
+        FromCollectiveId: externalCollective.id,
+        CollectiveId: hostedCollective.id,
+        status: 'APPROVED',
+        description: 'External submits to hosted collective',
+      });
+
+      // Expense between two hosted collectives (from one to another)
+      expenseFromHostedToHosted = await fakeExpense({
+        FromCollectiveId: hostedCollectiveChild.id,
+        CollectiveId: hostedCollective.id,
+        status: 'APPROVED',
+        description: 'Hosted child submits to hosted collective',
+      });
+    });
+
+    it('defaults to RECEIVED direction (same as no direction)', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        host: { legacyId: host.id },
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // RECEIVED direction: host filters on the receiving side (CollectiveId)
+      expect(expenseIds).to.include(expenseFromExternalToHosted.id);
+      expect(expenseIds).to.include(expenseFromHostedToHosted.id);
+      // Expenses where the hosted collective is the FROM (submitter) but not the TO should NOT appear
+      expect(expenseIds).to.not.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.not.include(expenseFromHostChildToExternal.id);
+    });
+
+    it('SUBMITTED direction: host filters on the submitter/payee side', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // SUBMITTED direction: host filters on the FromCollectiveId side
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostChildToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostedToHosted.id);
+      // Expense where external submits to hosted collective should NOT appear (external is the submitter)
+      expect(expenseIds).to.not.include(expenseFromExternalToHosted.id);
+    });
+
+    it('SUBMITTED direction with hostContext HOSTED: only hosted collectives (not host internal)', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+        hostContext: 'HOSTED',
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostedToHosted.id);
+      // Host child is an internal account, should be excluded with HOSTED context
+      expect(expenseIds).to.not.include(expenseFromHostChildToExternal.id);
+    });
+
+    it('SUBMITTED direction with hostContext INTERNAL: only host and its direct children', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+        hostContext: 'INTERNAL',
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // Only the host child (internal) should appear
+      expect(expenseIds).to.include(expenseFromHostChildToExternal.id);
+      // Hosted collective is not internal
+      expect(expenseIds).to.not.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.not.include(expenseFromHostedToHosted.id);
+    });
+
+    it('SUBMITTED direction with account filters on FromCollectiveId', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        account: { legacyId: hostedCollective.id },
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // Only expenses where hostedCollective is the submitter (FromCollectiveId)
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.not.include(expenseFromExternalToHosted.id);
+    });
+
+    it('oppositeAccounts (single) filters the other side', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+        oppositeAccounts: [{ legacyId: externalCollective.id }],
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // SUBMITTED + oppositeAccounts: submitter side is host's collectives, opposite (CollectiveId) is external
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostChildToExternal.id);
+      // This one goes to hostedCollective, not externalCollective
+      expect(expenseIds).to.not.include(expenseFromHostedToHosted.id);
+    });
+
+    it('oppositeAccounts works with RECEIVED direction too', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'RECEIVED',
+        account: { legacyId: hostedCollective.id },
+        oppositeAccounts: [{ legacyId: externalCollective.id }],
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // RECEIVED direction: account=hostedCollective is the receiver (CollectiveId), oppositeAccounts filters FromCollectiveId
+      expect(expenseIds).to.include(expenseFromExternalToHosted.id);
+      expect(expenseIds).to.not.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.not.include(expenseFromHostedToHosted.id);
+    });
+
+    it('oppositeAccounts filters by multiple opposite accounts', async () => {
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+        oppositeAccounts: [{ legacyId: externalCollective.id }, { legacyId: hostedCollective.id }],
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // SUBMITTED + oppositeAccounts [external, hosted]: expenses where CollectiveId is external OR hosted
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostChildToExternal.id);
+      expect(expenseIds).to.include(expenseFromHostedToHosted.id);
+    });
+
+    it('SUBMITTED direction excludes paid expenses matched only by payer HostCollectiveId', async () => {
+      // When an expense is paid, Expense.HostCollectiveId is set to the *payer's* host.
+      // With direction=SUBMITTED, that column should NOT be used as a shortcut, because
+      // it reflects the payer side, not the submitter side.
+      const paidExpenseFromExternalToHosted = await fakeExpense({
+        FromCollectiveId: externalCollective.id,
+        CollectiveId: hostedCollective.id,
+        HostCollectiveId: host.id,
+        status: 'PAID',
+        description: 'Paid expense: external submits to hosted collective',
+      });
+
+      const result = await graphqlQueryV2(directionQuery, {
+        direction: 'SUBMITTED',
+        host: { legacyId: host.id },
+      });
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      // The external collective is the submitter and is NOT hosted by our host,
+      // so this expense must not appear in SUBMITTED results for this host
+      expect(expenseIds).to.not.include(paidExpenseFromExternalToHosted.id);
+      // Sanity check: expenses where hosted collectives are the submitter still appear
+      expect(expenseIds).to.include(expenseFromHostedToExternal.id);
+
+      await paidExpenseFromExternalToHosted.destroy();
+    });
+
+    it('throws error when using fromAccount with direction SUBMITTED', async () => {
+      const fromAccountQuery = gql`
+        query ExpensesWithDirectionAndFromAccount($direction: ExpenseDirection, $fromAccount: AccountReferenceInput) {
+          expenses(direction: $direction, fromAccount: $fromAccount) {
+            totalCount
+          }
+        }
+      `;
+      const result = await graphqlQueryV2(fromAccountQuery, {
+        direction: 'SUBMITTED',
+        fromAccount: { legacyId: hostedCollective.id },
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('fromAccount/fromAccounts cannot be used with direction SUBMITTED');
+    });
+  });
 });
