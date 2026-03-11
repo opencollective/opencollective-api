@@ -1,13 +1,13 @@
 import { GraphQLScalarType } from 'graphql';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLKYCVerificationReferenceInput = new GraphQLScalarType({
   name: 'KYCVerificationReferenceInput',
   description: 'A reference to a KYC Verification',
   parseValue(value: unknown): number | string {
-    if (typeof value === 'string' && value.startsWith(`${EntityShortIdPrefix.KYCVerification}_`)) {
+    if (isEntityPublicId(value, EntityShortIdPrefix.KYCVerification)) {
       return value;
     } else if (typeof value === 'string') {
       return idDecode(value, IDENTIFIER_TYPES.KYC_VERIFICATION);

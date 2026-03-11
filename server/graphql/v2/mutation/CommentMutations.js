@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { createComment, deleteComment, editComment } from '../../common/comment';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLCommentCreateInput } from '../input/CommentCreateInput';
@@ -21,8 +22,15 @@ const commentMutations = {
         type: new GraphQLNonNull(GraphQLCommentUpdateInput),
       },
     },
-    resolve(_, { comment }, req) {
-      const commentToEdit = { ...comment, id: idDecode(comment.id, IDENTIFIER_TYPES.COMMENT) };
+    async resolve(_, { comment }, req) {
+      let id;
+      if (isEntityPublicId(comment.id, EntityShortIdPrefix.Comment)) {
+        id = await req.loaders.Comment.idByPublicId.load(comment.id);
+      } else {
+        id = idDecode(comment.id, IDENTIFIER_TYPES.COMMENT);
+      }
+
+      const commentToEdit = { ...comment, id };
       return editComment(commentToEdit, req);
     },
   },
@@ -33,8 +41,14 @@ const commentMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    resolve(_, { id }, req) {
-      const decodedId = idDecode(id, IDENTIFIER_TYPES.COMMENT);
+    async resolve(_, { id }, req) {
+      let decodedId;
+      if (isEntityPublicId(id, EntityShortIdPrefix.Comment)) {
+        decodedId = await req.loaders.Comment.idByPublicId.load(id);
+      } else {
+        decodedId = idDecode(id, IDENTIFIER_TYPES.COMMENT);
+      }
+
       return deleteComment(decodedId, req);
     },
   },

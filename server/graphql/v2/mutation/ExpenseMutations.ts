@@ -257,8 +257,33 @@ const expenseMutations = {
             : null,
       }));
 
+      let expenseId;
+      if (isEntityPublicId(expense.id, EntityShortIdPrefix.Expense)) {
+        expenseId = await req.loaders.Expense.idByPublicId.load(expense.id);
+      } else {
+        expenseId = idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE);
+      }
+
+      const attachedFiles =
+        expense.attachedFiles &&
+        (await Promise.all(
+          expense.attachedFiles?.map(async attachedFile => {
+            if (isEntityPublicId(attachedFile.id, EntityShortIdPrefix.ExpenseAttachedFile)) {
+              return {
+                id: await req.loaders.ExpenseAttachedFile.idByPublicId.load(attachedFile.id),
+                url: attachedFile.url,
+              };
+            } else {
+              return {
+                id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
+                url: attachedFile.url,
+              };
+            }
+          }),
+        ));
+
       const expenseData = {
-        id: idDecode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+        id: expenseId,
         description: expense.description,
         tags: expense.tags,
         type: expense.type,
@@ -271,10 +296,7 @@ const expenseMutations = {
         reference: expense.reference,
         items: itemsWithIds,
         tax: expense.tax,
-        attachedFiles: expense.attachedFiles?.map(attachedFile => ({
-          id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ATTACHED_FILE),
-          url: attachedFile.url,
-        })),
+        attachedFiles: attachedFiles,
         invoiceFile: expense.invoiceFile,
         fromCollective: requestedPayee,
         accountingCategory: isNil(args.expense.accountingCategory)

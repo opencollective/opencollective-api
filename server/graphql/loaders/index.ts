@@ -18,6 +18,7 @@ import {
 import { getFxRate } from '../../lib/currency';
 import { ifStr } from '../../lib/utils';
 import {
+  AccountingCategory,
   Agreement,
   Collective,
   ConnectedAccount,
@@ -25,12 +26,16 @@ import {
   Expense,
   ExpenseAttachedFile,
   ExpenseItem,
+  HostApplication,
+  LegalDocument,
+  ManualPaymentProvider,
   Member,
   Models,
   Op,
   Order,
   PaymentMethod,
   PayoutMethod,
+  PersonalToken,
   PlatformSubscription,
   sequelize,
   SocialLink,
@@ -44,6 +49,7 @@ import {
   VirtualCard,
 } from '../../models';
 import Comment from '../../models/Comment';
+import ExportRequest from '../../models/ExportRequest';
 import { KYCVerification } from '../../models/KYCVerification';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
@@ -98,6 +104,11 @@ export const generateLoaders = req => {
 
   const loaders = {
     ...context.loaders,
+    AccountingCategory: {
+      ...context.loaders.AccountingCategory,
+      byPublicId: generateEntityByPublicIdLoader(AccountingCategory),
+      idByPublicId: generateEntityIdByPublicIdLoader(AccountingCategory),
+    },
     CurrencyExchangeRate: {
       ...context.loaders.CurrencyExchangeRate,
       convert: generateConvertToCurrencyLoader(),
@@ -1339,6 +1350,31 @@ export const generateLoaders = req => {
       }),
       byPublicId: generateEntityByPublicIdLoader(ExpenseAttachedFile),
       idByPublicId: generateEntityIdByPublicIdLoader(ExpenseAttachedFile),
+    },
+    ExportRequest: {
+      ...context.loaders.ExportRequest,
+      byPublicId: generateEntityByPublicIdLoader(ExportRequest),
+      idByPublicId: generateEntityIdByPublicIdLoader(ExportRequest),
+    },
+    HostApplication: {
+      ...context.loaders.HostApplication,
+      byPublicId: generateEntityByPublicIdLoader(HostApplication),
+      idByPublicId: generateEntityIdByPublicIdLoader(HostApplication),
+    },
+    ManualPaymentProvider: {
+      ...context.loaders.ManualPaymentProvider,
+      byPublicId: generateEntityByPublicIdLoader(ManualPaymentProvider),
+      idByPublicId: generateEntityIdByPublicIdLoader(ManualPaymentProvider),
+    },
+    PersonalToken: {
+      ...context.loaders.PersonalToken,
+      byPublicId: generateEntityByPublicIdLoader(PersonalToken),
+      idByPublicId: generateEntityIdByPublicIdLoader(PersonalToken),
+    },
+    LegalDocument: {
+      ...context.loaders.LegalDocument,
+      byPublicId: generateEntityByPublicIdLoader(LegalDocument),
+      idByPublicId: generateEntityIdByPublicIdLoader(LegalDocument),
     },
 
     // Non-model loaders

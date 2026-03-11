@@ -2,6 +2,7 @@ import type Express from 'express';
 import { GraphQLBoolean, GraphQLString } from 'graphql';
 
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { NotFound } from '../../errors';
@@ -34,6 +35,8 @@ export const buildAccountQuery = ({ objectType }) => ({
     if (args.slug) {
       const slug = args.slug.toLowerCase();
       collective = await models.Collective.findBySlug(slug, null, args.throwIfMissing);
+    } else if (isEntityPublicId(args.id, EntityShortIdPrefix.Collective)) {
+      collective = await req.loaders.Collective.byPublicId.load(args.id);
     } else if (args.id) {
       const id = idDecode(args.id, 'account');
       collective = await req.loaders.Collective.byId.load(id);

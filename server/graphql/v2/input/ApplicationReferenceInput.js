@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -33,7 +33,7 @@ export const GraphQLApplicationReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchApplicationWithReference = async (input, sequelizeOps = undefined) => {
   let application;
-  if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Application}_`)) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Application)) {
     application = await models.Application.findOne({ where: { publicId: input.id } }, sequelizeOps);
   } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.APPLICATION);

@@ -28,6 +28,7 @@ import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import logger from '../../../lib/logger';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -365,7 +366,9 @@ const orderMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
 
-      const decodedId = idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
+      const decodedId = isEntityPublicId(args.order.id, EntityShortIdPrefix.Order)
+        ? await req.loaders.Order.idByPublicId.load(args.order.id)
+        : idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
       const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod) || Boolean(args.paypalSubscriptionId);
 
