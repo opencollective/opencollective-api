@@ -677,8 +677,8 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         .$if(!!args.minAmount, qb => qb.where('totalAmount', '>=', args.minAmount))
         .$if(!!args.maxAmount, qb => qb.where('totalAmount', '<=', args.maxAmount)),
     )
-    .$if(!!args.dateFrom, qb => qb.where('createdAt', '>=', args.dateFrom))
-    .$if(!!args.dateTo, qb => qb.where('createdAt', '<=', args.dateTo))
+    .$if(!!args.dateFrom, qb => qb.where('Orders.createdAt', '>=', args.dateFrom))
+    .$if(!!args.dateTo, qb => qb.where('Orders.createdAt', '<=', args.dateTo))
     .$if(!!args.expectedDateFrom, qb => qb.where(sql`"Orders".data->>'expectedAt'"`, '>=', args.expectedDateFrom))
     .$if(!!args.expectedDateTo, qb => qb.where(sql`"Orders".data->>'expectedAt'"`, '<=', args.expectedDateTo))
 
