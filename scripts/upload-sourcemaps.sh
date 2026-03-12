@@ -4,6 +4,9 @@ set -e
 if [ -z "$SENTRY_PROJECT" ]; then
   echo "SENTRY_PROJECT environment variable is not set. Ignoring..."
   exit 0
+elif [ -z "$SENTRY_AUTH_TOKEN" ]; then
+  echo "SENTRY_AUTH_TOKEN environment variable is not set. Ignoring..."
+  exit 0
 fi
 
 if ! [ -z "$SOURCE_VERSION" ]; then
@@ -22,7 +25,9 @@ if [ -z "$HEROKU_SLUG_COMMIT" ]; then
 fi
 
 echo "Injecting source maps for release $RELEASE..."
-sentry-cli sourcemaps inject --org $SENTRY_ORG --project $SENTRY_PROJECT ./dist
+sentry-cli sourcemaps inject --org $SENTRY_ORG --project $SENTRY_PROJECT ./dist >/dev/null
+echo "Done."
 
-echo "Uploading source maps for release $RELEASE..."
-sentry-cli sourcemaps upload --org $SENTRY_ORG --project $SENTRY_PROJECT --release=$RELEASE ./dist
+echo "Uploading source maps for release $RELEASE and dist $OC_ENV..."
+sentry-cli sourcemaps upload --org $SENTRY_ORG --project $SENTRY_PROJECT --release=$RELEASE --dist=$OC_ENV ./dist >/dev/null
+echo "Done."
