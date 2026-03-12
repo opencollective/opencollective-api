@@ -69,20 +69,27 @@ export default {
      * GET /connected-accounts/paypal/connect-config
      * Returns: { clientId: string } or 404 if not configured.
      */
-    connectConfig: async (req, res) => {
+    connectConfig: async (req, res, next) => {
       const clientId = config.paypal?.connect?.clientId;
       if (!clientId) {
         return res.status(404).json({ error: 'PayPal Connect is not available at the moment.' });
       }
 
-      assert(req.remoteUser, 'You must be logged in');
-      assert(req.query.accountId, 'Missing accountId');
-      assert(req.query.redirect, 'Missing redirect');
+      if (!req.remoteUser) {
+        return next(new errors.Unauthorized('You must be logged in'));
+      } else if (!req.query.accountId) {
+        return next(new errors.BadRequest('Missing accountId'));
+      } else if (!req.query.redirect) {
+        return next(new errors.BadRequest('Missing redirect'));
+      }
 
       const collectiveId = idDecode(req.query.accountId, IDENTIFIER_TYPES.ACCOUNT);
       const collective = await models.Collective.findByPk(collectiveId);
-      assert(collective, 'Collective not found');
-      assert(req.remoteUser.isAdminOfCollective(collective), 'You must be an admin of this collective');
+      if (!collective) {
+        return next(new errors.NotFound('Collective not found'));
+      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
+        return next(new errors.Forbidden('You must be an admin of this collective'));
+      }
 
       return res.json({
         clientId,
