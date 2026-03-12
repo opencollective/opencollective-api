@@ -1,19 +1,12 @@
 import config from 'config';
 import fetch, { Response } from 'node-fetch';
 
-import FEATURE from '../../constants/feature';
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
 import { reportMessageToSentry } from '../../lib/sentry';
 import { Collective } from '../../models';
 
 import { PaypalUserInfo } from './types';
-
-/** PayPal scopes required by each platform feature */
-export const PAYPAL_SCOPE_REQUIREMENTS: Partial<Record<FEATURE, string[]>> = {
-  [FEATURE.PAYPAL_PAYOUTS]: ['https://uri.paypal.com/services/payouts'],
-  [FEATURE.PAYPAL_DONATIONS]: ['https://uri.paypal.com/services/payments/payment/authcapture'],
-};
 
 /** Build an URL for the PayPal API */
 export function paypalUrl(path: string, version = 'v1'): string {
@@ -142,28 +135,6 @@ export async function retrieveGrantedScopes(clientId: string, clientSecret: stri
   }
   const result = (await response.json()) as { scope?: string };
   return result.scope ? result.scope.split(' ') : [];
-}
-
-/**
- * Check whether the granted scopes satisfy the requirements for the given set of enabled features.
- * Returns a list of missing scope descriptions for any unsatisfied features.
- */
-export function checkPaypalScopes(
-  grantedScopes: string[],
-  enabledFeatures: FEATURE[],
-): { feature: FEATURE; missingScopes: string[] }[] {
-  const issues: { feature: FEATURE; missingScopes: string[] }[] = [];
-  for (const feature of enabledFeatures) {
-    const required = PAYPAL_SCOPE_REQUIREMENTS[feature];
-    if (!required) {
-      continue;
-    }
-    const missing = required.filter(scope => !grantedScopes.includes(scope));
-    if (missing.length > 0) {
-      issues.push({ feature, missingScopes: missing });
-    }
-  }
-  return issues;
 }
 
 const parsePaypalError = async (

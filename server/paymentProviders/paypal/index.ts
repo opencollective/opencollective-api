@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
+import RateLimit from '../../lib/rate-limit';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { sequelize } from '../../models';
 import PayoutMethod, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
@@ -133,6 +134,12 @@ export default {
         } else if (payoutMethod.type !== PayoutMethodTypes.PAYPAL) {
           return next(new errors.Forbidden('The payout method is not a PayPal payout method'));
         }
+      }
+
+      // Rate limit
+      const rateLimit = new RateLimit(`paypal-connect-${req.remoteUser.id}`, 10, 30 * 60);
+      if (!(await rateLimit.registerCall())) {
+        return next(new errors.RateLimitExceeded('Rate limit exceeded'));
       }
 
       try {

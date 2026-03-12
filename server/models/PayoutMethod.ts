@@ -113,14 +113,13 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   get data(): PayoutMethodDataType {
     switch (this.type) {
       case PayoutMethodTypes.PAYPAL: {
-        const paypalData: PaypalPayoutMethodData = { email: this.data['email'] };
-        if (this.data['currency']) {
-          paypalData.currency = this.data['currency'] as string;
-        }
-        if (this.data['connectedAccountId']) {
-          paypalData.connectedAccountId = this.data['connectedAccountId'] as number;
-        }
-        return paypalData;
+        return {
+          email: this.data['email'],
+          verifiedAt: this.data['verifiedAt'],
+          currency: this.data['currency'],
+          isPayPalOAuth: this.data['isPayPalOAuth'],
+          paypalUserInfo: pick(this.data['paypalUserInfo'], ['name', 'email', 'payer_id', 'address.country']),
+        };
       }
       case PayoutMethodTypes.OTHER:
         return { content: this.data['content'] } as OtherPayoutMethodData;
