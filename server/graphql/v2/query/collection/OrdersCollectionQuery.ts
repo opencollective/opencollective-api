@@ -9,6 +9,7 @@ import { compact, isEmpty, isNil, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
 
+import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
@@ -99,10 +100,18 @@ const buildCollectivesConditions = ({
         },
       ];
     } else if (hostContext === 'INTERNAL') {
-      // Only get internal accounts
+      // Only get internal accounts (account itself + non-vendor children, matching main order query)
       conditions = [
         {
-          [Op.or]: [{ [getField('id')]: account.id }, { [getField('ParentCollectiveId')]: account.id }],
+          [Op.or]: [
+            { [getField('id')]: account.id },
+            {
+              [Op.and]: [
+                { [getField('ParentCollectiveId')]: account.id },
+                { [getField('type')]: { [Op.ne]: CollectiveType.VENDOR } },
+              ],
+            },
+          ],
         },
       ];
     }
@@ -110,7 +119,12 @@ const buildCollectivesConditions = ({
 
   if (shouldQueryForChildAccounts) {
     const parentIds = limitToHostedAccountsIds.length ? limitToHostedAccountsIds : allTopAccountIds;
-    conditions.push({ [getField('ParentCollectiveId')]: { [Op.in]: parentIds } });
+    conditions.push({
+      [Op.and]: [
+        { [getField('ParentCollectiveId')]: { [Op.in]: parentIds } },
+        { [getField('type')]: { [Op.ne]: CollectiveType.VENDOR } },
+      ],
+    });
   }
 
   return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
@@ -455,7 +469,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             const ors: Expression<SqlBool>[] = [];
             ors.push(eb('id', 'in', uniq(hostedAccounts.map(h => h.id))));
             if (args.includeChildrenAccounts) {
-              ors.push(eb('ParentCollectiveId', 'in', uniq(hostedAccounts.map(h => h.id))));
+              ors.push(
+                eb('ParentCollectiveId', 'in', uniq(hostedAccounts.map(h => h.id))).and(
+                  eb('type', '!=', CollectiveType.VENDOR),
+                ),
+              );
             }
 
             if (
@@ -463,7 +481,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
               hostContext === 'INTERNAL' &&
               hostedAccounts.some(h => h.id === account.id)
             ) {
-              ors.push(eb('ParentCollectiveId', '=', account.id));
+              ors.push(eb('ParentCollectiveId', '=', account.id).and(eb('type', '!=', CollectiveType.VENDOR)));
             }
 
             return or(ors);
@@ -537,7 +555,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             break;
           case 'INTERNAL':
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
-            ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
+            ors.push(
+              eb(`${join}.ParentCollectiveId`, '=', account.id).and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+            );
             break;
           case 'HOSTED':
             ors.push(
@@ -552,7 +572,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           default:
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
             if (args.includeChildrenAccounts) {
-              ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
+              ors.push(
+                eb(`${join}.ParentCollectiveId`, '=', account.id).and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+              );
             }
 
             if (incognitoProfile) {
