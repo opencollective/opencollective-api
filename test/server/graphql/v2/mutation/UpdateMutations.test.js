@@ -7,7 +7,6 @@ import ActivityTypes from '../../../../../server/constants/activities';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
-import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
@@ -297,17 +296,24 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     });
 
     it('accepts publicId when publishing an update', async () => {
-      const publicId = `${EntityShortIdPrefix.Update}_${update1.id}`;
-      await update1.update({ publicId });
+      const user = await fakeUser();
+      const update = await models.Update.create({
+        CollectiveId: user.collective.id,
+        FromCollectiveId: user.collective.id,
+        CreatedByUserId: user.id,
+        notificationAudience: 'ALL',
+        title: 'public-id-update',
+        html: 'text',
+      });
 
       const result = await utils.graphqlQueryV2(
         publishUpdateMutation,
-        { id: publicId, notificationAudience: update1.notificationAudience },
-        user1,
+        { id: update.publicId, notificationAudience: update.notificationAudience },
+        user,
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.publishUpdate.slug).to.equal('first-update-and-love');
+      expect(result.data.publishUpdate.slug).to.equal('public-id-update');
     });
   });
 
@@ -445,18 +451,17 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     });
 
     it('accepts publicId when deleting an update', async () => {
+      const user = await fakeUser();
       const update = await models.Update.create({
-        CollectiveId: collective1.id,
-        FromCollectiveId: user1.CollectiveId,
-        CreatedByUserId: user1.id,
+        CollectiveId: user.collective.id,
+        FromCollectiveId: user.collective.id,
+        CreatedByUserId: user.id,
         notificationAudience: 'ALL',
         title: 'public-id-update',
         html: 'text',
       });
-      const publicId = `${EntityShortIdPrefix.Update}_${update.id}`;
-      await update.update({ publicId });
 
-      const res = await utils.graphqlQueryV2(deleteUpdateMutation, { id: publicId }, user1);
+      const res = await utils.graphqlQueryV2(deleteUpdateMutation, { id: update.publicId }, user);
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       return models.Update.findByPk(update.id).then(updateFound => {

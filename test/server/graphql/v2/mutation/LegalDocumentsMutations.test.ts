@@ -13,7 +13,6 @@ import {
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import * as PDFLib from '../../../../../server/lib/pdf';
-import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as TaxFormLib from '../../../../../server/lib/tax-forms';
 import models, { LegalDocument } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
@@ -336,25 +335,42 @@ describe('LegalDocumentsMutations', () => {
     });
 
     it('accepts publicId when editing a legal document status', async () => {
-      const legalDocument = await fakeLegalDocument({ CollectiveId: collective.id });
-      const publicId =
-        `${EntityShortIdPrefix.LegalDocument}_${legalDocument.id}` as EntityPublicId<EntityShortIdPrefix.LegalDocument>;
-      await legalDocument.update({ publicId });
-
-      await host.update({ publicId: `${EntityShortIdPrefix.Collective}_${host.id}` });
-
+      const payee = await fakeUser();
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: payee.CollectiveId,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+      });
+      const expense = await fakeExpense({
+        type: 'INVOICE',
+        status: 'APPROVED',
+        CollectiveId: host.id,
+        FromCollectiveId: payee.CollectiveId,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const legalDocument = await fakeLegalDocument({
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'RECEIVED',
+        CollectiveId: expense.FromCollectiveId,
+        year: new Date().getFullYear(),
+      });
       const result = await graphqlQueryV2(
         editLegalDocumentStatusMutation,
         {
-          id: publicId,
-          host: { id: publicId },
-          status: 'RECEIVED',
+          id: legalDocument.publicId,
+          host: { id: host.publicId },
+          status: 'INVALID',
+          message: 'Bad Bad not Good',
         },
         hostAdmin,
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.editLegalDocumentStatus.legacyId).to.equal(legalDocument.id);
+      expect(result.data.editLegalDocumentStatus).to.have.property('status', 'INVALID');
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+      expect(sendEmailSpy.firstCall.args[0]).to.equal(payee.email);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal('Action required: Your tax form has been marked as invalid');
+      expect(sendEmailSpy.firstCall.args[2]).to.include('Bad Bad not Good');
     });
   });
 });
