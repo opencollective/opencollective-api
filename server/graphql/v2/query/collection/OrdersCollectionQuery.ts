@@ -469,7 +469,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             const ors: Expression<SqlBool>[] = [];
             ors.push(eb('id', 'in', uniq(hostedAccounts.map(h => h.id))));
             if (args.includeChildrenAccounts) {
-              ors.push(eb('ParentCollectiveId', 'in', uniq(hostedAccounts.map(h => h.id))));
+              ors.push(
+                eb('ParentCollectiveId', 'in', uniq(hostedAccounts.map(h => h.id))).and(
+                  eb('type', '!=', CollectiveType.VENDOR),
+                ),
+              );
             }
 
             if (
@@ -477,7 +481,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
               hostContext === 'INTERNAL' &&
               hostedAccounts.some(h => h.id === account.id)
             ) {
-              ors.push(eb('ParentCollectiveId', '=', account.id));
+              ors.push(eb('ParentCollectiveId', '=', account.id).and(eb('type', '!=', CollectiveType.VENDOR)));
             }
 
             return or(ors);
