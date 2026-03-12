@@ -2,7 +2,6 @@ import './env';
 import './lib/sentry/init';
 import './open-telemetry';
 
-import http from 'http';
 import { AddressInfo } from 'net';
 import os from 'os';
 
@@ -23,7 +22,7 @@ import { startSearchSyncWorker } from './workers/search-sync';
 import { sequelize } from './models';
 import routes from './routes';
 
-const workers = !isUndefined(process.env.WEB_CONCURRENCY) ? toInteger(process.env.WEB_CONCURRENCY) : 1;
+const workers = isUndefined(process.env.WEB_CONCURRENCY) ? toInteger(process.env.WEB_CONCURRENCY) : 1;
 
 async function startExpressServer(workerId) {
   const expressApp = express();
@@ -42,20 +41,19 @@ async function startExpressServer(workerId) {
   /**
    * Start server
    */
-  const server = http.createServer(expressApp);
-  server.on('error', error => {
-    logger.error('Failed to start Express server', error);
-    reportErrorToSentry(error);
-  });
-  server.listen(config.port, () => {
+  const server = expressApp.listen(config.port, () => {
     const host = os.hostname();
     logger.info(
       'Open Collective API listening at http://%s:%s in %s environment. Worker #%s',
       host,
-      (server.address() as AddressInfo)?.port,
+      (server.address() as AddressInfo).port,
       config.env,
       workerId,
     );
+  });
+  server.on('error', error => {
+    logger.error('Failed to start Express server', error);
+    reportErrorToSentry(error);
   });
 
   server.timeout = 25000; // sets timeout to 25 seconds
