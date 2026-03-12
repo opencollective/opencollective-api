@@ -2348,7 +2348,7 @@ export const GraphQLHost = new GraphQLObjectType({
           }
 
           checkRemoteUserCanUseTransactions(req);
-          return req.loaders.TransactionsImport.hostStats.load(host.id);
+          return req.loaders.TransactionsImport.bankSynchronizationHostTransactionsStats.load(host.id);
         },
       },
     };
