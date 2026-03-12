@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import Agreement from '../../../../../server/models/Agreement';
 import { fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
@@ -232,6 +233,39 @@ describe('server/graphql/v2/mutation/AgreementMutations', () => {
       expect(result.data.editAgreement.id).to.exist;
       expect(result.data.editAgreement.title).to.eq('new agreement title');
       expect(result.data.editAgreement.notes).to.eq('new agreement notes');
+      expect(result.data.editAgreement.expiresAt.toString()).to.eq(expiresAt.toString());
+    });
+
+    it('accepts publicId in AgreementReferenceInput', async () => {
+      const adminUser = await fakeUser();
+      const host = await fakeHost({ plan: 'start-plan-2021', hasHosting: true, admin: adminUser });
+      const collective = await fakeCollective();
+
+      const agreement = await Agreement.create({
+        title: 'agreement',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+      });
+      const publicId =
+        `${EntityShortIdPrefix.Agreement}_${agreement.id}` as EntityPublicId<EntityShortIdPrefix.Agreement>;
+      await agreement.update({ publicId });
+
+      const expiresAt = new Date();
+      const result = await graphqlQueryV2(
+        EditAgreementMutation,
+        {
+          agreement: { id: publicId },
+          title: 'public id agreement title',
+          notes: 'public id agreement notes',
+          expiresAt,
+        },
+        adminUser,
+      );
+
+      result.errors && console.log(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAgreement.title).to.eq('public id agreement title');
+      expect(result.data.editAgreement.notes).to.eq('public id agreement notes');
       expect(result.data.editAgreement.expiresAt.toString()).to.eq(expiresAt.toString());
     });
   });

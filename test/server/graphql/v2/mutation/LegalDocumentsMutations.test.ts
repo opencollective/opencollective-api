@@ -13,6 +13,7 @@ import {
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import * as PDFLib from '../../../../../server/lib/pdf';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as TaxFormLib from '../../../../../server/lib/tax-forms';
 import models, { LegalDocument } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
@@ -332,6 +333,28 @@ describe('LegalDocumentsMutations', () => {
       expect(sendEmailSpy.firstCall.args[0]).to.equal(payee.email);
       expect(sendEmailSpy.firstCall.args[1]).to.equal('Action required: Your tax form has been marked as invalid');
       expect(sendEmailSpy.firstCall.args[2]).to.include('Bad Bad not Good');
+    });
+
+    it('accepts publicId when editing a legal document status', async () => {
+      const legalDocument = await fakeLegalDocument({ CollectiveId: collective.id });
+      const publicId =
+        `${EntityShortIdPrefix.LegalDocument}_${legalDocument.id}` as EntityPublicId<EntityShortIdPrefix.LegalDocument>;
+      await legalDocument.update({ publicId });
+
+      await host.update({ publicId: `${EntityShortIdPrefix.Collective}_${host.id}` });
+
+      const result = await graphqlQueryV2(
+        editLegalDocumentStatusMutation,
+        {
+          id: publicId,
+          host: { id: publicId },
+          status: 'RECEIVED',
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editLegalDocumentStatus.legacyId).to.equal(legalDocument.id);
     });
   });
 });

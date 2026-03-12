@@ -7,6 +7,7 @@ import ActivityTypes from '../../../../../server/constants/activities';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
@@ -294,6 +295,20 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         expect(noOneAudienceResult.data.publishUpdate.publishedAt).to.not.be.null;
       });
     });
+
+    it('accepts publicId when publishing an update', async () => {
+      const publicId = `${EntityShortIdPrefix.Update}_${update1.id}`;
+      await update1.update({ publicId });
+
+      const result = await utils.graphqlQueryV2(
+        publishUpdateMutation,
+        { id: publicId, notificationAudience: update1.notificationAudience },
+        user1,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.publishUpdate.slug).to.equal('first-update-and-love');
+    });
   });
 
   describe('edit an update', () => {
@@ -425,6 +440,26 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       return models.Update.findByPk(update1.id).then(updateFound => {
+        expect(updateFound).to.be.null;
+      });
+    });
+
+    it('accepts publicId when deleting an update', async () => {
+      const update = await models.Update.create({
+        CollectiveId: collective1.id,
+        FromCollectiveId: user1.CollectiveId,
+        CreatedByUserId: user1.id,
+        notificationAudience: 'ALL',
+        title: 'public-id-update',
+        html: 'text',
+      });
+      const publicId = `${EntityShortIdPrefix.Update}_${update.id}`;
+      await update.update({ publicId });
+
+      const res = await utils.graphqlQueryV2(deleteUpdateMutation, { id: publicId }, user1);
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      return models.Update.findByPk(update.id).then(updateFound => {
         expect(updateFound).to.be.null;
       });
     });
