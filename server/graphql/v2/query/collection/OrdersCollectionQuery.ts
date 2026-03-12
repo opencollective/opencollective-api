@@ -9,6 +9,7 @@ import { compact, isEmpty, isNil, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
 
+import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
@@ -537,7 +538,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             break;
           case 'INTERNAL':
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
-            ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
+            ors.push(
+              eb(`${join}.ParentCollectiveId`, '=', account.id).and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+            );
             break;
           case 'HOSTED':
             ors.push(
@@ -552,7 +555,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           default:
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
             if (args.includeChildrenAccounts) {
-              ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
+              ors.push(
+                eb(`${join}.ParentCollectiveId`, '=', account.id).and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+              );
             }
 
             if (incognitoProfile) {
