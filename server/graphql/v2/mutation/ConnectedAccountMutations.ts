@@ -9,9 +9,7 @@ import { crypto } from '../../../lib/encryption';
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import { personaKycProvider } from '../../../lib/kyc/providers/persona';
 import * as paypal from '../../../lib/paypal';
-import logger from '../../../lib/logger';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
-import { checkPaypalScopes, retrieveGrantedScopes } from '../../../paymentProviders/paypal/api';
 import * as transferwise from '../../../lib/transferwise';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import type { ConnectedAccount as ConnectedAccountModel } from '../../../models';
@@ -85,24 +83,6 @@ const connectedAccountMutations = {
             await paypal.validateConnectedAccount(args.connectedAccount);
           } catch {
             throw new ValidationFailed('The Client ID and Token are not a valid combination');
-          }
-          // Check that the enabled PayPal API scopes match the features configured on the account
-          try {
-            const grantedScopes = await retrieveGrantedScopes(
-              args.connectedAccount.clientId,
-              args.connectedAccount.token,
-            );
-            const enabledFeatures = [FEATURE.PAYPAL_PAYOUTS, FEATURE.PAYPAL_DONATIONS].filter(f =>
-              collective.isFeatureEnabled(f),
-            );
-            const scopeIssues = checkPaypalScopes(grantedScopes, enabledFeatures);
-            if (scopeIssues.length > 0) {
-              const details = scopeIssues.map(i => `${i.feature}: missing ${i.missingScopes.join(', ')}`).join('; ');
-              logger.warn(`PayPal scope mismatch for host ${collective.slug}: ${details}`);
-              // Warn but do not block — allow saving credentials even if scopes are missing
-            }
-          } catch (scopeError) {
-            logger.warn(`Failed to verify PayPal scopes for host ${collective.slug}`, scopeError);
           }
         }
       }
