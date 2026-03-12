@@ -1,8 +1,6 @@
-import assert from 'assert';
-
 import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
-import { isEqual, isUndefined, pick } from 'lodash';
+import { isEqual, isUndefined, omit, pick } from 'lodash';
 
 import ExpenseStatuses from '../../../constants/expense-status';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -128,10 +126,13 @@ const payoutMethodMutations = {
         throw new Forbidden('Archived payout methods cannot be restored.');
       } else if (
         payoutMethod.type === PayoutMethodTypes.PAYPAL &&
-        (payoutMethod.data as PaypalPayoutMethodData)?.connectedAccountId
+        (payoutMethod.data as PaypalPayoutMethodData)?.isPayPalOAuth
       ) {
         // Verified PayPal accounts have some restrictions on editing: only the name, isSaved and currency can be edited
-        if (!isUndefined(args.payoutMethod.data) && !isEqual(args.payoutMethod.data, payoutMethod.data)) {
+        if (
+          !isUndefined(args.payoutMethod.data) &&
+          !isEqual(omit(args.payoutMethod.data, ['currency']), omit(payoutMethod.data, ['currency']))
+        ) {
           throw new Forbidden(
             'Verified PayPal accounts can only be edited to change the name, saved status and currency',
           );

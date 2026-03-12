@@ -11,12 +11,12 @@
 
 import '../../server/env';
 
-import { Op } from 'sequelize';
 import moment from 'moment';
+import { Op } from 'sequelize';
 
 import logger from '../../server/lib/logger';
 import { refreshPaypalUserAccount } from '../../server/lib/paypal';
-import { reportErrorToSentry, HandlerType } from '../../server/lib/sentry';
+import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
 import { ConnectedAccount } from '../../server/models';
 import { runCronJob } from '../utils';
 

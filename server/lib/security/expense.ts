@@ -24,10 +24,11 @@ import { CollectiveType } from '../../constants/collectives';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
+import { isAccountHolderNameAndLegalNameMatch } from '../../graphql/common/expenses';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
 import Expense from '../../models/Expense';
-import { PaypalPayoutMethodData, PayoutMethodTypes } from '../../models/PayoutMethod';
+import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { KYCProviderName } from '../kyc/providers';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
@@ -620,29 +621,39 @@ export const checkExpensesBatch = async (
             details: `While the payee is registered at ${payeeCity}, ${payeeCountry} (${payeeCode}), the payout method used in this expense is located at ${pmCity}, ${pmCountry} (${pmCode})`,
           });
         } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
-          const paypalEmail = (payoutMethod.unfilteredData as PaypalPayoutMethodData)?.email;
-          const connectedAccountId = payoutMethod.unfilteredData?.connectedAccountId as number | undefined;
-          let isVerified = false;
-          if (connectedAccountId) {
-            const connectedAccount = await req.loaders.ConnectedAccount.byId.load(connectedAccountId);
-            isVerified = Boolean(connectedAccount?.data?.verified);
-          }
+          const paypalData = payoutMethod.unfilteredData as unknown as PaypalPayoutMethodData;
+          const paypalEmail = paypalData?.email;
+          const isVerified = Boolean(paypalData?.verifiedAt);
           addBooleanCheck(
             checks,
             isVerified,
             {
               scope: Scope.PAYOUT_METHOD,
               level: Level.PASS,
-              message: 'PayPal account has been verified via OAuth',
-              details: `The PayPal account (${paypalEmail}) has been connected and verified via OAuth, confirming ownership.`,
+              message: 'PayPal account has been verified',
+              details: `The PayPal account (${paypalEmail}) has been connected and verified, confirming ownership.`,
             },
             {
               scope: Scope.PAYOUT_METHOD,
               level: Level.MEDIUM,
-              message: 'PayPal account has not been verified via OAuth',
-              details: `The PayPal account (${paypalEmail}) was entered manually and has not been connected via OAuth. Verification helps confirm ownership of the account.`,
+              message: 'PayPal account has not been verified',
+              details: `The PayPal account (${paypalEmail}) was entered manually and has not been connected. Verification helps confirm ownership of the account.`,
             },
           );
+
+          if (isVerified) {
+            const paypalName = paypalData?.paypalUserInfo?.name;
+            if (paypalName) {
+              const payeeLegalName = expense.fromCollective.legalName || expense.fromCollective.name;
+              const namesMatch = isAccountHolderNameAndLegalNameMatch(paypalName, payeeLegalName);
+              addBooleanCheck(checks, !namesMatch, {
+                scope: Scope.PAYOUT_METHOD,
+                level: Level.MEDIUM,
+                message: 'Payout Method name does not match the payee name',
+                details: `The name on the PayPal account ("${paypalName}") does not match the payee name ("${payeeLegalName}").`,
+              });
+            }
+          }
         }
       }
 

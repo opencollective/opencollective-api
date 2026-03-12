@@ -18,6 +18,7 @@ import logger from '../lib/logger';
 import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { PayPalSupportedCurrencies } from '../paymentProviders/paypal/constants';
+import { PaypalUserInfo } from '../paymentProviders/paypal/types';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import type { Collective, Expense, User } from '.';
@@ -63,7 +64,10 @@ export interface PaypalPayoutMethodData {
   email: string;
   /** ID of the ConnectedAccount that verified this PayPal account via OAuth */
   connectedAccountId?: number;
+  verifiedAt?: string;
   currency?: string;
+  paypalUserInfo?: PaypalUserInfo;
+  isPayPalOAuth?: boolean;
 }
 
 interface StripePayoutMethodData {
@@ -320,7 +324,14 @@ PayoutMethod.init(
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
             } else if (
-              !objHasOnlyKeys(value, ['email', 'currency', 'connectedAccountId', 'isPayPalOAuth', 'userInfo'])
+              !objHasOnlyKeys(value, [
+                'email',
+                'currency',
+                'connectedAccountId',
+                'isPayPalOAuth',
+                'verifiedAt',
+                'paypalUserInfo',
+              ])
             ) {
               throw new Error('Data for this payout method contains too much information');
             } else if (!PayPalSupportedCurrencies.includes(value.currency)) {

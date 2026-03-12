@@ -138,12 +138,14 @@ export default {
       try {
         // Retrieve info from PayPal
         const tokenResult = await exchangeAuthCodeForToken(code);
-        const userInfo = await retrievePaypalUserInfo(tokenResult.access_token);
+        const paypalUserInfo = await retrievePaypalUserInfo(tokenResult.access_token);
 
         // Paypal supports multiple emails per account. We only keep the confirmed ones, and default to the "primary" one.
-        const confirmedEmails = userInfo.emails.filter(email => email.confirmed);
+        const confirmedEmails = paypalUserInfo.emails.filter(email => email.confirmed);
         if (confirmedEmails.length === 0) {
           throw new errors.BadRequest('This PayPal account is not associated with a confirmed email address');
+        } else if (paypalUserInfo.verified_account !== 'true') {
+          throw new errors.BadRequest('This PayPal account is not verified');
         } else if (
           payoutMethod &&
           !confirmedEmails.find(email => email.value === (payoutMethod?.data as PaypalPayoutMethodData)?.email)
@@ -173,13 +175,13 @@ export default {
               username: primaryEmail,
               token: tokenResult.access_token,
               refreshToken: tokenResult.refresh_token,
-              hash: hashObject({ CollectiveId: collective.id, service: 'paypal-connect', payerId: userInfo.user_id }),
+              hash: hashObject({
+                CollectiveId: collective.id,
+                service: 'paypal-connect',
+                payerId: paypalUserInfo.user_id,
+              }),
               data: {
-                payerId: userInfo.user_id,
-                verified: userInfo.verified_account,
-                name: userInfo.name,
-                email: primaryEmail,
-                verifiedAt: new Date().toISOString(),
+                payerId: paypalUserInfo.user_id,
               },
             },
             {
@@ -192,10 +194,11 @@ export default {
               {
                 data: {
                   isPayPalOAuth: true,
+                  verifiedAt: new Date().toISOString(),
                   currency: currency,
                   email: primaryEmail,
                   connectedAccountId: connectedAccount.id,
-                  userInfo,
+                  paypalUserInfo,
                 },
               },
               {
@@ -212,10 +215,11 @@ export default {
                 CollectiveId: collective.id,
                 data: {
                   isPayPalOAuth: true,
+                  verifiedAt: new Date().toISOString(),
                   currency,
                   email: primaryEmail,
                   connectedAccountId: connectedAccount.id,
-                  userInfo,
+                  paypalUserInfo,
                 },
               },
               {
