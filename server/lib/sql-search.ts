@@ -456,7 +456,7 @@ export const searchCollectivesInDB = async (
     AND c.name != 'anonymous'
     AND c."isIncognito" = FALSE ${dynamicConditions}
     ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}
-    ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
+    ORDER BY __sort__ ${orderBy?.direction || 'DESC'}, c.id ${orderBy?.direction || 'DESC'}
     OFFSET :offset
     LIMIT :limit
     `,
