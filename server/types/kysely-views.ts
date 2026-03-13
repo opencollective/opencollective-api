@@ -54,36 +54,52 @@ export interface CommunityActivitySummaryRow {
   firstInteractionAt?: string;
 }
 
-export interface CommunityHostTransactionsAggregatedRow {
-  FromCollectiveId?: number;
-  HostCollectiveId?: number;
-  hostCurrency?: string;
-  years?: number[];
-  expenseTotal?: number[];
-  expenseCount?: number[];
-  contributionTotal?: number[];
-  contributionCount?: number[];
-  expenseTotalAcc?: number[];
-  expenseCountAcc?: number[];
-  contributionTotalAcc?: number[];
-  contributionCountAcc?: number[];
-}
-
 export interface CommunityHostTransactionSummaryRow {
   FromCollectiveId?: number;
   HostCollectiveId?: number;
-  year?: number;
   hostCurrency?: string;
-  expenseTotal?: number;
-  expenseCount?: number;
-  contributionTotal?: number;
-  contributionCount?: number;
-  orderCount?: number;
-  expenseTotalAcc?: number;
-  expenseCountAcc?: number;
-  contributionTotalAcc?: number;
-  contributionCountAcc?: number;
-  orderCountAcc?: number;
+  kind?: string;
+  debitTotal?: number;
+  debitCount?: number;
+  creditTotal?: number;
+  creditCount?: number;
+  refundDebitTotal?: number;
+  refundDebitCount?: number;
+}
+
+export interface CommunityHostYearlyTransactionSummaryRow {
+  FromCollectiveId?: number;
+  HostCollectiveId?: number;
+  hostCurrency?: string;
+  year?: number;
+  kind?: string;
+  debitTotal?: number;
+  debitCount?: number;
+  creditTotal?: number;
+  creditCount?: number;
+  refundDebitTotal?: number;
+  refundDebitCount?: number;
+}
+
+export interface CommunityTransactionSummaryRow {
+  FromCollectiveId?: number;
+  CollectiveId?: number;
+  HostCollectiveId?: number;
+  year?: number;
+  kind?: string;
+  hostCurrency?: string;
+  debitTotal?: number;
+  debitCount?: number;
+  creditTotal?: number;
+  creditCount?: number;
+  refundDebitTotal?: number;
+  refundDebitCount?: number;
+  debitTotalAcc?: number;
+  debitCountAcc?: number;
+  creditTotalAcc?: number;
+  creditCountAcc?: number;
+  refundDebitTotalAcc?: number;
+  refundDebitCountAcc?: number;
 }
 
 export interface CurrentCollectiveBalanceRow {
@@ -146,8 +162,9 @@ export type ViewsDatabase = {
   CollectiveTagStats: CollectiveTagStatsRow;
   CollectiveTransactionStats: CollectiveTransactionStatsRow;
   CommunityActivitySummary: CommunityActivitySummaryRow;
-  CommunityHostTransactionsAggregated: CommunityHostTransactionsAggregatedRow;
   CommunityHostTransactionSummary: CommunityHostTransactionSummaryRow;
+  CommunityHostYearlyTransactionSummary: CommunityHostYearlyTransactionSummaryRow;
+  CommunityTransactionSummary: CommunityTransactionSummaryRow;
   CurrentCollectiveBalance: CurrentCollectiveBalanceRow;
   CurrentCollectiveTransactionStats: CurrentCollectiveTransactionStatsRow;
   ExpenseTagStats: ExpenseTagStatsRow;

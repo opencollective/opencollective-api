@@ -513,6 +513,11 @@ interface Account {
     includeDebts: Boolean! = false
 
     """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -3299,6 +3304,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -7574,6 +7584,12 @@ type CommunityStats {
   associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
   transactionSummary: [CommunityTransactionSummary!]!
+  transactionSummaryTimeSeries(
+    """
+    The type of transactions to return: CREDIT, DEBIT, or REFUND_DEBIT
+    """
+    type: CommunityTransactionType!
+  ): TimeSeriesAmount!
   lastInteractionAt: DateTime
   firstInteractionAt: DateTime
   activities(
@@ -7608,17 +7624,19 @@ enum CommunityRelationType {
 }
 
 type CommunityTransactionSummary {
-  year: Int
-  expenseTotal: Amount!
-  expenseCount: Int!
-  contributionTotal: Amount!
-  contributionCount: Int!
-  expenseTotalAcc: Amount!
-  expenseCountAcc: Int!
-  contributionTotalAcc: Amount!
-  contributionCountAcc: Int!
-  orderCount: Int!
-  orderCountAcc: Int!
+  kind: String
+  debitTotal: Amount!
+  debitCount: Int!
+  creditTotal: Amount!
+  creditCount: Int!
+  refundDebitTotal: Amount!
+  refundDebitCount: Int!
+}
+
+enum CommunityTransactionType {
+  CREDIT
+  DEBIT
+  REFUND_DEBIT
 }
 
 """
@@ -9718,6 +9736,11 @@ type Bot implements Account {
     includeDebts: Boolean! = false
 
     """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -10756,6 +10779,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -12358,6 +12386,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     includeDebts: Boolean! = false
 
     """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -13670,6 +13703,11 @@ type Individual implements Account {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -15018,6 +15056,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     includeDebts: Boolean! = false
 
     """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -16196,6 +16239,11 @@ type Vendor implements Account & AccountWithContributions {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -18231,6 +18279,11 @@ type Query {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -20434,6 +20487,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     includeDebts: Boolean! = false
 
     """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -21619,6 +21677,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include transactions that have been refunded. If false, transactions that have a linked refund transaction will be excluded.
+    """
+    includeRefundedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
