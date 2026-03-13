@@ -35,6 +35,11 @@
   "transferwise": {
     "redirectUri": "https://api-staging.opencollective.com/connected-accounts/transferwise/callback"
   },
+  "paypal": {
+    "connect": {
+      "redirectUri": "https://staging.opencollective.com/services/paypal/oauth/callback"
+    }
+  },
   "githubFlow": {
     "minNbStars": 0
   },

@@ -6185,6 +6185,16 @@ type PayoutMethod {
   The date and time this payout method was updated
   """
   updatedAt: DateTime!
+
+  """
+  For PayPal payout methods: whether the PayPal account has been verified via OAuth. Null for other types.
+  """
+  isVerified: Boolean
+
+  """
+  For PayPal payout methods: identity details from the linked ConnectedAccount (name, email, payerId, verifiedAt). Visible to admins of the payee collective and host admins.
+  """
+  paypalInfo: JSON
 }
 
 """
@@ -7194,6 +7204,7 @@ type CollectiveFeatures {
   OFF_PLATFORM_TRANSACTIONS: CollectiveFeatureStatus
   TRANSFERWISE: CollectiveFeatureStatus
   PAYPAL_PAYOUTS: CollectiveFeatureStatus
+  PAYPAL_CONNECT: CollectiveFeatureStatus
   RECEIVE_HOST_APPLICATIONS: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
@@ -7260,6 +7271,7 @@ type Policies {
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
+  REQUIRE_PAYPAL_VERIFICATION: REQUIRE_PAYPAL_VERIFICATION
 
   """
   Contribution threshold to enforce contributor info. This resolver can be called from the collective or the host, when resolved through the collective the thresholds are returned in the collective currency
@@ -7312,6 +7324,12 @@ type EXPENSE_CATEGORIZATION {
 type CONTRIBUTOR_INFO_THRESHOLDS {
   legalName: Int
   address: Int
+}
+
+type REQUIRE_PAYPAL_VERIFICATION {
+  enabled: Boolean!
+  appliesToHostedCollectives: Boolean!
+  verificationValidityDays: Int
 }
 
 type ActivitySubscription {
@@ -25419,6 +25437,13 @@ input PoliciesInput {
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
   CONTRIBUTOR_INFO_THRESHOLDS: PoliciesContributorInfoThresholdsInput
+  REQUIRE_PAYPAL_VERIFICATION: PoliciesRequirePaypalVerificationInput
+}
+
+input PoliciesRequirePaypalVerificationInput {
+  enabled: Boolean
+  appliesToHostedCollectives: Boolean
+  verificationValidityDays: Int
 }
 
 input PoliciesExpensePolicies {

@@ -123,14 +123,17 @@ describe('server/models/PayoutMethod', () => {
         await expect(promise).to.be.rejectedWith(SequelizeValidationError, 'Invalid PayPal email address');
 
         // Valid
-        const pm = await models.PayoutMethod.create({ ...baseData, data: { email: randEmail() } });
+        const pm = await models.PayoutMethod.create({ ...baseData, data: { email: randEmail(), currency: 'USD' } });
         expect(pm).to.exist;
       });
 
       it('make sure only allowed fields are set', async () => {
         const user = await fakeUser();
         const baseData = { CollectiveId: user.collective.id, CreatedByUserId: user.id, type: PayoutMethodTypes.PAYPAL };
-        const promise = models.PayoutMethod.create({ ...baseData, data: { email: randEmail(), hello: true } });
+        const promise = models.PayoutMethod.create({
+          ...baseData,
+          data: { email: randEmail(), currency: 'USD', hello: true },
+        });
         await expect(promise).to.be.rejectedWith(
           ValidationError,
           'Data for this payout method contains too much information',

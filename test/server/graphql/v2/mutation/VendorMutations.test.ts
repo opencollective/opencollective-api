@@ -258,7 +258,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         payoutMethod: {
           type: 'PAYPAL',
           name: 'Zorg Inc',
-          data: { email: 'zorg@zorg.com' },
+          data: { email: 'zorg@zorg.com', currency: 'USD' },
           isSaved: true,
         },
       };

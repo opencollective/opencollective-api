@@ -17,6 +17,8 @@ import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
 import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
+import { PayPalSupportedCurrencies } from '../paymentProviders/paypal/constants';
+import { PaypalUserInfo } from '../paymentProviders/paypal/types';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import type { Collective, Expense, User } from '.';
@@ -58,8 +60,14 @@ export const IDENTIFIABLE_DATA_FIELDS = [
 ];
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
-interface PaypalPayoutMethodData {
+export interface PaypalPayoutMethodData {
   email: string;
+  /** ID of the ConnectedAccount that verified this PayPal account via OAuth */
+  connectedAccountId?: number;
+  verifiedAt?: string;
+  currency?: string;
+  paypalUserInfo?: PaypalUserInfo;
+  isPayPalOAuth?: boolean;
 }
 
 interface StripePayoutMethodData {
@@ -104,8 +112,15 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */
   get data(): PayoutMethodDataType {
     switch (this.type) {
-      case PayoutMethodTypes.PAYPAL:
-        return { email: this.data['email'] } as PaypalPayoutMethodData;
+      case PayoutMethodTypes.PAYPAL: {
+        return {
+          email: this.data['email'],
+          verifiedAt: this.data['verifiedAt'],
+          currency: this.data['currency'],
+          isPayPalOAuth: this.data['isPayPalOAuth'],
+          paypalUserInfo: pick(this.data['paypalUserInfo'], ['name', 'email', 'payer_id', 'address.country']),
+        };
+      }
       case PayoutMethodTypes.OTHER:
         return { content: this.data['content'] } as OtherPayoutMethodData;
       case PayoutMethodTypes.BANK_ACCOUNT:
@@ -307,8 +322,19 @@ PayoutMethod.init(
           if (this.type === PayoutMethodTypes.PAYPAL) {
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
-            } else if (!objHasOnlyKeys(value, ['email', 'currency'])) {
+            } else if (
+              !objHasOnlyKeys(value, [
+                'email',
+                'currency',
+                'connectedAccountId',
+                'isPayPalOAuth',
+                'verifiedAt',
+                'paypalUserInfo',
+              ])
+            ) {
               throw new Error('Data for this payout method contains too much information');
+            } else if (!PayPalSupportedCurrencies.includes(value.currency)) {
+              throw new Error('This currency is not supported by PayPal');
             }
           } else if (this.type === PayoutMethodTypes.OTHER) {
             if (!value || !value.content || typeof value.content !== 'string') {
