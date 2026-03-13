@@ -1,3 +1,4 @@
+import config from 'config';
 import cryptoRandomString from 'crypto-random-string';
 import express from 'express';
 import {
@@ -14,6 +15,7 @@ import { cloneDeep, defaultsDeep, isEmpty, isEqual, isNull, keys, omitBy, pick, 
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import { PlatformSubscriptionTiers } from '../../../constants/plans';
 import POLICIES from '../../../constants/policies';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
@@ -25,7 +27,8 @@ import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
-import models, { Collective, HostApplication, sequelize } from '../../../models';
+import { parseToBoolean } from '../../../lib/utils';
+import models, { Collective, HostApplication, PlatformSubscription, sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
@@ -980,11 +983,25 @@ const accountMutations = {
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
-      await account.update({ type: ORGANIZATION });
+      await sequelize.transaction(async transaction => {
+        const newValues: Partial<Collective> = { type: ORGANIZATION };
+        if (args.legalName) {
+          newValues.legalName = args.legalName;
+        }
+        if (args.hasMoneyManagement === true) {
+          newValues.hasMoneyManagement = true;
+        }
 
-      if (args.legalName) {
-        await account.update({ legalName: args.legalName });
-      }
+        await account.update(newValues, { transaction });
+
+        if (parseToBoolean(config.features?.newPricing)) {
+          const defaultPlan = PlatformSubscriptionTiers[0];
+          await PlatformSubscription.createSubscription(account, new Date(), defaultPlan, req.remoteUser, {
+            notify: true,
+            transaction,
+          });
+        }
+      });
 
       if (args.hasMoneyManagement === true) {
         await account.activateMoneyManagement(req.remoteUser, { silent: true });

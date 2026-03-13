@@ -464,7 +464,7 @@ class PlatformSubscription extends Model<
 
   static getCurrentSubscription(
     collectiveId: number,
-    opts?: { now?: () => Date },
+    opts?: { now?: () => Date; transaction?: SequelizeTransaction },
   ): Promise<PlatformSubscription | null> {
     const newDate = opts?.now ?? (() => new Date());
     return PlatformSubscription.findOne({
@@ -474,6 +474,7 @@ class PlatformSubscription extends Model<
           [Op.contains]: newDate(),
         },
       },
+      transaction: opts?.transaction,
     });
   }
 

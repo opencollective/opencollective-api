@@ -15,6 +15,7 @@ import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportMessageToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { parseToBoolean } from '../../../lib/utils';
+import { sequelize } from '../../../models';
 import models, { Collective, PlatformSubscription, type User } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { SocialLinkType } from '../../../models/SocialLink';
@@ -36,8 +37,6 @@ const DEFAULT_ORGANIZATION_SETTINGS = {
 };
 
 const { COLLECTIVE, ORGANIZATION } = CollectiveType;
-
-const NEW_PRICING = parseToBoolean(config.features?.newPricing);
 
 export default {
   createOrganization: {
@@ -175,7 +174,7 @@ export default {
         }
       }
 
-      if (NEW_PRICING) {
+      if (parseToBoolean(config.features?.newPricing)) {
         await PlatformSubscription.createSubscription(
           organization,
           new Date(),
@@ -285,20 +284,34 @@ export default {
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
 
-      const collective = await organization.update({ type: COLLECTIVE });
+      await sequelize.transaction(async transaction => {
+        await organization.update({ type: COLLECTIVE }, { transaction });
+
+        // Cancel the current subscription if it exists
+        if (parseToBoolean(config.features?.newPricing)) {
+          const currentSubscription = await PlatformSubscription.getCurrentSubscription(organization.id, {
+            transaction,
+          });
+          if (currentSubscription) {
+            await PlatformSubscription.provisionFeatureChanges(organization, currentSubscription, null, {
+              transaction,
+            });
+          }
+        }
+      });
 
       await models.Activity.create({
         type: activities.ORGANIZATION_CONVERTED_TO_COLLECTIVE,
         UserId: req.remoteUser.id,
         UserTokenId: req.userToken?.id,
-        CollectiveId: collective.id,
-        FromCollectiveId: collective.id,
+        CollectiveId: organization.id,
+        FromCollectiveId: organization.id,
         data: {
-          collective: collective.minimal,
+          collective: organization.minimal,
         },
       });
 
-      return collective;
+      return organization;
     },
   },
 };
