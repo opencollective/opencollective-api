@@ -210,6 +210,18 @@ class PlatformSubscription extends Model<
     return [subBillingStart, subBillingEnd];
   }
 
+  terminate({
+    date = moment.utc().toDate(),
+    transaction = undefined,
+    inclusive = false,
+  }: {
+    date?: Date;
+    inclusive?: boolean;
+    transaction?: SequelizeTransaction;
+  }): Promise<PlatformSubscription> {
+    return this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+  }
+
   get info(): NonAttribute<
     Pick<PlatformSubscription, 'id' | 'plan' | 'period' | 'CollectiveId' | 'createdAt' | 'updatedAt'>
   > {
@@ -521,7 +533,7 @@ class PlatformSubscription extends Model<
 
   static getCurrentSubscription(
     collectiveId: number,
-    opts?: { now?: () => Date },
+    opts?: { now?: () => Date; transaction?: SequelizeTransaction },
   ): Promise<PlatformSubscription | null> {
     const newDate = opts?.now ?? (() => new Date());
     return PlatformSubscription.findOne({
@@ -531,6 +543,7 @@ class PlatformSubscription extends Model<
           [Op.contains]: newDate(),
         },
       },
+      transaction: opts?.transaction,
     });
   }
 
@@ -550,20 +563,11 @@ class PlatformSubscription extends Model<
       if (currentSubscriptionStart.isSameOrAfter(newSubscriptionStart)) {
         await currentSubscription.destroy({ transaction: opts?.transaction });
       } else {
-        await currentSubscription.update(
-          {
-            period: [
-              currentSubscription.start,
-              {
-                value: newSubscriptionStart.toDate(),
-                inclusive: false,
-              },
-            ],
-          },
-          {
-            transaction: opts?.transaction,
-          },
-        );
+        await currentSubscription.terminate({
+          date: newSubscriptionStart.toDate(),
+          transaction: opts?.transaction,
+          inclusive: false,
+        });
       }
     }
 

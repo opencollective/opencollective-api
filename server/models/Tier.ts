@@ -8,7 +8,7 @@ import Temporal from 'sequelize-temporal';
 import { SupportedCurrency } from '../constants/currencies';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Op } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
@@ -125,13 +125,13 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
     });
   };
 
-  setCurrency = async function (currency) {
+  setCurrency = async function (currency, { transaction }: { transaction?: SequelizeTransaction } = {}) {
     // Nothing to do
     if (currency === this.currency) {
       return this;
     }
 
-    return this.update({ currency });
+    return this.update({ currency }, { transaction });
   };
 
   /**

@@ -1,16 +1,18 @@
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
 import { generateSecret, generateSync } from 'otplib';
 import sinon from 'sinon';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import OrderStatuses from '../../../../../server/constants/order-status';
+import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
-import models from '../../../../../server/models';
+import models, { PlatformSubscription } from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
 import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
@@ -401,6 +403,49 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You can't deactivate hosting while still hosting/);
     });
+
+    describe('with new pricing enabled', () => {
+      const defaultNewPricing = config.features.newPricing;
+      before(() => {
+        config.features.newPricing = true;
+      });
+
+      after(() => {
+        config.features.newPricing = defaultNewPricing;
+      });
+
+      it('creates a platform subscription when activating money management', async () => {
+        const result = await utils.graphqlQueryV2(
+          mutation,
+          { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: true },
+          adminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.true;
+
+        const subscription = await PlatformSubscription.getCurrentSubscription(orgWithAdmin.id);
+        expect(subscription).to.exist;
+        expect(subscription.plan.id).to.equal(PlatformSubscriptionTiers[0].id);
+      });
+
+      it('terminates the platform subscription when deactivating money management', async () => {
+        await utils.graphqlQueryV2(
+          mutation,
+          { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: true },
+          adminUser,
+        );
+        expect(await PlatformSubscription.getCurrentSubscription(orgWithAdmin.id)).to.exist;
+
+        const result = await utils.graphqlQueryV2(
+          mutation,
+          { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: false },
+          adminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.false;
+        expect(await PlatformSubscription.getCurrentSubscription(orgWithAdmin.id)).to.not.exist;
+      });
+    });
   });
 
   describe('convertOrganizationToCollective', () => {
@@ -523,7 +568,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       });
 
       // Activate money management and hosting
-      await organization.activateMoneyManagement(user);
+      await organization.activateMoneyManagement({ remoteUser: user });
       await organization.activateHosting();
 
       const result = await utils.graphqlQueryV2(
@@ -599,7 +644,7 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       });
 
       // Activate money management only
-      await organization.activateMoneyManagement(user);
+      await organization.activateMoneyManagement({ remoteUser: user });
 
       const result = await utils.graphqlQueryV2(
         convertOrganizationToCollectiveMutation,
@@ -643,6 +688,30 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
 
       expect(resultWith2FA.errors).to.not.exist;
       expect(resultWith2FA.data.convertOrganizationToCollective.type).to.equal('COLLECTIVE');
+    });
+
+    describe('with new pricing enabled', () => {
+      before(() => {
+        config.features.newPricing = true;
+      });
+
+      after(() => {
+        config.features.newPricing = false;
+      });
+
+      it('converts successfully when no active plan subscription exists', async () => {
+        const user = await fakeUser();
+        const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: user });
+
+        const result = await utils.graphqlQueryV2(
+          convertOrganizationToCollectiveMutation,
+          { organization: { legacyId: organization.id } },
+          user,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.convertOrganizationToCollective.type).to.equal('COLLECTIVE');
+      });
     });
   });
 });
