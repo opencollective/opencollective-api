@@ -516,7 +516,7 @@ export const TransactionsCollectionResolver = async (
     where.push({ clearedAt: { [Op.lte]: args.clearedTo } });
   }
   if (args.expense) {
-    const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+    const expenseId = await getDatabaseIdFromExpenseReference(args.expense, { loaders: req.loaders });
     where.push({ ExpenseId: expenseId });
   }
   if (args.hasExpense !== undefined) {
@@ -531,7 +531,7 @@ export const TransactionsCollectionResolver = async (
     });
   }
   if (args.order) {
-    const orderId = getDatabaseIdFromOrderReference(args.order);
+    const orderId = await getDatabaseIdFromOrderReference(args.order, { loaders: req.loaders });
     where.push({ OrderId: orderId });
   }
   if (args.hasOrder !== undefined) {

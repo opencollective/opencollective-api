@@ -407,6 +407,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   let paymentMethods: PaymentMethod[] = [];
   if (args.paymentMethod) {
     paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod, {
+      loaders: req.loaders,
       sequelizeOpts: { attributes: ['id'], include: [{ model: models.Collective }] },
     });
     if (!paymentMethods.every(paymentMethod => req.remoteUser?.isAdminOfCollective(paymentMethod.Collective))) {
@@ -439,6 +440,13 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     if (!tier) {
       throw new NotFound('tierSlug Not Found');
     }
+  }
+
+  let tierIds: number[] | null = null;
+  if (args.tier?.length > 0) {
+    tierIds = await Promise.all(
+      args.tier.map(input => getDatabaseIdFromTierReference(input, { loaders: req.loaders })),
+    );
   }
 
   let createdByUsers: User[] = [];
@@ -637,6 +645,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         const ors: Expression<SqlBool>[] = [];
         if (isHostAdmin && looksLikeAnEmail) {
           ors.push(eb('Users.email', '=', args.searchTerm));
+          ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
         }
 
         if (isFinite(Number(args.searchTerm))) {
@@ -646,7 +655,6 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
         ors.push(eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`));
 
         return or(ors);
@@ -763,8 +771,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     .$if(!isEmpty(args.status) && args.status.includes(OrderStatuses.PAUSED) && !isEmpty(args.pausedBy), qb =>
       qb.where(sql`"Orders".data->>'pausedBy'`, 'in', args.pausedBy),
     )
-    .$if(!isEmpty(args.tier), qb => {
-      const tierIds = args.tier.map(getDatabaseIdFromTierReference);
+    .$if(!isEmpty(tierIds), qb => {
       return qb
         .innerJoin('Tiers', 'Orders.TierId', 'Tiers.id')
         .where('Tiers.id', 'in', tierIds)

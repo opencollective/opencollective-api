@@ -118,6 +118,28 @@ describe('server/graphql/v2/query/ExportRequestQuery', () => {
       expect(result.data.exportRequest.name).to.eq('Legacy ID Test');
     });
 
+    it('can fetch by publicId', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const exportRequest = await fakeExportRequest({
+        CollectiveId: collective.id,
+        CreatedByUserId: adminUser.id,
+        name: 'Public ID Test',
+      });
+
+      const result = await graphqlQueryV2(
+        exportRequestQuery,
+        {
+          exportRequest: { id: exportRequest.publicId },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.exportRequest.legacyId).to.eq(exportRequest.id);
+      expect(result.data.exportRequest.name).to.eq('Public ID Test');
+    });
+
     it('returns null when export request does not exist and throwIfMissing is false', async () => {
       const adminUser = await fakeUser();
 

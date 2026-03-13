@@ -181,6 +181,27 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(editedTier.interval).to.equal(existingTier.interval);
     });
 
+    it('accepts publicId in TierUpdateInput', async () => {
+      const result = await graphqlQueryV2(
+        EDIT_TIER_MUTATION,
+        {
+          tier: {
+            id: existingTier.publicId,
+            name: 'Public Id Tier',
+          },
+        },
+        adminUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editTier.name).to.equal('Public Id Tier');
+
+      const editedTier = await models.Tier.findByPk(result.data.editTier.legacyId);
+      expect(editedTier).to.exist;
+      expect(editedTier.name).to.equal('Public Id Tier');
+    });
+
     it('does not update tier currency', async () => {
       collective = await fakeCollective({ admin: adminUser, currency: 'EUR' });
 
@@ -244,6 +265,22 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
 
       const editedTier = await models.Tier.findByPk(result.data.deleteTier.legacyId);
       expect(editedTier).to.not.exist;
+    });
+
+    it('accepts publicId in TierReferenceInput', async () => {
+      const tier = await fakeTier({ CollectiveId: collective.id });
+
+      const result = await graphqlQueryV2(
+        DELETE_TIER_MUTATION,
+        { tier: { id: tier.publicId }, stopRecurringContributions: false },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.deleteTier.legacyId).to.equal(tier.id);
+
+      const deletedTier = await models.Tier.findByPk(tier.id);
+      expect(deletedTier).to.not.exist;
     });
 
     it('deletes tier stopping recurring contributions', async () => {

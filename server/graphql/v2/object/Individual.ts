@@ -7,6 +7,7 @@ import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import { KYCProviderName } from '../../../lib/kyc/providers';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, Op } from '../../../models';
 import { KYCVerification } from '../../../models/KYCVerification';
@@ -113,7 +114,9 @@ export const GraphQLIndividual = new GraphQLObjectType({
           },
         },
         async resolve(collective, args, req) {
-          const conversationId = idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION);
+          const conversationId = isEntityPublicId(args.id, EntityShortIdPrefix.Conversation)
+            ? await req.loaders.Conversation.idByPublicId.load(args.id)
+            : idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION);
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
 
           if (!user) {

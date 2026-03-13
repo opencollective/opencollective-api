@@ -2,11 +2,12 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { LEGAL_DOCUMENT_REQUEST_STATUS } from '../../../models/LegalDocument';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentService } from '../enum/LegalDocumentService';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
-import { getIdEncodeResolver, idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import GraphQLURL from '../scalar/URL';
 
@@ -17,7 +18,17 @@ export const GraphQLLegalDocument = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this legal document',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.LEGAL_DOCUMENT),
+      resolve: document => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.LegalDocument, document.createdAt)) {
+          return document.publicId;
+        } else {
+          return idEncode(document.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.LegalDocument}_xxxxxxxx)`,
     },
     year: {
       type: new GraphQLNonNull(GraphQLInt),

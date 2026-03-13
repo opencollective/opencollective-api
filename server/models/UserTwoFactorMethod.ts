@@ -5,14 +5,15 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
 } from 'sequelize';
 import * as z from 'zod';
 
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize from '../lib/sequelize';
 import { TwoFactorMethod } from '../lib/two-factor-authentication/two-factor-methods';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 const TOTPDataSchema = z.object({
@@ -48,11 +49,13 @@ type UserTwoFactorMethodData = {
   [TwoFactorMethod.WEBAUTHN]: UserTwoFactorMethodWebAuthnData;
 };
 
-class UserTwoFactorMethod<T extends Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>> extends Model<
+class UserTwoFactorMethod<T extends Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>> extends ModelWithPublicId<
+  EntityShortIdPrefix.UserTwoFactorMethod,
   InferAttributes<UserTwoFactorMethod<T>>,
   InferCreationAttributes<UserTwoFactorMethod<T>>
 > {
   public static readonly tableName = 'UserTwoFactorMethods' as const;
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.UserTwoFactorMethod;
 
   declare id: CreationOptional<number>;
   declare method: T;
@@ -109,6 +112,10 @@ UserTwoFactorMethod.init(
       autoIncrement: true,
       primaryKey: true,
       type: DataTypes.INTEGER,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     method: {
       type: DataTypes.STRING,

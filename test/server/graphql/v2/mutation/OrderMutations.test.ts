@@ -13,6 +13,7 @@ import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as OrderSecurityLib from '../../../../../server/lib/security/order';
 import stripe from '../../../../../server/lib/stripe';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
@@ -279,6 +280,16 @@ const moveOrdersMutation = gql`
   }
 `;
 
+const orderPublicIdQuery = gql`
+  query OrderPublicId($legacyId: Int!) {
+    order(order: { legacyId: $legacyId }) {
+      id
+      legacyId
+      publicId
+    }
+  }
+`;
+
 const cancelRecurringContributionMutation = gql`
   mutation CancelRecurringContribution($order: OrderReferenceInput!) {
     cancelOrder(order: $order) {
@@ -353,6 +364,20 @@ const stubStripePayments = sandbox => {
 };
 
 describe('server/graphql/v2/mutation/OrderMutations', () => {
+  describe('Order publicId', () => {
+    it('returns publicId and hashid id for orders', async () => {
+      const order = await fakeOrder();
+
+      const result = await graphqlQueryV2(orderPublicIdQuery, { legacyId: order.id });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      expect(result.data.order.legacyId).to.eq(order.id);
+      expect(result.data.order.publicId).to.eq(order.publicId);
+      expect(result.data.order.id).to.eq(idEncode(order.id, IDENTIFIER_TYPES.ORDER));
+    });
+  });
+
   describe('createOrder', () => {
     describe('General cases', () => {
       let fromUser, toCollective, host, validOrderParams, sandbox, emailSendMessageSpy;
@@ -1854,6 +1879,37 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.updateOrderAccountingCategory.accountingCategory.code).to.equal(accountingCategory.code);
     });
+
+    it('accepts publicId in OrderReferenceInput and AccountingCategoryReferenceInput', async () => {
+      const hostAdmin = await fakeUser();
+      const order = await fakeOrder();
+      await order.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+
+      const accountingCategory = await fakeAccountingCategory({
+        CollectiveId: order.collective.HostCollectiveId,
+        kind: 'CONTRIBUTION',
+      });
+
+      const orderPublicId = `${EntityShortIdPrefix.Order}_public`;
+      await order.update({ publicId: orderPublicId });
+
+      const accountingCategoryPublicId = `${EntityShortIdPrefix.AccountingCategory}_${accountingCategory.id}`;
+      await accountingCategory.update({
+        publicId: accountingCategoryPublicId as EntityPublicId<EntityShortIdPrefix.AccountingCategory>,
+      });
+
+      const result = await callUpdateOrderAccountingCategory(
+        {
+          order: { id: orderPublicId },
+          accountingCategory: { id: accountingCategoryPublicId },
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateOrderAccountingCategory.accountingCategory.code).to.equal(accountingCategory.code);
+    });
   });
 
   describe('editPendingOrder', () => {
@@ -2769,6 +2825,26 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             order: { id: idEncode(order2.id, 'order') },
             paymentMethod: {
               id: idEncode(paymentMethod.id, 'paymentMethod'),
+            },
+          },
+          user,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.updateOrder.paymentMethod.id).to.eq(idEncode(paymentMethod.id, 'paymentMethod'));
+      });
+
+      it('accepts publicId in PaymentMethodReferenceInput', async () => {
+        const publicId = `pm_${paymentMethod.id}`;
+        await paymentMethod.update({ publicId });
+        await order2.update({ publicId: `${EntityShortIdPrefix.Order}_${order2.id}` });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: order2.publicId },
+            paymentMethod: {
+              id: publicId,
             },
           },
           user,
