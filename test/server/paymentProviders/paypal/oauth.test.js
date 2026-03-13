@@ -2,6 +2,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import express from 'express';
+import { omit } from 'lodash';
 import nock from 'nock';
 import { stub } from 'sinon';
 import request from 'supertest';
@@ -136,7 +137,7 @@ describe('server/paymentProviders/paypal/oauth', () => {
       expect(res.status).to.equal(200);
       expect(res.body.clientId).to.equal(connectConfig.clientId);
       expect(res.body.redirectUri).to.equal(connectConfig.redirectUri);
-      expect(res.body.authorizeUrl).to.include('client_id=' + connectConfig.clientId);
+      expect(res.body.authorizeUrl).to.include(`client_id=${connectConfig.clientId}`);
       expect(res.body.authorizeUrl).to.include('response_type=code');
     });
   });
@@ -150,7 +151,9 @@ describe('server/paymentProviders/paypal/oauth', () => {
     });
 
     afterEach(() => {
-      if (configPaypalStub) configPaypalStub.restore();
+      if (configPaypalStub) {
+        configPaypalStub.restore();
+      }
       nock.cleanAll();
     });
 
@@ -173,7 +176,7 @@ describe('server/paymentProviders/paypal/oauth', () => {
 
     it('returns 400 when code is missing', async () => {
       validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
-      const { code, ...bodyWithoutCode } = validBody;
+      const bodyWithoutCode = omit(validBody, 'code');
 
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
@@ -197,7 +200,7 @@ describe('server/paymentProviders/paypal/oauth', () => {
 
     it('returns 400 when currency is missing', async () => {
       validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
-      const { currency, ...bodyWithoutCurrency } = validBody;
+      const bodyWithoutCurrency = omit(validBody, 'currency');
 
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)

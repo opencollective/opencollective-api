@@ -736,9 +736,9 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
     }
     return false;
   } else if (expense.status === ExpenseStatus.DRAFT) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {

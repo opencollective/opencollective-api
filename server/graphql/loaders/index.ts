@@ -59,7 +59,7 @@ import { generateSearchLoaders } from './search';
 import { generateTierAvailableQuantityLoader } from './tiers';
 import * as transactionLoaders from './transactions';
 import {
-  generateOffPlatformTransactionsStatsLoader,
+  generateBankSynchronizationTransactionsStatsLoader,
   generateTransactionsImportStatsLoader,
 } from './transactions-import';
 import updatesLoader from './updates';
@@ -1251,7 +1251,7 @@ export const generateLoaders = req => {
     TransactionsImport: {
       ...context.loaders.TransactionsImport,
       stats: generateTransactionsImportStatsLoader(),
-      hostStats: generateOffPlatformTransactionsStatsLoader(),
+      bankSynchronizationHostTransactionsStats: generateBankSynchronizationTransactionsStatsLoader(),
     },
     TransactionsImportRow: {
       ...context.loaders.TransactionsImportRow,

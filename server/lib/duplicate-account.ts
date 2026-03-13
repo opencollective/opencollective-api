@@ -21,7 +21,7 @@ const getNewAccountSlug = async (originalAccount: Collective, userProvidedSlug: 
     const baseSlug = userProvidedSlug || originalAccount.slug.replace(/-[0-9a-zA-Z]+$/, '');
     return `${baseSlug}-${uuid().substr(0, 8)}`;
   } else {
-    return Collective.generateSlug([userProvidedSlug || originalAccount.slug]);
+    return Collective.generateSlug(userProvidedSlug || originalAccount.slug);
   }
 };
 

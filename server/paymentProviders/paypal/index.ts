@@ -1,5 +1,3 @@
-import assert from 'assert';
-
 import config from 'config';
 import jwt from 'jsonwebtoken';
 

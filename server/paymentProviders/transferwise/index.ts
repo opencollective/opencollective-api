@@ -425,6 +425,7 @@ async function scheduleExpenseForPayment(
     quoteExpense(connectedAccount, expense.PayoutMethod, expense, undefined, transferNature),
   ]);
   const balanceInSourceCurrency = wiseBalances.find(b => b.currency === quote.sourceCurrency);
+  assert(balanceInSourceCurrency, `No balance found for currency ${quote.sourceCurrency}`);
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
   let batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
