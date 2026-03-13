@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import gql from 'fake-tag';
 import { generateSecret, generateSync } from 'otplib';
 import sinon from 'sinon';
@@ -12,7 +13,7 @@ import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
-import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakePlatformSubscription, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 const createOrgMutation = gql`
@@ -643,6 +644,53 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
 
       expect(resultWith2FA.errors).to.not.exist;
       expect(resultWith2FA.data.convertOrganizationToCollective.type).to.equal('COLLECTIVE');
+    });
+
+    describe('with new pricing enabled', () => {
+      before(() => {
+        config.features.newPricing = true;
+      });
+
+      after(() => {
+        config.features.newPricing = false;
+      });
+
+      it('deprovisions an active platform subscription', async () => {
+        const user = await fakeUser();
+        const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: user });
+
+        const subscription = await fakePlatformSubscription({
+          CollectiveId: organization.id,
+          plan: { id: 'discover-1', title: 'Discover' },
+        });
+
+        expect(subscription.featureProvisioningStatus).to.not.equal('DEPROVISIONED');
+
+        const result = await utils.graphqlQueryV2(
+          convertOrganizationToCollectiveMutation,
+          { organization: { legacyId: organization.id } },
+          user,
+        );
+
+        expect(result.errors).to.not.exist;
+
+        await subscription.reload();
+        expect(subscription.featureProvisioningStatus).to.equal('DEPROVISIONED');
+      });
+
+      it('converts successfully when no active plan subscription exists', async () => {
+        const user = await fakeUser();
+        const organization = await fakeCollective({ type: CollectiveType.ORGANIZATION, admin: user });
+
+        const result = await utils.graphqlQueryV2(
+          convertOrganizationToCollectiveMutation,
+          { organization: { legacyId: organization.id } },
+          user,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.convertOrganizationToCollective.type).to.equal('COLLECTIVE');
+      });
     });
   });
 });
