@@ -1,9 +1,9 @@
 import { KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
 
-import { KYCProvider, KYCRequest } from './base';
+import { KYCProvider, KYCRequest, ProviderKYCRequestBase } from './base';
 import { KYCProviderName } from '.';
 
-type ManualKYCRequest = {
+type ManualKYCRequest = ProviderKYCRequestBase & {
   legalName: string;
   legalAddress?: string;
   notes?: string;
@@ -46,7 +46,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
       verifiedAt: new Date(),
     });
 
-    await this.createRequestedActivity(kycVerification, params.UserTokenId);
+    await this.handleKycVerified(kycVerification);
 
     return kycVerification;
   }

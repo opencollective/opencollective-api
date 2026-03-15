@@ -7,7 +7,7 @@ import { KYCVerification, KYCVerificationStatus, KYCVerifiedData } from '../../.
 import { checkFeatureAccess, FEATURE } from '../../../allowed-features';
 import { crypto } from '../../../encryption';
 import logger from '../../../logger';
-import { KYCProvider, KYCRequest } from '../base';
+import { KYCProvider, KYCRequest, ProviderKYCRequestBase } from '../base';
 import { KYCProviderName } from '..';
 
 import { PersonaClient, PersonaEvent, PersonaInquiry, PersonaWebhookEvent, PersonaWebhookWithSecret } from './client';
@@ -20,7 +20,7 @@ const REQUIRED_WEBHOOK_EVENTS: PersonaEvent[] = [
   PersonaEvent.INQUIRY_FAILED,
 ];
 
-type PersonaKYCRequest = {
+type PersonaKYCRequest = ProviderKYCRequestBase & {
   importInquiryId?: string;
 };
 
@@ -161,6 +161,8 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       verifiedAt: new Date(),
     });
 
+    await this.handleKycRequested(kycVerification, providerRequest);
+
     return kycVerification;
   }
 
@@ -229,7 +231,7 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
       verifiedAt: new Date(),
     });
 
-    await this.createRequestedActivity(kycVerification, params.UserTokenId);
+    await this.handleKycRequested(kycVerification, personaParams);
 
     return kycVerification;
   }
@@ -367,6 +369,8 @@ class PersonaKYCProvider extends KYCProvider<PersonaKYCRequest, PersonaKYCVerifi
         inquiry: this.sanitizeInquiry(inquiry),
       },
     });
+
+    await this.handleKycVerified(kycVerification);
   }
 
   private async handleInquiryDeclined(
