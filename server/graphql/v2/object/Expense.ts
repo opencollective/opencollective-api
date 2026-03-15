@@ -480,13 +480,25 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLActivity))),
         description: 'The list of activities (ie. approved, edited, etc) for this expense ordered by date ascending',
         async resolve(expense, _, req) {
-          const activities = await req.loaders.Expense.activities.load(expense.id);
+          let activities = await req.loaders.Expense.activities.load(expense.id);
           if (!req.remoteUser || !(await ExpenseLib.canSeeExpenseOnHoldFlag(req, expense))) {
-            return activities.filter(
+            activities = activities.filter(
               activity =>
                 ![
                   ActivityTypes.COLLECTIVE_EXPENSE_PUT_ON_HOLD,
                   ActivityTypes.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD,
+                ].includes(activity.type),
+            );
+          }
+
+          if (!(await ExpenseLib.isHostAdmin(req, expense))) {
+            activities = activities.filter(
+              activity =>
+                ![
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_REQUESTED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_VERIFIED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_REVOKED,
                 ].includes(activity.type),
             );
           }
