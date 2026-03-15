@@ -125,6 +125,9 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     data: {
       hostFeePercent: order.hostFeePercent,
       paymentProcessorFee: order.paymentProcessorFee,
+      ...(order.accountingCategory
+        ? { valuesByRole: { hostAdmin: { accountingCategory: order.accountingCategory?.publicInfo } } }
+        : {}),
     },
   };
 

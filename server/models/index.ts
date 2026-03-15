@@ -1,6 +1,7 @@
 import sequelize, { Op } from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
+import { AccountingCategoryRule } from './AccountingCategoryRule';
 import Activity from './Activity';
 import Agreement from './Agreement';
 import Application from './Application';
@@ -103,6 +104,7 @@ const models = {
   KYCVerification,
   VirtualCard,
   VirtualCardRequest,
+  AccountingCategoryRule,
 } as const;
 
 /**
@@ -375,6 +377,13 @@ PlatformSubscription.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'co
 // KYCVerification
 KYCVerification.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 KYCVerification.belongsTo(Collective, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
+
+// AccountingCategoryRule
+AccountingCategoryRule.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+AccountingCategoryRule.belongsTo(AccountingCategory, {
+  foreignKey: 'AccountingCategoryId',
+  as: 'accountingCategory',
+});
 
 export default models;
 
