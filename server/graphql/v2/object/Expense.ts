@@ -16,7 +16,10 @@ import ActivityTypes from '../../../constants/activities';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
+import FEATURE from '../../../constants/feature';
 import OAuthScopes from '../../../constants/oauth-scopes';
+import { hasFeature } from '../../../lib/allowed-features';
+import { expenseKycStatus } from '../../../lib/kyc/expenses/kyc-expenses-check';
 import { floatAmountToCents } from '../../../lib/math';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
@@ -52,6 +55,7 @@ import { GraphQLActivity } from './Activity';
 import { GraphQLAmount } from './Amount';
 import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
 import GraphQLExpenseItem from './ExpenseItem';
+import { GraphQLExpenseKYCStatus } from './ExpenseKYCStatus';
 import GraphQLExpensePermissions from './ExpensePermissions';
 import GraphQLExpenseQuote from './ExpenseQuote';
 import { GraphQLExpenseValuesByRole } from './ExpenseValuesByRole';
@@ -806,6 +810,29 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (req.remoteUser.isRoot()) {
             return expense.data.bill;
           }
+        },
+      },
+      kycStatus: {
+        type: GraphQLExpenseKYCStatus,
+        async resolve(expense, _, req) {
+          if (!req.remoteUser) {
+            return null;
+          }
+
+          if (expense.status === expenseStatus.DRAFT) {
+            return null;
+          }
+
+          const host = await loadHostForExpense(expense, req);
+          if (!host || !req.remoteUser.isAdminOfCollective(host)) {
+            return null;
+          }
+
+          if (!(await hasFeature(host, FEATURE.KYC, { loaders: req.loaders }))) {
+            return null;
+          }
+
+          return expenseKycStatus(expense, { loaders: req.loaders });
         },
       },
     };

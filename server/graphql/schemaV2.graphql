@@ -513,6 +513,11 @@ interface Account {
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -2845,6 +2850,7 @@ type Expense {
   """
   transactionImportRow: TransactionsImportRow
   platformBillingData: JSON
+  kycStatus: ExpenseKYCStatus
 }
 
 """
@@ -3299,6 +3305,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -5746,6 +5757,10 @@ enum ActivityType {
   COLLECTIVE_EXPENSE_INVITE_DECLINED
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED
   COLLECTIVE_EXPENSE_MISSING_RECEIPT
+  COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED
+  COLLECTIVE_EXPENSE_KYC_REQUESTED
+  COLLECTIVE_EXPENSE_KYC_VERIFIED
+  COLLECTIVE_EXPENSE_KYC_REVOKED
   TAXFORM_REQUEST
   TAXFORM_RECEIVED
   TAXFORM_INVALIDATED
@@ -9196,6 +9211,20 @@ enum ExpenseLockableFields {
   TYPE
 }
 
+type ExpenseKYCStatus {
+  payee: ExpensePayeeKYC
+}
+
+type ExpensePayeeKYC {
+  status: ExpensePayeeKYCStatus
+}
+
+enum ExpensePayeeKYCStatus {
+  NOT_REQUESTED
+  PENDING
+  VERIFIED
+}
+
 """
 Fields for the user permissions on an transaction
 """
@@ -9716,6 +9745,11 @@ type Bot implements Account {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -10756,6 +10790,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -12358,6 +12397,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -13670,6 +13714,11 @@ type Individual implements Account {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -15018,6 +15067,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -16196,6 +16250,11 @@ type Vendor implements Account & AccountWithContributions {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -18233,6 +18292,11 @@ type Query {
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -19784,6 +19848,10 @@ enum ActivityAndClassesType {
   COLLECTIVE_EXPENSE_INVITE_DECLINED
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED
   COLLECTIVE_EXPENSE_MISSING_RECEIPT
+  COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED
+  COLLECTIVE_EXPENSE_KYC_REQUESTED
+  COLLECTIVE_EXPENSE_KYC_VERIFIED
+  COLLECTIVE_EXPENSE_KYC_REVOKED
   TAXFORM_REQUEST
   TAXFORM_RECEIVED
   TAXFORM_INVALIDATED
@@ -20432,6 +20500,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -21619,6 +21692,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
