@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
+import { createSandbox } from 'sinon';
 
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
@@ -245,6 +247,84 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(result.errors[0].message).to.include('Archived payout methods cannot be restored');
       await archivedPayoutMethod.reload();
       expect(archivedPayoutMethod.isSaved).to.be.false;
+    });
+
+    describe('KYC handlers', () => {
+      let sandbox: ReturnType<typeof createSandbox>;
+
+      beforeEach(async () => {
+        await utils.resetTestDB();
+        sandbox = createSandbox();
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it('calls handleKycPayoutMethodEdited when payout method is edited in place', async () => {
+        const handleKycPayoutMethodEditedStub = sandbox
+          .stub(kycExpensesCheck, 'handleKycPayoutMethodEdited')
+          .resolves();
+
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user.collective });
+        const payoutMethod = await fakePayoutMethod({
+          CollectiveId: collective.id,
+          isSaved: true,
+          name: 'Original Name',
+        });
+        // No expenses (or only PENDING/DRAFT) so canBeEdited() is true → in-place update
+        const mutationArgs = {
+          payoutMethod: {
+            id: idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+            name: 'Updated Name',
+          },
+        };
+
+        const result = await graphqlQueryV2(editPayoutMethodMutation, mutationArgs, user);
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editPayoutMethod.name).to.equal('Updated Name');
+        expect(result.data.editPayoutMethod.id).to.equal(mutationArgs.payoutMethod.id);
+        expect(handleKycPayoutMethodEditedStub).to.have.been.calledOnce;
+        const [oldDataValues, updatedPayoutMethod] = handleKycPayoutMethodEditedStub.firstCall.args;
+        expect(oldDataValues.id).to.equal(payoutMethod.id);
+        expect(updatedPayoutMethod.id).to.equal(payoutMethod.id);
+        expect(updatedPayoutMethod.name).to.equal('Updated Name');
+      });
+
+      it('calls handleKycPayoutMethodReplaced when payout method is archived and replaced', async () => {
+        const handleKycPayoutMethodReplacedStub = sandbox
+          .stub(kycExpensesCheck, 'handleKycPayoutMethodReplaced')
+          .resolves();
+
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user.collective });
+        const payoutMethod = await fakePayoutMethod({
+          CollectiveId: collective.id,
+          isSaved: true,
+          name: 'Old Bank',
+        });
+        // Expense with PAID status so canBeEdited() is false → archive and replace
+        await fakeExpense({ PayoutMethodId: payoutMethod.id, status: 'PAID' });
+        const mutationArgs = {
+          payoutMethod: {
+            id: idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+            name: 'New Bank',
+          },
+        };
+
+        const result = await graphqlQueryV2(editPayoutMethodMutation, mutationArgs, user);
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editPayoutMethod.name).to.equal('New Bank');
+        expect(result.data.editPayoutMethod.id).to.not.equal(mutationArgs.payoutMethod.id);
+        expect(handleKycPayoutMethodReplacedStub).to.have.been.calledOnce;
+        const [oldPayoutMethod, newPayoutMethod] = handleKycPayoutMethodReplacedStub.firstCall.args;
+        expect(oldPayoutMethod.id).to.equal(payoutMethod.id);
+        expect(newPayoutMethod.id).to.not.equal(payoutMethod.id);
+        expect(newPayoutMethod.name).to.equal('New Bank');
+      });
     });
   });
 });
