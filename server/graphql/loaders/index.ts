@@ -1181,13 +1181,17 @@ export const generateLoaders = req => {
           });
         }),
       ),
-      totalAmountDonatedFromTo: new DataLoader<{ CollectiveId: number; FromCollectiveId: number }, number>(keys =>
-        Transaction.findAll({
+      totalAmountDonatedFromTo: new DataLoader<
+        { CollectiveId: number; FromCollectiveId: number; currency: SupportedCurrency },
+        number
+      >(async keys => {
+        const results = (await Transaction.findAll({
           attributes: [
             'FromCollectiveId',
             'UsingGiftCardFromCollectiveId',
             'CollectiveId',
             [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
+            'currency',
           ],
           where: {
             [Op.or]: {
@@ -1208,26 +1212,49 @@ export const generateLoaders = req => {
             kind: { [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'] },
             RefundTransactionId: null,
           },
-          group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId'],
-        }).then(results => {
-          const resultsByKey = {};
-          results.forEach(({ CollectiveId, FromCollectiveId, UsingGiftCardFromCollectiveId, dataValues }) => {
-            // Credit collective that emitted the gift card (if any)
-            if (UsingGiftCardFromCollectiveId) {
-              const key = `${UsingGiftCardFromCollectiveId}-${CollectiveId}`;
-              const donated = resultsByKey[key] || 0;
-              resultsByKey[key] = donated + dataValues['totalAmount'];
+          group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId', 'currency'],
+          raw: true,
+          mapToModel: false,
+        })) as unknown as Array<{
+          FromCollectiveId: number;
+          UsingGiftCardFromCollectiveId: number;
+          CollectiveId: number;
+          currency: SupportedCurrency;
+          totalAmount: number;
+        }>;
+
+        // Group results by from/to collective and currency
+        const resultsByKey: Record<`${number}-${number}`, Partial<Record<SupportedCurrency, number>>> = {};
+        results.forEach(({ CollectiveId, FromCollectiveId, UsingGiftCardFromCollectiveId, currency, totalAmount }) => {
+          // Credit collective that emitted the gift card (if any)
+          if (UsingGiftCardFromCollectiveId) {
+            const key = `${UsingGiftCardFromCollectiveId}-${CollectiveId}`;
+            resultsByKey[key] = resultsByKey[key] || {};
+            resultsByKey[key][currency] = (resultsByKey[key][currency] || 0) + totalAmount;
+          }
+          // Credit collective who actually made the transaction
+          const key = `${FromCollectiveId}-${CollectiveId}`;
+          resultsByKey[key] = resultsByKey[key] || {};
+          resultsByKey[key][currency] = (resultsByKey[key][currency] || 0) + totalAmount;
+        });
+
+        return Promise.all(
+          keys.map(async key => {
+            const results = resultsByKey[`${key.FromCollectiveId}-${key.CollectiveId}`] || {};
+            let total = 0;
+            for (const [resultCurrency, resultAmount] of Object.entries(results)) {
+              const fxRate = await loaders.CurrencyExchangeRate.fxRate.load({
+                fromCurrency: resultCurrency as SupportedCurrency,
+                toCurrency: key.currency,
+              });
+
+              total += resultAmount * (fxRate ?? 1);
             }
-            // Credit collective who actually made the transaction
-            const key = `${FromCollectiveId}-${CollectiveId}`;
-            const donated = resultsByKey[key] || 0;
-            resultsByKey[key] = donated + dataValues['totalAmount'];
-          });
-          return keys.map(key => {
-            return resultsByKey[`${key.FromCollectiveId}-${key.CollectiveId}`] || 0;
-          });
-        }),
-      ),
+
+            return Math.round(total);
+          }),
+        );
+      }),
       hostFeeAmountForTransaction: transactionLoaders.generateHostFeeAmountForTransactionLoader(),
       paymentProcessorFeeAmountForTransaction:
         transactionLoaders.generatePaymentProcessorFeeAmountForTransactionLoader(),

@@ -206,6 +206,7 @@ export const GraphQLOrder = new GraphQLObjectType({
           const value = await req.loaders.Transaction.totalAmountDonatedFromTo.load({
             FromCollectiveId: order.FromCollectiveId,
             CollectiveId: order.CollectiveId,
+            currency: order.currency,
           });
           return { value, currency: order.currency };
         },
