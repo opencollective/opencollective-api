@@ -1,10 +1,19 @@
 import config from 'config';
 import fetch, { Response } from 'node-fetch';
 
+import FEATURE from '../../constants/feature';
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
 import { reportMessageToSentry } from '../../lib/sentry';
 import { Collective } from '../../models';
+
+import { PaypalUserInfo } from './types';
+
+/** PayPal scopes required by each platform feature */
+export const PAYPAL_SCOPE_REQUIREMENTS: Partial<Record<FEATURE, string[]>> = {
+  [FEATURE.PAYPAL_PAYOUTS]: ['https://uri.paypal.com/services/payouts'],
+  [FEATURE.PAYPAL_DONATIONS]: ['https://uri.paypal.com/services/payments/payment/authcapture'],
+};
 
 /** Build an URL for the PayPal API */
 export function paypalUrl(path: string, version = 'v1'): string {
@@ -19,6 +28,13 @@ export function paypalUrl(path: string, version = 'v1'): string {
   return new URL(baseUrl + path).toString();
 }
 
+/** Build the PayPal authorization URL for "Log in with PayPal" */
+export function paypalConnectAuthorizeUrl(): string {
+  return config.paypal.payment.environment === 'sandbox'
+    ? 'https://www.sandbox.paypal.com/connect/'
+    : 'https://www.paypal.com/connect/';
+}
+
 /** Exchange clientid and secretid by an auth token with PayPal API */
 export async function retrieveOAuthToken({ clientId, clientSecret }): Promise<string> {
   const url = paypalUrl('oauth2/token');
@@ -31,6 +47,123 @@ export async function retrieveOAuthToken({ clientId, clientSecret }): Promise<st
   const response = await fetch(url, { method: 'post', body, headers });
   const jsonOutput = await response.json();
   return jsonOutput.access_token;
+}
+
+/**
+ * Exchange an authorization code for a user access + refresh token using the platform PayPal Connect app.
+ * Used in the "Log in with PayPal" flow.
+ */
+export async function exchangeAuthCodeForToken(code: string): Promise<{
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  scope: string;
+  nonce: string;
+  state: string;
+}> {
+  const url = paypalUrl('oauth2/token');
+  const authStr = `${config.paypal.connect.clientId}:${config.paypal.connect.clientSecret}`;
+  const basicAuth = Buffer.from(authStr).toString('base64');
+  const headers = { Authorization: `Basic ${basicAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' };
+  const body = new URLSearchParams();
+  body.set('grant_type', 'authorization_code');
+  body.set('code', code);
+  body.set('redirect_uri', config.paypal.connect.redirectUri); // TODO: Should be auto-generated if missing
+
+  const response = await fetch(url, { method: 'post', body, headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      `PayPal token exchange failed (${response.status}): ${(error as any).error_description || response.statusText}`,
+    );
+  }
+
+  return response.json();
+}
+
+/**
+ * Refresh a user's PayPal access token using their stored refresh token.
+ */
+export async function refreshPaypalUserToken(
+  refreshToken: string,
+): Promise<{ access_token: string; refresh_token: string; expires_in: number }> {
+  const url = paypalUrl('oauth2/token');
+  const authStr = `${config.paypal.connect.clientId}:${config.paypal.connect.clientSecret}`;
+  const basicAuth = Buffer.from(authStr).toString('base64');
+  const headers = { Authorization: `Basic ${basicAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' };
+  const body = new URLSearchParams();
+  body.set('grant_type', 'refresh_token');
+  body.set('refresh_token', refreshToken);
+
+  const response = await fetch(url, { method: 'post', body, headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      `PayPal token refresh failed (${response.status}): ${(error as any).error_description || response.statusText}`,
+    );
+  }
+  return response.json();
+}
+
+/**
+ * Retrieve the authenticated user's PayPal identity information using their access token.
+ * Requires the `openid`, `email`, and `https://uri.paypal.com/services/paypalattributes` scopes.
+ */
+export async function retrievePaypalUserInfo(accessToken: string): Promise<PaypalUserInfo> {
+  const url = `${paypalUrl('identity/oauth2/userinfo')}?schema=paypalv1.1`;
+  const headers = { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+  const response = await fetch(url, { method: 'get', headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      `PayPal userinfo request failed (${response.status}): ${(error as any).message || response.statusText}`,
+    );
+  }
+  return response.json();
+}
+
+/**
+ * Retrieve the list of scopes granted to a host's PayPal application credentials.
+ * Used to verify that required APIs are enabled on the PayPal account.
+ */
+export async function retrieveGrantedScopes(clientId: string, clientSecret: string): Promise<string[]> {
+  const url = paypalUrl('oauth2/token');
+  const body = 'grant_type=client_credentials';
+  const authStr = `${clientId}:${clientSecret}`;
+  const basicAuth = Buffer.from(authStr).toString('base64');
+  const headers = { Authorization: `Basic ${basicAuth}`, 'Content-Type': 'application/x-www-form-urlencoded' };
+  const response = await fetch(url, { method: 'post', body, headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      `PayPal credentials check failed (${response.status}): ${(error as any).error_description || response.statusText}`,
+    );
+  }
+  const result = (await response.json()) as { scope?: string };
+  return result.scope ? result.scope.split(' ') : [];
+}
+
+/**
+ * Check whether the granted scopes satisfy the requirements for the given set of enabled features.
+ * Returns a list of missing scope descriptions for any unsatisfied features.
+ */
+export function checkPaypalScopes(
+  grantedScopes: string[],
+  enabledFeatures: FEATURE[],
+): { feature: FEATURE; missingScopes: string[] }[] {
+  const issues: { feature: FEATURE; missingScopes: string[] }[] = [];
+  for (const feature of enabledFeatures) {
+    const required = PAYPAL_SCOPE_REQUIREMENTS[feature];
+    if (!required) {
+      continue;
+    }
+    const missing = required.filter(scope => !grantedScopes.includes(scope));
+    if (missing.length > 0) {
+      issues.push({ feature, missingScopes: missing });
+    }
+  }
+  return issues;
 }
 
 const parsePaypalError = async (
