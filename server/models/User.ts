@@ -1,5 +1,4 @@
 import bcrypt from 'bcrypt';
-import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
@@ -15,7 +14,6 @@ import OrderStatuses from '../constants/order-status';
 import PlatformConstants from '../constants/platform';
 import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
-import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import twoFactorAuthLib from '../lib/two-factor-authentication';
@@ -704,17 +702,6 @@ User.init(
         isEmail: {
           msg: 'Email must be valid',
         },
-        isBurnerEmail: function (val) {
-          if (
-            (this._emailChanged || this.isNewRecord) &&
-            !emailLib.isAuthorizedEmailDomain(val.toLowerCase()) &&
-            isEmailBurner(val.toLowerCase())
-          ) {
-            throw new Error(
-              'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
-            );
-          }
-        },
       },
     },
 
@@ -732,17 +719,6 @@ User.init(
       validate: {
         isEmail: {
           msg: 'Email must be valid',
-        },
-        isBurnerEmail: function (val) {
-          if (
-            (this._emailWaitingForValidationChanged || this.isNewRecord) &&
-            !emailLib.isAuthorizedEmailDomain(val.toLowerCase()) &&
-            isEmailBurner(val.toLowerCase())
-          ) {
-            throw new Error(
-              'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
-            );
-          }
         },
       },
     },

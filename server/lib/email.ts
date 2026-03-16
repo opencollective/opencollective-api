@@ -11,7 +11,6 @@ import { EmailTheme } from '../constants/email-theme';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import models from '../models';
 
-import authorizedEmailDomains from './authorizedEmailDomains';
 import templates, { EmailTemplates } from './emailTemplates';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
@@ -266,11 +265,6 @@ const getNotificationLabel = (template): string => {
   return notificationTypeLabels[template];
 };
 
-const isAuthorizedEmailDomain = email => {
-  const domain = email.substring(email.lastIndexOf('@') + 1).toLowerCase();
-  return authorizedEmailDomains.includes(domain);
-};
-
 /*
  * Given a template, recipient and data, generates email.
  */
@@ -403,7 +397,6 @@ const emailLib = {
   isValidUnsubscribeToken,
   generateEmailFromTemplate,
   send: generateEmailFromTemplateAndSend,
-  isAuthorizedEmailDomain,
   generateFromEmailHeader,
 };
 
