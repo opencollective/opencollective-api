@@ -4009,6 +4009,12 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
   // -- Move expenses --
   const expenseIds: number[] = uniq(expenses.map(expense => expense.id));
   const recurringExpenseIds: number[] = uniq(expenses.map(expense => expense.RecurringExpenseId).filter(Boolean));
+
+  // Check if moving to a different host - if so, we need to clear accounting categories
+  const isMovingToDifferentHost = expenses.some(
+    e => e.collective.HostCollectiveId !== destinationAccount.HostCollectiveId,
+  );
+
   const result = await sequelize.transaction(async dbTransaction => {
     const associatedTransactionsCount = await models.Transaction.count({
       where: { ExpenseId: expenseIds },
@@ -4019,9 +4025,12 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
       throw new ValidationFailed('Cannot move expenses with associated transactions');
     }
 
-    // Moving associated models
+    // Moving expenses - clear AccountingCategoryId if moving to different host (category belongs to old host)
     const [, updatedExpenses] = await models.Expense.update(
-      { CollectiveId: destinationAccount.id },
+      {
+        CollectiveId: destinationAccount.id,
+        ...(isMovingToDifferentHost && { AccountingCategoryId: null }),
+      },
       {
         transaction: dbTransaction,
         returning: true,
@@ -4088,7 +4097,7 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
       },
     );
 
-    // Record the migration log
+    // Record the migration log (previousExpenseValues includes AccountingCategoryId for audit)
     await models.MigrationLog.create(
       {
         type: MigrationLogType.MOVE_EXPENSES,
@@ -4100,7 +4109,9 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
           comments: updatedComments.map(c => c.id),
           activities: updatedActivities.map(a => a.id),
           destinationAccount: destinationAccount.id,
-          previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
+          previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense =>
+            pick(expense, ['CollectiveId', 'AccountingCategoryId']),
+          ),
         },
       },
       { transaction: dbTransaction },
