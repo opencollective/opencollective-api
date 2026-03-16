@@ -38,6 +38,7 @@ import {
   GraphQLTransactionsImportRowReferenceInput,
   GraphQLTransactionsImportRowReferenceInputFields,
 } from '../input/TransactionsImportRowReferenceInput';
+import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
 
 type AddFundsMutationArgs = {
@@ -354,6 +355,13 @@ export default {
 
       const previousData = order.toJSON();
       // Update existing Order
+
+      const valuesByRole = {
+        ...(order.data.valuesByRole || {}),
+        ...(accountingCategory === null ? { hostAdmin: { accountingCategory: { code: UncategorizedValue } } } : {}),
+        ...(accountingCategory?.id ? { hostAdmin: { accountingCategory: accountingCategory?.publicInfo } } : {}),
+      };
+
       const orderData: Partial<InferAttributes<Order>> = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
@@ -370,8 +378,10 @@ export default {
           hostFeePercent: args.hostFeePercent ?? order.data.hostFeePercent,
           paymentProcessorFee: paymentProcessorFee ?? order.data.paymentProcessorFee,
           memo: args.memo ?? order.data.memo,
+          valuesByRole,
         },
       };
+
       if (args.tax?.rate) {
         orderData.taxAmount = Math.round(orderData.totalAmount - orderData.totalAmount / (1 + args.tax.rate));
         orderData.data.tax = getOrderTaxInfoFromTaxInput(args.tax, fromAccount, account, host);
