@@ -1,0 +1,40 @@
+[1mdiff --cc server/graphql/v2/mutation/ExpenseMutations.ts[m
+[1mindex 23e76b146,046afa3ab..000000000[m
+[1m--- a/server/graphql/v2/mutation/ExpenseMutations.ts[m
+[1m+++ b/server/graphql/v2/mutation/ExpenseMutations.ts[m
+[36m@@@ -399,11 -398,15 +399,16 @@@[m [mconst expenseMutations = [m
+                type: GraphQLInt,[m
+                description: 'The total amount paid in host currency',[m
+              },[m
+[31m -            shouldRefundPaymentProcessorFee: {[m
+[31m -              type: GraphQLBoolean,[m
+[31m -              description: 'Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID',[m
+[32m +            amountRefunded: {[m
+[32m +              type: GraphQLAmountInput,[m
+[32m +              description:[m
+[32m +                'Amount refunded when triggering MARK_AS_UNPAID. Must be > 0 and <= total amount paid. If omitted, full refund is performed. The difference (total paid - refunded) is recorded as payment processor fee.',[m
+              },[m
+[32m+             isHostCoveringPaymentProcessorFees: {[m
+[32m+               type: GraphQLBoolean,[m
+[32m+               description:[m
+[32m+                 'When true, the host covers the lost payment processor fees from host budget, restoring the collective full balance when triggering MARK_AS_UNPAID',[m
+[32m+             },[m
+              markAsUnPaidStatus: {[m
+                type: new GraphQLEnumType({[m
+                  name: 'MarkAsUnPaidExpenseStatus',[m
+[36m@@@ -505,11 -499,12 +510,12 @@@[m
+            expense = await markExpenseAsUnpaid([m
+              req,[m
+              expense.id,[m
+[31m -            args.paymentParams?.isHostCoveringPaymentProcessorFees ||[m
+[31m -              args.paymentParams?.shouldRefundPaymentProcessorFee ||[m
+[31m -              args.paymentParams?.paymentProcessorFee,[m
+[32m +            amountRefundedInHostCurrency,[m
+              args.paymentParams?.markAsUnPaidStatus,[m
+[32m++            // TODO: Add isHostCoveringPaymentProcessorFees[m
+            );[m
+            break;[m
+[32m +        }[m
+          case 'SCHEDULE_FOR_PAYMENT':[m
+            expense = await scheduleExpenseForPayment(req, expense, {[m
+              feesPayer: args.paymentParams?.feesPayer,[m

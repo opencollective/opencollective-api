@@ -50,7 +50,10 @@ describe('Transaction', () => {
       },
       include: [{ model: models.Expense }],
     });
-    await createRefundTransaction(transaction, 390, null, hostAdmin);
+    await createRefundTransaction(transaction, {
+      refundedPaymentProcessorFeeInHostCurrency: 390,
+      user: hostAdmin,
+    });
   });
 
   it('should fetch the correct payment processor fee', async () => {
