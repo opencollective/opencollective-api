@@ -88,7 +88,7 @@ CREATE OR REPLACE FUNCTION nanoid_optimized(
     RETURNS text -- A randomly generated NanoId String
     LANGUAGE plpgsql
     VOLATILE
-    LEAKPROOF
+    -- LEAKPROOF
     PARALLEL SAFE
 AS
 $$
