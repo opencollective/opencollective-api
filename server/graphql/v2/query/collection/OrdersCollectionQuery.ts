@@ -684,31 +684,6 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             });
         });
     })
-<<<<<<< improve-order-search-term-conditions
-=======
-    .$if(!!args.searchTerm, qb => {
-      const looksLikeAnEmail = args.searchTerm?.includes('@');
-
-      return qb.leftJoin('Users', 'Users.id', 'Orders.CreatedByUserId').where(({ or, eb }) => {
-        const ors: Expression<SqlBool>[] = [];
-        if (isHostAdmin && looksLikeAnEmail) {
-          ors.push(eb('Users.email', '=', args.searchTerm));
-          ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
-        }
-
-        if (isFinite(Number(args.searchTerm))) {
-          ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
-        }
-
-        ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`));
-
-        return or(ors);
-      });
-    })
->>>>>>> main
     .$if(!!args.amount?.gte?.valueInCents || !!args.amount?.lte?.valueInCents, qb => {
       if (args.amount.gte && args.amount.lte) {
         assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
