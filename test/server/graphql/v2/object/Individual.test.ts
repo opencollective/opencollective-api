@@ -5,6 +5,7 @@ import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
 import MemberRoles from '../../../../../server/constants/roles';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
   fakeActiveHost,
@@ -203,6 +204,34 @@ describe('server/graphql/v2/object/Individual', () => {
       const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: user.collective.slug }, user);
       expect(result.errors).to.not.exist;
       expect(result.data.account.emailWaitingForValidation).to.be.null;
+    });
+  });
+
+  describe('account query with publicId', () => {
+    it('can fetch an Individual account by publicId', async () => {
+      const publicId = `${EntityShortIdPrefix.Collective}_${user.collective.id}`;
+      await user.collective.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        gql`
+          query Individual($id: String!) {
+            account(id: $id) {
+              ... on Individual {
+                id
+                legacyId
+                slug
+              }
+            }
+          }
+        `,
+        { id: publicId },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.legacyId).to.equal(user.collective.id);
+      expect(result.data.account.slug).to.equal(user.collective.slug);
     });
   });
 

@@ -1,11 +1,14 @@
 import { GraphQLInputObjectType, GraphQLNonNull } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
+import { FindOptions, InferAttributes } from 'sequelize';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { TransactionsImport } from '../../../models';
+import { Loaders } from '../../loaders';
 import { idDecode } from '../identifiers';
 
 export type GraphQLTransactionsImportReferenceInputFields = {
-  id: string;
+  id?: string;
 };
 
 export const GraphQLTransactionsImportReferenceInput = new GraphQLInputObjectType({
@@ -13,7 +16,7 @@ export const GraphQLTransactionsImportReferenceInput = new GraphQLInputObjectTyp
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
-      description: 'The id of the row',
+      description: `The id of the row (ie: ${EntityShortIdPrefix.TransactionsImport}_xxxxxxxx)`,
     },
   }),
 });
@@ -21,12 +24,17 @@ export const GraphQLTransactionsImportReferenceInput = new GraphQLInputObjectTyp
 export const fetchTransactionsImportWithReference = async (
   input: GraphQLTransactionsImportReferenceInputFields,
   {
+    loaders = null,
     throwIfMissing = false,
     ...sequelizeOpts
-  }: { throwIfMissing?: boolean } & Parameters<typeof TransactionsImport.findByPk>[1] = {},
+  }: { loaders?: Loaders; throwIfMissing?: boolean } & FindOptions<InferAttributes<TransactionsImport>> = {},
 ): Promise<TransactionsImport> => {
   let row;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.TransactionsImport)) {
+    row = await (loaders
+      ? loaders.TransactionsImport.byPublicId.load(input.id)
+      : TransactionsImport.findOne({ where: { publicId: input.id }, ...sequelizeOpts }));
+  } else if (input.id) {
     const decodedId = idDecode(input.id, 'transactions-import-row');
     row = await TransactionsImport.findByPk(decodedId, sequelizeOpts);
   }

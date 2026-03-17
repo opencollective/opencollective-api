@@ -8,6 +8,7 @@ import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as libcurrency from '../../../../../server/lib/currency';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models, { Op } from '../../../../../server/models';
 import {
   fakeAccountingCategory,
@@ -18,6 +19,7 @@ import {
   fakeTier,
   fakeUser,
   fakeUserToken,
+  fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
@@ -64,6 +66,10 @@ const addFundsMutation = gql`
             valueInCents
           }
         }
+      }
+      fromAccount {
+        legacyId
+        publicId
       }
       transactions {
         id
@@ -332,6 +338,30 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
       expect(result.data.addFunds.amount.currency).to.equal('USD');
+    });
+
+    it('can add funds from a vendor specified by publicId', async () => {
+      const host = collective.host;
+      const vendor = await fakeVendor({ HostCollectiveId: host.id, ParentCollectiveId: host.id });
+      const vendorPublicId = `${EntityShortIdPrefix.Collective}_${vendor.id}`;
+      await vendor.update({ publicId: vendorPublicId });
+
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          account: { legacyId: collective.id },
+          fromAccount: { id: vendorPublicId },
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+      expect(result.data.addFunds.toAccount.id).to.exist;
+      expect(result.data.addFunds.fromAccount.publicId).to.equal(vendorPublicId);
+      expect(result.data.addFunds.fromAccount.legacyId).to.equal(vendor.id);
     });
 
     // Imported/adapted from `test/server/graphql/v1/paymentMethods.test.js`

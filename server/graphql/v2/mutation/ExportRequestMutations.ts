@@ -111,7 +111,10 @@ const exportRequestMutations = {
       checkRemoteUserCanUseAccount(req);
 
       // Fetch the export request
-      const exportRequest = await fetchExportRequestWithReference(args.exportRequest, { throwIfMissing: true });
+      const exportRequest = await fetchExportRequestWithReference(args.exportRequest, {
+        throwIfMissing: true,
+        loaders: req.loaders,
+      });
 
       // Check permissions - user must be admin of the account
       const account = await req.loaders.Collective.byId.load(exportRequest.CollectiveId);

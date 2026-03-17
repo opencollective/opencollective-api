@@ -22,12 +22,14 @@ import { checkS3Configured, streamToS3, uploadToS3 } from '../lib/awsS3';
 import { isOpenCollectiveProtectedS3BucketURL, isOpenCollectiveS3BucketURL } from '../lib/images';
 import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
+import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import streamToBuffer from '../lib/stream-to-buffer';
 import { isValidURL } from '../lib/url-utils';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 // Types
@@ -102,7 +104,12 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
 /**
  * A file uploaded to our S3 bucket.
  */
-class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAttributes<UploadedFile>> {
+class UploadedFile extends ModelWithPublicId<
+  EntityShortIdPrefix.UploadedFile,
+  InferAttributes<UploadedFile>,
+  InferCreationAttributes<UploadedFile>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.UploadedFile;
   public static readonly tableName = 'UploadedFiles' as const;
 
   declare id: CreationOptional<number>;
@@ -158,6 +165,9 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
 
     const encodedId = match[1];
+    if (isEntityPublicId(encodedId, EntityShortIdPrefix.UploadedFile)) {
+      return UploadedFile.findOne({ where: { publicId: encodedId } });
+    }
 
     return UploadedFile.findByPk(idDecode(encodedId, IDENTIFIER_TYPES.UPLOADED_FILE));
   }
@@ -166,9 +176,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     uploadedFile: UploadedFile,
     options?: { expenseId: number; draftKey: string },
   ): string {
-    const url = new URL(
-      `${config.host.website}/api/files/${idEncode(uploadedFile.id, IDENTIFIER_TYPES.UPLOADED_FILE)}`,
-    );
+    const url = new URL(`${config.host.website}/api/files/${uploadedFile.publicId}`);
 
     if (options?.expenseId) {
       url.searchParams.set('expenseId', idEncode(options.expenseId, IDENTIFIER_TYPES.EXPENSE));
@@ -417,6 +425,10 @@ UploadedFile.init(
       autoIncrement: true,
       primaryKey: true,
       type: DataTypes.INTEGER,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     kind: {
       type: DataTypes.STRING,

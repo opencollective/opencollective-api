@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import stripe from '../../../lib/stripe';
 import { GraphQLPaymentMethodLegacyType } from '../enum';
 import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
@@ -20,7 +21,7 @@ export const GraphQLPaymentMethodInput = new GraphQLInputObjectType({
   fields: (): GraphQLInputFieldConfigMap => ({
     id: {
       type: GraphQLString,
-      description: 'The id assigned to the payment method',
+      description: `The id assigned to the payment method (ie: ${EntityShortIdPrefix.PaymentMethod}_xxxxxxxx)`,
     },
     service: {
       type: GraphQLPaymentMethodService,

@@ -7,6 +7,7 @@ import { roles } from '../../../../../server/constants';
 import ActivityTypes from '../../../../../server/constants/activities';
 import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
 import {
@@ -375,6 +376,24 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       utils.expectNoErrorsFromResult(result);
       expect(result.errors).to.not.exist;
       return models.Comment.findByPk(comment.id).then(commentFound => {
+        expect(commentFound).to.be.null;
+      });
+    });
+
+    it('accepts publicId when deleting a comment', async () => {
+      const anotherComment = await fakeComment({
+        ExpenseId: expense.id,
+        FromCollectiveId: admin.CollectiveId,
+        CollectiveId: expense.CollectiveId,
+      });
+      const publicId =
+        `${EntityShortIdPrefix.Comment}_${anotherComment.id}` as EntityPublicId<EntityShortIdPrefix.Comment>;
+      await anotherComment.update({ publicId });
+
+      const result = await utils.graphqlQueryV2(deleteCommentMutation, { id: publicId }, admin);
+
+      utils.expectNoErrorsFromResult(result);
+      await models.Comment.findByPk(anotherComment.id).then(commentFound => {
         expect(commentFound).to.be.null;
       });
     });

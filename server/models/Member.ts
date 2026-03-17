@@ -4,7 +4,6 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   Transaction,
 } from 'sequelize';
@@ -12,10 +11,12 @@ import {
 import { CollectiveType } from '../constants/collectives';
 import roles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes } from '../lib/sequelize';
 import { days } from '../lib/utils';
 
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Tier from './Tier';
 import User from './User';
 
@@ -26,7 +27,12 @@ const invalidateContributorsCacheUsingInstance = instance => {
   return null;
 };
 
-class Member extends Model<InferAttributes<Member, { omit: 'info' }>, InferCreationAttributes<Member>> {
+class Member extends ModelWithPublicId<
+  EntityShortIdPrefix.Member,
+  InferAttributes<Member, { omit: 'info' }>,
+  InferCreationAttributes<Member>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Member;
   public static readonly tableName = 'Members' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -141,6 +147,11 @@ Member.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CreatedByUserId: {

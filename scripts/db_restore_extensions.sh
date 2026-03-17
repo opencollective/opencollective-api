@@ -52,6 +52,9 @@ fi
 
 set -e
 
+# Ensure the opencollective user has superuser (required for migrations)
+$CMD_PSQL -U postgres -h $PG_HOST "${LOCALDBNAME}" -c "DO \$\$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='${LOCALDBUSER}') THEN ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER; END IF; END \$\$;"
+
 # When restoring old backups, you may need to enable Postgis
 if [ "$USE_POSTGIS" = "1" ]; then
   echo "Enabling Postgis"

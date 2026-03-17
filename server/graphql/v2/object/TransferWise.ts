@@ -2,9 +2,10 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
 import { floatAmountToCents } from '../../../lib/math';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models, { Op } from '../../../models';
 import transferwise from '../../../paymentProviders/transferwise';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
 
@@ -58,7 +59,17 @@ export const GraphQLTransferWise = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this Wise object',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
+      resolve: host => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, host.createdAt)) {
+          return host.publicId;
+        } else {
+          return idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
     },
     requiredFields: {
       args: {

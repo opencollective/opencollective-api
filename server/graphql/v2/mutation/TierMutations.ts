@@ -3,6 +3,7 @@ import { isNil, isUndefined, omitBy, pick, uniq } from 'lodash';
 
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Tier as TierModel } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -85,7 +86,9 @@ const tierMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
 
-      const tierId = idDecode(args.tier.id, IDENTIFIER_TYPES.TIER);
+      const tierId = isEntityPublicId(args.tier.id, EntityShortIdPrefix.Tier)
+        ? await req.loaders.Tier.idByPublicId.load(args.tier.id)
+        : idDecode(args.tier.id, IDENTIFIER_TYPES.TIER);
       const tier = await TierModel.findByPk(tierId);
       if (!tier) {
         throw new NotFound('Tier Not Found');
