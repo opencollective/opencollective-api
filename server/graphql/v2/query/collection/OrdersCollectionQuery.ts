@@ -5,7 +5,7 @@ import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNul
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Expression, ExpressionBuilder, expressionBuilder, OrderByModifiers, sql, SqlBool } from 'kysely';
 import { KyselifyModel } from 'kysely-sequelize';
-import { compact, isEmpty, isNil, uniq } from 'lodash';
+import { compact, isEmpty, isInteger, isNil, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
 
@@ -348,6 +348,10 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }
 
+  if (args.searchTerm && args.searchTerm.trim().length < 3) {
+    throw new Error('Search term must be at least 3 characters long');
+  }
+
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
   let account: Collective,
@@ -464,6 +468,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   }
 
   const isHostAdmin = account?.hasMoneyManagement && req.remoteUser?.isAdminOfCollective(account);
+  const searchTermLooksLikeAnEmail = !!args.searchTerm && args.searchTerm.includes('@');
 
   const kysely = getKysely();
   const query = kysely
@@ -496,7 +501,48 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           });
         });
     })
+    .with(
+      cte => cte('filterByOrderSearchTerm').materialized(),
+      db => {
+        const ors: Expression<SqlBool>[] = [];
+        return db
+          .selectFrom('Orders')
+          .select('Orders.id')
+          .where('Orders.deletedAt', 'is', null)
+          .$if(!!args.searchTerm, qb => {
+            return qb.where(({ or, eb }) => {
+              if (isFinite(Number(args.searchTerm)) && isInteger(Number(args.searchTerm))) {
+                ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
+              }
+
+              ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(
+                eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`),
+              );
+
+              return or(ors);
+            });
+          })
+          .$if(isHostAdmin && searchTermLooksLikeAnEmail, qb => {
+            return qb.union(
+              db
+                .selectFrom('Orders')
+                .select('Orders.id')
+                .innerJoin('Users', 'Users.id', 'Orders.CreatedByUserId')
+                .where('Orders.deletedAt', 'is', null)
+                .where('Users.email', '=', args.searchTerm)
+                .where('Users.deletedAt', 'is', null),
+            );
+          });
+      },
+    )
     .selectFrom('Orders')
+    .$if(!!args.searchTerm, qb => {
+      return qb.innerJoin('filterByOrderSearchTerm', 'filterByOrderSearchTerm.id', 'Orders.id');
+    })
     .innerJoin('Collectives as collective', join =>
       join.onRef('collective.id', '=', 'Orders.CollectiveId').on('collective.deletedAt', 'is', null),
     )
@@ -637,28 +683,6 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
               return qb.where('PaymentMethodId', 'is not', null);
             });
         });
-    })
-    .$if(!!args.searchTerm, qb => {
-      const looksLikeAnEmail = args.searchTerm?.includes('@');
-
-      return qb.leftJoin('Users', 'Users.id', 'Orders.CreatedByUserId').where(({ or, eb }) => {
-        const ors: Expression<SqlBool>[] = [];
-        if (isHostAdmin && looksLikeAnEmail) {
-          ors.push(eb('Users.email', '=', args.searchTerm));
-          ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
-        }
-
-        if (isFinite(Number(args.searchTerm))) {
-          ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
-        }
-
-        ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`));
-
-        return or(ors);
-      });
     })
     .$if(!!args.amount?.gte?.valueInCents || !!args.amount?.lte?.valueInCents, qb => {
       if (args.amount.gte && args.amount.lte) {
