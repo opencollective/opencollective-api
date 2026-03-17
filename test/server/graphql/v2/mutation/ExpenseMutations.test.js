@@ -20,6 +20,7 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import { getFxRate } from '../../../../../server/lib/currency';
 import * as LibCurrency from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
@@ -414,6 +415,28 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       result = await callMutation({ id: idEncode(anotherCategory.id, 'accounting-category') });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('This accounting category is not allowed for this host');
+    });
+
+    it('accepts publicId in AccountReferenceInput', async () => {
+      const user = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+      const publicId = `${EntityShortIdPrefix.Collective}_${collective.id}`;
+      await collective.update({ publicId });
+
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: user.CollectiveId } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { id: publicId } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data).to.exist;
+      expect(result.data.createExpense).to.exist;
+      expect(result.data.createExpense.legacyId).to.be.a('number');
     });
 
     it('creates the expense with the linked items', async () => {
@@ -3293,6 +3316,20 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
       });
+
+      it('accepts publicId in ExpenseReferenceInput', async () => {
+        const expense = await fakeExpense({ status: expenseStatus.REJECTED });
+        const publicId = `${EntityShortIdPrefix.Expense}_${expense.id}`;
+        await expense.update({ publicId });
+
+        const result = await graphqlQueryV2(deleteExpenseMutation, { expense: { id: publicId } }, expense.User);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
+
+        await expense.reload({ paranoid: false });
+        expect(expense.deletedAt).to.exist;
+      });
     });
 
     describe('cannot delete', () => {
@@ -5655,6 +5692,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           status
           draft
           lockedFields
+
+          account {
+            legacyId
+            publicId
+          }
         }
       }
     `;
@@ -5757,6 +5799,33 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(expense.data.customData).to.deep.equal(invoice.customData);
       expect(expense.data.taxes).to.deep.equal(invoice.tax);
       expect(expense.currency).to.equal(invoice.currency);
+    });
+
+    it('accepts publicId in AccountReferenceInput for draft account', async () => {
+      const publicId = `${EntityShortIdPrefix.Collective}_${collective.id}`;
+      await collective.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        draftExpenseAndInviteUserMutation,
+        { expense: invoice, account: { id: publicId } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.draftExpenseAndInviteUser).to.exist;
+      expect(result.data.draftExpenseAndInviteUser.account.legacyId).to.eq(collective.id);
+    });
+
+    it('accepts publicId in ExpenseReferenceInput for resendDraftExpenseInvite', async () => {
+      const publicId = `${EntityShortIdPrefix.Expense}_${expense.id}`;
+      await expense.update({ publicId });
+
+      const result = await graphqlQueryV2(resendDraftExpenseInviteMutation, { expense: { id: publicId } }, user);
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.resendDraftExpenseInvite.legacyId).to.eq(expense.id);
     });
 
     it('should send an email notifying the invited user to submit the expense', async () => {

@@ -63,7 +63,8 @@ const PaypalPlanQuery = {
 
     const tier =
       args.tier && <Tier>await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
-    const order = args.order && (await fetchOrderWithReference(args.order, { throwIfMissing: true }));
+    const order =
+      args.order && (await fetchOrderWithReference(args.order, { throwIfMissing: true, loaders: req.loaders }));
     if (tier && tier.CollectiveId !== collective.id) {
       throw new Error('The tier does not belong to the account');
     } else if (order && order.CollectiveId !== collective.id) {

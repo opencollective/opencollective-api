@@ -67,10 +67,11 @@ const KYCMutations = {
     async resolve(_, args, req: Express.Request): Promise<KYCVerification> {
       checkRemoteUserCanUseKYC(req);
 
+      const where =
+        typeof args.kycVerification === 'string' ? { publicId: args.kycVerification } : { id: args.kycVerification };
+
       const kycVerification = await KYCVerification.findOne({
-        where: {
-          id: args.kycVerification,
-        },
+        where,
         include: [
           {
             as: 'requestedByCollective',

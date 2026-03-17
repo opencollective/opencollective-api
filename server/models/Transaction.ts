@@ -9,7 +9,6 @@ import {
   CreationOptional,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
 import Stripe from 'stripe';
@@ -27,6 +26,7 @@ import { getFxRate } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
@@ -40,6 +40,7 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order, { OrderTax } from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
@@ -124,7 +125,12 @@ export type TransactionData = {
   };
 };
 
-class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
+class Transaction extends ModelWithPublicId<
+  EntityShortIdPrefix.Transaction,
+  InferAttributes<Transaction>,
+  InferCreationAttributes<Transaction>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Transaction;
   public static readonly tableName = 'Transactions' as const;
 
   declare id: CreationOptional<number>;
@@ -1493,6 +1499,10 @@ Transaction.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     type: DataTypes.STRING, // DEBIT or CREDIT

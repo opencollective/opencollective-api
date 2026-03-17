@@ -28,6 +28,7 @@ const ExportRequestQuery = {
 
     const exportRequest = await fetchExportRequestWithReference(args.exportRequest, {
       throwIfMissing: args.throwIfMissing,
+      loaders: req.loaders,
     });
 
     if (!exportRequest) {

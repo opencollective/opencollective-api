@@ -11,8 +11,8 @@ const OrderQuery = {
       description: 'Identifiers to retrieve the Order',
     },
   },
-  async resolve(_, args) {
-    return fetchOrderWithReference(args.order);
+  async resolve(_, args, req) {
+    return fetchOrderWithReference(args.order, { loaders: req.loaders });
   },
 };
 

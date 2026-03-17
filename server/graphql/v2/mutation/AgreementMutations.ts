@@ -132,7 +132,10 @@ export default {
     async resolve(_: void, args, req: express.Request): Promise<AgreementModel> {
       checkRemoteUserCanUseHost(req);
 
-      const agreement = await fetchAgreementWithReference(args.agreement, { throwIfMissing: true });
+      const agreement = await fetchAgreementWithReference(args.agreement, {
+        throwIfMissing: true,
+        loaders: req.loaders,
+      });
       const host = await agreement.getHost();
 
       if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -187,7 +190,10 @@ export default {
     async resolve(_: void, args, req: express.Request): Promise<AgreementModel> {
       checkRemoteUserCanUseHost(req);
 
-      const agreement = await fetchAgreementWithReference(args.agreement, { throwIfMissing: true });
+      const agreement = await fetchAgreementWithReference(args.agreement, {
+        throwIfMissing: true,
+        loaders: req.loaders,
+      });
       const host = await agreement.getHost();
 
       if (!req.remoteUser.isAdminOfCollective(host)) {

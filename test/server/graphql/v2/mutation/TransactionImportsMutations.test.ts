@@ -8,6 +8,7 @@ import OrderStatuses from '../../../../../server/constants/order-status';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models, { ConnectedAccount } from '../../../../../server/models';
@@ -205,6 +206,27 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
         name: 'New Name',
         source: 'New Source',
       });
+    });
+
+    it('accepts publicId when editing a transactions import', async () => {
+      const remoteUser = await fakeUser({ data: { isRoot: true } });
+      const transactionsImport = await fakeTransactionsImport();
+      await transactionsImport.collective.addUserWithRole(remoteUser, 'ADMIN');
+
+      const publicId =
+        `${EntityShortIdPrefix.TransactionsImport}_${transactionsImport.id}` as EntityPublicId<EntityShortIdPrefix.TransactionsImport>;
+      await transactionsImport.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        EDIT_TRANSACTIONS_IMPORT_MUTATION,
+        { id: publicId, name: 'New Name 2', source: 'New Source 2' },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editTransactionsImport.name).to.equal('New Name 2');
+      expect(result.data.editTransactionsImport.source).to.equal('New Source 2');
     });
 
     it('can associate an expense to multiple import rows', async () => {

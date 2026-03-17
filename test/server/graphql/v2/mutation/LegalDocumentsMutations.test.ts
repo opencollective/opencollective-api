@@ -333,5 +333,44 @@ describe('LegalDocumentsMutations', () => {
       expect(sendEmailSpy.firstCall.args[1]).to.equal('Action required: Your tax form has been marked as invalid');
       expect(sendEmailSpy.firstCall.args[2]).to.include('Bad Bad not Good');
     });
+
+    it('accepts publicId when editing a legal document status', async () => {
+      const payee = await fakeUser();
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: payee.CollectiveId,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+      });
+      const expense = await fakeExpense({
+        type: 'INVOICE',
+        status: 'APPROVED',
+        CollectiveId: host.id,
+        FromCollectiveId: payee.CollectiveId,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const legalDocument = await fakeLegalDocument({
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'RECEIVED',
+        CollectiveId: expense.FromCollectiveId,
+        year: new Date().getFullYear(),
+      });
+      const result = await graphqlQueryV2(
+        editLegalDocumentStatusMutation,
+        {
+          id: legalDocument.publicId,
+          host: { id: host.publicId },
+          status: 'INVALID',
+          message: 'Bad Bad not Good',
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editLegalDocumentStatus).to.have.property('status', 'INVALID');
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+      expect(sendEmailSpy.firstCall.args[0]).to.equal(payee.email);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal('Action required: Your tax form has been marked as invalid');
+      expect(sendEmailSpy.firstCall.args[2]).to.include('Bad Bad not Good');
+    });
   });
 });
