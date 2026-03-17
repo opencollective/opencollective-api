@@ -154,6 +154,7 @@ program.command('restore <file>').action(async file => {
   exec(`createdb ${database}`);
   exec(`psql -d ${database} -c 'GRANT ALL PRIVILEGES ON DATABASE ${database} TO opencollective'`);
   exec(`psql -h localhost -U ${rootUser} ${database} -c 'GRANT ALL ON SCHEMA public TO opencollective'`);
+  exec(`psql -h localhost -U ${rootUser} -d postgres -c 'ALTER ROLE opencollective WITH SUPERUSER'`);
   exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/schema.sql`);
   exec(`psql -h localhost -U opencollective ${database} < ${tempImportDir}/migrations.sql`);
   exec(`psql -h localhost -U ${rootUser} -c 'ALTER DATABASE ${database} OWNER TO opencollective'`);
