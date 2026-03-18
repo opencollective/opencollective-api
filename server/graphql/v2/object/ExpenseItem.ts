@@ -3,9 +3,10 @@ import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'gr
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
-import type { UploadedFile } from '../../../models';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { UploadedFile } from '../../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 import URL from '../scalar/URL';
 
@@ -19,7 +20,17 @@ const GraphQLExpenseItem = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this expense item',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE_ITEM),
+      resolve(expenseItem) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ExpenseItem, expenseItem.createdAt)) {
+          return expenseItem.publicId;
+        } else {
+          return idEncode(expenseItem.id, IDENTIFIER_TYPES.EXPENSE_ITEM);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.ExpenseItem}_xxxxxxxx)`,
     },
     amount: {
       type: new GraphQLNonNull(GraphQLInt),

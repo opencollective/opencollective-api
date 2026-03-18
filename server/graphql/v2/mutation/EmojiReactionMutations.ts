@@ -1,13 +1,15 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { canComment } from '../../common/expenses';
 import { checkRemoteUserCanUseComment, checkRemoteUserCanUseUpdates } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLCommentReferenceInput } from '../input/CommentReferenceInput';
-import { GraphQLUpdateReferenceInput } from '../input/UpdateReferenceInput';
+import { getDatabaseIdFromUpdateReference, GraphQLUpdateReferenceInput } from '../input/UpdateReferenceInput';
 import { GraphQLComment } from '../object/Comment';
 import GraphQLUpdate from '../object/Update';
 
@@ -56,9 +58,11 @@ const emojiReactionMutations = {
       }
 
       if (args.comment) {
-        return addReactionToCommentOrUpdate(args.comment.id, req, args.emoji, IDENTIFIER_TYPES.COMMENT);
+        const commentId = await getDatabaseIdFromCommentReference(args.comment);
+        return addReactionToCommentOrUpdate(commentId, req, args.emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (args.update) {
-        return addReactionToCommentOrUpdate(args.update.id, req, args.emoji, IDENTIFIER_TYPES.UPDATE);
+        const updateId = await getDatabaseIdFromUpdateReference(args.update);
+        return addReactionToCommentOrUpdate(updateId, req, args.emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
   },
@@ -84,24 +88,22 @@ const emojiReactionMutations = {
       }
 
       if (args.comment) {
-        // TODO: replace with a fetchCommentWithReference utility
-        const commentId = idDecode(args.comment.id, IDENTIFIER_TYPES.COMMENT);
+        const commentId = await getDatabaseIdFromCommentReference(args.comment);
         const comment = await models.Comment.findByPk(commentId);
         if (comment) {
           checkRemoteUserCanUseComment(comment, req);
         }
-        return removeReactionFromCommentOrUpdate(args.comment.id, req.remoteUser, args.emoji, IDENTIFIER_TYPES.COMMENT);
+        return removeReactionFromCommentOrUpdate(commentId, req.remoteUser, args.emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (args.update) {
         checkRemoteUserCanUseUpdates(req);
-        return removeReactionFromCommentOrUpdate(args.update.id, req.remoteUser, args.emoji, IDENTIFIER_TYPES.UPDATE);
+        const updateId = await getDatabaseIdFromUpdateReference(args.update);
+        return removeReactionFromCommentOrUpdate(updateId, req.remoteUser, args.emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
   },
 };
 
-const addReactionToCommentOrUpdate = async (id, req, emoji, identifierType) => {
-  const commentOrUpdateId = idDecode(id, identifierType);
-
+const addReactionToCommentOrUpdate = async (commentOrUpdateId, req, emoji, identifierType) => {
   let commentOrUpdate;
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
     commentOrUpdate = await models.Comment.findByPk(commentOrUpdateId);
@@ -133,8 +135,7 @@ const addReactionToCommentOrUpdate = async (id, req, emoji, identifierType) => {
   }
 };
 
-const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifierType) => {
-  const commentOrUpdateId = idDecode(id, identifierType);
+const removeReactionFromCommentOrUpdate = async (commentOrUpdateId, remoteUser, emoji, identifierType) => {
   const idColumn = identifierType === IDENTIFIER_TYPES.COMMENT ? 'CommentId' : 'UpdateId';
   const emojiRemoved = await models.EmojiReaction.destroy({
     where: {
@@ -154,5 +155,27 @@ const removeReactionFromCommentOrUpdate = async (id, remoteUser, emoji, identifi
     return { update: await models.Update.findByPk(commentOrUpdateId), comment: null };
   }
 };
+
+function getDatabaseIdFromCommentReference(
+  comment: { id: string },
+  { loaders = null }: { loaders?: Loaders } = {},
+): Promise<number> {
+  if (isEntityPublicId(comment.id, EntityShortIdPrefix.Comment)) {
+    return (
+      loaders
+        ? loaders.Comment.byPublicId.load(comment.id)
+        : models.Comment.findOne({ where: { publicId: comment.id }, attributes: ['id'] })
+    ).then(resolvedComment => {
+      if (!resolvedComment) {
+        throw new NotFound(`Comment with public id ${comment.id} not found`);
+      }
+      return resolvedComment.id;
+    });
+  } else if (comment.id) {
+    return Promise.resolve(idDecode(comment.id, IDENTIFIER_TYPES.COMMENT));
+  } else {
+    throw new Error('Invalid comment reference');
+  }
+}
 
 export default emojiReactionMutations;

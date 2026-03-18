@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import {
@@ -119,6 +120,26 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       const location = await vendor.getLocation();
       expect(location.address).to.equal('Zorg Planet, 123');
+    });
+
+    it('accepts publicId in AccountReferenceInput for host', async () => {
+      const publicId = `${EntityShortIdPrefix.Collective}_${host.id}`;
+      await host.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { id: publicId },
+          vendor: vendorData,
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor).to.exist;
+      expect(vendor.ParentCollectiveId).to.equal(host.id);
     });
 
     it('creates a vendor account with an image', async () => {

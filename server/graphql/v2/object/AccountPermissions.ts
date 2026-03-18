@@ -3,9 +3,11 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import FEATURE from '../../../constants/feature';
 import { hasFeature } from '../../../lib/allowed-features';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { canUseFeature } from '../../../lib/user-permissions';
+import { Collective } from '../../../models';
 import { checkScope } from '../../common/scope-check';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLPermission, PermissionFields } from './Permission';
 
@@ -15,7 +17,17 @@ const GraphQLAccountPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNT),
+      resolve(collective: Collective) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
+          return collective.publicId;
+        } else {
+          return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
     },
     addFunds: {
       type: new GraphQLNonNull(GraphQLPermission),

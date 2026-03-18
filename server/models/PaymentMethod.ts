@@ -1,7 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { InferAttributes, InferCreationAttributes, Model } from 'sequelize';
+import { InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import { SupportedCurrency } from '../constants/currencies';
 import { maxInteger } from '../constants/math';
@@ -16,6 +16,7 @@ import { getBlockedContributionsCount, getBlockedExpenseFunds } from '../lib/bud
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import { findPaymentMethodProvider } from '../lib/payments';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
@@ -24,12 +25,18 @@ import { formatArrayToString, formatCurrency } from '../lib/utils';
 
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import User from './User';
 
 const debug = debugLib('models:PaymentMethod');
 
-class PaymentMethod extends Model<InferAttributes<PaymentMethod>, InferCreationAttributes<PaymentMethod>> {
+class PaymentMethod extends ModelWithPublicId<
+  EntityShortIdPrefix.PaymentMethod,
+  InferAttributes<PaymentMethod>,
+  InferCreationAttributes<PaymentMethod>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.PaymentMethod;
   public static readonly tableName = 'PaymentMethods' as const;
 
   declare id: number;
@@ -122,6 +129,11 @@ PaymentMethod.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     uuid: {

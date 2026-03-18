@@ -9,16 +9,20 @@ import {
 
 import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import type Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import type User from './User';
 
-class ConnectedAccount extends Model<
+class ConnectedAccount extends ModelWithPublicId<
+  EntityShortIdPrefix.ConnectedAccount,
   InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' }>,
   InferCreationAttributes<ConnectedAccount>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.ConnectedAccount;
   public static readonly tableName = 'ConnectedAccounts' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -69,6 +73,10 @@ ConnectedAccount.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     service: {
       type: DataTypes.STRING,

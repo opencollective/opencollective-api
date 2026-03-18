@@ -16,12 +16,14 @@ import ActivityTypes from '../constants/activities';
 import { Service } from '../constants/connected-account';
 import { formatZodError } from '../lib/errors';
 import { disconnectGoCardlessAccount } from '../lib/gocardless/connect';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { disconnectPlaidAccount } from '../lib/plaid/connect';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import ConnectedAccount from './ConnectedAccount';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import TransactionsImportRow from './TransactionsImportRow';
 import UploadedFile from './UploadedFile';
 import User from './User';
@@ -104,7 +106,12 @@ export class TransactionsImportLockedError extends Error {
   }
 }
 
-class TransactionsImport extends Model<InferAttributes<TransactionsImport>, CreationAttributes> {
+class TransactionsImport extends ModelWithPublicId<
+  EntityShortIdPrefix.TransactionsImport,
+  InferAttributes<TransactionsImport>,
+  CreationAttributes
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.TransactionsImport;
   public static readonly tableName = 'TransactionsImports' as const;
 
   declare public id: number;
@@ -261,6 +268,10 @@ TransactionsImport.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

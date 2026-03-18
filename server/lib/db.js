@@ -16,7 +16,53 @@ import format from 'pg-format';
 import createSubscriber from 'pg-listen';
 
 import logger from './logger';
-import { ifStr } from './utils';
+import { reportErrorToSentry } from './sentry';
+import { ifStr, parseToBoolean } from './utils';
+
+if (parseToBoolean(config.database.logQueryOrigin)) {
+  const excludeLineTexts = [
+    'node_modules',
+    'node:internal',
+    'internal/process',
+    'anonymous',
+    'runMicrotasks',
+    'Promise.',
+  ];
+  const originalQuery = pg.Client.prototype.query;
+
+  pg.Client.prototype.query = function (...args) {
+    try {
+      const sql = typeof args[0] === 'string' ? args[0] : args[0]?.text;
+
+      // Skip queries that already carry a comment (added by the Sequelize or
+      // Kysely patches further up the call chain).
+      if (typeof sql === 'string' && sql.startsWith('/*')) {
+        return originalQuery.apply(this, args);
+      }
+
+      const o = {};
+      Error.captureStackTrace(o, pg.Client.prototype.query);
+      const lines = o.stack.split(/\n/g).slice(1);
+      const line = lines.find(l => !excludeLineTexts.some(t => l.includes(t)));
+
+      if (line) {
+        const methodAndPath = line.replace(/(\s+at (async )?|[^a-z0-9.:/\\\-_ ]|:\d+\)?$)/gi, '');
+        if (methodAndPath) {
+          const comment = `/* ${methodAndPath} */`;
+          if (typeof args[0] === 'string') {
+            args[0] = `${comment} ${args[0]}`;
+          } else if (args[0] && typeof args[0] === 'object' && typeof args[0].text === 'string') {
+            args[0] = { ...args[0], text: `${comment} ${args[0].text}` };
+          }
+        }
+      }
+    } catch (e) {
+      reportErrorToSentry(e);
+    }
+
+    return originalQuery.apply(this, args);
+  };
+}
 
 /** Load a dump file into the current database.
  *

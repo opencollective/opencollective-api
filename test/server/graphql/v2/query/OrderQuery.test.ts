@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { fakeActivity, fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -48,9 +49,31 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
     await fakeActivity({ OrderId: order.id, type: 'orders.suspicious' });
   });
 
+  const orderByPublicIdQuery = gql`
+    query OrderByPublicId($id: String!) {
+      order(order: { id: $id }) {
+        id
+        legacyId
+        customData
+      }
+    }
+  `;
+
   const fetchOrder = (legacyId, remoteUser = undefined) => {
     return graphqlQueryV2(orderQuery, { legacyId }, remoteUser).then(result => result.data.order);
   };
+
+  describe('publicId', () => {
+    it('can fetch an order by publicId', async () => {
+      const publicId = `${EntityShortIdPrefix.Order}_${order.id}`;
+      await order.update({ publicId });
+
+      const result = await graphqlQueryV2(orderByPublicIdQuery, { id: publicId });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.order.legacyId).to.eq(order.id);
+    });
+  });
 
   describe('Permissions', () => {
     describe('data', () => {

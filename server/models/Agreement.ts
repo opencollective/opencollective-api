@@ -5,18 +5,24 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
 } from 'sequelize';
 
 import { roles } from '../constants';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import UploadedFile from './UploadedFile';
 import User from './User';
 
-class Agreement extends Model<InferAttributes<Agreement>, InferCreationAttributes<Agreement>> {
+class Agreement extends ModelWithPublicId<
+  EntityShortIdPrefix.Agreement,
+  InferAttributes<Agreement>,
+  InferCreationAttributes<Agreement>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Agreement;
   public static readonly tableName = 'Agreements' as const;
 
   declare id: CreationOptional<number>;
@@ -89,6 +95,10 @@ Agreement.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     title: {
       type: DataTypes.STRING,
