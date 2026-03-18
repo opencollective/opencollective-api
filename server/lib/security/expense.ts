@@ -621,7 +621,7 @@ export const checkExpensesBatch = async (
             details: `While the payee is registered at ${payeeCity}, ${payeeCountry} (${payeeCode}), the payout method used in this expense is located at ${pmCity}, ${pmCountry} (${pmCode})`,
           });
         } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
-          const paypalData = payoutMethod.unfilteredData as unknown as PaypalPayoutMethodData;
+          const paypalData = payoutMethod.data as PaypalPayoutMethodData;
           const paypalEmail = paypalData?.email;
           const isVerified = Boolean(paypalData?.verifiedAt);
           addBooleanCheck(

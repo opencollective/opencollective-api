@@ -129,7 +129,10 @@ const payoutMethodMutations = {
         // Verified PayPal accounts have some restrictions on editing: only the name, isSaved and currency can be edited
         if (
           !isUndefined(args.payoutMethod.data) &&
-          !isEqual(omit(args.payoutMethod.data, ['currency']), omit(payoutMethod.data, ['currency']))
+          !isEqual(
+            omit(models.PayoutMethod.getFilteredData(payoutMethod.type, args.payoutMethod.data), ['currency']),
+            omit(payoutMethod.getFilteredData(), ['currency']),
+          )
         ) {
           throw new Forbidden(
             'Verified PayPal accounts can only be edited to change the name, saved status and currency',

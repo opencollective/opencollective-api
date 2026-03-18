@@ -3417,7 +3417,7 @@ export const getExpenseFees = async (
       useExistingWiseData &&
       existingQuote &&
       existingQuote.sourceCurrency === host.currency &&
-      existingQuote.targetCurrency === payoutMethod.unfilteredData.currency &&
+      existingQuote.targetCurrency === payoutMethod.data.currency &&
       existingPaymentOption
     ) {
       resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(

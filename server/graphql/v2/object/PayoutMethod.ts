@@ -73,7 +73,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {
-            return payoutMethod.data;
+            return payoutMethod.getFilteredData();
           }
         }
       },
