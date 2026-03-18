@@ -102,25 +102,55 @@ export default {
      * exchanges it for tokens, upserts the ConnectedAccount, and returns JSON.
      *
      * POST /connected-accounts/paypal/connect
-     * Body: { code: string, accountId: string, payoutMethodId: string, currency: string, name: string }
-     * Returns: { connectedAccountId: number, email: string }
+     * Body: { code: string, state: string, accountId: string, payoutMethodId: string, currency: string, name: string }
+     * Returns: { connectedAccountId: number, payoutMethodId: string }
      */
     connect: async (req, res, next) => {
       if (!req.remoteUser) {
         return next(new errors.Unauthorized('You must be logged in'));
       }
 
-      const { code, accountId, payoutMethodId, currency, name } = req.body;
+      const { code, state, accountId, payoutMethodId, currency, name } = req.body;
       if (!accountId) {
         return next(new errors.BadRequest('Account ID is missing'));
       } else if (!code) {
         return next(new errors.BadRequest('PayPal code is missing'));
+      } else if (!state) {
+        return next(new errors.BadRequest('OAuth state is missing. Please restart the PayPal connect flow.'));
       } else if (!currency) {
         return next(new errors.BadRequest('Currency not provided'));
       }
 
-      // Ensure the remote user is an admin of the collective
+      // Validate the OAuth state JWT to bind the code to the initiating user and collective
+      let statePayload: { CollectiveId: number; userId: number };
+      try {
+        statePayload = jwt.verify(state, config.keys.opencollective.jwtSecret) as {
+          CollectiveId: number;
+          userId: number;
+        };
+      } catch {
+        return next(
+          new errors.BadRequest('The confirmation code is invalid or expired. Please restart the PayPal connect flow.'),
+        );
+      }
+
       const collectiveId = idDecode(accountId, IDENTIFIER_TYPES.ACCOUNT);
+      if (statePayload.CollectiveId !== collectiveId) {
+        return next(
+          new errors.Forbidden(
+            'The confirmation code does not match the requested account. Please restart the PayPal connect flow.',
+          ),
+        );
+      }
+      if (statePayload.userId !== req.remoteUser.id) {
+        return next(
+          new errors.Forbidden(
+            'The OAuth state does not match the current user. Please restart the PayPal connect flow.',
+          ),
+        );
+      }
+
+      // Ensure the remote user is an admin of the collective
       const collective = await models.Collective.findByPk(collectiveId);
       if (!collective) {
         return next(new errors.NotFound('Collective not found'));

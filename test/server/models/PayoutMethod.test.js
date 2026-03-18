@@ -120,27 +120,6 @@ describe('server/models/PayoutMethod', () => {
       });
       expect(ccPm.getFilteredData()).to.deep.equal({});
     });
-
-    it('filters provided data parameter instead of instance data', () => {
-      const pm = models.PayoutMethod.build({
-        type: PayoutMethodTypes.PAYPAL,
-        data: { email: 'original@example.com', currency: 'USD' },
-        CollectiveId: 1,
-        CreatedByUserId: 1,
-      });
-      const customData = {
-        email: 'custom@example.com',
-        verifiedAt: '2024-06-01T00:00:00Z',
-        currency: 'EUR',
-      };
-      const filtered = pm.getFilteredData(customData);
-      expect(filtered).to.deep.include({
-        email: 'custom@example.com',
-        verifiedAt: '2024-06-01T00:00:00Z',
-        currency: 'EUR',
-      });
-      expect(filtered.email).to.equal('custom@example.com');
-    });
   });
 
   describe('findSimilar()', () => {

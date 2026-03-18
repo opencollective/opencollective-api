@@ -121,28 +121,25 @@ class PayoutMethod extends ModelWithPublicId<
   public static getFilteredData(type: PayoutMethodTypes, data: PayoutMethodDataType): Partial<PayoutMethodDataType> {
     switch (type) {
       case PayoutMethodTypes.PAYPAL: {
-        return {
-          email: data['email'],
-          verifiedAt: data['verifiedAt'],
-          currency: data['currency'],
-          isPayPalOAuth: data['isPayPalOAuth'],
-          paypalUserInfo: pick(data['paypalUserInfo'], ['name', 'email', 'payer_id', 'address.country']),
-        };
+        return pick(data, [
+          'email',
+          'verifiedAt',
+          'currency',
+          'isPayPalOAuth',
+          'paypalUserInfo.name',
+          'paypalUserInfo.email',
+          'paypalUserInfo.payer_id',
+          'paypalUserInfo.address.country',
+        ]);
       }
       case PayoutMethodTypes.OTHER:
-        return {
-          currency: data['currency'],
-          content: data['content'],
-        } as OtherPayoutMethodData;
+        return pick(data, ['currency', 'content']) as OtherPayoutMethodData;
       case PayoutMethodTypes.BANK_ACCOUNT:
-        return data as BankAccountPayoutMethodData;
+        return data as BankAccountPayoutMethodData; // TODO: this should probably be filtered
       case PayoutMethodTypes.STRIPE:
-        return {
-          stripeAccountId: data['stripeAccountId'],
-          publishableKey: data['publishableKey'],
-        } as StripePayoutMethodData;
+        return pick(data, ['currency', 'stripeAccountId', 'publishableKey']) as StripePayoutMethodData;
       default:
-        return {};
+        return pick(data, ['currency']);
     }
   }
 

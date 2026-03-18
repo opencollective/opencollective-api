@@ -2,6 +2,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { omit } from 'lodash';
 import nock from 'nock';
 import { stub } from 'sinon';
@@ -142,6 +143,13 @@ describe('server/paymentProviders/paypal/oauth', () => {
     });
   });
 
+  const createPaypalConnectState = (collectiveId, userId) =>
+    jwt.sign(
+      { CollectiveId: collectiveId, userId, redirect: null, currency: 'USD' },
+      config.keys.opencollective.jwtSecret,
+      { expiresIn: '30m' },
+    );
+
   describe('POST /connected-accounts/paypal/connect', () => {
     beforeEach(() => {
       configPaypalStub = stub(config, 'paypal').get(() => ({
@@ -164,19 +172,82 @@ describe('server/paymentProviders/paypal/oauth', () => {
       name: 'My PayPal',
     };
 
+    const getValidBodyWithState = () => ({
+      ...validBody,
+      accountId: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT),
+      state: createPaypalConnectState(collective.id, host.id),
+    });
+
     it('returns 401 when not authenticated', async () => {
-      validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      const body = getValidBodyWithState();
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
         .set('Content-Type', 'application/json')
-        .send(validBody);
+        .send(body);
 
       expect(res.status).to.equal(401);
     });
 
+    it('returns 400 when state is missing', async () => {
+      const body = getValidBodyWithState();
+      const bodyWithoutState = omit(body, 'state');
+
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${host.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send(bodyWithoutState);
+
+      expect(res.status).to.equal(400);
+      expect(res.body.error?.message || res.body.message || '').to.include('OAuth state');
+    });
+
+    it('returns 400 when state is invalid or expired', async () => {
+      const body = getValidBodyWithState();
+      body.state = 'invalid-state-token';
+
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${host.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).to.equal(400);
+      expect(res.body.error?.message || res.body.message || '').to.include('invalid or expired');
+    });
+
+    it('returns 403 when state CollectiveId does not match accountId', async () => {
+      const body = getValidBodyWithState();
+      const otherCollectiveId = collective.id + 9999;
+      body.state = createPaypalConnectState(otherCollectiveId, host.id);
+
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${host.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).to.equal(403);
+      expect(res.body.error?.message || res.body.message || '').to.include('does not match the requested account');
+    });
+
+    it('returns 403 when state userId does not match current user', async () => {
+      const body = getValidBodyWithState();
+      body.state = createPaypalConnectState(collective.id, user.id);
+
+      const res = await request(expressApp)
+        .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
+        .set('Authorization', `Bearer ${host.jwt()}`)
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).to.equal(403);
+      expect(res.body.error?.message || res.body.message || '').to.include('does not match the current user');
+    });
+
     it('returns 400 when code is missing', async () => {
-      validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
-      const bodyWithoutCode = omit(validBody, 'code');
+      const body = getValidBodyWithState();
+      const bodyWithoutCode = omit(body, 'code');
 
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
@@ -199,8 +270,8 @@ describe('server/paymentProviders/paypal/oauth', () => {
     });
 
     it('returns 400 when currency is missing', async () => {
-      validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
-      const bodyWithoutCurrency = omit(validBody, 'currency');
+      const body = getValidBodyWithState();
+      const bodyWithoutCurrency = omit(body, 'currency');
 
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
@@ -214,6 +285,7 @@ describe('server/paymentProviders/paypal/oauth', () => {
     it('returns 404 when collective not found', async () => {
       const body = {
         code: 'abc',
+        state: createPaypalConnectState(999999, host.id),
         accountId: idEncode(999999, IDENTIFIER_TYPES.ACCOUNT),
         currency: 'USD',
       };
@@ -228,13 +300,14 @@ describe('server/paymentProviders/paypal/oauth', () => {
     });
 
     it('returns 403 when user is not admin of collective', async () => {
-      validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      const body = getValidBodyWithState();
+      body.state = createPaypalConnectState(collective.id, user.id);
 
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
         .set('Authorization', `Bearer ${user.jwt()}`)
         .set('Content-Type', 'application/json')
-        .send(validBody);
+        .send(body);
 
       expect(res.status).to.equal(403);
     });
@@ -267,12 +340,12 @@ describe('server/paymentProviders/paypal/oauth', () => {
         nock(baseUrl).get('/v1/identity/oauth2/userinfo').query(true).reply(200, userInfo);
       });
 
-      validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      const body = getValidBodyWithState();
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
         .set('Authorization', `Bearer ${host.jwt()}`)
         .set('Content-Type', 'application/json')
-        .send(validBody);
+        .send(body);
 
       expect(res.status).to.equal(200);
       expect(res.body.connectedAccountId).to.be.a('string');
@@ -310,12 +383,12 @@ describe('server/paymentProviders/paypal/oauth', () => {
         nock(baseUrl).get('/v1/identity/oauth2/userinfo').query(true).reply(200, userInfoNoEmail);
       });
 
-      validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      const body = getValidBodyWithState();
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
         .set('Authorization', `Bearer ${host.jwt()}`)
         .set('Content-Type', 'application/json')
-        .send(validBody);
+        .send(body);
 
       expect(res.status).to.equal(400);
       expect(res.body.error?.message || res.body.message || '').to.include('confirmed email');
@@ -339,12 +412,12 @@ describe('server/paymentProviders/paypal/oauth', () => {
         nock(baseUrl).get('/v1/identity/oauth2/userinfo').query(true).reply(200, userInfoUnverified);
       });
 
-      validBody.accountId = idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      const body = getValidBodyWithState();
       const res = await request(expressApp)
         .post(`/connected-accounts/paypal/connect?api_key=${application.api_key}`)
         .set('Authorization', `Bearer ${host.jwt()}`)
         .set('Content-Type', 'application/json')
-        .send(validBody);
+        .send(body);
 
       expect(res.status).to.equal(400);
       expect(res.body.error?.message || res.body.message || '').to.include('not verified');

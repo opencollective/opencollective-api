@@ -142,18 +142,20 @@ const payoutMethodMutations = {
 
       if (await payoutMethod.canBeEdited()) {
         return await payoutMethod.update({
-          ...pick(args.payoutMethod, ['name', 'data', 'isSaved']),
+          ...pick(args.payoutMethod, ['name', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
+          data: { ...payoutMethod.data, ...args.payoutMethod.data }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
       } else if (await payoutMethod.canBeArchived()) {
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
         const newPayoutMethod = await models.PayoutMethod.create({
-          ...pick(payoutMethod, ['name', 'data', 'type']),
-          ...pick(args.payoutMethod, ['name', 'data', 'type', 'isSaved']),
+          ...pick(payoutMethod, ['name', 'type']),
+          ...pick(args.payoutMethod, ['name', 'type', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
+          data: { ...payoutMethod.data, ...args.payoutMethod.data }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
         // Update Pending expenses to use the new payout method
         await models.Expense.update(

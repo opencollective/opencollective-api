@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
-import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
+import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../../../server/models/PayoutMethod';
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
@@ -278,6 +278,172 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(result.errors[0].message).to.include('Archived payout methods cannot be restored');
       await archivedPayoutMethod.reload();
       expect(archivedPayoutMethod.isSaved).to.be.false;
+    });
+
+    describe('isPayPalOAuth (verified PayPal accounts)', () => {
+      const paypalOAuthData = {
+        email: 'verified-oauth@paypal.com',
+        currency: 'USD',
+        isPayPalOAuth: true,
+      };
+
+      it('allows editing name', async () => {
+        const pm = await fakePayoutMethod({
+          CollectiveId: adminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          data: paypalOAuthData,
+          isSaved: true,
+          name: 'Original Name',
+        });
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              name: 'Updated PayPal Name',
+            },
+          },
+          adminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editPayoutMethod.name).to.equal('Updated PayPal Name');
+        await pm.reload();
+        expect(pm.name).to.equal('Updated PayPal Name');
+      });
+
+      it('allows editing isSaved', async () => {
+        const pm = await fakePayoutMethod({
+          CollectiveId: adminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          data: paypalOAuthData,
+          isSaved: true,
+          name: 'My PayPal',
+        });
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              isSaved: false,
+            },
+          },
+          adminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editPayoutMethod.isSaved).to.be.false;
+        await pm.reload();
+        expect(pm.isSaved).to.be.false;
+      });
+
+      it('allows editing currency in data', async () => {
+        const pm = await fakePayoutMethod({
+          CollectiveId: adminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          data: paypalOAuthData,
+          isSaved: true,
+          name: 'My PayPal',
+        });
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              data: {
+                ...paypalOAuthData,
+                currency: 'EUR',
+              },
+            },
+          },
+          adminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editPayoutMethod.data.currency).to.equal('EUR');
+        await pm.reload();
+        expect((pm.data as { currency?: string }).currency).to.equal('EUR');
+      });
+
+      it('rejects editing email in data', async () => {
+        const pm = await fakePayoutMethod({
+          CollectiveId: adminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          data: paypalOAuthData,
+          isSaved: true,
+          name: 'My PayPal',
+        });
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              data: {
+                ...paypalOAuthData,
+                email: 'different@paypal.com',
+              },
+            },
+          },
+          adminUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include(
+          'Verified PayPal accounts can only be edited to change the name, saved status and currency',
+        );
+        await pm.reload();
+        expect((pm.data as { email?: string }).email).to.equal('verified-oauth@paypal.com');
+      });
+
+      it('rejects editing isPayPalOAuth flag in data', async () => {
+        const pm = await fakePayoutMethod({
+          CollectiveId: adminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          data: paypalOAuthData,
+          isSaved: true,
+          name: 'My PayPal',
+        });
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              data: {
+                ...paypalOAuthData,
+                isPayPalOAuth: false,
+              },
+            },
+          },
+          adminUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include(
+          'Verified PayPal accounts can only be edited to change the name, saved status and currency',
+        );
+      });
+
+      it('is not fooled by extra fields in data not provided by the user (and does not modify them)', async () => {
+        const pm = await fakePayoutMethod({
+          CollectiveId: adminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          data: { ...paypalOAuthData, currency: 'USD', connectedAccountId: 4242 },
+          isSaved: true,
+        });
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              data: {
+                ...paypalOAuthData,
+                currency: 'EUR',
+              },
+            },
+          },
+          adminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editPayoutMethod.data.currency).to.equal('EUR');
+        await pm.reload();
+        expect(pm.data.currency).to.equal('EUR');
+        expect((pm.data as PaypalPayoutMethodData).connectedAccountId).to.equal(4242);
+      });
     });
   });
 });
