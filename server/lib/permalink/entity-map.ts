@@ -59,3 +59,13 @@ export function isEntityMigratedToPublicId(entity: EntityShortIdPrefix, createdA
 
   return moment(createdAt).isAfter(moment('2026-04-03'));
 }
+
+export function getEntityShortIdPrefix(publicId: string): EntityShortIdPrefix | null {
+  for (const prefix of Object.values(EntityShortIdPrefix)) {
+    if (publicId.startsWith(`${prefix}_`)) {
+      return prefix;
+    }
+  }
+
+  return null;
+}
