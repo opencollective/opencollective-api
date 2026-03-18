@@ -528,6 +528,11 @@ interface Account {
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -3351,6 +3356,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -3744,7 +3754,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -6265,6 +6275,11 @@ type PayoutMethod {
   canBeArchived: Boolean
 
   """
+  For PayPal payout methods: whether the PayPal account has been verified via OAuth. Null for other types.
+  """
+  isVerified: Boolean
+
+  """
   The date and time this payout method was created
   """
   createdAt: DateTime!
@@ -6273,16 +6288,6 @@ type PayoutMethod {
   The date and time this payout method was updated
   """
   updatedAt: DateTime!
-
-  """
-  For PayPal payout methods: whether the PayPal account has been verified via OAuth. Null for other types.
-  """
-  isVerified: Boolean
-
-  """
-  For PayPal payout methods: identity details from the linked ConnectedAccount (name, email, payerId, verifiedAt). Visible to admins of the payee collective and host admins.
-  """
-  paypalInfo: JSON
 }
 
 """
@@ -7307,8 +7312,8 @@ type CollectiveFeatures {
   OFF_PLATFORM_TRANSACTIONS: CollectiveFeatureStatus
   TRANSFERWISE: CollectiveFeatureStatus
   PAYPAL_PAYOUTS: CollectiveFeatureStatus
-  PAYPAL_CONNECT: CollectiveFeatureStatus
   RECEIVE_HOST_APPLICATIONS: CollectiveFeatureStatus
+  PAYPAL_CONNECT: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
@@ -7379,7 +7384,6 @@ type Policies {
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
-  REQUIRE_PAYPAL_VERIFICATION: REQUIRE_PAYPAL_VERIFICATION
 
   """
   Contribution threshold to enforce contributor info. This resolver can be called from the collective or the host, when resolved through the collective the thresholds are returned in the collective currency
@@ -7432,12 +7436,6 @@ type EXPENSE_CATEGORIZATION {
 type CONTRIBUTOR_INFO_THRESHOLDS {
   legalName: Int
   address: Int
-}
-
-type REQUIRE_PAYPAL_VERIFICATION {
-  enabled: Boolean!
-  appliesToHostedCollectives: Boolean!
-  verificationValidityDays: Int
 }
 
 type ActivitySubscription {
@@ -9929,6 +9927,11 @@ type Bot implements Account {
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -10322,7 +10325,7 @@ type Bot implements Account {
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -10974,6 +10977,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -11367,7 +11375,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -12589,6 +12597,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -12982,7 +12995,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -13923,6 +13936,11 @@ type Individual implements Account {
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -14316,7 +14334,7 @@ type Individual implements Account {
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -15294,6 +15312,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -15687,7 +15710,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -16484,6 +16507,11 @@ type Vendor implements Account & AccountWithContributions {
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -16877,7 +16905,7 @@ type Vendor implements Account & AccountWithContributions {
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -18527,6 +18555,11 @@ type Query {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
+
+    """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
 
     """
     To filter by transaction kind
@@ -20740,6 +20773,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -21133,7 +21171,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -21932,6 +21970,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     includeDebts: Boolean! = false
 
     """
+    Whether to include the reversed transactions created due to an edit.
+    """
+    includeEditedReversedTransactions: Boolean! = true
+
+    """
     To filter by transaction kind
     """
     kind: [TransactionKind]
@@ -22325,7 +22368,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this collective can use to pay for Orders. Admin or Host only. Scope: "orders".
@@ -25736,13 +25779,6 @@ input PoliciesInput {
   EXPENSE_PUBLIC_VENDORS: Boolean
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS: Boolean
   CONTRIBUTOR_INFO_THRESHOLDS: PoliciesContributorInfoThresholdsInput
-  REQUIRE_PAYPAL_VERIFICATION: PoliciesRequirePaypalVerificationInput
-}
-
-input PoliciesRequirePaypalVerificationInput {
-  enabled: Boolean
-  appliesToHostedCollectives: Boolean
-  verificationValidityDays: Int
 }
 
 input PoliciesExpensePolicies {
