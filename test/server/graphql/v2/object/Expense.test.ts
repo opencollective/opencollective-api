@@ -149,13 +149,6 @@ describe('server/graphql/v2/object/Expense', () => {
         status: KYCVerificationStatus.VERIFIED,
       });
 
-      await fakeKYCVerification({
-        CollectiveId: payee.collective.id,
-        RequestedByCollectiveId: host.id,
-        provider: KYCProviderName.PERSONA,
-        status: KYCVerificationStatus.VERIFIED,
-      });
-
       const result = await graphqlQueryV2(expenseKycStatusQuery, { id: expense.id }, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;

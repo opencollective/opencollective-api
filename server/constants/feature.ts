@@ -97,7 +97,6 @@ enum FEATURE {
   VENDORS = 'VENDORS',
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
   KYC = 'KYC',
-  PERSONA_KYC = 'PERSONA_KYC',
 }
 
 // features that can conditionally enabled/disabled based on subscription
