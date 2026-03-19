@@ -192,6 +192,7 @@ type Settings = {
   applyMessage?: string;
   tos?: string;
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
+  disableTaxableTiers?: boolean;
 } & TaxSettings;
 
 type Data = Partial<{

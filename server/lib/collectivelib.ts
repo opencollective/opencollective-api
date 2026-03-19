@@ -177,6 +177,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'showSetupGuide',
   'showInitialOverviewSubscriptionCard',
   'kyc',
+  'disableTaxableTiers',
 ];
 
 /**
@@ -196,6 +197,10 @@ export function filterCollectiveSettings(settings: Record<string, unknown> | nul
 
   if (preparedSettings.GST) {
     preparedSettings.GST = pick(preparedSettings.GST, ['number', 'disabled']);
+  }
+
+  if (preparedSettings.disableTaxableTiers !== undefined) {
+    preparedSettings.disableTaxableTiers = Boolean(preparedSettings.disableTaxableTiers);
   }
 
   // Generate warnings for invalid settings

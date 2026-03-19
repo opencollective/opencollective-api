@@ -133,6 +133,62 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(createdTier).to.exist;
       expect(createdTier.currency).to.eql('EUR');
     });
+
+    it('rejects taxable tier types when host has disableTaxableTiers', async () => {
+      const host = await fakeCollective({ admin: adminUser, countryISO: 'FR' });
+      const hostedCollective = await fakeCollective({
+        admin: adminUser,
+        HostCollectiveId: host.id,
+        settings: {},
+      });
+      await host.update({ settings: { ...host.settings, disableTaxableTiers: true } });
+      await fakeMember({ CollectiveId: adminUser.id, MemberCollectiveId: hostedCollective.id, role: roles.ADMIN });
+
+      const result = await graphqlQueryV2(
+        CREATE_TIER_MUTATION,
+        {
+          account: { legacyId: hostedCollective.id },
+          tier: {
+            name: 'Product tier',
+            type: 'PRODUCT',
+            amountType: 'FIXED',
+            frequency: 'ONETIME',
+            amount: { valueInCents: 2000, currency: 'USD' },
+          },
+        },
+        adminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('not allowed');
+    });
+
+    it('allows taxable tier types when collective has allowTaxableTiers override in data', async () => {
+      const host = await fakeCollective({ admin: adminUser, countryISO: 'FR' });
+      const hostedCollective = await fakeCollective({
+        admin: adminUser,
+        HostCollectiveId: host.id,
+      });
+      await hostedCollective.update({ data: { ...hostedCollective.data, allowTaxableTiers: true } });
+      await host.update({ settings: { ...host.settings, disableTaxableTiers: true } });
+      await fakeMember({ CollectiveId: adminUser.id, MemberCollectiveId: hostedCollective.id, role: roles.ADMIN });
+
+      const result = await graphqlQueryV2(
+        CREATE_TIER_MUTATION,
+        {
+          account: { legacyId: hostedCollective.id },
+          tier: {
+            name: 'Product tier',
+            type: 'PRODUCT',
+            amountType: 'FIXED',
+            frequency: 'ONETIME',
+            amount: { valueInCents: 2000, currency: 'USD' },
+          },
+        },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.createTier.legacyId).to.exist;
+    });
   });
 
   describe('editTierMutation', () => {
@@ -237,6 +293,39 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(editedTier.amount).to.equal(5000);
       expect(editedTier.currency).to.equal('EUR');
       expect(editedTier.interval).to.equal(existingTier.interval);
+    });
+
+    it('rejects changing tier type to taxable when host has disableTaxableTiers', async () => {
+      const host = await fakeCollective({ admin: adminUser, countryISO: 'FR' });
+      const hostedCollective = await fakeCollective({
+        admin: adminUser,
+        HostCollectiveId: host.id,
+      });
+      await host.update({ settings: { ...host.settings, disableTaxableTiers: true } });
+      await fakeMember({ CollectiveId: adminUser.id, MemberCollectiveId: hostedCollective.id, role: roles.ADMIN });
+
+      const tier = await fakeTier({
+        CollectiveId: hostedCollective.id,
+        type: 'TIER',
+        minimumAmount: 100,
+      });
+
+      const result = await graphqlQueryV2(
+        EDIT_TIER_MUTATION,
+        {
+          tier: {
+            id: idEncode(tier.id, IDENTIFIER_TYPES.TIER),
+            name: 'Updated name',
+            type: 'PRODUCT',
+            amountType: 'FIXED',
+            frequency: 'ONETIME',
+            amount: { valueInCents: 3000, currency: 'USD' },
+          },
+        },
+        adminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('not allowed');
     });
   });
 

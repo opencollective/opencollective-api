@@ -1,6 +1,12 @@
+import {
+  accountHasGST,
+  isMemberOfTheEuropeanUnion,
+  isTierTypeSubjectToGST,
+  isTierTypeSubjectToVAT,
+} from '@opencollective/taxes';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, isNil, min, uniq } from 'lodash';
+import { defaults, get, isNil, min, uniq } from 'lodash';
 import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
@@ -30,7 +36,8 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
   videoIframes: true,
 });
 
-export type TierType = 'TIER' | 'MEMBERSHIP' | 'DONATION' | 'TICKET' | 'PRODUCT' | 'SERVICE';
+export const AllTierTypes = ['TIER', 'MEMBERSHIP', 'DONATION', 'TICKET', 'PRODUCT', 'SERVICE'] as const;
+export type TierType = (typeof AllTierTypes)[number];
 
 class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<Tier>, InferCreationAttributes<Tier>> {
   public static readonly nanoIdPrefix = EntityShortIdPrefix.Tier;
@@ -181,6 +188,32 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
     });
   };
 
+  static hostHasDisabledTaxableTiers = (host: Collective): boolean => {
+    return Boolean(host?.settings?.disableTaxableTiers);
+  };
+
+  static isForbiddenTaxableTierType = (account: Collective, host: Collective, tierType: TierType): boolean => {
+    // Check if taxable tiers are disabled at the host level
+    if (!Tier.hostHasDisabledTaxableTiers(host)) {
+      return false;
+    }
+
+    // Check if taxable tiers are allowed at the account level (override)
+    const allowTaxableTiers = get(account, 'data.allowTaxableTiers');
+    if (allowTaxableTiers === true || (Array.isArray(allowTaxableTiers) && allowTaxableTiers.includes(tierType))) {
+      return false;
+    }
+
+    // Check if the tier type is subject to VAT or GST
+    if (isMemberOfTheEuropeanUnion(host.countryISO)) {
+      return isTierTypeSubjectToVAT(tierType);
+    } else if (host.countryISO === 'NZ' || accountHasGST(account)) {
+      return isTierTypeSubjectToGST(tierType);
+    }
+
+    return false;
+  };
+
   /**
    * Getters
    */
@@ -289,7 +322,12 @@ Tier.init(
       type: DataTypes.STRING, // TIER, TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP
       defaultValue: 'TIER',
       allowNull: false,
-      // TODO validate value
+      validate: {
+        isIn: {
+          args: [AllTierTypes],
+          msg: 'Invalid tier type',
+        },
+      },
     },
 
     description: {
