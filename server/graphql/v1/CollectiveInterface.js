@@ -1358,15 +1358,12 @@ const CollectiveFields = () => {
           where.slug = { [Op.in]: args.slugs };
         }
 
+        // Filter out forbidden tier types
         if (args.onlyValid !== false) {
           const host = await req.loaders.Collective.host.load(collective);
-          if (Tier.hostHasDisabledTaxableTiers(host)) {
-            const validTypes = AllTierTypes.filter(
-              type => !models.Tier.isForbiddenTaxableTierType(collective, host, type),
-            );
-            if (validTypes.length !== AllTierTypes.length) {
-              where.type = validTypes;
-            }
+          const allowedTierTypes = Tier.getAllowedTierTypes(collective, host);
+          if (allowedTierTypes.length !== AllTierTypes.length) {
+            where.type = allowedTierTypes;
           }
         }
 

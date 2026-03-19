@@ -1,9 +1,3 @@
-import {
-  accountHasGST,
-  isMemberOfTheEuropeanUnion,
-  isTierTypeSubjectToGST,
-  isTierTypeSubjectToVAT,
-} from '@opencollective/taxes';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, isNil, min, uniq } from 'lodash';
@@ -188,30 +182,19 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
     });
   };
 
-  static hostHasDisabledTaxableTiers = (host: Collective): boolean => {
-    return Boolean(host?.settings?.disableTaxableTiers);
-  };
-
-  static isForbiddenTaxableTierType = (account: Collective, host: Collective, tierType: TierType): boolean => {
-    // Check if taxable tiers are disabled at the host level
-    if (!Tier.hostHasDisabledTaxableTiers(host)) {
-      return false;
+  static getAllowedTierTypes = (account: Collective, host: Collective): readonly TierType[] => {
+    const disabledTypes = host?.settings?.disabledTierTypes;
+    if (!Array.isArray(disabledTypes) || !disabledTypes?.length) {
+      return AllTierTypes;
     }
 
-    // Check if taxable tiers are allowed at the account level (override)
-    const allowTaxableTiers = get(account, 'data.allowTaxableTiers');
-    if (allowTaxableTiers === true || (Array.isArray(allowTaxableTiers) && allowTaxableTiers.includes(tierType))) {
-      return false;
+    const overrideAllowedTierTypesSettings = get(account, 'data.allowedTierTypes');
+    let overrideAllowedTierTypes: string[] = [];
+    if (overrideAllowedTierTypesSettings && Array.isArray(overrideAllowedTierTypesSettings)) {
+      overrideAllowedTierTypes = overrideAllowedTierTypesSettings;
     }
 
-    // Check if the tier type is subject to VAT or GST
-    if (isMemberOfTheEuropeanUnion(host.countryISO)) {
-      return isTierTypeSubjectToVAT(tierType);
-    } else if (host.countryISO === 'NZ' || accountHasGST(account)) {
-      return isTierTypeSubjectToGST(tierType);
-    }
-
-    return false;
+    return AllTierTypes.filter(type => !disabledTypes.includes(type) || overrideAllowedTierTypes.includes(type));
   };
 
   /**

@@ -5,7 +5,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Tier as TierModel } from '../../../models';
+import models, { Tier, Tier as TierModel } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { getIntervalFromTierFrequency } from '../enum/TierFrequency';
@@ -102,11 +102,11 @@ const tierMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
-      // Validate taxable tier restriction when changing type
+      // Validate tier type restriction when changing type
       const host = await req.loaders.Collective.host.load(collective);
-      if (args.tier.type && models.Tier.isForbiddenTaxableTierType(collective, host, args.tier.type)) {
+      if (args.tier.type && !Tier.getAllowedTierTypes(collective, host).includes(args.tier.type)) {
         throw new ValidationFailed(
-          'This tier type is not allowed by your fiscal host, because it is subject to taxes in your country. Reach out to them for more information.',
+          'This tier type is not allowed by your fiscal host. Reach out to them for more information.',
         );
       }
 
@@ -143,11 +143,11 @@ const tierMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
-      // Validate taxable tier restriction
+      // Validate tier type restriction
       const host = await req.loaders.Collective.host.load(account);
-      if (models.Tier.isForbiddenTaxableTierType(account, host, args.tier.type)) {
+      if (args.tier.type && !Tier.getAllowedTierTypes(account, host).includes(args.tier.type)) {
         throw new ValidationFailed(
-          'This tier type is not allowed by your fiscal host, because it is subject to taxes in your country. Reach out to them for more information.',
+          'This tier type is not allowed by your fiscal host. Reach out to them for more information.',
         );
       }
 
