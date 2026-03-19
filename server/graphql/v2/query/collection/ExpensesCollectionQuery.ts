@@ -155,6 +155,15 @@ export const ExpensesCollectionQueryArgs = {
     type: new GraphQLList(GraphQLAccountReferenceInput),
     description: 'An alternative to filter by accounts, both cannot be used together',
   },
+  // Used in:
+  // - Crowdfunding redesign
+  // - Dashboard main query
+  // - AccountDetail expense tab, (to be deprecated in ongoing redesign)
+  // - AccountExpenses query in the expenses dashboard
+  // - Subscription
+  // - Welcome component
+  // - expenses page
+  // - submitted-expenses page
   direction: {
     type: GraphQLExpenseDirection,
     defaultValue: 'RECEIVED',
