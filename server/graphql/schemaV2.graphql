@@ -747,13 +747,11 @@ interface Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -764,20 +762,19 @@ interface Account {
     An alternative to filter by accounts, both cannot be used together
     """
     accounts: [AccountReferenceInput]
-    direction: ExpenseDirection
 
     """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -886,6 +883,7 @@ interface Account {
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+    direction: ExpenseDirection
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -1476,6 +1474,11 @@ enum Currency {
   Lari
   """
   GEL
+
+  """
+  Ghana Cedi
+  """
+  GHS
 
   """
   Gibraltar Pound
@@ -3562,6 +3565,8 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -3576,13 +3581,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -3595,22 +3598,17 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -10123,6 +10121,8 @@ type Bot implements Account {
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -10137,13 +10137,11 @@ type Bot implements Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -10156,22 +10154,17 @@ type Bot implements Account {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -11173,6 +11166,8 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -11187,13 +11182,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -11206,22 +11199,17 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -12793,6 +12781,8 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -12807,13 +12797,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -12826,22 +12814,17 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -14132,6 +14115,8 @@ type Individual implements Account {
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -14146,13 +14131,11 @@ type Individual implements Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -14165,22 +14148,17 @@ type Individual implements Account {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -15507,6 +15485,8 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -15521,13 +15501,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -15540,22 +15518,17 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -16702,6 +16675,8 @@ type Vendor implements Account & AccountWithContributions {
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -16716,13 +16691,11 @@ type Vendor implements Account & AccountWithContributions {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -16735,22 +16708,17 @@ type Vendor implements Account & AccountWithContributions {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -17750,13 +17718,11 @@ type Query {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -17769,22 +17735,17 @@ type Query {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -20972,6 +20933,8 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -20986,13 +20949,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -21005,22 +20966,17 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -22169,6 +22125,8 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -22183,13 +22141,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -22202,22 +22158,17 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
