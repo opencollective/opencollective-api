@@ -351,9 +351,10 @@ export const ExpensesCollectionQueryResolver = async (
 
   // Normalize direction
   const direction = args.direction || 'RECEIVED';
+  const isSubmitted = direction === 'SUBMITTED';
 
   // Validate: fromAccount/fromAccounts cannot be combined with direction=SUBMITTED
-  if (direction === 'SUBMITTED' && fromAccounts.length > 0) {
+  if (isSubmitted && fromAccounts.length > 0) {
     throw new Error(
       'fromAccount/fromAccounts cannot be used with direction SUBMITTED. Use account/accounts + oppositeAccounts instead.',
     );
@@ -370,11 +371,11 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // The field that account/accounts targets depends on direction
-  const accountField = direction === 'SUBMITTED' ? 'FromCollectiveId' : 'CollectiveId';
-  const oppositeField = direction === 'SUBMITTED' ? 'CollectiveId' : 'FromCollectiveId';
+  const accountField = isSubmitted ? 'FromCollectiveId' : 'CollectiveId';
+  const oppositeField = isSubmitted ? 'CollectiveId' : 'FromCollectiveId';
 
   if (accounts.length > 0) {
-    if (host && accounts.some(account => account.HostCollectiveId !== host.id || !account.isActive)) {
+    if (host && !isSubmitted && accounts.some(account => account.HostCollectiveId !== host.id || !account.isActive)) {
       throw new Error('When filtering by both host and accounts, all accounts must be hosted by the same host');
     }
 
@@ -414,14 +415,14 @@ export const ExpensesCollectionQueryResolver = async (
     // The association to join depends on direction:
     // RECEIVED (default) -> join 'collective' (the account that owes the expense)
     // SUBMITTED -> join 'fromCollective' (the account that submitted/receives payment)
-    const hostAssoc = direction === 'SUBMITTED' ? 'fromCollective' : 'collective';
+    const hostAssoc = isSubmitted ? 'fromCollective' : 'collective';
     include.push({ association: hostAssoc, attributes: [], required: true });
 
     // Base condition: the expense belongs to an account hosted by this host.
     // Expense.HostCollectiveId is set to the *payer's* host when paid, so it's only
     // usable as a shortcut for RECEIVED direction. For SUBMITTED we must always check
     // via the fromCollective association.
-    if (direction === 'RECEIVED') {
+    if (!isSubmitted) {
       where[Op.and].push({
         [Op.or]: [
           { HostCollectiveId: host.id },
@@ -632,7 +633,7 @@ export const ExpensesCollectionQueryResolver = async (
                   LIMIT 1),
                 1
               )
-            END * "Expense"."amount" 
+            END * "Expense"."amount"
           `,
             { currency },
             'postgres',

@@ -9,10 +9,12 @@ import {
 } from 'sequelize';
 
 import { activities } from '../constants';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum HostApplicationStatus {
@@ -22,7 +24,12 @@ export enum HostApplicationStatus {
   EXPIRED = 'EXPIRED',
 }
 
-class HostApplication extends Model<InferAttributes<HostApplication>, InferCreationAttributes<HostApplication>> {
+class HostApplication extends ModelWithPublicId<
+  EntityShortIdPrefix.HostApplication,
+  InferAttributes<HostApplication>,
+  InferCreationAttributes<HostApplication>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.HostApplication;
   public static readonly tableName = 'HostApplications' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -116,6 +123,10 @@ HostApplication.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

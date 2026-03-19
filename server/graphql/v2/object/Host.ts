@@ -28,6 +28,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getKysely, kyselyToSequelizeModels } from '../../../lib/kysely';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
@@ -71,7 +72,7 @@ import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from 
 import { GraphQLTransactionsImportStatus } from '../enum/TransactionsImportStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
-import { idDecode } from '../identifiers';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
@@ -2281,6 +2282,16 @@ export const GraphQLHost = new GraphQLObjectType({
 
           checkRemoteUserCanUseTransactions(req);
 
+          const importIds =
+            args.importId &&
+            (await Promise.all(
+              args.importId?.map(async id =>
+                isEntityPublicId(id, EntityShortIdPrefix.TransactionsImport)
+                  ? await req.loaders.TransactionsImport.idByPublicId.load(id)
+                  : idDecode(id, IDENTIFIER_TYPES.TRANSACTIONS_IMPORT),
+              ),
+            ));
+
           // This include is about:
           // 1. Security: making sure we only return transactions import rows for the host.
           // 2. Performance: the index on `TransactionsImports.CollectiveId` is used to filter the rows.
@@ -2290,8 +2301,7 @@ export const GraphQLHost = new GraphQLObjectType({
               required: true,
               where: {
                 ...((args.importType && { type: args.importType }) || {}),
-                ...((args.importId && { id: uniq(args.importId.map(id => idDecode(id, 'transactions-import'))) }) ||
-                  {}),
+                ...((args.importId && { id: uniq(importIds) }) || {}),
                 CollectiveId: host.id,
               },
             },

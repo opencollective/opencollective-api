@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import POLICIES from '../../../../../server/constants/policies';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -235,6 +236,26 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         allowed: false,
         reason: 'MINIMAL_CONDITION_NOT_MET',
       });
+    });
+
+    it('can fetch an expense by publicId', async () => {
+      const publicId = `${EntityShortIdPrefix.Expense}_${expense.id}`;
+      await expense.update({ publicId });
+
+      const expenseByPublicIdQuery = gql`
+        query ExpenseByPublicId($id: String!, $draftKey: String) {
+          expense(expense: { id: $id }, draftKey: $draftKey) {
+            id
+            legacyId
+          }
+        }
+      `;
+
+      const result = await graphqlQueryV2(expenseByPublicIdQuery, { id: publicId });
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expense.legacyId).to.eq(expense.id);
     });
 
     it('cannot see private details if not allowed', async () => {

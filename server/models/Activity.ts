@@ -1,18 +1,27 @@
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import dispatch from '../lib/notifications';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
+import Collective from './Collective';
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 
-class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
+class Activity extends ModelWithPublicId<
+  EntityShortIdPrefix.Activity,
+  InferAttributes<Activity>,
+  InferCreationAttributes<Activity>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Activity;
   public static readonly tableName = 'Activities' as const;
 
   declare public readonly id: CreationOptional<number>;
   declare public type: ActivityTypes;
   declare public data: CreationOptional<Record<string, any> & { notify?: boolean }>;
   declare public CollectiveId: CreationOptional<number>;
+  declare public Collective?: NonAttribute<Collective>;
   declare public FromCollectiveId: CreationOptional<number>;
   declare public HostCollectiveId: CreationOptional<number>;
   declare public UserId: CreationOptional<number>;
@@ -29,6 +38,10 @@ Activity.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     type: DataTypes.STRING,
 

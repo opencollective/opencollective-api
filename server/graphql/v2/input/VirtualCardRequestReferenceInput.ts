@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import VirtualCardRequest from '../../../models/VirtualCardRequest';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -7,8 +8,14 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const GraphQLVirtualCardRequestReferenceInput = new GraphQLInputObjectType({
   name: 'VirtualCardRequestReferenceInput',
   fields: () => ({
-    id: { type: GraphQLString },
-    legacyId: { type: GraphQLInt },
+    id: {
+      type: GraphQLString,
+      description: `The public id identifying the virtual card request (ie: ${EntityShortIdPrefix.VirtualCardRequest}_xxxxxxxx)`,
+    },
+    legacyId: {
+      type: GraphQLInt,
+      deprecationReason: '2026-02-25: use id',
+    },
   }),
 });
 
@@ -18,7 +25,9 @@ export async function fetchVirtualCardRequestWithReference(input, { include = nu
   };
 
   let virtualCardRequest: VirtualCardRequest;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.VirtualCardRequest)) {
+    virtualCardRequest = await VirtualCardRequest.findOne({ where: { publicId: input.id }, include });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
     virtualCardRequest = await loadVirtualCardRequestById(id);
   } else if (input.legacyId) {

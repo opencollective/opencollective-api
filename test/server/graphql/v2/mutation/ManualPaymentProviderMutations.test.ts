@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { ManualPaymentProviderTypes } from '../../../../../server/models/ManualPaymentProvider';
 import {
@@ -363,6 +364,26 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
           archivedAt: null,
         },
       });
+    });
+
+    it('accepts publicId in ManualPaymentProviderReferenceInput', async () => {
+      const publicId = `${EntityShortIdPrefix.ManualPaymentProvider}_${provider.id}`;
+      await provider.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        UPDATE_MANUAL_PAYMENT_PROVIDER_MUTATION,
+        {
+          manualPaymentProvider: { id: publicId },
+          input: {
+            name: 'Updated Name 2',
+          },
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateManualPaymentProvider.name).to.equal('Updated Name 2');
     });
 
     it('allows partial updates', async () => {

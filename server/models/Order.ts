@@ -19,7 +19,6 @@ import {
   HasManySetAssociationsMixin,
   InferAttributes,
   InferCreationAttributes,
-  Model,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -32,6 +31,7 @@ import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionTypes } from '../constants/transactions';
 import { executeOrder } from '../lib/payments';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
@@ -43,6 +43,7 @@ import Collective from './Collective';
 import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PaymentMethod from './PaymentMethod';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -62,10 +63,15 @@ export type OrderTax = {
   taxIDNumberFrom?: string;
 };
 
-class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
+class Order extends ModelWithPublicId<
+  EntityShortIdPrefix.Order,
+  InferAttributes<Order>,
+  InferCreationAttributes<Order>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Order;
   public static readonly tableName = 'Orders' as const;
 
-  declare id: CreationOptional<number>;
+  declare public readonly id: CreationOptional<number>;
   declare CreatedByUserId: ForeignKey<User['id']>;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare currency: SupportedCurrency;
@@ -502,6 +508,11 @@ Order.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CreatedByUserId: {

@@ -4,6 +4,7 @@ import { createSandbox } from 'sinon';
 
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
@@ -134,6 +135,20 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       await payoutMethod.reload({ paranoid: false });
       expect(payoutMethod.deletedAt).to.be.null;
     });
+
+    it('accepts publicId when removing a payout method', async () => {
+      const payoutMethod = await fakePayoutMethod({ CollectiveId: adminUser.CollectiveId, isSaved: true });
+      const publicId =
+        `${EntityShortIdPrefix.PayoutMethod}_${payoutMethod.id}` as EntityPublicId<EntityShortIdPrefix.PayoutMethod>;
+      await payoutMethod.update({ publicId });
+
+      const result = await graphqlQueryV2(removePayoutMethodMutation, { id: publicId }, adminUser);
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await payoutMethod.reload({ paranoid: false });
+      expect(payoutMethod.deletedAt).to.not.be.null;
+    });
   });
 
   describe('editPayoutMethod', () => {
@@ -181,6 +196,24 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       await payoutMethod.reload();
       expect(payoutMethod.name).to.equal('New Name');
       expect(result.data.editPayoutMethod.id).to.equal(mutationArgs.payoutMethod.id);
+    });
+
+    it('accepts publicId when editing a payout method', async () => {
+      const publicId = `${EntityShortIdPrefix.PayoutMethod}_${payoutMethod.id}`;
+      await payoutMethod.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        editPayoutMethodMutation,
+        {
+          payoutMethod: { id: publicId, name: 'PublicId Name' },
+        },
+        adminUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      await payoutMethod.reload();
+      expect(payoutMethod.name).to.equal('PublicId Name');
     });
 
     it('Updates the payout method if it is only associated with pending expenses', async () => {

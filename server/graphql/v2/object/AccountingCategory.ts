@@ -1,10 +1,12 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import AccountingCategoryModel from '../../../models/AccountingCategory';
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLHost } from './Host';
 
@@ -16,7 +18,17 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
+      resolve(accountingCategory: AccountingCategoryModel) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.AccountingCategory, accountingCategory.createdAt)) {
+          return accountingCategory.publicId;
+        } else {
+          return idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.AccountingCategory}_xxxxxxxx)`,
     },
     code: {
       type: new GraphQLNonNull(GraphQLString),

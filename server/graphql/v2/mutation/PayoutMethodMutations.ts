@@ -13,7 +13,6 @@ import models from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput';
 import { fetchPayoutMethodWithReference, GraphQLPayoutMethodReferenceInput } from '../input/PayoutMethodReferenceInput';
@@ -68,8 +67,7 @@ const payoutMethodMutations = {
     async resolve(_: void, args, req: express.Request): Promise<PayoutMethodModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const pmId = idDecode(args.payoutMethodId, IDENTIFIER_TYPES.PAYOUT_METHOD);
-      const payoutMethod: PayoutMethodModel = await req.loaders.PayoutMethod.byId.load(pmId);
+      const payoutMethod = await fetchPayoutMethodWithReference({ id: args.payoutMethodId });
 
       if (!payoutMethod) {
         throw new NotFound('This payout method does not exist');

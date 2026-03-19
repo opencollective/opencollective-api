@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -12,11 +13,12 @@ export const GraphQLMemberInvitationReferenceInput = new GraphQLInputObjectType(
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the member invitation (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the member invitation (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${models.MemberInvitation.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the invitation (ie: 580)',
+      deprecationReason: '2026-02-25: use id',
     },
   }),
 });
@@ -26,7 +28,9 @@ export const fetchMemberInvitationWithReference = async (
   { throwIfMissing } = { throwIfMissing: false },
 ): Promise<any> => {
   let memberInvitation;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.MemberInvitation)) {
+    memberInvitation = await models.MemberInvitation.findOne({ where: { publicId: input.id } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.MEMBER_INVITATION);
     memberInvitation = await models.MemberInvitation.findByPk(id);
   } else if (input.legacyId) {

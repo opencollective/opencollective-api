@@ -21,6 +21,7 @@ import OAuthScopes from '../../../constants/oauth-scopes';
 import { hasFeature } from '../../../lib/allowed-features';
 import { expenseKycStatus } from '../../../lib/kyc/expenses/kyc-expenses-check';
 import { floatAmountToCents } from '../../../lib/math';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -41,7 +42,7 @@ import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -113,11 +114,22 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+        resolve(expense) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Expense, expense.createdAt)) {
+            return expense.publicId;
+          } else {
+            return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.Expense}_xxxxxxxx)`,
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
         description: 'Legacy ID as returned by API V1. Avoid relying on this field as it may be removed in the future.',
+        deprecationReason: '2026-02-25: use publicId',
         resolve(expense) {
           return expense.id;
         },

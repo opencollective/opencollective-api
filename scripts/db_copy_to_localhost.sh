@@ -60,6 +60,7 @@ echo Restore...
   psql "${LOCALDBNAME}" -h $PG_HOST -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
 
   psql "${LOCALDBNAME}" -h $PG_HOST -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
+  psql -h $PG_HOST -U postgres -d postgres -c "ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER;"
 
 } | tee >/dev/null
 

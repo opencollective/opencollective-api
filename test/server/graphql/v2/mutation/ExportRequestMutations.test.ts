@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import sinon from 'sinon';
 
 import * as awsS3 from '../../../../../server/lib/awsS3';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { ExportRequestStatus, ExportRequestTypes } from '../../../../../server/models/ExportRequest';
 import UploadedFile from '../../../../../server/models/UploadedFile';
 import { fakeCollective, fakeExportRequest, fakeUploadedFile, fakeUser } from '../../../../test-helpers/fake-data';
@@ -252,6 +253,33 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
       expect(result.data.editExportRequest.legacyId).to.eq(exportRequest.id);
       expect(result.data.editExportRequest.name).to.eq('Original Name');
     });
+
+    it('accepts publicId in ExportRequestReferenceInput', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const exportRequest = await fakeExportRequest({
+        CollectiveId: collective.id,
+        CreatedByUserId: adminUser.id,
+        name: 'Original Name',
+        type: ExportRequestTypes.TRANSACTIONS,
+      });
+      const publicId =
+        `${EntityShortIdPrefix.ExportRequest}_${exportRequest.id}` as EntityPublicId<EntityShortIdPrefix.ExportRequest>;
+      await exportRequest.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        editExportRequestMutation,
+        {
+          exportRequest: { id: publicId },
+          name: 'Updated Name',
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editExportRequest.legacyId).to.eq(exportRequest.id);
+      expect(result.data.editExportRequest.name).to.eq('Updated Name');
+    });
   });
 
   describe('removeExportRequest', () => {
@@ -305,6 +333,31 @@ describe('server/graphql/v2/mutation/ExportRequestMutations', () => {
         removeExportRequestMutation,
         {
           exportRequest: { legacyId: exportRequest.id },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeExportRequest.legacyId).to.eq(exportRequest.id);
+    });
+
+    it('accepts publicId in ExportRequestReferenceInput for removal', async () => {
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ admin: adminUser });
+      const exportRequest = await fakeExportRequest({
+        CollectiveId: collective.id,
+        CreatedByUserId: adminUser.id,
+        name: 'Export to Delete by PublicId',
+        type: ExportRequestTypes.TRANSACTIONS,
+      });
+      const publicId =
+        `${EntityShortIdPrefix.ExportRequest}_${exportRequest.id}` as EntityPublicId<EntityShortIdPrefix.ExportRequest>;
+      await exportRequest.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        removeExportRequestMutation,
+        {
+          exportRequest: { id: publicId },
         },
         adminUser,
       );

@@ -1,4 +1,4 @@
-import { trim, truncate } from 'lodash';
+import { trim, truncate, uniq } from 'lodash';
 import moment from 'moment';
 import NordigenClient from 'nordigen-node';
 
@@ -11,37 +11,73 @@ import { sleep } from '../utils';
 import { getGoCardlessClient, getOrRefreshGoCardlessToken } from './client';
 import { AccountTransactions } from './types';
 
+export type BookedTransaction = AccountTransactions['transactions']['booked'][number];
+
 /**
  * See https://developer.gocardless.com/bank-account-data/transactions + https://docs.google.com/spreadsheets/d/1ogpzydzotOltbssrc3IQ8rhBLlIZbQgm5QCiiNJrkyA/edit?gid=0#gid=0.
  */
-const getDescriptionForTransaction = (transaction: AccountTransactions['transactions']['booked'][number]) => {
-  // Generally (but not always) available
-  if (transaction.remittanceInformationStructured) {
-    return transaction.remittanceInformationStructured;
-  } else if (transaction.remittanceInformationUnstructured) {
-    return transaction.remittanceInformationUnstructured;
-  } else if (transaction.remittanceInformationStructuredArray?.length) {
-    return transaction.remittanceInformationStructuredArray.join(', ');
-  } else if (transaction.remittanceInformationUnstructuredArray?.length) {
-    return transaction.remittanceInformationUnstructuredArray.join(', ');
-  }
+export const getDescriptionForTransaction = (
+  transaction: BookedTransaction,
+  /** The institution ID, since */
+  institutionId: string | undefined,
+) => {
+  const getBaseDescription = () => {
+    // Override for some banks, usually based on user feedback
+    if (institutionId === 'COOPERATIVE_CPBKGB22') {
+      // Sample
+      // "remittanceInformationUnstructured": "Faster Payment",
+      // "remittanceInformationUnstructuredArray": [
+      //   "AddInfo: 000000",
+      //   "CustRef: John Doe",
+      //   "BankRef: Something" -- Sometimes equals to AddrInfo
+      // ]
+      const getValueFromUnstructured = prefix =>
+        transaction.remittanceInformationUnstructuredArray
+          ?.find(item => item.startsWith(prefix))
+          ?.split(`${prefix}: `)[1];
 
-  // Fallback: generate a generic description
-  const amount = parseFloat(transaction.transactionAmount.amount);
-  const description = [];
-  if (amount > 0) {
-    description.push('Credit');
-    if (transaction.creditorName) {
-      description.push(`to ${transaction.creditorName}`);
-    }
-  } else {
-    description.push('Debit');
-    if (transaction.debtorName) {
-      description.push(`from ${transaction.debtorName}`);
-    }
-  }
+      const base = transaction.remittanceInformationUnstructured;
+      const customerRef = getValueFromUnstructured('CustRef');
+      const bankRef = getValueFromUnstructured('BankRef');
+      const addInfo = getValueFromUnstructured('AddInfo');
 
-  return description.join(' ');
+      // Format as "Faster Payment: John Doe - Something (000000)"
+      const bankRefStr =
+        !bankRef && addInfo ? addInfo : !addInfo ? bankRef : bankRef === addInfo ? bankRef : `${bankRef} (${addInfo})`;
+      const rest = uniq([customerRef, bankRefStr].filter(Boolean));
+      return base && rest.length ? `${base}: ${rest.join(' - ')}` : base || rest.join(' - ');
+    }
+
+    // Generally (but not always) available
+    if (transaction.remittanceInformationStructured) {
+      return transaction.remittanceInformationStructured;
+    } else if (transaction.remittanceInformationUnstructured) {
+      return transaction.remittanceInformationUnstructured;
+    } else if (transaction.remittanceInformationStructuredArray?.length) {
+      return transaction.remittanceInformationStructuredArray.join(', ');
+    } else if (transaction.remittanceInformationUnstructuredArray?.length) {
+      return transaction.remittanceInformationUnstructuredArray.join(', ');
+    }
+
+    // Fallback: generate a generic description
+    const amount = parseFloat(transaction.transactionAmount.amount);
+    const description = [];
+    if (amount > 0) {
+      description.push('Credit');
+      if (transaction.creditorName) {
+        description.push(`to ${transaction.creditorName}`);
+      }
+    } else {
+      description.push('Debit');
+      if (transaction.debtorName) {
+        description.push(`from ${transaction.debtorName}`);
+      }
+    }
+
+    return description.join(' ');
+  };
+
+  return getBaseDescription()?.replace(/\s\s+/g, ' ')?.trim() || '';
 };
 
 /**
@@ -130,7 +166,9 @@ const syncIndividualAccount = async (
         newTransactions.map(transaction => ({
           sourceId: transaction.internalTransactionId,
           isUnique: true,
-          description: formatDescription(getDescriptionForTransaction(transaction)),
+          description: formatDescription(
+            getDescriptionForTransaction(transaction, transactionsImport.data?.gocardless?.institution?.id),
+          ),
           date: new Date(transaction.bookingDate),
           amount: floatAmountToCents(parseFloat(transaction.transactionAmount.amount)),
           currency: transaction.transactionAmount.currency,

@@ -21,6 +21,7 @@
   },
   "database": {
     "url": "PG_URL",
+    "logQueryOrigin": "PG_LOG_QUERY_ORIGIN",
     "override": {
       "database": "PG_DATABASE",
       "username": "PG_USERNAME",

@@ -6,7 +6,6 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   Transaction,
 } from 'sequelize';
@@ -15,11 +14,13 @@ import isEmail from 'validator/lib/isEmail';
 import { SUPPORTED_CURRENCIES } from '../constants/currencies';
 import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import type { Collective, Expense, User } from '.';
+import { ModelWithPublicId } from './ModelWithPublicId';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`
@@ -84,7 +85,12 @@ type PayoutMethodDataType =
 /**
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
-class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAttributes<PayoutMethod>> {
+class PayoutMethod extends ModelWithPublicId<
+  EntityShortIdPrefix.PayoutMethod,
+  InferAttributes<PayoutMethod>,
+  InferCreationAttributes<PayoutMethod>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.PayoutMethod;
   public static readonly tableName = 'PayoutMethods' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -275,6 +281,10 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
 // Link the model to database fields
 PayoutMethod.init(
   {
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
