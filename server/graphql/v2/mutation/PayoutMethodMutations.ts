@@ -3,6 +3,11 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import ExpenseStatuses from '../../../constants/expense-status';
+import {
+  handleKycPayoutMethodEdited,
+  handleKycPayoutMethodReplaced,
+} from '../../../lib/kyc/expenses/kyc-expenses-check';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -125,11 +130,18 @@ const payoutMethodMutations = {
       }
 
       if (await payoutMethod.canBeEdited()) {
-        return await payoutMethod.update({
+        const oldPayoutMethodDataValues = payoutMethod.dataValues;
+        const updatedPayoutMethod = await payoutMethod.update({
           ...pick(args.payoutMethod, ['name', 'data', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
         });
+        try {
+          await handleKycPayoutMethodEdited(oldPayoutMethodDataValues, updatedPayoutMethod);
+        } catch (e) {
+          reportErrorToSentry(e, { req, user: req.remoteUser, extra: { payoutMethodId: updatedPayoutMethod.id } });
+        }
+        return updatedPayoutMethod;
       } else if (await payoutMethod.canBeArchived()) {
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
@@ -144,6 +156,15 @@ const payoutMethodMutations = {
           { PayoutMethodId: newPayoutMethod.id },
           { where: { PayoutMethodId: payoutMethod.id, status: [ExpenseStatuses.PENDING, ExpenseStatuses.DRAFT] } },
         );
+        try {
+          await handleKycPayoutMethodReplaced(payoutMethod, newPayoutMethod);
+        } catch (e) {
+          reportErrorToSentry(e, {
+            req,
+            user: req.remoteUser,
+            extra: { oldPayoutMethodId: payoutMethod.id, newPayoutMethodId: newPayoutMethod.id },
+          });
+        }
         return newPayoutMethod;
       } else {
         throw new Forbidden();
