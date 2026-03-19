@@ -134,15 +134,14 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(createdTier.currency).to.eql('EUR');
     });
 
-    it('rejects taxable tier types when host has disableTaxableTiers', async () => {
-      const host = await fakeCollective({ admin: adminUser, countryISO: 'FR' });
+    it('rejects tier types when host has disabledTierTypes', async () => {
+      const host = await fakeCollective({ admin: adminUser });
       const hostedCollective = await fakeCollective({
         admin: adminUser,
         HostCollectiveId: host.id,
         settings: {},
       });
-      await host.update({ settings: { ...host.settings, disableTaxableTiers: true } });
-      await fakeMember({ CollectiveId: adminUser.id, MemberCollectiveId: hostedCollective.id, role: roles.ADMIN });
+      await host.update({ settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE', 'TICKET'] } });
 
       const result = await graphqlQueryV2(
         CREATE_TIER_MUTATION,
@@ -162,15 +161,14 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(result.errors[0].message).to.include('not allowed');
     });
 
-    it('allows taxable tier types when collective has allowTaxableTiers override in data', async () => {
-      const host = await fakeCollective({ admin: adminUser, countryISO: 'FR' });
+    it('allows tier types when collective has allowedTierTypes override in data', async () => {
+      const host = await fakeCollective({ admin: adminUser });
       const hostedCollective = await fakeCollective({
         admin: adminUser,
         HostCollectiveId: host.id,
       });
-      await hostedCollective.update({ data: { ...hostedCollective.data, allowTaxableTiers: true } });
-      await host.update({ settings: { ...host.settings, disableTaxableTiers: true } });
-      await fakeMember({ CollectiveId: adminUser.id, MemberCollectiveId: hostedCollective.id, role: roles.ADMIN });
+      await hostedCollective.update({ data: { ...hostedCollective.data, allowedTierTypes: ['PRODUCT'] } });
+      await host.update({ settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE', 'TICKET'] } });
 
       const result = await graphqlQueryV2(
         CREATE_TIER_MUTATION,
@@ -186,6 +184,7 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
         },
         adminUser,
       );
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.createTier.legacyId).to.exist;
     });
@@ -295,14 +294,13 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(editedTier.interval).to.equal(existingTier.interval);
     });
 
-    it('rejects changing tier type to taxable when host has disableTaxableTiers', async () => {
-      const host = await fakeCollective({ admin: adminUser, countryISO: 'FR' });
+    it('rejects changing tier type when host has disabledTierTypes', async () => {
+      const host = await fakeCollective({ admin: adminUser });
       const hostedCollective = await fakeCollective({
         admin: adminUser,
         HostCollectiveId: host.id,
       });
-      await host.update({ settings: { ...host.settings, disableTaxableTiers: true } });
-      await fakeMember({ CollectiveId: adminUser.id, MemberCollectiveId: hostedCollective.id, role: roles.ADMIN });
+      await host.update({ settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE', 'TICKET'] } });
 
       const tier = await fakeTier({
         CollectiveId: hostedCollective.id,

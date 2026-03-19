@@ -62,7 +62,7 @@ export const AccountWithContributionsFields = {
       onlyValid: {
         type: GraphQLBoolean,
         description:
-          'When true (default), exclude tiers with types that are no longer supported (e.g. taxable tiers when disabled by host). Use false for edit pages to show all tiers.',
+          'When true (default), exclude tiers with types that are no longer supported (e.g. types in host.disabledTierTypes). Use false for edit pages to show all tiers.',
         defaultValue: true,
       },
     },
@@ -78,11 +78,9 @@ export const AccountWithContributionsFields = {
       const where: WhereOptions<Tier> = { CollectiveId: account.id };
       if (args.onlyValid !== false) {
         const host = await req.loaders.Collective.host.load(account);
-        if (Tier.hostHasDisabledTaxableTiers(host)) {
-          const validTypes = AllTierTypes.filter(type => !models.Tier.isForbiddenTaxableTierType(account, host, type));
-          if (validTypes.length !== AllTierTypes.length) {
-            where.type = validTypes;
-          }
+        const allowedTierTypes = Tier.getAllowedTierTypes(account, host);
+        if (allowedTierTypes.length !== AllTierTypes.length) {
+          where.type = allowedTierTypes;
         }
       }
 
@@ -99,14 +97,10 @@ export const AccountWithContributionsFields = {
   supportedTierTypes: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTierType))),
     description:
-      'Tier types that can be created for this account. Uses host tax settings and account overrides via Tier.isForbiddenTaxableTierType.',
+      'Tier types that can be created for this account. Uses host disabledTierTypes and account overrides via Tier.isForbiddenTierType.',
     async resolve(account: Collective, _, req: express.Request): Promise<readonly TierType[]> {
       const host = await req.loaders.Collective.host.load(account);
-      if (Tier.hostHasDisabledTaxableTiers(host)) {
-        return AllTierTypes.filter(tierType => !models.Tier.isForbiddenTaxableTierType(account, host, tierType));
-      } else {
-        return AllTierTypes;
-      }
+      return Tier.getAllowedTierTypes(account, host).toSorted();
     },
   },
   contributors: {
