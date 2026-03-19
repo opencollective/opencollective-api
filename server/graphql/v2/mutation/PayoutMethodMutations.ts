@@ -3,6 +3,11 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { isEqual, isUndefined, omit, pick } from 'lodash';
 
 import ExpenseStatuses from '../../../constants/expense-status';
+import {
+  handleKycPayoutMethodEdited,
+  handleKycPayoutMethodReplaced,
+} from '../../../lib/kyc/expenses/kyc-expenses-check';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
@@ -141,27 +146,44 @@ const payoutMethodMutations = {
       }
 
       if (await payoutMethod.canBeEdited()) {
-        return await payoutMethod.update({
+        const oldPayoutMethodDataValues = payoutMethod.dataValues;
+        const updatedPayoutMethod = await payoutMethod.update({
           ...pick(args.payoutMethod, ['name', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
           data: { ...payoutMethod.data, ...args.payoutMethod.data }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
+        try {
+          await handleKycPayoutMethodEdited(oldPayoutMethodDataValues, updatedPayoutMethod);
+        } catch (e) {
+          reportErrorToSentry(e, { req, user: req.remoteUser, extra: { payoutMethodId: updatedPayoutMethod.id } });
+        }
+        return updatedPayoutMethod;
       } else if (await payoutMethod.canBeArchived()) {
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
         const newPayoutMethod = await models.PayoutMethod.create({
           ...pick(payoutMethod, ['name', 'type']),
-          ...pick(args.payoutMethod, ['name', 'type', 'isSaved']),
+          ...pick(args.payoutMethod, ['name', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
           data: { ...payoutMethod.data, ...args.payoutMethod.data }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
+
         // Update Pending expenses to use the new payout method
         await models.Expense.update(
           { PayoutMethodId: newPayoutMethod.id },
           { where: { PayoutMethodId: payoutMethod.id, status: [ExpenseStatuses.PENDING, ExpenseStatuses.DRAFT] } },
         );
+        try {
+          await handleKycPayoutMethodReplaced(payoutMethod, newPayoutMethod);
+        } catch (e) {
+          reportErrorToSentry(e, {
+            req,
+            user: req.remoteUser,
+            extra: { oldPayoutMethodId: payoutMethod.id, newPayoutMethodId: newPayoutMethod.id },
+          });
+        }
         return newPayoutMethod;
       } else {
         throw new Forbidden();

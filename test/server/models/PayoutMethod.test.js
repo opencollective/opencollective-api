@@ -23,8 +23,10 @@ describe('server/models/PayoutMethod', () => {
             name: 'John Doe',
             email: 'john@paypal.com',
             payer_id: 'PAYER123',
-            'address.country': 'US',
             sensitiveField: 'should-be-filtered',
+            address: {
+              country: 'US',
+            },
           },
         },
         CollectiveId: 1,
@@ -40,7 +42,9 @@ describe('server/models/PayoutMethod', () => {
           name: 'John Doe',
           email: 'john@paypal.com',
           payer_id: 'PAYER123',
-          'address.country': 'US',
+          address: {
+            country: 'US',
+          },
         },
       });
       expect(filtered).to.not.have.property('connectedAccountId');

@@ -20,6 +20,7 @@ import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/ide
 import { getFxRate } from '../../../../../server/lib/currency';
 import * as LibCurrency from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
+import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import {
   TwoFactorAuthenticationHeader,
@@ -1413,6 +1414,44 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   });
 
   describe('editExpense', () => {
+    describe('payout method change', () => {
+      let sandbox;
+
+      beforeEach(async () => {
+        await resetTestDB();
+        sandbox = createSandbox();
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it('calls handleExpensePayoutMethodChange when payout method is changed', async () => {
+        const handleExpensePayoutMethodChangeStub = sandbox
+          .stub(kycExpensesCheck, 'handleExpensePayoutMethodChange')
+          .resolves();
+
+        const expense = await fakeExpense({ status: 'APPROVED', legacyPayoutMethod: 'other' });
+        const oldPayoutMethodId = expense.PayoutMethodId;
+        const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense.User.CollectiveId });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+        expect(handleExpensePayoutMethodChangeStub).to.have.been.calledOnce;
+        const [updatedExpense, oldPayoutMethod, newPayoutMethodArg] =
+          handleExpensePayoutMethodChangeStub.firstCall.args;
+        expect(updatedExpense.id).to.equal(expense.id);
+        expect(oldPayoutMethod.id).to.equal(oldPayoutMethodId);
+        expect(newPayoutMethodArg.id).to.equal(newPayoutMethod.id);
+      });
+    });
+
     describe('goes back to pending if editing critical fields', () => {
       it('Payout', async () => {
         const expense2 = await fakeExpense({ status: 'APPROVED', legacyPayoutMethod: 'other' });

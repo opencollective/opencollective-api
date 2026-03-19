@@ -7,6 +7,7 @@ import type {
 } from 'sequelize';
 
 import { TransactionsImportRowStatus } from '../graphql/v2/enum/TransactionsImportRowStatus';
+import type { BookedTransaction } from '../lib/gocardless/sync';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
@@ -35,7 +36,7 @@ class TransactionsImportRow extends ModelWithPublicId<
   declare public isUnique: boolean;
   declare public currency: string;
   declare public accountId: string | null;
-  declare public rawValue: Record<string, unknown>;
+  declare public rawValue: Record<string, unknown> | BookedTransaction;
   declare public note: string | null;
   declare public createdAt: Date;
   declare public updatedAt: Date;

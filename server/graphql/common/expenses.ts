@@ -47,6 +47,7 @@ import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import { formatAddress } from '../../lib/format-address';
+import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
@@ -3082,6 +3083,10 @@ export async function editExpense(
     }
   }
 
+  let hasPayoutMethodChanges = false;
+  let newPayoutMethodId = null;
+  let oldPayoutMethodId = null;
+
   const updatedExpense: Expense = await sequelize.transaction(async transaction => {
     // Update payout method if we get new data from one of the param for it
     if (
@@ -3143,12 +3148,10 @@ export async function editExpense(
     // Update expense
     // When updating amount, attachment or payoutMethod, we reset its status to PENDING
     const PayoutMethodId = payoutMethod ? payoutMethod.id : null;
-    const shouldUpdateStatus = changesRequireStatusUpdate(
-      expense,
-      expenseData,
-      hasItemChanges,
-      PayoutMethodId !== expense.PayoutMethodId,
-    );
+    hasPayoutMethodChanges = PayoutMethodId !== expense.PayoutMethodId;
+    newPayoutMethodId = PayoutMethodId;
+    oldPayoutMethodId = expense.PayoutMethodId;
+    const shouldUpdateStatus = changesRequireStatusUpdate(expense, expenseData, hasItemChanges, hasPayoutMethodChanges);
 
     // Update attached files
     if (expenseData.attachedFiles) {
@@ -3244,6 +3247,18 @@ export async function editExpense(
       notifyCollective,
       previousData: { status: previousStatus },
     });
+  }
+
+  try {
+    if (hasPayoutMethodChanges) {
+      await handleExpensePayoutMethodChange(
+        updatedExpense,
+        await models.PayoutMethod.findByPk(oldPayoutMethodId),
+        await models.PayoutMethod.findByPk(newPayoutMethodId),
+      );
+    }
+  } catch (e) {
+    reportErrorToSentry(e, { req, user: remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expense } });
   }
 
   try {

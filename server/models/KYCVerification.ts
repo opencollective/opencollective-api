@@ -86,6 +86,7 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   static get loaders() {
     const byRequestedByCollectiveId = {
       verifiedStatusByProvider: {},
+      latestKycRequestsByProvider: {},
     };
     function verifiedStatusByProvider(
       RequestedByCollectiveId: number,
@@ -136,8 +137,58 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
 
       return byRequestedByCollectiveId.verifiedStatusByProvider[provider][RequestedByCollectiveId];
     }
+
+    function latestKycRequestsByProvider(
+      RequestedByCollectiveId: number,
+      provider: KYCProviderName,
+    ): DataLoader<number, KYCVerification> {
+      if (byRequestedByCollectiveId.latestKycRequestsByProvider[provider]?.[RequestedByCollectiveId]) {
+        return byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId];
+      }
+
+      if (!byRequestedByCollectiveId.latestKycRequestsByProvider[provider]) {
+        byRequestedByCollectiveId.latestKycRequestsByProvider[provider] = {};
+      }
+
+      byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId] = new DataLoader<
+        number,
+        KYCVerification
+      >(async keys => {
+        const res: KYCVerification[] = await sequelize.query(
+          `
+          WITH requests AS (
+            SELECT 
+              "kyc".*,
+              RANK() OVER(PARTITION BY "kyc"."CollectiveId" ORDER BY "kyc"."createdAt" DESC) "_rank"
+            FROM "KYCVerifications" "kyc"
+            WHERE
+              "kyc"."provider" = :provider AND
+              "kyc"."RequestedByCollectiveId" = :RequestedByCollectiveId AND
+              "kyc"."CollectiveId" IN (:CollectiveId)              
+          ) SELECT * from requests WHERE "_rank" = 1;
+          
+        `,
+          {
+            type: QueryTypes.SELECT,
+            model: KYCVerification,
+            mapToModel: true,
+            replacements: {
+              provider,
+              RequestedByCollectiveId,
+              CollectiveId: keys,
+            },
+          },
+        );
+
+        return sortResultsSimple(keys, res, i => i.CollectiveId);
+      });
+
+      return byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId];
+    }
+
     return {
       verifiedStatusByProvider,
+      latestKycRequestsByProvider,
     };
   }
 }
