@@ -1718,10 +1718,10 @@ export const GraphQLHost = new GraphQLObjectType({
             if (args?.orderBy?.field === 'TOTAL_CONTRIBUTED' || args?.orderBy?.field === 'TOTAL_EXPENDED') {
               nodeQuery = nodeQuery.orderBy(
                 args.orderBy.field === 'TOTAL_CONTRIBUTED' ? 'totalContributed' : 'totalExpended',
-                direction,
+                // direction,
               );
             } else if (args?.orderBy?.field) {
-              nodeQuery = nodeQuery.orderBy(args.orderBy.field, direction);
+              nodeQuery = nodeQuery.orderBy(args.orderBy.field); // direction);
             }
           }
           // Other additional ordering that were created throughout conditionals
