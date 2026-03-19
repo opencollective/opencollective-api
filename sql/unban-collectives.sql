@@ -1,3 +1,10 @@
+-- Reverses what was done by ./ban-collectives.sql
+--
+-- Variables:
+--  • collectiveSlugs: The list of collective slugs to unban (including the epoch suffix, e.g. `banned-slug-123456.789012`)
+--  • restoredAfterDate: The date after which the collectives were banned (e.g. `2026-03-19`)
+--
+-- ---------------------------------------------------------------------------------
 WITH target_collectives AS (
   -- Find the banned collectives by slug (they were renamed with epoch suffix)
   SELECT id
@@ -300,6 +307,50 @@ WITH target_collectives AS (
     rld."HostCollectiveId" = restored_collectives.id
     AND rld."deletedAt" >= $restoredAfterDate
   RETURNING rld.id
+), restored_export_requests AS (
+  UPDATE ONLY "ExportRequests" er
+  SET "deletedAt" = NULL
+  WHERE
+    er."deletedAt" >= $restoredAfterDate
+    AND (
+      er."CollectiveId" IN (SELECT id FROM restored_collectives)
+      OR er."CreatedByUserId" IN (SELECT id FROM restored_users)
+    )
+  RETURNING er.id
+), restored_manual_payment_providers AS (
+  UPDATE ONLY "ManualPaymentProviders" mpp
+  SET "deletedAt" = NULL
+  FROM restored_collectives
+  WHERE
+    mpp."CollectiveId" = restored_collectives.id
+    AND mpp."deletedAt" >= $restoredAfterDate
+  RETURNING mpp.id
+), restored_kyc_verifications AS (
+  UPDATE ONLY "KYCVerifications" kv
+  SET "deletedAt" = NULL
+  FROM restored_collectives
+  WHERE
+    (kv."CollectiveId" = restored_collectives.id OR kv."RequestedByCollectiveId" = restored_collectives.id)
+    AND kv."deletedAt" >= $restoredAfterDate
+  RETURNING kv.id
+), restored_subscriptions AS (
+  UPDATE ONLY "Subscriptions" s
+  SET "deletedAt" = NULL
+  WHERE s."deletedAt" >= $restoredAfterDate
+  AND s.id IN (
+    SELECT o."SubscriptionId" FROM "Orders" o
+    WHERE o."SubscriptionId" IS NOT NULL
+    AND (o."FromCollectiveId" IN (SELECT id FROM restored_collectives) OR o."CollectiveId" IN (SELECT id FROM restored_collectives))
+  )
+  RETURNING s.id
+), restored_uploaded_files AS (
+  UPDATE ONLY "UploadedFiles" uf
+  SET "deletedAt" = NULL
+  FROM restored_users
+  WHERE
+    uf."CreatedByUserId" = restored_users.id
+    AND uf."deletedAt" >= $restoredAfterDate
+  RETURNING uf.id
 )
 SELECT
   (SELECT COUNT(*) FROM restored_collectives)              AS nb_restored_collectives,
@@ -334,4 +385,9 @@ SELECT
   (SELECT COUNT(*) FROM restored_legal_documents)          AS nb_restored_legal_documents,
   (SELECT COUNT(*) FROM restored_agreements)               AS nb_restored_agreements,
   (SELECT COUNT(*) FROM restored_locations)                AS nb_restored_locations,
+  (SELECT COUNT(*) FROM restored_export_requests)        AS nb_restored_export_requests,
+  (SELECT COUNT(*) FROM restored_manual_payment_providers) AS nb_restored_manual_payment_providers,
+  (SELECT COUNT(*) FROM restored_kyc_verifications)        AS nb_restored_kyc_verifications,
+  (SELECT COUNT(*) FROM restored_subscriptions)           AS nb_restored_subscriptions,
+  (SELECT COUNT(*) FROM restored_uploaded_files)           AS nb_restored_uploaded_files,
   (SELECT ARRAY_AGG(id) FROM restored_collectives)         AS restored_collectives_ids;
