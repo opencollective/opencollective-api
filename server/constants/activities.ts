@@ -283,6 +283,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.TAXFORM_REQUEST,
     ActivityTypes.TAXFORM_RECEIVED,
     ActivityTypes.COLLECTIVE_EXPENSE_KYC_REQUESTED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_VERIFIED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_REVOKED,
     ActivityTypes.COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED,
   ],
   [ActivityClasses.CONTRIBUTIONS]: [

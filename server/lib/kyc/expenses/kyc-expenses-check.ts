@@ -83,7 +83,7 @@ export async function expenseKycStatus(
   }
 
   return {
-    latestVerification: kycRequests[0],
+    latestVerification: kycRequests.length > 0 ? kycRequests[0] : null,
     payee: {
       status: !hasKycRequests ? 'NOT_REQUESTED' : isVerified ? 'VERIFIED' : 'PENDING',
     },
@@ -101,6 +101,10 @@ export async function handleExpensePayoutMethodChange(
 
   const kycStatus = await expenseKycStatus(expense);
   if (!kycStatus) {
+    return;
+  }
+
+  if (kycStatus.payee.status !== 'VERIFIED') {
     return;
   }
 
@@ -140,10 +144,15 @@ async function handleExpensePayoutMethodEdited(
     return;
   }
 
+  if (kycStatus.payee.status !== 'VERIFIED') {
+    return;
+  }
+
   const collective = expense.collective || (await expense.getCollective());
   const hostId = expense.HostCollectiveId || collective.HostCollectiveId;
-
-  await recordKycPayoutMethodChange(expense, hostId, oldPayoutMethodDataValues, newPayoutMethod.dataValues);
+  if (newPayoutMethod.updatedAt > kycStatus.latestVerification?.verifiedAt) {
+    await recordKycPayoutMethodChange(expense, hostId, oldPayoutMethodDataValues, newPayoutMethod.dataValues);
+  }
 }
 
 export async function handleKycPayoutMethodReplaced(oldPayoutMethod: PayoutMethod, newPayoutMethod: PayoutMethod) {

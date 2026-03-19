@@ -239,6 +239,8 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
         status: KYCVerificationStatus.VERIFIED,
       });
 
+      await payoutMethod.update({ isSaved: !payoutMethod.isSaved });
+
       await kycExpensesCheck.handleKycPayoutMethodEdited(
         { ...payoutMethod.dataValues, id: payoutMethod.id },
         payoutMethod,
