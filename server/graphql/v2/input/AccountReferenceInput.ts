@@ -222,7 +222,7 @@ export const fetchAccountsIdsWithReference = async (accounts, options = null) =>
   if (!accounts?.length) {
     return [];
   } else {
-    const fetchedAccounts = await fetchAccountsWithReferences(accounts, { ...options, attributes: ['id'] });
+    const fetchedAccounts = await fetchAccountsWithReferences(accounts, { ...options, attributes: ['id', 'publicId'] });
     return fetchedAccounts.map(account => account.id);
   }
 };
