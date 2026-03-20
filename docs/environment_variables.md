@@ -71,8 +71,9 @@
 | KLIPPA_API_KEY                                | .klippa.apiKey                                     | The API key for Klippa                                                             |
 | KLIPPA_ENABLED                                | .klippa.enabled                                    | Whether Klippa is enabled                                                          |
 | PAYPAL_ENVIRONMENT                            | .paypal.payment.environment                        | PayPal payment environment                                                         |
-| PAYPAL_CLIENT_ID                              | .paypal.payment.clientId                           | PayPal client ID                                                                   |
-| PAYPAL_CLIENT_SECRET                          | .paypal.payment.clientSecret                       | PayPal client secret                                                               |
+| PAYPAL_CLIENT_ID                              | .paypal.connect.clientId                           | PayPal client ID                                                                   |
+| PAYPAL_CLIENT_SECRET                          | .paypal.connect.clientSecret                       | PayPal client secret                                                               |
+| PAYPAL_CONNECT_REDIRECT_URI                   | .paypal.connect.redirectUri                        | PayPal connect redirect URI                                                        |
 | MAILGUN_USER                                  | .mailgun.user                                      | Mailgun user                                                                       |
 | MAILGUN_PASSWORD                              | .mailgun.password                                  | Mailgun password                                                                   |
 | MAILGUN_API_KEY                               | .mailgun.apiKey                                    | Mailgun API key                                                                    |
