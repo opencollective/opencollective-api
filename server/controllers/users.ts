@@ -192,7 +192,7 @@ export const signin = async (req: express.Request, res: express.Response, next: 
       }
 
       // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
-      if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
+      if (!['production', 'staging'].includes(config.env) && user.email.match(/.*test.*@opencollective.com$/)) {
         res.send({ success: true, redirect: loginLink });
         return;
       }
