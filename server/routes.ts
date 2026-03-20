@@ -227,7 +227,7 @@ export default async (app: express.Application) => {
       onReject: [getGraphQLComplexityRejectionLogger('costLimit')],
       ignoreIntrospection: true,
       propagateOnRejection: parseToBoolean(config.graphql.rejectOnMaxComplexity),
-      maxCost: 130_000, // Currently identified max: around 125899 on the "ExpenseFormSchema" mutation
+      maxCost: 150_000, // Currently identified max: around 131214 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
