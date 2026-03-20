@@ -30,6 +30,7 @@ import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
+import { handlePermalink } from './lib/permalink/handler';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { checkIfSentryConfigured } from './lib/sentry/init';
@@ -164,6 +165,8 @@ export default async (app: express.Application) => {
       }),
     );
   }
+
+  app.get('/id/:id', withTiming('handlePermalink', handlePermalink));
 
   /**
    * GraphQL scope

@@ -619,6 +619,7 @@ export const fakeComment = async (
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
   let ExpenseId = get(commentData, 'ExpenseId') || get(commentData, 'expense.id');
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
+  const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -628,7 +629,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
