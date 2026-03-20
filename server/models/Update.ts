@@ -299,6 +299,7 @@ class Update extends ModelWithPublicId<
   // ---- Getters ----
   get info(): NonAttribute<Partial<Update>> {
     return {
+      publicId: this.publicId,
       id: this.id,
       title: this.title,
       html: this.html,
@@ -317,6 +318,7 @@ class Update extends ModelWithPublicId<
   get minimal(): NonAttribute<Partial<Update>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       publishedAt: this.publishedAt,
       title: this.title,
       image: this.image,
@@ -327,6 +329,7 @@ class Update extends ModelWithPublicId<
   get activity(): NonAttribute<Partial<Update>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       slug: this.slug,
       title: this.title,
       html: this.html,

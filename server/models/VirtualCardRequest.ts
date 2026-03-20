@@ -64,6 +64,7 @@ class VirtualCardRequest extends ModelWithPublicId<
     Pick<
       VirtualCardRequest,
       | 'id'
+      | 'publicId'
       | 'purpose'
       | 'notes'
       | 'status'
@@ -80,6 +81,7 @@ class VirtualCardRequest extends ModelWithPublicId<
   > {
     return {
       id: this.id,
+      publicId: this.publicId,
       purpose: this.purpose,
       notes: this.notes,
       status: this.status,

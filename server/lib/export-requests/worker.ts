@@ -94,6 +94,7 @@ class ExportWorker {
             data: {
               exportRequest: {
                 id: request.id,
+                publicId: request.publicId,
                 name: request.name,
                 type: request.type,
               },
@@ -119,6 +120,7 @@ class ExportWorker {
               data: {
                 exportRequest: {
                   id: request.id,
+                  publicId: request.publicId,
                   name: request.name,
                   type: request.type,
                   error: error.message || 'Unknown error',

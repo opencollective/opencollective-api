@@ -28,6 +28,7 @@ import {
   fakeTransactionsImportRow,
   fakeUpdate,
   fakeUser,
+  fakeVendor,
   fakeVirtualCard,
   fakeVirtualCardRequest,
 } from '../../test-helpers/fake-data';
@@ -110,6 +111,26 @@ describe('server/lib/permalink/handler', () => {
         return { publicId: collective.publicId, remoteUser, collective };
       },
       expectedUrl: ({ collective }) => `/dashboard/${collective.slug}/overview`,
+    },
+    {
+      title: 'routes vendor admin to dashboard vendor tool',
+      setup: async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        return { publicId: vendor.publicId, remoteUser: hostAdmin, vendor, host };
+      },
+      expectedUrl: ({ host, vendor }) => `/dashboard/${host.slug}/vendors/${vendor.publicId}`,
+    },
+    {
+      title: 'routes non admin to unauthorized for vendors',
+      setup: async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeActiveHost({ admin: hostAdmin });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        return { publicId: vendor.publicId, remoteUser: await fakeUser(), vendor };
+      },
+      expectedUrl: '/unauthorized',
     },
   ]);
 
@@ -352,7 +373,8 @@ describe('server/lib/permalink/handler', () => {
         });
         return { publicId: comment.publicId, remoteUser, collective, application };
       },
-      expectedUrl: ({ collective }) => `/dashboard/${collective.slug}/fiscal-host`,
+      expectedUrl: ({ collective, application }) =>
+        `/dashboard/${collective.slug}/host?hostApplicationId=${application.publicId}`,
     },
   ]);
 
@@ -417,7 +439,8 @@ describe('server/lib/permalink/handler', () => {
         const application = await fakeHostApplication({ CollectiveId: collective.id });
         return { publicId: application.publicId, remoteUser, collective, application };
       },
-      expectedUrl: ({ collective }) => `/dashboard/${collective.slug}/fiscal-host`,
+      expectedUrl: ({ collective, application }) =>
+        `/dashboard/${collective.slug}/host?hostApplicationId=${application.publicId}`,
     },
   ]);
 
