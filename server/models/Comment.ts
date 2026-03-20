@@ -69,6 +69,7 @@ class Comment extends ModelWithPublicId<
   get info(): NonAttribute<Partial<Comment>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       html: this.html,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -78,6 +79,7 @@ class Comment extends ModelWithPublicId<
   get minimal(): NonAttribute<Partial<Comment>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       createdAt: this.createdAt,
     };
   }
@@ -85,6 +87,7 @@ class Comment extends ModelWithPublicId<
   get activity(): NonAttribute<Partial<Comment>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       createdAt: this.createdAt,
     };
   }

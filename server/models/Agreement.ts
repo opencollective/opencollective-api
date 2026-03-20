@@ -54,6 +54,7 @@ class Agreement extends ModelWithPublicId<
     Pick<
       Agreement,
       | 'id'
+      | 'publicId'
       | 'title'
       | 'notes'
       | 'UserId'
@@ -67,6 +68,7 @@ class Agreement extends ModelWithPublicId<
   > {
     return {
       id: this.id,
+      publicId: this.publicId,
       title: this.title,
       notes: this.notes,
       UserId: this.UserId,

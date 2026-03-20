@@ -640,6 +640,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
   public get info(): NonAttribute<Partial<User>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       email: this.email,
       emailWaitingForValidation: this.emailWaitingForValidation,
       createdAt: this.createdAt,
@@ -651,23 +652,26 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
   public get show(): NonAttribute<Partial<User>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       CollectiveId: this.CollectiveId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
   }
 
-  public get minimal(): NonAttribute<{ id: number; email: string }> {
+  public get minimal(): NonAttribute<{ id: number; publicId: string; email: string }> {
     return {
       id: this.id,
+      publicId: this.publicId,
       email: this.email,
     };
   }
 
   // Used for the public collective
-  public get public(): NonAttribute<{ id: number }> {
+  public get public(): NonAttribute<{ id: number; publicId: string }> {
     return {
       id: this.id,
+      publicId: this.publicId,
     };
   }
 }

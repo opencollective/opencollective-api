@@ -481,6 +481,7 @@ class Collective extends ModelWithPublicId<
   get info() {
     return {
       id: this.id,
+      publicId: this.publicId,
       name: this.name,
       description: this.description,
       longDescription: this.longDescription,
@@ -548,6 +549,7 @@ class Collective extends ModelWithPublicId<
   get minimal() {
     return {
       id: this.id,
+      publicId: this.publicId,
       type: this.type,
       name: this.name,
       image: this.image,
@@ -563,6 +565,7 @@ class Collective extends ModelWithPublicId<
   get activity() {
     return {
       id: this.id,
+      publicId: this.publicId,
       type: this.type,
       slug: this.slug,
       name: this.name,

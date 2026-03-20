@@ -90,11 +90,12 @@ class UserTwoFactorMethod<T extends Exclude<TwoFactorMethod, TwoFactorMethod.REC
   get info(): NonAttribute<
     Pick<
       UserTwoFactorMethod<Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>>,
-      'id' | 'UserId' | 'method' | 'name' | 'createdAt' | 'updatedAt' | 'deletedAt'
+      'id' | 'publicId' | 'UserId' | 'method' | 'name' | 'createdAt' | 'updatedAt' | 'deletedAt'
     >
   > {
     return {
       id: this.id,
+      publicId: this.publicId,
       UserId: this.UserId,
       method: this.method,
       name: this.name,

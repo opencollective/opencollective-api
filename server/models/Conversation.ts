@@ -150,6 +150,7 @@ class Conversation extends ModelWithPublicId<
   get info(): NonAttribute<Partial<Conversation>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       hashId: this.hashId,
       title: this.title,
       slug: this.slug,

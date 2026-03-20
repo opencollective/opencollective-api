@@ -137,6 +137,7 @@ class VirtualCard extends ModelWithPublicId<
   get info() {
     return {
       id: this.id,
+      publicId: this.publicId,
       name: this.name,
       provider: this.provider,
       last4: this.last4,

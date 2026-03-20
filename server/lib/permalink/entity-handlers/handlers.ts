@@ -42,7 +42,7 @@ export const handleUser: Handler = async (req, res) => {
     return redirect(res, await getCollectivePageRoute(user.collective));
   }
 
-  if (user.isAdmin(user.CollectiveId)) {
+  if (req.remoteUser.isAdmin(user.CollectiveId)) {
     return redirect(res, getDashboardRoute(user.collective, 'overview'));
   }
 
@@ -324,7 +324,7 @@ export const handleHostApplication: Handler = async (req, res) => {
   }
 
   if (req.remoteUser.isAdmin(application.collective.id)) {
-    return redirect(res, getDashboardRoute(application.collective, 'fiscal-host'));
+    return redirect(res, getDashboardRoute(application.collective, `host?hostApplicationId=${application.publicId}`));
   }
 
   return handleUnauthorized(req, res);

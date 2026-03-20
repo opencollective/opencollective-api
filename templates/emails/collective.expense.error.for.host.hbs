@@ -14,7 +14,7 @@ Subject: 🚨 Transaction failed on {{{collective.name}}} - {{currency transacti
     {{/if}}
   </h3>
   <h2>{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}</h2>
-  <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></div>
+  <div><a href="{{permalink expense}}">{{expense.description}}</a></div>
   <div>Payee: {{fromCollective.name}}</div>
   <div>
     {{#if payoutMethod}}
@@ -34,7 +34,7 @@ Subject: 🚨 Transaction failed on {{{collective.name}}} - {{currency transacti
   </div>
 
   <br /><br />
-  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn">
+  <a href="{{permalink expense}}" class="btn">
     <div>View Expense</div>
   </a>
 

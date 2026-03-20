@@ -258,7 +258,7 @@ async function createComment(commentData, req): Promise<Comment> {
     OrderId: comment.OrderId,
     data: {
       CommentId: comment.id,
-      comment: { id: comment.id, html: comment.html, type: comment.type },
+      comment: { id: comment.id, html: comment.html, type: comment.type, publicId: comment.publicId },
       FromCollectiveId: comment.FromCollectiveId,
       ExpenseId: comment.ExpenseId,
       UpdateId: comment.UpdateId,
