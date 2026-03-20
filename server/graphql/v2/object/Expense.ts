@@ -684,7 +684,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
               throw new Unauthorized("You don't have permission to pay this expense");
             }
             const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense);
-            if (!quote) {
+            if (!quote?.paymentOption) {
               return null;
             }
 
