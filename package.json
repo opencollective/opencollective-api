@@ -101,7 +101,7 @@
     "kysely": "0.28.13",
     "kysely-sequelize": "^0.2.0",
     "lib-address": "0.7.0",
-    "limax": "4.2.2",
+    "limax": "4.2.3",
     "lodash": "4.17.23",
     "lru-cache": "11.2.7",
     "moment": "2.30.1",
