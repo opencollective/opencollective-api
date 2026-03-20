@@ -269,12 +269,14 @@ export const searchCollectivesInDB = async (
     tags,
     tagSearchOperator,
     types,
+    includeAccountsWithTransactionsForHost,
     ...args
   }: {
     countries?: string[];
     currency?: string;
     hasCustomContributionsEnabled?: boolean;
     hostCollectiveIds?: number[];
+    includeAccountsWithTransactionsForHost?: boolean;
     vendorVisibleToAccountIds?: number[];
     includeArchived?: boolean;
     includeVendorsForHostId?: number;
@@ -308,8 +310,20 @@ export const searchCollectivesInDB = async (
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
-    dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
-    dynamicConditions += 'AND c."approvedAt" IS NOT NULL ';
+    if (includeAccountsWithTransactionsForHost) {
+      dynamicConditions += `AND (
+        (c."HostCollectiveId" IN (:hostCollectiveIds) AND c."approvedAt" IS NOT NULL)
+        OR EXISTS (
+          SELECT 1 FROM "Transactions" t
+          WHERE t."deletedAt" IS NULL
+          AND t."HostCollectiveId" IN (:hostCollectiveIds)
+          AND t."CollectiveId" = c.id
+        )
+      ) `;
+    } else {
+      dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
+      dynamicConditions += 'AND c."approvedAt" IS NOT NULL ';
+    }
   }
 
   if (parentCollectiveIds && parentCollectiveIds.length > 0) {
