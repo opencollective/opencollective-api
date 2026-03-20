@@ -57,7 +57,7 @@ export const IDENTIFIABLE_DATA_FIELDS = [
   'sortCode',
   'swiftCode',
   'transitNumber',
-];
+] as const;
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
 export interface PaypalPayoutMethodData {
@@ -239,7 +239,7 @@ class PayoutMethod extends ModelWithPublicId<
   async findSimilar({ include, where }: Partial<Pick<FindOptions, 'include' | 'where'>> = {}) {
     let data;
     if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
-      const keyDetailFields = IDENTIFIABLE_DATA_FIELDS;
+      const keyDetailFields: string[] = [...IDENTIFIABLE_DATA_FIELDS];
       if ((this.data as BankAccountPayoutMethodData)?.type === 'email') {
         keyDetailFields.push('email');
       }
