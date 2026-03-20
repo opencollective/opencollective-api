@@ -200,7 +200,7 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<Transaction | u
           OrderId: order.id,
           type: 'CREDIT',
           kind: 'CONTRIBUTION',
-          data: { capture: { id: captureId } },
+          data: { paypalCaptureId: captureId },
         },
       });
 
