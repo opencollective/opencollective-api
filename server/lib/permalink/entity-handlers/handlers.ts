@@ -1,3 +1,4 @@
+import { CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
 
 import { handleNotFound, handleUnauthorized } from './common';
@@ -12,8 +13,22 @@ export const handleCollective: Handler = async (req, res) => {
     return handleNotFound(req, res);
   }
 
+  const isVendor = collective.type === CollectiveType.VENDOR;
+
   if (!req.remoteUser) {
-    return redirect(res, await getCollectivePageRoute(collective));
+    return isVendor ? handleUnauthorized(req, res) : redirect(res, await getCollectivePageRoute(collective));
+  }
+
+  if (isVendor && !req.remoteUser.isAdmin(collective.ParentCollectiveId)) {
+    return handleUnauthorized(req, res);
+  }
+
+  if (isVendor) {
+    const parent = await models.Collective.findByPk(collective.ParentCollectiveId);
+    if (!parent) {
+      return handleNotFound(req, res);
+    }
+    return redirect(res, getDashboardRoute(parent, `vendors/${collective.publicId}`));
   }
 
   if (req.remoteUser.isAdmin(collective.id)) {
