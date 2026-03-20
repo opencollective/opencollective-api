@@ -12,7 +12,6 @@ import Temporal from 'sequelize-temporal';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
 import { getKYCProvider } from '../lib/kyc';
 import { KYCProviderName } from '../lib/kyc/providers';
-import { PersonaInquiry } from '../lib/kyc/providers/persona/client';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize from '../lib/sequelize';
 
@@ -32,13 +31,9 @@ type KycProviderData = {
   [KYCProviderName.MANUAL]: {
     notes: string;
   };
-  [KYCProviderName.PERSONA]: {
-    inquiry: Partial<PersonaInquiry>;
-    imported?: boolean;
-  };
 };
 
-export type KYCVerifiedData = {
+type KYCVerifiedData = {
   legalName: string;
   legalAddress?: string;
 };
