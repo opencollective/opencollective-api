@@ -1,7 +1,7 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNil } from 'lodash';
+import { assign, get, invert, isEmpty, isNil, orderBy } from 'lodash';
 import moment from 'moment';
 import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 
@@ -1385,7 +1385,7 @@ export const AccountFields = {
     },
   },
   payoutMethods: {
-    type: new GraphQLList(GraphQLPayoutMethod),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
     description:
       'The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".',
     args: {
@@ -1406,13 +1406,15 @@ export const AccountFields = {
 
       const payoutMethods: PayoutMethod[] = await loader.load(collective.id);
 
-      return payoutMethods.filter(pm => {
+      const filteredPayoutMethods = payoutMethods.filter(pm => {
         if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
           return false;
         }
 
         return true;
       });
+
+      return orderBy(filteredPayoutMethods, 'id', 'asc');
     },
   },
   paymentMethods: {

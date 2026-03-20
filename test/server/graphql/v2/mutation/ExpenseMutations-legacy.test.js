@@ -225,7 +225,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
       description: 'A valid expense',
       type: 'INVOICE',
       invoiceInfo: 'This will be printed on your invoice',
-      payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
+      payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
       items: [{ description: 'A first item', amount: 4200 }],
       payeeLocation: { address: '123 Potatoes street', country: 'BE' },
       customData: { myCustomField: 'myCustomValue' },

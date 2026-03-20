@@ -133,9 +133,12 @@
   },
   "paypal": {
     "payment": {
-      "environment": "PAYPAL_ENVIRONMENT",
+      "environment": "PAYPAL_ENVIRONMENT"
+    },
+    "connect": {
       "clientId": "PAYPAL_CLIENT_ID",
-      "clientSecret": "PAYPAL_CLIENT_SECRET"
+      "clientSecret": "PAYPAL_CLIENT_SECRET",
+      "redirectUri": "PAYPAL_CONNECT_REDIRECT_URI"
     }
   },
   "mailgun": {

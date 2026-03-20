@@ -100,7 +100,7 @@ async function getTemporaryQuote(
   const rate = await getFxRate(expense.currency, expense.host.currency);
   return await transferwise.getTemporaryQuote(connectedAccount, {
     sourceCurrency: expense.host.currency,
-    targetCurrency: <string>payoutMethod.unfilteredData.currency,
+    targetCurrency: payoutMethod.data.currency,
     sourceAmount: centsAmountToFloat(expense.amount * rate),
   });
 }
@@ -146,7 +146,7 @@ async function quoteExpense(
 
   expense.collective = expense.collective || (await Collective.findByPk(expense.CollectiveId));
   expense.host = expense.host || (await expense.collective.getHostCollective());
-  const targetCurrency = payoutMethod.unfilteredData.currency as string;
+  const targetCurrency = payoutMethod.data.currency;
   const quoteParams = {
     profileId: connectedAccount.data.id,
     // Attention: sourceCurrency must always be the host currency, we count with this when persisting the Processor Payment Fee

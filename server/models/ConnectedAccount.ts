@@ -1,4 +1,3 @@
-import config from 'config';
 import { isNil } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
@@ -20,7 +19,7 @@ import type User from './User';
 
 class ConnectedAccount extends ModelWithPublicId<
   EntityShortIdPrefix.ConnectedAccount,
-  InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
+  InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' }>,
   InferCreationAttributes<ConnectedAccount>
 > {
   public static readonly nanoIdPrefix = EntityShortIdPrefix.ConnectedAccount;
@@ -64,14 +63,6 @@ class ConnectedAccount extends ModelWithPublicId<
       CreatedByUserId: this.CreatedByUserId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-    };
-  }
-
-  get paypalConfig() {
-    return {
-      client_id: this.clientId, // eslint-disable-line camelcase
-      client_secret: this.token, // eslint-disable-line camelcase
-      mode: config.paypal.rest.mode,
     };
   }
 }

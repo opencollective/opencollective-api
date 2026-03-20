@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */
 import { expect } from 'chai';
 import { SequelizeValidationError, ValidationError } from 'sequelize';
 
@@ -8,6 +9,123 @@ import { fakeExpense, fakePayoutMethod, fakeUser } from '../../test-helpers/fake
 import { resetTestDB } from '../../utils';
 
 describe('server/models/PayoutMethod', () => {
+  describe('getFilteredData()', () => {
+    it('filters PAYPAL data to safe fields only', () => {
+      const pm = models.PayoutMethod.build({
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: 'test@example.com',
+          verifiedAt: '2024-01-01T00:00:00Z',
+          currency: 'USD',
+          isPayPalOAuth: true,
+          connectedAccountId: 123,
+          paypalUserInfo: {
+            name: 'John Doe',
+            email: 'john@paypal.com',
+            payer_id: 'PAYER123',
+            sensitiveField: 'should-be-filtered',
+            address: {
+              country: 'US',
+            },
+          },
+        },
+        CollectiveId: 1,
+        CreatedByUserId: 1,
+      });
+      const filtered = pm.getFilteredData();
+      expect(filtered).to.deep.equal({
+        email: 'test@example.com',
+        verifiedAt: '2024-01-01T00:00:00Z',
+        currency: 'USD',
+        isPayPalOAuth: true,
+        paypalUserInfo: {
+          name: 'John Doe',
+          email: 'john@paypal.com',
+          payer_id: 'PAYER123',
+          address: {
+            country: 'US',
+          },
+        },
+      });
+      expect(filtered).to.not.have.property('connectedAccountId');
+      expect(filtered.paypalUserInfo).to.not.have.property('sensitiveField');
+    });
+
+    it('filters OTHER data to currency and content', () => {
+      const pm = models.PayoutMethod.build({
+        type: PayoutMethodTypes.OTHER,
+        data: {
+          content: 'Wire transfer to Bank XYZ',
+          currency: 'EUR',
+        },
+        CollectiveId: 1,
+        CreatedByUserId: 1,
+      });
+      const filtered = pm.getFilteredData();
+      expect(filtered).to.deep.equal({
+        currency: 'EUR',
+        content: 'Wire transfer to Bank XYZ',
+      });
+    });
+
+    it('returns full data for BANK_ACCOUNT', () => {
+      const bankData = {
+        accountHolderName: 'Jane Smith',
+        currency: 'GBP',
+        type: 'sort_code',
+        details: {
+          sortCode: '12-34-56',
+          accountNumber: '12345678',
+        },
+      };
+      const pm = models.PayoutMethod.build({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: bankData,
+        CollectiveId: 1,
+        CreatedByUserId: 1,
+      });
+      const filtered = pm.getFilteredData();
+      expect(filtered).to.deep.equal(bankData);
+    });
+
+    it('filters STRIPE data to stripeAccountId and publishableKey only', () => {
+      const pm = models.PayoutMethod.build({
+        type: PayoutMethodTypes.STRIPE,
+        data: {
+          stripeAccountId: 'acct_123',
+          publishableKey: 'pk_test_xyz',
+          connectedAccountId: 456,
+        },
+        CollectiveId: 1,
+        CreatedByUserId: 1,
+      });
+      const filtered = pm.getFilteredData();
+      expect(filtered).to.deep.equal({
+        stripeAccountId: 'acct_123',
+        publishableKey: 'pk_test_xyz',
+      });
+      expect(filtered).to.not.have.property('connectedAccountId');
+    });
+
+    it('returns empty object for unsupported types (ACCOUNT_BALANCE, CREDIT_CARD)', () => {
+      const pm = models.PayoutMethod.build({
+        type: PayoutMethodTypes.ACCOUNT_BALANCE,
+        data: {},
+        CollectiveId: 1,
+        CreatedByUserId: 1,
+      });
+      expect(pm.getFilteredData()).to.deep.equal({});
+
+      const ccPm = models.PayoutMethod.build({
+        type: PayoutMethodTypes.CREDIT_CARD,
+        data: { token: 'tok_123' },
+        CollectiveId: 1,
+        CreatedByUserId: 1,
+      });
+      expect(ccPm.getFilteredData()).to.deep.equal({});
+    });
+  });
+
   describe('findSimilar()', () => {
     before(async () => {
       await resetTestDB();
@@ -123,14 +241,17 @@ describe('server/models/PayoutMethod', () => {
         await expect(promise).to.be.rejectedWith(SequelizeValidationError, 'Invalid PayPal email address');
 
         // Valid
-        const pm = await models.PayoutMethod.create({ ...baseData, data: { email: randEmail() } });
+        const pm = await models.PayoutMethod.create({ ...baseData, data: { email: randEmail(), currency: 'USD' } });
         expect(pm).to.exist;
       });
 
       it('make sure only allowed fields are set', async () => {
         const user = await fakeUser();
         const baseData = { CollectiveId: user.collective.id, CreatedByUserId: user.id, type: PayoutMethodTypes.PAYPAL };
-        const promise = models.PayoutMethod.create({ ...baseData, data: { email: randEmail(), hello: true } });
+        const promise = models.PayoutMethod.create({
+          ...baseData,
+          data: { email: randEmail(), currency: 'USD', hello: true },
+        });
         await expect(promise).to.be.rejectedWith(
           ValidationError,
           'Data for this payout method contains too much information',

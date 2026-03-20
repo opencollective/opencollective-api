@@ -490,7 +490,7 @@ export const fakePayoutMethod = async ({
 }: Partial<InferCreationAttributes<PayoutMethod>> = {}) => {
   const generateData = type => {
     if (type === PayoutMethodTypes.PAYPAL) {
-      return { email: randEmail(), ...data };
+      return { email: randEmail(), currency: 'USD', ...data };
     } else if (type === PayoutMethodTypes.OTHER) {
       return { content: randStr(), ...data };
     } else if (type === PayoutMethodTypes.BANK_ACCOUNT) {

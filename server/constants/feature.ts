@@ -87,6 +87,9 @@ enum FEATURE {
   /** Whether this profile can receive host applications */
   RECEIVE_HOST_APPLICATIONS = 'RECEIVE_HOST_APPLICATIONS',
 
+  /** Whether the platform has PayPal Connect (Log in with PayPal) configured */
+  PAYPAL_CONNECT = 'PAYPAL_CONNECT',
+
   CHART_OF_ACCOUNTS = 'CHART_OF_ACCOUNTS',
   EXPENSE_SECURITY_CHECKS = 'EXPENSE_SECURITY_CHECKS',
   EXPECTED_FUNDS = 'EXPECTED_FUNDS',

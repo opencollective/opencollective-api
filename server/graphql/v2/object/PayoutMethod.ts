@@ -4,6 +4,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { PayoutMethod } from '../../../models';
+import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
@@ -72,7 +73,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {
-            return payoutMethod.data;
+            return payoutMethod.getFilteredData();
           }
         }
       },
@@ -119,6 +120,18 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           return payoutMethod.canBeArchived();
         } else {
           return false;
+        }
+      },
+    },
+    isVerified: {
+      type: GraphQLBoolean,
+      description:
+        'For PayPal payout methods: whether the PayPal account has been verified via OAuth. Null for other types.',
+      resolve: async (payoutMethod: PayoutMethod): Promise<boolean | null> => {
+        if (payoutMethod.type !== PayoutMethodTypes.PAYPAL) {
+          return null;
+        } else {
+          return Boolean((payoutMethod.data as PaypalPayoutMethodData)?.verifiedAt);
         }
       },
     },
