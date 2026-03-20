@@ -284,7 +284,7 @@ export const handleApplication: Handler = async (req, res) => {
     return handleNotFound(req, res);
   }
 
-  if (!req.remoteUser || !req.remoteUser.isAdmin(application.collective.id)) {
+  if (!req.remoteUser.isAdmin(application.collective.id)) {
     return handleUnauthorized(req, res);
   }
 
