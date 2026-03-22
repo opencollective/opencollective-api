@@ -396,6 +396,8 @@ jobs:
   graphql-inspector:
     name: GraphQL Inspector
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # Do not modify this job to run untrusted code
     services:
       redis:
         image: redis
