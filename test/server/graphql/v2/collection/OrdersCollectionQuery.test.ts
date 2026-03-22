@@ -24,6 +24,7 @@ const ordersQuery = gql`
     $includeHostedAccounts: Boolean
     $accountingCategory: [String]
     $createdBy: [AccountReferenceInput]
+    $searchTerm: String
   ) {
     orders(
       account: $account
@@ -34,6 +35,7 @@ const ordersQuery = gql`
       includeHostedAccounts: $includeHostedAccounts
       accountingCategory: $accountingCategory
       createdBy: $createdBy
+      searchTerm: $searchTerm
     ) {
       totalCount
       nodes {
@@ -925,6 +927,59 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('No users found for the specified createdBy accounts');
+    });
+  });
+
+  describe('searchTerm argument', () => {
+    let collective, user1, user2, order1, order2;
+
+    before(async () => {
+      collective = await fakeCollective();
+
+      // Create users with specific names for search testing
+      user1 = await fakeUser(null, { name: 'Alice Anderson' });
+      user2 = await fakeUser(null, { name: 'Bob Builder' });
+
+      // Create orders by different users
+      order1 = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: user1.CollectiveId,
+        CreatedByUserId: user1.id,
+        status: OrderStatuses.PAID,
+      });
+
+      order2 = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: user2.CollectiveId,
+        CreatedByUserId: user2.id,
+        status: OrderStatuses.PAID,
+      });
+    });
+
+    it("should return the order when the search term matches a user's name", async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        searchTerm: 'Alice',
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      const orderIds = result.data.orders.nodes.map(node => node.legacyId);
+      expect(orderIds).to.include(order1.id);
+    });
+
+    it("should return the order when the search term matches a user's email", async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        searchTerm: user2.email,
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      const orderIds = result.data.orders.nodes.map(node => node.legacyId);
+      expect(orderIds).to.include(order2.id);
     });
   });
 
