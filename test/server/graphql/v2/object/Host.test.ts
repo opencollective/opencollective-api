@@ -484,6 +484,7 @@ describe('server/graphql/v2/object/Host', () => {
         ParentCollectiveId: host.id,
         type: CollectiveType.VENDOR,
         name: 'Vendor Dafoe',
+        legalName: 'William James',
         data: {
           visibleToAccountIds: null,
         },
@@ -492,6 +493,7 @@ describe('server/graphql/v2/object/Host', () => {
         ParentCollectiveId: host.id,
         type: CollectiveType.VENDOR,
         name: 'Vendor 2',
+        legalName: 'Bob Builder',
         data: {
           visibleToAccountIds: [],
         },
@@ -621,6 +623,20 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
       );
+    });
+
+    it('should return vendor by legal name if admin of Account', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'Bob' }, hostAdmin);
+
+      expect(result.data.host.vendors.nodes).to.containSubset([{ slug: knownVendor.slug }]);
+    });
+
+    it('should not return vendor by legal name if not admin of Account', async () => {
+      const user = await fakeUser();
+      await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'Bob' }, user);
+
+      expect(result.data.host.vendors.nodes).to.be.empty;
     });
   });
 
