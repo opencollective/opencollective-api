@@ -43,7 +43,10 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
-import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import {
+  isPaypalSubscriptionPaymentMethod,
+  updateSubscriptionWithPaypal,
+} from '../../../paymentProviders/paypal/subscription';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
@@ -411,6 +414,13 @@ const orderMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
+      // PayPal bills via the external subscription plan; amount/tier changes must go through PayPal approval.
+      if (haveDetailsChanged && isPaypalSubscriptionPaymentMethod(order.paymentMethod) && !args.paypalSubscriptionId) {
+        throw new ValidationFailed(
+          'To change the amount or tier for a PayPal subscription, you must complete the PayPal approval flow.',
+        );
+      }
+
       let previousOrderValues, previousSubscriptionValues;
 
       // Update details (eg. amount, tier)
@@ -455,6 +465,7 @@ const orderMutations = {
               await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
             }
 
+            reportErrorToSentry(error, { req });
             throw error;
           }
         } else {

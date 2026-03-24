@@ -2908,6 +2908,44 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
       });
 
+      it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {
+        const paypalPm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+          token: 'I-PAYPALSUBTEST',
+          CollectiveId: user.CollectiveId,
+        });
+        const paypalOrder = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            PaymentMethodId: paypalPm.id,
+            totalAmount: 5000,
+            subscription: {
+              isManagedExternally: true,
+              isActive: true,
+              amount: 5000,
+            },
+          },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(paypalOrder.id, 'order') },
+            amount: { value: 1000 / 100, currency: collective.currency },
+            tier: { legacyId: flexibleTier.id },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/PayPal approval flow/);
+      });
+
       describe('update interval', async () => {
         let clock;
 
