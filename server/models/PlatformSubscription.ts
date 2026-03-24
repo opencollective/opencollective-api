@@ -18,7 +18,7 @@ import Temporal from 'sequelize-temporal';
 import ActivityTypes from '../constants/activities';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import FEATURE from '../constants/feature';
-import { PlatformSubscriptionPlan } from '../constants/plans';
+import { PlatformSubscriptionPlan, PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
 import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
@@ -83,6 +83,65 @@ const UtilizationTypeToPricePlanKeyMap: Record<UtilizationType, keyof PlatformSu
 };
 
 type PeriodUtilization = Record<UtilizationType, number>;
+
+/**
+ * True if `next` is a downgrade relative to `prev`.
+ */
+function getPlanChangeType(
+  prev: Partial<Pick<PlatformSubscriptionPlan, 'type' | 'basePlanId' | 'id'>>,
+  next: Partial<Pick<PlatformSubscriptionPlan, 'type' | 'basePlanId' | 'id'>>,
+): 'DOWNGRADE' | 'UPGRADE' | 'CUSTOM' | 'NO_CHANGE' {
+  // Try with the plan type first (Free/Basic/Pro)
+  const PLAN_TYPE_ORDER: Record<PlatformSubscriptionTierTypes, number> = { Discover: 0, Basic: 1, Pro: 2 };
+  const typePrev = PLAN_TYPE_ORDER[prev.type];
+  const typeNext = PLAN_TYPE_ORDER[next.type];
+  if (typePrev !== undefined && typeNext !== undefined && typePrev !== typeNext) {
+    return typeNext < typePrev ? 'DOWNGRADE' : 'UPGRADE';
+  }
+
+  // Otherwise, use the rank in the plans list (based on plan ID)
+  const getTierKey = plan => plan.basePlanId ?? plan.id;
+  const indexPrev = PlatformSubscriptionTiers.findIndex(t => t.id === getTierKey(prev));
+  const indexNext = PlatformSubscriptionTiers.findIndex(t => t.id === getTierKey(next));
+  if (indexPrev !== -1 && indexNext !== -1) {
+    return indexPrev === indexNext ? 'NO_CHANGE' : indexNext < indexPrev ? 'DOWNGRADE' : 'UPGRADE';
+  }
+
+  // Can't tell for sure as at least one of the plans is custom
+  return 'CUSTOM';
+}
+
+type EffectiveBillingEntry = { sub: PlatformSubscription; effectiveStart: Date };
+
+/**
+ * Given a list of subscriptions active during a billing period (sorted newest first),
+ * consolidates them by absorbing any subscription whose tier was downgraded into the lower tier.
+ *
+ * This ensures that when a customer downgrades mid-period, the lower rate applies for
+ * the entire prior portion, not just from the downgrade date forward. It also handles
+ * chains (e.g. Basic→Pro→Discover results in a single Discover entry covering everything).
+ *
+ * Also consolidates same-level subscriptions (e.g. Basic→Basic) into a single entry.
+ */
+export function consolidateSubscriptionsForBillingPeriod(
+  subscriptions: PlatformSubscription[],
+  billingPeriod: BillingPeriod,
+): EffectiveBillingEntry[] {
+  return subscriptions.reduce<EffectiveBillingEntry[]>((result, olderSubscription) => {
+    const [subStart] = olderSubscription.overlapWith(billingPeriod);
+
+    if (result.length > 0) {
+      const newerSubscription = result[result.length - 1].sub; // Subscriptions are ordered newest first
+      const changeType = getPlanChangeType(olderSubscription.plan, newerSubscription.plan);
+      if (['DOWNGRADE', 'NO_CHANGE'].includes(changeType)) {
+        result[result.length - 1].effectiveStart = subStart;
+        return result;
+      }
+    }
+
+    return [...result, { sub: olderSubscription, effectiveStart: subStart }];
+  }, []);
+}
 
 class PlatformSubscription extends Model<
   InferAttributes<PlatformSubscription>,
@@ -149,22 +208,6 @@ class PlatformSubscription extends Model<
     }
 
     return [subBillingStart, subBillingEnd];
-  }
-
-  prorateBasePrice(billingPeriod: BillingPeriod): number {
-    const billingStart = PlatformSubscription.periodStartDate(
-      PlatformSubscription.getBillingPeriodRange(billingPeriod),
-    );
-    const billingEnd = PlatformSubscription.periodEndDate(PlatformSubscription.getBillingPeriodRange(billingPeriod));
-
-    const [subBillingStart, subBillingEnd] = this.overlapWith(billingPeriod);
-    const billingTime = moment.utc(billingEnd).diff(billingStart, 'seconds');
-
-    const subTime = moment.utc(subBillingEnd).diff(subBillingStart, 'seconds');
-
-    const basePrice = this.plan.pricing?.pricePerMonth ?? 0;
-
-    return Math.round(basePrice * (subTime / billingTime));
   }
 
   get info(): NonAttribute<
@@ -296,15 +339,29 @@ class PlatformSubscription extends Model<
 
     const additionalTotal = Object.entries(additionalUtilizationAmounts).reduce((acc, [, amount]) => acc + amount, 0);
 
-    const subscriptionValues: Billing['base']['subscriptions'] = subscriptions.map(sub => {
-      const [startDate, endDate] = sub.overlapWith(billingPeriod);
-      return {
-        title: sub.plan.title,
-        startDate,
-        endDate,
-        amount: sub.prorateBasePrice(billingPeriod),
-      };
-    });
+    // Consolidate subscriptions so that any mid-period downgrade causes the cheaper plan to
+    // cover the higher-tier plan's portion too (no pro-rata charge for the higher tier).
+    const effectiveBillingEntries = consolidateSubscriptionsForBillingPeriod(subscriptions, billingPeriod);
+
+    // Pro-rate the base price for each effective subscription, using potentially extended start dates
+    const billingPeriodRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+    const billingPeriodStart = PlatformSubscription.periodStartDate(billingPeriodRange);
+    const billingPeriodEnd = PlatformSubscription.periodEndDate(billingPeriodRange);
+    const totalBillingSeconds = moment.utc(billingPeriodEnd).diff(billingPeriodStart, 'seconds');
+
+    const subscriptionValues: Billing['base']['subscriptions'] = effectiveBillingEntries.map(
+      ({ sub, effectiveStart }) => {
+        const [, subBillingEnd] = sub.overlapWith(billingPeriod);
+        const subSeconds = moment.utc(subBillingEnd).diff(effectiveStart, 'seconds');
+        const basePrice = sub.plan.pricing?.pricePerMonth ?? 0;
+        return {
+          title: sub.plan.title,
+          startDate: effectiveStart,
+          endDate: subBillingEnd,
+          amount: Math.round(basePrice * (subSeconds / totalBillingSeconds)),
+        };
+      },
+    );
     const baseTotal = subscriptionValues.reduce((acc, sub) => acc + sub.amount, 0);
 
     const totalAmount = baseTotal + additionalTotal;
