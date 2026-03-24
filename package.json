@@ -110,7 +110,7 @@
     "node-fetch": "2.7.0",
     "nodemailer": "8.0.3",
     "nordigen-node": "1.4.1",
-    "otplib": "13.3.0",
+    "otplib": "13.4.0",
     "p-map": "4.0.0",
     "p-queue": "9.1.0",
     "passport": "0.7.0",
