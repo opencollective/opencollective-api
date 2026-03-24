@@ -212,7 +212,7 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
   );
 
   // Map Attachments and Items from scanned expenses
-  const urlToExpense = mapValues(groupBy(attachments, 'url'), ids => ids.map(id => id.expenseId));
+  const urlToExpenseId = mapValues(groupBy(attachments, 'url'), ids => ids.map(id => id.expenseId));
   // Load Files checksums
   const urls = uniq(attachments.map(a => a.url));
   const uploadedFiles = await req.loaders.UploadedFile.byUrl.loadMany(urls);
@@ -220,11 +220,11 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
     .filter(f => f instanceof models.UploadedFile)
     .filter(f => Boolean(f.data?.s3SHA256));
 
-  const checksumToExpense: Record<string, number[]> = filesWithChecksum.reduce((result, file) => {
+  const checksumToExpenseIds: Record<string, number[]> = filesWithChecksum.reduce((result, file) => {
     if (result[file.data.s3SHA256]) {
-      result[file.data.s3SHA256] = uniq([...result[file.data.s3SHA256], ...urlToExpense[file.getDataValue('url')]]);
+      result[file.data.s3SHA256] = uniq([...result[file.data.s3SHA256], ...urlToExpenseId[file.getDataValue('url')]]);
     } else {
-      result[file.data.s3SHA256] = urlToExpense[file.getDataValue('url')];
+      result[file.data.s3SHA256] = urlToExpenseId[file.getDataValue('url')];
     }
     return result;
   }, {});
@@ -244,13 +244,18 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
       ]),
     ) as Array<ExpenseItem | ExpenseAttachedFile>,
   );
+
   similarAttachments.forEach(item => {
     const checksum = similarFiles.find(f => f.getDataValue('url') === item.url)?.data?.s3SHA256;
-    checksumToExpense[checksum] = uniq([...checksumToExpense[checksum], item.ExpenseId]);
+    if (checksum) {
+      checksumToExpenseIds[checksum] = checksumToExpenseIds[checksum]
+        ? uniq(checksumToExpenseIds[checksum].concat(item.ExpenseId))
+        : [item.ExpenseId];
+    }
   });
 
   const checkExpense = (checks: Array<SecurityCheck>, expense: Expense) => {
-    forIn(checksumToExpense, (expenseIds, checksum) => {
+    forIn(checksumToExpenseIds, (expenseIds, checksum) => {
       if (expenseIds.includes(expense.id) && expenseIds.length > 1) {
         const files = uniq(similarFiles.filter(f => f.data.s3SHA256 === checksum).map(f => f.fileName));
         checks.push({
