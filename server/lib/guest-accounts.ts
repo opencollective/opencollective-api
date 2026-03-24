@@ -103,22 +103,27 @@ export const confirmGuestAccount = async (
   collective: Collective;
   user: User;
 }> => {
-  // 1. Mark user as confirmed
-  await user.update({ emailConfirmationToken: null, confirmedAt: new Date() });
+  return sequelize.transaction(async transaction => {
+    // 1. Mark user as confirmed
+    await user.update({ emailConfirmationToken: null, confirmedAt: new Date() }, { transaction });
 
-  // 2. Update the profile (collective)
-  let userCollective = await user.getCollective();
-  const newName = userCollective.name !== DEFAULT_GUEST_NAME ? userCollective.name : 'Incognito';
-  userCollective = await userCollective.update({
-    name: newName,
-    slug:
-      !newName || newName === 'Incognito'
-        ? `user-${uuid().split('-')[0]}`
-        : await models.Collective.generateSlug(newName),
-    data: { ...userCollective.data, isGuest: false, wasGuest: true, requiresProfileCompletion: true },
+    // 2. Update the profile (collective)
+    let userCollective = await user.getCollective({ transaction });
+    const newName = userCollective.name !== DEFAULT_GUEST_NAME ? userCollective.name : 'Incognito';
+    userCollective = await userCollective.update(
+      {
+        name: newName,
+        slug:
+          !newName || newName === 'Incognito'
+            ? `user-${uuid().split('-')[0]}`
+            : await models.Collective.generateSlug(newName),
+        data: { ...userCollective.data, isGuest: false, wasGuest: true, requiresProfileCompletion: true },
+      },
+      { transaction },
+    );
+
+    return { user, collective: userCollective };
   });
-
-  return { user, collective: userCollective };
 };
 
 /**
