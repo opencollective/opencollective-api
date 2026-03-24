@@ -253,6 +253,14 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
+      - name: Setup MinIO bucket
+        run: |
+          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x ./mc
+          ./mc alias set minio http://127.0.0.1:9000 user password
+          ./mc mb --ignore-existing minio/opencollective-e2e
+          ./mc anonymous set download minio/opencollective-e2e
+
       - run: npm run db:restore
       - run: npm run db:migrate
 
@@ -331,6 +339,14 @@ jobs:
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
+
+      - name: Setup MinIO bucket
+        run: |
+          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x ./mc
+          ./mc alias set minio http://127.0.0.1:9000 user password
+          ./mc mb --ignore-existing minio/opencollective-e2e
+          ./mc anonymous set download minio/opencollective-e2e
 
       - run: npm run db:restore
       - run: npm run db:migrate
