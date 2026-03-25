@@ -193,6 +193,8 @@ type Settings = {
   applyMessage?: string;
   tos?: string;
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
+  /** Set when the account was automatically migrated to the new platform subscription pricing. */
+  automaticBillingMigration?: Date | string;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -1109,7 +1111,8 @@ class Collective extends ModelWithPublicId<
   deactivateMoneyManagement = async function ({
     remoteUser = null,
     transaction,
-  }: { remoteUser?: User; transaction?: SequelizeTransaction } = {}) {
+    silent = false,
+  }: { remoteUser?: User; transaction?: SequelizeTransaction; silent?: boolean } = {}) {
     if (this.hasHosting) {
       throw new Error(`Can't deactive money management with hosting activated.`);
     }
@@ -1130,16 +1133,18 @@ class Collective extends ModelWithPublicId<
         transaction,
       });
 
-      await Activity.create(
-        {
-          type: activities.DEACTIVATED_MONEY_MANAGEMENT,
-          CollectiveId: this.id,
-          FromCollectiveId: this.id,
-          UserId: remoteUser?.id,
-          data: { collective: this.info },
-        },
-        { transaction },
-      );
+      if (!silent) {
+        await Activity.create(
+          {
+            type: activities.DEACTIVATED_MONEY_MANAGEMENT,
+            CollectiveId: this.id,
+            FromCollectiveId: this.id,
+            UserId: remoteUser?.id,
+            data: { collective: this.info },
+          },
+          { transaction },
+        );
+      }
 
       // Cancel the platform subscription if it exists
       const currentSubscription = await PlatformSubscription.getCurrentSubscription(this.id, { transaction });

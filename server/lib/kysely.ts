@@ -34,7 +34,7 @@ function rowToModel<T extends Model>(row: object, ModelClass: ModelStatic<T>): T
     }
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- building from plain Kysely row
-  return ModelClass.build(attrs as any) as T;
+  return ModelClass.build(attrs as any, { isNewRecord: false, raw: true }) as T;
 }
 
 /**

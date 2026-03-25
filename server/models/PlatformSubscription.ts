@@ -469,12 +469,13 @@ class PlatformSubscription extends Model<
     collective: Collective,
     start: Date,
     plan: Partial<PlatformSubscriptionPlan>,
-    user: User,
+    user: User | null,
     opts?: {
       transaction?: SequelizeTransaction;
       UserTokenId?: number;
       previousPlan?: Partial<PlatformSubscriptionPlan>;
       notify?: boolean;
+      isAutomaticMigration?: boolean;
     },
   ): Promise<PlatformSubscription> {
     const alignedStart = moment.utc(start).startOf('day').toDate();
@@ -508,16 +509,18 @@ class PlatformSubscription extends Model<
       await Activity.create(
         {
           type: ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
-          UserId: user.id,
+          UserId: user?.id,
           CollectiveId: collective.id,
           UserTokenId: opts?.UserTokenId,
           data: {
             account: collective.info,
-            user: user.info,
+            user: user?.info,
             previousPlan: opts?.previousPlan ?? null,
             newPlan: plan,
             nextBillingDate,
             notify,
+            startDate: alignedStart,
+            isAutomaticMigration: opts?.isAutomaticMigration ?? false,
           },
         },
         {
@@ -551,8 +554,8 @@ class PlatformSubscription extends Model<
     collective: Collective,
     when: Date,
     plan: Partial<PlatformSubscriptionPlan>,
-    user: User,
-    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number },
+    user: User | null,
+    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number; isAutomaticMigration?: boolean },
   ): Promise<PlatformSubscription> {
     const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id);
     const newSubscriptionStart = moment.utc(when).startOf('day');
