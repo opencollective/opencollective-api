@@ -4,8 +4,8 @@ Subject: Expense paid for {{{collective.name}}}: {{currency transaction.netAmoun
 
 <center>
   <h3> An expense for {{collective.name}} has been paid. </h3>
-  <h2><a href="{{permalink expense}}"{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}</a></h2>
-  <div><a href="{{permalink expense}}"{{transaction.description}}</a></div>
+  <h2><a href="{{permalink expense}}">{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}</a></h2>
+  <div><a href="{{permalink expense}}">{{transaction.description}}</a></div>
   <div>Payee: {{fromCollective.name}}</div>
   {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
