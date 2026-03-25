@@ -2,8 +2,6 @@ import fs from 'fs';
 
 import config from 'config';
 
-import { idEncode } from '../graphql/v2/identifiers';
-
 import handlebars from './handlebars';
 
 /*
@@ -165,9 +163,6 @@ handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
 handlebars.registerPartial('plan-details', planDetails);
 handlebars.registerPartial('subscription-details', subscriptionDetails);
-handlebars.registerHelper('idEncode', (id, type) => {
-  return idEncode(id, type);
-});
 
 handlebars.registerHelper('concat', (...args) => {
   args.pop();
@@ -180,7 +175,7 @@ handlebars.registerHelper('permalink', ({ publicId } = {}, fallbackURL) => {
     return `${config.host.website}/id/${publicId}`;
   }
 
-  if (!fallbackURL) {
+  if (typeof fallbackURL !== 'string' || fallbackURL === '') {
     throw new Error('no publicId set, fallbackURL is required');
   }
   return fallbackURL;
