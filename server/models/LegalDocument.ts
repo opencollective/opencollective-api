@@ -402,6 +402,7 @@ class LegalDocument extends ModelWithPublicId<
   get info(): NonAttribute<Partial<LegalDocument>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       year: this.year,
       documentType: this.documentType,
       requestStatus: this.requestStatus,

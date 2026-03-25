@@ -187,6 +187,7 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
   get info(): NonAttribute<Partial<Tier>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       name: this.name,
       description: this.description,
       amount: this.amount,
@@ -203,6 +204,7 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
   get minimal(): NonAttribute<Partial<Tier>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       type: this.type,
       name: this.name,
     };

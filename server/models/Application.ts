@@ -56,6 +56,7 @@ class Application extends ModelWithPublicId<
 
   get info(): NonAttribute<Partial<Application>> {
     return {
+      publicId: this.publicId,
       name: this.name,
       description: this.description,
       apiKey: this.apiKey,
@@ -68,6 +69,7 @@ class Application extends ModelWithPublicId<
   get publicInfo(): NonAttribute<Partial<Application>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       name: this.name,
       description: this.description,
       type: this.type,

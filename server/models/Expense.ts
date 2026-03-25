@@ -479,6 +479,7 @@ class Expense extends ModelWithPublicId<
     return {
       type: this.type,
       id: this.id,
+      publicId: this.publicId,
       UserId: this.UserId,
       CollectiveId: this.CollectiveId,
       FromCollectiveId: this.FromCollectiveId,

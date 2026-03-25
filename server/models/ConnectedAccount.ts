@@ -48,6 +48,7 @@ class ConnectedAccount extends ModelWithPublicId<
   get info() {
     return {
       id: this.id,
+      publicId: this.publicId,
       service: this.service,
       username: this.username,
       createdAt: this.createdAt,
@@ -58,6 +59,7 @@ class ConnectedAccount extends ModelWithPublicId<
   get activity() {
     return {
       id: this.id,
+      publicId: this.publicId,
       service: this.service,
       CollectiveId: this.CollectiveId,
       CreatedByUserId: this.CreatedByUserId,
