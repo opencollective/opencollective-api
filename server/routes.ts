@@ -167,6 +167,7 @@ export default async (app: express.Application) => {
   }
 
   app.get('/id/:id', withTiming('handlePermalink', handlePermalink));
+  app.get('/permalink/:id', withTiming('handlePermalink', handlePermalink));
 
   /**
    * GraphQL scope
