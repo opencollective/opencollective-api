@@ -1431,8 +1431,14 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       isFirstPartyHost: {
         type: new GraphQLNonNull(GraphQLBoolean),
-        description: 'Returns whether the host is trusted or not',
+        description: 'Returns whether the host is a first party host',
         resolve: account => get(account, 'data.isFirstPartyHost', false),
+      },
+      allowAddFundsFromAllAccounts: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the host allows adding funds from all accounts',
+        resolve: account =>
+          Boolean(get(account, 'data.allowAddFundsFromAllAccounts') || get(account, 'data.isFirstPartyHost')),
       },
       hasDisputedOrders: {
         type: GraphQLBoolean,
