@@ -7,12 +7,17 @@ import { activities } from '../../../server/constants';
 import { Service } from '../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../server/constants/expense-status';
 import FEATURE from '../../../server/constants/feature';
-import { PlatformSubscriptionTiers } from '../../../server/constants/plans';
+import { PlatformSubscriptionPlan, PlatformSubscriptionTiers } from '../../../server/constants/plans';
 import * as GoCardlessConnect from '../../../server/lib/gocardless/connect';
 import * as PlaidClient from '../../../server/lib/plaid/client';
 import * as SentryLib from '../../../server/lib/sentry';
 import { Activity, PlatformSubscription, RequiredLegalDocument } from '../../../server/models';
-import { BillingMonth, BillingPeriod, UtilizationType } from '../../../server/models/PlatformSubscription';
+import {
+  BillingMonth,
+  BillingPeriod,
+  consolidateSubscriptionsForBillingPeriod,
+  UtilizationType,
+} from '../../../server/models/PlatformSubscription';
 import {
   fakeActiveHost,
   fakeActivity,
@@ -797,6 +802,87 @@ describe('server/models/PlatformSubscriptions', () => {
     });
   });
 
+  describe('consolidateSubscriptionsForBillingPeriod', () => {
+    const billingPeriod: BillingPeriod = { year: 2016, month: BillingMonth.JANUARY };
+    const discoverPlan = PlatformSubscriptionTiers.find(t => t.id === 'discover-1') as PlatformSubscriptionPlan;
+    const basicPlan = PlatformSubscriptionTiers.find(t => t.id === 'basic-5') as PlatformSubscriptionPlan;
+    const proPlan = PlatformSubscriptionTiers.find(t => t.id === 'pro-20') as PlatformSubscriptionPlan;
+
+    /** Build an in-memory PlatformSubscription without touching the DB */
+    const makeSub = (plan: Partial<PlatformSubscriptionPlan>, start: Date, end?: Date): PlatformSubscription =>
+      PlatformSubscription.build({
+        CollectiveId: 1,
+        plan,
+        period: [
+          { value: start, inclusive: true },
+          end ? { value: end, inclusive: false } : { value: Infinity, inclusive: true },
+        ],
+      } as Parameters<typeof PlatformSubscription.build>[0]);
+
+    it('Basic -> Discover -> Pro produces 2 billing entries: Discover (absorbing Basic) then Pro', () => {
+      // Basic→Discover is a downgrade: Discover absorbs Basic.
+      // Discover→Pro is an upgrade: Pro gets its own entry.
+      const basicSub = makeSub(basicPlan, new Date(Date.UTC(2016, 0, 1)), new Date(Date.UTC(2016, 0, 8)));
+      const discoverSub = makeSub(discoverPlan, new Date(Date.UTC(2016, 0, 8)), new Date(Date.UTC(2016, 0, 15)));
+      const proSub = makeSub(proPlan, new Date(Date.UTC(2016, 0, 15)));
+
+      // subscriptions must be sorted newest first (as returned by getSubscriptionsInBillingPeriod)
+      const result = consolidateSubscriptionsForBillingPeriod([proSub, discoverSub, basicSub], billingPeriod);
+
+      expect(result).to.have.length(2);
+      expect(result[0].sub).to.equal(proSub);
+      expect(result[0].effectiveStart).to.deep.equal(new Date(Date.UTC(2016, 0, 15)));
+      expect(result[1].sub).to.equal(discoverSub);
+      // Discover's effective start is extended back to Jan 1 to cover the absorbed Basic period
+      expect(result[1].effectiveStart).to.deep.equal(new Date(Date.UTC(2016, 0, 1)));
+    });
+
+    it('Basic -> Pro -> Discover produces 1 billing entry: Discover absorbs Pro and Basic', () => {
+      // Pro→Discover is a downgrade: Discover becomes the running minimum.
+      // Basic is above Discover, so it is also absorbed even though Basic→Pro was an upgrade.
+      const basicSub = makeSub(basicPlan, new Date(Date.UTC(2016, 0, 1)), new Date(Date.UTC(2016, 0, 8)));
+      const proSub = makeSub(proPlan, new Date(Date.UTC(2016, 0, 8)), new Date(Date.UTC(2016, 0, 15)));
+      const discoverSub = makeSub(discoverPlan, new Date(Date.UTC(2016, 0, 15)));
+
+      const result = consolidateSubscriptionsForBillingPeriod([discoverSub, proSub, basicSub], billingPeriod);
+
+      expect(result).to.have.length(1);
+      expect(result[0].sub).to.equal(discoverSub);
+      expect(result[0].effectiveStart).to.deep.equal(new Date(Date.UTC(2016, 0, 1)));
+    });
+
+    it('Basic -> Basic -> Discover produces 1 billing entry: Discover absorbs both Basic subscriptions', () => {
+      const basic1Sub = makeSub(basicPlan, new Date(Date.UTC(2016, 0, 1)), new Date(Date.UTC(2016, 0, 8)));
+      const basic2Sub = makeSub(basicPlan, new Date(Date.UTC(2016, 0, 8)), new Date(Date.UTC(2016, 0, 15)));
+      const discoverSub = makeSub(discoverPlan, new Date(Date.UTC(2016, 0, 15)));
+
+      const result = consolidateSubscriptionsForBillingPeriod([discoverSub, basic2Sub, basic1Sub], billingPeriod);
+
+      expect(result).to.have.length(1);
+      expect(result[0].sub).to.equal(discoverSub);
+      expect(result[0].effectiveStart).to.deep.equal(new Date(Date.UTC(2016, 0, 1)));
+    });
+
+    it('Basic -> Discover -> Basic -> Pro -> Discover produces 1 billing entry: final Discover absorbs everything', () => {
+      // The final Discover becomes the running minimum and absorbs all higher-tier segments,
+      // including the intermediate Discover (same tier) and everything before it.
+      const basic1Sub = makeSub(basicPlan, new Date(Date.UTC(2016, 0, 1)), new Date(Date.UTC(2016, 0, 7)));
+      const discover1Sub = makeSub(discoverPlan, new Date(Date.UTC(2016, 0, 7)), new Date(Date.UTC(2016, 0, 13)));
+      const basic2Sub = makeSub(basicPlan, new Date(Date.UTC(2016, 0, 13)), new Date(Date.UTC(2016, 0, 19)));
+      const proSub = makeSub(proPlan, new Date(Date.UTC(2016, 0, 19)), new Date(Date.UTC(2016, 0, 25)));
+      const discover2Sub = makeSub(discoverPlan, new Date(Date.UTC(2016, 0, 25)));
+
+      const result = consolidateSubscriptionsForBillingPeriod(
+        [discover2Sub, proSub, basic2Sub, discover1Sub, basic1Sub],
+        billingPeriod,
+      );
+
+      expect(result).to.have.length(1);
+      expect(result[0].sub).to.equal(discover2Sub);
+      expect(result[0].effectiveStart).to.deep.equal(new Date(Date.UTC(2016, 0, 1)));
+    });
+  });
+
   describe('billing', () => {
     beforeEach(async () => {
       await resetTestDB();
@@ -954,6 +1040,35 @@ describe('server/models/PlatformSubscriptions', () => {
         },
         totalAmount: 20258,
       });
+    });
+
+    it('charges only the lowest monthly base price when downgrading in the billing period (no pro-rata for higher tiers)', async () => {
+      const billingPeriod = {
+        year: 2016,
+        month: BillingMonth.JANUARY,
+      };
+
+      const admin = await fakeUser();
+      const host = await fakeActiveHost({ admin });
+      const proPlan = PlatformSubscriptionTiers.find(plan => plan.id === 'pro-20');
+      const basicPlan = PlatformSubscriptionTiers.find(plan => plan.id === 'basic-5');
+
+      const proSub = await PlatformSubscription.createSubscription(
+        host,
+        new Date(Date.UTC(2016, 0, 1)),
+        proPlan,
+        admin,
+      );
+
+      await PlatformSubscription.replaceCurrentSubscription(host, new Date(Date.UTC(2016, 0, 16)), basicPlan, admin);
+      await proSub.reload();
+
+      const billing = await PlatformSubscription.calculateBilling(host.id, billingPeriod);
+      // Basic absorbs the Pro period entirely: only one billing entry at the Basic rate for the whole month
+      expect(billing.base.total).to.equal(basicPlan.pricing.pricePerMonth);
+      expect(billing.base.subscriptions).to.have.length(1);
+      expect(billing.base.subscriptions[0].title).to.equal(basicPlan.title);
+      expect(billing.base.subscriptions[0].amount).to.equal(basicPlan.pricing.pricePerMonth);
     });
 
     it('calculates utilization and charges for billing period with partial sub', async () => {

@@ -217,7 +217,7 @@ const legacyPlans: Record<string, HostPlan> = {
   },
 } as const;
 
-enum PlatformSubscriptionTierTypes {
+export enum PlatformSubscriptionTierTypes {
   FREE = 'Discover',
   BASIC = 'Basic',
   PRO = 'Pro',
@@ -287,6 +287,9 @@ const featuresForBasic = Object.fromEntries(
 
 const featuresForPro = Object.fromEntries(CommercialFeatures.map(feature => [feature, proFeatures.includes(feature)]));
 
+/**
+ * Platform Subscription Tiers. Keep this in order, from cheapest to most expensive.
+ */
 export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlanId'>[] = [
   // Free
   {
