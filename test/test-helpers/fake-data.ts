@@ -736,7 +736,8 @@ export const fakeOrder = async (
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(<number>CreatedByUserId);
-  const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
+  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
+  const FromCollectiveId = orderData.FromCollectiveId || fromCollective.id;
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
@@ -745,6 +746,13 @@ export const fakeOrder = async (
     : withTier
       ? await fakeTier()
       : null;
+  const data = {
+    ...orderData.data,
+    fromAccountInfo: {
+      name: fromCollective.name,
+      email: user.email,
+    },
+  };
 
   const order: Order & {
     subscription?: typeof Subscription;
@@ -759,6 +767,7 @@ export const fakeOrder = async (
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId: collective.id,
+    data,
   });
 
   if (order.PaymentMethodId) {
