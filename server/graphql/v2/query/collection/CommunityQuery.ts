@@ -140,6 +140,9 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
         orderBy.push(`chts."debitTotal" ${direction}`);
         groupBy.push('chts."debitTotal"');
         break;
+      case 'CREATED_AT':
+        orderBy.push(`fc."createdAt" ${direction}`);
+        break;
       default:
         orderBy.push('fc.name ASC');
     }
