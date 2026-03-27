@@ -48,10 +48,10 @@ const GraphQLCommunityTransactionSummary = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLInt),
     },
     refundDebitTotal: {
-      type: new GraphQLNonNull(GraphQLAmount),
+      type: GraphQLAmount,
     },
     refundDebitCount: {
-      type: new GraphQLNonNull(GraphQLInt),
+      type: GraphQLInt,
     },
   }),
 });
@@ -118,7 +118,6 @@ const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
           WHERE t."deletedAt" IS NULL
             AND t."RefundTransactionId" IS NULL
             AND t."isRefund" = FALSE
-            AND (t.kind = ANY ('{CONTRIBUTION,ADDED_FUNDS,EXPENSE}'::"enum_Transactions_kind"[]))
             AND t."hostCurrency" = h.currency
             AND t."FromCollectiveId" = :FromCollectiveId
             AND t."CollectiveId" = :CollectiveId
