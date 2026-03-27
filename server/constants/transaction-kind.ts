@@ -19,6 +19,8 @@ export enum TransactionKind {
   PAYMENT_PROCESSOR_DISPUTE_FEE = 'PAYMENT_PROCESSOR_DISPUTE_FEE',
   /** Reserved keyword in case we want to use in the future */
   PAYMENT_PROCESSOR_FEE = 'PAYMENT_PROCESSOR_FEE',
+  /** Virtual application fee (export-only) */
+  APPLICATION_FEE = 'APPLICATION_FEE',
   /** Reserved keyword in case we want to use in the future */
   PLATFORM_FEE = 'PLATFORM_FEE',
   /** Financial contribution to Open Collective added on top of another contribution */
