@@ -152,6 +152,12 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
   name: 'CommunityStats',
   fields: () => {
     return {
+      id: {
+        type: new GraphQLNonNull(GraphQLString),
+        resolve(account) {
+          return `${account.id}-${account.dataValues.contextualHostCollectiveId}`;
+        },
+      },
       associatedCollectives: {
         type: new GraphQLList(GraphQLCommunityAssociatedAccount),
         async resolve(account, _, req: express.Request) {
