@@ -2,8 +2,9 @@
 services:
   dev:
     image: mcr.microsoft.com/devcontainers/typescript-node:24
+    # Mount the API repo root (parent of this folder), not docker-compose/
     volumes:
-      - ./:/workspace
+      - ..:/workspace
     working_dir: /workspace
     command: sleep infinity
     networks:
