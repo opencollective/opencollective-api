@@ -1,0 +1,10 @@
+# A developer environment for TypeScript/Node.js,
+services:
+  dev:
+    image: mcr.microsoft.com/devcontainers/typescript-node:24
+    volumes:
+      - ./:/workspace
+    working_dir: /workspace
+    command: sleep infinity
+    networks:
+      - default
