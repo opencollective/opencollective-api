@@ -90,7 +90,7 @@
     "graphql": "16.13.1",
     "graphql-scalars": "1.25.0",
     "graphql-upload": "15.0.2",
-    "handlebars": "4.7.8",
+    "handlebars": "4.7.9",
     "hashids": "2.3.0",
     "hcaptcha": "0.2.0",
     "helmet": "8.1.0",
