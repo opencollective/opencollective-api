@@ -1722,14 +1722,14 @@ export const GraphQLHost = new GraphQLObjectType({
           // Requested Ordering
           if (args.orderBy) {
             const direction = ob => (args.orderBy.direction === 'DESC' ? ob.desc().nullsLast() : ob.asc().nullsFirst());
-            if (args?.orderBy?.field === 'TOTAL_CONTRIBUTED' || args?.orderBy?.field === 'TOTAL_EXPENDED') {
-              nodeQuery = nodeQuery.orderBy(
-                args.orderBy.field === 'TOTAL_CONTRIBUTED' ? 'totalContributed' : 'totalExpended',
-                direction,
-              );
-            } else if (args?.orderBy?.field) {
-              nodeQuery = nodeQuery.orderBy(args.orderBy.field, direction);
-            }
+            const fields = {
+              TOTAL_CONTRIBUTED: 'totalContributed',
+              TOTAL_EXPENDED: 'totalExpended',
+              CREATED_AT: 'createdAt',
+            };
+            const field = fields[args.orderBy?.field] || args.orderBy?.field;
+            assert(field, `Invalid orderBy field ${args.orderBy?.field} for vendors.`);
+            nodeQuery = nodeQuery.orderBy(field, direction);
           }
           // Other additional ordering that were created throughout conditionals
           order.forEach(([field, direction]) => {
