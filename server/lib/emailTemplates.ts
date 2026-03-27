@@ -172,7 +172,7 @@ handlebars.registerHelper('concat', (...args) => {
 // Generates a permalink if the first argument contains a publicId, otherwise returns the fallbackURL
 handlebars.registerHelper('permalink', ({ publicId } = {}, fallbackURL) => {
   if (publicId) {
-    return `${config.host.website}/id/${publicId}`;
+    return `${config.host.website}/permalink/${publicId}`;
   }
 
   if (typeof fallbackURL !== 'string' || fallbackURL === '') {
