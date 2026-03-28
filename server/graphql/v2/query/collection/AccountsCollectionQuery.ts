@@ -2,11 +2,13 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
+import { BadRequest, Forbidden } from '../../../errors';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
 import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
 import {
   fetchAccountsIdsWithReference,
+  fetchAccountsWithReferences,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
@@ -119,10 +121,28 @@ const AccountsCollectionQuery = {
       type: GraphQLDateTime,
       description: 'Filter accounts that have a last transaction before this date',
     },
+    includeAccountsWithTransactionsForHost: {
+      type: GraphQLBoolean,
+      description:
+        'When used with `host`, also include accounts that are not currently approved under that host but have ledger rows in `Transactions` with this host as `HostCollectiveId`. Requires the remote user to be an admin of the host.',
+    },
   },
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
     const cleanTerm = args.searchTerm?.trim();
+
+    if (args.includeAccountsWithTransactionsForHost) {
+      if (!args.host?.length) {
+        throw new BadRequest('`host` is required when `includeAccountsWithTransactionsForHost` is true');
+      }
+      const hostCollectives = await fetchAccountsWithReferences(args.host, { throwIfMissing: true });
+      const canAccess =
+        req.remoteUser?.isRoot() ||
+        (req.remoteUser && hostCollectives.every(collective => req.remoteUser.isAdminOfCollective(collective)));
+      if (!canAccess) {
+        throw new Forbidden('You must be an admin of the host to use includeAccountsWithTransactionsForHost');
+      }
+    }
 
     const hostCollectiveIds = args.host && (await fetchAccountsIdsWithReference(args.host));
     const parentCollectiveIds = args.parent && (await fetchAccountsIdsWithReference(args.parent));
@@ -155,6 +175,7 @@ const AccountsCollectionQuery = {
       isFirstPartyHost: args.isFirstPartyHost,
       lastTransactionFrom: args.lastTransactionFrom,
       lastTransactionTo: args.lastTransactionTo,
+      includeAccountsWithTransactionsForHost: args.includeAccountsWithTransactionsForHost === true,
     };
 
     const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
