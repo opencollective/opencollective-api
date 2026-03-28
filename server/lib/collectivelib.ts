@@ -9,6 +9,7 @@ import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import PlatformConstants from '../constants/platform';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize, User } from '../models';
+import { AllTierTypes } from '../models/Tier';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -177,6 +178,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'showSetupGuide',
   'showInitialOverviewSubscriptionCard',
   'kyc',
+  'disabledTierTypes',
 ];
 
 /**
@@ -196,6 +198,14 @@ export function filterCollectiveSettings(settings: Record<string, unknown> | nul
 
   if (preparedSettings.GST) {
     preparedSettings.GST = pick(preparedSettings.GST, ['number', 'disabled']);
+  }
+
+  if (preparedSettings.disabledTierTypes !== undefined) {
+    preparedSettings.disabledTierTypes = Array.isArray(preparedSettings.disabledTierTypes)
+      ? preparedSettings.disabledTierTypes.filter(
+          (t: unknown) => typeof t === 'string' && (AllTierTypes as readonly string[]).includes(t),
+        )
+      : [];
   }
 
   // Generate warnings for invalid settings
