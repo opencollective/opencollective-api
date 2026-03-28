@@ -57,6 +57,11 @@ const AccountsCollectionQuery = {
   args: {
     ...CollectionArgs,
     ...CommonAccountsCollectionQueryArgs,
+    account: {
+      type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
+      description:
+        'Filter by specific accounts using their reference (id, slug, or legacyId). Can be combined with other filters.',
+    },
     host: {
       type: new GraphQLList(GraphQLAccountReferenceInput),
       description: 'Host hosting the account',
@@ -121,8 +126,30 @@ const AccountsCollectionQuery = {
     },
   },
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
-    const { offset, limit } = args;
+    if (args.limit < 0) {
+      args.limit = 10;
+    }
+    if (args.offset < 0) {
+      args.offset = 0;
+    }
+    if (args.limit > 200 && !req.remoteUser?.isRoot()) {
+      throw new Error('Cannot fetch more than 200 accounts at the same time, please adjust the limit');
+    }
+    if (args.account?.length > 200) {
+      throw new Error('Cannot provide more than 200 account references, please reduce the number of accounts');
+    }
+
     const cleanTerm = args.searchTerm?.trim();
+
+    // Fetch account IDs if specific accounts are requested
+    let accountIds: number[] | undefined;
+    if (args.account?.length) {
+      accountIds = await fetchAccountsIdsWithReference(args.account);
+      if (accountIds.length === 0) {
+        // No matching accounts found, return empty result
+        return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
+      }
+    }
 
     const hostCollectiveIds = args.host && (await fetchAccountsIdsWithReference(args.host));
     const parentCollectiveIds = args.parent && (await fetchAccountsIdsWithReference(args.parent));
@@ -132,6 +159,7 @@ const AccountsCollectionQuery = {
       : undefined;
 
     const extraParameters = {
+      accountIds,
       orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
       types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
       hostCollectiveIds,
@@ -157,9 +185,9 @@ const AccountsCollectionQuery = {
       lastTransactionTo: args.lastTransactionTo,
     };
 
-    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
+    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, args.offset, args.limit, extraParameters);
 
-    return { nodes: accounts, totalCount, limit, offset };
+    return { nodes: accounts, totalCount, limit: args.limit, offset: args.offset };
   },
 };
 
