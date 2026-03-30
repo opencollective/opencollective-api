@@ -1,7 +1,7 @@
 import { CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
 
-import { handleNotFound, handleUnauthorized } from './common';
+import { handleAccessDenied, handleNotFound, handleUnauthorized } from './common';
 import { getCollectivePageRoute, getDashboardRoute, type Handler, redirect } from './utils';
 
 export const handleCollective: Handler = async (req, res) => {
@@ -20,7 +20,7 @@ export const handleCollective: Handler = async (req, res) => {
   }
 
   if (isVendor && !req.remoteUser.isAdmin(collective.ParentCollectiveId)) {
-    return handleUnauthorized(req, res);
+    return handleAccessDenied(req, res);
   }
 
   if (isVendor) {
@@ -115,7 +115,7 @@ export const handleMemberInvitation: Handler = async (req, res) => {
     return redirect(res, await getCollectivePageRoute(invitation.collective));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handlePersonalToken: Handler = async (req, res) => {
@@ -132,7 +132,7 @@ export const handlePersonalToken: Handler = async (req, res) => {
   }
 
   if (!req.remoteUser.isAdmin(token.collective.id)) {
-    return handleUnauthorized(req, res);
+    return handleAccessDenied(req, res);
   }
 
   return redirect(res, getDashboardRoute(token.collective, `for-developers/personal-tokens/${token.publicId}`));
@@ -149,7 +149,7 @@ export const handleUserToken: Handler = async (req, res) => {
   }
 
   if (req.remoteUser.id !== token.UserId) {
-    return handleUnauthorized(req, res);
+    return handleAccessDenied(req, res);
   }
 
   return redirect(res, getDashboardRoute(req.remoteUser.collective, 'overview'));
@@ -166,7 +166,7 @@ export const handleUserTwoFactorMethod: Handler = async (req, res) => {
   }
 
   if (req.remoteUser.id !== twoFactorMethod.UserId) {
-    return handleUnauthorized(req, res);
+    return handleAccessDenied(req, res);
   }
 
   const user = await models.User.findByPk(twoFactorMethod.UserId, {
@@ -271,7 +271,7 @@ export const handleActivity: Handler = async (req, res) => {
     return redirect(res, getDashboardRoute(hostCollective, 'activity-log'));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handleTier: Handler = async (req, res) => {
@@ -300,7 +300,7 @@ export const handleApplication: Handler = async (req, res) => {
   }
 
   if (!req.remoteUser.isAdmin(application.collective.id)) {
-    return handleUnauthorized(req, res);
+    return handleAccessDenied(req, res);
   }
 
   if (application.type === 'oAuth') {
@@ -342,7 +342,7 @@ export const handleHostApplication: Handler = async (req, res) => {
     return redirect(res, getDashboardRoute(application.collective, `host?hostApplicationId=${application.publicId}`));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handleExportRequest: Handler = async (req, res) => {
@@ -359,7 +359,7 @@ export const handleExportRequest: Handler = async (req, res) => {
   }
 
   if (!req.remoteUser.isAdmin(exportRequest.collective.id)) {
-    return handleUnauthorized(req, res);
+    return handleAccessDenied(req, res);
   }
 
   return redirect(res, getDashboardRoute(exportRequest.collective, `exports/${exportRequest.publicId}`));
@@ -485,7 +485,7 @@ export const handleAccountingCategory: Handler = async (req, res) => {
     return redirect(res, getDashboardRoute(category.collective, 'chart-of-accounts'));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handleConnectedAccount: Handler = async (req, res) => {
@@ -505,7 +505,7 @@ export const handleConnectedAccount: Handler = async (req, res) => {
     return redirect(res, getDashboardRoute(connectedAccount.collective, 'overview'));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handlePaymentMethod: Handler = async (req, res) => {
@@ -525,7 +525,7 @@ export const handlePaymentMethod: Handler = async (req, res) => {
     return redirect(res, getDashboardRoute(paymentMethod.Collective, 'payment-methods'));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handlePayoutMethod: Handler = async (req, res) => {
@@ -545,7 +545,7 @@ export const handlePayoutMethod: Handler = async (req, res) => {
     return redirect(res, getDashboardRoute(payoutMethod.Collective, 'payment-methods'));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handleLegalDocument: Handler = async (req, res) => {
@@ -565,7 +565,7 @@ export const handleLegalDocument: Handler = async (req, res) => {
     return redirect(res, getDashboardRoute(legalDocument.collective, 'tax-information'));
   }
 
-  return handleUnauthorized(req, res);
+  return handleAccessDenied(req, res);
 };
 
 export const handleVirtualCard: Handler = async (req, res) => {

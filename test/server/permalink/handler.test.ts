@@ -130,7 +130,7 @@ describe('server/lib/permalink/handler', () => {
         const vendor = await fakeVendor({ ParentCollectiveId: host.id });
         return { publicId: vendor.publicId, remoteUser: await fakeUser(), vendor };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: '/access-denied',
     },
   ]);
 
@@ -393,12 +393,12 @@ describe('server/lib/permalink/handler', () => {
       expectedUrl: ({ host }) => `/dashboard/${host.slug}/activity-log`,
     },
     {
-      title: 'routes anonymous visitors to unauthorized',
+      title: 'routes anonymous visitors to the signin page',
       setup: async () => {
         const activity = await fakeActivity();
         return { publicId: activity.publicId, remoteUser: null, activity };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: ({ activity }) => `/signin?next=${encodeURIComponent(`/permalink/${activity.publicId}`)}`,
     },
     {
       title: 'routes unrelated logged-in users to unauthorized',
@@ -407,7 +407,7 @@ describe('server/lib/permalink/handler', () => {
         const activity = await fakeActivity();
         return { publicId: activity.publicId, remoteUser, activity };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: '/access-denied',
     },
     {
       title: 'routes collective admins to the activity log',
@@ -462,7 +462,7 @@ describe('server/lib/permalink/handler', () => {
         const exportRequest = await fakeExportRequest({ CollectiveId: collective.id });
         return { publicId: exportRequest.publicId, remoteUser, collective, exportRequest };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: '/access-denied',
     },
   ]);
 
@@ -501,12 +501,12 @@ describe('server/lib/permalink/handler', () => {
 
   runCases('LegalDocument', [
     {
-      title: 'routes anonymous visitors to unauthorized',
+      title: 'routes anonymous visitors to the signin page',
       setup: async () => {
         const document = await fakeLegalDocument();
         return { publicId: document.publicId, remoteUser: null };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
     },
     {
       title: 'routes host admins to the host tax forms page',
@@ -590,7 +590,7 @@ describe('server/lib/permalink/handler', () => {
         const connectedAccount = await fakeConnectedAccount({ CollectiveId: collective.id });
         return { publicId: connectedAccount.publicId, remoteUser, collective, connectedAccount };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: '/access-denied',
     },
     {
       title: 'routes admins to the dashboard page',
@@ -633,7 +633,7 @@ describe('server/lib/permalink/handler', () => {
         const remoteUser = await fakeUser();
         return { publicId: paymentMethod.publicId, remoteUser, collective: admin.collective, paymentMethod };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: '/access-denied',
     },
   ]);
 
@@ -658,7 +658,7 @@ describe('server/lib/permalink/handler', () => {
         const remoteUser = await fakeUser();
         return { publicId: payoutMethod.publicId, remoteUser, collective: admin.collective, payoutMethod };
       },
-      expectedUrl: '/unauthorized',
+      expectedUrl: '/access-denied',
     },
   ]);
 
