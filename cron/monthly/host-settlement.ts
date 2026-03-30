@@ -2,7 +2,7 @@ import '../../server/env';
 
 import { Parser } from '@json2csv/plainjs';
 import config from 'config';
-import { groupBy, min, sumBy, uniq } from 'lodash';
+import { groupBy, min, sumBy } from 'lodash';
 import moment from 'moment';
 import { QueryTypes } from 'sequelize';
 
@@ -129,13 +129,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       replacements: {
         startDate: startDate,
         endDate: endDate,
-        ignoreSettlementForIds: uniq(
-          [
-            PlatformConstants.OficoCollectiveId,
-            PlatformConstants.OfitechCollectiveId,
-            parseInt(config.platform.collectiveId),
-          ].filter(Boolean),
-        ),
+        ignoreSettlementForIds: PlatformConstants.AllPlatformCollectiveIds,
       },
     },
   );
