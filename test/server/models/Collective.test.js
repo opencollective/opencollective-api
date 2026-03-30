@@ -535,7 +535,7 @@ describe('server/models/Collective', () => {
 
     it('fails to deactivate as host if it is hosting any collective', async () => {
       try {
-        await hostUser.collective.deactivateAsHost();
+        await hostUser.collective.deactivateHosting();
         throw new Error("Didn't throw expected error!");
       } catch (e) {
         expect(e.message).to.contain("You can't deactivate hosting while still hosting");
@@ -566,7 +566,8 @@ describe('server/models/Collective', () => {
       await pendingCollective.addHost(temporaryHost, user2);
       expect(pendingCollective.isActive).to.equal(false);
       expect(pendingCollective.HostCollectiveId).to.equal(temporaryHost.id);
-      await temporaryHost.deactivateAsHost();
+      await temporaryHost.deactivateHosting();
+      await temporaryHost.deactivateMoneyManagement();
       expect(temporaryHost.hasMoneyManagement).to.be.false;
       await pendingCollective.reload();
       expect(pendingCollective.HostCollectiveId).to.be.null;
