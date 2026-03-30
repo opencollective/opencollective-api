@@ -494,7 +494,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(emailSendMessageSpy.firstCall.args[1]).to.equal(
         `New expense on ${collective.name}: $42.00 for A valid expense`,
       );
-      expect(emailSendMessageSpy.firstCall.args[2]).to.contain(`/id/${createdExpense.publicId}`);
+      expect(emailSendMessageSpy.firstCall.args[2]).to.contain(`/permalink/${createdExpense.publicId}`);
     });
 
     it("use collective's location if not provided", async () => {
@@ -2573,7 +2573,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await waitForEmail(emailSendMessageSpy, [
           { to: 'test@email.com' },
           { subject: 'An expense you were invited to submit has been updated' },
-          { html: `/id/${expense.publicId}`, op: 'contains' },
+          { html: `/permalink/${expense.publicId}`, op: 'contains' },
         ]);
       });
 
