@@ -1,6 +1,7 @@
-import { pick } from 'lodash';
+import { lowerCase, pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
+import ExpenseStatuses from '../../constants/expense-status';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import models, { HostApplication, User } from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
@@ -154,6 +155,31 @@ const canEditComment = (remoteUser: User, comment: Comment): boolean => {
   }
 };
 
+const EXPENSE_LOCKED_STATUSES = [
+  ExpenseStatuses.PROCESSING,
+  ExpenseStatuses.PAID,
+  ExpenseStatuses.SCHEDULED_FOR_PAYMENT,
+];
+
+/**
+ * Throws if the comment belongs to an expense that is in a locked status (paid, processing, or scheduled for payment).
+ * Fiscal host admins are exempt from this restriction.
+ */
+async function assertExpenseIsNotFulfilled(comment: Comment, remoteUser?: User): Promise<void> {
+  if (comment.ExpenseId) {
+    const expense = await Expense.findByPk(comment.ExpenseId);
+    if (expense && EXPENSE_LOCKED_STATUSES.includes(expense.status as ExpenseStatuses)) {
+      const collective = await models.Collective.findByPk(expense.CollectiveId);
+      if (collective?.HostCollectiveId && remoteUser?.isAdmin(collective.HostCollectiveId)) {
+        return;
+      }
+      throw new ValidationFailed(
+        `You cannot edit or delete comments on expenses that are ${lowerCase(expense.status)}`,
+      );
+    }
+  }
+}
+
 /**
  *  Edits a comment
  * @param {object} comment - comment to edit
@@ -172,6 +198,7 @@ async function editComment(commentData, req): Promise<Comment> {
   }
 
   checkRemoteUserCanUseComment(comment, req);
+  await assertExpenseIsNotFulfilled(comment, req.remoteUser);
 
   // Prepare args and update
   const editableAttributes = ['html'];
@@ -196,6 +223,7 @@ async function deleteComment(id: number, req): Promise<void> {
   }
 
   checkRemoteUserCanUseComment(comment, req);
+  await assertExpenseIsNotFulfilled(comment, req.remoteUser);
 
   return comment.destroy();
 }
