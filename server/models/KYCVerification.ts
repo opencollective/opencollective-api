@@ -82,6 +82,7 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
     const byRequestedByCollectiveId = {
       verifiedStatusByProvider: {},
       latestKycRequestsByProvider: {},
+      latestKycVerification: {},
     };
     function verifiedStatusByProvider(
       RequestedByCollectiveId: number,
@@ -181,9 +182,53 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
       return byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId];
     }
 
+    function latestKycVerification(RequestedByCollectiveId: number): DataLoader<number, KYCVerification | null> {
+      if (byRequestedByCollectiveId.latestKycVerification?.[RequestedByCollectiveId]) {
+        return byRequestedByCollectiveId.latestKycVerification[RequestedByCollectiveId];
+      }
+
+      if (!byRequestedByCollectiveId.latestKycVerification) {
+        byRequestedByCollectiveId.latestKycVerification = {};
+      }
+
+      byRequestedByCollectiveId.latestKycVerification[RequestedByCollectiveId] = new DataLoader<
+        number,
+        KYCVerification
+      >(async keys => {
+        const res: KYCVerification[] = await sequelize.query(
+          `
+          WITH latest_verification AS (
+            SELECT 
+              "kyc".*,
+              RANK() OVER(PARTITION BY "kyc"."CollectiveId" ORDER BY "kyc"."createdAt" DESC) "_rank"
+            FROM "KYCVerifications" "kyc"
+            WHERE
+              "kyc"."RequestedByCollectiveId" = :RequestedByCollectiveId AND
+              "kyc"."CollectiveId" IN (:CollectiveId)              
+          ) SELECT * from latest_verification WHERE "_rank" = 1;
+          
+        `,
+          {
+            type: QueryTypes.SELECT,
+            model: KYCVerification,
+            mapToModel: true,
+            replacements: {
+              RequestedByCollectiveId,
+              CollectiveId: keys,
+            },
+          },
+        );
+
+        return sortResultsSimple(keys, res, i => i.CollectiveId);
+      });
+
+      return byRequestedByCollectiveId.latestKycVerification[RequestedByCollectiveId];
+    }
+
     return {
       verifiedStatusByProvider,
       latestKycRequestsByProvider,
+      latestKycVerification,
     };
   }
 }

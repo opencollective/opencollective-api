@@ -30,7 +30,7 @@ import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile }
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
-import { KYCProviderName } from '../kyc/providers';
+import { handleExpenseKycSecurityChecks } from '../kyc/expenses/kyc-expenses-check';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 import { formatCurrency } from '../utils';
 
@@ -49,7 +49,7 @@ export enum Level {
   HIGH = 'HIGH',
 }
 
-type SecurityCheck = {
+export type SecurityCheck = {
   scope: Scope;
   level: Level;
   message: string;
@@ -510,29 +510,7 @@ export const checkExpensesBatch = async (
         },
       );
 
-      const hostCollectiveId = expense.HostCollectiveId || expense.collective?.HostCollectiveId;
-
-      // KYC Verification Check: only for individual payees
-      const payeeCollective =
-        expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
-      if (payeeCollective?.type === CollectiveType.USER) {
-        const kycVerifications = await Promise.all(
-          Object.values(KYCProviderName).map(provider =>
-            req.loaders.KYCVerification.verifiedStatusByProvider(hostCollectiveId, provider).load(payeeCollective.id),
-          ),
-        );
-        for (const kycVerification of kycVerifications) {
-          if (!kycVerification) {
-            continue;
-          }
-          addBooleanCheck(checks, true, {
-            scope: Scope.PAYEE,
-            level: Level.PASS,
-            message: `Payee has KYC Verification with '${kycVerification.provider}' provider`,
-            details: kycVerification.data.legalName,
-          });
-        }
-      }
+      await handleExpenseKycSecurityChecks(expense, checks, { loaders: req.loaders });
 
       // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
       const userIsHostAdmin = expense.User.isAdmin(expense.HostCollectiveId);

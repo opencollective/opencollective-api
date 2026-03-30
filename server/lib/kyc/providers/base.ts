@@ -21,8 +21,13 @@ export type ProviderKYCRequestBase = {
   UserTokenId: number | null;
 };
 
+export type ProviderKYCSubmitBase = {
+  UserTokenId: number | null;
+};
+
 export abstract class KYCProvider<
   ProviderKYCRequest extends ProviderKYCRequestBase,
+  ProviderKYCSubmit extends ProviderKYCSubmitBase,
   ProviderKYCVerification extends KYCVerification = KYCVerification,
 > {
   providerName: KYCProviderName;
@@ -34,6 +39,11 @@ export abstract class KYCProvider<
   protected abstract requestVerification(
     params: KYCRequest,
     providerParams: ProviderKYCRequest,
+  ): Promise<ProviderKYCVerification>;
+
+  protected abstract submitVerification(
+    params: KYCRequest,
+    providerParams: ProviderKYCSubmit,
   ): Promise<ProviderKYCVerification>;
 
   protected async handleKycRequested(kycVerification: ProviderKYCVerification, providerParams: ProviderKYCRequest) {
