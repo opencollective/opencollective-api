@@ -187,7 +187,7 @@ describe('server/lib/permalink/handler', () => {
         return { publicId: expense.publicId, remoteUser, collective, expense };
       },
       expectedUrl: ({ collective, expense }) =>
-        `/dashboard/${collective.slug}/payment-requests?openExpenseId=${expense.publicId}`,
+        `/dashboard/${collective.slug}/payment-requests?openExpenseId=${expense.id}`,
     },
     {
       title: 'routes submitter to the submitted expenses drawer',
@@ -199,7 +199,7 @@ describe('server/lib/permalink/handler', () => {
         return { publicId: expense.publicId, remoteUser: submitter, expense };
       },
       expectedUrl: ({ remoteUser, expense }) =>
-        `/dashboard/${remoteUser.collective.slug}/submitted-expenses?openExpenseId=${expense.publicId}`,
+        `/dashboard/${remoteUser.collective.slug}/submitted-expenses?openExpenseId=${expense.id}`,
     },
   ]);
 

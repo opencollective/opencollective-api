@@ -390,16 +390,13 @@ export const handleExpense: Handler = async (req, res) => {
   }
 
   if (req.remoteUser.isAdmin(expense.collective.id)) {
-    return redirect(
-      res,
-      getDashboardRoute(expense.collective, 'payment-requests', { openExpenseId: expense.publicId }),
-    );
+    return redirect(res, getDashboardRoute(expense.collective, 'payment-requests', { openExpenseId: expense.id }));
   }
 
   if (req.remoteUser.isAdmin(expense.fromCollective.id)) {
     return redirect(
       res,
-      getDashboardRoute(expense.fromCollective, 'submitted-expenses', { openExpenseId: expense.publicId }),
+      getDashboardRoute(expense.fromCollective, 'submitted-expenses', { openExpenseId: expense.id }),
     );
   }
 
