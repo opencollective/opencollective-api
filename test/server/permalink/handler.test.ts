@@ -7,27 +7,38 @@ import {
   fakeAccountingCategory,
   fakeActiveHost,
   fakeActivity,
+  fakeAgreement,
   fakeApplication,
   fakeCollective,
   fakeComment,
   fakeConnectedAccount,
   fakeConversation,
   fakeExpense,
+  fakeExpenseAttachedFile,
+  fakeExpenseItem,
   fakeExportRequest,
   fakeHostApplication,
+  fakeKYCVerification,
   fakeLegalDocument,
+  fakeManualPaymentProvider,
   fakeMember,
   fakeMemberInvitation,
+  fakeNotification,
+  fakeOAuthAuthorizationCode,
   fakeOrder,
   fakePaymentMethod,
   fakePayoutMethod,
   fakePersonalToken,
+  fakeRecurringExpense,
   fakeTier,
   fakeTransaction,
   fakeTransactionsImport,
   fakeTransactionsImportRow,
   fakeUpdate,
+  fakeUploadedFile,
   fakeUser,
+  fakeUserToken,
+  fakeUserTwoFactorMethod,
   fakeVendor,
   fakeVirtualCard,
   fakeVirtualCardRequest,
@@ -468,17 +479,43 @@ describe('server/lib/permalink/handler', () => {
 
   runCases('TransactionsImport', [
     {
-      title: 'routes admins to the CSV imports page',
+      title: 'routes admins to the ledger CSV import page',
       setup: async () => {
         const { remoteUser, host } = await createHostAdmin();
-        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: remoteUser });
         const transactionsImport = await fakeTransactionsImport({
           CollectiveId: collective.id,
           type: 'MANUAL',
         });
         return { publicId: transactionsImport.publicId, remoteUser, collective, transactionsImport };
       },
-      expectedUrl: '/not-found',
+      expectedUrl: ({ collective, transactionsImport }) =>
+        `/dashboard/${collective.slug}/ledger-csv-imports/${transactionsImport.publicId}`,
+    },
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const collective = await fakeCollective();
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: collective.id,
+          type: 'MANUAL',
+        });
+        return { publicId: transactionsImport.publicId, remoteUser: null };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes non-admins to access denied',
+      setup: async () => {
+        const { collective } = await createCollectiveAdmin();
+        const remoteUser = await fakeUser();
+        const transactionsImport = await fakeTransactionsImport({
+          CollectiveId: collective.id,
+          type: 'MANUAL',
+        });
+        return { publicId: transactionsImport.publicId, remoteUser, collective, transactionsImport };
+      },
+      expectedUrl: '/access-denied',
     },
   ]);
 
@@ -487,7 +524,7 @@ describe('server/lib/permalink/handler', () => {
       title: 'routes admins to the parent import page',
       setup: async () => {
         const { remoteUser, host } = await createHostAdmin();
-        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: remoteUser });
         const transactionsImport = await fakeTransactionsImport({
           CollectiveId: collective.id,
           type: 'MANUAL',
@@ -495,7 +532,8 @@ describe('server/lib/permalink/handler', () => {
         const row = await fakeTransactionsImportRow({ TransactionsImportId: transactionsImport.id });
         return { publicId: row.publicId, remoteUser, collective, transactionsImport, row };
       },
-      expectedUrl: '/not-found',
+      expectedUrl: ({ collective, transactionsImport }) =>
+        `/dashboard/${collective.slug}/ledger-csv-imports/${transactionsImport.publicId}`,
     },
   ]);
 
@@ -715,7 +753,18 @@ describe('server/lib/permalink/handler', () => {
         const virtualCard = await fakeVirtualCard({ CollectiveId: collective.id });
         return { publicId: virtualCard.publicId, remoteUser, host, collective, virtualCard };
       },
-      expectedUrl: '/not-found',
+      expectedUrl: ({ host }) => `/dashboard/${host.slug}/host-virtual-cards`,
+    },
+    {
+      title: 'routes collective admins to virtual cards',
+      setup: async () => {
+        const host = await fakeActiveHost();
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const virtualCard = await fakeVirtualCard({ CollectiveId: collective.id });
+        return { publicId: virtualCard.publicId, remoteUser: collectiveAdmin, collective, virtualCard };
+      },
+      expectedUrl: ({ collective }) => `/dashboard/${collective.slug}/virtual-cards`,
     },
   ]);
 
@@ -727,6 +776,263 @@ describe('server/lib/permalink/handler', () => {
         const collective = await fakeCollective({ HostCollectiveId: host.id });
         const virtualCardRequest = await fakeVirtualCardRequest({ CollectiveId: collective.id });
         return { publicId: virtualCardRequest.publicId, remoteUser, host, collective, virtualCardRequest };
+      },
+      expectedUrl: ({ host }) => `/dashboard/${host.slug}/host-virtual-card-requests`,
+    },
+    {
+      title: 'routes collective admins to virtual cards',
+      setup: async () => {
+        const host = await fakeActiveHost();
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const virtualCardRequest = await fakeVirtualCardRequest({ CollectiveId: collective.id });
+        return { publicId: virtualCardRequest.publicId, remoteUser: collectiveAdmin, collective, virtualCardRequest };
+      },
+      expectedUrl: ({ collective }) => `/dashboard/${collective.slug}/virtual-cards`,
+    },
+  ]);
+
+  runCases('Agreement', [
+    {
+      title: 'routes host admins to host agreements',
+      setup: async () => {
+        const { remoteUser, host } = await createHostAdmin();
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const agreement = await fakeAgreement({
+          HostCollectiveId: host.id,
+          CollectiveId: collective.id,
+        });
+        return { publicId: agreement.publicId, remoteUser, host, agreement };
+      },
+      expectedUrl: ({ host }) => `/dashboard/${host.slug}/host-agreements`,
+    },
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const agreement = await fakeAgreement();
+        return { publicId: agreement.publicId, remoteUser: null };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes non-host-admins to access denied',
+      setup: async () => {
+        const remoteUser = await fakeUser();
+        const agreement = await fakeAgreement();
+        return { publicId: agreement.publicId, remoteUser, agreement };
+      },
+      expectedUrl: '/access-denied',
+    },
+  ]);
+
+  runCases('ExpenseAttachedFile', [
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const expense = await fakeExpense();
+        const file = await fakeExpenseAttachedFile({ ExpenseId: expense.id });
+        return { publicId: file.publicId, remoteUser: null, expense };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes collective admins like the parent expense permalink',
+      setup: async () => {
+        const { remoteUser, collective } = await createCollectiveAdmin();
+        const expense = await fakeExpense({ CollectiveId: collective.id });
+        const file = await fakeExpenseAttachedFile({ ExpenseId: expense.id });
+        return { publicId: file.publicId, remoteUser, collective, expense };
+      },
+      expectedUrl: ({ collective, expense }) =>
+        `/dashboard/${collective.slug}/payment-requests?openExpenseId=${expense.id}`,
+    },
+  ]);
+
+  runCases('ExpenseItem', [
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const expense = await fakeExpense();
+        const item = await fakeExpenseItem({ ExpenseId: expense.id });
+        return { publicId: item.publicId, remoteUser: null, expense };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes collective admins like the parent expense permalink',
+      setup: async () => {
+        const { remoteUser, collective } = await createCollectiveAdmin();
+        const expense = await fakeExpense({ CollectiveId: collective.id });
+        const item = await fakeExpenseItem({ ExpenseId: expense.id });
+        return { publicId: item.publicId, remoteUser, collective, expense };
+      },
+      expectedUrl: ({ collective, expense }) =>
+        `/dashboard/${collective.slug}/payment-requests?openExpenseId=${expense.id}`,
+    },
+  ]);
+
+  runCases('KYCVerification', [
+    {
+      title: 'routes requested-by collective admins to KYC settings',
+      setup: async () => {
+        const { remoteUser, collective } = await createCollectiveAdmin();
+        const subjectCollective = await fakeCollective();
+        const kyc = await fakeKYCVerification({
+          RequestedByCollectiveId: collective.id,
+          CollectiveId: subjectCollective.id,
+        });
+        return { publicId: kyc.publicId, remoteUser, collective, subjectCollective, kyc };
+      },
+      expectedUrl: ({ subjectCollective }) => `/dashboard/${subjectCollective.slug}/kyc`,
+    },
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const kyc = await fakeKYCVerification();
+        return { publicId: kyc.publicId, remoteUser: null };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes unrelated users to access denied',
+      setup: async () => {
+        const remoteUser = await fakeUser();
+        const kyc = await fakeKYCVerification();
+        return { publicId: kyc.publicId, remoteUser, kyc };
+      },
+      expectedUrl: '/access-denied',
+    },
+  ]);
+
+  runCases('ManualPaymentProvider', [
+    {
+      title: 'routes host admins to payment methods',
+      setup: async () => {
+        const { remoteUser, host } = await createHostAdmin();
+        const mpp = await fakeManualPaymentProvider({ CollectiveId: host.id });
+        return { publicId: mpp.publicId, remoteUser, host, mpp };
+      },
+      expectedUrl: ({ host }) => `/dashboard/${host.slug}/payment-methods`,
+    },
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const mpp = await fakeManualPaymentProvider();
+        return { publicId: mpp.publicId, remoteUser: null };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes non-admins to access denied',
+      setup: async () => {
+        const adminUser = await fakeUser();
+        const mpp = await fakeManualPaymentProvider({ CollectiveId: adminUser.collective.id });
+        const remoteUser = await fakeUser();
+        return { publicId: mpp.publicId, remoteUser, mpp };
+      },
+      expectedUrl: '/access-denied',
+    },
+  ]);
+
+  runCases('UploadedFile', [
+    {
+      title: 'redirects to the files API on the website',
+      setup: async () => {
+        const file = await fakeUploadedFile();
+        return { publicId: file.publicId, remoteUser: null };
+      },
+      expectedUrl: ({ publicId }) => `http://localhost:3000/api/files/${publicId}`,
+    },
+  ]);
+
+  runCases('UserToken', [
+    {
+      title: 'routes the token owner to overview',
+      setup: async () => {
+        const remoteUser = await fakeUser();
+        const token = await fakeUserToken({ user: remoteUser });
+        return { publicId: token.publicId, remoteUser, token };
+      },
+      expectedUrl: ({ remoteUser }) => `/dashboard/${remoteUser.collective.slug}/overview`,
+    },
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const token = await fakeUserToken();
+        return { publicId: token.publicId, remoteUser: null };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes other users to access denied',
+      setup: async () => {
+        const owner = await fakeUser();
+        const other = await fakeUser();
+        const token = await fakeUserToken({ user: owner });
+        return { publicId: token.publicId, remoteUser: other, token };
+      },
+      expectedUrl: '/access-denied',
+    },
+  ]);
+
+  runCases('UserTwoFactorMethod', [
+    {
+      title: 'routes the owner to user security',
+      setup: async () => {
+        const remoteUser = await fakeUser();
+        const method = await fakeUserTwoFactorMethod({ UserId: remoteUser.id });
+        return { publicId: method.publicId, remoteUser, method };
+      },
+      expectedUrl: ({ remoteUser }) => `/dashboard/${remoteUser.collective.slug}/user-security`,
+    },
+    {
+      title: 'routes anonymous visitors to signin',
+      setup: async () => {
+        const method = await fakeUserTwoFactorMethod();
+        return { publicId: method.publicId, remoteUser: null };
+      },
+      expectedUrl: ({ publicId }) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`,
+    },
+    {
+      title: 'routes other users to access denied',
+      setup: async () => {
+        const owner = await fakeUser();
+        const other = await fakeUser();
+        const method = await fakeUserTwoFactorMethod({ UserId: owner.id });
+        return { publicId: method.publicId, remoteUser: other, method };
+      },
+      expectedUrl: '/access-denied',
+    },
+  ]);
+
+  runCases('RecurringExpense', [
+    {
+      title: 'returns not found',
+      setup: async () => {
+        const recurring = await fakeRecurringExpense();
+        return { publicId: recurring.publicId, remoteUser: null };
+      },
+      expectedUrl: '/not-found',
+    },
+  ]);
+
+  runCases('Notification', [
+    {
+      title: 'returns not found',
+      setup: async () => {
+        const notification = await fakeNotification();
+        return { publicId: notification.publicId, remoteUser: null };
+      },
+      expectedUrl: '/not-found',
+    },
+  ]);
+
+  runCases('OAuthAuthorizationCode', [
+    {
+      title: 'returns not found',
+      setup: async () => {
+        const code = await fakeOAuthAuthorizationCode();
+        return { publicId: code.publicId, remoteUser: null };
       },
       expectedUrl: '/not-found',
     },

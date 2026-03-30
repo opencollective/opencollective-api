@@ -1,3 +1,5 @@
+import config from 'config';
+
 import { CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
 
@@ -569,9 +571,208 @@ export const handleLegalDocument: Handler = async (req, res) => {
 };
 
 export const handleVirtualCard: Handler = async (req, res) => {
-  return handleNotFound(req, res);
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const virtualCard = await models.VirtualCard.findOne({
+    where: { publicId: req.params.id },
+    include: [
+      { model: models.Collective, as: 'collective', required: true },
+      { model: models.Collective, as: 'host', required: true },
+    ],
+  });
+  if (!virtualCard) {
+    return handleNotFound(req, res);
+  }
+
+  if (req.remoteUser.isAdmin(virtualCard.host.id)) {
+    return redirect(res, getDashboardRoute(virtualCard.host, 'host-virtual-cards'));
+  }
+
+  if (req.remoteUser.isAdmin(virtualCard.collective.id)) {
+    return redirect(res, getDashboardRoute(virtualCard.collective, 'virtual-cards'));
+  }
+
+  return handleAccessDenied(req, res);
 };
 
 export const handleVirtualCardRequest: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const virtualCardRequest = await models.VirtualCardRequest.findOne({
+    where: { publicId: req.params.id },
+    include: [
+      { model: models.Collective, as: 'collective', required: true },
+      { model: models.Collective, as: 'host', required: true },
+    ],
+  });
+  if (!virtualCardRequest) {
+    return handleNotFound(req, res);
+  }
+
+  if (req.remoteUser.isAdmin(virtualCardRequest.host.id)) {
+    return redirect(res, getDashboardRoute(virtualCardRequest.host, 'host-virtual-card-requests'));
+  }
+
+  if (req.remoteUser.isAdmin(virtualCardRequest.collective.id)) {
+    return redirect(res, getDashboardRoute(virtualCardRequest.collective, 'virtual-cards'));
+  }
+
+  return handleAccessDenied(req, res);
+};
+
+export const handleAgreement: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const agreement = await models.Agreement.findOne({
+    where: { publicId: req.params.id },
+    include: [{ model: models.Collective, as: 'Host', required: true }],
+  });
+  if (!agreement) {
+    return handleNotFound(req, res);
+  }
+
+  if (req.remoteUser.isAdmin(agreement.Host.id)) {
+    return redirect(res, getDashboardRoute(agreement.Host, 'host-agreements'));
+  }
+
+  return handleAccessDenied(req, res);
+};
+
+export const handleExpenseAttachedFile: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const expenseAttachedFile = await models.ExpenseAttachedFile.findOne({
+    where: { publicId: req.params.id },
+    include: [{ model: models.Expense, as: 'Expense', required: true }],
+  });
+  if (!expenseAttachedFile) {
+    return handleNotFound(req, res);
+  }
+
+  req.params.id = expenseAttachedFile.Expense.publicId;
+  return handleExpense(req, res);
+};
+
+export const handleExpenseItem: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const expenseItem = await models.ExpenseItem.findOne({
+    where: { publicId: req.params.id },
+    include: [{ model: models.Expense, as: 'Expense', required: true }],
+  });
+  if (!expenseItem) {
+    return handleNotFound(req, res);
+  }
+
+  req.params.id = expenseItem.Expense.publicId;
+  return handleExpense(req, res);
+};
+
+export const handleKYCVerification: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const kycVerification = await models.KYCVerification.findOne({
+    where: { publicId: req.params.id },
+    include: [
+      { model: models.Collective, as: 'collective', required: true },
+      { model: models.Collective, as: 'requestedByCollective', required: true },
+    ],
+  });
+  if (!kycVerification) {
+    return handleNotFound(req, res);
+  }
+
+  if (req.remoteUser.isAdmin(kycVerification.RequestedByCollectiveId)) {
+    return redirect(res, getDashboardRoute(kycVerification.collective, 'kyc'));
+  }
+
+  return handleAccessDenied(req, res);
+};
+
+export const handleManualPaymentProvider: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const manualPaymentProvider = await models.ManualPaymentProvider.findOne({
+    where: { publicId: req.params.id },
+    include: [{ model: models.Collective, as: 'collective', required: true }],
+  });
+  if (!manualPaymentProvider) {
+    return handleNotFound(req, res);
+  }
+
+  if (req.remoteUser.isAdmin(manualPaymentProvider.collective.id)) {
+    return redirect(res, getDashboardRoute(manualPaymentProvider.collective, 'payment-methods'));
+  }
+
+  return handleAccessDenied(req, res);
+};
+
+export const handleTransactionsImport: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const transactionsImport = await models.TransactionsImport.findOne({
+    where: { publicId: req.params.id },
+    include: [{ model: models.Collective, as: 'collective', required: true }],
+  });
+  if (!transactionsImport) {
+    return handleNotFound(req, res);
+  }
+
+  if (req.remoteUser.isAdmin(transactionsImport.collective.id)) {
+    return redirect(
+      res,
+      getDashboardRoute(transactionsImport.collective, `ledger-csv-imports/${transactionsImport.publicId}`),
+    );
+  }
+
+  return handleAccessDenied(req, res);
+};
+
+export const handleTransactionsImportRow: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const transactionsImportRow = await models.TransactionsImportRow.findOne({
+    where: { publicId: req.params.id },
+    include: [{ model: models.TransactionsImport, as: 'import', required: true }],
+  });
+  if (!transactionsImportRow) {
+    return handleNotFound(req, res);
+  }
+
+  req.params.id = transactionsImportRow.import.publicId;
+  return handleTransactionsImport(req, res);
+};
+
+export const handleUploadedFile: Handler = async (req, res) => {
+  return redirect(res, `${config.host.website}/api/files/${req.params.id}`);
+};
+
+export const handleRecurringExpense: Handler = async (req, res) => {
+  return handleNotFound(req, res);
+};
+
+export const handleNotification: Handler = async (req, res) => {
+  return handleNotFound(req, res);
+};
+
+export const handleOAuthAuthorizationCode: Handler = async (req, res) => {
   return handleNotFound(req, res);
 };
