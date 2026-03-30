@@ -24,11 +24,13 @@ import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../l
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
+import { KYCVerificationStatus } from '../../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
 import { GraphQLExpenseCollection } from '../../collection/ExpenseCollection';
 import { GraphQLActivityType } from '../../enum/ActivityType';
+import GraphQLExpenseKYCStatusFilter from '../../enum/ExpenseKYCStatusFilter';
 import GraphQLExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { GraphQLExpenseType } from '../../enum/ExpenseType';
 import GraphQLHostContext from '../../enum/HostContext';
@@ -322,6 +324,10 @@ export const ExpensesCollectionQueryArgs = {
         },
       }),
     }),
+  },
+  kycStatus: {
+    type: GraphQLExpenseKYCStatusFilter,
+    description: 'Filter expenses by KYC status',
   },
 };
 
@@ -777,6 +783,61 @@ export const ExpensesCollectionQueryResolver = async (
     include.push({ association: 'activities', required: true, attributes: [], where: activitiesConditions });
   }
 
+  const kycStatusFilter: 'VERIFIED' | 'PENDING' | undefined = args.kycStatus;
+
+  if (isHostAdmin && args.status?.includes('READY_TO_PAY')) {
+    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
+    if (!fromCollectiveJoin) {
+      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
+      include.push(fromCollectiveJoin);
+    }
+    fromCollectiveJoin.include = [
+      ...(fromCollectiveJoin.include || []),
+      {
+        association: 'kycVerifications',
+        attributes: [],
+        required: false,
+        where: {
+          status: [KYCVerificationStatus.PENDING, KYCVerificationStatus.VERIFIED],
+          RequestedByCollectiveId: host.id,
+        },
+      },
+    ];
+    const ors = [
+      { '$fromCollective.type$': { [Op.notIn]: [CollectiveType.USER] } },
+      { '$fromCollective.kycVerifications.id$': { [Op.eq]: null } },
+      { '$fromCollective.kycVerifications.status$': { [Op.eq]: KYCVerificationStatus.VERIFIED } },
+    ];
+    where[Op.and].push({ [Op.or]: ors });
+  }
+
+  if (isHostAdmin && kycStatusFilter) {
+    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
+    if (!fromCollectiveJoin) {
+      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
+      include.push(fromCollectiveJoin);
+    }
+    fromCollectiveJoin.attributes = ['id'];
+    fromCollectiveJoin.include = [
+      ...(fromCollectiveJoin.include || []),
+      {
+        association: 'kycVerifications',
+        attributes: ['id'],
+        required: false,
+        where: {
+          ...(kycStatusFilter === 'VERIFIED'
+            ? { status: KYCVerificationStatus.VERIFIED }
+            : kycStatusFilter === 'PENDING'
+              ? { status: KYCVerificationStatus.PENDING }
+              : {}),
+          RequestedByCollectiveId: host.id,
+        },
+      },
+    ];
+
+    where[Op.and].push({ '$fromCollective.kycVerifications.id$': { [Op.not]: null } });
+  }
+
   let order: OrderItem[];
   if (args.orderBy.field === 'paidAt') {
     order = [['paidAt', `${args.orderBy.direction} NULLS LAST`]];
@@ -787,7 +848,15 @@ export const ExpensesCollectionQueryResolver = async (
   const { offset, limit } = args;
 
   const fetchNodes = () => {
-    return Expense.findAll({ include, where, order, offset, limit });
+    return Expense.findAll({
+      attributes: { exclude: ['$fromCollective.id$'] },
+      include,
+      where,
+      order,
+      offset,
+      limit,
+      subQuery: false,
+    });
   };
 
   const fetchTotalCount = () => {
