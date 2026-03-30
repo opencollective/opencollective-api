@@ -4,7 +4,7 @@
     // Target latest version of ECMAScript.
     "target": "esnext",
     // Search under node_modules for non-relative imports.
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     // Process & infer types from .js files.
     "allowJs": true,
     // Don't emit; allow Babel to transform files.
@@ -14,9 +14,8 @@
     // Import non-ES modules as default imports.
     "esModuleInterop": true,
     "checkJs": false,
-    "downlevelIteration": true,
     "lib": ["esnext", "dom", "dom.iterable"],
-    "module": "commonjs",
+    "module": "Node16",
     "noUnusedLocals": true,
     "outDir": "dist",
     "skipLibCheck": true
