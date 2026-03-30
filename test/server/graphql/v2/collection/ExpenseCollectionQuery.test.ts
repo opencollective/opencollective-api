@@ -10,7 +10,9 @@ import {
   US_TAX_FORM_THRESHOLD_PRE_2026,
 } from '../../../../../server/constants/tax-form';
 import * as libcurrency from '../../../../../server/lib/currency';
+import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import models from '../../../../../server/models';
+import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
@@ -20,6 +22,7 @@ import {
   fakeEvent,
   fakeExpense,
   fakeHost,
+  fakeKYCVerification,
   fakeLegalDocument,
   fakePayoutMethod,
   fakeProject,
@@ -38,6 +41,7 @@ const expensesQuery = gql`
     $account: AccountReferenceInput
     $host: AccountReferenceInput
     $status: [ExpenseStatusFilter]
+    $kycStatus: ExpenseKYCStatusFilter
     $searchTerm: String
     $customData: JSON
     $chargeHasReceipts: Boolean
@@ -49,6 +53,7 @@ const expensesQuery = gql`
       account: $account
       host: $host
       status: $status
+      kycStatus: $kycStatus
       searchTerm: $searchTerm
       customData: $customData
       chargeHasReceipts: $chargeHasReceipts
@@ -78,6 +83,17 @@ const expensesQuery = gql`
           name
           slug
         }
+      }
+    }
+  }
+`;
+
+const expensesKycQuery = gql`
+  query ExpensesKyc($host: AccountReferenceInput, $status: [ExpenseStatusFilter], $kycStatus: ExpenseKYCStatusFilter) {
+    expenses(host: $host, status: $status, kycStatus: $kycStatus) {
+      totalCount
+      nodes {
+        legacyId
       }
     }
   }
@@ -528,6 +544,158 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(result.errors).to.not.exist;
       const readyExpenseIds = result.data.expenses.nodes.map(e => e.legacyId || e.id);
       expect(readyExpenseIds).to.include(v3Expense.id);
+    });
+  });
+
+  describe('KYC filters', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('does not return READY_TO_PAY expense with pending KYC, but returns not-requested and verified', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHostWithRequiredLegalDocument({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const pendingKycPayee = await fakeUser();
+      const noKycPayee = await fakeUser();
+      const verifiedKycPayee = await fakeUser();
+
+      const expenseWithPendingKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: pendingKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        description: 'Ready to pay - pending kyc',
+      });
+      const expenseWithNoKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: noKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        description: 'Ready to pay - no kyc requested',
+      });
+      const expenseWithVerifiedKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: verifiedKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        description: 'Ready to pay - verified kyc',
+      });
+
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'READY_TO_PAY' },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.not.include(expenseWithPendingKyc.id);
+      expect(ids).to.include(expenseWithNoKyc.id);
+      expect(ids).to.include(expenseWithVerifiedKyc.id);
+    });
+
+    it('filters expenses by kycStatus argument for host admins', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const pendingKycPayee = await fakeUser();
+      const noKycPayee = await fakeUser();
+      const verifiedKycPayee = await fakeUser();
+
+      const expenseWithPendingKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: pendingKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseWithNoKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: noKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseWithVerifiedKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: verifiedKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const verifiedResult = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'APPROVED', kycStatus: 'VERIFIED' },
+        hostAdmin,
+      );
+      verifiedResult.errors && console.error(verifiedResult.errors);
+      expect(verifiedResult.errors).to.not.exist;
+      const verifiedIds = verifiedResult.data.expenses.nodes.map(n => n.legacyId);
+      expect(verifiedIds).to.include(expenseWithVerifiedKyc.id);
+      expect(verifiedIds).to.not.include(expenseWithPendingKyc.id);
+      expect(verifiedIds).to.not.include(expenseWithNoKyc.id);
+
+      const pendingResult = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'APPROVED', kycStatus: 'PENDING' },
+        hostAdmin,
+      );
+      pendingResult.errors && console.error(pendingResult.errors);
+      expect(pendingResult.errors).to.not.exist;
+      const pendingIds = pendingResult.data.expenses.nodes.map(n => n.legacyId);
+      expect(pendingIds).to.include(expenseWithPendingKyc.id);
+      expect(pendingIds).to.not.include(expenseWithNoKyc.id);
+      expect(pendingIds).to.not.include(expenseWithVerifiedKyc.id);
     });
   });
 

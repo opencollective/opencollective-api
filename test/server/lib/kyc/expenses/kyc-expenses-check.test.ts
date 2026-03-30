@@ -5,6 +5,7 @@ import ActivityTypes from '../../../../../server/constants/activities';
 import { generateLoaders } from '../../../../../server/graphql/loaders';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
+import { Level, Scope, SecurityCheck } from '../../../../../server/lib/security/expense';
 import Activity from '../../../../../server/models/Activity';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import {
@@ -286,6 +287,90 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
         where: { type: ActivityTypes.COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED, ExpenseId: expense.id },
       });
       expect(activity).to.not.be.null;
+    });
+  });
+
+  describe('handleExpenseKycSecurityChecks', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('adds a PASS payee security check when KYC is verified', async () => {
+      const user = await fakeUser();
+      const host = await fakeActiveHost();
+      const collective = await fakeProject({ ParentCollectiveId: host.id });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: user.collective.id,
+        HostCollectiveId: host.id,
+        status: expenseStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: host.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+      const checks: SecurityCheck[] = [];
+      const loaders = generateLoaders({});
+
+      await kycExpensesCheck.handleExpenseKycSecurityChecks(expense, checks, { loaders });
+
+      expect(checks).to.deep.equal([
+        {
+          scope: Scope.PAYEE,
+          level: Level.PASS,
+          message: 'KYC Verified',
+        },
+      ]);
+    });
+
+    it('adds a HIGH payee security check when KYC is pending', async () => {
+      const user = await fakeUser();
+      const host = await fakeActiveHost();
+      const collective = await fakeProject({ ParentCollectiveId: host.id });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: user.collective.id,
+        HostCollectiveId: host.id,
+        status: expenseStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: host.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.PENDING,
+      });
+      const checks: SecurityCheck[] = [];
+      const loaders = generateLoaders({});
+
+      await kycExpensesCheck.handleExpenseKycSecurityChecks(expense, checks, { loaders });
+
+      expect(checks).to.deep.equal([
+        {
+          scope: Scope.PAYEE,
+          level: Level.HIGH,
+          message: 'KYC Verification pending',
+        },
+      ]);
+    });
+
+    it('does not add a check when KYC was not requested', async () => {
+      const user = await fakeUser();
+      const host = await fakeActiveHost();
+      const collective = await fakeProject({ ParentCollectiveId: host.id });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: user.collective.id,
+        HostCollectiveId: host.id,
+        status: expenseStatus.PENDING,
+      });
+      const checks: SecurityCheck[] = [];
+      const loaders = generateLoaders({});
+
+      await kycExpensesCheck.handleExpenseKycSecurityChecks(expense, checks, { loaders });
+
+      expect(checks).to.be.empty;
     });
   });
 
