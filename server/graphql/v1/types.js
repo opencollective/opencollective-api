@@ -887,6 +887,7 @@ export const ExpenseType = new GraphQLObjectType({
 export const NotificationType = new GraphQLObjectType({
   name: 'NotificationType',
   description: 'This represents a Notification',
+  deprecationReason: '2026-03-31: Please move to GraphQL v2',
   fields: () => {
     return {
       id: {

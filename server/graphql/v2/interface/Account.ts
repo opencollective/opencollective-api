@@ -890,7 +890,7 @@ const accountFieldsDefinition = () => ({
         where['channel'] = args.channel;
       }
 
-      return models.Notification.findAll({ where });
+      return models.ActivitySubscription.findAll({ where });
     },
   },
   permissions: {

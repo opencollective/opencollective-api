@@ -41,7 +41,7 @@ const createWebhook = {
       CollectiveId: account.id,
     };
 
-    return models.Notification.create(createParams);
+    return models.ActivitySubscription.create(createParams);
   },
 };
 

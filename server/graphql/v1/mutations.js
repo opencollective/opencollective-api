@@ -339,6 +339,7 @@ const mutations = {
   editWebhooks: {
     type: new GraphQLList(NotificationType),
     description: 'Edits (by replacing) the admin-level webhooks for a collective.',
+    deprecationReason: '2026-03-31: Please move to GraphQL v2',
     args: {
       collectiveId: {
         type: new GraphQLNonNull(GraphQLInt),

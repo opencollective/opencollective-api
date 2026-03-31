@@ -32,7 +32,7 @@ const debug = debugLib('monthlyreport');
  * @param {*} backerCollective
  */
 const fetchUserSubscribers = async (notificationType, backerCollective) => {
-  const unsubscriptions = await models.Notification.findAll({
+  const unsubscriptions = await models.ActivitySubscription.findAll({
     attributes: ['UserId'],
     where: {
       CollectiveId: backerCollective.id,

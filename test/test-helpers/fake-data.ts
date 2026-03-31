@@ -37,7 +37,7 @@ import models, {
   ExpenseAttachedFile,
   ExpenseItem,
   Location,
-  Notification,
+  ActivitySubscription,
   PaypalProduct,
   PersonalToken,
   PlatformSubscription,
@@ -858,8 +858,8 @@ export const fakeSubscription = (params = {}) => {
   });
 };
 
-export const fakeNotification = async (data: Partial<InferCreationAttributes<Notification>> = {}) => {
-  return models.Notification.create({
+export const fakeNotification = async (data: Partial<InferCreationAttributes<ActivitySubscription>> = {}) => {
+  return models.ActivitySubscription.create({
     channel: sample(Object.values(channels)),
     type: sample(Object.values(activities)),
     active: true,

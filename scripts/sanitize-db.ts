@@ -284,7 +284,7 @@ const removeConnectedAccountsTokens = () => {
 
 // Remove all webhooks to ensure we won't ping user apps
 const deleteWebhooks = () => {
-  return models.Notification.destroy({
+  return models.ActivitySubscription.destroy({
     where: { channel: [channels.WEBHOOK, channels.SLACK] },
   }).catch(e => console.error('There was an error removing the webhooks. Please do it manually', e));
 };

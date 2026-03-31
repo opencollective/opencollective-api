@@ -68,7 +68,7 @@ export const notify = {
     }
 
     if (!options?.skipUnsubscribedCheck) {
-      const unsubscribed = await models.Notification.getUnsubscribers({
+      const unsubscribed = await models.ActivitySubscription.getUnsubscribers({
         type: activity.type,
         UserId: user.id,
         CollectiveId: options?.collective?.id || activity.CollectiveId,
@@ -110,7 +110,7 @@ export const notify = {
       return;
     }
 
-    const unsubscribed = await models.Notification.getUnsubscribers({
+    const unsubscribed = await models.ActivitySubscription.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,

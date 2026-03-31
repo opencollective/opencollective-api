@@ -3,7 +3,7 @@ import config from 'config';
 
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
-import { Activity, Notification } from '../../models';
+import { Activity, ActivitySubscription } from '../../models';
 import logger from '../logger';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';
@@ -24,7 +24,7 @@ const shouldSkipActivity = (activity: Activity) => {
   return false;
 };
 
-const publishToWebhook = async (notification: Notification, activity: Activity): Promise<boolean> => {
+const publishToWebhook = async (notification: ActivitySubscription, activity: Activity): Promise<boolean> => {
   if (slackLib.isSlackWebhookUrl(notification.webhookUrl)) {
     await slackLib.postActivityOnPublicChannel(activity, notification.webhookUrl);
     return true;
@@ -76,7 +76,7 @@ const dispatch = async (
       active: true,
     };
 
-    const notificationChannels = await Notification.findAll({ where });
+    const notificationChannels = await ActivitySubscription.findAll({ where });
     return Promise.all(
       notificationChannels.map(async notifConfig => {
         if (!shouldNotifyChannel(notifConfig.channel)) {

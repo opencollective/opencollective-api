@@ -4,7 +4,7 @@
 --  • collectiveSlugs: The list of collective slugs to ban
 --
 -- Not covered yet:
---   - models with no soft-delete mechanism: AccountingCategories, Activity, ConversationFollowers, Notifications, EmojiReactions, ExpenseAttachedFiles, SocialLinks.
+--   - models with no soft-delete mechanism: AccountingCategories, Activity, ConversationFollowers, ActivitySubscriptions, EmojiReactions, ExpenseAttachedFiles, SocialLinks.
 --   - incognito profiles
 -- 
 -- ---------------------------------------------------------------------------------

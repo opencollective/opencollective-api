@@ -84,7 +84,7 @@ describe('server/routes/email', () => {
         const lists = usersData[index].lists || [];
         return await Promise.all(
           lists.map(list =>
-            models.Notification.create({
+            models.ActivitySubscription.create({
               channel: 'email',
               UserId: user.id,
               CollectiveId: collective.id,
@@ -127,7 +127,7 @@ describe('server/routes/email', () => {
 
       return request(expressApp)
         .get(generateUnsubscribeUrl(users[0].email))
-        .then(() => models.Notification.count({ where }))
+        .then(() => models.ActivitySubscription.count({ where }))
         .then(count => expect(count).to.equal(0));
     });
   });
