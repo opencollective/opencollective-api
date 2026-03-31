@@ -8,7 +8,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const WebhookReferenceFields = {
   id: {
     type: GraphQLString,
-    description: `The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Notification}_xxxxxxxx)`,
+    description: `The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.ActivitySubscription}_xxxxxxxx)`,
   },
   legacyId: {
     type: GraphQLInt,
@@ -29,13 +29,13 @@ export const GraphQLWebhookReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchWebhookWithReference = async input => {
   let notification;
-  if (isEntityPublicId(input.id, EntityShortIdPrefix.Notification)) {
-    notification = await models.Notification.findOne({ where: { publicId: input.id } });
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.ActivitySubscription)) {
+    notification = await models.ActivitySubscription.findOne({ where: { publicId: input.id } });
   } else if (input.id) {
-    const id = idDecode(input.id, IDENTIFIER_TYPES.NOTIFICATION);
-    notification = await models.Notification.findByPk(id);
+    const id = idDecode(input.id, IDENTIFIER_TYPES.ACTIVITY_SUBSCRIPTION);
+    notification = await models.ActivitySubscription.findByPk(id);
   } else if (input.legacyId) {
-    notification = await models.Notification.findByPk(input.legacyId);
+    notification = await models.ActivitySubscription.findByPk(input.legacyId);
   } else {
     throw new Error('Please provide an id');
   }

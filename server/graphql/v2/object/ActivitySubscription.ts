@@ -17,7 +17,7 @@ export const GraphQLActivitySubscription = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this notification setting',
       resolve(notification) {
-        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Notification, notification.createdAt)) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ActivitySubscription, notification.createdAt)) {
           return notification.publicId;
         } else {
           return idEncode(notification.id, IDENTIFIER_TYPES.NOTIFICATION);
@@ -26,7 +26,7 @@ export const GraphQLActivitySubscription = new GraphQLObjectType({
     },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),
-      description: `The resource public id (ie: ${EntityShortIdPrefix.Notification}_xxxxxxxx)`,
+      description: `The resource public id (ie: ${EntityShortIdPrefix.ActivitySubscription}_xxxxxxxx)`,
     },
     channel: {
       type: new GraphQLNonNull(GraphQLActivityChannel),

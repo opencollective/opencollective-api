@@ -238,7 +238,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
 
         unsubscribedUser = await fakeUser();
         await org.addUserWithRole(unsubscribedUser, roles.BACKER, {}, { skipActivity: true });
-        await models.Notification.unsubscribe(
+        await models.ActivitySubscription.unsubscribe(
           ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
           'email',
           unsubscribedUser.id,

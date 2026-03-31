@@ -497,6 +497,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       notifications: {
         type: new GraphQLList(NotificationType),
         description: 'List of all notifications for this collective',
+        deprecationReason: '2026-03-31: Please move to GraphQL v2',
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },
@@ -1292,6 +1293,7 @@ const CollectiveFields = () => {
     },
     notifications: {
       type: new GraphQLList(NotificationType),
+      deprecationReason: '2026-03-31: Please move to GraphQL v2',
       args: {
         limit: { type: GraphQLInt },
         offset: { type: GraphQLInt },
@@ -1318,7 +1320,7 @@ const CollectiveFields = () => {
           where.active = args.active;
         }
 
-        return models.Notification.findAll({
+        return models.ActivitySubscription.findAll({
           where: where,
           limit: args.limit,
           offset: args.offset,

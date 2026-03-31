@@ -8,9 +8,9 @@ import models from '../../../server/models';
 import { fakeCollective, fakeNotification, fakeUser, multiple } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-const { User, Collective, Notification, Tier, Order } = models;
+const { User, Collective, ActivitySubscription, Tier, Order } = models;
 
-describe('server/models/Notification', () => {
+describe('server/models/ActivitySubscription', () => {
   let host, collective, hostAdmin, sandbox, emailSendMessageSpy;
 
   beforeEach(() => utils.resetTestDB());
@@ -38,7 +38,7 @@ describe('server/models/Notification', () => {
   describe('unsubscribe', () => {
     it('should unsubscribe from ActivityType', async () => {
       const user = await fakeUser();
-      const notification = await Notification.unsubscribe(ActivityTypes.COLLECTIVE_APPROVED, 'email', user.id);
+      const notification = await ActivitySubscription.unsubscribe(ActivityTypes.COLLECTIVE_APPROVED, 'email', user.id);
 
       expect(notification).to.have.property('type').equal(ActivityTypes.COLLECTIVE_APPROVED);
       expect(notification).to.have.property('channel').equal('email');
@@ -48,7 +48,12 @@ describe('server/models/Notification', () => {
 
     it('should unsubscribe from ActivityClass', async () => {
       const user = await fakeUser();
-      const notification = await Notification.unsubscribe(ActivityClasses.EXPENSES, 'email', user.id, collective.id);
+      const notification = await ActivitySubscription.unsubscribe(
+        ActivityClasses.EXPENSES,
+        'email',
+        user.id,
+        collective.id,
+      );
 
       expect(notification).to.have.property('type').equal(ActivityClasses.EXPENSES);
       expect(notification).to.have.property('channel').equal('email');
@@ -59,16 +64,16 @@ describe('server/models/Notification', () => {
     it('should delete existing ActivityType when unsubscribe from ActivityClass of such type', async () => {
       const user = await fakeUser();
 
-      await Notification.unsubscribe(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, 'email', user.id, collective.id);
-      let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      await ActivitySubscription.unsubscribe(ActivityTypes.COLLECTIVE_EXPENSE_CREATED, 'email', user.id, collective.id);
+      let userNotifications = await ActivitySubscription.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
       expect(userNotifications[0]).to.have.property('type').equal(ActivityTypes.COLLECTIVE_EXPENSE_CREATED);
       expect(userNotifications[0]).to.have.property('channel').equal('email');
       expect(userNotifications[0]).to.have.property('UserId').equal(user.id);
       expect(userNotifications[0]).to.have.property('CollectiveId').equal(collective.id);
 
-      await Notification.unsubscribe(ActivityClasses.EXPENSES, 'email', user.id, collective.id);
-      userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      await ActivitySubscription.unsubscribe(ActivityClasses.EXPENSES, 'email', user.id, collective.id);
+      userNotifications = await ActivitySubscription.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
       expect(userNotifications[0]).to.have.property('type').equal(ActivityClasses.EXPENSES);
       expect(userNotifications[0]).to.have.property('channel').equal('email');
@@ -87,12 +92,12 @@ describe('server/models/Notification', () => {
         type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
       });
 
-      let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      let userNotifications = await ActivitySubscription.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
 
-      await Notification.subscribe(notification.type, notification.channel, user.id, notification.CollectiveId);
+      await ActivitySubscription.subscribe(notification.type, notification.channel, user.id, notification.CollectiveId);
 
-      userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      userNotifications = await ActivitySubscription.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(0);
     });
 
@@ -105,12 +110,17 @@ describe('server/models/Notification', () => {
         type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
       });
 
-      let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      let userNotifications = await ActivitySubscription.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
 
-      await Notification.subscribe(ActivityClasses.EXPENSES, notification.channel, user.id, notification.CollectiveId);
+      await ActivitySubscription.subscribe(
+        ActivityClasses.EXPENSES,
+        notification.channel,
+        user.id,
+        notification.CollectiveId,
+      );
 
-      userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      userNotifications = await ActivitySubscription.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(0);
     });
   });
@@ -125,11 +135,11 @@ describe('server/models/Notification', () => {
 
     it('getSubscribers to the backers mailinglist', async () => {
       await Promise.all(users.map(user => collective.addUserWithRole(user, 'BACKER')));
-      const subscribers = await Notification.getSubscribersUsers(collective.slug, 'backers');
+      const subscribers = await ActivitySubscription.getSubscribersUsers(collective.slug, 'backers');
       expect(subscribers.length).to.equal(2);
 
-      await Notification.unsubscribe('mailinglist.backers', 'email', subscribers[0].id, collective.id);
-      const subscribers2 = await Notification.getSubscribers(collective.slug, 'backers');
+      await ActivitySubscription.unsubscribe('mailinglist.backers', 'email', subscribers[0].id, collective.id);
+      const subscribers2 = await ActivitySubscription.getSubscribers(collective.slug, 'backers');
       expect(subscribers2.length).to.equal(1);
     });
 
@@ -166,11 +176,11 @@ describe('server/models/Notification', () => {
         ),
       );
 
-      const subscribers = await Notification.getSubscribers(event.slug, event.slug);
+      const subscribers = await ActivitySubscription.getSubscribers(event.slug, event.slug);
       expect(subscribers.length).to.equal(2);
 
-      await Notification.unsubscribe(`mailinglist.${event.slug}`, 'email', users[0].id, event.id);
-      const subscribers2 = await Notification.getSubscribers(event.slug, event.slug);
+      await ActivitySubscription.unsubscribe(`mailinglist.${event.slug}`, 'email', users[0].id, event.id);
+      const subscribers2 = await ActivitySubscription.getSubscribers(event.slug, event.slug);
       expect(subscribers2.length).to.equal(1);
     });
   });
@@ -187,7 +197,7 @@ describe('server/models/Notification', () => {
         active: false,
         type: ActivityTypes.COLLECTIVE_APPLY,
       });
-      const unsubscribers = await models.Notification.getUnsubscribers({ type: notification.type });
+      const unsubscribers = await models.ActivitySubscription.getUnsubscribers({ type: notification.type });
 
       expect(unsubscribers).to.containSubset([{ id: notification.UserId }]);
     });
@@ -199,7 +209,7 @@ describe('server/models/Notification', () => {
         active: false,
         type: ActivityTypes.COLLECTIVE_APPLY,
       });
-      const unsubscribers = await models.Notification.getUnsubscribers({
+      const unsubscribers = await models.ActivitySubscription.getUnsubscribers({
         type: notification.type,
         attributes: ['email'],
       });
@@ -216,7 +226,7 @@ describe('server/models/Notification', () => {
         type: ActivityClasses.CONTRIBUTIONS,
         active: false,
       });
-      const unsubscribers = await models.Notification.getUnsubscribers({
+      const unsubscribers = await models.ActivitySubscription.getUnsubscribers({
         type: ActivitiesPerClass[ActivityClasses.CONTRIBUTIONS][0],
       });
 
@@ -233,7 +243,7 @@ describe('server/models/Notification', () => {
         type: ActivityTypes.COLLECTIVE_APPLY,
       });
 
-      const unsubscribers = await models.Notification.getUnsubscribers({
+      const unsubscribers = await models.ActivitySubscription.getUnsubscribers({
         type: notification.type,
         CollectiveId: collective.id,
       });
@@ -253,7 +263,7 @@ describe('server/models/Notification', () => {
         type: ActivityTypes.COLLECTIVE_APPLY,
       });
 
-      const unsubscribers = await models.Notification.getUnsubscribers({
+      const unsubscribers = await models.ActivitySubscription.getUnsubscribers({
         type: notification.type,
         CollectiveId: collective.id,
       });
@@ -273,7 +283,7 @@ describe('server/models/Notification', () => {
         type: ActivityTypes.COLLECTIVE_COMMENT_CREATED,
       });
 
-      const unsubscribers = await models.Notification.getUnsubscribers({
+      const unsubscribers = await models.ActivitySubscription.getUnsubscribers({
         type: notification.type,
         CollectiveId: collective.id,
       });
@@ -306,7 +316,7 @@ describe('server/models/Notification', () => {
         active: false,
       });
 
-      const unsubscribers = await models.Notification.getUnsubscribers({
+      const unsubscribers = await models.ActivitySubscription.getUnsubscribers({
         type: notification.type,
         CollectiveId: collective.id,
       });
@@ -365,7 +375,7 @@ describe('server/models/Notification', () => {
     });
 
     it("doesn't notify admin of host if unsubscribed", async () => {
-      await models.Notification.create({
+      await models.ActivitySubscription.create({
         CollectiveId: host.id,
         UserId: hostAdmin.id,
         type: 'collective.expense.paid.for.host',
@@ -384,43 +394,43 @@ describe('server/models/Notification', () => {
 
   describe('webhookURL', () => {
     it('must be a valid URL', async () => {
-      await expect(Notification.create({ webhookUrl: 'xxxxxxx' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'xxxxxxx' })).to.be.rejectedWith(
         'Validation error: Webhook URL must be a valid URL',
       );
-      await expect(Notification.create({ webhookUrl: 'http://' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'http://' })).to.be.rejectedWith(
         'Validation error: Webhook URL must be a valid URL',
       );
-      await expect(Notification.create({ webhookUrl: 'https://' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'https://' })).to.be.rejectedWith(
         'Validation error: Webhook URL must be a valid URL',
       );
     });
 
     it('cannot be an internal URL or an IP address', async () => {
-      await expect(Notification.create({ webhookUrl: '0.0.0.0' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: '0.0.0.0' })).to.be.rejectedWith(
         'Validation error: IP addresses cannot be used as webhooks',
       );
-      await expect(Notification.create({ webhookUrl: 'localhost' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'localhost' })).to.be.rejectedWith(
         'Validation error: Webhook URL must be a valid URL',
       );
-      await expect(Notification.create({ webhookUrl: 'http://localhost' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'http://localhost' })).to.be.rejectedWith(
         'Validation error: Webhook URL must be a valid URL',
       );
-      await expect(Notification.create({ webhookUrl: 'https://opencollective.com' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'https://opencollective.com' })).to.be.rejectedWith(
         'Validation error: Open Collective URLs cannot be used as webhooks',
       );
-      await expect(Notification.create({ webhookUrl: 'https://0.0.0.0' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'https://0.0.0.0' })).to.be.rejectedWith(
         'Validation error: IP addresses cannot be used as webhooks',
       );
-      await expect(Notification.create({ webhookUrl: 'https://12.12.12.12' })).to.be.rejectedWith(
+      await expect(ActivitySubscription.create({ webhookUrl: 'https://12.12.12.12' })).to.be.rejectedWith(
         'Validation error: IP addresses cannot be used as webhooks',
       );
     });
 
     it('accepts valid URLs, adds the protocol automatically', async () => {
-      const notif1 = await Notification.create({ webhookUrl: 'https://google.com/stuff' });
+      const notif1 = await ActivitySubscription.create({ webhookUrl: 'https://google.com/stuff' });
       expect(notif1.webhookUrl).to.equal('https://google.com/stuff');
 
-      const notif2 = await Notification.create({ webhookUrl: 'google.com/stuff' });
+      const notif2 = await ActivitySubscription.create({ webhookUrl: 'google.com/stuff' });
       expect(notif2.webhookUrl).to.equal('https://google.com/stuff');
     });
   });

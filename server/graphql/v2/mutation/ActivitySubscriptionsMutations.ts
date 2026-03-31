@@ -27,9 +27,19 @@ const notificationMutations = {
         args.account && (await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }));
 
       if (args.active) {
-        return models.Notification.subscribe(args.type, Channels.EMAIL, req.remoteUser.id, collective?.id || null);
+        return models.ActivitySubscription.subscribe(
+          args.type,
+          Channels.EMAIL,
+          req.remoteUser.id,
+          collective?.id || null,
+        );
       } else {
-        return models.Notification.unsubscribe(args.type, Channels.EMAIL, req.remoteUser.id, collective?.id || null);
+        return models.ActivitySubscription.unsubscribe(
+          args.type,
+          Channels.EMAIL,
+          req.remoteUser.id,
+          collective?.id || null,
+        );
       }
     },
   },

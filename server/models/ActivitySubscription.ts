@@ -16,7 +16,7 @@ import Member from './Member';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
-const debug = debugLib('models:Notification');
+const debug = debugLib('models:ActivitySubscription');
 
 const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
   [channels.EMAIL]: true,
@@ -24,13 +24,13 @@ const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
   [channels.WEBHOOK]: false,
 };
 
-class Notification extends ModelWithPublicId<
-  EntityShortIdPrefix.Notification,
-  InferAttributes<Notification>,
-  InferCreationAttributes<Notification>
+class ActivitySubscription extends ModelWithPublicId<
+  EntityShortIdPrefix.ActivitySubscription,
+  InferAttributes<ActivitySubscription>,
+  InferCreationAttributes<ActivitySubscription>
 > {
-  public static readonly nanoIdPrefix = EntityShortIdPrefix.Notification;
-  public static readonly tableName = 'Notifications' as const;
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.ActivitySubscription;
+  public static readonly tableName = 'ActivitySubscriptions' as const;
 
   declare public readonly id: CreationOptional<number>;
   declare public channel: channels;
@@ -55,10 +55,10 @@ class Notification extends ModelWithPublicId<
   }
 
   static async createMany(
-    notifications: InferCreationAttributes<Notification>[],
-    defaultValues?: InferCreationAttributes<Notification>,
-  ): Promise<Notification[]> {
-    return Promise.all(notifications.map(u => Notification.create(defaults({}, u, defaultValues))));
+    notifications: InferCreationAttributes<ActivitySubscription>[],
+    defaultValues?: InferCreationAttributes<ActivitySubscription>,
+  ): Promise<ActivitySubscription[]> {
+    return Promise.all(notifications.map(u => ActivitySubscription.create(defaults({}, u, defaultValues))));
   }
 
   static async unsubscribe(
@@ -76,14 +76,14 @@ class Notification extends ModelWithPublicId<
     }
 
     return sequelize.transaction(async transaction => {
-      let notification = await Notification.findOne({
+      let notification = await ActivitySubscription.findOne({
         where: { UserId, CollectiveId, type, channel, webhookUrl },
         transaction,
       });
 
       if (DEFAULT_ACTIVE_STATE_BY_CHANNEL[channel] === true) {
         if (!notification) {
-          notification = await Notification.create(
+          notification = await ActivitySubscription.create(
             { UserId, CollectiveId, type, channel, active: false, webhookUrl },
             { transaction },
           );
@@ -91,9 +91,9 @@ class Notification extends ModelWithPublicId<
           await notification.update({ active: false }, { transaction });
         }
 
-        // If user is unsubscribing from ActivityClass, remove existing Notifications for any included ActivityType
+        // If user is unsubscribing from ActivityClass, remove existing subscriptions for any included ActivityType
         if ((isClass || type === ActivityTypes.ACTIVITY_ALL) && UserId) {
-          await Notification.destroy({
+          await ActivitySubscription.destroy({
             where: {
               type: isClass ? { [Op.in]: ActivitiesPerClass[type] } : { [Op.ne]: ActivityTypes.ACTIVITY_ALL },
               UserId,
@@ -104,7 +104,7 @@ class Notification extends ModelWithPublicId<
           });
         }
       } else {
-        await Notification.destroy({
+        await ActivitySubscription.destroy({
           where: { type, channel, UserId, CollectiveId, active: true, webhookUrl },
           transaction,
         });
@@ -128,11 +128,14 @@ class Notification extends ModelWithPublicId<
     const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
     return sequelize.transaction(async transaction => {
       if (DEFAULT_ACTIVE_STATE_BY_CHANNEL[channel] === true) {
-        await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
+        await ActivitySubscription.destroy({
+          where: { type, channel, UserId, CollectiveId, active: false },
+          transaction,
+        });
 
         // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
         if ((isClass || type === ActivityTypes.ACTIVITY_ALL) && UserId) {
-          await Notification.destroy({
+          await ActivitySubscription.destroy({
             where: {
               type: isClass ? { [Op.in]: ActivitiesPerClass[type] } : { [Op.ne]: ActivityTypes.ACTIVITY_ALL },
               channel,
@@ -144,12 +147,15 @@ class Notification extends ModelWithPublicId<
           });
         }
       } else {
-        const notification = await Notification.findOne({
+        const notification = await ActivitySubscription.findOne({
           where: { UserId, CollectiveId, type, channel, webhookUrl },
           transaction,
         });
         if (!notification) {
-          await Notification.create({ UserId, CollectiveId, type, channel, active: true, webhookUrl }, { transaction });
+          await ActivitySubscription.create(
+            { UserId, CollectiveId, type, channel, active: true, webhookUrl },
+            { transaction },
+          );
         } else if (notification.active === false) {
           await notification.update({ active: true }, { transaction });
         }
@@ -160,7 +166,7 @@ class Notification extends ModelWithPublicId<
   /**
    * Get the list of subscribers to a mailing list
    * (e.g. backers@:collectiveSlug.opencollective.com, :eventSlug@:collectiveSlug.opencollective.com)
-   * We exclude users that have unsubscribed (by looking for rows in the Notifications table that are active: false)
+   * We exclude users that have unsubscribed (by looking for rows in ActivitySubscriptions that are active: false)
    */
   static async getSubscribers(collectiveSlug: string | number, mailinglist: string): Promise<Member[]> {
     const findByAttribute = typeof collectiveSlug === 'string' ? 'findBySlug' : 'findById';
@@ -184,10 +190,12 @@ class Notification extends ModelWithPublicId<
         return [];
       }
 
-      return Notification.getUnsubscribersUserIds(`mailinglist.${mailinglist}`, collective.id).then(excludeIds => {
-        debug('excluding', excludeIds.length, 'members');
-        return members.filter(m => excludeIds.indexOf(m.CreatedByUserId) === -1);
-      });
+      return ActivitySubscription.getUnsubscribersUserIds(`mailinglist.${mailinglist}`, collective.id).then(
+        excludeIds => {
+          debug('excluding', excludeIds.length, 'members');
+          return members.filter(m => excludeIds.indexOf(m.CreatedByUserId) === -1);
+        },
+      );
     };
 
     const getMembersForMailingList = () => {
@@ -206,7 +214,7 @@ class Notification extends ModelWithPublicId<
 
   static async getSubscribersUsers(collectiveSlug: string, mailinglist: string) {
     debug('getSubscribersUsers', collectiveSlug, mailinglist);
-    const memberships = await Notification.getSubscribers(collectiveSlug, mailinglist);
+    const memberships = await ActivitySubscription.getSubscribers(collectiveSlug, mailinglist);
     if (!memberships || memberships.length === 0) {
       return [];
     }
@@ -219,7 +227,7 @@ class Notification extends ModelWithPublicId<
 
   static async getSubscribersCollectives(collectiveSlug: string, mailinglist: string) {
     debug('getSubscribersCollectives', collectiveSlug, mailinglist);
-    const memberships = await Notification.getSubscribers(collectiveSlug, mailinglist);
+    const memberships = await ActivitySubscription.getSubscribers(collectiveSlug, mailinglist);
     if (!memberships || memberships.length === 0) {
       return [];
     }
@@ -236,7 +244,7 @@ class Notification extends ModelWithPublicId<
    */
   static async getUnsubscribersUserIds(notificationType: string, CollectiveId?: number) {
     debug('getUnsubscribersUserIds', notificationType, CollectiveId);
-    const notifications = await Notification.findAll({
+    const notifications = await ActivitySubscription.findAll({
       attributes: ['UserId'],
       where: {
         CollectiveId,
@@ -273,7 +281,7 @@ class Notification extends ModelWithPublicId<
 
     const collective = _where.CollectiveId && (await Collective.findByPk(_where.CollectiveId));
     if (collective) {
-      // When looking for Notifications about specific Collective, we're also including the Collective parent and
+      // When looking for ActivitySubscriptions about specific Collective, we're also including the Collective parent and
       // it's host because:
       //   1. A user who unsubscribes from a Collective activity should not receive activities from its events or
       //      projects either;
@@ -281,8 +289,8 @@ class Notification extends ModelWithPublicId<
       //      by unsubscribing straight to the Host;
       where['CollectiveId'] = compact([collective.id, collective.ParentCollectiveId, collective.HostCollectiveId]);
 
-      // If a User provided, we also want to include "global Notifications settings" in the search. A user can
-      // set their global setting by creating a Notification that has no specific Collective attached.
+      // If a User provided, we also want to include global activity subscription settings in the search. A user can
+      // set their global setting by creating a ActivitySubscription that has no specific Collective attached.
       if (where['UserId']) {
         where['CollectiveId'].push(null);
       }
@@ -292,7 +300,7 @@ class Notification extends ModelWithPublicId<
     }
 
     debug('getUnsubscribers', where);
-    const unsubs = await Notification.findAll({
+    const unsubs = await ActivitySubscription.findAll({
       where,
       include,
     }).then(getUsers);
@@ -301,7 +309,7 @@ class Notification extends ModelWithPublicId<
     // unsubscribed to this activity through a global setting or a host wide rule but explicitly created
     // a notification rule for this collective or parent collective.
     const subs = collective
-      ? await Notification.findAll({
+      ? await ActivitySubscription.findAll({
           where: { ...where, active: true, CollectiveId: [collective.id, collective.ParentCollectiveId] },
           include,
         }).then(getUsers)
@@ -324,7 +332,7 @@ class Notification extends ModelWithPublicId<
       where['CollectiveId'] = collective.id;
     }
 
-    return Notification.findOne({ where }).then(notification => {
+    return ActivitySubscription.findOne({ where }).then(notification => {
       if (notification) {
         return notification.active;
       } else {
@@ -337,11 +345,11 @@ class Notification extends ModelWithPublicId<
    * Counts registered webhooks for a user, for a collective.
    */
   static countRegisteredWebhooks(CollectiveId: number) {
-    return Notification.count({ where: { CollectiveId, channel: channels.WEBHOOK } });
+    return ActivitySubscription.count({ where: { CollectiveId, channel: channels.WEBHOOK } });
   }
 }
 
-Notification.init(
+ActivitySubscription.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -452,4 +460,4 @@ Notification.init(
   },
 );
 
-export default Notification;
+export default ActivitySubscription;

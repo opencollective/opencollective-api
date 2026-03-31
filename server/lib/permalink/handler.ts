@@ -50,7 +50,7 @@ const handlerMap: Record<EntityShortIdPrefix, Handler> = {
   [EntityShortIdPrefix.ManualPaymentProvider]: handleNotFound,
   [EntityShortIdPrefix.Member]: handleMember,
   [EntityShortIdPrefix.MemberInvitation]: handleMemberInvitation,
-  [EntityShortIdPrefix.Notification]: handleNotFound,
+  [EntityShortIdPrefix.ActivitySubscription]: handleNotFound,
   [EntityShortIdPrefix.OAuthAuthorizationCode]: handleNotFound,
   [EntityShortIdPrefix.Order]: handleOrder,
   [EntityShortIdPrefix.PayoutMethod]: handlePayoutMethod,

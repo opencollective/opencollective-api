@@ -3,6 +3,7 @@ import moment from 'moment';
 export enum EntityShortIdPrefix {
   AccountingCategory = 'acat',
   Activity = 'act',
+  ActivitySubscription = 'asub',
   Agreement = 'agr',
   Application = 'app',
   Comment = 'cmt',
@@ -19,7 +20,6 @@ export enum EntityShortIdPrefix {
   ManualPaymentProvider = 'mpp',
   Member = 'mem',
   MemberInvitation = 'mi',
-  Notification = 'not',
   OAuthAuthorizationCode = 'oac',
   Order = 'or',
   PayoutMethod = 'po',

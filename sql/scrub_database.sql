@@ -36,8 +36,8 @@ DELETE FROM "ConnectedAccounts" WHERE "UserId" IS NULL;
 UPDATE "ConnectedAccounts" SET "clientId"='*****',"secret"='*****';
 
 /* We delete all notifications that don't have a CollectiveId anymore */
-DELETE FROM "Notifications" WHERE "CollectiveId" IS NULL;
-UPDATE "Notifications" SET "webhookUrl"='http://****';
+DELETE FROM "ActivitySubscriptions" WHERE "CollectiveId" IS NULL;
+UPDATE "ActivitySubscriptions" SET "webhookUrl"='http://****';
 
 /* We delete all transactions that don't have a CollectiveId anymore */
 DELETE FROM "Transactions" WHERE "CollectiveId" IS NULL;
