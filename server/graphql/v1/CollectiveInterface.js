@@ -28,6 +28,7 @@ import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import Tier, { AllTierTypes } from '../../models/Tier';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
@@ -511,6 +512,12 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           id: { type: GraphQLInt },
           slug: { type: GraphQLString },
           slugs: { type: new GraphQLList(GraphQLString) },
+          onlyValid: {
+            type: GraphQLBoolean,
+            defaultValue: true,
+            description:
+              'When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.',
+          },
         },
       },
       orders: {
@@ -1333,8 +1340,14 @@ const CollectiveFields = () => {
         id: { type: GraphQLInt },
         slug: { type: GraphQLString },
         slugs: { type: new GraphQLList(GraphQLString) },
+        onlyValid: {
+          type: GraphQLBoolean,
+          defaultValue: true,
+          description:
+            'When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.',
+        },
       },
-      resolve(collective, args) {
+      async resolve(collective, args, req) {
         const where = {};
 
         if (args.id) {
@@ -1343,6 +1356,15 @@ const CollectiveFields = () => {
           where.slug = args.slug;
         } else if (args.slugs && args.slugs.length > 0) {
           where.slug = { [Op.in]: args.slugs };
+        }
+
+        // Filter out forbidden tier types
+        if (args.onlyValid !== false) {
+          const host = await req.loaders.Collective.host.load(collective);
+          const allowedTierTypes = Tier.getAllowedTierTypes(collective, host);
+          if (allowedTierTypes.length !== AllTierTypes.length) {
+            where.type = allowedTierTypes;
+          }
         }
 
         return collective.getTiers({

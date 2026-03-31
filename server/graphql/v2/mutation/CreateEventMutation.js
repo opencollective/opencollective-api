@@ -41,6 +41,9 @@ async function createEvent(_, args, req) {
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
+    data: {
+      ...pick(parent.data, 'allowedTierTypes'),
+    },
   };
 
   if (!canUseSlug(eventData.slug, req.remoteUser)) {
@@ -52,9 +55,7 @@ async function createEvent(_, args, req) {
   }
 
   if (args.event.privateInstructions) {
-    eventData.data = {
-      privateInstructions: args.event.privateInstructions,
-    };
+    eventData.data.privateInstructions = args.event.privateInstructions;
   }
 
   // Validate now to avoid uploading images if the collective is invalid

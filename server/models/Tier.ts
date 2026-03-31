@@ -1,6 +1,6 @@
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, isNil, min, uniq } from 'lodash';
+import { defaults, get, isNil, min, uniq } from 'lodash';
 import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
@@ -30,7 +30,8 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
   videoIframes: true,
 });
 
-export type TierType = 'TIER' | 'MEMBERSHIP' | 'DONATION' | 'TICKET' | 'PRODUCT' | 'SERVICE';
+export const AllTierTypes = ['TIER', 'MEMBERSHIP', 'DONATION', 'TICKET', 'PRODUCT', 'SERVICE'] as const;
+export type TierType = (typeof AllTierTypes)[number];
 
 class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<Tier>, InferCreationAttributes<Tier>> {
   public static readonly nanoIdPrefix = EntityShortIdPrefix.Tier;
@@ -181,6 +182,21 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
     });
   };
 
+  static getAllowedTierTypes = (account: Collective, host: Collective): readonly TierType[] => {
+    const disabledTypes = host?.settings?.disabledTierTypes;
+    if (!Array.isArray(disabledTypes) || !disabledTypes?.length) {
+      return AllTierTypes;
+    }
+
+    const overrideAllowedTierTypesSettings = get(account, 'data.allowedTierTypes');
+    let overrideAllowedTierTypes: string[] = [];
+    if (overrideAllowedTierTypesSettings && Array.isArray(overrideAllowedTierTypesSettings)) {
+      overrideAllowedTierTypes = overrideAllowedTierTypesSettings;
+    }
+
+    return AllTierTypes.filter(type => !disabledTypes.includes(type) || overrideAllowedTierTypes.includes(type));
+  };
+
   /**
    * Getters
    */
@@ -291,7 +307,12 @@ Tier.init(
       type: DataTypes.STRING, // TIER, TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP
       defaultValue: 'TIER',
       allowNull: false,
-      // TODO validate value
+      validate: {
+        isIn: {
+          args: [AllTierTypes],
+          msg: 'Invalid tier type',
+        },
+      },
     },
 
     description: {
