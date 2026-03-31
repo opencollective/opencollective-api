@@ -98,7 +98,7 @@
     "ics": "3.9.1",
     "jsonwebtoken": "9.0.3",
     "juice": "11.1.1",
-    "kysely": "0.28.14",
+    "kysely": "0.28.15",
     "kysely-sequelize": "^0.2.0",
     "lib-address": "0.7.0",
     "limax": "4.2.3",
