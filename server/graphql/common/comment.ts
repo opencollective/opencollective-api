@@ -169,8 +169,10 @@ async function assertExpenseIsNotFulfilled(comment: Comment, remoteUser?: User):
   if (comment.ExpenseId) {
     const expense = await Expense.findByPk(comment.ExpenseId);
     if (expense && EXPENSE_LOCKED_STATUSES.includes(expense.status as ExpenseStatuses)) {
-      const collective = await models.Collective.findByPk(expense.CollectiveId);
-      if (collective?.HostCollectiveId && remoteUser?.isAdmin(collective.HostCollectiveId)) {
+      const hostCollectiveId =
+        expense.HostCollectiveId ||
+        (await models.Collective.findByPk(expense.CollectiveId).then(c => c?.HostCollectiveId));
+      if (hostCollectiveId && remoteUser?.isAdmin(hostCollectiveId)) {
         return;
       }
       throw new ValidationFailed(
