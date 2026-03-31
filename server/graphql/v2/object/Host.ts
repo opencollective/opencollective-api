@@ -860,6 +860,7 @@ export const GraphQLHost = new GraphQLObjectType({
             textFields: ['name', 'description', 'longDescription'],
             stringArrayFields: ['tags'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
           });
 
           const { rows, count } = await models.HostApplication.findAndCountAll({
@@ -916,6 +917,7 @@ export const GraphQLHost = new GraphQLObjectType({
             textFields: ['name', 'description', 'longDescription'],
             stringArrayFields: ['tags'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
           });
 
           if (searchTermConditions.length) {
@@ -1636,9 +1638,10 @@ export const GraphQLHost = new GraphQLObjectType({
           query = query.$if(
             args.searchTerm,
             buildKyselySearchConditions(args.searchTerm, {
-              idFields: ['Collectives.id'],
+              idFields: ['id'],
               slugFields: ['slug'],
               textFields: ['name', 'description', 'longDescription'],
+              publicIdFields: [{ field: ['publicId'], prefix: EntityShortIdPrefix.Collective }],
             }),
           );
 
@@ -1971,6 +1974,7 @@ export const GraphQLHost = new GraphQLObjectType({
             stringArrayFields: ['tags'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
             castStringArraysToVarchar: true,
+            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
           });
 
           if (searchTermConditions.length) {
@@ -2128,6 +2132,10 @@ export const GraphQLHost = new GraphQLObjectType({
             idFields: ['id', 'CollectiveId'],
             slugFields: ['$collective.slug$'],
             textFields: ['$collective.name$'],
+            publicIdFields: [
+              { field: 'publicId', prefix: EntityShortIdPrefix.LegalDocument },
+              { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+            ],
           });
 
           if (searchTermConditions.length) {
@@ -2325,6 +2333,7 @@ export const GraphQLHost = new GraphQLObjectType({
             where.push({
               [Op.or]: buildSearchConditions(args.searchTerm, {
                 textFields: ['description', 'sourceId'],
+                publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.TransactionsImportRow }],
               }),
             });
           }

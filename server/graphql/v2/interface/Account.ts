@@ -628,6 +628,10 @@ const accountFieldsDefinition = () => ({
         idFields: ['id'],
         slugFields: ['$fromCollective.slug$'],
         textFields: ['$fromCollective.name$', 'title', 'html'],
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Update },
+          { field: '$fromCollective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
       });
 
       if (searchTermConditions.length) {

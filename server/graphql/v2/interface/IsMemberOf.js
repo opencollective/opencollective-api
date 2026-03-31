@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -150,6 +151,10 @@ export const IsMemberOfFields = {
         stringArrayFields: ['$collective.tags$'],
         stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
         castStringArraysToVarchar: true,
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Member },
+          { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
       });
 
       if (searchTermConditions.length) {
