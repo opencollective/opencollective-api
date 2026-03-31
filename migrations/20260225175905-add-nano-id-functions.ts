@@ -36,7 +36,7 @@ const ModelsWithPublicIds = {
   ManualPaymentProviders: EntityShortIdPrefix.ManualPaymentProvider,
   Members: EntityShortIdPrefix.Member,
   MemberInvitations: EntityShortIdPrefix.MemberInvitation,
-  Notifications: EntityShortIdPrefix.Notification,
+  Notifications: EntityShortIdPrefix.ActivitySubscription,
   OAuthAuthorizationCodes: EntityShortIdPrefix.OAuthAuthorizationCode,
   Orders: EntityShortIdPrefix.Order,
   PayoutMethods: EntityShortIdPrefix.PayoutMethod,

@@ -29,6 +29,7 @@ import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
+  ActivitySubscription,
   Agreement,
   Collective,
   ConnectedAccount,
@@ -36,7 +37,6 @@ import models, {
   ExpenseAttachedFile,
   ExpenseItem,
   Location,
-  Notification,
   PaypalProduct,
   PersonalToken,
   PlatformSubscription,
@@ -879,8 +879,8 @@ export const fakeSubscription = (params = {}) => {
   });
 };
 
-export const fakeNotification = async (data: Partial<InferCreationAttributes<Notification>> = {}) => {
-  return models.Notification.create({
+export const fakeNotification = async (data: Partial<InferCreationAttributes<ActivitySubscription>> = {}) => {
+  return models.ActivitySubscription.create({
     channel: sample(Object.values(channels)),
     type: sample(Object.values(activities)),
     active: true,

@@ -113,6 +113,11 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   Activity: async (activity, req) => ({
     data: await sanitizeActivityData(req, activity),
   }),
+  ActivitySubscription: async notification => {
+    if (notification.channel !== Channels.EMAIL) {
+      return null;
+    }
+  },
   Agreement: (agreement, req) => {
     if (!Agreement.canSeeAgreementsForHostCollectiveId(req.remoteUser, agreement.HostCollectiveId)) {
       return null;
@@ -197,11 +202,6 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
       if (!canSeePrivateLocation) {
         return null;
       }
-    }
-  },
-  Notification: async notification => {
-    if (notification.channel !== Channels.EMAIL) {
-      return null;
     }
   },
   Order: async (order, req) => {

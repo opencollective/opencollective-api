@@ -86,6 +86,7 @@ const getNextPK = async model => {
 const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   AccountingCategory: {},
   Activity: {},
+  ActivitySubscription: {},
   Agreement: {},
   Application: {},
   Collective: { unique: ['slug'] },
@@ -106,7 +107,6 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   Member: {},
   MemberInvitation: {},
   MigrationLog: {},
-  Notification: {},
   OAuthAuthorizationCode: {},
   Order: { unique: ['totalAmount', 'currency', 'createdAt', 'quantity', 'status', 'interval', 'description'] },
   PaymentMethod: { unique: ['uuid'] },

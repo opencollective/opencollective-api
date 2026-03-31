@@ -49,7 +49,7 @@ export const WebhookCollectionResolver = async (args, req: express.Request) => {
 
   const { offset, limit } = args;
 
-  const result = await models.Notification.findAndCountAll({
+  const result = await models.ActivitySubscription.findAndCountAll({
     where,
     limit,
     offset,
