@@ -1124,7 +1124,7 @@ class Collective extends ModelWithPublicId<
 
       await ConnectedAccount.destroy({
         where: {
-          service: 'stripe',
+          service: [Service.STRIPE, Service.TRANSFERWISE],
           CollectiveId: this.id,
         },
         transaction,
@@ -2726,7 +2726,7 @@ class Collective extends ModelWithPublicId<
     if (this.id === this.HostCollectiveId) {
       await ConnectedAccount.destroy({
         where: {
-          service: 'stripe',
+          service: [Service.STRIPE, Service.TRANSFERWISE],
           CollectiveId: this.id,
         },
       });
