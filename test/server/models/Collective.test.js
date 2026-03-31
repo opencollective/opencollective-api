@@ -573,6 +573,78 @@ describe('server/models/Collective', () => {
       expect(pendingCollective.HostCollectiveId).to.be.null;
     });
 
+    it('deletes Stripe and Transferwise connected accounts when deactivateMoneyManagement is called', async () => {
+      const host = await fakeHost({
+        name: 'Host with connected accounts',
+        slug: randStr('host-ca-'),
+        currency: 'USD',
+        CreatedByUserId: user1.id,
+        hasHosting: false,
+        hasMoneyManagement: true,
+      });
+
+      const stripeAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'stripe' });
+      const transferwiseAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'transferwise' });
+      const otherAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'github' });
+
+      await host.deactivateMoneyManagement();
+
+      const remainingAccounts = await models.ConnectedAccount.findAll({
+        where: { CollectiveId: host.id },
+      });
+
+      const remainingServices = remainingAccounts.map(a => a.service);
+      expect(remainingServices).to.not.include('stripe');
+      expect(remainingServices).to.not.include('transferwise');
+      expect(remainingServices).to.include('github');
+
+      // Verify the specific records were destroyed
+      const deletedStripe = await models.ConnectedAccount.findByPk(stripeAccount.id);
+      const deletedTransferwise = await models.ConnectedAccount.findByPk(transferwiseAccount.id);
+      const keptOther = await models.ConnectedAccount.findByPk(otherAccount.id);
+      expect(deletedStripe).to.be.null;
+      expect(deletedTransferwise).to.be.null;
+      expect(keptOther).to.not.be.null;
+    });
+
+    it('deletes Stripe and Transferwise connected accounts when a self-hosted collective changes host', async () => {
+      const selfHostedCollective = await fakeActiveHost({
+        name: 'Self Hosted',
+        slug: randStr('self-hosted-'),
+        currency: 'USD',
+        CreatedByUserId: user1.id,
+      });
+      // Ensure it is truly self-hosted
+      expect(selfHostedCollective.id).to.equal(selfHostedCollective.HostCollectiveId);
+
+      const stripeAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'stripe' });
+      const transferwiseAccount = await fakeConnectedAccount({
+        CollectiveId: selfHostedCollective.id,
+        service: 'transferwise',
+      });
+      const githubAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'github' });
+
+      // Remove host (changeHost with null)
+      await selfHostedCollective.changeHost(null, user1);
+
+      const remainingAccounts = await models.ConnectedAccount.findAll({
+        where: { CollectiveId: selfHostedCollective.id },
+      });
+
+      const remainingServices = remainingAccounts.map(a => a.service);
+      expect(remainingServices).to.not.include('stripe');
+      expect(remainingServices).to.not.include('transferwise');
+      expect(remainingServices).to.include('github');
+
+      // Verify the specific records were destroyed
+      const deletedStripe = await models.ConnectedAccount.findByPk(stripeAccount.id);
+      const deletedTransferwise = await models.ConnectedAccount.findByPk(transferwiseAccount.id);
+      const keptGithub = await models.ConnectedAccount.findByPk(githubAccount.id);
+      expect(deletedStripe).to.be.null;
+      expect(deletedTransferwise).to.be.null;
+      expect(keptGithub).to.not.be.null;
+    });
+
     it('changes host successfully and sends email notification to host', async () => {
       const assertCollectiveCurrency = async (collective, currency) => {
         const tiers = await models.Tier.findAll({
