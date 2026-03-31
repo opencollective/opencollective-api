@@ -798,7 +798,6 @@ export const ExpensesCollectionQueryResolver = async (
         attributes: [],
         required: false,
         where: {
-          status: [KYCVerificationStatus.PENDING, KYCVerificationStatus.VERIFIED],
           RequestedByCollectiveId: host.id,
         },
       },

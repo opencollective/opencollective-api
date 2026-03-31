@@ -98,7 +98,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCSubmit, M
         data: {
           ...verification.data,
           legalName: manualParams.legalName,
-          ...(verification.data.legalAddress ? { legalAddress: verification.data.legalAddress } : {}),
+          ...(manualParams.legalAddress ? { legalAddress: manualParams.legalAddress } : {}),
         },
       });
     } else {
