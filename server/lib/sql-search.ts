@@ -610,7 +610,12 @@ export const buildSearchConditions = (
     return idFields.map(field => ({ [field]: parsedTerm.term }));
   } else if (parsedTerm.type === 'email' && emailFields?.length) {
     return emailFields.map(field => ({ [field]: parsedTerm.term }));
-  } else if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
+  }
+
+  // Inclusive conditions, search all fields except
+  const conditions = [];
+
+  if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
     const fields = publicIdFields
       .filter(field => field.prefix === parsedTerm.prefix)
       .reduce((acc, field) => {
@@ -620,12 +625,8 @@ export const buildSearchConditions = (
         return [...acc, field.field];
       }, []);
 
-    return fields.map(field => ({ [field]: parsedTerm.term }));
+    conditions.push(...fields.map(field => ({ [field]: parsedTerm.term })));
   }
-
-  // Inclusive conditions, search all fields except
-  const conditions = [];
-
   // Conditions for text fields
   const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
   const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
@@ -646,7 +647,9 @@ export const buildSearchConditions = (
 
   if (
     dataFields?.length &&
-    ((parsedTerm.type === 'text' && parsedTerm.words === 1) || (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+    ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
+      (parsedTerm.type === 'number' && !parsedTerm.isFloat) ||
+      parsedTerm.type === 'publicId')
   ) {
     conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
   }

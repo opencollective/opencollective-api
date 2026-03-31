@@ -423,13 +423,30 @@ describe('server/lib/search', () => {
 
     it('returns no conditions for public ids when publicIdFields exist but none match the prefix', () => {
       const publicId = 'tx_abc123';
+      const term = `%${sanitizeSearchTermForILike(publicId)}%`;
       expect(
         buildSearchConditions(publicId, {
           slugFields: ['slug'],
-          textFields: ['name'],
+          textFields: ['name', 'description'],
           publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
         }),
-      ).to.deep.eq([]);
+      ).to.deep.eq([
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          description: {
+            [Op.iLike]: term,
+          },
+        },
+      ]);
     });
 
     it('treats public ids like text when publicIdFields is not configured', () => {
