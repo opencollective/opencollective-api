@@ -799,6 +799,7 @@ export const ExpensesCollectionQueryResolver = async (
         required: false,
         where: {
           RequestedByCollectiveId: host.id,
+          status: { [Op.not]: KYCVerificationStatus.REVOKED },
         },
       },
     ];
@@ -807,6 +808,28 @@ export const ExpensesCollectionQueryResolver = async (
       { '$fromCollective.kycVerifications.id$': { [Op.eq]: null } },
       { '$fromCollective.kycVerifications.status$': { [Op.eq]: KYCVerificationStatus.VERIFIED } },
     ];
+    where[Op.and].push({ [Op.or]: ors });
+  } else if (isHostAdmin && args.status?.includes('ON_HOLD')) {
+    // should ALSO return expenses that are not strictly on hold, but have a kyc verification that is pending
+    delete where['onHold'];
+    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
+    if (!fromCollectiveJoin) {
+      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
+      include.push(fromCollectiveJoin);
+    }
+    fromCollectiveJoin.include = [
+      ...(fromCollectiveJoin.include || []),
+      {
+        association: 'kycVerifications',
+        attributes: [],
+        required: false,
+        where: {
+          RequestedByCollectiveId: host.id,
+          status: KYCVerificationStatus.PENDING,
+        },
+      },
+    ];
+    const ors = [{ onHold: true }, { '$fromCollective.kycVerifications.status$': KYCVerificationStatus.PENDING }];
     where[Op.and].push({ [Op.or]: ors });
   }
 

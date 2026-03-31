@@ -697,6 +697,74 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(pendingIds).to.not.include(expenseWithNoKyc.id);
       expect(pendingIds).to.not.include(expenseWithVerifiedKyc.id);
     });
+
+    it('returns expenses with pending kyc when filtering by ON_HOLD for host admins', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const pendingKycPayee = await fakeUser();
+      const onHoldPayee = await fakeUser();
+      const verifiedKycPayee = await fakeUser();
+
+      const expenseWithPendingKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: pendingKycPayee.CollectiveId,
+        status: 'APPROVED',
+        onHold: false,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseOnHold = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: onHoldPayee.CollectiveId,
+        status: 'APPROVED',
+        onHold: true,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseWithVerifiedKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: verifiedKycPayee.CollectiveId,
+        status: 'APPROVED',
+        onHold: false,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'ON_HOLD' },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.include(expenseWithPendingKyc.id);
+      expect(ids).to.include(expenseOnHold.id);
+      expect(ids).to.not.include(expenseWithVerifiedKyc.id);
+    });
   });
 
   describe('Activity filter', () => {
