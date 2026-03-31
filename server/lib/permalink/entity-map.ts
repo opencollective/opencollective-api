@@ -48,6 +48,16 @@ export function isEntityPublicId<E extends EntityShortIdPrefix>(
   return publicId && typeof publicId === 'string' && publicId.startsWith(`${EntityShortIdPrefix}_`);
 }
 
+export function isAnyEntityPublicId(
+  publicId: unknown | null | undefined,
+): publicId is EntityPublicId<EntityShortIdPrefix> {
+  return (
+    publicId &&
+    typeof publicId === 'string' &&
+    Object.values(EntityShortIdPrefix).some(prefix => publicId.startsWith(`${prefix}_`))
+  );
+}
+
 export function isEntityMigratedToPublicId(entity: EntityShortIdPrefix, createdAt: Date) {
   if (process.env.NODE_ENV === 'test' || process.env.CI === 'true') {
     return false;

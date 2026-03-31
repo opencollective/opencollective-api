@@ -15,6 +15,7 @@ import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -470,6 +471,16 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   const isHostAdmin = account?.hasMoneyManagement && req.remoteUser?.isAdminOfCollective(account);
   const searchTermLooksLikeAnEmail = !!args.searchTerm && args.searchTerm.includes('@');
 
+  let collectiveBySearchTerm: Collective | null = null;
+  if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Collective)) {
+    const collective = await models.Collective.findOne({
+      where: { publicId: args.searchTerm },
+    });
+    if (collective) {
+      collectiveBySearchTerm = collective;
+    }
+  }
+
   const kysely = getKysely();
   const query = kysely
     .with('filterByAccounts', db => {
@@ -513,6 +524,15 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             return qb.where(({ or, eb }) => {
               if (isFinite(Number(args.searchTerm)) && isInteger(Number(args.searchTerm))) {
                 ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
+              }
+
+              if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Order)) {
+                ors.push(eb('Orders.publicId', '=', args.searchTerm));
+              }
+
+              if (collectiveBySearchTerm) {
+                ors.push(eb('Orders.CollectiveId', '=', collectiveBySearchTerm.id));
+                ors.push(eb('Orders.FromCollectiveId', '=', collectiveBySearchTerm.id));
               }
 
               ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
@@ -897,6 +917,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       const searchConditions = buildSearchConditions(searchTerm, {
         slugFields: ['slug'],
         textFields: ['name'],
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
       });
 
       const ordersInclude: Includeable[] = [];

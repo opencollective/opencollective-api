@@ -52,6 +52,12 @@ const buildSearchConditions = (
       whereClause: `AND (cas."CollectiveId" = :searchTerm OR cas."FromCollectiveId" = :searchTerm)`,
       replacements: { searchTerm: parsed.term },
     };
+  } else if (parsed.type === 'publicId') {
+    return {
+      joinClause: '',
+      whereClause: `AND (fc."publicId" = :searchTerm)`,
+      replacements: { searchTerm: parsed.term },
+    };
   } else {
     const sanitizedTerm = sanitizeSearchTermForILike(parsed.term);
     return {
