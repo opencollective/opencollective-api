@@ -82,7 +82,7 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
     const byRequestedByCollectiveId = {
       verifiedStatusByProvider: {},
       latestKycRequestsByProvider: {},
-      latestKycVerification: {},
+      latestKycRequests: {},
     };
     function verifiedStatusByProvider(
       RequestedByCollectiveId: number,
@@ -182,21 +182,19 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
       return byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId];
     }
 
-    function latestKycVerification(RequestedByCollectiveId: number): DataLoader<number, KYCVerification | null> {
-      if (byRequestedByCollectiveId.latestKycVerification?.[RequestedByCollectiveId]) {
-        return byRequestedByCollectiveId.latestKycVerification[RequestedByCollectiveId];
+    function latestKycRequests(RequestedByCollectiveId: number): DataLoader<number, KYCVerification | null> {
+      if (byRequestedByCollectiveId.latestKycRequests?.[RequestedByCollectiveId]) {
+        return byRequestedByCollectiveId.latestKycRequests[RequestedByCollectiveId];
       }
 
-      if (!byRequestedByCollectiveId.latestKycVerification) {
-        byRequestedByCollectiveId.latestKycVerification = {};
+      if (!byRequestedByCollectiveId.latestKycRequests) {
+        byRequestedByCollectiveId.latestKycRequests = {};
       }
 
-      byRequestedByCollectiveId.latestKycVerification[RequestedByCollectiveId] = new DataLoader<
-        number,
-        KYCVerification
-      >(async keys => {
-        const res: KYCVerification[] = await sequelize.query(
-          `
+      byRequestedByCollectiveId.latestKycRequests[RequestedByCollectiveId] = new DataLoader<number, KYCVerification>(
+        async keys => {
+          const res: KYCVerification[] = await sequelize.query(
+            `
           WITH latest_verification AS (
             SELECT 
               "kyc".*,
@@ -208,27 +206,28 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
           ) SELECT * from latest_verification WHERE "_rank" = 1;
           
         `,
-          {
-            type: QueryTypes.SELECT,
-            model: KYCVerification,
-            mapToModel: true,
-            replacements: {
-              RequestedByCollectiveId,
-              CollectiveId: keys,
+            {
+              type: QueryTypes.SELECT,
+              model: KYCVerification,
+              mapToModel: true,
+              replacements: {
+                RequestedByCollectiveId,
+                CollectiveId: keys,
+              },
             },
-          },
-        );
+          );
 
-        return sortResultsSimple(keys, res, i => i.CollectiveId);
-      });
+          return sortResultsSimple(keys, res, i => i.CollectiveId);
+        },
+      );
 
-      return byRequestedByCollectiveId.latestKycVerification[RequestedByCollectiveId];
+      return byRequestedByCollectiveId.latestKycRequests[RequestedByCollectiveId];
     }
 
     return {
       verifiedStatusByProvider,
       latestKycRequestsByProvider,
-      latestKycVerification,
+      latestKycRequests,
     };
   }
 }

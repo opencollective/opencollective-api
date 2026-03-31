@@ -93,7 +93,7 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCSubmit, M
         verifiedAt: new Date(),
         providerData: {
           ...verification.providerData,
-          notes: (verification.providerData.notes || manualParams.notes) ?? '',
+          notes: (manualParams.notes || verification.providerData.notes) ?? '',
         },
         data: {
           ...verification.data,

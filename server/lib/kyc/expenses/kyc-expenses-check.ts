@@ -24,9 +24,11 @@ export async function expenseKycStatus(
     return null;
   }
 
-  const payee = await (loaders
-    ? loaders.Collective.byId.load(expense.FromCollectiveId)
-    : Collective.findByPk(expense.FromCollectiveId));
+  const payee = expense.fromCollective?.type
+    ? expense.fromCollective
+    : await (loaders
+        ? loaders.Collective.byId.load(expense.FromCollectiveId)
+        : Collective.findByPk(expense.FromCollectiveId));
 
   if (payee.type !== CollectiveType.USER) {
     return null;
