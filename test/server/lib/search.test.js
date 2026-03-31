@@ -397,11 +397,39 @@ describe('server/lib/search', () => {
 
     it('build conditions for public ids when publicIdFields match the prefix', () => {
       const publicId = 'acc_searchPubId';
+      const term = `%${sanitizeSearchTermForILike(publicId)}%`;
       const base = {
         ...TEST_FIELDS_CONFIGURATION,
         publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
       };
-      expect(buildSearchConditions(publicId, base)).to.deep.eq([{ publicId }]);
+      expect(buildSearchConditions(publicId, base)).to.deep.eq([
+        { publicId },
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.slug$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.name$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          tags: {
+            [Op.overlap]: [publicId],
+          },
+        },
+      ]);
 
       expect(
         buildSearchConditions(publicId, {
@@ -411,14 +439,70 @@ describe('server/lib/search', () => {
             { field: 'mirrorPublicId', prefix: EntityShortIdPrefix.Collective },
           ],
         }),
-      ).to.deep.eq([{ publicId }, { mirrorPublicId: publicId }]);
+      ).to.deep.eq([
+        { publicId },
+        { mirrorPublicId: publicId },
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.slug$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.name$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          tags: {
+            [Op.overlap]: [publicId],
+          },
+        },
+      ]);
 
       expect(
         buildSearchConditions(publicId, {
           ...base,
           publicIdFields: [{ field: ['publicId', 'Collective.publicId'], prefix: EntityShortIdPrefix.Collective }],
         }),
-      ).to.deep.eq([{ publicId }, { 'Collective.publicId': publicId }]);
+      ).to.deep.eq([
+        { publicId },
+        { 'Collective.publicId': publicId },
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.slug$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.name$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          tags: {
+            [Op.overlap]: [publicId],
+          },
+        },
+      ]);
     });
 
     it('returns no conditions for public ids when publicIdFields exist but none match the prefix', () => {
