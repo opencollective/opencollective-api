@@ -521,6 +521,8 @@ class PlatformSubscription extends Model<
             notify,
             startDate: alignedStart,
             isAutomaticMigration: opts?.isAutomaticMigration ?? false,
+            awaitForDispatch: true, // Ensure the email is sent
+            isSystem: !user,
           },
         },
         {
