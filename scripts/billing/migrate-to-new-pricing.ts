@@ -20,8 +20,8 @@
  *
  *   # Partial runs (full plan is still logged above; filters apply to migration / disable-MM execution)
  *   npx ts-node scripts/billing/migrate-to-new-pricing.ts --limit 5
- *   npx ts-node scripts/billing/migrate-to-new-pricing.ts --only my-host,other-host
- *   npx ts-node scripts/billing/migrate-to-new-pricing.ts --exclude noisy-host
+ *   npx ts-node scripts/billing/migrate-to-new-pricing.ts --onlySlugs my-host,other-host
+ *   npx ts-node scripts/billing/migrate-to-new-pricing.ts --excludeSlugs noisy-host
  */
 
 import '../../server/env';
@@ -304,7 +304,7 @@ function parseCommaSeparatedSlugs(value: string | undefined): Set<string> | unde
 }
 
 /**
- * Apply --only / --exclude / --limit to the migrate list (order preserved).
+ * Apply --onlySlugs / --excludeSlugs / --limit to the migrate list (order preserved).
  */
 export function filterMigrateActions<T extends { host: Collective }>(
   actions: T[],
@@ -468,7 +468,7 @@ export async function main(
     (limit !== undefined && limit >= 0) || (onlySlugs?.size ?? 0) > 0 || (excludeSlugs?.size ?? 0) > 0;
 
   if (hasExecutionFilters) {
-    const filterSuffix = `${onlySlugs?.size ? ` --only=${[...onlySlugs].join(',')}` : ''}${excludeSlugs?.size ? ` --exclude=${[...excludeSlugs].join(',')}` : ''}${limit !== undefined ? ` --limit=${limit}` : ''}`;
+    const filterSuffix = `${onlySlugs?.size ? ` --onlySlugs=${[...onlySlugs].join(',')}` : ''}${excludeSlugs?.size ? ` --excludeSlugs=${[...excludeSlugs].join(',')}` : ''}${limit !== undefined ? ` --limit=${limit}` : ''}`;
     logger.info(
       `── Migration execution this run (${toMigrateThisRun.length} of ${toMigrate.length}) ──${filterSuffix}`,
     );
@@ -537,7 +537,7 @@ export async function main(
   } else if (toDisableMM.length > 0) {
     const mmFilterNote =
       (onlySlugs?.size ?? 0) > 0 || (excludeSlugs?.size ?? 0) > 0
-        ? ` (${toDisableMMThisRun.length} inactive host(s) match --only/--exclude for this pass.)`
+        ? ` (${toDisableMMThisRun.length} inactive host(s) match --onlySlugs/--excludeSlugs for this pass.)`
         : '';
     logger.info(
       `Skipped disabling money management for ${toDisableMM.length} inactive host(s) (pass --inactive-disable-money-management to apply).${mmFilterNote}`,
@@ -570,22 +570,22 @@ if (require.main === module) {
         return n;
       },
     )
-    .option('--only <slugs>', 'Comma-separated host slugs to migrate this run (full plan still logged)')
-    .option('--exclude <slugs>', 'Comma-separated host slugs to skip migrating this run');
+    .option('--onlySlugs <slugs>', 'Comma-separated host slugs to migrate this run (full plan still logged)')
+    .option('--excludeSlugs <slugs>', 'Comma-separated host slugs to skip migrating this run');
 
   program.parse(process.argv);
   const cli = program.opts<{
     limit?: number;
-    only?: string;
-    exclude?: string;
+    onlySlugs?: string;
+    excludeSlugs?: string;
     inactiveDisableMoneyManagement?: boolean;
   }>();
 
   main({
     inactiveDisableMoneyManagement: Boolean(cli.inactiveDisableMoneyManagement),
     limit: cli.limit,
-    onlySlugs: parseCommaSeparatedSlugs(cli.only),
-    excludeSlugs: parseCommaSeparatedSlugs(cli.exclude),
+    onlySlugs: parseCommaSeparatedSlugs(cli.onlySlugs),
+    excludeSlugs: parseCommaSeparatedSlugs(cli.excludeSlugs),
   })
     .then(() => process.exit(0))
     .catch(err => {

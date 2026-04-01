@@ -97,7 +97,7 @@ describe('scripts/billing/migrate-to-new-pricing > resolvePlan', () => {
   });
 });
 
-// ─── Unit tests for filterMigrateActions (CLI --only / --exclude / --limit) ─
+// ─── Unit tests for filterMigrateActions (CLI --onlySlugs / --excludeSlugs / --limit) ─
 
 describe('scripts/billing/migrate-to-new-pricing > filterMigrateActions', () => {
   const A = { host: { slug: 'alpha' } as Collective };
@@ -109,7 +109,7 @@ describe('scripts/billing/migrate-to-new-pricing > filterMigrateActions', () => 
     expect(out.map(x => x.host.slug)).to.deep.equal(['alpha', 'beta', 'gamma']);
   });
 
-  it('applies --exclude before other filters', () => {
+  it('applies --excludeSlugs before other filters', () => {
     const out = filterMigrateActions([A, B, C], {
       excludeSlugs: new Set(['beta']),
       onlySlugs: new Set(['beta', 'gamma']),
@@ -117,12 +117,12 @@ describe('scripts/billing/migrate-to-new-pricing > filterMigrateActions', () => 
     expect(out.map(x => x.host.slug)).to.deep.equal(['gamma']);
   });
 
-  it('applies --only to remaining slugs', () => {
+  it('applies --onlySlugs to remaining slugs', () => {
     const out = filterMigrateActions([A, B, C], { onlySlugs: new Set(['beta', 'gamma']) });
     expect(out.map(x => x.host.slug)).to.deep.equal(['beta', 'gamma']);
   });
 
-  it('applies --limit after exclude/only, preserving order', () => {
+  it('applies --limit after excludeSlugs/onlySlugs, preserving order', () => {
     const out = filterMigrateActions([A, B, C], {
       onlySlugs: new Set(['alpha', 'beta', 'gamma']),
       limit: 2,
