@@ -106,7 +106,7 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
     ${ifStr(isAdmin, `INNER JOIN "Members" m ON m."CollectiveId" = cas."CollectiveId" AND m."MemberCollectiveId" = "FromCollectiveId" AND m.role = 'ADMIN' AND m."deletedAt" IS NULL`)}
     ${ifStr(
       includeCommunityHostTransactionsAggregated,
-      `LEFT JOIN "CommunityHostTransactionsAggregated" chta ON chta."FromCollectiveId" = cas."FromCollectiveId" AND chta."HostCollectiveId" = cas."HostCollectiveId"`,
+      `LEFT JOIN "CommunityHostTransactionSummary" chts ON chts."FromCollectiveId" = cas."FromCollectiveId" AND chts."HostCollectiveId" = cas."HostCollectiveId" AND chts."kind" IS NULL`,
     )}
     WHERE
       fc."deletedAt" IS NULL
@@ -114,8 +114,8 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
       ${ifStr('CollectiveId' in replacements, `AND cas."CollectiveId" = :CollectiveId`)}
       ${ifStr('type' in replacements, `AND fc.type IN (:type)`)}
       ${ifStr('relation' in replacements && replacements.relation.length > 0, `AND cas."relations" @> :relation`)}
-      ${ifStr(replacements.totalExpendedExpression, () => `AND ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0))${replacements.totalExpendedExpression}`)}
-      ${ifStr(replacements.totalContributedExpression, () => `AND ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0))${replacements.totalContributedExpression}`)}
+      ${ifStr(replacements.totalExpendedExpression, () => `AND chts."debitTotal" ${replacements.totalExpendedExpression}`)}
+      ${ifStr(replacements.totalContributedExpression, () => `AND chts."creditTotal" ${replacements.totalContributedExpression}`)}
       ${searchConditions.whereClause}
     `;
 
@@ -124,20 +124,24 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
   const groupBy = ['cas."FromCollectiveId"', 'fc.id'];
 
   if (options?.orderBy?.field && options?.orderBy?.direction) {
-    const direction = options.orderBy.direction.toUpperCase();
+    let direction = options.orderBy.direction.toUpperCase();
+    if (direction === 'DESC') {
+      direction = 'DESC NULLS LAST';
+    }
     switch (options.orderBy.field) {
       case 'NAME':
         orderBy.push(`fc.name ${direction}`);
         break;
       case 'TOTAL_CONTRIBUTED':
-        orderBy.push(
-          `ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) ${direction}`,
-        );
-        groupBy.push('chta."contributionTotalAcc"');
+        orderBy.push(`chts."creditTotal" ${direction}`);
+        groupBy.push('chts."creditTotal"');
         break;
       case 'TOTAL_EXPENDED':
-        orderBy.push(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) ${direction}`);
-        groupBy.push('chta."expenseTotalAcc"');
+        orderBy.push(`chts."debitTotal" ${direction}`);
+        groupBy.push('chts."debitTotal"');
+        break;
+      case 'CREATED_AT':
+        orderBy.push(`fc."createdAt" ${direction}`);
         break;
       default:
         orderBy.push('fc.name ASC');
@@ -145,12 +149,12 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
   } else {
     // Default ordering when filters are applied
     if (replacements.totalExpendedExpression) {
-      orderBy.push(`ABS(COALESCE(chta."expenseTotalAcc"[ARRAY_UPPER(chta."expenseTotalAcc", 1)], 0)) DESC`);
-      groupBy.push('chta."expenseTotalAcc"');
+      orderBy.push(`chts."debitTotal" DESC NULLS LAST`);
+      groupBy.push('chts."debitTotal"');
     }
     if (replacements.totalContributedExpression) {
-      orderBy.push(`ABS(COALESCE(chta."contributionTotalAcc"[ARRAY_UPPER(chta."contributionTotalAcc", 1)], 0)) DESC`);
-      groupBy.push('chta."contributionTotalAcc"');
+      orderBy.push(`chts."creditTotal" DESC NULLS LAST`);
+      groupBy.push('chts."creditTotal"');
     }
     orderBy.push('fc.name ASC');
   }

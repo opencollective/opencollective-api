@@ -1583,10 +1583,11 @@ export const GraphQLHost = new GraphQLObjectType({
             .with('Vendors', db =>
               db
                 .selectFrom('Collectives')
-                .leftJoin('CommunityHostTransactionsAggregated', join =>
+                .leftJoin('CommunityHostTransactionSummary', join =>
                   join
-                    .onRef('CommunityHostTransactionsAggregated.FromCollectiveId', '=', 'Collectives.id')
-                    .on('CommunityHostTransactionsAggregated.HostCollectiveId', '=', host.id),
+                    .onRef('CommunityHostTransactionSummary.FromCollectiveId', '=', 'Collectives.id')
+                    .on('CommunityHostTransactionSummary.HostCollectiveId', '=', host.id)
+                    .on('CommunityHostTransactionSummary.kind', 'is', null),
                 )
                 .where('ParentCollectiveId', '=', host.id)
                 .where('type', '=', CollectiveType.VENDOR)
@@ -1594,10 +1595,10 @@ export const GraphQLHost = new GraphQLObjectType({
                 .where('deletedAt', 'is', null)
                 .selectAll('Collectives')
                 .select(({ ref }) => [
-                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}, 1)], 0))`.as(
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionSummary.debitTotal')}, 0))`.as(
                     'totalExpended',
                   ),
-                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}, 1)], 0))`.as(
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionSummary.creditTotal')}, 0))`.as(
                     'totalContributed',
                   ),
                 ]),
@@ -1728,14 +1729,14 @@ export const GraphQLHost = new GraphQLObjectType({
           // Requested Ordering
           if (args.orderBy) {
             const direction = ob => (args.orderBy.direction === 'DESC' ? ob.desc().nullsLast() : ob.asc().nullsFirst());
-            if (args?.orderBy?.field === 'TOTAL_CONTRIBUTED' || args?.orderBy?.field === 'TOTAL_EXPENDED') {
-              nodeQuery = nodeQuery.orderBy(
-                args.orderBy.field === 'TOTAL_CONTRIBUTED' ? 'totalContributed' : 'totalExpended',
-                direction,
-              );
-            } else if (args?.orderBy?.field) {
-              nodeQuery = nodeQuery.orderBy(args.orderBy.field, direction);
-            }
+            const fields = {
+              TOTAL_CONTRIBUTED: 'totalContributed',
+              TOTAL_EXPENDED: 'totalExpended',
+              CREATED_AT: 'createdAt',
+            };
+            const field = fields[args.orderBy?.field] || args.orderBy?.field;
+            assert(field, `Invalid orderBy field ${args.orderBy?.field} for vendors.`);
+            nodeQuery = nodeQuery.orderBy(field, direction);
           }
           // Other additional ordering that were created throughout conditionals
           order.forEach(([field, direction]) => {
