@@ -1684,6 +1684,7 @@ export const scheduleExpenseForPayment = async (
   const updatedExpense = await expense.update({
     status: 'SCHEDULED_FOR_PAYMENT',
     lastEditedById: req.remoteUser.id,
+    onHold: false,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
@@ -3346,7 +3347,11 @@ export const getWiseFxRateInfoFromExpenseData = (
 };
 
 export async function setTransferWiseExpenseAsProcessing({ host, expense, data, feesInHostCurrency, remoteUser }) {
-  await expense.update({ HostCollectiveId: host.id, data: { ...expense.data, ...data, feesInHostCurrency } });
+  await expense.update({
+    HostCollectiveId: host.id,
+    data: { ...expense.data, ...data, feesInHostCurrency },
+    onHold: false,
+  });
   await expense.setProcessing(remoteUser.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser, {
     message: expense.data?.paymentOption?.formattedEstimatedDelivery
