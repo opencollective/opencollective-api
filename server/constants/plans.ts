@@ -287,6 +287,16 @@ const featuresForBasic = Object.fromEntries(
 
 const featuresForPro = Object.fromEntries(CommercialFeatures.map(feature => [feature, proFeatures.includes(feature)]));
 
+/** Canonical feature flags per subscription tier type (see `PlatformSubscriptionTiers`). */
+export const platformSubscriptionFeaturesByTierType: Record<
+  PlatformSubscriptionTierTypes,
+  Partial<Record<CommercialFeaturesType, boolean>>
+> = {
+  [PlatformSubscriptionTierTypes.FREE]: featuresForStarter,
+  [PlatformSubscriptionTierTypes.BASIC]: featuresForBasic,
+  [PlatformSubscriptionTierTypes.PRO]: featuresForPro,
+};
+
 /**
  * Platform Subscription Tiers. Keep this in order, from cheapest to most expensive.
  */
