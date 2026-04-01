@@ -16,6 +16,8 @@ import {
   BillingMonth,
   BillingPeriod,
   consolidateSubscriptionsForBillingPeriod,
+  estimateMonthlyPriceForPlan,
+  getCostOptimalPlatformTiersForUtilization,
   UtilizationType,
 } from '../../../server/models/PlatformSubscription';
 import {
@@ -1201,6 +1203,48 @@ describe('server/models/PlatformSubscriptions', () => {
         },
         totalAmount: 11710,
       });
+    });
+  });
+
+  describe('plan fit / cost optimization helpers', () => {
+    it('estimateMonthlyPriceForPlan matches billing-style overage math', () => {
+      const plan = PlatformSubscriptionTiers.find(t => t.id === 'basic-5');
+      const u = { activeCollectives: 7, expensesPaid: 60 };
+      expect(estimateMonthlyPriceForPlan(plan, u)).to.equal(6000 + 2 * 1500 + 10 * 150);
+    });
+
+    it('getCostOptimalPlatformTiersForUtilization returns discover-1 only for zero usage', () => {
+      const u = { activeCollectives: 0, expensesPaid: 0 };
+      const optimal = getCostOptimalPlatformTiersForUtilization(u);
+      expect(optimal).to.have.length(1);
+      expect(optimal[0].plan.id).to.equal('discover-1');
+      expect(optimal[0].estimatedPricePerMonth).to.equal(0);
+    });
+
+    it('each optimal suggestion shares the same estimatedPricePerMonth', () => {
+      const u = { activeCollectives: 0, expensesPaid: 0 };
+      const optimal = getCostOptimalPlatformTiersForUtilization(u);
+      const p = optimal[0].estimatedPricePerMonth;
+      optimal.forEach(o => expect(o.estimatedPricePerMonth).to.equal(p));
+    });
+  });
+
+  describe('calculateUtilizationForCollectives', () => {
+    it('matches calculateUtilization per host for the same period', async () => {
+      const host1 = await fakeActiveHost();
+      const host2 = await fakeActiveHost();
+      const col = await fakeCollective({ HostCollectiveId: host1.id });
+      await fakeTransaction({
+        HostCollectiveId: host1.id,
+        CollectiveId: col.id,
+        createdAt: new Date(Date.UTC(2016, 0, 15)),
+      });
+      const billingPeriod = { year: 2016, month: BillingMonth.JANUARY };
+      const batch = await PlatformSubscription.calculateUtilizationForCollectives([host1.id, host2.id], billingPeriod);
+      const u1 = await PlatformSubscription.calculateUtilization(host1.id, billingPeriod);
+      const u2 = await PlatformSubscription.calculateUtilization(host2.id, billingPeriod);
+      expect(batch.get(host1.id)).to.deep.equal(u1);
+      expect(batch.get(host2.id)).to.deep.equal(u2);
     });
   });
 });

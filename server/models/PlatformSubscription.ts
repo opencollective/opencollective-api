@@ -82,12 +82,52 @@ const UtilizationTypeToPricePlanKeyMap: Record<UtilizationType, keyof PlatformSu
   [UtilizationType.EXPENSES_PAID]: 'pricePerAdditionalExpense',
 };
 
-type PeriodUtilization = Record<UtilizationType, number>;
+export type PeriodUtilization = Record<UtilizationType, number>;
+
+export type PlatformPlanSuggestion = {
+  plan: PlatformSubscriptionPlan;
+  estimatedPricePerMonth: number;
+};
+
+/** Catalog tier or merged plan JSON with at least `pricing` (see `PlatformSubscriptionTiers`). */
+export type PlanPricingLike = { pricing?: PlatformSubscriptionPlan['pricing'] };
+
+/**
+ * Full-month estimated price for a catalog tier at the given utilization (same rule as billing overages).
+ */
+export function estimateMonthlyPriceForPlan(plan: PlanPricingLike, utilization: PeriodUtilization): number {
+  const pricing = plan.pricing;
+  const additionalCollectives = Math.max(
+    0,
+    utilization[UtilizationType.ACTIVE_COLLECTIVES] - (pricing?.includedCollectives ?? 0),
+  );
+  const additionalExpenses = Math.max(
+    0,
+    utilization[UtilizationType.EXPENSES_PAID] - (pricing?.includedExpensesPerMonth ?? 0),
+  );
+  return (
+    (pricing?.pricePerMonth ?? 0) +
+    additionalCollectives * (pricing?.pricePerAdditionalCollective ?? 0) +
+    additionalExpenses * (pricing?.pricePerAdditionalExpense ?? 0)
+  );
+}
+
+/**
+ * Returns every catalog tier whose estimated monthly price is minimal for this utilization (handles ties).
+ */
+export function getCostOptimalPlatformTiersForUtilization(utilization: PeriodUtilization): PlatformPlanSuggestion[] {
+  const scored = PlatformSubscriptionTiers.map(plan => ({
+    plan: { ...plan, basePlanId: plan.id } as PlatformSubscriptionPlan,
+    estimatedPricePerMonth: estimateMonthlyPriceForPlan(plan, utilization),
+  }));
+  const minPrice = Math.min(...scored.map(s => s.estimatedPricePerMonth));
+  return scored.filter(s => s.estimatedPricePerMonth === minPrice);
+}
 
 /**
  * True if `next` is a downgrade relative to `prev`.
  */
-function getPlanChangeType(
+export function getPlanChangeType(
   prev: Partial<Pick<PlatformSubscriptionPlan, 'type' | 'basePlanId' | 'id'>>,
   next: Partial<Pick<PlatformSubscriptionPlan, 'type' | 'basePlanId' | 'id'>>,
 ): 'DOWNGRADE' | 'UPGRADE' | 'CUSTOM' | 'NO_CHANGE' {
@@ -291,6 +331,100 @@ class PlatformSubscription extends Model<
       activeCollectives,
       expensesPaid,
     };
+  }
+
+  /**
+   * Same metrics as {@link calculateUtilization}, but for many host collectives in two SQL round-trips.
+   */
+  static async calculateUtilizationForCollectives(
+    collectiveIds: number[],
+    billingPeriod: BillingPeriod,
+  ): Promise<Map<number, PeriodUtilization>> {
+    const result = new Map<number, PeriodUtilization>();
+    const uniqueIds = [...new Set(collectiveIds)];
+    if (uniqueIds.length === 0) {
+      return result;
+    }
+
+    for (const id of uniqueIds) {
+      result.set(id, { activeCollectives: 0, expensesPaid: 0 });
+    }
+
+    const billingRange = PlatformSubscription.getBillingPeriodRange(billingPeriod);
+    const billingRangeArg = PlatformSubscription.rangeLiteral(billingRange);
+
+    const activeRows = await sequelize.query<{ HostCollectiveId: number; activeCollectives: number }>(
+      `
+      SELECT t."HostCollectiveId", COUNT(DISTINCT(COALESCE(c."ParentCollectiveId", c.id)))::int AS "activeCollectives"
+      FROM "Transactions" t
+      JOIN "Collectives" c ON c.id = t."CollectiveId"
+      WHERE t."HostCollectiveId" IN (:collectiveIds)
+      AND t."createdAt" <@ ${billingRangeArg}
+      AND t."deletedAt" IS NULL
+      GROUP BY t."HostCollectiveId"
+      `,
+      { type: QueryTypes.SELECT, replacements: { collectiveIds: uniqueIds } },
+    );
+
+    const expenseRows = await sequelize.query<{ HostCollectiveId: number; expensesPaid: number }>(
+      `
+      SELECT a."HostCollectiveId", COUNT(DISTINCT a."ExpenseId")::int AS "expensesPaid"
+      FROM "Activities" a
+      LEFT JOIN LATERAL (
+        SELECT count(1) > 0 AS "previouslyPaid"
+        FROM "Activities" hist
+        WHERE hist."HostCollectiveId" = a."HostCollectiveId"
+        AND hist."ExpenseId" = a."ExpenseId"
+        AND hist."type" = 'collective.expense.paid'
+        AND tstzrange(NULL, hist."createdAt", '[]') << ${billingRangeArg}
+        LIMIT 1
+      ) AS hist ON TRUE
+      WHERE a."HostCollectiveId" IN (:collectiveIds)
+      AND a."type" = 'collective.expense.paid'
+      AND a."createdAt" <@ ${billingRangeArg}
+      AND NOT hist."previouslyPaid"
+      GROUP BY a."HostCollectiveId"
+      `,
+      { type: QueryTypes.SELECT, replacements: { collectiveIds: uniqueIds } },
+    );
+
+    for (const row of activeRows) {
+      const u = result.get(row.HostCollectiveId);
+      if (u) {
+        u.activeCollectives = Number(row.activeCollectives);
+      }
+    }
+    for (const row of expenseRows) {
+      const u = result.get(row.HostCollectiveId);
+      if (u) {
+        u.expensesPaid = Number(row.expensesPaid);
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * For each host collective id, returns every catalog tier with minimal estimated monthly cost for the period.
+   */
+  static async suggestPlans(
+    collectiveIds: number[],
+    billingPeriod: BillingPeriod,
+  ): Promise<Map<number, PlatformPlanSuggestion[]>> {
+    const out = new Map<number, PlatformPlanSuggestion[]>();
+    if (collectiveIds.length === 0) {
+      return out;
+    }
+
+    const utilizationById = await PlatformSubscription.calculateUtilizationForCollectives(collectiveIds, billingPeriod);
+    const zero: PeriodUtilization = { activeCollectives: 0, expensesPaid: 0 };
+
+    for (const id of collectiveIds) {
+      const utilization = utilizationById.get(id) ?? zero;
+      out.set(id, getCostOptimalPlatformTiersForUtilization(utilization));
+    }
+
+    return out;
   }
 
   static currentBillingPeriod(): BillingPeriod {
