@@ -3601,7 +3601,10 @@ class Collective extends ModelWithPublicId<
     return total;
   };
 
-  getPlan = async function () {
+  /**
+   * @deprecated Make sure to check the subscription first.
+   */
+  getLegacyPlan = function () {
     if (this.plan) {
       const planData = plans[this.plan];
       if (planData) {
@@ -3646,7 +3649,7 @@ class Collective extends ModelWithPublicId<
     from = from ? moment(from) : null;
     to = to ? moment(to) : null;
 
-    const plan = await this.getPlan();
+    const plan = await this.getLegacyPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
     const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });

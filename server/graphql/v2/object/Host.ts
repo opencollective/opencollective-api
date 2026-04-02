@@ -247,8 +247,9 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       plan: {
         type: new GraphQLNonNull(GraphQLHostPlan),
+        deprecationReason: '2026-04-02: Replaced by new pricing',
         resolve(host) {
-          return host.getPlan();
+          return host.getLegacyPlan();
         },
       },
       hostTransactionsReports: {
