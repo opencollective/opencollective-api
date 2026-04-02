@@ -34,7 +34,7 @@ import cache, { sessionCache } from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { centsAmountToFloat } from '../../lib/math';
-import { safeJsonStringify } from '../../lib/safe-json-stringify';
+import { safeJsonStringify, sanitizeObjectForJSON } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
@@ -50,6 +50,7 @@ import {
   RecipientAccount,
   TransactionRequirementsType,
   Transfer,
+  TransferwiseErrorObject,
   Webhook,
 } from '../../types/transferwise';
 import { hashObject } from '../utils';
@@ -309,8 +310,14 @@ async function createTransfer(
     logger.error(`Wise: Error creating transaction for expense: ${expense.id}`, e);
     await expense.update({ status: status.ERROR });
     const user = await User.findByPk(expense.lastEditedById);
+    let error: TransferwiseErrorObject | { message: string; details: string };
+    try {
+      error = sanitizeObjectForJSON(e) as TransferwiseErrorObject;
+    } catch {
+      error = { message: e.message, details: safeJsonStringify(e) };
+    }
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
-      error: { message: e.message, details: safeJsonStringify(e) },
+      error,
       isSystem: true,
     });
     throw e;
