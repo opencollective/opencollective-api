@@ -185,9 +185,9 @@ export default {
         // Paypal supports multiple emails per account. We only keep the confirmed ones, and default to the "primary" one.
         const confirmedEmails = paypalUserInfo.emails.filter(email => email.confirmed);
         if (confirmedEmails.length === 0) {
-          throw new errors.BadRequest('This PayPal account is not associated with a confirmed email address');
+          return next(new errors.BadRequest('This PayPal account is not associated with a confirmed email address'));
         } else if (paypalUserInfo.verified_account !== 'true') {
-          throw new errors.BadRequest('This PayPal account is not verified');
+          return next(new errors.BadRequest('This PayPal account is not verified'));
         } else if (
           payoutMethod &&
           !confirmedEmails.find(email => email.value === (payoutMethod?.data as PaypalPayoutMethodData)?.email)
@@ -279,7 +279,7 @@ export default {
       } catch (e) {
         logger.error('PayPal connect (SDK flow) failed', e);
         reportErrorToSentry(e, { req });
-        return next(e);
+        return next(new errors.ServerError('PayPal connect failed'));
       }
     },
   },
