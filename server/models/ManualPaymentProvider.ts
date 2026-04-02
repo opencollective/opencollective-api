@@ -8,7 +8,7 @@ import {
 } from 'sequelize';
 
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
-import { optsSanitizedSimplifiedWithImages, sanitizeHTML } from '../lib/sanitize-html';
+import { optsSanitizedSimplifiedWithImages, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 import { RecipientAccount } from '../types/transferwise';
 
@@ -31,6 +31,14 @@ export const sanitizeManualPaymentProviderInstructions = (instructions: string):
   sanitizeHTML(instructions, optsSanitizedSimplifiedWithImages);
 
 /**
+ * Plain-text template for payment reference (no HTML); strips tags for safety.
+ */
+export const sanitizeManualPaymentProviderReferenceTemplate = (value: string): string | null => {
+  const trimmed = stripHTML(value ?? '').trim();
+  return trimmed === '' ? null : trimmed;
+};
+
+/**
  * Sequelize model to represent a ManualPaymentProvider, linked to the `ManualPaymentProviders` table.
  * These are custom payment methods that hosts can define for contributors to use when making
  * manual payments (bank transfers, etc).
@@ -49,6 +57,7 @@ class ManualPaymentProvider extends ModelWithPublicId<
   declare public instructions: string;
   declare public icon: CreationOptional<string>;
   declare public data: CreationOptional<RecipientAccount | Record<string, unknown>>;
+  declare public referenceTemplate: CreationOptional<string | null>;
   declare public order: CreationOptional<number>;
   declare public archivedAt: CreationOptional<Date>;
   declare public createdAt: CreationOptional<Date>;
@@ -88,6 +97,7 @@ class ManualPaymentProvider extends ModelWithPublicId<
       instructions: this.instructions,
       icon: this.icon,
       data: this.data,
+      referenceTemplate: this.referenceTemplate,
       order: this.order,
       archivedAt: this.archivedAt,
     };
@@ -147,6 +157,17 @@ ManualPaymentProvider.init(
     data: {
       type: DataTypes.JSONB,
       allowNull: true,
+    },
+    referenceTemplate: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      set(value: string | null | undefined) {
+        if (value === null || value === undefined) {
+          this.setDataValue('referenceTemplate', null);
+        } else {
+          this.setDataValue('referenceTemplate', sanitizeManualPaymentProviderReferenceTemplate(value));
+        }
+      },
     },
     order: {
       type: DataTypes.INTEGER,

@@ -46,6 +46,12 @@ export const GraphQLManualPaymentProvider = new GraphQLObjectType({
       description: 'Bank account details for BANK_TRANSFER type providers',
       resolve: provider => (provider.type === ManualPaymentProviderTypes.BANK_TRANSFER ? provider.data : null),
     },
+    referenceTemplate: {
+      type: GraphQLString,
+      description:
+        'Plain-text template used to build the payment reference shown as {reference} in instructions (default {contributionId})',
+      resolve: provider => provider.referenceTemplate ?? '{contributionId}',
+    },
     isArchived: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether this provider has been archived',
