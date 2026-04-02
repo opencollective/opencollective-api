@@ -59,6 +59,92 @@ describe('server/models/PlatformSubscriptions', () => {
     sandbox.restore();
   });
 
+  describe('loaders.hasPlatformTips', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('returns undefined when the collective has no platform subscription', async () => {
+      const collective = await fakeCollective();
+      const { hasPlatformTips } = PlatformSubscription.loaders;
+      await expect(hasPlatformTips.load(collective.id)).to.eventually.equal(undefined);
+    });
+
+    it('returns true when the plan has pricing.platformTips true', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const plan = PlatformSubscriptionTiers.find(t => t.id === 'discover-1');
+      await PlatformSubscription.createSubscription(collective, new Date(Date.UTC(2016, 0, 1)), plan, admin);
+      const { hasPlatformTips } = PlatformSubscription.loaders;
+      await expect(hasPlatformTips.load(collective.id)).to.eventually.equal(true);
+    });
+
+    it('returns false when the plan has pricing.platformTips false', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const base = PlatformSubscriptionTiers.find(t => t.id === 'basic-5');
+      await PlatformSubscription.createSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 1)),
+        {
+          title: 'Custom',
+          pricing: { ...base.pricing, platformTips: false },
+        },
+        admin,
+      );
+      const { hasPlatformTips } = PlatformSubscription.loaders;
+      await expect(hasPlatformTips.load(collective.id)).to.eventually.equal(false);
+    });
+
+    it('resolves multiple collective ids in one batch', async () => {
+      const admin = await fakeUser();
+      const withTips = await fakeCollective({ admin });
+      const withoutSub = await fakeCollective();
+      const discoverPlan = PlatformSubscriptionTiers.find(t => t.id === 'discover-1');
+      await PlatformSubscription.createSubscription(withTips, new Date(Date.UTC(2016, 0, 1)), discoverPlan, admin);
+
+      const { hasPlatformTips } = PlatformSubscription.loaders;
+      const [a, b] = await Promise.all([hasPlatformTips.load(withTips.id), hasPlatformTips.load(withoutSub.id)]);
+      expect(a).to.equal(true);
+      expect(b).to.equal(undefined);
+    });
+
+    it('uses only the currently active subscription when the host changed plans', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const discoverPlan = PlatformSubscriptionTiers.find(t => t.id === 'discover-1');
+      await PlatformSubscription.createSubscription(collective, new Date(Date.UTC(2016, 0, 1)), discoverPlan, admin);
+
+      const base = PlatformSubscriptionTiers.find(t => t.id === 'basic-5');
+      await PlatformSubscription.replaceCurrentSubscription(
+        collective,
+        new Date(Date.UTC(2016, 0, 10)),
+        {
+          title: 'Custom',
+          pricing: { ...base.pricing, platformTips: false },
+        },
+        admin,
+      );
+
+      const { hasPlatformTips } = PlatformSubscription.loaders;
+      await expect(hasPlatformTips.load(collective.id)).to.eventually.equal(false);
+    });
+
+    it('returns undefined when the only subscription rows are not active in the current period', async () => {
+      const admin = await fakeUser();
+      const collective = await fakeCollective({ admin });
+      const discoverPlan = PlatformSubscriptionTiers.find(t => t.id === 'discover-1');
+      await PlatformSubscription.createSubscription(collective, new Date(Date.UTC(2016, 0, 1)), discoverPlan, admin);
+      const sub = await PlatformSubscription.getCurrentSubscription(collective.id);
+      await sub.update({
+        period: [sub.start, { value: new Date(Date.UTC(2016, 0, 15)), inclusive: false }],
+      });
+
+      const { hasPlatformTips } = PlatformSubscription.loaders;
+      await expect(hasPlatformTips.load(collective.id)).to.eventually.equal(undefined);
+    });
+  });
+
   describe('getCurrentSubscription', () => {
     it('returns null if no platform subscription for collective id', async () => {
       const collective = await fakeCollective();

@@ -15,7 +15,7 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { ManualPaymentProvider, Op } from '../models';
+import { ManualPaymentProvider, Op, PlatformSubscription } from '../models';
 import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
 import Order from '../models/Order';
@@ -1340,9 +1340,16 @@ export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
 
   const host = await order.collective.getHostCollective();
   if (host) {
-    const plan = await host.getPlan();
+    // New pricing
+    const subscription = await PlatformSubscription.getCurrentSubscription(host.id);
+    if (subscription) {
+      return subscription.plan.pricing.platformTips;
+    }
+
+    // Legacy plan
+    const plan = host.getLegacyPlan();
     // At this stage, only OSC /opensourcce and Open Collective /opencollective will return false
-    return plan.platformTips;
+    return plan?.platformTips;
   }
 
   return false;
@@ -1501,7 +1508,7 @@ export const getHostFeeSharePercent = async (
 
   const host = await order.collective.getHostCollective({ loaders });
 
-  const plan = await host.getPlan();
+  const plan = host.getLegacyPlan();
 
   const possibleValues = [];
 

@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import { keyBy } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -669,6 +670,25 @@ class PlatformSubscription extends Model<
         });
 
         return sortResultsSimple(collectiveIds, rows, result => result.CollectiveId);
+      }),
+      hasPlatformTips: new DataLoader<number, boolean | undefined>(async collectiveIds => {
+        const rows = (await PlatformSubscription.findAll({
+          raw: true,
+          mapToModel: false,
+          attributes: [
+            'CollectiveId',
+            [sequelize.literal(`("plan"->'pricing'->>'platformTips')::boolean`), 'hasPlatformTips'],
+          ],
+          where: {
+            CollectiveId: collectiveIds,
+            period: {
+              [Op.contains]: new Date(),
+            },
+          },
+        })) as unknown as { CollectiveId: number; hasPlatformTips: boolean | null }[];
+
+        const grouped = keyBy(rows, 'CollectiveId');
+        return collectiveIds.map(id => (grouped[id] ? grouped[id].hasPlatformTips : undefined));
       }),
     };
   }
