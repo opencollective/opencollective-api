@@ -364,6 +364,7 @@ export async function main(
     .where('Collectives.deletedAt', 'is', null)
     .where('Collectives.type', '=', CollectiveType.ORGANIZATION)
     .where('Collectives.hasMoneyManagement', '=', true)
+    .where('Collectives.deactivatedAt', 'is', null)
     .where('PlatformSubscriptions.id', 'is', null)
     .where(sql`("Collectives".data#>>'{isFirstPartyHost}')::boolean`, 'is not', true)
     .selectAll('Collectives')
