@@ -246,6 +246,7 @@ class PlatformSubscription extends Model<
       JOIN "Collectives" c on c.id = t."CollectiveId"
       WHERE
       t."HostCollectiveId" = :HostCollectiveId
+      AND COALESCE(c."ParentCollectiveId", c.id) != :HostCollectiveId
       AND t."createdAt" <@ ${billingRangeArg}
       AND t."deletedAt" IS NULL
     `,
