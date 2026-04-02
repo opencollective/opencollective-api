@@ -79,7 +79,7 @@ const taxFormsQuery = `
     WHERE all_expenses.type NOT IN ('RECEIPT', 'CHARGE', 'SETTLEMENT', 'FUNDING_REQUEST', 'GRANT', 'PLATFORM_BILLING')
     AND host.slug = :hostSlug
     AND account.id != d."HostCollectiveId"
-    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId")
+    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId" OR account."type" = 'VENDOR')
     AND all_expenses.status = 'PAID'
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM t."createdAt") = :year
