@@ -12,6 +12,7 @@ import ConversationFollower from './ConversationFollower';
 import CurrencyExchangeRate from './CurrencyExchangeRate';
 import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
+import ExpenseAction from './ExpenseAction';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExportRequest from './ExportRequest';
@@ -66,6 +67,7 @@ const models = {
   CurrencyExchangeRate,
   EmojiReaction,
   Expense,
+  ExpenseAction,
   ExpenseAttachedFile,
   ExpenseItem,
   ExportRequest,
@@ -213,10 +215,15 @@ Expense.belongsTo(User);
 Expense.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'virtualCard' });
 Expense.hasMany(Activity, { as: 'activities' });
 Expense.hasMany(Comment, { as: 'comments' });
+Expense.hasMany(ExpenseAction, { foreignKey: 'ExpenseId', as: 'expenseActions' });
 Expense.hasMany(ExpenseAttachedFile, { as: 'attachedFiles' });
 Expense.belongsTo(UploadedFile, { foreignKey: 'InvoiceFileId', as: 'invoiceFile' });
 Expense.hasMany(ExpenseItem, { as: 'items' });
 Expense.hasMany(Transaction);
+
+// ExpenseAction
+ExpenseAction.belongsTo(Expense, { foreignKey: 'ExpenseId', as: 'expense' });
+ExpenseAction.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 
 // ExpenseAttachedFile
 ExpenseAttachedFile.belongsTo(Expense);

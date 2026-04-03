@@ -44,6 +44,7 @@ import {
 import AccountingCategory from './AccountingCategory';
 import Activity from './Activity';
 import Collective from './Collective';
+import ExpenseAction from './ExpenseAction';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
@@ -173,12 +174,14 @@ class Expense extends ModelWithPublicId<
   declare public virtualCard?: VirtualCard;
   declare public items?: ExpenseItem[];
   declare public attachedFiles?: ExpenseAttachedFile[];
+  declare public expenseActions?: ExpenseAction[];
   declare public invoiceFile?: NonAttribute<UploadedFile>;
   declare public accountingCategory?: AccountingCategory;
   declare public reference: string;
 
   // Association getters
   declare getActivities: HasManyGetAssociationsMixin<Activity>;
+  declare getExpenseActions: HasManyGetAssociationsMixin<ExpenseAction>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
