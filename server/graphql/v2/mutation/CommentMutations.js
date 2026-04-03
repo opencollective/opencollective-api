@@ -65,7 +65,11 @@ const commentMutations = {
 
       // Associate the comment with the correct entity
       if (comment.ConversationId) {
-        comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
+        if (isEntityPublicId(comment.ConversationId, EntityShortIdPrefix.Conversation)) {
+          comment.ConversationId = await req.loaders.Conversation.idByPublicId.load(comment.ConversationId);
+        } else {
+          comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
+        }
       } else if (comment.conversation) {
         comment.ConversationId = await getConversationDatabaseIdFromReference(comment.conversation);
       } else if (comment.update) {
