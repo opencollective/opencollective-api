@@ -718,16 +718,19 @@ describe('server/models/Collective', () => {
     });
 
     it('returns active plan', async () => {
-      const plan = await hostUser.collective.getLegacyPlan();
+      const collective = await hostUser.collective.reload();
+      const plan = await collective.getLegacyPlan();
 
       expect(plan).to.deep.equal({
-        id: 3,
         name: 'default',
         hostedCollectives: 0,
         addedFunds: 0,
         bankTransfers: 0,
         transferwisePayouts: 0,
         ...plans.default,
+        id: collective.id,
+        publicId: collective.publicId,
+        createdAt: collective.createdAt,
       });
     });
 
