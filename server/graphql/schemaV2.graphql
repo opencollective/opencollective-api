@@ -920,7 +920,7 @@ interface Account {
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this account can use to pay for Orders
@@ -4134,7 +4134,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   """
   hasMoneyManagement: Boolean!
   termsUrl: URL
-  plan: HostPlan!
+  plan: HostPlan! @deprecated(reason: "2026-04-02: Replaced by new pricing")
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -7715,6 +7715,7 @@ type TransactionsAmountGroup {
 }
 
 type CommunityStats {
+  id: String!
   associatedCollectives: [CommunityAssociatedAccount]
   associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
@@ -7764,8 +7765,8 @@ type CommunityTransactionSummary {
   debitCount: Int!
   creditTotal: Amount!
   creditCount: Int!
-  refundDebitTotal: Amount!
-  refundDebitCount: Int!
+  refundDebitTotal: Amount
+  refundDebitCount: Int
 }
 
 enum CommunityTransactionType {

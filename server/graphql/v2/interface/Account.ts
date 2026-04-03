@@ -476,7 +476,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   payoutMethods: {
-    type: new GraphQLList(GraphQLPayoutMethod),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
     description: 'The list of payout methods that this account can use to get paid',
     args: {
       includeArchived: {
