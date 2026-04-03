@@ -95,17 +95,21 @@ Subject: Additional charges notice for your Open Collective platform subscriptio
       
       <p style="margin-bottom: 8px;">Your current plan (<strong>{{subscription.plan.title}}</strong>) includes:</p>
       <ul style="text-align: left; margin-top: 0; margin-bottom: 16px;">
+        {{#if collective.hasHosting}}
         <li>{{subscription.plan.pricing.includedCollectives}} active monthly collectives (each additional collective costs {{currency subscription.plan.pricing.pricePerAdditionalCollective currency="USD"}})</li>
+        {{/if}}
         <li>{{subscription.plan.pricing.includedExpensesPerMonth}} paid expenses (each additional expense costs {{currency subscription.plan.pricing.pricePerAdditionalExpense currency="USD"}})</li>
       </ul>
       
       <p style="margin-bottom: 8px;">Your current utilization is:</p>
       <ul style="text-align: left; margin-top: 0;">
+        {{#if collective.hasHosting}}
         {{#ifCond currentUtilization.activeCollectives '>' subscription.plan.pricing.includedCollectives}}
         <li><strong>{{currentUtilization.activeCollectives}} active monthly collectives</strong> - {{subtract currentUtilization.activeCollectives subscription.plan.pricing.includedCollectives}} more than the capacity of your subscription</li>
         {{else}}
         <li><strong>{{currentUtilization.activeCollectives}} active monthly collectives</strong> - this is within the capacity of your subscription</li>
         {{/ifCond}}
+        {{/if}}
         
         {{#ifCond currentUtilization.expensesPaid '>' subscription.plan.pricing.includedExpensesPerMonth}}
         <li><strong>{{currentUtilization.expensesPaid}} paid expenses</strong> - {{subtract currentUtilization.expensesPaid subscription.plan.pricing.includedExpensesPerMonth}} more than the capacity of your subscription</li>
