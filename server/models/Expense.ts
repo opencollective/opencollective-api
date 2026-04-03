@@ -351,11 +351,11 @@ class Expense extends ModelWithPublicId<
 
     await this.update({
       status: ExpenseStatus.PAID,
-      lastEditedById: user.id,
+      lastEditedById: user?.id,
       HostCollectiveId: collective.HostCollectiveId,
       paidAt,
       onHold: false,
-      paidByCollectiveId: user.CollectiveId,
+      paidByCollectiveId: user?.CollectiveId,
     });
 
     // Update transactions settlement
