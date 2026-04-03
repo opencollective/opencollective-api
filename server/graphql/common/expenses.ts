@@ -1448,8 +1448,11 @@ export const approveExpense = async (req: express.Request, expense: Expense): Pr
   } else if (!(await canApprove(req, expense, { throw: true }))) {
     throw new Forbidden();
   }
-
-  const updatedExpense = await expense.update({ status: 'APPROVED', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'APPROVED',
+    lastEditedById: req.remoteUser.id,
+    approvedByCollectiveId: req.remoteUser.CollectiveId,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
   return updatedExpense;
 };
@@ -1461,7 +1464,12 @@ export const unapproveExpense = async (req: express.Request, expense: Expense): 
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+    approvedByCollectiveId: null,
+    paidByCollectiveId: null,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
   return updatedExpense;
 };
@@ -1473,7 +1481,12 @@ export const requestExpenseReApproval = async (req: express.Request, expense: Ex
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+    approvedByCollectiveId: null,
+    paidByCollectiveId: null,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
   return updatedExpense;
 };
@@ -1489,6 +1502,7 @@ export const markExpenseAsIncomplete = async (req: express.Request, expense: Exp
     status: 'INCOMPLETE',
     lastEditedById: req.remoteUser.id,
     onHold: false,
+    paidByCollectiveId: null,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
   return updatedExpense;
@@ -1685,6 +1699,7 @@ export const scheduleExpenseForPayment = async (
     status: 'SCHEDULED_FOR_PAYMENT',
     lastEditedById: req.remoteUser.id,
     onHold: false,
+    paidByCollectiveId: req.remoteUser.CollectiveId,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
@@ -1706,6 +1721,7 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
   const updatedExpense = await expense.update({
     status: 'APPROVED',
     lastEditedById: req.remoteUser.id,
+    paidByCollectiveId: null,
   });
 
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
@@ -3197,6 +3213,7 @@ export async function editExpense(
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
     }
+    const resetApproval = status === 'PENDING' && ['APPROVED', 'PAID'].includes(expense.status as ExpenseStatus);
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
@@ -3208,6 +3225,8 @@ export async function editExpense(
       PayoutMethodId: PayoutMethodId,
       legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
       tags: cleanExpenseData.tags,
+      paidByCollectiveId: null,
+      ...(resetApproval ? { approvedByCollectiveId: null } : {}),
     };
 
     if (isPaidCreditCardCharge) {
@@ -3346,9 +3365,22 @@ export const getWiseFxRateInfoFromExpenseData = (
   }
 };
 
-export async function setTransferWiseExpenseAsProcessing({ host, expense, data, feesInHostCurrency, remoteUser }) {
+export async function setTransferWiseExpenseAsProcessing({
+  host,
+  expense,
+  data,
+  feesInHostCurrency,
+  remoteUser,
+}: {
+  host: Collective;
+  expense: Expense;
+  data: Record<string, unknown>;
+  feesInHostCurrency: Record<string, number>;
+  remoteUser: User;
+}) {
   await expense.update({
     HostCollectiveId: host.id,
+    paidByCollectiveId: remoteUser.CollectiveId,
     data: { ...expense.data, ...data, feesInHostCurrency },
     onHold: false,
   });
@@ -3895,7 +3927,12 @@ export async function markExpenseAsUnpaid(
 
     await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
+    await expense.update({
+      status: newExpenseStatus,
+      lastEditedById: remoteUser.id,
+      PaymentMethodId: null,
+      paidByCollectiveId: null,
+    });
     return { expense, transaction };
   });
 

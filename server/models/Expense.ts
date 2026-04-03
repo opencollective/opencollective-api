@@ -106,6 +106,8 @@ class Expense extends ModelWithPublicId<
   declare public RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
   declare public AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
   declare public InvoiceFileId: UploadedFile['id'];
+  declare public approvedByCollectiveId: ForeignKey<Collective['id']>;
+  declare public paidByCollectiveId: ForeignKey<Collective['id']>;
 
   declare public payeeLocation: Location;
   declare public data: Record<string, unknown> & {
@@ -161,6 +163,8 @@ class Expense extends ModelWithPublicId<
   declare public collective?: Collective;
   declare public fromCollective?: Collective;
   declare public host?: Collective;
+  declare public approvedByCollective?: Collective;
+  declare public paidByCollective?: Collective;
   declare public User?: User;
   // @deprecated Some parts of the code rely on this legacy user field, populated by getSubmitterUser
   declare public user?: User;
@@ -342,15 +346,16 @@ class Expense extends ModelWithPublicId<
     skipActivity = false,
     paidAt = new Date() as Date,
   } = {}) {
+    user = user ?? (await User.findByPk(this.lastEditedById));
     const collective = this.collective || (await this.getCollective());
-    const lastEditedById = user?.id || this.lastEditedById;
 
     await this.update({
       status: ExpenseStatus.PAID,
-      lastEditedById,
+      lastEditedById: user.id,
       HostCollectiveId: collective.HostCollectiveId,
       paidAt,
       onHold: false,
+      paidByCollectiveId: user.CollectiveId,
     });
 
     // Update transactions settlement
@@ -367,7 +372,6 @@ class Expense extends ModelWithPublicId<
     }
 
     if (!skipActivity) {
-      user = user ?? (await User.findByPk(lastEditedById));
       await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
     }
   };
@@ -1027,6 +1031,28 @@ Expense.init(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       allowNull: false,
+    },
+
+    approvedByCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    paidByCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
     },
 
     reference: {

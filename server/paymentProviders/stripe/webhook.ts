@@ -521,12 +521,14 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
       );
     }
 
+    const user = await models.User.findByPk(expense.lastEditedById);
     await expense.update(
       {
         status: ExpenseStatus.PROCESSING,
         feesPayer: 'PAYEE',
         PaymentMethodId: pm.id,
         data: { ...expense.data, paymentIntent },
+        paidByCollectiveId: user.CollectiveId,
       },
       { transaction },
     );

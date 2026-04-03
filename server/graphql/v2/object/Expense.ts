@@ -263,6 +263,10 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
         description: 'The accounts who approved this expense',
         async resolve(expense, _, req) {
+          if (expense.approvedByCollectiveId) {
+            return [await req.loaders.Collective.byId.load(expense.approvedByCollectiveId)];
+          }
+
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
           const approvalActivitiesSinceLastUnapprovedState = takeRightWhile(
             activities,
@@ -291,6 +295,11 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (expense.status !== expenseStatus.PAID) {
             return null;
           }
+
+          if (expense.paidByCollectiveId) {
+            return req.loaders.Collective.byId.load(expense.paidByCollectiveId);
+          }
+
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
           const paidActivity = findLast(activities, a => a.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID);
 

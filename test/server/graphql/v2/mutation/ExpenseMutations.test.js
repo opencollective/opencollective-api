@@ -1454,6 +1454,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     describe('goes back to pending if editing critical fields', () => {
       it('Payout', async () => {
         const expense2 = await fakeExpense({ status: 'APPROVED', legacyPayoutMethod: 'other' });
+        await expense2.update({
+          approvedByCollectiveId: expense2.CollectiveId,
+          paidByCollectiveId: expense2.CollectiveId,
+        });
         const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense2.User.CollectiveId });
         const newExpense2Data = {
           id: idEncode(expense2.id, IDENTIFIER_TYPES.EXPENSE),
@@ -1462,6 +1466,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result2 = await graphqlQueryV2(editExpenseMutation, { expense: newExpense2Data }, expense2.User);
         expect(result2.errors).to.not.exist;
         expect(result2.data.editExpense.status).to.equal('PENDING');
+        await expense2.reload();
+        expect(expense2.approvedByCollectiveId).to.be.null;
+        expect(expense2.paidByCollectiveId).to.be.null;
       });
 
       it('Item(s)', async () => {
@@ -3875,6 +3882,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
+        await expense.reload();
+        expect(expense.approvedByCollectiveId).to.equal(collectiveAdmin.CollectiveId);
 
         // Send emails to host admin and author
         await waitForCondition(() => emailSendMessageSpy.callCount === 2);
@@ -3920,10 +3929,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('Unapproves the expense', async () => {
-        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'APPROVED' });
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          approvedByCollectiveId: collectiveAdmin.CollectiveId,
+        });
         const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('PENDING');
+        await expense.reload();
+        expect(expense.approvedByCollectiveId).to.be.null;
+        expect(expense.paidByCollectiveId).to.be.null;
       });
 
       it('Expense needs to be approved', async () => {
@@ -3939,6 +3955,21 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('PENDING');
+      });
+
+      it('REQUEST_RE_APPROVAL clears approvedByCollectiveId and paidByCollectiveId', async () => {
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          approvedByCollectiveId: collectiveAdmin.CollectiveId,
+          paidByCollectiveId: hostAdmin.CollectiveId,
+        });
+        const mutationParams = { expenseId: expense.id, action: 'REQUEST_RE_APPROVAL' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.data.processExpense.status).to.eq('PENDING');
+        await expense.reload();
+        expect(expense.approvedByCollectiveId).to.be.null;
+        expect(expense.paidByCollectiveId).to.be.null;
       });
     });
 
@@ -4114,6 +4145,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         // Check paidAt is set
         await expense.reload();
         expect(expense.paidAt).to.be.a('date');
+        expect(expense.paidByCollectiveId).to.equal(hostAdmin.CollectiveId);
         expect(moment(expense.paidAt).diff(moment(), 'seconds')).to.be.within(-10, 0);
 
         // Check transactions
@@ -4473,6 +4505,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(res.errors).to.not.exist;
           await expense.reload();
           expect(expense.status).to.equal(expenseStatus.PROCESSING);
+          expect(expense.paidByCollectiveId).to.equal(hostAdmin.CollectiveId);
         });
 
         it('should send a notification email to the payee', async () => {
@@ -5169,6 +5202,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
+        await expense.reload();
+        expect(expense.paidByCollectiveId).to.be.null;
         expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(expense.amount);
         await payExpense(makeRequest(hostAdmin), {
           id: expense.id,
@@ -5197,6 +5232,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.data.processExpense.status).to.eq('APPROVED');
+        await expense.reload();
+        expect(expense.paidByCollectiveId).to.be.null;
         expect(await testCollective.getBalanceWithBlockedFunds()).to.eq(expense.amount);
       });
 
@@ -5358,6 +5395,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         expect(result.data.processExpense.status).to.eq('SCHEDULED_FOR_PAYMENT');
+        await expense.reload();
+        expect(expense.paidByCollectiveId).to.equal(hostAdmin.CollectiveId);
       });
 
       it('Cannot scheduled for payment twice', async () => {
@@ -5375,6 +5414,23 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
       });
+
+      it('Clears paidByCollectiveId when unscheduling', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'SCHEDULED_FOR_PAYMENT',
+          PayoutMethodId: payoutMethod.id,
+          paidByCollectiveId: hostAdmin.CollectiveId,
+        });
+        const mutationParams = { expenseId: expense.id, action: 'UNSCHEDULE_PAYMENT' };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(result.data.processExpense.status).to.eq('APPROVED');
+        await expense.reload();
+        expect(expense.paidByCollectiveId).to.be.null;
+      });
     });
 
     describe('MARK_AS_INCOMPLETE', () => {
@@ -5391,11 +5447,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       it('marks expense as Incomplete sends user an email', async () => {
-        const expense = await fakeExpense({ CollectiveId: collective.id, status: 'ERROR' });
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          status: 'ERROR',
+          paidByCollectiveId: hostAdmin.CollectiveId,
+        });
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_INCOMPLETE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
 
         expect(result.data.processExpense.status).to.eq('INCOMPLETE');
+        await expense.reload();
+        expect(expense.paidByCollectiveId).to.be.null;
 
         await waitForCondition(() => emailSendMessageSpy.callCount > 0);
         expect(emailSendMessageSpy.firstCall.args[2]).to.contain('flagged as incomplete and requires your attention');
