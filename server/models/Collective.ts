@@ -3618,6 +3618,8 @@ class Collective extends ModelWithPublicId<
           transferwisePayouts: 0,
           ...planData,
           ...extraPlanData,
+          publicId: this.publicId,
+          createdAt: this.createdAt,
         };
         return plan;
       }
@@ -3631,6 +3633,8 @@ class Collective extends ModelWithPublicId<
       bankTransfers: 0,
       transferwisePayouts: 0,
       ...plans.default,
+      publicId: this.publicId,
+      createdAt: this.createdAt,
     };
 
     return plan;
