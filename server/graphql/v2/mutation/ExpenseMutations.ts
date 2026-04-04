@@ -88,11 +88,11 @@ const populatePayoutMethodId = async (
   { loaders = null }: { loaders?: Loaders } = {},
 ) => {
   if (isEntityPublicId(payoutMethod?.id as string, EntityShortIdPrefix.PayoutMethod)) {
-    const id = await (
-      loaders
-        ? loaders.PayoutMethod.idByPublicId.load(payoutMethod.id as string)
-        : models.PayoutMethod.findOne({ where: { publicId: payoutMethod.id as string } })
-    ).then(payoutMethod => payoutMethod?.id);
+    const id = await (loaders
+      ? loaders.PayoutMethod.idByPublicId.load(payoutMethod.id as string)
+      : models.PayoutMethod.findOne({ where: { publicId: payoutMethod.id as string } }).then(
+          payoutMethod => payoutMethod?.id,
+        ));
     payoutMethod.id = id;
   } else if (payoutMethod?.id) {
     payoutMethod.id = idDecode(payoutMethod.id as string, IDENTIFIER_TYPES.PAYOUT_METHOD);
