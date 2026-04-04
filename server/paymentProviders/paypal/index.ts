@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import { fetchAccountWithReference } from '../../graphql/v2/input/AccountReferenceInput';
-import { fetchPaymentMethodWithReference } from '../../graphql/v2/input/PaymentMethodReferenceInput';
+import { fetchPayoutMethodWithReference } from '../../graphql/v2/input/PayoutMethodReferenceInput';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../lib/permalink/entity-map';
@@ -165,7 +165,7 @@ export default {
       // Load & check payout method ID if provided
       let payoutMethod: PayoutMethod | null = null;
       if (payoutMethodId) {
-        payoutMethod = await fetchPaymentMethodWithReference({ id: payoutMethodId });
+        payoutMethod = await fetchPayoutMethodWithReference({ id: payoutMethodId });
         if (!payoutMethod) {
           return next(new errors.NotFound('Payout method not found'));
         } else if (payoutMethod.CollectiveId !== collective.id) {
