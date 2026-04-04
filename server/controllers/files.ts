@@ -5,7 +5,7 @@ import { hasUploadedFilePermission } from '../graphql/common/uploaded-file';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
 import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
-import { UploadedFile } from '../models';
+import { Expense, UploadedFile } from '../models';
 import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
 /**
@@ -26,8 +26,13 @@ export async function getFile(req: Request, res: Response) {
   const { uploadedFileId } = req.params;
   const { expenseId, draftKey } = req.query;
 
+  let resolvedExpenseId: number | null = null;
   if (expenseId && typeof expenseId !== 'string') {
     return res.status(400).send({ message: 'Invalid id' });
+  } else if (isEntityPublicId(expenseId, EntityShortIdPrefix.Expense)) {
+    resolvedExpenseId = await Expense.findOne({ where: { publicId: expenseId } }).then(expense => expense?.id);
+  } else if (expenseId) {
+    resolvedExpenseId = idDecode(expenseId as string, IDENTIFIER_TYPES.EXPENSE);
   }
 
   if (draftKey && typeof draftKey !== 'string') {
@@ -55,7 +60,7 @@ export async function getFile(req: Request, res: Response) {
 
   if (
     !(await hasUploadedFilePermission(req, uploadedFile, {
-      expenseId: expenseId ? idDecode(expenseId as string, IDENTIFIER_TYPES.EXPENSE) : null,
+      expenseId: resolvedExpenseId,
       draftKey: draftKey as string,
     }))
   ) {

@@ -104,7 +104,7 @@ export const fetchAccountWithReference = async (
   };
 
   let collective;
-  if (input.id && typeof input.id === 'string' && input.id.startsWith(`${EntityShortIdPrefix.Collective}_`)) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Collective)) {
     collective = await loadCollectiveByPublicId(input.id);
   } else if (input.id && typeof input.id === 'string') {
     const id = idDecode(input.id, 'account');
