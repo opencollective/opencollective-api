@@ -2,7 +2,7 @@ import { KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerif
 
 export function canRevokeKYCVerification(req: Express.Request, kycVerification: KYCVerification) {
   return (
-    kycVerification.status === KYCVerificationStatus.VERIFIED &&
+    [KYCVerificationStatus.VERIFIED, KYCVerificationStatus.PENDING].includes(kycVerification.status) &&
     req?.remoteUser?.isAdmin(kycVerification.RequestedByCollectiveId)
   );
 }

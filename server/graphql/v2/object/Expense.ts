@@ -835,6 +835,8 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
             return null;
           }
 
+          expense.fromCollective = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
+
           const host = await loadHostForExpense(expense, req);
           if (!host || !req.remoteUser.isAdminOfCollective(host)) {
             return null;
