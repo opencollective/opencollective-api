@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
-import { idEncode } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLHostPlan = new GraphQLObjectType({
   name: 'HostPlan',
@@ -10,11 +10,11 @@ export const GraphQLHostPlan = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
-      resolve(account) {
-        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, account.createdAt)) {
-          return account.publicId;
+      resolve(plan) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, plan.createdAt) && plan.publicId) {
+          return plan.publicId;
         } else {
-          return idEncode(account.id, 'account');
+          return idEncode(plan.id, IDENTIFIER_TYPES.ACCOUNT);
         }
       },
     },

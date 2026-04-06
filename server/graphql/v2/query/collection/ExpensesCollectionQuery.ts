@@ -20,6 +20,7 @@ import { SupportedCurrency } from '../../../../constants/currencies';
 import MemberRoles from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
+import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
@@ -492,6 +493,17 @@ export const ExpensesCollectionQueryResolver = async (
     amountFields: ['amount'],
     stringArrayFields: ['tags'],
     stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
+    publicIdFields: [
+      { field: 'publicId', prefix: EntityShortIdPrefix.Expense },
+      {
+        field: ['$fromCollective.publicId$', '$collective.publicId$', '$User.collective.publicId$'],
+        prefix: EntityShortIdPrefix.Collective,
+      },
+      {
+        field: ['$User.publicId$'],
+        prefix: EntityShortIdPrefix.User,
+      },
+    ],
   });
 
   if (searchTermConditions.length) {

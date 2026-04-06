@@ -90,7 +90,7 @@ export async function handleExpensePayoutMethodChange(
   oldPayoutMethod: PayoutMethod,
   newPayoutMethod: PayoutMethod,
 ) {
-  if (oldPayoutMethod.id === newPayoutMethod.id) {
+  if (oldPayoutMethod?.id === newPayoutMethod.id) {
     return;
   }
 
@@ -106,7 +106,7 @@ export async function handleExpensePayoutMethodChange(
   const collective = expense.collective || (await expense.getCollective());
   const hostId = expense.HostCollectiveId || collective.HostCollectiveId;
   if (newPayoutMethod.updatedAt > kycStatus.latestVerification?.verifiedAt) {
-    await recordKycPayoutMethodChange(expense, hostId, oldPayoutMethod.dataValues, newPayoutMethod.dataValues);
+    await recordKycPayoutMethodChange(expense, hostId, oldPayoutMethod?.dataValues, newPayoutMethod.dataValues);
   }
 }
 

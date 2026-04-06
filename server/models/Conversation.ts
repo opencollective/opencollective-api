@@ -90,6 +90,7 @@ class Conversation extends ModelWithPublicId<
       data: {
         conversation: {
           id: conversation.id,
+          publicId: conversation.publicId,
           hashId: conversation.hashId,
           slug: conversation.slug,
           title: conversation.title,

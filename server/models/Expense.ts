@@ -350,6 +350,7 @@ class Expense extends ModelWithPublicId<
       lastEditedById,
       HostCollectiveId: collective.HostCollectiveId,
       paidAt,
+      onHold: false,
     });
 
     // Update transactions settlement

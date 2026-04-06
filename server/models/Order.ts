@@ -697,6 +697,7 @@ Order.init(
       info() {
         return {
           id: this.id,
+          publicId: this.publicId,
           type: get(this, 'collective.type') === 'EVENT' ? 'registration' : 'donation',
           CreatedByUserId: this.CreatedByUserId,
           TierId: this.TierId,

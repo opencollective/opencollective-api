@@ -159,6 +159,35 @@ describe('server/graphql/loaders/expense', () => {
         const result3 = await loader.load(expense3.id);
         expect(result3).to.be.true;
       });
+
+      it('When unpaid expenses were incurred last year, they still count in the present tax year (until paid)', async () => {
+        const user = await fakeUser();
+        const lastYear = moment().subtract(1, 'year');
+        const firstExpense = await fakeExpense({
+          amount: US_TAX_FORM_THRESHOLD + 1000,
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+          incurredAt: lastYear.clone().set('month', 11).set('date', 30).toDate(),
+          createdAt: lastYear.clone().set('month', 11).set('date', 30).toDate(),
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        const secondExpense = await fakeExpense({
+          amount: 200,
+          CollectiveId: collective.id,
+          FromCollectiveId: user.CollectiveId,
+          UserId: user.id,
+          type: 'INVOICE',
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+
+        const promises = [loader.load(firstExpense.id), loader.load(secondExpense.id)];
+        const [result1, result2] = await Promise.all(promises);
+        expect(result1).to.be.true;
+        // Unpaid expenses use the present calendar year for aggregation; the large prior-year invoice is included with this one.
+        expect(result2).to.be.true;
+      });
     });
 
     describe('does not require user tax form before payment', () => {
@@ -254,10 +283,10 @@ describe('server/graphql/loaders/expense', () => {
         expect(result).to.be.false;
       });
 
-      it('When expenses were submitted last year', async () => {
+      it('When expenses were paid last year', async () => {
         const user = await fakeUser();
         const lastYear = moment().subtract(1, 'year');
-        const firstExpense = await fakeExpense({
+        await fakeExpense({
           amount: US_TAX_FORM_THRESHOLD + 1000,
           CollectiveId: collective.id,
           FromCollectiveId: user.CollectiveId,
@@ -265,6 +294,8 @@ describe('server/graphql/loaders/expense', () => {
           type: 'INVOICE',
           incurredAt: lastYear.clone().set('month', 11).set('date', 30).toDate(),
           createdAt: lastYear.clone().set('month', 11).set('date', 30).toDate(),
+          paidAt: lastYear.clone().set('month', 11).set('date', 30).toDate(),
+          status: 'PAID',
           PayoutMethodId: otherPayoutMethod.id,
         });
         const secondExpense = await fakeExpense({
@@ -276,10 +307,8 @@ describe('server/graphql/loaders/expense', () => {
           PayoutMethodId: otherPayoutMethod.id,
         });
 
-        const promises = [loader.load(firstExpense.id), loader.load(secondExpense.id)];
-        const [result1, result2] = await Promise.all(promises);
-        expect(result1).to.be.true;
-        expect(result2).to.be.false;
+        const result = await loader.load(secondExpense.id);
+        expect(result).to.be.false;
       });
 
       it('When expense is submitted by a collective under the same host', async () => {
@@ -315,6 +344,7 @@ describe('server/graphql/loaders/expense', () => {
       collective = await fakeCollective({ HostCollectiveId: host.id });
       const fromCollective = (await fakeUser()).collective;
       const fromCollective2 = (await fakeUser()).collective;
+      const fromCollective3 = (await fakeUser()).collective;
 
       expenseWithUserTaxForm = await fakeExpense({
         amount: US_TAX_FORM_THRESHOLD + 100e2,
@@ -337,7 +367,7 @@ describe('server/graphql/loaders/expense', () => {
       const lastYear = moment().subtract(1, 'year').toDate();
       expenseWithTaxFormFromLastYear = await fakeExpense({
         amount: US_TAX_FORM_THRESHOLD + 100e2,
-        FromCollectiveId: fromCollective2.id,
+        FromCollectiveId: fromCollective3.id,
         CollectiveId: collective.id,
         type: 'INVOICE',
         incurredAt: lastYear,

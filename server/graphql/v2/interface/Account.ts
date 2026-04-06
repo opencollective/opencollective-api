@@ -476,7 +476,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   payoutMethods: {
-    type: new GraphQLList(GraphQLPayoutMethod),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
     description: 'The list of payout methods that this account can use to get paid',
     args: {
       includeArchived: {
@@ -628,6 +628,10 @@ const accountFieldsDefinition = () => ({
         idFields: ['id'],
         slugFields: ['$fromCollective.slug$'],
         textFields: ['$fromCollective.name$', 'title', 'html'],
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Update },
+          { field: '$fromCollective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
       });
 
       if (searchTermConditions.length) {

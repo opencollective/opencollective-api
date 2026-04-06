@@ -28,7 +28,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       currency: 'USD',
     });
 
-    await host.activateMoneyManagement(admin);
+    await host.activateMoneyManagement({ remoteUser: admin });
   });
 
   beforeEach(() =>

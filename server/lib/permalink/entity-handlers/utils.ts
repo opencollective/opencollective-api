@@ -4,7 +4,7 @@ export type Handler = (req: express.Request, res: express.Response) => Promise<v
 
 export const notFound = (res: express.Response) => res.redirect(302, '/not-found');
 export const redirect = (res: express.Response, url: string) => res.redirect(302, url);
-export const unauthorized = (res: express.Response) => res.redirect(302, '/unauthorized');
+export const accessDenied = (res: express.Response) => res.redirect(302, '/access-denied');
 
 export const getDashboardRoute = (
   account,

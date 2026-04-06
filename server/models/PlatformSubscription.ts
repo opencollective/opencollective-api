@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import { keyBy } from 'lodash';
 import moment from 'moment';
 import {
   BelongsToGetAssociationMixin,
@@ -210,6 +211,18 @@ class PlatformSubscription extends Model<
     return [subBillingStart, subBillingEnd];
   }
 
+  terminate({
+    date = moment.utc().toDate(),
+    transaction = undefined,
+    inclusive = false,
+  }: {
+    date?: Date;
+    inclusive?: boolean;
+    transaction?: SequelizeTransaction;
+  }): Promise<PlatformSubscription> {
+    return this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+  }
+
   get info(): NonAttribute<
     Pick<PlatformSubscription, 'id' | 'plan' | 'period' | 'CollectiveId' | 'createdAt' | 'updatedAt'>
   > {
@@ -234,6 +247,7 @@ class PlatformSubscription extends Model<
       JOIN "Collectives" c on c.id = t."CollectiveId"
       WHERE
       t."HostCollectiveId" = :HostCollectiveId
+      AND COALESCE(c."ParentCollectiveId", c.id) != :HostCollectiveId
       AND t."createdAt" <@ ${billingRangeArg}
       AND t."deletedAt" IS NULL
     `,
@@ -457,12 +471,13 @@ class PlatformSubscription extends Model<
     collective: Collective,
     start: Date,
     plan: Partial<PlatformSubscriptionPlan>,
-    user: User,
+    user: User | null,
     opts?: {
       transaction?: SequelizeTransaction;
       UserTokenId?: number;
       previousPlan?: Partial<PlatformSubscriptionPlan>;
       notify?: boolean;
+      isAutomaticMigration?: boolean;
     },
   ): Promise<PlatformSubscription> {
     const alignedStart = moment.utc(start).startOf('day').toDate();
@@ -496,16 +511,20 @@ class PlatformSubscription extends Model<
       await Activity.create(
         {
           type: ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
-          UserId: user.id,
+          UserId: user?.id,
           CollectiveId: collective.id,
           UserTokenId: opts?.UserTokenId,
           data: {
             account: collective.info,
-            user: user.info,
+            user: user?.info,
             previousPlan: opts?.previousPlan ?? null,
             newPlan: plan,
             nextBillingDate,
             notify,
+            startDate: alignedStart,
+            isAutomaticMigration: opts?.isAutomaticMigration ?? false,
+            awaitForDispatch: true, // Ensure the email is sent
+            isSystem: !user,
           },
         },
         {
@@ -521,7 +540,7 @@ class PlatformSubscription extends Model<
 
   static getCurrentSubscription(
     collectiveId: number,
-    opts?: { now?: () => Date },
+    opts?: { now?: () => Date; transaction?: SequelizeTransaction },
   ): Promise<PlatformSubscription | null> {
     const newDate = opts?.now ?? (() => new Date());
     return PlatformSubscription.findOne({
@@ -531,6 +550,7 @@ class PlatformSubscription extends Model<
           [Op.contains]: newDate(),
         },
       },
+      transaction: opts?.transaction,
     });
   }
 
@@ -538,8 +558,8 @@ class PlatformSubscription extends Model<
     collective: Collective,
     when: Date,
     plan: Partial<PlatformSubscriptionPlan>,
-    user: User,
-    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number },
+    user: User | null,
+    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number; isAutomaticMigration?: boolean },
   ): Promise<PlatformSubscription> {
     const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id);
     const newSubscriptionStart = moment.utc(when).startOf('day');
@@ -550,20 +570,11 @@ class PlatformSubscription extends Model<
       if (currentSubscriptionStart.isSameOrAfter(newSubscriptionStart)) {
         await currentSubscription.destroy({ transaction: opts?.transaction });
       } else {
-        await currentSubscription.update(
-          {
-            period: [
-              currentSubscription.start,
-              {
-                value: newSubscriptionStart.toDate(),
-                inclusive: false,
-              },
-            ],
-          },
-          {
-            transaction: opts?.transaction,
-          },
-        );
+        await currentSubscription.terminate({
+          date: newSubscriptionStart.toDate(),
+          transaction: opts?.transaction,
+          inclusive: false,
+        });
       }
     }
 
@@ -659,6 +670,25 @@ class PlatformSubscription extends Model<
         });
 
         return sortResultsSimple(collectiveIds, rows, result => result.CollectiveId);
+      }),
+      hasPlatformTips: new DataLoader<number, boolean | undefined>(async collectiveIds => {
+        const rows = (await PlatformSubscription.findAll({
+          raw: true,
+          mapToModel: false,
+          attributes: [
+            'CollectiveId',
+            [sequelize.literal(`("plan"->'pricing'->>'platformTips')::boolean`), 'hasPlatformTips'],
+          ],
+          where: {
+            CollectiveId: collectiveIds,
+            period: {
+              [Op.contains]: new Date(),
+            },
+          },
+        })) as unknown as { CollectiveId: number; hasPlatformTips: boolean | null }[];
+
+        const grouped = keyBy(rows, 'CollectiveId');
+        return collectiveIds.map(id => (grouped[id] ? grouped[id].hasPlatformTips : undefined));
       }),
     };
   }

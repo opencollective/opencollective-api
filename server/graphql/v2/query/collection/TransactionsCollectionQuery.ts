@@ -12,6 +12,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constan
 import { RefundKind } from '../../../../constants/refund-kind';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -424,6 +425,10 @@ export const TransactionsCollectionResolver = async (
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
     amountFields: ['amount'],
+    publicIdFields: [
+      { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
+      { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
+    ],
   });
 
   if (searchTermConditions.length) {
