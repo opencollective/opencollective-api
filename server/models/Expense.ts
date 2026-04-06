@@ -17,6 +17,7 @@ import validator from 'validator';
 
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
+import ExpenseActionType from '../constants/expense-action-type';
 import ExpenseStatus from '../constants/expense-status';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
@@ -107,8 +108,6 @@ class Expense extends ModelWithPublicId<
   declare public RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
   declare public AccountingCategoryId: ForeignKey<AccountingCategory['id']>;
   declare public InvoiceFileId: UploadedFile['id'];
-  declare public approvedByCollectiveId: ForeignKey<Collective['id']>;
-  declare public paidByCollectiveId: ForeignKey<Collective['id']>;
 
   declare public payeeLocation: Location;
   declare public data: Record<string, unknown> & {
@@ -164,8 +163,6 @@ class Expense extends ModelWithPublicId<
   declare public collective?: Collective;
   declare public fromCollective?: Collective;
   declare public host?: Collective;
-  declare public approvedByCollective?: Collective;
-  declare public paidByCollective?: Collective;
   declare public User?: User;
   // @deprecated Some parts of the code rely on this legacy user field, populated by getSubmitterUser
   declare public user?: User;
@@ -358,8 +355,9 @@ class Expense extends ModelWithPublicId<
       HostCollectiveId: collective.HostCollectiveId,
       paidAt,
       onHold: false,
-      paidByCollectiveId: user?.CollectiveId,
     });
+
+    await ExpenseAction.record(this.id, user?.id, ExpenseActionType.PAID);
 
     // Update transactions settlement
     if (this.type === ExpenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {
@@ -1034,28 +1032,6 @@ Expense.init(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       allowNull: false,
-    },
-
-    approvedByCollectiveId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Collectives',
-        key: 'id',
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
-    },
-
-    paidByCollectiveId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Collectives',
-        key: 'id',
-      },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
     },
 
     reference: {

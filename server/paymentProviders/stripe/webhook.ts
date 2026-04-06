@@ -11,6 +11,7 @@ import { v4 as uuid } from 'uuid';
 import ActivityTypes from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
+import ExpenseActionType from '../../constants/expense-action-type';
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
@@ -30,6 +31,7 @@ import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
+import ExpenseAction from '../../models/ExpenseAction';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';
 
@@ -528,10 +530,10 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
         feesPayer: 'PAYEE',
         PaymentMethodId: pm.id,
         data: { ...expense.data, paymentIntent },
-        paidByCollectiveId: user.CollectiveId,
       },
       { transaction },
     );
+    await ExpenseAction.record(expense.id, user?.id, ExpenseActionType.PAID, { transaction });
   });
 }
 

@@ -206,8 +206,7 @@ Expense.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'A
 Expense.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Expense.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 Expense.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
-Expense.belongsTo(Collective, { foreignKey: 'approvedByCollectiveId', as: 'approvedByCollective' });
-Expense.belongsTo(Collective, { foreignKey: 'paidByCollectiveId', as: 'paidByCollective' });
+
 Expense.belongsTo(PayoutMethod);
 Expense.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
 Expense.belongsTo(RecurringExpense, { foreignKey: 'RecurringExpenseId', as: 'recurringExpense' });

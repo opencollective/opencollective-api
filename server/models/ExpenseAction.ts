@@ -1,4 +1,12 @@
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, Model, NonAttribute } from 'sequelize';
+import {
+  CreationOptional,
+  ForeignKey,
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  NonAttribute,
+  Transaction,
+} from 'sequelize';
 
 import ExpenseActionType from '../constants/expense-action-type';
 import sequelize, { DataTypes } from '../lib/sequelize';
@@ -26,6 +34,44 @@ class ExpenseAction extends Model<InferAttributes<ExpenseAction>, InferCreationA
 
   declare public expense?: NonAttribute<Expense>;
   declare public user?: NonAttribute<User>;
+
+  static async record(
+    expenseId: number,
+    userId: number | null | undefined,
+    action: ExpenseActionType,
+    options?: { transaction?: Transaction },
+  ): Promise<ExpenseAction> {
+    return ExpenseAction.create(
+      { ExpenseId: expenseId, UserId: userId ?? undefined, action },
+      { transaction: options?.transaction },
+    );
+  }
+
+  static async clearActions(
+    expenseId: number,
+    action?: ExpenseActionType,
+    options?: { transaction?: Transaction },
+  ): Promise<void> {
+    const where: { ExpenseId: number; action?: ExpenseActionType } = { ExpenseId: expenseId };
+    if (action) {
+      where.action = action;
+    }
+    await ExpenseAction.destroy({ where, transaction: options?.transaction });
+  }
+
+  static async getLatest(expenseId: number, action: ExpenseActionType): Promise<ExpenseAction | null> {
+    return ExpenseAction.findOne({
+      where: { ExpenseId: expenseId, action },
+      order: [['createdAt', 'DESC']],
+    });
+  }
+
+  static async getAll(expenseId: number, action?: ExpenseActionType): Promise<ExpenseAction[]> {
+    return ExpenseAction.findAll({
+      where: { ExpenseId: expenseId, action },
+      order: [['createdAt', 'DESC']],
+    });
+  }
 }
 
 ExpenseAction.init(

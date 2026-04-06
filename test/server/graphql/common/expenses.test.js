@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import moment from 'moment';
 
 import { expenseStatus } from '../../../../server/constants';
+import ExpenseActionType from '../../../../server/constants/expense-action-type';
 import FEATURE from '../../../../server/constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import POLICIES from '../../../../server/constants/policies';
@@ -47,6 +48,7 @@ import {
 } from '../../../../server/graphql/common/expenses';
 import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
 import models, { Collective } from '../../../../server/models';
+import ExpenseAction from '../../../../server/models/ExpenseAction';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
@@ -2169,7 +2171,7 @@ describe('server/graphql/common/expenses', () => {
   });
 
   describe('approveExpense', () => {
-    it('sets approvedByCollectiveId with the approving user collective', async () => {
+    it('records an APPROVED ExpenseAction with the approving user', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost({ admin: hostAdmin.collective });
       await hostAdmin.populateRoles();
@@ -2178,11 +2180,12 @@ describe('server/graphql/common/expenses', () => {
         status: 'PENDING',
       });
       await approveExpense(makeRequest(hostAdmin), expense);
-      await expense.reload();
-      expect(expense.approvedByCollectiveId).to.equal(hostAdmin.CollectiveId);
+      const approvedAction = await ExpenseAction.getLatest(expense.id, ExpenseActionType.APPROVED);
+      expect(approvedAction).to.exist;
+      expect(approvedAction.UserId).to.equal(hostAdmin.id);
     });
 
-    it('overwrites approvedByCollectiveId when approved by a different admin', async () => {
+    it('clears APPROVED ExpenseActions when unapproved by a different admin', async () => {
       const hostAdmin1 = await fakeUser();
       const hostAdmin2 = await fakeUser();
       const host = await fakeHost({ admin: hostAdmin1.collective });
@@ -2196,19 +2199,19 @@ describe('server/graphql/common/expenses', () => {
 
       // First admin approves
       await approveExpense(makeRequest(hostAdmin1), expense);
-      await expense.reload();
-      expect(expense.approvedByCollectiveId).to.equal(hostAdmin1.CollectiveId);
+      const approvedAction = await ExpenseAction.getLatest(expense.id, ExpenseActionType.APPROVED);
+      expect(approvedAction.UserId).to.equal(hostAdmin1.id);
 
       // Second admin unapproves
       await unapproveExpense(makeRequest(hostAdmin2), expense);
       await expense.reload();
       expect(expense.status).to.equal('PENDING');
-      expect(expense.approvedByCollectiveId).to.be.null;
+      expect(await ExpenseAction.getLatest(expense.id, ExpenseActionType.APPROVED)).to.be.null;
     });
   });
 
   describe('unapproveExpense', () => {
-    it('clears approvedByCollectiveId to null and clears paidByCollectiveId', async () => {
+    it('clears APPROVED and PAID ExpenseActions', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost({ admin: hostAdmin.collective });
       await hostAdmin.populateRoles();
@@ -2216,19 +2219,19 @@ describe('server/graphql/common/expenses', () => {
       const expense = await fakeExpense({
         CollectiveId: collective.id,
         status: 'APPROVED',
-        approvedByCollectiveId: hostAdmin.CollectiveId,
-        paidByCollectiveId: hostAdmin.CollectiveId,
       });
+      await ExpenseAction.record(expense.id, hostAdmin.id, ExpenseActionType.APPROVED);
+      await ExpenseAction.record(expense.id, hostAdmin.id, ExpenseActionType.PAID);
       await unapproveExpense(makeRequest(hostAdmin), expense);
       await expense.reload();
       expect(expense.status).to.equal('PENDING');
-      expect(expense.approvedByCollectiveId).to.be.null;
-      expect(expense.paidByCollectiveId).to.be.null;
+      expect(await ExpenseAction.getLatest(expense.id, ExpenseActionType.APPROVED)).to.be.null;
+      expect(await ExpenseAction.getLatest(expense.id, ExpenseActionType.PAID)).to.be.null;
     });
   });
 
   describe('requestExpenseReApproval', () => {
-    it('clears approvedByCollectiveId and paidByCollectiveId', async () => {
+    it('clears APPROVED and PAID ExpenseActions', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost({ admin: hostAdmin.collective });
       await hostAdmin.populateRoles();
@@ -2236,19 +2239,19 @@ describe('server/graphql/common/expenses', () => {
       const expense = await fakeExpense({
         CollectiveId: collective.id,
         status: 'APPROVED',
-        approvedByCollectiveId: hostAdmin.CollectiveId,
-        paidByCollectiveId: hostAdmin.CollectiveId,
       });
+      await ExpenseAction.record(expense.id, hostAdmin.id, ExpenseActionType.APPROVED);
+      await ExpenseAction.record(expense.id, hostAdmin.id, ExpenseActionType.PAID);
       await requestExpenseReApproval(makeRequest(hostAdmin), expense);
       await expense.reload();
       expect(expense.status).to.equal('PENDING');
-      expect(expense.approvedByCollectiveId).to.be.null;
-      expect(expense.paidByCollectiveId).to.be.null;
+      expect(await ExpenseAction.getLatest(expense.id, ExpenseActionType.APPROVED)).to.be.null;
+      expect(await ExpenseAction.getLatest(expense.id, ExpenseActionType.PAID)).to.be.null;
     });
   });
 
   describe('scheduleExpenseForPayment / unscheduleExpensePayment', () => {
-    it('sets paidByCollectiveId when scheduling', async () => {
+    it('records a PAID ExpenseAction with the scheduling user', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost({ admin: hostAdmin.collective });
       await hostAdmin.populateRoles();
@@ -2263,10 +2266,12 @@ describe('server/graphql/common/expenses', () => {
       await scheduleExpenseForPayment(makeRequest(hostAdmin), expense, {});
       await expense.reload();
       expect(expense.status).to.equal('SCHEDULED_FOR_PAYMENT');
-      expect(expense.paidByCollectiveId).to.equal(hostAdmin.CollectiveId);
+      const paidAction = await ExpenseAction.getLatest(expense.id, ExpenseActionType.PAID);
+      expect(paidAction).to.exist;
+      expect(paidAction.UserId).to.equal(hostAdmin.id);
     });
 
-    it('clears paidByCollectiveId when unscheduling', async () => {
+    it('clears the PAID ExpenseAction when unscheduling', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost({ admin: hostAdmin.collective });
       await hostAdmin.populateRoles();
@@ -2276,17 +2281,17 @@ describe('server/graphql/common/expenses', () => {
         CollectiveId: collective.id,
         status: 'SCHEDULED_FOR_PAYMENT',
         PayoutMethodId: payoutMethod.id,
-        paidByCollectiveId: hostAdmin.CollectiveId,
       });
+      await ExpenseAction.record(expense.id, hostAdmin.id, ExpenseActionType.PAID);
       await unscheduleExpensePayment(makeRequest(hostAdmin), expense);
       await expense.reload();
       expect(expense.status).to.equal('APPROVED');
-      expect(expense.paidByCollectiveId).to.be.null;
+      expect(await ExpenseAction.getLatest(expense.id, ExpenseActionType.PAID)).to.be.null;
     });
   });
 
   describe('markExpenseAsIncomplete', () => {
-    it('clears paidByCollectiveId', async () => {
+    it('clears the PAID ExpenseAction', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeHost({ admin: hostAdmin.collective });
       await hostAdmin.populateRoles();
@@ -2294,12 +2299,12 @@ describe('server/graphql/common/expenses', () => {
       const expense = await fakeExpense({
         CollectiveId: collective.id,
         status: 'ERROR',
-        paidByCollectiveId: hostAdmin.CollectiveId,
       });
+      await ExpenseAction.record(expense.id, hostAdmin.id, ExpenseActionType.PAID);
       await markExpenseAsIncomplete(makeRequest(hostAdmin), expense);
       await expense.reload();
       expect(expense.status).to.equal('INCOMPLETE');
-      expect(expense.paidByCollectiveId).to.be.null;
+      expect(await ExpenseAction.getLatest(expense.id, ExpenseActionType.PAID)).to.be.null;
     });
   });
 });
