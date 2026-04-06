@@ -34,6 +34,7 @@ import ActivityTypes from '../../constants/activities';
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
+import ExpenseActionType from '../../constants/expense-action-type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import { ExpenseRoles } from '../../constants/expense-roles';
 import FEATURE from '../../constants/feature';
@@ -70,6 +71,7 @@ import Expense, {
   ExpenseTaxDefinition,
   ExpenseType,
 } from '../../models/Expense';
+import ExpenseAction from '../../models/ExpenseAction';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
@@ -1448,8 +1450,11 @@ export const approveExpense = async (req: express.Request, expense: Expense): Pr
   } else if (!(await canApprove(req, expense, { throw: true }))) {
     throw new Forbidden();
   }
-
-  const updatedExpense = await expense.update({ status: 'APPROVED', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'APPROVED',
+    lastEditedById: req.remoteUser.id,
+  });
+  await ExpenseAction.record(expense.id, req.remoteUser.id, ExpenseActionType.APPROVED);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
   return updatedExpense;
 };
@@ -1461,7 +1466,11 @@ export const unapproveExpense = async (req: express.Request, expense: Expense): 
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
+  await ExpenseAction.clearActions(expense.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
   return updatedExpense;
 };
@@ -1473,7 +1482,11 @@ export const requestExpenseReApproval = async (req: express.Request, expense: Ex
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'PENDING',
+    lastEditedById: req.remoteUser.id,
+  });
+  await ExpenseAction.clearActions(expense.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
   return updatedExpense;
 };
@@ -1490,6 +1503,7 @@ export const markExpenseAsIncomplete = async (req: express.Request, expense: Exp
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
+  await ExpenseAction.clearActions(expense.id, ExpenseActionType.PAID);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
   return updatedExpense;
 };
@@ -1686,6 +1700,7 @@ export const scheduleExpenseForPayment = async (
     lastEditedById: req.remoteUser.id,
     onHold: false,
   });
+  await ExpenseAction.record(expense.id, req.remoteUser.id, ExpenseActionType.PAID);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
 };
@@ -1707,6 +1722,7 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
     status: 'APPROVED',
     lastEditedById: req.remoteUser.id,
   });
+  await ExpenseAction.clearActions(expense.id, ExpenseActionType.PAID);
 
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
 
@@ -3197,6 +3213,7 @@ export async function editExpense(
     } else if (shouldUpdateStatus) {
       status = 'PENDING';
     }
+    const resetApproval = status === 'PENDING' && ['APPROVED', 'PAID'].includes(expense.status as ExpenseStatus);
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
@@ -3221,7 +3238,12 @@ export async function editExpense(
       set(updatedExpenseProps, 'data.customData', expenseData.customData);
     }
 
-    return expense.update(updatedExpenseProps, { transaction });
+    const result = await expense.update(updatedExpenseProps, { transaction });
+    await ExpenseAction.clearActions(expense.id, ExpenseActionType.PAID, { transaction });
+    if (resetApproval) {
+      await ExpenseAction.clearActions(expense.id, ExpenseActionType.APPROVED, { transaction });
+    }
+    return result;
   });
 
   if (isPaidCreditCardCharge) {
@@ -3346,12 +3368,25 @@ export const getWiseFxRateInfoFromExpenseData = (
   }
 };
 
-export async function setTransferWiseExpenseAsProcessing({ host, expense, data, feesInHostCurrency, remoteUser }) {
+export async function setTransferWiseExpenseAsProcessing({
+  host,
+  expense,
+  data,
+  feesInHostCurrency,
+  remoteUser,
+}: {
+  host: Collective;
+  expense: Expense;
+  data: Record<string, unknown>;
+  feesInHostCurrency: Record<string, number>;
+  remoteUser: User;
+}) {
   await expense.update({
     HostCollectiveId: host.id,
     data: { ...expense.data, ...data, feesInHostCurrency },
     onHold: false,
   });
+  await ExpenseAction.record(expense.id, remoteUser.id, ExpenseActionType.PAID);
   await expense.setProcessing(remoteUser.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser, {
     message: expense.data?.paymentOption?.formattedEstimatedDelivery
@@ -3895,7 +3930,12 @@ export async function markExpenseAsUnpaid(
 
     await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
+    await expense.update({
+      status: newExpenseStatus,
+      lastEditedById: remoteUser.id,
+      PaymentMethodId: null,
+    });
+    await ExpenseAction.clearActions(expense.id, ExpenseActionType.PAID);
     return { expense, transaction };
   });
 

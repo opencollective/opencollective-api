@@ -14,6 +14,7 @@ import { WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { Service } from '../../../constants/connected-account';
+import ExpenseActionType from '../../../constants/expense-action-type';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
 import FEATURE from '../../../constants/feature';
@@ -26,6 +27,7 @@ import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';
+import ExpenseAction from '../../../models/ExpenseAction';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE, LegalDocumentAttributes } from '../../../models/LegalDocument';
 import transferwise from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -263,6 +265,11 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
         description: 'The accounts who approved this expense',
         async resolve(expense, _, req) {
+          const approvedActions = await ExpenseAction.getAll(expense.id, ExpenseActionType.APPROVED);
+          if (approvedActions?.length > 0) {
+            return await req.loaders.Collective.byUserId.loadMany(approvedActions.map(a => a.UserId));
+          }
+
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
           const approvalActivitiesSinceLastUnapprovedState = takeRightWhile(
             activities,
@@ -291,6 +298,12 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (expense.status !== expenseStatus.PAID) {
             return null;
           }
+
+          const paidAction = await ExpenseAction.getLatest(expense.id, ExpenseActionType.PAID);
+          if (paidAction?.UserId) {
+            return req.loaders.Collective.byUserId.load(paidAction.UserId);
+          }
+
           const activities: Activity[] = await req.loaders.Expense.activities.load(expense.id);
           const paidActivity = findLast(activities, a => a.type === ActivityTypes.COLLECTIVE_EXPENSE_PAID);
 

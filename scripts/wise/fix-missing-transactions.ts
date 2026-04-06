@@ -30,13 +30,14 @@ const checkExpense = async expenseId => {
   const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
     useExistingWiseData: true,
   });
+  const remoteUser = await models.User.findByPk(expense.lastEditedById);
 
   const args = {
     host,
     expense,
     data: expense.data,
     feesInHostCurrency,
-    remoteUser: { id: expense.lastEditedById },
+    remoteUser,
   };
   if (!IS_DRY) {
     return setTransferWiseExpenseAsProcessing(args);

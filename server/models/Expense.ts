@@ -17,6 +17,7 @@ import validator from 'validator';
 
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
+import ExpenseActionType from '../constants/expense-action-type';
 import ExpenseStatus from '../constants/expense-status';
 import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
@@ -44,6 +45,7 @@ import {
 import AccountingCategory from './AccountingCategory';
 import Activity from './Activity';
 import Collective from './Collective';
+import ExpenseAction from './ExpenseAction';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
@@ -169,12 +171,14 @@ class Expense extends ModelWithPublicId<
   declare public virtualCard?: VirtualCard;
   declare public items?: ExpenseItem[];
   declare public attachedFiles?: ExpenseAttachedFile[];
+  declare public expenseActions?: ExpenseAction[];
   declare public invoiceFile?: NonAttribute<UploadedFile>;
   declare public accountingCategory?: AccountingCategory;
   declare public reference: string;
 
   // Association getters
   declare getActivities: HasManyGetAssociationsMixin<Activity>;
+  declare getExpenseActions: HasManyGetAssociationsMixin<ExpenseAction>;
   declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
@@ -342,16 +346,18 @@ class Expense extends ModelWithPublicId<
     skipActivity = false,
     paidAt = new Date() as Date,
   } = {}) {
+    user = user ?? (await User.findByPk(this.lastEditedById));
     const collective = this.collective || (await this.getCollective());
-    const lastEditedById = user?.id || this.lastEditedById;
 
     await this.update({
       status: ExpenseStatus.PAID,
-      lastEditedById,
+      lastEditedById: user?.id,
       HostCollectiveId: collective.HostCollectiveId,
       paidAt,
       onHold: false,
     });
+
+    await ExpenseAction.record(this.id, user?.id, ExpenseActionType.PAID);
 
     // Update transactions settlement
     if (this.type === ExpenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {
@@ -367,7 +373,6 @@ class Expense extends ModelWithPublicId<
     }
 
     if (!skipActivity) {
-      user = user ?? (await User.findByPk(lastEditedById));
       await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
     }
   };

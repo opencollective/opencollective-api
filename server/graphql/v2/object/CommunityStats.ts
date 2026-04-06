@@ -1,4 +1,3 @@
-import type express from 'express';
 import { GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { compact, flatten, uniq, values } from 'lodash';
@@ -7,14 +6,13 @@ import type { Sequelize } from 'sequelize';
 import { QueryTypes } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
-import { Activity, Collective, Op, sequelize } from '../../../models';
+import { Activity, Op, sequelize } from '../../../models';
 import {
   CommunityHostTransactionSummaryRow,
   CommunityHostYearlyTransactionSummaryRow,
 } from '../../../types/kysely-views';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { GraphQLCommunityRelationType } from '../enum/CommunityRelationType';
-import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
 import { GraphQLAmount } from './Amount';
@@ -56,97 +54,6 @@ const GraphQLCommunityTransactionSummary = new GraphQLObjectType({
   }),
 });
 
-const GraphQLCommunityAssociatedAccount = new GraphQLObjectType({
-  name: 'CommunityAssociatedAccount',
-  fields: () => ({
-    account: {
-      type: GraphQLAccount,
-    },
-    relations: {
-      type: new GraphQLList(GraphQLCommunityRelationType),
-    },
-    lastInteractionAt: {
-      type: GraphQLDateTime,
-      async resolve(associatedAccount, _, req) {
-        const { FromCollectiveId, HostCollectiveId, CollectiveId } = associatedAccount;
-        const communityStats = await req.loaders.Collective.communityStats.forSpecificHostedCollective.load({
-          HostCollectiveId,
-          FromCollectiveId,
-          CollectiveId,
-        });
-
-        return communityStats?.lastInteractionAt;
-      },
-    },
-    firstInteractionAt: {
-      type: GraphQLDateTime,
-      async resolve(associatedAccount, _, req) {
-        const { FromCollectiveId, HostCollectiveId, CollectiveId } = associatedAccount;
-        const communityStats = await req.loaders.Collective.communityStats.forSpecificHostedCollective.load({
-          HostCollectiveId,
-          FromCollectiveId,
-          CollectiveId,
-        });
-
-        return communityStats?.firstInteractionAt;
-      },
-    },
-    transactionSummary: {
-      type: new GraphQLNonNull(GraphQLCommunityTransactionSummary),
-      async resolve(associatedAccount) {
-        const { FromCollectiveId, HostCollectiveId, CollectiveId } = associatedAccount;
-        const results = await (sequelize as Sequelize).query<{
-          hostCurrency: string;
-          debitTotal: number;
-          debitCount: number;
-          creditTotal: number;
-          creditCount: number;
-        }>(
-          `
-          SELECT
-            t."FromCollectiveId",
-            t."HostCollectiveId",
-            t."CollectiveId",
-            h.currency AS "hostCurrency",
-            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'DEBIT'), 0) AS "debitTotal",
-            COALESCE(COUNT(t.id) FILTER (WHERE t.type = 'DEBIT'), 0) AS "debitCount",
-            COALESCE(SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'CREDIT'), 0) AS "creditTotal",
-            COALESCE(COUNT(t.id) FILTER (WHERE t.type = 'CREDIT'), 0) AS "creditCount"
-          FROM
-            "Transactions" t
-            JOIN "Collectives" h ON t."HostCollectiveId" = h.id
-          WHERE t."deletedAt" IS NULL
-            AND t."RefundTransactionId" IS NULL
-            AND t."isRefund" = FALSE
-            AND t."hostCurrency" = h.currency
-            AND t."FromCollectiveId" = :FromCollectiveId
-            AND t."CollectiveId" = :CollectiveId
-            AND t."HostCollectiveId" = :HostCollectiveId
-          GROUP BY
-            t."FromCollectiveId", t."HostCollectiveId", t."CollectiveId", h.currency
-          `,
-          {
-            raw: true,
-            type: QueryTypes.SELECT,
-            replacements: { FromCollectiveId, HostCollectiveId, CollectiveId },
-          },
-        );
-        const result = results[0];
-        return {
-          debitTotal: { value: result?.debitTotal || 0, currency: result?.hostCurrency || 'USD' },
-          debitTotalAcc: { value: result?.debitTotal || 0, currency: result?.hostCurrency || 'USD' },
-          debitCount: result?.debitCount || 0,
-          debitCountAcc: result?.debitCount || 0,
-          creditTotal: { value: result?.creditTotal || 0, currency: result?.hostCurrency || 'USD' },
-          creditTotalAcc: { value: result?.creditTotal || 0, currency: result?.hostCurrency || 'USD' },
-          creditCount: result?.creditCount || 0,
-          creditCountAcc: result?.creditCount || 0,
-        };
-      },
-    },
-  }),
-});
-
 export const GraphQLCommunityStats = new GraphQLObjectType({
   name: 'CommunityStats',
   fields: () => {
@@ -155,40 +62,6 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLString),
         resolve(account) {
           return `${account.id}-${account.dataValues.contextualHostCollectiveId}`;
-        },
-      },
-      associatedCollectives: {
-        type: new GraphQLList(GraphQLCommunityAssociatedAccount),
-        async resolve(account, _, req: express.Request) {
-          if (account.dataValues.associatedCollectives) {
-            const collectiveIds = Object.keys(account.dataValues.associatedCollectives);
-            const collectives = await req.loaders.Collective.byId.loadMany(collectiveIds);
-            const validCollectives = collectives.filter(collective => collective instanceof Collective);
-            return validCollectives.map(collective => ({
-              FromCollectiveId: account.id,
-              HostCollectiveId: account.dataValues.contextualHostCollectiveId,
-              CollectiveId: collective.id,
-              account: collective,
-              relations: account.dataValues.associatedCollectives[collective.id],
-            }));
-          }
-        },
-      },
-      associatedOrganizations: {
-        type: new GraphQLList(GraphQLCommunityAssociatedAccount),
-        async resolve(account, _, req: express.Request) {
-          if (account.dataValues.associatedOrganizations) {
-            const organizationIds = Object.keys(account.dataValues.associatedOrganizations);
-            const organizations = await req.loaders.Collective.byId.loadMany(organizationIds);
-            const validOrganizations = organizations.filter(organization => organization instanceof Collective);
-            return validOrganizations.map(organization => ({
-              FromCollectiveId: account.id,
-              HostCollectiveId: account.dataValues.contextualHostCollectiveId,
-              CollectiveId: organization.id,
-              account: organization,
-              relations: account.dataValues.associatedOrganizations[organization.id],
-            }));
-          }
         },
       },
       relations: {
