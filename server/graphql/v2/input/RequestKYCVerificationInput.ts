@@ -4,7 +4,7 @@ const GraphQLRequestManualKYCVerificationInput = new GraphQLInputObjectType({
   name: 'RequestManualKYCVerificationInput',
   fields: () => ({
     legalName: {
-      type: new GraphQLNonNull(GraphQLString),
+      type: GraphQLString,
     },
     legalAddress: {
       type: GraphQLString,
@@ -15,10 +15,16 @@ const GraphQLRequestManualKYCVerificationInput = new GraphQLInputObjectType({
   }),
 });
 
-const GraphQLRequestPersonaKYCVerificationInput = new GraphQLInputObjectType({
-  name: 'RequestPersonaKYCVerificationInput',
+const GraphQLSubmitManualKYCVerificationInput = new GraphQLInputObjectType({
+  name: 'SubmitManualKYCVerificationInput',
   fields: () => ({
-    importInquiryId: {
+    legalName: {
+      type: new GraphQLNonNull(GraphQLString),
+    },
+    legalAddress: {
+      type: GraphQLString,
+    },
+    notes: {
       type: GraphQLString,
     },
   }),
@@ -31,10 +37,17 @@ const GraphQLRequestKYCVerificationInput = new GraphQLInputObjectType({
     manual: {
       type: GraphQLRequestManualKYCVerificationInput,
     },
-    persona: {
-      type: GraphQLRequestPersonaKYCVerificationInput,
+  }),
+});
+
+const GraphQLSubmitKYCVerificationInput = new GraphQLInputObjectType({
+  name: 'SubmitKYCVerificationInput',
+  isOneOf: true,
+  fields: () => ({
+    manual: {
+      type: GraphQLSubmitManualKYCVerificationInput,
     },
   }),
 });
 
-export { GraphQLRequestKYCVerificationInput };
+export { GraphQLRequestKYCVerificationInput, GraphQLSubmitKYCVerificationInput };

@@ -6,6 +6,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import { Collective, Op, PayoutMethod } from '../../../models';
 import Expense from '../../../models/Expense';
 import { KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
+import { Level, Scope, SecurityCheck } from '../../security/expense';
 import { KYCProviderName } from '../providers';
 
 type ExpenseKYCStatus = {
@@ -23,11 +24,12 @@ export async function expenseKycStatus(
     return null;
   }
 
-  const payee =
-    expense.fromCollective ||
-    (await (loaders
-      ? loaders.Collective.byId.load(expense.FromCollectiveId)
-      : Collective.findByPk(expense.FromCollectiveId)));
+  const payee = expense.fromCollective?.type
+    ? expense.fromCollective
+    : await (loaders
+        ? loaders.Collective.byId.load(expense.FromCollectiveId)
+        : Collective.findByPk(expense.FromCollectiveId));
+
   if (payee.type !== CollectiveType.USER) {
     return null;
   }
@@ -68,19 +70,12 @@ export async function expenseKycStatus(
     )
   ).filter(Boolean) as KYCVerification[];
 
-  const hasKycRequests = kycRequests.length > 0;
+  const hasKycRequests =
+    kycRequests.filter(kycRequest =>
+      [KYCVerificationStatus.VERIFIED, KYCVerificationStatus.PENDING].includes(kycRequest.status),
+    ).length > 0;
   const isVerified =
-    hasKycRequests && kycRequests.every(kycRequest => kycRequest.status === KYCVerificationStatus.VERIFIED);
-
-  if (isVerified && kycRequests[0]) {
-    const payoutMethod = await expense.getPayoutMethod();
-    if (payoutMethod?.updatedAt && payoutMethod.updatedAt > kycRequests[0].verifiedAt) {
-      return {
-        latestVerification: kycRequests[0],
-        payee: { status: 'VERIFIED' },
-      };
-    }
-  }
+    hasKycRequests && kycRequests.some(kycRequest => kycRequest.status === KYCVerificationStatus.VERIFIED);
 
   return {
     latestVerification: kycRequests.length > 0 ? kycRequests[0] : null,
@@ -268,5 +263,30 @@ export async function handleExpenseKycRevoked(kycVerification: KYCVerification) 
       { id: kycVerification.CreatedByUserId },
       {},
     );
+  }
+}
+
+export async function handleExpenseKycSecurityChecks(
+  expense: Expense,
+  checks: SecurityCheck[],
+  { loaders }: { loaders?: Express.Request['loaders'] },
+) {
+  const expenseKYCStatus = await expenseKycStatus(expense, { loaders });
+  if (!expenseKYCStatus) {
+    return;
+  }
+
+  if (expenseKYCStatus.payee.status === 'VERIFIED') {
+    checks.push({
+      scope: Scope.PAYEE,
+      level: Level.PASS,
+      message: 'KYC Verified',
+    });
+  } else if (expenseKYCStatus.payee.status === 'PENDING') {
+    checks.push({
+      scope: Scope.PAYEE,
+      level: Level.HIGH,
+      message: 'KYC Verification pending',
+    });
   }
 }

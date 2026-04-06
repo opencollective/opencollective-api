@@ -9,7 +9,10 @@ import { Forbidden, NotFound } from '../../errors';
 import { GraphQLKYCProvider } from '../enum/KYCProvider';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLKYCVerificationReferenceInput } from '../input/KYCVerificationReferenceInput';
-import { GraphQLRequestKYCVerificationInput } from '../input/RequestKYCVerificationInput';
+import {
+  GraphQLRequestKYCVerificationInput,
+  GraphQLSubmitKYCVerificationInput,
+} from '../input/RequestKYCVerificationInput';
 import { GraphQLKYCVerification } from '../object/KYCVerification';
 
 const KYCMutations = {
@@ -48,6 +51,51 @@ const KYCMutations = {
       const providerRequest = args.request[provider.providerName];
 
       return await provider.requestVerification(
+        {
+          RequestedByCollectiveId: requestedByAccount.id,
+          CollectiveId: verifyAccount.id,
+          CreatedByUserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+        },
+        providerRequest,
+      );
+    },
+  },
+  submitKYCVerification: {
+    type: new GraphQLNonNull(GraphQLKYCVerification),
+    description: 'Submits a KYC verification',
+    args: {
+      requestedByAccount: {
+        description: 'Account request KYC Verification',
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+      verifyAccount: {
+        description: 'Account that will be verified',
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+      },
+      provider: {
+        type: new GraphQLNonNull(GraphQLKYCProvider),
+      },
+      request: {
+        description: 'Provider specific request data',
+        type: new GraphQLNonNull(GraphQLSubmitKYCVerificationInput),
+      },
+    },
+    async resolve(_, args, req: Express.Request): Promise<KYCVerification> {
+      checkRemoteUserCanUseKYC(req);
+      const requestedByAccount = await fetchAccountWithReference(args.requestedByAccount, { throwIfMissing: true });
+      if (!req.remoteUser.isAdminOfCollective(requestedByAccount)) {
+        throw new Forbidden();
+      }
+
+      await checkFeatureAccess(requestedByAccount, FEATURE.KYC);
+
+      const verifyAccount = await fetchAccountWithReference(args.verifyAccount, { throwIfMissing: true });
+
+      const provider = getKYCProvider(args.provider);
+      const providerRequest = args.request[provider.providerName];
+
+      return await provider.submitVerification(
         {
           RequestedByCollectiveId: requestedByAccount.id,
           CollectiveId: verifyAccount.id,

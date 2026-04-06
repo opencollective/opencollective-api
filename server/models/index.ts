@@ -375,7 +375,8 @@ PlatformSubscription.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'co
 // KYCVerification
 KYCVerification.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 KYCVerification.belongsTo(Collective, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
-
+Collective.hasMany(KYCVerification, { foreignKey: 'CollectiveId', as: 'kycVerifications' });
+Collective.hasMany(KYCVerification, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
 export default models;
 
 export { sequelize, Op };
