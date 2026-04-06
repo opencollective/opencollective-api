@@ -629,9 +629,21 @@ export const buildSearchConditions = (
   }
   // Conditions for text fields
   const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
-  const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
+  const iLikeQuery = `%${sanitizeSearchTermForILike(removeDiacritics(strTerm))}%`;
   const allTextFields = [...(slugFields || []), ...(textFields || [])];
-  allTextFields.forEach(field => conditions.push({ [field]: { [Op.iLike]: iLikeQuery } }));
+  allTextFields.forEach(field => {
+    let fieldToQuery = field;
+    // For slug fields that may be defined for an associated table,
+    // strip the $ so that the field name can work with sequelize.col
+    if (fieldToQuery.startsWith('$') && fieldToQuery.endsWith('$')) {
+      fieldToQuery = fieldToQuery.slice(1, fieldToQuery.length - 1);
+    }
+    conditions.push(
+      sequelize.where(sequelize.fn('unaccent', sequelize.col(fieldToQuery)), {
+        [Op.iLike]: iLikeQuery,
+      }),
+    );
+  });
 
   // Conditions for string array (usually tags lists)
   if (stringArrayFields?.length) {
@@ -719,10 +731,12 @@ export const buildKyselySearchConditions =
 
     // Conditions for text fields
     const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
-    const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
+    const iLikeQuery = `%${sanitizeSearchTermForILike(removeDiacritics(strTerm))}%`;
     const allTextFields = [...(slugFields || []), ...(textFields || [])];
 
-    q = q.where(({ eb, or }) => or(allTextFields.map(field => eb(field, 'ilike', iLikeQuery))));
+    q = q.where(({ fn, eb, or }) =>
+      or(allTextFields.map(field => eb(fn<string>('unaccent', [field]), 'ilike', iLikeQuery))),
+    );
     return q;
   };
 

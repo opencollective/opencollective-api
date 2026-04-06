@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import { times } from 'lodash';
+import sequelize from 'sequelize';
 
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
@@ -367,7 +368,7 @@ describe('server/lib/search', () => {
     const TEST_FIELDS_CONFIGURATION = {
       slugFields: ['slug', '$fromCollective.slug$'],
       idFields: ['id', '$fromCollective.id$'],
-      textFields: ['name', '$fromCollective.name$'],
+      textFields: ['Table.name', 'fromCollective.name'],
       amountFields: ['amount', '$order.totalAmount$'],
       stringArrayFields: ['tags'],
     };
@@ -378,6 +379,12 @@ describe('server/lib/search', () => {
 
     const testBuildSearchConditions = searchTerm => {
       return testBuildSearchConditionsWithCustomConfig(searchTerm, TEST_FIELDS_CONFIGURATION);
+    };
+
+    const unAccentedColumnILike = (col, text) => {
+      return sequelize.where(sequelize.fn('unaccent', sequelize.col(col)), {
+        [Op.iLike]: text,
+      });
     };
 
     it('returns no condition for an empty search', () => {
@@ -404,26 +411,10 @@ describe('server/lib/search', () => {
       };
       expect(buildSearchConditions(publicId, base)).to.deep.eq([
         { publicId },
-        {
-          slug: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          '$fromCollective.slug$': {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          name: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          '$fromCollective.name$': {
-            [Op.iLike]: term,
-          },
-        },
+        unAccentedColumnILike('slug', term),
+        unAccentedColumnILike('fromCollective.slug', term),
+        unAccentedColumnILike('Table.name', term),
+        unAccentedColumnILike('fromCollective.name', term),
         {
           tags: {
             [Op.overlap]: [publicId],
@@ -442,26 +433,10 @@ describe('server/lib/search', () => {
       ).to.deep.eq([
         { publicId },
         { mirrorPublicId: publicId },
-        {
-          slug: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          '$fromCollective.slug$': {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          name: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          '$fromCollective.name$': {
-            [Op.iLike]: term,
-          },
-        },
+        unAccentedColumnILike('slug', term),
+        unAccentedColumnILike('fromCollective.slug', term),
+        unAccentedColumnILike('Table.name', term),
+        unAccentedColumnILike('fromCollective.name', term),
         {
           tags: {
             [Op.overlap]: [publicId],
@@ -477,26 +452,10 @@ describe('server/lib/search', () => {
       ).to.deep.eq([
         { publicId },
         { 'Collective.publicId': publicId },
-        {
-          slug: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          '$fromCollective.slug$': {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          name: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          '$fromCollective.name$': {
-            [Op.iLike]: term,
-          },
-        },
+        unAccentedColumnILike('slug', term),
+        unAccentedColumnILike('fromCollective.slug', term),
+        unAccentedColumnILike('Table.name', term),
+        unAccentedColumnILike('fromCollective.name', term),
         {
           tags: {
             [Op.overlap]: [publicId],
@@ -515,21 +474,9 @@ describe('server/lib/search', () => {
           publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
         }),
       ).to.deep.eq([
-        {
-          slug: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          name: {
-            [Op.iLike]: term,
-          },
-        },
-        {
-          description: {
-            [Op.iLike]: term,
-          },
-        },
+        unAccentedColumnILike('slug', term),
+        unAccentedColumnILike('name', term),
+        unAccentedColumnILike('description', term),
       ]);
     });
 
@@ -537,20 +484,21 @@ describe('server/lib/search', () => {
       const publicId = 'acc_noExclusiveFields';
       const iLike = `%${sanitizeSearchTermForILike(publicId)}%`;
       expect(testBuildSearchConditions(publicId)).to.deep.eq([
-        { slug: { [Op.iLike]: iLike } },
-        { '$fromCollective.slug$': { [Op.iLike]: iLike } },
-        { name: { [Op.iLike]: iLike } },
-        { '$fromCollective.name$': { [Op.iLike]: iLike } },
+        unAccentedColumnILike('slug', iLike),
+        unAccentedColumnILike('fromCollective.slug', iLike),
+        unAccentedColumnILike('Table.name', iLike),
+        unAccentedColumnILike('fromCollective.name', iLike),
         { tags: { [Op.overlap]: [publicId] } },
       ]);
     });
 
     it('build conditions for numbers', () => {
+      let iLike = '%4242%';
       expect(testBuildSearchConditions('4242')).to.deep.eq([
-        { slug: { [Op.iLike]: '%4242%' } },
-        { '$fromCollective.slug$': { [Op.iLike]: '%4242%' } },
-        { name: { [Op.iLike]: '%4242%' } },
-        { '$fromCollective.name$': { [Op.iLike]: '%4242%' } },
+        unAccentedColumnILike('slug', iLike),
+        unAccentedColumnILike('fromCollective.slug', iLike),
+        unAccentedColumnILike('Table.name', iLike),
+        unAccentedColumnILike('fromCollective.name', iLike),
         { tags: { [Op.overlap]: ['4242'] } },
         { id: 4242 },
         { '$fromCollective.id$': 4242 },
@@ -558,11 +506,12 @@ describe('server/lib/search', () => {
         { '$order.totalAmount$': 424200 },
       ]);
 
+      iLike = '%4242.66%';
       expect(testBuildSearchConditions('4242.66')).to.deep.eq([
-        { slug: { [Op.iLike]: '%4242.66%' } },
-        { '$fromCollective.slug$': { [Op.iLike]: '%4242.66%' } },
-        { name: { [Op.iLike]: '%4242.66%' } },
-        { '$fromCollective.name$': { [Op.iLike]: '%4242.66%' } },
+        unAccentedColumnILike('slug', iLike),
+        unAccentedColumnILike('fromCollective.slug', iLike),
+        unAccentedColumnILike('Table.name', iLike),
+        unAccentedColumnILike('fromCollective.name', iLike),
         { tags: { [Op.overlap]: ['4242.66'] } },
         { amount: 424266 },
         { '$order.totalAmount$': 424266 },
@@ -570,12 +519,24 @@ describe('server/lib/search', () => {
     });
 
     it('build conditions for full text', () => {
+      const iLike = '%hello world%';
       expect(testBuildSearchConditions('   hello world   ')).to.deep.eq([
-        { slug: { [Op.iLike]: '%hello world%' } },
-        { '$fromCollective.slug$': { [Op.iLike]: '%hello world%' } },
-        { name: { [Op.iLike]: '%hello world%' } },
-        { '$fromCollective.name$': { [Op.iLike]: '%hello world%' } },
+        unAccentedColumnILike('slug', iLike),
+        unAccentedColumnILike('fromCollective.slug', iLike),
+        unAccentedColumnILike('Table.name', iLike),
+        unAccentedColumnILike('fromCollective.name', iLike),
         { tags: { [Op.overlap]: ['hello world'] } },
+      ]);
+    });
+
+    it('build conditions for text with diacritics', () => {
+      const iLike = '%creme brulee%';
+      expect(testBuildSearchConditions('crème brûlée')).to.deep.eq([
+        unAccentedColumnILike('slug', iLike),
+        unAccentedColumnILike('fromCollective.slug', iLike),
+        unAccentedColumnILike('Table.name', iLike),
+        unAccentedColumnILike('fromCollective.name', iLike),
+        { tags: { [Op.overlap]: ['crème brûlée'] } },
       ]);
     });
 

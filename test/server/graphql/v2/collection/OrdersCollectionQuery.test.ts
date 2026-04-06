@@ -937,7 +937,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       collective = await fakeCollective();
 
       // Create users with specific names for search testing
-      user1 = await fakeUser(null, { name: 'Alice Anderson' });
+      user1 = await fakeUser(null, { name: 'Alicé Anderson' });
       user2 = await fakeUser(null, { name: 'Bob Builder' });
 
       // Create orders by different users
@@ -960,7 +960,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       const result = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: collective.id },
         filter: 'INCOMING',
-        searchTerm: 'Alice',
+        searchTerm: 'Alice', // should be diacritic insensitive
       });
 
       expect(result.errors).to.not.exist;
