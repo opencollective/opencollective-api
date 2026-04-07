@@ -66,6 +66,7 @@ const blockedCountries = splitCSV(config.transferwise.blockedCountries);
 const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
 const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
 const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
+const recipientTypesBlockedForBusinessProfiles = splitCSV(config.transferwise.recipientTypesBlockedForBusinessProfiles);
 
 async function populateProfileId(connectedAccount: ConnectedAccount, profileId: number): Promise<void> {
   if (!connectedAccount.data?.id) {
@@ -685,11 +686,18 @@ async function getRequiredBankInformation(
       ? await transferwise.validateAccountRequirements(connectedAccount, transactionParams, accountDetails)
       : await transferwise.getAccountRequirements(connectedAccount, transactionParams);
 
+  const isBusinessProfile = toLower(connectedAccount.data?.type) === 'business';
+  const blockedRecipientTypes = []
+    .concat(
+      isBusinessProfile && recipientTypesBlockedForBusinessProfiles,
+      host.settings?.transferwise?.blockedPaymentMethodTypes,
+    )
+    .filter(Boolean);
   // Filter out methods blocked by Host settings
-  if (host.settings?.transferwise?.blockedPaymentMethodTypes) {
-    requiredFields = requiredFields.filter(
-      ({ type }) => !host.settings.transferwise.blockedPaymentMethodTypes.includes(type),
-    );
+  if (blockedRecipientTypes.length > 0) {
+    requiredFields = requiredFields?.filter?.(({ type }) => {
+      return !blockedRecipientTypes.includes(type);
+    });
   }
 
   // Filter out countries blocked by sanctions on Wise
