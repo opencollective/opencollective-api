@@ -557,7 +557,10 @@ export const generateLoaders = req => {
         Collective.findAll({
           mapToModel: false,
           raw: true,
-          where: { ParentCollectiveId: { [Op.in]: ids } },
+          where: {
+            ParentCollectiveId: { [Op.in]: ids },
+            type: { [Op.ne]: CollectiveType.VENDOR },
+          },
           attributes: ['ParentCollectiveId', 'id'],
         }).then((results: { ParentCollectiveId: number; id: number }[]) => {
           const groupedResults = new Map<number, Set<number>>();
