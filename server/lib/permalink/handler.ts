@@ -3,6 +3,7 @@ import express from 'express';
 import { handleNotFound } from './entity-handlers/common';
 import {
   handleAccountingCategory,
+  handleAccountingCategoryRule,
   handleActivity,
   handleAgreement,
   handleApplication,
@@ -79,6 +80,7 @@ const handlerMap: Record<EntityShortIdPrefix, Handler> = {
   [EntityShortIdPrefix.UserTwoFactorMethod]: handleUserTwoFactorMethod,
   [EntityShortIdPrefix.VirtualCard]: handleVirtualCard,
   [EntityShortIdPrefix.VirtualCardRequest]: handleVirtualCardRequest,
+  [EntityShortIdPrefix.AccountingCategoryRule]: handleAccountingCategoryRule,
 };
 
 export async function handlePermalink(req: express.Request, res: express.Response) {
