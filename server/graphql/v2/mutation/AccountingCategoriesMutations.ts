@@ -192,6 +192,7 @@ export default {
 
       const rules = await Promise.all(
         args.rules.map(async (rule, ruleIndex) => {
+          let existingRuleId = null;
           if (rule.id) {
             const existingRule = await AccountingCategoryRule.findOne({ where: { publicId: rule.id } });
 
@@ -202,6 +203,8 @@ export default {
             if (existingRule && existingRule.CollectiveId !== account.id) {
               throw new Forbidden('You are not authorized to update this rule');
             }
+
+            existingRuleId = existingRule.id;
           }
 
           const normalizedPredicates = [];
@@ -219,6 +222,7 @@ export default {
             : idDecode(rule.accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY);
 
           return {
+            id: existingRuleId,
             publicId: rule.id,
             CollectiveId: account.id,
             AccountingCategoryId: accountingCategoryId,
