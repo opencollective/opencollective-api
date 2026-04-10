@@ -2223,7 +2223,7 @@ class Collective extends ModelWithPublicId<
       let { structured } = locationInput;
       let { address } = locationInput;
 
-      structured = omitBy(structured, isNil);
+      structured = omitBy(structured, v => v === null || v === undefined || v === '');
 
       // If structured is empty, set it to null
       if (Object.keys(structured).length === 0) {
