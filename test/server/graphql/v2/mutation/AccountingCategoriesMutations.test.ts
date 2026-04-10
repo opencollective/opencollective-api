@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 import { get } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import {
   ContributionAccountingCategoryRuleOperator,
   ContributionAccountingCategoryRuleSubject,

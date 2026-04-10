@@ -490,6 +490,26 @@ export const handleAccountingCategory: Handler = async (req, res) => {
   return handleAccessDenied(req, res);
 };
 
+export const handleAccountingCategoryRule: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
+  const rule = await models.AccountingCategoryRule.findOne({
+    where: { publicId: req.params.id },
+    include: [{ model: models.Collective, as: 'collective', required: true }],
+  });
+  if (!rule) {
+    return handleNotFound(req, res);
+  }
+
+  if (req.remoteUser.isAdmin(rule.collective.id)) {
+    return redirect(res, getDashboardRoute(rule.collective, 'chart-of-accounts'));
+  }
+
+  return handleAccessDenied(req, res);
+};
+
 export const handleConnectedAccount: Handler = async (req, res) => {
   if (!req.remoteUser) {
     return handleUnauthorized(req, res);
