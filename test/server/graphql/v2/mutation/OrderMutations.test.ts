@@ -764,6 +764,53 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           config.captcha.enabled = captchaDefaultValue;
         });
+
+        it('Persists the guest location and derives a formatted address from structured fields', async () => {
+          const email = randEmail();
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email,
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+              location: {
+                country: 'US',
+                structured: {
+                  address1: '123 Main St',
+                  city: 'New York',
+                  zone: 'NY',
+                  postalCode: '10001',
+                },
+                // Intentionally omitting `address` — it must be auto-derived from `structured`
+              },
+            },
+          };
+
+          const result = await callCreateOrder({ order: orderData });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
+          const location = await fromCollective.getLocation();
+
+          // Location row must exist and carry the country
+          expect(location).to.exist;
+          expect(location.country).to.eq('US');
+
+          // Structured fields must be stored as-is
+          expect(location.structured).to.deep.include({
+            address1: '123 Main St',
+            city: 'New York',
+            zone: 'NY',
+            postalCode: '10001',
+          });
+
+          // address must be auto-derived from structured — never null when structured has data
+          expect(location.address).to.be.a('string').that.is.not.empty;
+          expect(location.address).to.include('123 Main St');
+          expect(location.address).to.include('New York');
+        });
       });
 
       describe('Common checks', () => {
