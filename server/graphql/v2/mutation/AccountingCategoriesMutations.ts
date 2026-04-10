@@ -193,9 +193,7 @@ export default {
       const rules = await Promise.all(
         args.rules.map(async (rule, ruleIndex) => {
           if (rule.id) {
-            const existingRule = await AccountingCategoryRule.findByPk(
-              idDecode(rule.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE),
-            );
+            const existingRule = await AccountingCategoryRule.findOne({ where: { publicId: rule.id } });
 
             if (existingRule && existingRule.type !== 'CONTRIBUTION') {
               throw new ValidationFailed('This mutation can only update contribution accounting category rules');
@@ -213,10 +211,17 @@ export default {
             normalizedPredicates[predicateIndex] = normalizedPredicate;
           }
 
+          const accountingCategoryId = isEntityPublicId(
+            rule.accountingCategory.id,
+            EntityShortIdPrefix.AccountingCategory,
+          )
+            ? await AccountingCategory.findOne({ where: { publicId: rule.accountingCategory.id } }).then(c => c?.id)
+            : idDecode(rule.accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY);
+
           return {
-            id: rule.id ? idDecode(rule.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE) : null,
+            publicId: rule.id,
             CollectiveId: account.id,
-            AccountingCategoryId: idDecode(rule.accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
+            AccountingCategoryId: accountingCategoryId,
             name: rule.name,
             enabled: isNil(rule.enabled) ? true : rule.enabled,
             type: 'CONTRIBUTION',
@@ -233,10 +238,10 @@ export default {
           lock: Transaction.LOCK.UPDATE,
         });
 
-        const toDelete = existingRules.filter(rule => !rules.some(r => r.id === rule.id));
+        const toDelete = existingRules.filter(rule => !rules.some(r => r.publicId === rule.publicId));
 
         await AccountingCategoryRule.destroy({
-          where: { id: toDelete.map(r => r.id) },
+          where: { publicId: toDelete.map(r => r.publicId) },
           transaction,
         });
 

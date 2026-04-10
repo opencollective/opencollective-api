@@ -1,18 +1,22 @@
-import { CreationOptional, DataTypes, ForeignKey, InferAttributes, InferCreationAttributes, Model } from 'sequelize';
+import { CreationOptional, DataTypes, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import {
   ContributionAccountingCategoryRulePredicate,
   validateAndNormalizeContributionAccountingCategoryRulePredicate,
 } from '../lib/accounting/categorization/types';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 
-export class AccountingCategoryRule extends Model<
+export class AccountingCategoryRule extends ModelWithPublicId<
+  EntityShortIdPrefix.AccountingCategoryRule,
   InferAttributes<AccountingCategoryRule>,
   InferCreationAttributes<AccountingCategoryRule>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.AccountingCategoryRule;
   public static readonly tableName = 'AccountingCategoryRules' as const;
   declare id: CreationOptional<number>;
   declare CollectiveId: ForeignKey<Collective['id']>;
@@ -52,6 +56,10 @@ AccountingCategoryRule.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     name: {
       type: DataTypes.STRING,

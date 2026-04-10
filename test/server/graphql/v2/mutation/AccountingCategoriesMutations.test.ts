@@ -436,7 +436,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
           account: { legacyId: host.id },
           rules: [
             {
-              id: idEncode(createdRules[0].id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE),
+              id: createdRules[0].publicId,
               accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
               name: 'Rule A - edited',
               enabled: false,
@@ -449,7 +449,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
               ],
             },
             {
-              accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
+              accountingCategory: { id: accountingCategory.publicId },
               name: 'Rule C',
               enabled: true,
               predicates: [
@@ -524,7 +524,7 @@ describe('server/graphql/v2/mutation/AccountingCategoriesMutations', () => {
           account: { legacyId: host.id },
           rules: [
             {
-              id: idEncode(anotherHostRule.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY_RULE),
+              id: anotherHostRule.publicId,
               accountingCategory: { id: idEncode(accountingCategory.id, 'accounting-category') },
               name: 'Malicious update',
               enabled: false,

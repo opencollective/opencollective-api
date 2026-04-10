@@ -11,6 +11,11 @@ module.exports = {
         primaryKey: true,
         autoIncrement: true,
       },
+      publicId: {
+        type: Sequelize.STRING,
+        unique: true,
+        defaultValue: Sequelize.literal(`oc_nanoid('acrule')`),
+      },
       name: {
         type: Sequelize.STRING,
         allowNull: false,

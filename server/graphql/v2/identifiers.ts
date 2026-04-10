@@ -19,7 +19,6 @@ const instances = {};
 export const IDENTIFIER_TYPES = {
   ACCOUNT: 'account',
   ACCOUNTING_CATEGORY: 'accounting-category',
-  ACCOUNTING_CATEGORY_RULE: 'accounting-category-rule',
   ACTIVITY: 'activity',
   AGREEMENT: 'agreement',
   COMMENT: 'comment',
