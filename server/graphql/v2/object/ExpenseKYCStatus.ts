@@ -1,4 +1,6 @@
-import { GraphQLEnumType, GraphQLObjectType } from 'graphql';
+import { GraphQLEnumType, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+
+import { GraphQLKYCVerification } from './KYCVerification';
 
 export const GraphQLExpenseKYCStatus = new GraphQLObjectType({
   name: 'ExpenseKYCStatus',
@@ -7,9 +9,23 @@ export const GraphQLExpenseKYCStatus = new GraphQLObjectType({
   }),
 });
 
+const GraphQLExpensePayeeKYCType = new GraphQLEnumType({
+  name: 'ExpensePayeeKYCType',
+  description: 'Whether the payee is an individual (its own KYC) or a multi-admin account (rollup over admin KYC)',
+  values: {
+    INDIVIDUAL: { value: 'INDIVIDUAL' },
+    ACCOUNT: { value: 'ACCOUNT' },
+  },
+});
+
 const GraphQLExpensePayeeKYC = new GraphQLObjectType({
   name: 'ExpensePayeeKYC',
   fields: () => ({
+    type: {
+      type: GraphQLExpensePayeeKYCType,
+      description:
+        'Whether the payee is an individual or a multi-admin account (Organization, Collective, Project, Event, Fund, Vendor)',
+    },
     status: {
       type: new GraphQLEnumType({
         name: 'ExpensePayeeKYCStatus',
@@ -19,6 +35,9 @@ const GraphQLExpensePayeeKYC = new GraphQLObjectType({
           VERIFIED: { value: 'VERIFIED' },
         },
       }),
+    },
+    adminVerifications: {
+      type: new GraphQLList(new GraphQLNonNull(GraphQLKYCVerification)),
     },
   }),
 });
