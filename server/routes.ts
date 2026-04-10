@@ -27,10 +27,10 @@ import { apolloSlowRequestCachePlugin, apolloSlowResolverDebugPlugin, apolloStud
 import cache from './lib/cache';
 import errors from './lib/errors';
 import expressLimiter from './lib/express-limiter';
-import { personaKycProvider } from './lib/kyc/providers/persona';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
+import { handlePermalink } from './lib/permalink/handler';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { checkIfSentryConfigured } from './lib/sentry/init';
@@ -39,6 +39,7 @@ import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
+import paypal from './paymentProviders/paypal';
 
 const upload = multer();
 
@@ -165,6 +166,9 @@ export default async (app: express.Application) => {
     );
   }
 
+  app.get('/id/:id', withTiming('handlePermalink', handlePermalink));
+  app.get('/permalink/:id', withTiming('handlePermalink', handlePermalink));
+
   /**
    * GraphQL scope
    */
@@ -227,7 +231,7 @@ export default async (app: express.Application) => {
       onReject: [getGraphQLComplexityRejectionLogger('costLimit')],
       ignoreIntrospection: true,
       propagateOnRejection: parseToBoolean(config.graphql.rejectOnMaxComplexity),
-      maxCost: 130_000, // Currently identified max: around 125899 on the "ExpenseFormSchema" mutation
+      maxCost: 150_000, // Currently identified max: around 131214 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
@@ -343,12 +347,11 @@ export default async (app: express.Application) => {
    * Generic OAuth (ConnectedAccounts)
    * To keep in sync with opencollective-frontend/pages/api/connected-accounts/[service]/oauthUrl.js
    */
-  const oauthServiceAllowlist = new Set(['github', 'stripe', 'transferwise']);
+  const oauthServiceAllowlist = new Set(['github', 'stripe', 'transferwise', 'paypal']);
 
   /**
    * Webhooks that should bypass api key check
    */
-  app.use('/webhooks/persona', personaKycProvider.webhookRoutes);
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
@@ -364,6 +367,11 @@ export default async (app: express.Application) => {
     noCache,
     authentication.authenticateServiceDisconnect,
   );
+
+  /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
+  app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);
+  /** PayPal Connect JSON endpoint (used by the PayPal SDK button in the expense form) */
+  app.post('/connected-accounts/paypal/connect', noCache, paypal.oauth.connect);
 
   /**
    * Contact Form

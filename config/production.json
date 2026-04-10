@@ -37,8 +37,8 @@
     "payment": {
       "environment": "production"
     },
-    "rest": {
-      "mode": "live"
+    "connect": {
+      "redirectUri": "https://opencollective.com/services/paypal/oauth/callback"
     }
   },
   "transferwise": {

@@ -230,11 +230,11 @@ describe('server/models/Collective', () => {
     await Collective.create({ name: 'piamancini2' });
 
     const collective3 = await Collective.create({ name: 'PiaMancini', twitterHandle: '@piamancini' });
-    expect(collective3.slug).to.equal('piamancini1');
+    expect(collective3.slug).to.match(/^piamancini-[0-9a-f]{8}$/);
     expect(collective3.twitterHandle).to.equal('piamancini');
 
     const collective4 = await Collective.create({ name: 'XavierDamman' });
-    expect(collective4.slug).to.equal('xavierdamman1');
+    expect(collective4.slug).to.match(/^xavierdamman-[0-9a-f]{8}$/);
 
     const collective5 = await Collective.create({ name: 'hélène & les g.arçons' });
     expect(collective5.slug).to.equal('helene-and-les-g-arcons');
@@ -266,11 +266,9 @@ describe('server/models/Collective', () => {
   it('does not create collective with a blocked slug', () => {
     return Collective.create({ name: 'learn more' }).then(collective => {
       // `https://host/learn-more` is a protected page.
+      // When the slugified name is reserved, a random user-* slug is generated instead.
       expect(collective.slug).to.not.equal('learn-more');
-      // However we'd like to keep the base slug: if an collective with the
-      // name "Learn More" is created, we expect to have an URL like
-      // `https://host/learn-more1`
-      expect(collective.slug.startsWith('learn-more')).to.equal(true);
+      expect(collective.slug).to.match(/^user-[0-9a-f]{8}$/);
     });
   });
 
@@ -537,7 +535,7 @@ describe('server/models/Collective', () => {
 
     it('fails to deactivate as host if it is hosting any collective', async () => {
       try {
-        await hostUser.collective.deactivateAsHost();
+        await hostUser.collective.deactivateHosting();
         throw new Error("Didn't throw expected error!");
       } catch (e) {
         expect(e.message).to.contain("You can't deactivate hosting while still hosting");
@@ -568,10 +566,83 @@ describe('server/models/Collective', () => {
       await pendingCollective.addHost(temporaryHost, user2);
       expect(pendingCollective.isActive).to.equal(false);
       expect(pendingCollective.HostCollectiveId).to.equal(temporaryHost.id);
-      await temporaryHost.deactivateAsHost();
+      await temporaryHost.deactivateHosting();
+      await temporaryHost.deactivateMoneyManagement();
       expect(temporaryHost.hasMoneyManagement).to.be.false;
       await pendingCollective.reload();
       expect(pendingCollective.HostCollectiveId).to.be.null;
+    });
+
+    it('deletes Stripe and Transferwise connected accounts when deactivateMoneyManagement is called', async () => {
+      const host = await fakeHost({
+        name: 'Host with connected accounts',
+        slug: randStr('host-ca-'),
+        currency: 'USD',
+        CreatedByUserId: user1.id,
+        hasHosting: false,
+        hasMoneyManagement: true,
+      });
+
+      const stripeAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'stripe' });
+      const transferwiseAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'transferwise' });
+      const otherAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'github' });
+
+      await host.deactivateMoneyManagement();
+
+      const remainingAccounts = await models.ConnectedAccount.findAll({
+        where: { CollectiveId: host.id },
+      });
+
+      const remainingServices = remainingAccounts.map(a => a.service);
+      expect(remainingServices).to.not.include('stripe');
+      expect(remainingServices).to.not.include('transferwise');
+      expect(remainingServices).to.include('github');
+
+      // Verify the specific records were destroyed
+      const deletedStripe = await models.ConnectedAccount.findByPk(stripeAccount.id);
+      const deletedTransferwise = await models.ConnectedAccount.findByPk(transferwiseAccount.id);
+      const keptOther = await models.ConnectedAccount.findByPk(otherAccount.id);
+      expect(deletedStripe).to.be.null;
+      expect(deletedTransferwise).to.be.null;
+      expect(keptOther).to.not.be.null;
+    });
+
+    it('deletes Stripe and Transferwise connected accounts when a self-hosted collective changes host', async () => {
+      const selfHostedCollective = await fakeActiveHost({
+        name: 'Self Hosted',
+        slug: randStr('self-hosted-'),
+        currency: 'USD',
+        CreatedByUserId: user1.id,
+      });
+      // Ensure it is truly self-hosted
+      expect(selfHostedCollective.id).to.equal(selfHostedCollective.HostCollectiveId);
+
+      const stripeAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'stripe' });
+      const transferwiseAccount = await fakeConnectedAccount({
+        CollectiveId: selfHostedCollective.id,
+        service: 'transferwise',
+      });
+      const githubAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'github' });
+
+      // Remove host (changeHost with null)
+      await selfHostedCollective.changeHost(null, user1);
+
+      const remainingAccounts = await models.ConnectedAccount.findAll({
+        where: { CollectiveId: selfHostedCollective.id },
+      });
+
+      const remainingServices = remainingAccounts.map(a => a.service);
+      expect(remainingServices).to.not.include('stripe');
+      expect(remainingServices).to.not.include('transferwise');
+      expect(remainingServices).to.include('github');
+
+      // Verify the specific records were destroyed
+      const deletedStripe = await models.ConnectedAccount.findByPk(stripeAccount.id);
+      const deletedTransferwise = await models.ConnectedAccount.findByPk(transferwiseAccount.id);
+      const keptGithub = await models.ConnectedAccount.findByPk(githubAccount.id);
+      expect(deletedStripe).to.be.null;
+      expect(deletedTransferwise).to.be.null;
+      expect(keptGithub).to.not.be.null;
     });
 
     it('changes host successfully and sends email notification to host', async () => {
@@ -647,16 +718,19 @@ describe('server/models/Collective', () => {
     });
 
     it('returns active plan', async () => {
-      const plan = await hostUser.collective.getPlan();
+      const collective = await hostUser.collective.reload();
+      const plan = await collective.getLegacyPlan();
 
       expect(plan).to.deep.equal({
-        id: 3,
         name: 'default',
         hostedCollectives: 0,
         addedFunds: 0,
         bankTransfers: 0,
         transferwisePayouts: 0,
         ...plans.default,
+        id: collective.id,
+        publicId: collective.publicId,
+        createdAt: collective.createdAt,
       });
     });
 
@@ -1571,6 +1645,43 @@ describe('server/models/Collective', () => {
 
       const account = await collective.getAccountForPaymentProvider('transferwise');
       expect(account.id).to.equal(connectedAccount.id);
+    });
+  });
+
+  describe('generateSlug', () => {
+    it('returns the base slug when available', async () => {
+      const slug = await Collective.generateSlug('completely-unique-test-slug');
+      expect(slug).to.equal('completely-unique-test-slug');
+    });
+
+    it('slugifies by default', async () => {
+      const slug = await Collective.generateSlug('My Cool Collective!');
+      expect(slug).to.equal('my-cool-collective');
+    });
+
+    it('appends a random suffix when the slug is taken', async () => {
+      const existing = await fakeCollective({ slug: 'taken-slug' });
+      try {
+        const slug = await Collective.generateSlug('taken-slug');
+        expect(slug).to.match(/^taken-slug-[0-9a-f]{8}$/);
+      } finally {
+        await existing.destroy();
+      }
+    });
+
+    it('returns an incognito-prefixed slug for "incognito"', async () => {
+      const slug = await Collective.generateSlug('incognito');
+      expect(slug).to.match(/^incognito(-[0-9a-f]{8})?$/);
+    });
+
+    it('returns a random user-* slug for falsy input', async () => {
+      const slug = await Collective.generateSlug('');
+      expect(slug).to.match(/^user-[0-9a-f]{8}$/);
+    });
+
+    it('returns a random user-* slug for reserved slugs', async () => {
+      const slug = await Collective.generateSlug('about');
+      expect(slug).to.match(/^user-[0-9a-f]{8}$/);
     });
   });
 });

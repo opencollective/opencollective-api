@@ -1,4 +1,3 @@
-import config from 'config';
 import { isNil } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
@@ -10,16 +9,20 @@ import {
 
 import { supportedServices } from '../constants/connected-account';
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import type Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import type User from './User';
 
-class ConnectedAccount extends Model<
-  InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
+class ConnectedAccount extends ModelWithPublicId<
+  EntityShortIdPrefix.ConnectedAccount,
+  InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' }>,
   InferCreationAttributes<ConnectedAccount>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.ConnectedAccount;
   public static readonly tableName = 'ConnectedAccounts' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -45,6 +48,7 @@ class ConnectedAccount extends Model<
   get info() {
     return {
       id: this.id,
+      publicId: this.publicId,
       service: this.service,
       username: this.username,
       createdAt: this.createdAt,
@@ -55,19 +59,12 @@ class ConnectedAccount extends Model<
   get activity() {
     return {
       id: this.id,
+      publicId: this.publicId,
       service: this.service,
       CollectiveId: this.CollectiveId,
       CreatedByUserId: this.CreatedByUserId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-    };
-  }
-
-  get paypalConfig() {
-    return {
-      client_id: this.clientId, // eslint-disable-line camelcase
-      client_secret: this.token, // eslint-disable-line camelcase
-      mode: config.paypal.rest.mode,
     };
   }
 }
@@ -78,6 +75,10 @@ ConnectedAccount.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     service: {
       type: DataTypes.STRING,

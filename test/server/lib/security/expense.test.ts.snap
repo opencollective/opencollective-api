@@ -24,7 +24,8 @@ exports[`lib/security/expense checkExpense() and checkExpenses() ignores similar
 | ------------- | ------ | ------------------------------------------------- |
 | USER          | MEDIUM | User is not using 2FA                             |
 | USER          | MEDIUM | User has never been paid on the platform          |
-| PAYOUT_METHOD | MEDIUM | Payout Method has never been paid on the platform |"
+| PAYOUT_METHOD | MEDIUM | Payout Method has never been paid on the platform |
+| PAYOUT_METHOD | MEDIUM | PayPal account has not been verified              |"
 `;
 
 exports[`lib/security/expense checkExpense() and checkExpenses() returns potential threats related to the expense payment (batch) 1`] = `
@@ -36,6 +37,7 @@ exports[`lib/security/expense checkExpense() and checkExpenses() returns potenti
 | USER          | MEDIUM | User has never been paid on the platform                         |
 | PAYOUT_METHOD | MEDIUM | Payout Method has never been paid on the platform                |
 | PAYOUT_METHOD | HIGH   | Payout Method details is being used by other user or collectives |
+| PAYOUT_METHOD | MEDIUM | PayPal account has not been verified                             |
 | COLLECTIVE    | HIGH   | High contribution error rate in current month                    |"
 `;
 
@@ -56,5 +58,6 @@ exports[`lib/security/expense checkExpense() and checkExpenses() returns potenti
 | USER          | MEDIUM | User has never been paid on the platform                         |
 | PAYOUT_METHOD | MEDIUM | Payout Method has never been paid on the platform                |
 | PAYOUT_METHOD | HIGH   | Payout Method details is being used by other user or collectives |
+| PAYOUT_METHOD | MEDIUM | PayPal account has not been verified                             |
 | COLLECTIVE    | HIGH   | High contribution error rate in current month                    |"
 `;

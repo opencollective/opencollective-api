@@ -8,7 +8,7 @@ import os from 'os';
 import * as Sentry from '@sentry/node';
 import config from 'config';
 import express from 'express';
-import { isUndefined, toInteger } from 'lodash';
+import { toInteger } from 'lodash';
 import throng from 'throng';
 
 import setupExpress from './lib/express';
@@ -22,7 +22,7 @@ import { startSearchSyncWorker } from './workers/search-sync';
 import { sequelize } from './models';
 import routes from './routes';
 
-const workers = isUndefined(process.env.WEB_CONCURRENCY) ? toInteger(process.env.WEB_CONCURRENCY) : 1;
+const workers = toInteger(process.env.WEB_CONCURRENCY) || 1;
 
 async function startExpressServer(workerId) {
   const expressApp = express();

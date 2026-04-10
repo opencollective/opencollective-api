@@ -1,10 +1,11 @@
 import { GraphQLNonNull } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
-import { idDecode } from '../identifiers';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLTransactionsImport } from '../object/TransactionsImport';
 
 const TransactionsImportQuery = {
@@ -18,7 +19,12 @@ const TransactionsImportQuery = {
   },
   async resolve(_, args, req) {
     checkRemoteUserCanUseTransactions(req);
-    const transactionsImport = await models.TransactionsImport.findByPk(idDecode(args.id, 'transactions-import'));
+
+    const id = isEntityPublicId(args.id, EntityShortIdPrefix.TransactionsImport)
+      ? await req.loaders.TransactionsImport.idByPublicId.load(args.id)
+      : idDecode(args.id, IDENTIFIER_TYPES.TRANSACTIONS_IMPORT);
+
+    const transactionsImport = await models.TransactionsImport.findByPk(id);
     if (!transactionsImport) {
       return null;
     } else if (!req.remoteUser.isAdmin(transactionsImport.CollectiveId)) {

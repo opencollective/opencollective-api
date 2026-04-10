@@ -207,7 +207,8 @@ jobs:
     runs-on: ubuntu-24.04
 
     timeout-minutes: 30
-
+    env:
+      PG_DATABASE: opencollective_test
     services:
       redis:
         image: redis
@@ -253,8 +254,7 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: npm run db:restore:test
 
       - run: npm run test:coverage -- --ignore "test/server/graphql/**"
 
@@ -274,6 +274,9 @@ jobs:
   test-graphql:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+
+    env:
+      PG_DATABASE: opencollective_test
 
     services:
       redis:
@@ -332,8 +335,7 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: npm run db:restore:test
 
       - run: npm run test:coverage test/server/graphql
 

@@ -32,6 +32,7 @@ const makeTimelineQuery = async (
       conditionals.push(
         {
           type: [
+            ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
             ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
             ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
             ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,

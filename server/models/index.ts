@@ -385,6 +385,8 @@ AccountingCategoryRule.belongsTo(AccountingCategory, {
   as: 'accountingCategory',
 });
 
+Collective.hasMany(KYCVerification, { foreignKey: 'CollectiveId', as: 'kycVerifications' });
+Collective.hasMany(KYCVerification, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
 export default models;
 
 export { sequelize, Op };

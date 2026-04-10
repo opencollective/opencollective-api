@@ -7,16 +7,21 @@ import type {
 } from 'sequelize';
 
 import { TransactionsImportRowStatus } from '../graphql/v2/enum/TransactionsImportRowStatus';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import type { BookedTransaction } from '../lib/gocardless/sync';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import TransactionsImport from './TransactionsImport';
 
-class TransactionsImportRow extends Model<
+class TransactionsImportRow extends ModelWithPublicId<
+  EntityShortIdPrefix.TransactionsImportRow,
   InferAttributes<TransactionsImportRow>,
   InferCreationAttributes<TransactionsImportRow>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.TransactionsImportRow;
   public static readonly tableName = 'TransactionsImportsRows' as const;
 
   declare public id: CreationOptional<number>;
@@ -31,7 +36,7 @@ class TransactionsImportRow extends Model<
   declare public isUnique: boolean;
   declare public currency: string;
   declare public accountId: string | null;
-  declare public rawValue: Record<string, unknown>;
+  declare public rawValue: Record<string, unknown> | BookedTransaction;
   declare public note: string | null;
   declare public createdAt: Date;
   declare public updatedAt: Date;
@@ -56,6 +61,10 @@ TransactionsImportRow.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     TransactionsImportId: {
       type: DataTypes.INTEGER,

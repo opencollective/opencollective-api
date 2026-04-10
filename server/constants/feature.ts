@@ -87,6 +87,9 @@ enum FEATURE {
   /** Whether this profile can receive host applications */
   RECEIVE_HOST_APPLICATIONS = 'RECEIVE_HOST_APPLICATIONS',
 
+  /** Whether the platform has PayPal Connect (Log in with PayPal) configured */
+  PAYPAL_CONNECT = 'PAYPAL_CONNECT',
+
   CHART_OF_ACCOUNTS = 'CHART_OF_ACCOUNTS',
   ACCOUNTING_CATEGORIZATION_RULES = 'ACCOUNTING_CATEGORIZATION_RULES',
   EXPENSE_SECURITY_CHECKS = 'EXPENSE_SECURITY_CHECKS',
@@ -98,7 +101,6 @@ enum FEATURE {
   VENDORS = 'VENDORS',
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
   KYC = 'KYC',
-  PERSONA_KYC = 'PERSONA_KYC',
 }
 
 // features that can conditionally enabled/disabled based on subscription

@@ -761,7 +761,7 @@ const accountMutations = {
           (updateParams.name || ![DEFAULT_GUEST_NAME, 'Incognito'].includes(account.name)) &&
           (!updateParams.slug || account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
         ) {
-          updateParams.slug = await Collective.generateSlug([updateParams.name, account.name].filter(Boolean), true);
+          updateParams.slug = await Collective.generateSlug((updateParams.name as string) || account.name);
           previousData.slug = account.slug;
           newData.slug = updateParams.slug;
         }
@@ -980,29 +980,36 @@ const accountMutations = {
 
       await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
-      await account.update({ type: ORGANIZATION });
+      return sequelize.transaction(async transaction => {
+        await account.update(
+          {
+            type: ORGANIZATION,
+            ...(args.legalName ? { legalName: args.legalName } : {}),
+          },
+          { transaction },
+        );
 
-      if (args.legalName) {
-        await account.update({ legalName: args.legalName });
-      }
+        if (args.hasMoneyManagement === true) {
+          await account.activateMoneyManagement({ remoteUser: req.remoteUser, silent: true, transaction });
+        }
 
-      if (args.hasMoneyManagement === true) {
-        await account.activateMoneyManagement(req.remoteUser, { silent: true });
-      }
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            CollectiveId: account.id,
+            FromCollectiveId: account.id,
+            HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+            data: {
+              collective: account.minimal,
+            },
+          },
+          { transaction },
+        );
 
-      await models.Activity.create({
-        type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
-        UserId: req.remoteUser.id,
-        UserTokenId: req.userToken?.id,
-        CollectiveId: account.id,
-        FromCollectiveId: account.id,
-        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: {
-          collective: account.minimal,
-        },
+        return account;
       });
-
-      return account;
     },
   },
 };

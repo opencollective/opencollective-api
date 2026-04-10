@@ -6,8 +6,6 @@ import {
   ForeignKey,
   InferAttributes,
   InferCreationAttributes,
-  Model,
-  NonAttribute,
   Transaction,
 } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
@@ -15,11 +13,15 @@ import isEmail from 'validator/lib/isEmail';
 import { SUPPORTED_CURRENCIES } from '../constants/currencies';
 import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
+import { PayPalSupportedCurrencies } from '../paymentProviders/paypal/constants';
+import { PaypalUserInfo } from '../paymentProviders/paypal/types';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
 import type { Collective, Expense, User } from '.';
+import { ModelWithPublicId } from './ModelWithPublicId';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`
@@ -55,11 +57,17 @@ export const IDENTIFIABLE_DATA_FIELDS = [
   'sortCode',
   'swiftCode',
   'transitNumber',
-];
+] as const;
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
-interface PaypalPayoutMethodData {
+export interface PaypalPayoutMethodData {
   email: string;
+  /** ID of the ConnectedAccount that verified this PayPal account via OAuth */
+  connectedAccountId?: number;
+  verifiedAt?: string;
+  currency?: string;
+  paypalUserInfo?: PaypalUserInfo;
+  isPayPalOAuth?: boolean;
 }
 
 interface StripePayoutMethodData {
@@ -74,17 +82,25 @@ interface OtherPayoutMethodData {
 }
 
 /** Group all the possible types for payout method's data */
-type PayoutMethodDataType =
+type PayoutMethodDataType = {
+  currency?: string;
+} & (
   | PaypalPayoutMethodData
   | OtherPayoutMethodData
   | StripePayoutMethodData
   | BankAccountPayoutMethodData
-  | Record<string, unknown>;
+  | Record<string, unknown>
+);
 
 /**
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
-class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAttributes<PayoutMethod>> {
+class PayoutMethod extends ModelWithPublicId<
+  EntityShortIdPrefix.PayoutMethod,
+  InferAttributes<PayoutMethod>,
+  InferCreationAttributes<PayoutMethod>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.PayoutMethod;
   public static readonly tableName = 'PayoutMethods' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -93,6 +109,7 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
   declare public name: string;
+  declare public data: PayoutMethodDataType;
   declare public isSaved: boolean;
   declare public CollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;
@@ -101,28 +118,34 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
 
   private static editableFields = ['data', 'name', 'isSaved'];
 
-  /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */
-  get data(): PayoutMethodDataType {
-    switch (this.type) {
-      case PayoutMethodTypes.PAYPAL:
-        return { email: this.data['email'] } as PaypalPayoutMethodData;
+  public static getFilteredData(type: PayoutMethodTypes, data: PayoutMethodDataType): Partial<PayoutMethodDataType> {
+    switch (type) {
+      case PayoutMethodTypes.PAYPAL: {
+        return pick(data, [
+          'email',
+          'verifiedAt',
+          'currency',
+          'isPayPalOAuth',
+          'paypalUserInfo.name',
+          'paypalUserInfo.email',
+          'paypalUserInfo.payer_id',
+          'paypalUserInfo.address.country',
+        ]);
+      }
       case PayoutMethodTypes.OTHER:
-        return { content: this.data['content'] } as OtherPayoutMethodData;
+        return pick(data, ['currency', 'content']) as OtherPayoutMethodData;
       case PayoutMethodTypes.BANK_ACCOUNT:
-        return this.data as BankAccountPayoutMethodData;
+        return data as BankAccountPayoutMethodData; // TODO: this should probably be filtered
       case PayoutMethodTypes.STRIPE:
-        return {
-          stripeAccountId: this.data['stripeAccountId'],
-          publishableKey: this.data['publishableKey'],
-        } as StripePayoutMethodData;
+        return pick(data, ['currency', 'stripeAccountId', 'publishableKey']) as StripePayoutMethodData;
       default:
-        return {};
+        return pick(data, ['currency']);
     }
   }
 
-  /** Returns the raw data for this field. Includes sensitive information that should not be leaked to the user */
-  get unfilteredData(): NonAttribute<Record<string, unknown>> {
-    return <Record<string, unknown>>this.getDataValue('data');
+  /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */
+  public getFilteredData(): Partial<PayoutMethodDataType> {
+    return PayoutMethod.getFilteredData(this.type, this.data);
   }
 
   /**
@@ -216,13 +239,13 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
   async findSimilar({ include, where }: Partial<Pick<FindOptions, 'include' | 'where'>> = {}) {
     let data;
     if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
-      const keyDetailFields = IDENTIFIABLE_DATA_FIELDS;
-      if (this.unfilteredData?.type === 'email') {
+      const keyDetailFields: string[] = [...IDENTIFIABLE_DATA_FIELDS];
+      if ((this.data as BankAccountPayoutMethodData)?.type === 'email') {
         keyDetailFields.push('email');
       }
-      data = pick(this.unfilteredData, ['type', ...keyDetailFields.map(k => `details.${k}`)]);
+      data = pick(this.data, ['type', ...keyDetailFields.map(k => `details.${k}`)]);
     } else if (this.type === PayoutMethodTypes.PAYPAL) {
-      data = { email: this.unfilteredData.email };
+      data = { email: (this.data as PaypalPayoutMethodData)?.email };
     }
     if (!isEmpty(omit(data, 'type'))) {
       return PayoutMethod.findAll({ where: { ...where, id: { [Op.ne]: this.id }, data }, include });
@@ -275,6 +298,10 @@ class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAtt
 // Link the model to database fields
 PayoutMethod.init(
   {
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -307,8 +334,19 @@ PayoutMethod.init(
           if (this.type === PayoutMethodTypes.PAYPAL) {
             if (!value || !value.email || !isEmail(value.email)) {
               throw new Error('Invalid PayPal email address');
-            } else if (!objHasOnlyKeys(value, ['email', 'currency'])) {
+            } else if (
+              !objHasOnlyKeys(value, [
+                'email',
+                'currency',
+                'connectedAccountId',
+                'isPayPalOAuth',
+                'verifiedAt',
+                'paypalUserInfo',
+              ])
+            ) {
               throw new Error('Data for this payout method contains too much information');
+            } else if (!PayPalSupportedCurrencies.includes(value.currency)) {
+              throw new Error('This currency is not supported by PayPal');
             }
           } else if (this.type === PayoutMethodTypes.OTHER) {
             if (!value || !value.content || typeof value.content !== 'string') {

@@ -66,6 +66,7 @@ const blockedCountries = splitCSV(config.transferwise.blockedCountries);
 const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
 const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
 const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
+const recipientTypesBlockedForBusinessProfiles = splitCSV(config.transferwise.recipientTypesBlockedForBusinessProfiles);
 
 async function populateProfileId(connectedAccount: ConnectedAccount, profileId: number): Promise<void> {
   if (!connectedAccount.data?.id) {
@@ -100,7 +101,7 @@ async function getTemporaryQuote(
   const rate = await getFxRate(expense.currency, expense.host.currency);
   return await transferwise.getTemporaryQuote(connectedAccount, {
     sourceCurrency: expense.host.currency,
-    targetCurrency: <string>payoutMethod.unfilteredData.currency,
+    targetCurrency: payoutMethod.data.currency,
     sourceAmount: centsAmountToFloat(expense.amount * rate),
   });
 }
@@ -146,7 +147,7 @@ async function quoteExpense(
 
   expense.collective = expense.collective || (await Collective.findByPk(expense.CollectiveId));
   expense.host = expense.host || (await expense.collective.getHostCollective());
-  const targetCurrency = payoutMethod.unfilteredData.currency as string;
+  const targetCurrency = payoutMethod.data.currency;
   const quoteParams = {
     profileId: connectedAccount.data.id,
     // Attention: sourceCurrency must always be the host currency, we count with this when persisting the Processor Payment Fee
@@ -425,6 +426,7 @@ async function scheduleExpenseForPayment(
     quoteExpense(connectedAccount, expense.PayoutMethod, expense, undefined, transferNature),
   ]);
   const balanceInSourceCurrency = wiseBalances.find(b => b.currency === quote.sourceCurrency);
+  assert(balanceInSourceCurrency, `No balance found for currency ${quote.sourceCurrency}`);
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
   let batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
@@ -684,11 +686,18 @@ async function getRequiredBankInformation(
       ? await transferwise.validateAccountRequirements(connectedAccount, transactionParams, accountDetails)
       : await transferwise.getAccountRequirements(connectedAccount, transactionParams);
 
+  const isBusinessProfile = toLower(connectedAccount.data?.type) === 'business';
+  const blockedRecipientTypes = []
+    .concat(
+      isBusinessProfile && recipientTypesBlockedForBusinessProfiles,
+      host.settings?.transferwise?.blockedPaymentMethodTypes,
+    )
+    .filter(Boolean);
   // Filter out methods blocked by Host settings
-  if (host.settings?.transferwise?.blockedPaymentMethodTypes) {
-    requiredFields = requiredFields.filter(
-      ({ type }) => !host.settings.transferwise.blockedPaymentMethodTypes.includes(type),
-    );
+  if (blockedRecipientTypes.length > 0) {
+    requiredFields = requiredFields?.filter?.(({ type }) => {
+      return !blockedRecipientTypes.includes(type);
+    });
   }
 
   // Filter out countries blocked by sanctions on Wise

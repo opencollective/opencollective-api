@@ -7,6 +7,7 @@ import FEATURE from '../../../constants/feature';
 import { normalizeContributionAccountingCategoryRulePredicate } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { isUniqueConstraintError, richDiffDBEntries } from '../../../lib/data';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { sequelize } from '../../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
@@ -18,7 +19,9 @@ import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../inpu
 import { GraphQLContributionAccountingCategoryRuleInput } from '../input/ContributionAccountingCategoryRuleInput';
 import { GraphQLAccount } from '../interface/Account';
 
-type AccountingCategoryInputWithNormalizedId = Omit<AccountingCategoryInputFields, 'id'> & { id?: number };
+type AccountingCategoryInputWithNormalizedId = Omit<AccountingCategoryInputFields, 'id'> & {
+  id?: number;
+};
 
 const EDITABLE_FIELDS: readonly (keyof AccountingCategoryInputFields)[] = [
   'kind',
@@ -45,7 +48,11 @@ export default {
         description: 'The list of categories to edit',
       },
     },
-    resolve: async (_: void, args: { account: any; categories: AccountingCategoryInputFields[] }, req) => {
+    resolve: async (
+      _: void,
+      args: { account: any; categories: AccountingCategoryInputFields[] },
+      req: Express.Request,
+    ) => {
       // Check scope
       enforceScope(req, 'host');
 
@@ -63,14 +70,26 @@ export default {
 
       const isIndependentCollective = account.type === CollectiveType.COLLECTIVE;
 
-      const normalizedInputs: AccountingCategoryInputWithNormalizedId[] = args.categories.map(input => {
-        return {
-          ...input,
-          id: input.id ? idDecode(input.id, 'accounting-category') : null,
-          expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
-          appliesTo: input.appliesTo,
-        };
-      });
+      const normalizedInputs = await Promise.all(
+        args.categories.map(async input => {
+          let id;
+          if (isEntityPublicId(input.id, EntityShortIdPrefix.AccountingCategory)) {
+            id = await req.loaders.AccountingCategory.idByPublicId.load(input.id);
+            if (!id) {
+              throw new ValidationFailed(`Accounting category with public id ${input.id} not found`);
+            }
+          } else if (input.id) {
+            id = idDecode(input.id, 'accounting-category');
+          }
+
+          return {
+            ...input,
+            id,
+            expensesTypes: isNil(input.expensesTypes) ? input.expensesTypes : uniq(input.expensesTypes).sort(), // Uniq & sort to avoid false positives in diff
+            appliesTo: input.appliesTo,
+          };
+        }),
+      );
 
       if (
         isIndependentCollective &&

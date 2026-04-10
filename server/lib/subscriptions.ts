@@ -5,7 +5,7 @@ import moment from 'moment';
 import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import { BadRequest, Unauthorized, UnexpectedError } from '../graphql/errors';
+import { BadRequest, Unauthorized, UnexpectedError, ValidationFailed } from '../graphql/errors';
 import { Member, sequelize } from '../models';
 import Order from '../models/Order';
 import PaymentMethod from '../models/PaymentMethod';
@@ -148,23 +148,23 @@ export const updatePaymentMethodForSubscription = async (
 
 const checkSubscriptionDetails = (order, tier: Tier, amountInCents) => {
   if (tier && tier.CollectiveId !== order.CollectiveId) {
-    throw new Error(`This tier (#${tier.id}) doesn't belong to the given Collective #${order.CollectiveId}`);
+    throw new ValidationFailed(`This tier (#${tier.id}) doesn't belong to the given Collective #${order.CollectiveId}`);
   }
 
   // The amount can never be less than $1.00
   if (amountInCents < 100) {
-    throw new Error('Invalid amount.');
+    throw new ValidationFailed('Invalid amount.');
   }
 
   // If using a named tier, amount can never be less than the minimum amount
   if (tier && tier.amountType === 'FLEXIBLE' && amountInCents < tier.minimumAmount) {
-    throw new Error('Amount is less than minimum value allowed for this Tier.');
+    throw new ValidationFailed('Amount is less than minimum value allowed for this Tier.');
   }
 
   // If using a FIXED tier, amount cannot be different from the tier's amount
   // TODO: it should be amountInCents !== tier.amount, but we need to do work to make sure that would play well with platform fees/taxes
   if (tier && tier.amountType === 'FIXED' && amountInCents < tier.amount) {
-    throw new Error('Amount is incorrect for this Tier.');
+    throw new ValidationFailed('Amount is incorrect for this Tier.');
   }
 };
 

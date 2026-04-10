@@ -47,6 +47,7 @@ import cache from '../../lib/cache';
 import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import { formatAddress } from '../../lib/format-address';
+import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
@@ -736,9 +737,9 @@ export const canEditItems: ExpensePermissionEvaluator = async (req, expense, opt
     }
     return false;
   } else if (expense.status === ExpenseStatus.DRAFT) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.PENDING) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin], options);
   } else if (expense.status === ExpenseStatus.APPROVED) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   } else if (expense.status === ExpenseStatus.INCOMPLETE) {
@@ -1683,6 +1684,7 @@ export const scheduleExpenseForPayment = async (
   const updatedExpense = await expense.update({
     status: 'SCHEDULED_FOR_PAYMENT',
     lastEditedById: req.remoteUser.id,
+    onHold: false,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
@@ -2682,7 +2684,9 @@ const isDifferentInvitedPayee = (expense: Expense, payee): boolean => {
 
 const checkLockedFields = async (
   existing: Expense,
-  updated: ExpenseData & { payee?: Collective | { legacyId: number } | { email: string; name: string } },
+  updated: ExpenseData & {
+    payee?: Collective | { legacyId?: number; id?: string } | { email: string; name: string };
+  },
 ): Promise<void> => {
   const lockedFields = existing?.data?.lockedFields;
   if (!lockedFields) {
@@ -2698,15 +2702,23 @@ const checkLockedFields = async (
   }
 
   if (lockedFields.includes(ExpenseLockableFields.PAYEE) && updated.payee) {
+    const updatedPayeeId =
+      'legacyId' in updated.payee
+        ? updated.payee.legacyId
+        : typeof updated.payee['id'] === 'number'
+          ? updated.payee['id']
+          : await fetchAccountWithReference(updated.payee as { id: string }, { throwIfMissing: true })
+              .then(collective => collective?.id)
+              .catch(() => null);
+
     const expectedPayee = existing.data.payee;
     if ('id' in expectedPayee) {
-      const updatedId = 'legacyId' in updated.payee ? updated.payee.legacyId : (updated.payee as Collective).id;
-      assert(updatedId && expectedPayee.id === updatedId, new Forbidden('Payee cannot be edited'));
+      assert(updatedPayeeId && expectedPayee.id === updatedPayeeId, new Forbidden('Payee cannot be edited'));
     } else if ('email' in expectedPayee) {
       if ('email' in updated.payee) {
         assert(expectedPayee.email === updated.payee.email, new Forbidden('Payee cannot be edited'));
       } else {
-        const updatedId = 'legacyId' in updated.payee ? updated.payee.legacyId : updated.payee.id;
+        const updatedId = updatedPayeeId;
         const user = await models.User.findOne({ where: { CollectiveId: updatedId } });
         assert(user && expectedPayee.email === user.email, new Forbidden('Payee cannot be edited'));
       }
@@ -3072,6 +3084,10 @@ export async function editExpense(
     }
   }
 
+  let hasPayoutMethodChanges = false;
+  let newPayoutMethodId = null;
+  let oldPayoutMethodId = null;
+
   const updatedExpense: Expense = await sequelize.transaction(async transaction => {
     // Update payout method if we get new data from one of the param for it
     if (
@@ -3133,12 +3149,10 @@ export async function editExpense(
     // Update expense
     // When updating amount, attachment or payoutMethod, we reset its status to PENDING
     const PayoutMethodId = payoutMethod ? payoutMethod.id : null;
-    const shouldUpdateStatus = changesRequireStatusUpdate(
-      expense,
-      expenseData,
-      hasItemChanges,
-      PayoutMethodId !== expense.PayoutMethodId,
-    );
+    hasPayoutMethodChanges = PayoutMethodId !== expense.PayoutMethodId;
+    newPayoutMethodId = PayoutMethodId;
+    oldPayoutMethodId = expense.PayoutMethodId;
+    const shouldUpdateStatus = changesRequireStatusUpdate(expense, expenseData, hasItemChanges, hasPayoutMethodChanges);
 
     // Update attached files
     if (expenseData.attachedFiles) {
@@ -3152,7 +3166,10 @@ export async function editExpense(
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
-          models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
+          models.ExpenseAttachedFile.update(
+            { url: file.url as string },
+            { where: { id: file.id, ExpenseId: expense.id } },
+          ),
         ),
       );
     }
@@ -3231,6 +3248,18 @@ export async function editExpense(
       notifyCollective,
       previousData: { status: previousStatus },
     });
+  }
+
+  try {
+    if (hasPayoutMethodChanges) {
+      await handleExpensePayoutMethodChange(
+        updatedExpense,
+        await models.PayoutMethod.findByPk(oldPayoutMethodId),
+        await models.PayoutMethod.findByPk(newPayoutMethodId),
+      );
+    }
+  } catch (e) {
+    reportErrorToSentry(e, { req, user: remoteUser, feature: FEATURE.USE_EXPENSES, extra: { expense } });
   }
 
   try {
@@ -3318,7 +3347,11 @@ export const getWiseFxRateInfoFromExpenseData = (
 };
 
 export async function setTransferWiseExpenseAsProcessing({ host, expense, data, feesInHostCurrency, remoteUser }) {
-  await expense.update({ HostCollectiveId: host.id, data: { ...expense.data, ...data, feesInHostCurrency } });
+  await expense.update({
+    HostCollectiveId: host.id,
+    data: { ...expense.data, ...data, feesInHostCurrency },
+    onHold: false,
+  });
   await expense.setProcessing(remoteUser.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser, {
     message: expense.data?.paymentOption?.formattedEstimatedDelivery
@@ -3404,7 +3437,7 @@ export const getExpenseFees = async (
       useExistingWiseData &&
       existingQuote &&
       existingQuote.sourceCurrency === host.currency &&
-      existingQuote.targetCurrency === payoutMethod.unfilteredData.currency &&
+      existingQuote.targetCurrency === payoutMethod.data.currency &&
       existingPaymentOption
     ) {
       resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(

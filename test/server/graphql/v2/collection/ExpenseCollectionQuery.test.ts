@@ -10,7 +10,9 @@ import {
   US_TAX_FORM_THRESHOLD_PRE_2026,
 } from '../../../../../server/constants/tax-form';
 import * as libcurrency from '../../../../../server/lib/currency';
+import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import models from '../../../../../server/models';
+import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
@@ -20,6 +22,7 @@ import {
   fakeEvent,
   fakeExpense,
   fakeHost,
+  fakeKYCVerification,
   fakeLegalDocument,
   fakePayoutMethod,
   fakeProject,
@@ -38,6 +41,7 @@ const expensesQuery = gql`
     $account: AccountReferenceInput
     $host: AccountReferenceInput
     $status: [ExpenseStatusFilter]
+    $kycStatus: ExpenseKYCStatusFilter
     $searchTerm: String
     $customData: JSON
     $chargeHasReceipts: Boolean
@@ -49,6 +53,7 @@ const expensesQuery = gql`
       account: $account
       host: $host
       status: $status
+      kycStatus: $kycStatus
       searchTerm: $searchTerm
       customData: $customData
       chargeHasReceipts: $chargeHasReceipts
@@ -78,6 +83,17 @@ const expensesQuery = gql`
           name
           slug
         }
+      }
+    }
+  }
+`;
+
+const expensesKycQuery = gql`
+  query ExpensesKyc($host: AccountReferenceInput, $status: [ExpenseStatusFilter], $kycStatus: ExpenseKYCStatusFilter) {
+    expenses(host: $host, status: $status, kycStatus: $kycStatus) {
+      totalCount
+      nodes {
+        legacyId
       }
     }
   }
@@ -268,7 +284,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       const result = await graphqlQueryV2(expensesQuery, { customData: { key: 'value' } }, user);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq(
-        'You need to filter by at least one of fromAccount, account or host to filter by customData',
+        'You need to filter by at least one of fromAccount, account, host or fromHost to filter by customData',
       );
     });
 
@@ -280,7 +296,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         const result = await graphqlQueryV2(expensesQuery, args, user);
         expect(result.errors, `Should not be allowed for ${accountKey}`).to.exist;
         expect(result.errors[0].message).to.eq(
-          'You need to be an admin of the fromAccount, account or host to filter by customData',
+          'You need to be an admin of the fromAccount, account, host or fromHost to filter by customData',
         );
       };
 
@@ -528,6 +544,226 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(result.errors).to.not.exist;
       const readyExpenseIds = result.data.expenses.nodes.map(e => e.legacyId || e.id);
       expect(readyExpenseIds).to.include(v3Expense.id);
+    });
+  });
+
+  describe('KYC filters', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('does not return READY_TO_PAY expense with pending KYC, but returns not-requested and verified', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHostWithRequiredLegalDocument({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const pendingKycPayee = await fakeUser();
+      const noKycPayee = await fakeUser();
+      const verifiedKycPayee = await fakeUser();
+
+      const expenseWithPendingKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: pendingKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        description: 'Ready to pay - pending kyc',
+      });
+      const expenseWithNoKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: noKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        description: 'Ready to pay - no kyc requested',
+      });
+      const expenseWithVerifiedKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: verifiedKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        description: 'Ready to pay - verified kyc',
+      });
+
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'READY_TO_PAY' },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.not.include(expenseWithPendingKyc.id);
+      expect(ids).to.include(expenseWithNoKyc.id);
+      expect(ids).to.include(expenseWithVerifiedKyc.id);
+    });
+
+    it('filters expenses by kycStatus argument for host admins', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const pendingKycPayee = await fakeUser();
+      const noKycPayee = await fakeUser();
+      const verifiedKycPayee = await fakeUser();
+
+      const expenseWithPendingKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: pendingKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseWithNoKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: noKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseWithVerifiedKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: verifiedKycPayee.CollectiveId,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const verifiedResult = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'APPROVED', kycStatus: 'VERIFIED' },
+        hostAdmin,
+      );
+      verifiedResult.errors && console.error(verifiedResult.errors);
+      expect(verifiedResult.errors).to.not.exist;
+      const verifiedIds = verifiedResult.data.expenses.nodes.map(n => n.legacyId);
+      expect(verifiedIds).to.include(expenseWithVerifiedKyc.id);
+      expect(verifiedIds).to.not.include(expenseWithPendingKyc.id);
+      expect(verifiedIds).to.not.include(expenseWithNoKyc.id);
+
+      const pendingResult = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'APPROVED', kycStatus: 'PENDING' },
+        hostAdmin,
+      );
+      pendingResult.errors && console.error(pendingResult.errors);
+      expect(pendingResult.errors).to.not.exist;
+      const pendingIds = pendingResult.data.expenses.nodes.map(n => n.legacyId);
+      expect(pendingIds).to.include(expenseWithPendingKyc.id);
+      expect(pendingIds).to.not.include(expenseWithNoKyc.id);
+      expect(pendingIds).to.not.include(expenseWithVerifiedKyc.id);
+    });
+
+    it('returns expenses with pending kyc when filtering by ON_HOLD for host admins', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const pendingKycPayee = await fakeUser();
+      const onHoldPayee = await fakeUser();
+      const verifiedKycPayee = await fakeUser();
+
+      const expenseWithPendingKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: pendingKycPayee.CollectiveId,
+        status: 'APPROVED',
+        onHold: false,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseOnHold = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: onHoldPayee.CollectiveId,
+        status: 'APPROVED',
+        onHold: true,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseWithVerifiedKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: verifiedKycPayee.CollectiveId,
+        status: 'APPROVED',
+        onHold: false,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedKycPayee.CollectiveId,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'ON_HOLD' },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.include(expenseWithPendingKyc.id);
+      expect(ids).to.include(expenseOnHold.id);
+      expect(ids).to.not.include(expenseWithVerifiedKyc.id);
     });
   });
 
@@ -1117,7 +1353,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.include(
-          'When hostContext is INTERNAL, accounts must be the host account or its children',
+          'When hostContext is INTERNAL, each account must be the fiscal host or a direct child collective',
         );
       });
 
@@ -1130,7 +1366,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.include(
-          'When hostContext is HOSTED, accounts cannot be the host account or its direct children',
+          'When hostContext is HOSTED, accounts cannot be the fiscal host or its direct children',
         );
       });
 
@@ -1143,7 +1379,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.include(
-          'When hostContext is HOSTED, accounts cannot be the host account or its direct children',
+          'When hostContext is HOSTED, accounts cannot be the fiscal host or its direct children',
         );
       });
 
@@ -1166,6 +1402,134 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.expenses.totalCount).to.eq(1);
       });
+    });
+  });
+
+  describe('fromHost filter', () => {
+    const expensesFromHostQuery = gql`
+      query ExpensesFromHost(
+        $fromHost: AccountReferenceInput
+        $hostContext: HostContext
+        $fromAccount: AccountReferenceInput
+        $host: AccountReferenceInput
+      ) {
+        expenses(fromHost: $fromHost, hostContext: $hostContext, fromAccount: $fromAccount, host: $host) {
+          totalCount
+          nodes {
+            legacyId
+          }
+        }
+      }
+    `;
+
+    let host,
+      hostChild,
+      hostedPayee,
+      hostedPayeeChild,
+      payer,
+      expensePayeeHost,
+      expensePayeeHostChild,
+      expensePayeeHosted,
+      expensePayeeHostedChild;
+
+    before(async () => {
+      host = await fakeActiveHost();
+      hostChild = await fakeEvent({
+        ParentCollectiveId: host.id,
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+      });
+      hostedPayee = await fakeCollective({
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+      });
+      hostedPayeeChild = await fakeProject({
+        ParentCollectiveId: hostedPayee.id,
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+      });
+
+      payer = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+
+      expensePayeeHost = await fakeExpense({
+        CollectiveId: payer.id,
+        FromCollectiveId: host.id,
+        status: 'APPROVED',
+        description: 'Payee is host',
+      });
+
+      expensePayeeHostChild = await fakeExpense({
+        CollectiveId: payer.id,
+        FromCollectiveId: hostChild.id,
+        status: 'APPROVED',
+        description: 'Payee is host child',
+      });
+
+      expensePayeeHosted = await fakeExpense({
+        CollectiveId: payer.id,
+        FromCollectiveId: hostedPayee.id,
+        status: 'APPROVED',
+        description: 'Payee is hosted collective',
+      });
+
+      expensePayeeHostedChild = await fakeExpense({
+        CollectiveId: payer.id,
+        FromCollectiveId: hostedPayeeChild.id,
+        status: 'APPROVED',
+        description: 'Payee is hosted collective child',
+      });
+    });
+
+    it('should return all expenses where payee is under fromHost when hostContext is ALL', async () => {
+      const result = await graphqlQueryV2(expensesFromHostQuery, {
+        fromHost: { legacyId: host.id },
+        hostContext: 'ALL',
+      });
+
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(expenseIds).to.include(expensePayeeHost.id);
+      expect(expenseIds).to.include(expensePayeeHostChild.id);
+      expect(expenseIds).to.include(expensePayeeHosted.id);
+      expect(expenseIds).to.include(expensePayeeHostedChild.id);
+    });
+
+    it('should return only expenses whose payee is host or host child when hostContext is INTERNAL', async () => {
+      const result = await graphqlQueryV2(expensesFromHostQuery, {
+        fromHost: { legacyId: host.id },
+        hostContext: 'INTERNAL',
+      });
+
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(expenseIds).to.include(expensePayeeHost.id);
+      expect(expenseIds).to.include(expensePayeeHostChild.id);
+      expect(expenseIds).to.not.include(expensePayeeHosted.id);
+      expect(expenseIds).to.not.include(expensePayeeHostedChild.id);
+    });
+
+    it('should return only expenses whose payee is a hosted account when hostContext is HOSTED', async () => {
+      const result = await graphqlQueryV2(expensesFromHostQuery, {
+        fromHost: { legacyId: host.id },
+        hostContext: 'HOSTED',
+      });
+
+      expect(result.errors).to.not.exist;
+      const expenseIds = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(expenseIds).to.include(expensePayeeHosted.id);
+      expect(expenseIds).to.include(expensePayeeHostedChild.id);
+      expect(expenseIds).to.not.include(expensePayeeHost.id);
+      expect(expenseIds).to.not.include(expensePayeeHostChild.id);
+    });
+
+    it('should reject host and fromHost together', async () => {
+      const result = await graphqlQueryV2(expensesFromHostQuery, {
+        host: { legacyId: host.id },
+        fromHost: { legacyId: host.id },
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('host and fromHost cannot be used together');
     });
   });
 });

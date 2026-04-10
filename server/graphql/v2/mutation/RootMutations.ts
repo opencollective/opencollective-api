@@ -136,7 +136,7 @@ export default {
         throw new Error('editAccountType does not work on guest profiles');
       }
 
-      const collectiveData = omit(cloneDeep(account.dataValues), ['id']);
+      const collectiveData = omit(cloneDeep(account.dataValues), ['id', 'publicId']);
       collectiveData.slug = `${collectiveData.slug}-user`;
       collectiveData.createdAt = new Date();
       let collective;

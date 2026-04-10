@@ -1,18 +1,24 @@
 import { expect } from 'chai';
+import sinon from 'sinon';
 
-import ActivityTypes from '../../../../server/constants/activities';
 import { KYCProviderName } from '../../../../server/lib/kyc/providers';
 import { manualKycProvider } from '../../../../server/lib/kyc/providers/manual';
-import { Activity } from '../../../../server/models';
 import { KYCVerificationStatus } from '../../../../server/models/KYCVerification';
 import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 describe('server/lib/kyc/manual', () => {
   describe('request', () => {
+    let sandbox: sinon.SinonSandbox;
     beforeEach(async () => {
       await resetTestDB();
+      sandbox = sinon.createSandbox();
     });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
     it('throws if account already verified for requester', async () => {
       const org = await fakeOrganization();
       const user = await fakeUser();
@@ -35,12 +41,15 @@ describe('server/lib/kyc/manual', () => {
             legalName: 'Legal name',
             legalAddress: 'Legal address',
             notes: 'notes',
+            UserTokenId: null,
           },
         ),
       ).to.eventually.be.rejectedWith('Account already verified with this KYC provider');
     });
 
-    it('it creates VERIFIED verification', async () => {
+    it('it creates PENDING verification', async () => {
+      const handleKycRequestedStub = sandbox.stub(manualKycProvider, 'handleKycRequested').resolves();
+
       const org = await fakeOrganization();
       const otherOrg = await fakeOrganization();
       const user = await fakeUser();
@@ -69,6 +78,92 @@ describe('server/lib/kyc/manual', () => {
           legalName: 'Legal name',
           legalAddress: 'Legal address',
           notes: 'notes',
+          UserTokenId: null,
+        },
+      );
+
+      expect(kycVerification).to.exist;
+      expect(kycVerification.status).to.eql(KYCVerificationStatus.PENDING);
+      expect(kycVerification.CreatedByUserId).to.equal(user.id);
+      expect(kycVerification.providerData).to.eql({
+        notes: 'notes',
+      });
+
+      expect(handleKycRequestedStub).to.have.been.calledWith(kycVerification);
+    });
+  });
+
+  describe('submit', () => {
+    let sandbox: sinon.SinonSandbox;
+    beforeEach(async () => {
+      await resetTestDB();
+      sandbox = sinon.createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('throws if account already verified for requester', async () => {
+      const org = await fakeOrganization();
+      const user = await fakeUser();
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: org.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      await expect(
+        manualKycProvider.submitVerification(
+          {
+            CollectiveId: user.collective.id,
+            RequestedByCollectiveId: org.id,
+            CreatedByUserId: user.id,
+            UserTokenId: null,
+          },
+          {
+            legalName: 'Legal name',
+            legalAddress: 'Legal address',
+            notes: 'notes',
+            UserTokenId: null,
+          },
+        ),
+      ).to.eventually.be.rejectedWith('Account already verified with this KYC provider');
+    });
+
+    it('it creates VERIFIED verification', async () => {
+      const handleKycVerifiedStub = sandbox.stub(manualKycProvider, 'handleKycVerified').resolves();
+
+      const org = await fakeOrganization();
+      const otherOrg = await fakeOrganization();
+      const user = await fakeUser();
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: otherOrg.id,
+        RequestedByCollectiveId: user.collective.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: org.id,
+        RequestedByCollectiveId: user.collective.id,
+        status: KYCVerificationStatus.REVOKED,
+      });
+
+      const kycVerification = await manualKycProvider.submitVerification(
+        {
+          CollectiveId: org.id,
+          RequestedByCollectiveId: user.collective.id,
+          CreatedByUserId: user.id,
+          UserTokenId: null,
+        },
+        {
+          legalName: 'Legal name',
+          legalAddress: 'Legal address',
+          notes: 'notes',
+          UserTokenId: null,
         },
       );
 
@@ -84,23 +179,15 @@ describe('server/lib/kyc/manual', () => {
         legalAddress: 'Legal address',
       });
 
-      const activity = await Activity.findOne({
-        where: {
-          type: ActivityTypes.KYC_REQUESTED,
-          CollectiveId: org.id,
-          FromCollectiveId: user.collective.id,
-        },
-      });
-      expect(activity).to.exist;
-      expect(activity.UserId).to.equal(user.id);
-      expect(activity.UserTokenId).to.equal(null);
+      expect(handleKycVerifiedStub).to.have.been.calledWith(kycVerification);
     });
 
     it('it creates VERIFIED verification without legal address', async () => {
+      const handleKycVerifiedStub = sandbox.stub(manualKycProvider, 'handleKycVerified').resolves();
       const org = await fakeOrganization();
       const user = await fakeUser();
 
-      const kycVerification = await manualKycProvider.requestVerification(
+      const kycVerification = await manualKycProvider.submitVerification(
         {
           CollectiveId: org.id,
           RequestedByCollectiveId: user.collective.id,
@@ -110,6 +197,7 @@ describe('server/lib/kyc/manual', () => {
         {
           legalName: 'Legal name',
           notes: 'notes',
+          UserTokenId: null,
         },
       );
 
@@ -117,6 +205,8 @@ describe('server/lib/kyc/manual', () => {
       expect(kycVerification.status).to.eql(KYCVerificationStatus.VERIFIED);
       expect(kycVerification.data.legalName).to.eql('Legal name');
       expect(kycVerification.data.legalAddress).to.be.undefined;
+
+      expect(handleKycVerifiedStub).to.have.been.calledWith(kycVerification);
     });
   });
 });

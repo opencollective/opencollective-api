@@ -23,6 +23,7 @@ import {
   fakeExpense,
   fakeLegalDocument,
   fakeOpenCollectiveS3URL,
+  fakePaidExpense,
   fakePayoutMethod,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
@@ -261,23 +262,23 @@ describe('LegalDocumentsMutations', () => {
         CollectiveId: payee.CollectiveId,
         type: PayoutMethodTypes.BANK_ACCOUNT,
       });
-      const oldDate = moment()
-        .subtract(US_TAX_FORM_VALIDITY_IN_YEARS + 1, 'year')
-        .toDate();
-      const expense = await fakeExpense({
+      const docYear = new Date().getFullYear() - US_TAX_FORM_VALIDITY_IN_YEARS - 1;
+      const paidInDocYear = moment.utc({ year: docYear, month: 6, day: 15 }).toDate();
+      // Tax-form aggregation for a given year uses paidAt when set; isAccessibleByHost must see a qualifying expense in that year.
+      const expense = await fakePaidExpense({
         type: 'INVOICE',
-        status: 'APPROVED',
         CollectiveId: host.id,
-        amount: 1000e2,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
         PayoutMethodId: payoutMethod.id,
-        incurredAt: oldDate,
-        createdAt: oldDate,
+        incurredAt: paidInDocYear,
+        createdAt: paidInDocYear,
+        paidAt: paidInDocYear,
       });
       const legalDocument = await fakeLegalDocument({
         documentType: 'US_TAX_FORM',
         requestStatus: 'RECEIVED',
         CollectiveId: expense.FromCollectiveId,
-        year: new Date().getFullYear() - US_TAX_FORM_VALIDITY_IN_YEARS - 1,
+        year: docYear,
       });
 
       await LegalDocument.expireOldDocuments();
@@ -320,6 +321,45 @@ describe('LegalDocumentsMutations', () => {
         {
           id: idEncode(legalDocument.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT),
           host: { id: idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT) },
+          status: 'INVALID',
+          message: 'Bad Bad not Good',
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editLegalDocumentStatus).to.have.property('status', 'INVALID');
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+      expect(sendEmailSpy.firstCall.args[0]).to.equal(payee.email);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal('Action required: Your tax form has been marked as invalid');
+      expect(sendEmailSpy.firstCall.args[2]).to.include('Bad Bad not Good');
+    });
+
+    it('accepts publicId when editing a legal document status', async () => {
+      const payee = await fakeUser();
+      const payoutMethod = await fakePayoutMethod({
+        CollectiveId: payee.CollectiveId,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+      });
+      const expense = await fakeExpense({
+        type: 'INVOICE',
+        status: 'APPROVED',
+        CollectiveId: host.id,
+        FromCollectiveId: payee.CollectiveId,
+        amount: US_TAX_FORM_THRESHOLD + 100e2,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const legalDocument = await fakeLegalDocument({
+        documentType: 'US_TAX_FORM',
+        requestStatus: 'RECEIVED',
+        CollectiveId: expense.FromCollectiveId,
+        year: new Date().getFullYear(),
+      });
+      const result = await graphqlQueryV2(
+        editLegalDocumentStatusMutation,
+        {
+          id: legalDocument.publicId,
+          host: { id: host.publicId },
           status: 'INVALID',
           message: 'Bad Bad not Good',
         },

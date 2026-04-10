@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 import moment from 'moment';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
-import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
+import { PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../../../../../server/constants/plans';
 import models, { PlatformSubscription } from '../../../../../server/models';
 import { BillingMonth } from '../../../../../server/models/PlatformSubscription';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
@@ -484,6 +484,7 @@ describe('server/graphql/v2/object/Host', () => {
         ParentCollectiveId: host.id,
         type: CollectiveType.VENDOR,
         name: 'Vendor Dafoe',
+        legalName: 'William James',
         data: {
           visibleToAccountIds: null,
         },
@@ -492,6 +493,7 @@ describe('server/graphql/v2/object/Host', () => {
         ParentCollectiveId: host.id,
         type: CollectiveType.VENDOR,
         name: 'Vendor 2',
+        legalName: 'Bob Builder',
         data: {
           visibleToAccountIds: [],
         },
@@ -621,6 +623,20 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
       );
+    });
+
+    it('should return vendor by legal name if admin of Account', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'Bob' }, hostAdmin);
+
+      expect(result.data.host.vendors.nodes).to.containSubset([{ slug: knownVendor.slug }]);
+    });
+
+    it('should not return vendor by legal name if not admin of Account', async () => {
+      const user = await fakeUser();
+      await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+      const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'Bob' }, user);
+
+      expect(result.data.host.vendors.nodes).to.be.empty;
     });
   });
 
@@ -817,7 +833,13 @@ describe('server/graphql/v2/object/Host', () => {
       const sub = await PlatformSubscription.createSubscription(
         host,
         startDate,
-        PlatformSubscriptionTiers.find(t => t.id === 'basic-5'),
+        {
+          ...PlatformSubscriptionTiers.find(t => t.id === 'basic-5'),
+          // Use custom plan to ignore downgrade consolidation
+          id: 'custom-1',
+          basePlanId: 'custom',
+          type: PlatformSubscriptionTierTypes.BASIC,
+        },
         hostAdmin,
       );
       const [, subBillingEnd] = sub.overlapWith({ year: billingPeriod.year, month: BillingMonth.FEBRUARY });
@@ -860,7 +882,12 @@ describe('server/graphql/v2/object/Host', () => {
       const aNewSubscription = await PlatformSubscription.replaceCurrentSubscription(
         host,
         moment.utc(startDate).add('5', 'days').toDate(),
-        PlatformSubscriptionTiers.find(t => t.id === 'pro-20'),
+        {
+          ...PlatformSubscriptionTiers.find(t => t.id === 'pro-20'),
+          id: 'custom-2',
+          basePlanId: 'custom',
+          type: PlatformSubscriptionTierTypes.BASIC,
+        },
         hostAdmin,
       );
       await sub.reload();
@@ -970,7 +997,12 @@ describe('server/graphql/v2/object/Host', () => {
       const lastSub = await PlatformSubscription.createSubscription(
         host,
         moment.utc(startDate).add('10', 'days').toDate(),
-        PlatformSubscriptionTiers.find(plan => plan.id === 'discover-1'),
+        {
+          ...PlatformSubscriptionTiers.find(t => t.id === 'discover-1'),
+          id: 'custom-3',
+          basePlanId: 'custom',
+          type: PlatformSubscriptionTierTypes.BASIC,
+        },
         hostAdmin,
       );
 

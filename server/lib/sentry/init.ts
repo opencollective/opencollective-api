@@ -83,6 +83,8 @@ Sentry.init({
   },
   // Relative to tracesSampler
   profilesSampleRate: PROFILES_SAMPLE_RATE,
+  release: process.env.HEROKU_SLUG_COMMIT,
+  dist: config.env,
 });
 
 export default Sentry;

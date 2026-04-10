@@ -207,11 +207,20 @@ export const AccountWithContributionsFields = {
         return false;
       }
 
+      // Look at the host's plan
       const host = await req.loaders.Collective.host.load(account);
       if (host) {
-        const plan = await host.getPlan();
+        // New pricing
+        const hasPlatformTips = await req.loaders.PlatformSubscription.hasPlatformTips.load(host.id);
+        if (typeof hasPlatformTips === 'boolean') {
+          return hasPlatformTips;
+        }
+
+        // hasPlatformTips undefined means we're on a legacy plan
+        const plan = host.getLegacyPlan();
         return plan.platformTips;
       }
+
       return false;
     },
   },

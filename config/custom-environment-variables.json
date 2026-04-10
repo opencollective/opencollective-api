@@ -21,6 +21,7 @@
   },
   "database": {
     "url": "PG_URL",
+    "logQueryOrigin": "PG_LOG_QUERY_ORIGIN",
     "override": {
       "database": "PG_DATABASE",
       "username": "PG_USERNAME",
@@ -132,9 +133,12 @@
   },
   "paypal": {
     "payment": {
-      "environment": "PAYPAL_ENVIRONMENT",
+      "environment": "PAYPAL_ENVIRONMENT"
+    },
+    "connect": {
       "clientId": "PAYPAL_CLIENT_ID",
-      "clientSecret": "PAYPAL_CLIENT_SECRET"
+      "clientSecret": "PAYPAL_CLIENT_SECRET",
+      "redirectUri": "PAYPAL_CONNECT_REDIRECT_URI"
     }
   },
   "mailgun": {
@@ -219,6 +223,7 @@
     "blockedCountries": "TRANSFERWISE_BLOCKED_COUNTRIES",
     "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
+    "recipientTypesBlockedForBusinessProfiles": "TRANSFERWISE_BLOCKED_RECIPIENT_TYPES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT",
     "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER",
     "useSimplifiedQuote": "TRANSFERWISE_USE_SIMPLIFIED_QUOTE"

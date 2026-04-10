@@ -1,11 +1,12 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString, GraphQLUnionType } from 'graphql';
-import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString, GraphQLUnionType } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { KYCProviderName } from '../../../lib/kyc/providers';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { KYCVerification } from '../../../models/KYCVerification';
 import { GraphQLKYCProvider } from '../enum/KYCProvider';
 import { GraphQLKYCVerificationStatus } from '../enum/KYCVerificationStatus';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLKYCVerificationPermissions } from './KYCVerificationPermissions';
@@ -17,7 +18,17 @@ export const GraphQLKYCVerification = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this KYC verification',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.KYC_VERIFICATION),
+      resolve(kycVerification: KYCVerification) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.KYCVerification, kycVerification.createdAt)) {
+          return kycVerification.publicId;
+        } else {
+          return idEncode(kycVerification.id, IDENTIFIER_TYPES.KYC_VERIFICATION);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${KYCVerification.nanoIdPrefix}_xxxxxxxx)`,
     },
     provider: {
       description: 'Provider used to make this KYC verification',
@@ -124,50 +135,13 @@ const GraphQLManualKYCProviderData = new GraphQLObjectType({
   }),
 });
 
-const GraphQLPersonaKYCProviderData = new GraphQLObjectType({
-  name: 'PersonaKYCProviderData',
-  description: 'Persona KYC data',
-  fields: () => ({
-    imported: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      description: 'Whether this persona inquiry was imported',
-      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
-        return !!kycVerification.providerData.imported;
-      },
-    },
-    id: {
-      type: new GraphQLNonNull(GraphQLString),
-      description: 'ID of the Persona inquiry',
-      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
-        return kycVerification.providerData.inquiry.id;
-      },
-    },
-    status: {
-      type: new GraphQLNonNull(GraphQLString),
-      description: 'Status of the Persona inquiry',
-      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
-        return kycVerification.providerData.inquiry.attributes.status;
-      },
-    },
-    fields: {
-      type: new GraphQLNonNull(GraphQLJSON),
-      description: 'Contains KYC data verified by this inquiry',
-      resolve(kycVerification: KYCVerification<KYCProviderName.PERSONA>) {
-        return kycVerification.providerData.inquiry.attributes.fields ?? {};
-      },
-    },
-  }),
-});
-
 const GraphQLKYCProviderData = new GraphQLUnionType({
   name: 'KYCProviderData',
-  types: [GraphQLManualKYCProviderData, GraphQLPersonaKYCProviderData],
+  types: [GraphQLManualKYCProviderData],
   resolveType(kycVerification: KYCVerification) {
     switch (kycVerification.provider) {
       case KYCProviderName.MANUAL:
         return 'ManualKYCProviderData';
-      case KYCProviderName.PERSONA:
-        return 'PersonaKYCProviderData';
     }
   },
 });

@@ -4,7 +4,8 @@ import type Express from 'express';
 import { Service } from '../constants/connected-account';
 import expenseStatus from '../constants/expense-status';
 import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
-import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
+import { fetchAccountWithReference } from '../graphql/v2/input/AccountReferenceInput';
+import { fetchExpenseWithReference } from '../graphql/v2/input/ExpenseReferenceInput';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
@@ -43,14 +44,16 @@ export async function payBatch(
       throw new errors.Unauthorized('User needs to be logged in');
     }
 
-    const host = await models.Collective.findByPk(idDecode(body.hostId, IDENTIFIER_TYPES.ACCOUNT));
+    const host = await fetchAccountWithReference({ id: body.hostId });
     if (!host) {
       throw new errors.NotFound('Could not find host collective');
     }
     if (!remoteUser.isAdmin(host.id)) {
       throw new errors.Unauthorized('User must be admin of host collective');
     }
-    const expenseIds = body.expenseIds?.map(id => idDecode(id, IDENTIFIER_TYPES.EXPENSE));
+    const expenseIds = await Promise.all(
+      body.expenseIds?.map(id => fetchExpenseWithReference({ id }).then(expense => expense?.id)),
+    );
     const expenses = await models.Expense.findAll({
       where: { id: { [Op.in]: expenseIds } },
       include: [

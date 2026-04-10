@@ -14,7 +14,7 @@ import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import models, { Op } from '../../models';
+import models from '../../models';
 import { PayoutWebhookRequest, PaypalCapture } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
@@ -197,7 +197,7 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
     const existingTransaction = await models.Transaction.findOne({
       where: {
         OrderId: order.id,
-        data: { capture: { id: capture.id } },
+        data: { paypalCaptureId: capture.id },
       },
     });
 
@@ -249,13 +249,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
       kind: TransactionKind.CONTRIBUTION,
       isRefund: false,
       RefundTransactionId: null,
-      data: {
-        [Op.or]: [
-          { capture: { id: captureDetails.id } },
-          { paypalSale: { id: captureDetails.id } },
-          { paypalTransaction: { id: captureDetails.id } },
-        ],
-      },
+      data: { paypalCaptureId: captureDetails.id },
     },
     include: [
       {

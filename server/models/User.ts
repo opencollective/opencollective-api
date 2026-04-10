@@ -1,5 +1,4 @@
 import bcrypt from 'bcrypt';
-import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
@@ -15,9 +14,9 @@ import OrderStatuses from '../constants/order-status';
 import PlatformConstants from '../constants/platform';
 import MemberRoles from '../constants/roles';
 import * as auth from '../lib/auth';
-import emailLib from '../lib/email';
 import logger from '../lib/logger';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
@@ -25,6 +24,7 @@ import Activity from './Activity';
 import Collective from './Collective';
 import ConnectedAccount from './ConnectedAccount';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 
 const debug = debugLib('models:User');
@@ -39,7 +39,8 @@ type UserData = {
   requiresVerification?: boolean;
 };
 
-class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
+class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<User>, InferCreationAttributes<User>> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.User;
   public static readonly tableName = 'Users' as const;
 
   declare public readonly id: CreationOptional<number>;
@@ -462,11 +463,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     });
   };
 
-  getCollective = async function ({ loaders = null } = {}): Promise<Collective> {
+  getCollective = async function ({ loaders = null, transaction = undefined } = {}): Promise<Collective> {
     if (this.CollectiveId) {
-      const collective = loaders
-        ? await loaders.Collective.byId.load(this.CollectiveId)
-        : await Collective.findByPk(this.CollectiveId);
+      const collective =
+        loaders && !transaction
+          ? await loaders.Collective.byId.load(this.CollectiveId)
+          : await Collective.findByPk(this.CollectiveId, { transaction });
       if (collective) {
         return collective;
       }
@@ -639,6 +641,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public get info(): NonAttribute<Partial<User>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       email: this.email,
       emailWaitingForValidation: this.emailWaitingForValidation,
       createdAt: this.createdAt,
@@ -650,23 +653,26 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public get show(): NonAttribute<Partial<User>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       CollectiveId: this.CollectiveId,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };
   }
 
-  public get minimal(): NonAttribute<{ id: number; email: string }> {
+  public get minimal(): NonAttribute<{ id: number; publicId: string; email: string }> {
     return {
       id: this.id,
+      publicId: this.publicId,
       email: this.email,
     };
   }
 
   // Used for the public collective
-  public get public(): NonAttribute<{ id: number }> {
+  public get public(): NonAttribute<{ id: number; publicId: string }> {
     return {
       id: this.id,
+      publicId: this.publicId,
     };
   }
 }
@@ -677,6 +683,11 @@ User.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CollectiveId: {
@@ -704,17 +715,6 @@ User.init(
         isEmail: {
           msg: 'Email must be valid',
         },
-        isBurnerEmail: function (val) {
-          if (
-            (this._emailChanged || this.isNewRecord) &&
-            !emailLib.isAuthorizedEmailDomain(val.toLowerCase()) &&
-            isEmailBurner(val.toLowerCase())
-          ) {
-            throw new Error(
-              'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
-            );
-          }
-        },
       },
     },
 
@@ -732,17 +732,6 @@ User.init(
       validate: {
         isEmail: {
           msg: 'Email must be valid',
-        },
-        isBurnerEmail: function (val) {
-          if (
-            (this._emailWaitingForValidationChanged || this.isNewRecord) &&
-            !emailLib.isAuthorizedEmailDomain(val.toLowerCase()) &&
-            isEmailBurner(val.toLowerCase())
-          ) {
-            throw new Error(
-              'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
-            );
-          }
         },
       },
     },

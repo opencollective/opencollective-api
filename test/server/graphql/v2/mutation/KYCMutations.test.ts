@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import FEATURE from '../../../../../server/constants/feature';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import { manualKycProvider } from '../../../../../server/lib/kyc/providers/manual';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -242,6 +243,37 @@ describe('server/graphql/v2/mutation/KYCMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.requestKYCVerification).to.exist;
       expect(result.data.requestKYCVerification.createdByUser).to.exist;
+      expect(result.data.requestKYCVerification.createdByUser.legacyId).to.equal(orgAdmin.id);
+    });
+
+    it('accepts publicId for requestedByAccount and verifyAccount', async () => {
+      const orgAdmin = await fakeUser();
+      const org = await setupOrg({ admin: orgAdmin });
+      const user = await fakeUser();
+
+      const orgPublicId =
+        `${EntityShortIdPrefix.Collective}_${org.id}` as EntityPublicId<EntityShortIdPrefix.Collective>;
+      const userPublicId =
+        `${EntityShortIdPrefix.Collective}_${user.collective.id}` as EntityPublicId<EntityShortIdPrefix.Collective>;
+      await org.update({ publicId: orgPublicId });
+      await user.collective.update({ publicId: userPublicId });
+
+      const result = await graphqlQueryV2(
+        mutation,
+        {
+          requestedByAccount: { id: orgPublicId },
+          verifyAccount: { id: userPublicId },
+          provider: 'MANUAL',
+          request: {
+            ...manualProviderArgs,
+          },
+        },
+        orgAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.requestKYCVerification).to.exist;
       expect(result.data.requestKYCVerification.createdByUser.legacyId).to.equal(orgAdmin.id);
     });
 

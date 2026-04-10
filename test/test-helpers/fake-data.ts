@@ -27,7 +27,6 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
 import { crypto } from '../../server/lib/encryption';
 import { KYCProviderName } from '../../server/lib/kyc/providers';
-import { PersonaInquiry } from '../../server/lib/kyc/providers/persona/client';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
@@ -491,7 +490,7 @@ export const fakePayoutMethod = async ({
 }: Partial<InferCreationAttributes<PayoutMethod>> = {}) => {
   const generateData = type => {
     if (type === PayoutMethodTypes.PAYPAL) {
-      return { email: randEmail(), ...data };
+      return { email: randEmail(), currency: 'USD', ...data };
     } else if (type === PayoutMethodTypes.OTHER) {
       return { content: randStr(), ...data };
     } else if (type === PayoutMethodTypes.BANK_ACCOUNT) {
@@ -620,6 +619,7 @@ export const fakeComment = async (
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
   let ExpenseId = get(commentData, 'ExpenseId') || get(commentData, 'expense.id');
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
+  const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -629,7 +629,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
@@ -736,7 +736,8 @@ export const fakeOrder = async (
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(<number>CreatedByUserId);
-  const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
+  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
+  const FromCollectiveId = orderData.FromCollectiveId || fromCollective.id;
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
@@ -745,6 +746,13 @@ export const fakeOrder = async (
     : withTier
       ? await fakeTier()
       : null;
+  const data = {
+    ...orderData.data,
+    fromAccountInfo: {
+      name: fromCollective.name,
+      email: user.email,
+    },
+  };
 
   const order: Order & {
     subscription?: typeof Subscription;
@@ -759,6 +767,7 @@ export const fakeOrder = async (
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId: collective.id,
+    data,
   });
 
   if (order.PaymentMethodId) {
@@ -1401,14 +1410,6 @@ export async function fakeKYCVerification<Provider extends KYCProviderName = KYC
       case KYCProviderName.MANUAL:
         (providerData as KYCVerification<KYCProviderName.MANUAL>['providerData']) = {
           notes: randStr('notes'),
-        };
-        break;
-      case KYCProviderName.PERSONA:
-        (providerData as KYCVerification<KYCProviderName.PERSONA>['providerData']) = {
-          inquiry: {
-            id: randStr('inquiry-id'),
-          } as PersonaInquiry,
-          imported: false,
         };
         break;
     }

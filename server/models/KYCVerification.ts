@@ -1,14 +1,22 @@
 import DataLoader from 'dataloader';
-import { BelongsToGetAssociationMixin, DataTypes, ForeignKey, InferAttributes, Model, QueryTypes } from 'sequelize';
+import {
+  BelongsToGetAssociationMixin,
+  DataTypes,
+  ForeignKey,
+  InferAttributes,
+  NonAttribute,
+  QueryTypes,
+} from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { sortResultsSimple } from '../graphql/loaders/helpers';
 import { getKYCProvider } from '../lib/kyc';
 import { KYCProviderName } from '../lib/kyc/providers';
-import { PersonaInquiry } from '../lib/kyc/providers/persona/client';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize from '../lib/sequelize';
 
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum KYCVerificationStatus {
@@ -23,13 +31,9 @@ type KycProviderData = {
   [KYCProviderName.MANUAL]: {
     notes: string;
   };
-  [KYCProviderName.PERSONA]: {
-    inquiry: Partial<PersonaInquiry>;
-    imported?: boolean;
-  };
 };
 
-export type KYCVerifiedData = {
+type KYCVerifiedData = {
   legalName: string;
   legalAddress?: string;
 };
@@ -38,14 +42,17 @@ type KYCData<Provider extends KYCProviderName = KYCProviderName> = Provider exte
   ? KycProviderData[Provider]
   : unknown;
 
-export class KYCVerification<Provider extends KYCProviderName = KYCProviderName> extends Model<
+export class KYCVerification<Provider extends KYCProviderName = KYCProviderName> extends ModelWithPublicId<
+  EntityShortIdPrefix.KYCVerification,
   InferAttributes<KYCVerification>,
   KYCVerification
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.KYCVerification;
   public static readonly tableName = 'KYCVerifications' as const;
 
   declare id: number;
   declare CollectiveId: ForeignKey<Collective['id']>;
+  declare public collective?: NonAttribute<Collective>;
   declare RequestedByCollectiveId: ForeignKey<Collective['id']>;
   declare CreatedByUserId: ForeignKey<User['id']>;
 
@@ -74,6 +81,8 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
   static get loaders() {
     const byRequestedByCollectiveId = {
       verifiedStatusByProvider: {},
+      latestKycRequestsByProvider: {},
+      latestKycRequests: {},
     };
     function verifiedStatusByProvider(
       RequestedByCollectiveId: number,
@@ -124,8 +133,101 @@ export class KYCVerification<Provider extends KYCProviderName = KYCProviderName>
 
       return byRequestedByCollectiveId.verifiedStatusByProvider[provider][RequestedByCollectiveId];
     }
+
+    function latestKycRequestsByProvider(
+      RequestedByCollectiveId: number,
+      provider: KYCProviderName,
+    ): DataLoader<number, KYCVerification> {
+      if (byRequestedByCollectiveId.latestKycRequestsByProvider[provider]?.[RequestedByCollectiveId]) {
+        return byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId];
+      }
+
+      if (!byRequestedByCollectiveId.latestKycRequestsByProvider[provider]) {
+        byRequestedByCollectiveId.latestKycRequestsByProvider[provider] = {};
+      }
+
+      byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId] = new DataLoader<
+        number,
+        KYCVerification
+      >(async keys => {
+        const res: KYCVerification[] = await sequelize.query(
+          `
+          WITH requests AS (
+            SELECT 
+              "kyc".*,
+              RANK() OVER(PARTITION BY "kyc"."CollectiveId" ORDER BY "kyc"."createdAt" DESC) "_rank"
+            FROM "KYCVerifications" "kyc"
+            WHERE
+              "kyc"."provider" = :provider AND
+              "kyc"."RequestedByCollectiveId" = :RequestedByCollectiveId AND
+              "kyc"."CollectiveId" IN (:CollectiveId)              
+          ) SELECT * from requests WHERE "_rank" = 1;
+          
+        `,
+          {
+            type: QueryTypes.SELECT,
+            model: KYCVerification,
+            mapToModel: true,
+            replacements: {
+              provider,
+              RequestedByCollectiveId,
+              CollectiveId: keys,
+            },
+          },
+        );
+
+        return sortResultsSimple(keys, res, i => i.CollectiveId);
+      });
+
+      return byRequestedByCollectiveId.latestKycRequestsByProvider[provider][RequestedByCollectiveId];
+    }
+
+    function latestKycRequests(RequestedByCollectiveId: number): DataLoader<number, KYCVerification | null> {
+      if (byRequestedByCollectiveId.latestKycRequests?.[RequestedByCollectiveId]) {
+        return byRequestedByCollectiveId.latestKycRequests[RequestedByCollectiveId];
+      }
+
+      if (!byRequestedByCollectiveId.latestKycRequests) {
+        byRequestedByCollectiveId.latestKycRequests = {};
+      }
+
+      byRequestedByCollectiveId.latestKycRequests[RequestedByCollectiveId] = new DataLoader<number, KYCVerification>(
+        async keys => {
+          const res: KYCVerification[] = await sequelize.query(
+            `
+          WITH latest_verification AS (
+            SELECT 
+              "kyc".*,
+              RANK() OVER(PARTITION BY "kyc"."CollectiveId" ORDER BY "kyc"."createdAt" DESC) "_rank"
+            FROM "KYCVerifications" "kyc"
+            WHERE
+              "kyc"."RequestedByCollectiveId" = :RequestedByCollectiveId AND
+              "kyc"."CollectiveId" IN (:CollectiveId)              
+          ) SELECT * from latest_verification WHERE "_rank" = 1;
+          
+        `,
+            {
+              type: QueryTypes.SELECT,
+              model: KYCVerification,
+              mapToModel: true,
+              replacements: {
+                RequestedByCollectiveId,
+                CollectiveId: keys,
+              },
+            },
+          );
+
+          return sortResultsSimple(keys, res, i => i.CollectiveId);
+        },
+      );
+
+      return byRequestedByCollectiveId.latestKycRequests[RequestedByCollectiveId];
+    }
+
     return {
       verifiedStatusByProvider,
+      latestKycRequestsByProvider,
+      latestKycRequests,
     };
   }
 }
@@ -137,6 +239,10 @@ KYCVerification.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

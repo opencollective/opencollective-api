@@ -2,11 +2,13 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { PayoutMethod } from '../../../models';
+import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 const GraphQLPayoutMethod = new GraphQLObjectType({
   name: 'PayoutMethod',
@@ -14,8 +16,18 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.PAYOUT_METHOD),
+      resolve: payoutMethod => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.PayoutMethod, payoutMethod.createdAt)) {
+          return payoutMethod.publicId;
+        } else {
+          return idEncode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+        }
+      },
       description: 'Unique identifier for this payout method',
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.PayoutMethod}_xxxxxxxx)`,
     },
     type: {
       type: GraphQLPayoutMethodType,
@@ -61,7 +73,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
           if (checkScope(req, 'expenses')) {
-            return payoutMethod.data;
+            return payoutMethod.getFilteredData();
           }
         }
       },
@@ -108,6 +120,18 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
           return payoutMethod.canBeArchived();
         } else {
           return false;
+        }
+      },
+    },
+    isVerified: {
+      type: GraphQLBoolean,
+      description:
+        'For PayPal payout methods: whether the PayPal account has been verified via OAuth. Null for other types.',
+      resolve: async (payoutMethod: PayoutMethod): Promise<boolean | null> => {
+        if (payoutMethod.type !== PayoutMethodTypes.PAYPAL) {
+          return null;
+        } else {
+          return Boolean((payoutMethod.data as PaypalPayoutMethodData)?.verifiedAt);
         }
       },
     },

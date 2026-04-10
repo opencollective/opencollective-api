@@ -245,7 +245,7 @@ describe('server/models/User', () => {
           });
         })
         .then(user2 => {
-          expect(user2.collective.slug).to.equal('xavier-damman1');
+          expect(user2.collective.slug).to.match(/^xavier-damman-[0-9a-f]{8}$/);
           expect(user2.collective.name).to.equal('Xavier Damman');
         });
     });

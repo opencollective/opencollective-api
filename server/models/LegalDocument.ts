@@ -6,7 +6,6 @@ import {
   DataTypes,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   Op,
 } from 'sequelize';
@@ -17,6 +16,7 @@ import { US_TAX_FORM_VALIDITY_IN_YEARS } from '../constants/tax-form';
 import { parseS3Url } from '../lib/awsS3';
 import { crypto, secretbox } from '../lib/encryption';
 import { notify } from '../lib/notifications/email';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import sequelize from '../lib/sequelize';
 import { getTaxFormsS3Bucket } from '../lib/tax-forms';
@@ -24,6 +24,7 @@ import { isValidURL, prependHttp } from '../lib/url-utils';
 
 import Activity from './Activity';
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum LEGAL_DOCUMENT_TYPE {
@@ -51,7 +52,12 @@ const ENCRYPTION_KEY = get(config, 'taxForms.encryptionKey');
 
 export type LegalDocumentAttributes = InferAttributes<LegalDocument>;
 
-class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttributes<LegalDocument>> {
+class LegalDocument extends ModelWithPublicId<
+  EntityShortIdPrefix.LegalDocument,
+  LegalDocumentAttributes,
+  InferCreationAttributes<LegalDocument>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.LegalDocument;
   public static readonly tableName = 'LegalDocuments' as const;
 
   declare public id: number;
@@ -396,6 +402,7 @@ class LegalDocument extends Model<LegalDocumentAttributes, InferCreationAttribut
   get info(): NonAttribute<Partial<LegalDocument>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       year: this.year,
       documentType: this.documentType,
       requestStatus: this.requestStatus,
@@ -411,6 +418,10 @@ LegalDocument.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     year: {
       type: DataTypes.INTEGER,

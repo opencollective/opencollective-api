@@ -5,15 +5,17 @@ import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNul
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Expression, ExpressionBuilder, expressionBuilder, OrderByModifiers, sql, SqlBool } from 'kysely';
 import { KyselifyModel } from 'kysely-sequelize';
-import { compact, isEmpty, isNil, uniq } from 'lodash';
+import { compact, isEmpty, isInteger, isNil, uniq } from 'lodash';
 import moment from 'moment';
 import { Includeable, WhereOptions } from 'sequelize';
 
+import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -99,10 +101,18 @@ const buildCollectivesConditions = ({
         },
       ];
     } else if (hostContext === 'INTERNAL') {
-      // Only get internal accounts
+      // Only get internal accounts (account itself + non-vendor children, matching main order query)
       conditions = [
         {
-          [Op.or]: [{ [getField('id')]: account.id }, { [getField('ParentCollectiveId')]: account.id }],
+          [Op.or]: [
+            { [getField('id')]: account.id },
+            {
+              [Op.and]: [
+                { [getField('ParentCollectiveId')]: account.id },
+                { [getField('type')]: { [Op.ne]: CollectiveType.VENDOR } },
+              ],
+            },
+          ],
         },
       ];
     }
@@ -110,7 +120,12 @@ const buildCollectivesConditions = ({
 
   if (shouldQueryForChildAccounts) {
     const parentIds = limitToHostedAccountsIds.length ? limitToHostedAccountsIds : allTopAccountIds;
-    conditions.push({ [getField('ParentCollectiveId')]: { [Op.in]: parentIds } });
+    conditions.push({
+      [Op.and]: [
+        { [getField('ParentCollectiveId')]: { [Op.in]: parentIds } },
+        { [getField('type')]: { [Op.ne]: CollectiveType.VENDOR } },
+      ],
+    });
   }
 
   return conditions.length === 1 ? conditions[0] : { [Op.or]: conditions };
@@ -334,6 +349,10 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }
 
+  if (args.searchTerm && args.searchTerm.trim().length < 3) {
+    throw new Error('Search term must be at least 3 characters long');
+  }
+
   const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
   const host = args.host && (await fetchAccountWithReference(args.host, fetchAccountParams));
   let account: Collective,
@@ -393,6 +412,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   let paymentMethods: PaymentMethod[] = [];
   if (args.paymentMethod) {
     paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod, {
+      loaders: req.loaders,
       sequelizeOpts: { attributes: ['id'], include: [{ model: models.Collective }] },
     });
     if (!paymentMethods.every(paymentMethod => req.remoteUser?.isAdminOfCollective(paymentMethod.Collective))) {
@@ -427,6 +447,13 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     }
   }
 
+  let tierIds: number[] | null = null;
+  if (args.tier?.length > 0) {
+    tierIds = await Promise.all(
+      args.tier.map(input => getDatabaseIdFromTierReference(input, { loaders: req.loaders })),
+    );
+  }
+
   let createdByUsers: User[] = [];
   if (!isEmpty(args.createdBy)) {
     assert(args.createdBy.length <= 1000, '"Created by" is limited to 1000 users');
@@ -442,6 +469,17 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   }
 
   const isHostAdmin = account?.hasMoneyManagement && req.remoteUser?.isAdminOfCollective(account);
+  const searchTermLooksLikeAnEmail = !!args.searchTerm && args.searchTerm.includes('@');
+
+  let collectiveBySearchTerm: Collective | null = null;
+  if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Collective)) {
+    const collective = await models.Collective.findOne({
+      where: { publicId: args.searchTerm },
+    });
+    if (collective) {
+      collectiveBySearchTerm = collective;
+    }
+  }
 
   const kysely = getKysely();
   const query = kysely
@@ -455,7 +493,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             const ors: Expression<SqlBool>[] = [];
             ors.push(eb('id', 'in', uniq(hostedAccounts.map(h => h.id))));
             if (args.includeChildrenAccounts) {
-              ors.push(eb('ParentCollectiveId', 'in', uniq(hostedAccounts.map(h => h.id))));
+              ors.push(
+                eb('ParentCollectiveId', 'in', uniq(hostedAccounts.map(h => h.id))).and(
+                  eb('type', '!=', CollectiveType.VENDOR),
+                ),
+              );
             }
 
             if (
@@ -463,14 +505,64 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
               hostContext === 'INTERNAL' &&
               hostedAccounts.some(h => h.id === account.id)
             ) {
-              ors.push(eb('ParentCollectiveId', '=', account.id));
+              ors.push(eb('ParentCollectiveId', '=', account.id).and(eb('type', '!=', CollectiveType.VENDOR)));
             }
 
             return or(ors);
           });
         });
     })
+    .with(
+      cte => cte('filterByOrderSearchTerm').materialized(),
+      db => {
+        const ors: Expression<SqlBool>[] = [];
+        return db
+          .selectFrom('Orders')
+          .select('Orders.id')
+          .where('Orders.deletedAt', 'is', null)
+          .$if(!!args.searchTerm, qb => {
+            return qb.where(({ or, eb }) => {
+              if (isFinite(Number(args.searchTerm)) && isInteger(Number(args.searchTerm))) {
+                ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
+              }
+
+              if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Order)) {
+                ors.push(eb('Orders.publicId', '=', args.searchTerm));
+              }
+
+              if (collectiveBySearchTerm) {
+                ors.push(eb('Orders.CollectiveId', '=', collectiveBySearchTerm.id));
+                ors.push(eb('Orders.FromCollectiveId', '=', collectiveBySearchTerm.id));
+              }
+
+              ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(
+                eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`),
+              );
+
+              return or(ors);
+            });
+          })
+          .$if(isHostAdmin && searchTermLooksLikeAnEmail, qb => {
+            return qb.union(
+              db
+                .selectFrom('Orders')
+                .select('Orders.id')
+                .innerJoin('Users', 'Users.id', 'Orders.CreatedByUserId')
+                .where('Orders.deletedAt', 'is', null)
+                .where('Users.email', '=', args.searchTerm)
+                .where('Users.deletedAt', 'is', null),
+            );
+          });
+      },
+    )
     .selectFrom('Orders')
+    .$if(!!args.searchTerm, qb => {
+      return qb.innerJoin('filterByOrderSearchTerm', 'filterByOrderSearchTerm.id', 'Orders.id');
+    })
     .innerJoin('Collectives as collective', join =>
       join.onRef('collective.id', '=', 'Orders.CollectiveId').on('collective.deletedAt', 'is', null),
     )
@@ -537,7 +629,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             break;
           case 'INTERNAL':
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
-            ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
+            ors.push(
+              eb(`${join}.ParentCollectiveId`, '=', account.id).and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+            );
             break;
           case 'HOSTED':
             ors.push(
@@ -552,7 +646,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           default:
             ors.push(eb(join === 'collective' ? 'Orders.CollectiveId' : 'Orders.FromCollectiveId', '=', account.id));
             if (args.includeChildrenAccounts) {
-              ors.push(eb(`${join}.ParentCollectiveId`, '=', account.id));
+              ors.push(
+                eb(`${join}.ParentCollectiveId`, '=', account.id).and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+              );
             }
 
             if (incognitoProfile) {
@@ -608,28 +704,6 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
             });
         });
     })
-    .$if(!!args.searchTerm, qb => {
-      const looksLikeAnEmail = args.searchTerm?.includes('@');
-
-      return qb.leftJoin('Users', 'Users.id', 'Orders.CreatedByUserId').where(({ or, eb }) => {
-        const ors: Expression<SqlBool>[] = [];
-        if (isHostAdmin && looksLikeAnEmail) {
-          ors.push(eb('Users.email', '=', args.searchTerm));
-        }
-
-        if (isFinite(Number(args.searchTerm))) {
-          ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
-        }
-
-        ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
-        ors.push(eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`));
-
-        return or(ors);
-      });
-    })
     .$if(!!args.amount?.gte?.valueInCents || !!args.amount?.lte?.valueInCents, qb => {
       if (args.amount.gte && args.amount.lte) {
         assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
@@ -677,8 +751,8 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         .$if(!!args.minAmount, qb => qb.where('totalAmount', '>=', args.minAmount))
         .$if(!!args.maxAmount, qb => qb.where('totalAmount', '<=', args.maxAmount)),
     )
-    .$if(!!args.dateFrom, qb => qb.where('createdAt', '>=', args.dateFrom))
-    .$if(!!args.dateTo, qb => qb.where('createdAt', '<=', args.dateTo))
+    .$if(!!args.dateFrom, qb => qb.where('Orders.createdAt', '>=', args.dateFrom))
+    .$if(!!args.dateTo, qb => qb.where('Orders.createdAt', '<=', args.dateTo))
     .$if(!!args.expectedDateFrom, qb => qb.where(sql`"Orders".data->>'expectedAt'"`, '>=', args.expectedDateFrom))
     .$if(!!args.expectedDateTo, qb => qb.where(sql`"Orders".data->>'expectedAt'"`, '<=', args.expectedDateTo))
 
@@ -741,8 +815,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     .$if(!isEmpty(args.status) && args.status.includes(OrderStatuses.PAUSED) && !isEmpty(args.pausedBy), qb =>
       qb.where(sql`"Orders".data->>'pausedBy'`, 'in', args.pausedBy),
     )
-    .$if(!isEmpty(args.tier), qb => {
-      const tierIds = args.tier.map(getDatabaseIdFromTierReference);
+    .$if(!isEmpty(tierIds), qb => {
       return qb
         .innerJoin('Tiers', 'Orders.TierId', 'Tiers.id')
         .where('Tiers.id', 'in', tierIds)
@@ -844,6 +917,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       const searchConditions = buildSearchConditions(searchTerm, {
         slugFields: ['slug'],
         textFields: ['name'],
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
       });
 
       const ordersInclude: Includeable[] = [];

@@ -1,13 +1,14 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { Op, TransactionsImport } from '../../../models';
 import TransactionsImportRow from '../../../models/TransactionsImportRow';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
-import { getIdEncodeResolver } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { getCollectionArgs } from '../interface/Collection';
 import { GraphQLFileInfo } from '../interface/FileInfo';
@@ -24,7 +25,17 @@ export const GraphQLTransactionsImport = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'The public id of the import',
-      resolve: getIdEncodeResolver('transactions-import'),
+      resolve: importInstance => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.TransactionsImport, importInstance.createdAt)) {
+          return importInstance.publicId;
+        } else {
+          return idEncode(importInstance.id, IDENTIFIER_TYPES.TRANSACTIONS_IMPORT);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.TransactionsImport}_xxxxxxxx)`,
     },
     account: {
       type: new GraphQLNonNull(GraphQLAccount),

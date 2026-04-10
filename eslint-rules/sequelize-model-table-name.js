@@ -21,9 +21,14 @@ function isSequelizeModelClass(node) {
   if (node.type !== NODE_TYPES.ClassDeclaration || !node.superClass) {
     return false;
   }
+
+  if (node.abstract) {
+    return false;
+  }
+
   const superClass = node.superClass;
   if (superClass.type === NODE_TYPES.Identifier) {
-    return superClass.name === 'Model';
+    return superClass.name === 'Model' || superClass.name === 'ModelWithPublicId';
   }
   if (superClass.type === NODE_TYPES.MemberExpression) {
     const { object, property } = superClass;

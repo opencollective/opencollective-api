@@ -9,8 +9,10 @@ import { Op, type Order as SequelizeOrder, Utils as SequelizeUtils, WhereOptions
 
 import { CollectiveType } from '../../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
+import { RefundKind } from '../../../../constants/refund-kind';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -213,6 +215,11 @@ export const TransactionsCollectionArgs = {
     defaultValue: false,
     description: 'Whether to include debt transactions',
   },
+  includeEditedReversedTransactions: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: true,
+    description: 'Whether to include the reversed transactions created due to an edit.',
+  },
   kind: {
     type: new GraphQLList(GraphQLTransactionKind),
     description: 'To filter by transaction kind',
@@ -359,6 +366,9 @@ export const TransactionsCollectionResolver = async (
     } else {
       where.push({ CollectiveId: accountCondition });
     }
+    if (args.includeEditedReversedTransactions === false) {
+      where.push({ [Op.or]: [{ refundKind: { [Op.is]: null } }, { refundKind: { [Op.ne]: RefundKind.EDIT } }] });
+    }
 
     // Database optimization, it seems faster to add the HostCollectiveId if possible
     // Only do this when they are multiple accountsIds and one of them has many transactions
@@ -415,6 +425,10 @@ export const TransactionsCollectionResolver = async (
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
     amountFields: ['amount'],
+    publicIdFields: [
+      { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
+      { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
+    ],
   });
 
   if (searchTermConditions.length) {
@@ -458,9 +472,9 @@ export const TransactionsCollectionResolver = async (
               WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
               ELSE ABS(
                 COALESCE(
-                  (SELECT rate FROM "CurrencyExchangeRates" 
-                    WHERE "from" = "Transaction"."currency" 
-                    AND "to" = :currency 
+                  (SELECT rate FROM "CurrencyExchangeRates"
+                    WHERE "from" = "Transaction"."currency"
+                    AND "to" = :currency
                     -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
                     AND "createdAt" <= COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")
                     ORDER BY "createdAt" DESC
@@ -507,7 +521,7 @@ export const TransactionsCollectionResolver = async (
     where.push({ clearedAt: { [Op.lte]: args.clearedTo } });
   }
   if (args.expense) {
-    const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+    const expenseId = await getDatabaseIdFromExpenseReference(args.expense, { loaders: req.loaders });
     where.push({ ExpenseId: expenseId });
   }
   if (args.hasExpense !== undefined) {
@@ -522,7 +536,7 @@ export const TransactionsCollectionResolver = async (
     });
   }
   if (args.order) {
-    const orderId = getDatabaseIdFromOrderReference(args.order);
+    const orderId = await getDatabaseIdFromOrderReference(args.order, { loaders: req.loaders });
     where.push({ OrderId: orderId });
   }
   if (args.hasOrder !== undefined) {
@@ -650,7 +664,7 @@ export const TransactionsCollectionResolver = async (
     }
   }
 
-  /* 
+  /*
     Ordering of transactions by
     - createdAt (rounded by a 10s interval): to treat very close timestamps as the same to defer ordering to transaction group, kind and type
       - known issue: a transaction group can be split in two if the first transaction is rounded to the end of a 10s interval and the second to the beginning of the next 10s interval

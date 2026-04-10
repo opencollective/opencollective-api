@@ -29,6 +29,7 @@ import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import logger from '../../../lib/logger';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -43,7 +44,10 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
-import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import {
+  isPaypalSubscriptionPaymentMethod,
+  updateSubscriptionWithPaypal,
+} from '../../../paymentProviders/paypal/subscription';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
@@ -367,7 +371,9 @@ const orderMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
 
-      const decodedId = idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
+      const decodedId = isEntityPublicId(args.order.id, EntityShortIdPrefix.Order)
+        ? await req.loaders.Order.idByPublicId.load(args.order.id)
+        : idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
       const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod) || Boolean(args.paypalSubscriptionId);
 
@@ -409,6 +415,13 @@ const orderMutations = {
 
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
+
+      // PayPal bills via the external subscription plan; amount/tier changes must go through PayPal approval.
+      if (haveDetailsChanged && isPaypalSubscriptionPaymentMethod(order.paymentMethod) && !args.paypalSubscriptionId) {
+        throw new ValidationFailed(
+          'To change the amount or tier for a PayPal subscription, you must complete the PayPal approval flow.',
+        );
+      }
 
       let previousOrderValues, previousSubscriptionValues;
 
@@ -454,6 +467,7 @@ const orderMutations = {
               await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
             }
 
+            reportErrorToSentry(error, { req });
             throw error;
           }
         } else {
@@ -512,6 +526,7 @@ const orderMutations = {
       } else if (args.accountingCategory) {
         newAccountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
           throwIfMissing: true,
+          loaders: req.loaders,
         });
       }
 
@@ -621,7 +636,7 @@ const orderMutations = {
           );
         }
 
-        const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
+        const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId', 'publicId']));
         if (hasChanges) {
           const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
 

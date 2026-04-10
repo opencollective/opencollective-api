@@ -54,7 +54,7 @@ const formatStuckQueryGroup = (g: StuckQueryGroup): string => {
       `*User:* \`${g.user}\``,
       g.application_name ? `*App:* \`${g.application_name}\`` : null,
       g.count > 1 ? `*Duplicate queries:* ${g.count}` : null,
-      `*${numPids > 1 ? 'Longest run' : 'Run'} duration:* ${g.longest_run}`,
+      `*${numPids > 1 ? 'Longest run' : 'Run'} duration:* \`${g.longest_run}\``,
     ]
       .filter(Boolean)
       .join(' | '),
@@ -74,13 +74,13 @@ async function run() {
       max(now() - query_start)::varchar AS longest_run
     FROM pg_stat_activity
     WHERE state = 'active'
+    AND application_name != 'Heroku Postgres Backups'
     AND (now() - query_start) > (:threshold * interval '1 second')
     AND query NOT IN (
       'SHOW TRANSACTION ISOLATION LEVEL',
       E'SHOW extwlist.extensions\n;',
       'SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED'
     )
-    AND query NOT LIKE '%pg_backup_start%'
     GROUP BY usename, application_name, query
     ORDER BY max(now() - query_start) DESC
     `,

@@ -216,6 +216,7 @@ export const SUPPORTED_CURRENCIES = [
   'FKP',
   'GBP',
   'GEL',
+  'GHS',
   'GIP',
   'GMD',
   'GNF',
