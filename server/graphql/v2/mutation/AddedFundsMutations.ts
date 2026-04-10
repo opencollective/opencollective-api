@@ -357,7 +357,7 @@ export default {
       // Update existing Order
 
       const valuesByRole = {
-        ...(order.data.valuesByRole || {}),
+        ...(order.data?.valuesByRole || {}),
         ...(accountingCategory === null ? { hostAdmin: { accountingCategory: { code: UncategorizedValue } } } : {}),
         ...(accountingCategory?.id ? { hostAdmin: { accountingCategory: accountingCategory?.publicInfo } } : {}),
       };

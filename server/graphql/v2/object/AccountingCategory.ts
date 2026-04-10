@@ -81,7 +81,7 @@ export const GraphQLContributionAccountingCategoryRule = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
       resolve(rule) {
-        return rule.id;
+        return rule.publicId;
       },
     },
     name: {
