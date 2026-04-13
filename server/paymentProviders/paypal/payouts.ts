@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
 import { Service } from '../../constants/connected-account';
-import { SupportedCurrency } from '../../constants/currencies';
+import { SupportedCurrency, ZERO_DECIMAL_CURRENCIES } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
 import { getFxRate } from '../../lib/currency';
@@ -272,7 +272,16 @@ export const estimatePaypalPayoutFeeInExpenseCurrency = async (host: Collective,
   const hostCurrency = host.currency;
   const payeeCountry = payee.countryISO;
   const isDomestic = hostCountry === payeeCountry;
-  const baseFee = Math.round(expense.amount * 0.02);
+  // Amounts are stored in "cents" (1/100 of major unit). For zero-decimal currencies, fees must be
+  // whole major units: 2% of 1 JPY/PYG is < 1 minor unit, so round in major space first (see tests).
+  const expenseCurrency = expense.currency?.toUpperCase();
+  const amountMajor = expense.amount / 100;
+  const isZeroDecimalExpenseCurrency = Boolean(
+    expenseCurrency && ZERO_DECIMAL_CURRENCIES.includes(expenseCurrency as (typeof ZERO_DECIMAL_CURRENCIES)[number]),
+  );
+  const baseFee = isZeroDecimalExpenseCurrency
+    ? Math.round(amountMajor * 0.02) * 100
+    : Math.round(expense.amount * 0.02);
   const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[hostCurrency];
 
   // No known cap for this currency => best-effort: return 2% uncapped (can overestimate for large payouts).

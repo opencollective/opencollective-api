@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
+import sinon from 'sinon';
 
 import { expenseStatus } from '../../../../server/constants';
 import FEATURE from '../../../../server/constants/feature';
@@ -42,8 +43,10 @@ import {
 import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
 import models, { Collective } from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
+import paymentProviders from '../../../../server/paymentProviders';
 import {
   fakeCollective,
+  fakeConnectedAccount,
   fakeCurrencyExchangeRate,
   fakeExpense,
   fakeHost,
@@ -2159,6 +2162,187 @@ describe('server/graphql/common/expenses', () => {
       });
 
       await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.fulfilled;
+    });
+
+    describe('zero-decimal currency (JPY)', () => {
+      let transferwiseQuoteSandbox;
+
+      before(() => {
+        transferwiseQuoteSandbox = sinon.createSandbox();
+      });
+
+      afterEach(() => {
+        transferwiseQuoteSandbox.restore();
+      });
+
+      describe('PayPal', () => {
+        let hostJpy, collectiveJpy, paypalPayoutMethod, payeeUser;
+
+        before(async () => {
+          hostJpy = await fakeHost({ currency: 'JPY', countryISO: 'JP' });
+          payeeUser = await fakeUser({}, { countryISO: 'JP' });
+          collectiveJpy = await fakeCollective({ currency: 'JPY', HostCollectiveId: hostJpy.id });
+          paypalPayoutMethod = await fakePayoutMethod({
+            type: 'PAYPAL',
+            CollectiveId: payeeUser.CollectiveId,
+            data: { email: 'payee-zero-decimal@opencollective.com', currency: 'JPY' },
+          });
+          // 100 minor units = ¥1 (lib/utils formatCurrency divides by 100)
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            amount: 100,
+          });
+        });
+
+        it('allows paying ¥1 via PayPal when the collective balance is exactly ¥1 (estimated fee rounds to 0)', async () => {
+          const expense = await fakeExpense({
+            currency: 'JPY',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            PayoutMethodId: paypalPayoutMethod.id,
+            FromCollectiveId: payeeUser.CollectiveId,
+            UserId: payeeUser.id,
+            amount: 100,
+            items: [],
+          });
+
+          await expect(checkHasBalanceToPayExpense(hostJpy, expense, paypalPayoutMethod)).to.be.fulfilled;
+        });
+      });
+
+      describe('Wise (TransferWise)', () => {
+        let hostJpy, collectiveJpy, bankPayoutMethod, payeeUser;
+
+        before(async () => {
+          hostJpy = await fakeHost({ currency: 'JPY', countryISO: 'JP' });
+          await fakeConnectedAccount({ CollectiveId: hostJpy.id, service: 'transferwise' });
+          payeeUser = await fakeUser({}, { countryISO: 'JP' });
+          collectiveJpy = await fakeCollective({ currency: 'JPY', HostCollectiveId: hostJpy.id });
+          bankPayoutMethod = await fakePayoutMethod({
+            type: PayoutMethodTypes.BANK_ACCOUNT,
+            CollectiveId: payeeUser.CollectiveId,
+            data: {
+              accountHolderName: 'Test Payee',
+              currency: 'JPY',
+              type: 'iban',
+              legalType: 'PRIVATE',
+              details: { IBAN: 'DE89370400440532013000' },
+            },
+          });
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            amount: 100,
+          });
+        });
+
+        beforeEach(() => {
+          transferwiseQuoteSandbox.stub(paymentProviders.transferwise, 'quoteExpense').resolves({
+            paymentOption: {
+              fee: { total: 0 },
+              disabled: false,
+            },
+            sourceCurrency: 'JPY',
+            targetCurrency: 'JPY',
+          });
+        });
+
+        it('allows paying ¥1 when balance matches and the Wise quote fee is 0', async () => {
+          const expense = await fakeExpense({
+            currency: 'JPY',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            PayoutMethodId: bankPayoutMethod.id,
+            FromCollectiveId: payeeUser.CollectiveId,
+            UserId: payeeUser.id,
+            amount: 100,
+            items: [],
+          });
+
+          await expect(checkHasBalanceToPayExpense(hostJpy, expense, bankPayoutMethod)).to.be.fulfilled;
+        });
+      });
+
+      describe('manual payout (forceManual)', () => {
+        let hostJpy, collectiveJpy, otherPayoutMethod, payeeUser;
+
+        before(async () => {
+          hostJpy = await fakeHost({ currency: 'JPY', countryISO: 'JP' });
+          payeeUser = await fakeUser({}, { countryISO: 'JP' });
+          collectiveJpy = await fakeCollective({ currency: 'JPY', HostCollectiveId: hostJpy.id });
+          otherPayoutMethod = await fakePayoutMethod({
+            type: 'OTHER',
+            CollectiveId: payeeUser.CollectiveId,
+            data: { content: 'Bank transfer (manual)' },
+          });
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            amount: 100,
+          });
+        });
+
+        it('allows forceManual when collective balance matches the recorded host-currency total (¥1)', async () => {
+          const expense = await fakeExpense({
+            currency: 'JPY',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            PayoutMethodId: otherPayoutMethod.id,
+            FromCollectiveId: payeeUser.CollectiveId,
+            UserId: payeeUser.id,
+            amount: 100,
+            items: [],
+          });
+
+          await expect(
+            checkHasBalanceToPayExpense(hostJpy, expense, otherPayoutMethod, {
+              forceManual: true,
+              totalAmountPaidInHostCurrency: 100,
+              paymentProcessorFeeInHostCurrency: 0,
+            }),
+          ).to.be.fulfilled;
+        });
+      });
+
+      describe('OTHER payout (no processor fee estimate)', () => {
+        let hostJpy, collectiveJpy, otherPayoutMethod, payeeUser;
+
+        before(async () => {
+          hostJpy = await fakeHost({ currency: 'JPY', countryISO: 'JP' });
+          payeeUser = await fakeUser({}, { countryISO: 'JP' });
+          collectiveJpy = await fakeCollective({ currency: 'JPY', HostCollectiveId: hostJpy.id });
+          otherPayoutMethod = await fakePayoutMethod({
+            type: 'OTHER',
+            CollectiveId: payeeUser.CollectiveId,
+            data: { content: 'Other instructions' },
+          });
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            amount: 100,
+          });
+        });
+
+        it('allows paying ¥1 when balance matches (no PayPal/Wise fee line)', async () => {
+          const expense = await fakeExpense({
+            currency: 'JPY',
+            CollectiveId: collectiveJpy.id,
+            HostCollectiveId: hostJpy.id,
+            PayoutMethodId: otherPayoutMethod.id,
+            FromCollectiveId: payeeUser.CollectiveId,
+            UserId: payeeUser.id,
+            amount: 100,
+            items: [],
+          });
+
+          await expect(checkHasBalanceToPayExpense(hostJpy, expense, otherPayoutMethod)).to.be.fulfilled;
+        });
+      });
     });
   });
 });
