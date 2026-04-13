@@ -406,5 +406,22 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
 
       expect(fee).to.equal(200); // 2% of €100 = 200 cents, domestic
     });
+
+    it('rounds 2% to whole major units for zero-decimal currencies (¥1 expense → 0 fee)', async () => {
+      const host = await fakeHost({ currency: 'JPY', countryISO: 'JP' });
+      const payeeUser = await fakeUser({}, { countryISO: 'JP' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'JPY' });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: payeeUser.CollectiveId,
+        UserId: payeeUser.id,
+        amount: 100,
+        currency: 'JPY',
+      });
+
+      const fee = await paypalPayouts.estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
+
+      expect(fee).to.equal(0);
+    });
   });
 });

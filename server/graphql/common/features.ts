@@ -247,7 +247,7 @@ export const getFeatureStatusResolver =
         return checkReceiveFinancialContributions(collective, req);
       case FEATURE.RECEIVE_EXPENSES:
         return checkCanReceiveExpenses(collective, req);
-      case FEATURE.RECEIVE_GRANTS:
+      case FEATURE.FUNDS_GRANTS_MANAGEMENT:
         return checkCanReceiveGrants(collective, req);
       case FEATURE.MULTI_CURRENCY_EXPENSES:
         return checkMultiCurrencyExpense(collective, req);
