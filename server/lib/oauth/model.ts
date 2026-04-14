@@ -33,7 +33,8 @@ interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {}
 export const dbApplicationToClient = (application: Application): OAuth2Server.Client => ({
   id: application.clientId,
   redirectUris: [application.callbackUrl],
-  grants: ['authorization_code'],
+  // Allow exchanging authorization codes and refreshing access tokens
+  grants: ['authorization_code', 'refresh_token'],
 });
 
 export const dbOAuthAuthorizationCodeToAuthorizationCode = (
@@ -48,6 +49,32 @@ export const dbOAuthAuthorizationCodeToAuthorizationCode = (
   user: authorization.user,
   scope: authorization.scope,
 });
+
+const dbTokenToOAuthToken = async (token: UserToken): Promise<Token> => {
+  if (!token.user && token.UserId) {
+    token.user = await models.User.findOne({ where: { id: token.UserId } });
+  }
+  if (!token.application && token.ApplicationId) {
+    token.application = await models.Application.findOne({ where: { id: token.ApplicationId } });
+  }
+  if (!token.client && token.application) {
+    token.client = dbApplicationToClient(token.application);
+  }
+
+  // Return a plain object to ensure proper destructuring in v5's TokenModel
+  // Include additional fields (id, application) for backward compatibility
+  return {
+    id: token.id,
+    accessToken: token.accessToken,
+    accessTokenExpiresAt: token.accessTokenExpiresAt,
+    refreshToken: token.refreshToken,
+    refreshTokenExpiresAt: token.refreshTokenExpiresAt,
+    scope: token.scope,
+    client: token.client,
+    user: token.user,
+    application: token.application,
+  };
+};
 
 // For some reason `saveAuthorizationCode` and `saveToken` can receive a `scope`
 // property that is a string[], string or undefined, and in the case of a string
@@ -109,9 +136,7 @@ const model: OauthModel = {
         scope,
         preAuthorize2FA: Boolean(application.preAuthorize2FA),
       });
-      oauthToken.user = user;
-      oauthToken.client = client;
-      return <Token>oauthToken;
+      return (await dbTokenToOAuthToken(oauthToken)) as Token;
     } catch (e) {
       debug(e);
       // TODO: what should be thrown so it's properly catched on the library side?
@@ -138,17 +163,17 @@ const model: OauthModel = {
       throw new InvalidTokenError('Invalid token');
     }
 
-    return <Token>token;
+    return (await dbTokenToOAuthToken(token)) as Token;
   },
 
   async getRefreshToken(refreshToken): Promise<RefreshToken> {
     debug('model.getRefreshToken', refreshToken);
     const token = await UserToken.findOne({ where: { refreshToken } });
     if (!token) {
-      throw new InvalidTokenError('Invalid refresh token');
+      throw new InvalidGrantError('Invalid refresh token');
     }
 
-    return <RefreshToken>token;
+    return (await dbTokenToOAuthToken(token)) as RefreshToken;
   },
 
   // -- Authorization code --

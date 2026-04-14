@@ -88,7 +88,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
         data: { ...expenseData, missingDetails: true, ...transaction.data },
       });
       // Mark Expense as Paid, create activity and don't send notifications
-      await processingExpense.markAsPaid({ skipActivity: true });
+      await processingExpense.markAsPaid({ skipActivity: true, paidAt: transaction.clearedAt || new Date() });
 
       await models.Transaction.createDoubleEntry({
         CollectiveId: collective.id,
@@ -146,10 +146,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
     const existingTransaction = await models.Transaction.findOne({
       where: {
         CollectiveId: collective.id,
-        // TODO : only let refundTransactionId in a few months (today : 11/2021) or make a migration to update data on existing expenses and transactions
-        data: {
-          [Op.or]: [{ refundTransactionId: transactionId }, { id: transactionId }, { token: transactionId }],
-        },
+        data: { refundTransactionId: transactionId },
       },
     });
 

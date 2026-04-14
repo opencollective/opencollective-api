@@ -1,7 +1,8 @@
 import debugLib from 'debug';
 import type Express from 'express';
 import { compact, concat, keys, pick, set, uniqBy, values } from 'lodash';
-import { DataType } from 'sequelize';
+import type { Model as SequelizeModel } from 'sequelize';
+import { DataType, QueryTypes } from 'sequelize';
 
 import type { ModelNames, Models } from '../../models';
 import models, { sequelize } from '../../models';
@@ -57,14 +58,14 @@ export const buildForeignKeyTree = (models: Models) => {
 
 const sanitizers = getSanitizers();
 
-const serialize = async (model: ModelNames, req: Express.Request, document: InstanceType<Models[ModelNames]>) => {
+const serialize = async (model: ModelNames, req: Express.Request, document: SequelizeModel) => {
   const baseValues = { ...document.dataValues, model };
   if (!sanitizers[model]) {
     logger.warn(`No sanitizer found for model ${model}`);
     return baseValues;
   }
 
-  const sanitizedValues = await sanitizers[model](document, req);
+  const sanitizedValues = await sanitizers[model](document as any, req);
   if (sanitizedValues === null) {
     return null; // A null return means the record should be skipped
   }
@@ -184,7 +185,9 @@ export const traverse = async (
 };
 
 export const getMigrationsHash = async () => {
-  const [data] = await sequelize.query('SELECT name FROM "SequelizeMeta" ORDER BY name');
+  const data = await sequelize.query<{ name: string }>('SELECT name FROM "SequelizeMeta" ORDER BY name', {
+    type: QueryTypes.SELECT,
+  });
   const migrationNames = data.map(d => d.name);
   migrationNames.sort();
   return hashObject(migrationNames);

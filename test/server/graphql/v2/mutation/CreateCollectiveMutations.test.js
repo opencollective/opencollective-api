@@ -63,7 +63,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       slug: 'opensource',
       type: 'ORGANIZATION',
       settings: { apply: true },
-      isHostAccount: true,
+      hasMoneyManagement: true,
     });
   });
 

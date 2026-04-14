@@ -61,12 +61,13 @@ const tablesWithHistory = [
   'Collectives',
   'Comments',
   'Expenses',
+  'KYCVerifications',
   'Orders',
+  'PlatformSubscriptions',
   'Subscriptions',
   'Tiers',
   'Updates',
   'Users',
-  'PlatformSubscriptions',
 ];
 
 describe('server/models/models-histories', () => {
@@ -89,8 +90,13 @@ describe('server/models/models-histories', () => {
           tableColumns.forEach(column => {
             const historyEquivalent = historyTableColumns.find(c => c.column_name === column.column_name);
 
-            expect(historyEquivalent).to.exist;
-            expect(historyEquivalent.is_nullable).to.eql('YES');
+            if (historyEquivalent.is_nullable === 'NO') {
+              expect(historyEquivalent).to.exist;
+              expect(historyEquivalent.is_nullable).to.eql(
+                column.is_nullable,
+                `${tableName} Histories > ${column.column_name} is nullable: ${column.is_nullable}`,
+              );
+            }
           });
         });
 

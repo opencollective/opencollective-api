@@ -3,9 +3,11 @@ import config from 'config';
 import { times } from 'lodash';
 
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
+import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
   buildSearchConditions,
   parseSearchTerm,
+  sanitizeSearchTermForILike,
   searchCollectivesByEmail,
   searchCollectivesInDB,
 } from '../../../server/lib/sql-search';
@@ -91,6 +93,12 @@ describe('server/lib/search', () => {
       const collective = await fakeCollective({ description, tags });
       const [results] = await searchCollectivesInDB('!%|wow🔥️🔥️ AVeryUniqueDescriptionZZZzzz!! &&}{\'"');
       expect(results.find(c => c.id === collective.id)).to.exist;
+    });
+
+    it('escapes ILIKE special characters (\\, %, _) to avoid "LIKE pattern must not end with escape character"', async () => {
+      const [results] = await searchCollectivesInDB('le 47 \\');
+      expect(results).to.be.an('array');
+      // No error should be thrown; the search completes successfully
     });
 
     describe('Works with punctuation', async () => {
@@ -332,6 +340,19 @@ describe('server/lib/search', () => {
       expect(parseSearchTerm('42.64')).to.deep.equal({ type: 'number', term: 42.64, isFloat: true });
     });
 
+    it('detects public ids', () => {
+      expect(parseSearchTerm('acc_xyz789')).to.deep.equal({
+        type: 'publicId',
+        term: 'acc_xyz789',
+        prefix: EntityShortIdPrefix.Collective,
+      });
+      expect(parseSearchTerm('tir_importrow')).to.deep.equal({
+        type: 'publicId',
+        term: 'tir_importrow',
+        prefix: EntityShortIdPrefix.TransactionsImportRow,
+      });
+    });
+
     it('goes back to text for everything else', () => {
       expect(parseSearchTerm('')).to.deep.equal({ type: 'text', term: '' });
       expect(parseSearchTerm('test')).to.deep.equal({ type: 'text', term: 'test', words: 1 });
@@ -371,6 +392,156 @@ describe('server/lib/search', () => {
       expect(testBuildSearchConditions('@betree')).to.deep.eq([
         { slug: 'betree' },
         { '$fromCollective.slug$': 'betree' },
+      ]);
+    });
+
+    it('build conditions for public ids when publicIdFields match the prefix', () => {
+      const publicId = 'acc_searchPubId';
+      const term = `%${sanitizeSearchTermForILike(publicId)}%`;
+      const base = {
+        ...TEST_FIELDS_CONFIGURATION,
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+      };
+      expect(buildSearchConditions(publicId, base)).to.deep.eq([
+        { publicId },
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.slug$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.name$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          tags: {
+            [Op.overlap]: [publicId],
+          },
+        },
+      ]);
+
+      expect(
+        buildSearchConditions(publicId, {
+          ...base,
+          publicIdFields: [
+            { field: 'publicId', prefix: EntityShortIdPrefix.Collective },
+            { field: 'mirrorPublicId', prefix: EntityShortIdPrefix.Collective },
+          ],
+        }),
+      ).to.deep.eq([
+        { publicId },
+        { mirrorPublicId: publicId },
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.slug$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.name$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          tags: {
+            [Op.overlap]: [publicId],
+          },
+        },
+      ]);
+
+      expect(
+        buildSearchConditions(publicId, {
+          ...base,
+          publicIdFields: [{ field: ['publicId', 'Collective.publicId'], prefix: EntityShortIdPrefix.Collective }],
+        }),
+      ).to.deep.eq([
+        { publicId },
+        { 'Collective.publicId': publicId },
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.slug$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          '$fromCollective.name$': {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          tags: {
+            [Op.overlap]: [publicId],
+          },
+        },
+      ]);
+    });
+
+    it('returns no conditions for public ids when publicIdFields exist but none match the prefix', () => {
+      const publicId = 'tx_abc123';
+      const term = `%${sanitizeSearchTermForILike(publicId)}%`;
+      expect(
+        buildSearchConditions(publicId, {
+          slugFields: ['slug'],
+          textFields: ['name', 'description'],
+          publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+        }),
+      ).to.deep.eq([
+        {
+          slug: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          name: {
+            [Op.iLike]: term,
+          },
+        },
+        {
+          description: {
+            [Op.iLike]: term,
+          },
+        },
+      ]);
+    });
+
+    it('treats public ids like text when publicIdFields is not configured', () => {
+      const publicId = 'acc_noExclusiveFields';
+      const iLike = `%${sanitizeSearchTermForILike(publicId)}%`;
+      expect(testBuildSearchConditions(publicId)).to.deep.eq([
+        { slug: { [Op.iLike]: iLike } },
+        { '$fromCollective.slug$': { [Op.iLike]: iLike } },
+        { name: { [Op.iLike]: iLike } },
+        { '$fromCollective.name$': { [Op.iLike]: iLike } },
+        { tags: { [Op.overlap]: [publicId] } },
       ]);
     });
 

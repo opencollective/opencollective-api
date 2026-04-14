@@ -1,4 +1,4 @@
-import speakeasy from 'speakeasy';
+import { verify } from 'otplib';
 
 import { ApolloError } from '../../graphql/errors';
 import User from '../../models/User';
@@ -21,7 +21,7 @@ export default {
     }
 
     for (const totpMethod of userTotpMethods) {
-      const valid = validateTOTPToken(totpMethod.data.secret, token.code);
+      const valid = await validateTOTPToken(totpMethod.data.secret, token.code);
       if (valid) {
         return;
       }
@@ -36,15 +36,17 @@ export default {
  * encryptedTwoFactorAuthToken = token saved for a User in the DB
  * twoFactorAuthenticatorCode = 6-digit TOTP
  */
-function validateTOTPToken(encryptedSecret: string, token: string): boolean {
+async function validateTOTPToken(encryptedSecret: string, token: string): Promise<boolean> {
   try {
     const decryptedTwoFactorAuthToken = crypto.decrypt(encryptedSecret);
-    return speakeasy.totp.verify({
+    const result = await verify({
+      token,
       secret: decryptedTwoFactorAuthToken,
-      encoding: 'base32',
-      token: token,
-      window: 2,
+      epochTolerance: 60,
+      strategy: 'totp',
     });
+
+    return result.valid;
   } catch {
     // An error can be thrown if the token is malformed. We simply return false in this case.
     return false;

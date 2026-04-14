@@ -2,15 +2,25 @@ import type OAuth2Server from '@node-oauth/oauth2-server';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import oAuthScopes from '../constants/oauth-scopes';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
+import Application from './Application';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum TokenType {
   OAUTH = 'OAUTH',
 }
 
-class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttributes<UserToken>> {
+class UserToken extends ModelWithPublicId<
+  EntityShortIdPrefix.UserToken,
+  InferAttributes<UserToken>,
+  InferCreationAttributes<UserToken>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.UserToken;
+  public static readonly tableName = 'UserTokens' as const;
+
   declare public id: CreationOptional<number>;
   declare public type: 'OAUTH';
   declare public accessToken: string;
@@ -28,6 +38,8 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   declare public lastUsedAt: CreationOptional<Date>;
 
   declare public user?: NonAttribute<User>;
+  declare public application?: NonAttribute<Application>;
+
   declare public client?: NonAttribute<OAuth2Server.Client>;
 
   hasScope(scope): boolean {
@@ -41,6 +53,10 @@ UserToken.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     type: {
       type: DataTypes.ENUM('OAUTH'),
@@ -113,7 +129,7 @@ UserToken.init(
     defaultScope: {
       include: [
         { association: 'user', required: true },
-        { association: 'client', required: true },
+        { association: 'application', required: true },
       ],
     },
   },

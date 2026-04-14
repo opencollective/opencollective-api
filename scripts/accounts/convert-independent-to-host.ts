@@ -37,7 +37,7 @@ export const main = async (slug: string, options: { isDryRun: boolean; projectsT
     await collective.update(
       {
         type: CollectiveType.ORGANIZATION,
-        isHostAccount: true,
+        hasMoneyManagement: true,
       },
       { transaction },
     );

@@ -1,9 +1,10 @@
-import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Expense } from '../../../models';
 import { ExpenseDataValuesRoleDetails } from '../../../models/Expense';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
 
@@ -25,7 +26,20 @@ const GraphQLExpenseValuesRoleDetails = new GraphQLObjectType({
 export const GraphQLExpenseValuesByRole = new GraphQLObjectType({
   name: 'ExpenseValuesByRole',
   fields: () => ({
-    id: { type: new GraphQLNonNull(GraphQLNonEmptyString), resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE) },
+    id: {
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
+      resolve: (expense: Expense) => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Expense, expense.createdAt)) {
+          return expense.publicId;
+        } else {
+          return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Expense}_xxxxxxxx)`,
+    },
     submitter: {
       type: GraphQLExpenseValuesRoleDetails,
       description: 'The values provided by the expense submitter(s)',

@@ -45,4 +45,6 @@ const sanitizeAllCollectiveTags = async () => {
   process.exit();
 };
 
-sanitizeAllCollectiveTags();
+if (require.main === module) {
+  sanitizeAllCollectiveTags();
+}

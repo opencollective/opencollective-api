@@ -1,8 +1,10 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { Expense } from '../../../models';
 import * as ExpenseLib from '../../common/expenses';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLPermission, parsePermissionFromEvaluator } from './Permission';
 
@@ -12,7 +14,17 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+      resolve(expense) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Expense, expense.createdAt)) {
+          return expense.publicId;
+        } else {
+          return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Expense.nanoIdPrefix}_xxxxxxxx)`,
     },
     canEdit: {
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -111,6 +123,13 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
       description: 'Whether the current user can trigger the payment for this expense',
       async resolve(expense, _, req: express.Request): Promise<boolean> {
         return ExpenseLib.canPayExpense(req, expense);
+      },
+    },
+    canMarkAsPaid: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can mark this expense as paid',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canMarkAsPaid(req, expense);
       },
     },
     canApprove: {
@@ -267,6 +286,10 @@ const GraphQLExpensePermissions = new GraphQLObjectType({
     pay: {
       type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canPayExpense),
+    },
+    markAsPaid: {
+      type: new GraphQLNonNull(GraphQLPermission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsPaid),
     },
     approve: {
       type: new GraphQLNonNull(GraphQLPermission),

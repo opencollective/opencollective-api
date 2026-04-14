@@ -1,15 +1,11 @@
 import '../../server/env';
 
 import { partition, uniq } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import models, { sequelize } from '../../server/models';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-06-01');
-
-if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/ledger/split-host-fee-shares.ts migrate|rollback|check');
-  process.exit(1);
-}
 
 const getHostFeeTransactionsToMigrateQuery = `
   SELECT t.*
@@ -39,6 +35,7 @@ const getHostFeeTransactionsToMigrateQuery = `
 const migrate = async () => {
   const hostFeeTransactions = await sequelize.query(getHostFeeTransactionsToMigrateQuery, {
     replacements: { startDate },
+    type: QueryTypes.SELECT,
     model: models.Transaction,
     mapToModel: true,
   });
@@ -64,7 +61,7 @@ const migrate = async () => {
 
 const rollback = async () => {
   console.log('Delete transactions...');
-  const [transactions] = await sequelize.query(
+  const [transactions] = (await sequelize.query(
     `
     DELETE
     FROM "Transactions" t
@@ -76,7 +73,7 @@ const rollback = async () => {
     {
       replacements: { startDate },
     },
-  );
+  )) as unknown as [{ TransactionGroup: string }[]];
 
   console.log(`${transactions.length} transactions deleted`);
 
@@ -99,9 +96,10 @@ const rollback = async () => {
 };
 
 const check = async () => {
-  const [hostFees] = await sequelize.query(getHostFeeTransactionsToMigrateQuery, {
+  const hostFees = (await sequelize.query(getHostFeeTransactionsToMigrateQuery, {
+    type: QueryTypes.SELECT,
     replacements: { startDate },
-  });
+  })) as Array<{ id: number }>;
 
   if (hostFees.length) {
     console.info(`Found ${hostFees.length} contributions without host fee share: ${hostFees.map(t => t.id)}`);
@@ -111,6 +109,10 @@ const check = async () => {
 };
 
 const main = async () => {
+  if (process.argv.length < 3) {
+    console.error('Usage: ./scripts/ledger/split-host-fee-shares.ts migrate|rollback|check');
+    process.exit(1);
+  }
   const command = process.argv[2];
   switch (command) {
     case 'migrate':
@@ -124,9 +126,11 @@ const main = async () => {
   }
 };
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

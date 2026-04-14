@@ -1,5 +1,6 @@
 import { GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -21,9 +22,11 @@ const UpdateQuery = {
       description: 'When fetching by slug, an account must be provided',
     },
   },
-  async resolve(_, args) {
+  async resolve(_, args, req) {
     if (args.id) {
-      return models.Update.findByPk(idDecode(args.id, IDENTIFIER_TYPES.UPDATE));
+      return isEntityPublicId(args.id, EntityShortIdPrefix.Update)
+        ? await req.loaders.Update.byPublicId.load(args.id)
+        : models.Update.findByPk(idDecode(args.id, IDENTIFIER_TYPES.UPDATE));
     } else if (args.account && args.slug) {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       return models.Update.findOne({

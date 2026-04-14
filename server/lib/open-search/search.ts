@@ -50,7 +50,7 @@ const getIndexConditions = (index: OpenSearchIndexName, params: OpenSearchIndexP
       params = params as OpenSearchIndexParams[OpenSearchIndexName.COLLECTIVES];
       return [
         ...(params.type ? [{ term: { type: params.type } }] : []),
-        ...(!isNil(params.isHost) ? [{ term: { isHostAccount: params.isHost } }] : []),
+        ...(!isNil(params.isHost) ? [{ term: { hasMoneyManagement: params.isHost } }] : []),
         ...(!isNil(params.tags) && !isEmpty(params.tags) ? [{ terms: { tags: params.tags } }] : []),
       ];
     default:

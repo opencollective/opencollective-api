@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import URL from '../scalar/URL';
 
 /**
@@ -10,7 +11,7 @@ export const GraphQLExpenseAttachedFileInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'ID of the file',
+      description: `The public id identifying the expense attached file (ie: ${EntityShortIdPrefix.ExpenseAttachedFile}_xxxxxxxx)`,
     },
     name: {
       type: GraphQLString,

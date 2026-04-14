@@ -17,28 +17,12 @@ import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 import { runCronJob } from '../utils';
 
-if (parseToBoolean(process.env.SKIP_USER_REPORT) && !process.env.OFFCYCLE) {
-  console.log('Skipping because SKIP_USER_REPORT is set.');
-  process.exit();
-}
-
-// Only run on the first of the month
-const today = new Date();
-if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the first of month, script aborted!');
-  process.exit();
-}
-
-process.env.PORT = 3066;
-
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 d.setMonth(d.getMonth() - 1);
 const month = moment(d).format('MMMM');
 
 const startDate = new Date(d.getFullYear(), d.getMonth(), 1);
 const endDate = new Date(d.getFullYear(), d.getMonth() + 1, 1);
-
-console.log('startDate', startDate, 'endDate', endDate);
 
 const debug = debugLib('monthlyreport');
 
@@ -426,5 +410,21 @@ const sendEmail = (recipient, data, options = {}) => {
 };
 
 if (require.main === module) {
+  if (parseToBoolean(process.env.SKIP_USER_REPORT) && !process.env.OFFCYCLE) {
+    console.log('Skipping because SKIP_USER_REPORT is set.');
+    process.exit();
+  }
+
+  // Only run on the first of the month
+  const today = new Date();
+  if (config.env === 'production' && today.getDate() !== 1 && !process.env.OFFCYCLE) {
+    console.log('OC_ENV is production and today is not the first of month, script aborted!');
+    process.exit();
+  }
+
+  process.env.PORT = 3066;
+
+  console.log('startDate', startDate, 'endDate', endDate);
+
   runCronJob('user-report', init, 23 * 60 * 60);
 }

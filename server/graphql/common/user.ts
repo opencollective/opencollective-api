@@ -30,6 +30,7 @@ type CreateUserOptions = {
     ip: string;
     userAgent: string;
   };
+  transaction?: Sequelize.Transaction;
 };
 
 export const createUser = (
@@ -40,11 +41,20 @@ export const createUser = (
     newsletterOptIn: boolean;
     location: Record<string, unknown>;
   },
-  { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
+  {
+    organizationData,
+    sendSignInLink,
+    throwIfExists,
+    redirect,
+    websiteUrl,
+    creationRequest,
+    transaction,
+  }: CreateUserOptions,
 ): Promise<{ user: User; organization?: Collective }> => {
-  assert(userData.email, 'Email is required');
-  return sequelize.transaction(async transaction => {
-    let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() }, transaction });
+  const email = userData.email?.toLowerCase()?.trim();
+  assert(email, 'Email is required');
+  const runInTransaction = async transaction => {
+    let user = await models.User.findOne({ where: { email }, transaction });
 
     if (throwIfExists && user) {
       throw new ValidationFailed(
@@ -53,7 +63,7 @@ export const createUser = (
       );
     } else if (!user) {
       // Create user
-      user = await models.User.createUserWithCollective(userData, transaction);
+      user = await models.User.createUserWithCollective({ ...userData, email }, transaction);
       user = await user.update({ data: { creationRequest } }, { transaction });
     }
 
@@ -99,13 +109,12 @@ export const createUser = (
       }
     }
     return { user, organization };
-  });
+  };
+
+  return transaction ? runInTransaction(transaction) : sequelize.transaction(runInTransaction);
 };
 
-export const sendLoginEmail = async (
-  user: User,
-  { redirect, websiteUrl, transaction }: CreateUserOptions & { transaction?: Sequelize.Transaction },
-) => {
+export const sendLoginEmail = async (user: User, { redirect, websiteUrl, transaction }: CreateUserOptions) => {
   const loginLink = user.generateLoginLink(redirect, websiteUrl);
   if (config.env === 'development') {
     logger.info(`Login Link: ${loginLink}`);

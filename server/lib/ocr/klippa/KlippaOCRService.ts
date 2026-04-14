@@ -1,5 +1,6 @@
 import axios from 'axios';
 import config from 'config';
+import { QueryTypes } from 'sequelize';
 
 import { SupportedCurrency } from '../../../constants/currencies';
 import { sequelize, User } from '../../../models';
@@ -121,7 +122,7 @@ export class KlippaOCRService implements ExpenseOCRService {
       AND "createdAt" >= NOW() - INTERVAL '1 month'
     `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         replacements: { userId: this.user.id },
         plain: true,
       },

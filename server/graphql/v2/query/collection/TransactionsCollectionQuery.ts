@@ -4,15 +4,18 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
-import { type Order as SequelizeOrder, Utils as SequelizeUtils } from 'sequelize';
+import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, pickBy, uniq } from 'lodash';
+import { Op, type Order as SequelizeOrder, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
+import { RefundKind } from '../../../../constants/refund-kind';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
-import { AccountingCategory, Expense, Op, PaymentMethod, sequelize } from '../../../../models';
+import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
@@ -38,6 +41,10 @@ import {
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
 import { getDatabaseIdFromExpenseReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
+import {
+  fetchManualPaymentProvidersWithReferences,
+  GraphQLManualPaymentProviderReferenceInput,
+} from '../../input/ManualPaymentProviderInput';
 import { getDatabaseIdFromOrderReference, GraphQLOrderReferenceInput } from '../../input/OrderReferenceInput';
 import {
   fetchPaymentMethodWithReferences,
@@ -171,6 +178,10 @@ export const TransactionsCollectionArgs = {
     type: GraphQLOrderReferenceInput,
     description: 'Only return transactions for this order.',
   },
+  manualPaymentProvider: {
+    type: new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProviderReferenceInput)),
+    description: 'Only return transactions for contributions that used this manual payment provider.',
+  },
   includeHost: {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: true,
@@ -203,6 +214,11 @@ export const TransactionsCollectionArgs = {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: false,
     description: 'Whether to include debt transactions',
+  },
+  includeEditedReversedTransactions: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: true,
+    description: 'Whether to include the reversed transactions created due to an edit.',
   },
   kind: {
     type: new GraphQLList(GraphQLTransactionKind),
@@ -241,7 +257,7 @@ export const TransactionsCollectionResolver = async (
   args,
   req: express.Request,
 ): Promise<GraphQLTransactionsCollectionReturnType> => {
-  const where = [];
+  const where: WhereOptions<Transaction> = [];
   const include = [];
 
   // Check Pagination arguments
@@ -350,6 +366,9 @@ export const TransactionsCollectionResolver = async (
     } else {
       where.push({ CollectiveId: accountCondition });
     }
+    if (args.includeEditedReversedTransactions === false) {
+      where.push({ [Op.or]: [{ refundKind: { [Op.is]: null } }, { refundKind: { [Op.ne]: RefundKind.EDIT } }] });
+    }
 
     // Database optimization, it seems faster to add the HostCollectiveId if possible
     // Only do this when they are multiple accountsIds and one of them has many transactions
@@ -406,6 +425,10 @@ export const TransactionsCollectionResolver = async (
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
     amountFields: ['amount'],
+    publicIdFields: [
+      { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
+      { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
+    ],
   });
 
   if (searchTermConditions.length) {
@@ -449,9 +472,9 @@ export const TransactionsCollectionResolver = async (
               WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
               ELSE ABS(
                 COALESCE(
-                  (SELECT rate FROM "CurrencyExchangeRates" 
-                    WHERE "from" = "Transaction"."currency" 
-                    AND "to" = :currency 
+                  (SELECT rate FROM "CurrencyExchangeRates"
+                    WHERE "from" = "Transaction"."currency"
+                    AND "to" = :currency
                     -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
                     AND "createdAt" <= COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")
                     ORDER BY "createdAt" DESC
@@ -471,13 +494,16 @@ export const TransactionsCollectionResolver = async (
     );
   } else {
     if (args.minAmount) {
+      // @ts-expect-error - TODO: fix this
       where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });
     }
     if (args.maxAmount) {
       let amount = sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.lte, args.maxAmount);
       if (where['amount']) {
+        // @ts-expect-error - TODO: fix this
         amount = { [Op.and]: [where['amount'], amount] };
       }
+      // @ts-expect-error - TODO: fix this
       where.push({ amount });
     }
   }
@@ -495,7 +521,7 @@ export const TransactionsCollectionResolver = async (
     where.push({ clearedAt: { [Op.lte]: args.clearedTo } });
   }
   if (args.expense) {
-    const expenseId = getDatabaseIdFromExpenseReference(args.expense);
+    const expenseId = await getDatabaseIdFromExpenseReference(args.expense, { loaders: req.loaders });
     where.push({ ExpenseId: expenseId });
   }
   if (args.hasExpense !== undefined) {
@@ -510,7 +536,7 @@ export const TransactionsCollectionResolver = async (
     });
   }
   if (args.order) {
-    const orderId = getDatabaseIdFromOrderReference(args.order);
+    const orderId = await getDatabaseIdFromOrderReference(args.order, { loaders: req.loaders });
     where.push({ OrderId: orderId });
   }
   if (args.hasOrder !== undefined) {
@@ -523,6 +549,25 @@ export const TransactionsCollectionResolver = async (
     where.push({ kind: args.kind });
   }
 
+  if (args.manualPaymentProvider) {
+    const providers = await fetchManualPaymentProvidersWithReferences(args.manualPaymentProvider, {
+      loaders: req.loaders,
+      throwIfMissing: true,
+    });
+    providers.forEach(provider => {
+      assert(
+        req.remoteUser?.isAdmin(provider.CollectiveId),
+        new Forbidden('You need to be an admin of the host that owns this payment provider to filter by it'),
+      );
+    });
+    include.push({
+      model: Order,
+      attributes: [],
+      required: true,
+      where: { ManualPaymentProviderId: providers.map(provider => provider.id) },
+    });
+  }
+
   if (args.paymentMethod) {
     const paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod);
     assert(
@@ -531,24 +576,25 @@ export const TransactionsCollectionResolver = async (
     );
     where.push({ PaymentMethodId: { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] } });
   } else if (args.paymentMethodService || args.paymentMethodType) {
-    const paymentMethodTypeConditions = [];
-    const paymentMethodServiceConditions = [];
-    uniq(args.paymentMethodType).forEach(type => {
-      // If type is not null, we add a condtion to filter by type, otherwise we add a Transaction level PaymentMethodId to convey the absence of a PaymentMethod
-      paymentMethodTypeConditions.push(type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null });
-    });
+    const services = uniq(args.paymentMethodService);
+    const hasOpenCollective = !services?.length || services.includes(PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE);
+    const types = uniq(args.paymentMethodType?.map(type => type || PAYMENT_METHOD_TYPE.MANUAL)); // We historically used 'null' to fetch for manual payments
+    const hasManual = hasOpenCollective && (!types?.length || types.includes(PAYMENT_METHOD_TYPE.MANUAL));
+    const hasOnlyManual = hasManual && services?.length <= 1 && types?.length === 1;
 
-    uniq(args.paymentMethodService).forEach(service => {
-      paymentMethodServiceConditions.push({ '$PaymentMethod.service$': service });
-    });
-
-    include.push({ model: PaymentMethod });
-
-    if (paymentMethodTypeConditions.length) {
-      where.push({ [Op.or]: paymentMethodTypeConditions });
-    }
-    if (paymentMethodServiceConditions.length) {
-      where.push({ [Op.or]: paymentMethodServiceConditions });
+    if (hasOnlyManual) {
+      where.push({ PaymentMethodId: { [Op.is]: null } });
+    } else {
+      include.push({
+        model: PaymentMethod,
+        required: !hasManual,
+        where: pickBy({ service: !isEmpty(services) && services, type: !isEmpty(types) && types }, Boolean),
+      });
+      if (hasManual) {
+        where.push({
+          [Op.or]: [{ PaymentMethodId: { [Op.is]: null } }, { '$PaymentMethod.id$': { [Op.not]: null } }],
+        });
+      }
     }
   }
 
@@ -568,7 +614,7 @@ export const TransactionsCollectionResolver = async (
       model: Expense,
       required: true,
       where: {
-        VirtualCardId: args.virtualCard.map(vc => vc.id),
+        VirtualCardId: uniq(args.virtualCard.map(vc => vc.id)),
       },
     });
   }
@@ -618,7 +664,7 @@ export const TransactionsCollectionResolver = async (
     }
   }
 
-  /* 
+  /*
     Ordering of transactions by
     - createdAt (rounded by a 10s interval): to treat very close timestamps as the same to defer ordering to transaction group, kind and type
       - known issue: a transaction group can be split in two if the first transaction is rounded to the end of a 10s interval and the second to the beginning of the next 10s interval

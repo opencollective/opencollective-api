@@ -31,7 +31,7 @@ const oAuthAuthorizationMutations = {
       return {
         id: userToken.id,
         account: req.remoteUser.collective,
-        application: userToken.client,
+        application: userToken.application,
         expiresAt: userToken.accessTokenExpiresAt,
         createdAt: userToken.createdAt,
         updatedAt: userToken.updatedAt,

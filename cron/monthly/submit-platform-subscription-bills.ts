@@ -27,19 +27,6 @@ const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) 
 const DRY = process.env.DRY;
 const isProduction = config.env === 'production';
 
-// Only run on the 1th of the month
-if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
-  process.exit();
-} else if (parseToBoolean(process.env.SKIP_PLATFORM_BILLING)) {
-  console.log('Skipping because SKIP_PLATFORM_BILLING is set.');
-  process.exit();
-}
-
-if (DRY) {
-  logger.warn('Running dry, changes are not going to be persisted to the DB.');
-}
-
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
   const momentDate = moment(baseDate);
   const billingPeriodDate = moment(momentDate).subtract(1, 'months');
@@ -204,5 +191,17 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 }
 
 if (require.main === module) {
+  // Only run on the 1th of the month
+  if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
+    console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
+    process.exit();
+  } else if (parseToBoolean(process.env.SKIP_PLATFORM_BILLING)) {
+    console.log('Skipping because SKIP_PLATFORM_BILLING is set.');
+    process.exit();
+  }
+
+  if (DRY) {
+    logger.warn('Running dry, changes are not going to be persisted to the DB.');
+  }
   runCronJob('submit-platform-subscription-bills', () => run(defaultDate), 23 * 60 * 60);
 }

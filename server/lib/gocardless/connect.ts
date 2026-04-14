@@ -9,7 +9,14 @@ import cache from '../cache';
 import { reportErrorToSentry } from '../sentry';
 
 import { getGoCardlessClient, getOrRefreshGoCardlessToken } from './client';
-import { EndUserAgreement, GoCardlessRequisitionStatus, Integration, IntegrationRetrieve, Requisition } from './types';
+import {
+  EndUserAgreement,
+  GoCardlessRequisitionStatus,
+  Institution,
+  Integration,
+  IntegrationRetrieve,
+  Requisition,
+} from './types';
 
 // See https://developer.gocardless.com/bank-account-data/endpoints.
 // Keep this in sync with `opencollective-frontend/components/dashboard/sections/transactions-imports/NewOffPlatformTransactionsConnection.tsx`.
@@ -81,8 +88,8 @@ export const getGoCardlessInstitutions = async (
 export const createGoCardlessLink = async (
   institutionId: string,
   {
-    maxHistoricalDays = 90,
-    accessValidForDays = 180,
+    maxHistoricalDays,
+    accessValidForDays,
     userLanguage = 'en',
     ssn = null,
     redirectImmediate = false,
@@ -94,10 +101,15 @@ export const createGoCardlessLink = async (
   await getOrRefreshGoCardlessToken(client);
 
   try {
+    const institution = (await client.institution.getInstitutionById(institutionId)) as Institution;
+    if (!institution) {
+      throw new Error(`The institution ${institutionId} was not found`);
+    }
+
     // Create agreement
     const agreement: EndUserAgreement = await client.agreement.createAgreement({
-      maxHistoricalDays: maxHistoricalDays,
-      accessValidForDays: accessValidForDays,
+      maxHistoricalDays: maxHistoricalDays || parseInt(institution.transaction_total_days) || 90,
+      accessValidForDays: accessValidForDays || parseInt(institution.max_access_valid_for_days) || 180,
       institutionId: institutionId,
     });
 

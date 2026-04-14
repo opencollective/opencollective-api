@@ -12,11 +12,6 @@ import { runCronJob } from '../utils';
 const today = new Date();
 const date = today.getDate();
 
-if (config.env === 'production' && date !== 7 && date !== 21 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the 7th or 21st of month, script aborted!');
-  process.exit();
-}
-
 // link payment method id in Orders to payment method id in the payment method we're updating
 
 const fetchExpiringCreditCards = async () => {
@@ -98,5 +93,9 @@ const run = async () => {
 };
 
 if (require.main === module) {
+  if (config.env === 'production' && date !== 7 && date !== 21 && !process.env.OFFCYCLE) {
+    console.log('OC_ENV is production and today is not the 7th or 21st of month, script aborted!');
+    process.exit();
+  }
   runCronJob('expiring-cards', run, 23 * 60 * 60);
 }

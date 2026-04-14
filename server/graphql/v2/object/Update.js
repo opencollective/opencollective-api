@@ -2,12 +2,13 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { CollectiveType } from '../../../constants/collectives';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { UpdateChannel } from '../../../models/Update';
 import { canSeeUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';
 import { GraphQLUpdateAudienceType } from '../enum';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLUpdateAudienceStats } from './UpdateAudienceStats';
@@ -19,10 +20,21 @@ const GraphQLUpdate = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.UPDATE),
+        resolve: update => {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Update, update.createdAt)) {
+            return update.publicId;
+          } else {
+            return idEncode(update.id, IDENTIFIER_TYPES.UPDATE);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${models.Update.nanoIdPrefix}_xxxxxxxx)`,
       },
       legacyId: {
         type: GraphQLInt,
+        deprecationReason: '2026-02-25: use publicId',
         resolve(update) {
           return update.id;
         },
@@ -97,7 +109,7 @@ const GraphQLUpdate = new GraphQLObjectType({
             membersStats = await update.getAudienceMembersStats(audience, UpdateChannel.EMAIL);
           }
 
-          if (update.collective.isHostAccount && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
+          if (update.collective.hasMoneyManagement && (audience === 'ALL' || audience === 'COLLECTIVE_ADMINS')) {
             hostedCollectivesCount = await update.collective.getHostedCollectivesCount();
           }
 

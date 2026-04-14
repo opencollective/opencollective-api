@@ -1,17 +1,26 @@
-import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { idEncode } from '../identifiers';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLHostPlan = new GraphQLObjectType({
   name: 'HostPlan',
   description: 'The name of the current plan and its characteristics.',
   fields: () => ({
     id: {
-      type: GraphQLString,
+      type: new GraphQLNonNull(GraphQLString),
       description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
-      resolve(account) {
-        return idEncode(account.id, 'account');
+      resolve(plan) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, plan.createdAt) && plan.publicId) {
+          return plan.publicId;
+        } else {
+          return idEncode(plan.id, IDENTIFIER_TYPES.ACCOUNT);
+        }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
     },
     name: {
       type: GraphQLString,

@@ -56,4 +56,6 @@ const run = async () => {
   process.exit();
 };
 
-run();
+if (require.main === module) {
+  run();
+}

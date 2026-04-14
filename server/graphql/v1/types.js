@@ -245,6 +245,15 @@ export const UserType = new GraphQLObjectType({
           }
         },
       },
+      requiresProfileCompletion: {
+        type: GraphQLBoolean,
+        async resolve(user, _, req) {
+          if (req.remoteUser?.id === user.id) {
+            const account = await req.loaders.Collective.byId.load(user.CollectiveId);
+            return Boolean(account.data?.requiresProfileCompletion);
+          }
+        },
+      },
       isRoot: {
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(user) {

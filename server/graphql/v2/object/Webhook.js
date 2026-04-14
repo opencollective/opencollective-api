@@ -1,5 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { GraphQLActivityType } from '../enum';
 import { idEncode } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -12,11 +13,20 @@ export const GraphQLWebhook = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(notification) {
-        return idEncode(notification.id, 'notification');
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Notification, notification.createdAt)) {
+          return notification.publicId;
+        } else {
+          return idEncode(notification.id, 'notification');
+        }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Notification}_xxxxxxxx)`,
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(notification) {
         return notification.id;
       },

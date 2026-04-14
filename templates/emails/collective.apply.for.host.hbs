@@ -98,7 +98,7 @@ Dear admin of {{host.name}},
 <center>
   <a
     class="btn blue"
-    href="{{config.host.website}}/dashboard/{{host.slug}}/host-applications?accountId={{collective.id}}"
+    href="{{permalink hostApplication (concat config.host.website '/dashboard/' host.slug '/host-applications?accountId=' collective.id)}}"
   >
     <div style="font-size: 15px;">View application</div>
   </a>

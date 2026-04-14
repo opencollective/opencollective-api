@@ -2,15 +2,17 @@
 
 import { expect } from 'chai';
 import config from 'config';
+import express from 'express';
 import jwt from 'jsonwebtoken';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
 import roles from '../../../server/constants/roles';
-import app from '../../../server/index';
+import setupExpress from '../../../server/lib/express';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
+import routes from '../../../server/routes';
 import * as utils from '../../utils';
 
 const application = utils.data('application');
@@ -19,7 +21,9 @@ describe('server/routes/stripe', () => {
   let host, user, collective, expressApp, sandbox;
 
   before(async () => {
-    expressApp = await app();
+    expressApp = express();
+    setupExpress(expressApp);
+    await routes(expressApp);
     sandbox = createSandbox();
   });
 
@@ -38,10 +42,6 @@ describe('server/routes/stripe', () => {
   });
   beforeEach('add host', () => collective.addHost(host.collective, host));
   beforeEach('add backer', () => collective.addUserWithRole(user, roles.BACKER));
-
-  afterEach(() => {
-    nock.cleanAll();
-  });
 
   describe('authorize', () => {
     it('should return an error if the user is not logged in', done => {

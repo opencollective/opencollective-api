@@ -1,21 +1,30 @@
 import config from 'config';
 import { pick } from 'lodash';
-import { CreateOptions, InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
+import { CreateOptions, InferAttributes, InferCreationAttributes, Transaction } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { purgeCacheForCollective } from '../lib/cache';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER];
 
-class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCreationAttributes<MemberInvitation>> {
+class MemberInvitation extends ModelWithPublicId<
+  EntityShortIdPrefix.MemberInvitation,
+  InferAttributes<MemberInvitation>,
+  InferCreationAttributes<MemberInvitation>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.MemberInvitation;
+  public static readonly tableName = 'MemberInvitations' as const;
+
   declare id: number;
   declare CreatedByUserId: number;
   declare MemberCollectiveId: number;
@@ -139,6 +148,10 @@ MemberInvitation.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CreatedByUserId: {

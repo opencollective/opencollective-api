@@ -4,8 +4,8 @@ import config from 'config';
 import crypto from 'crypto-js';
 import gql from 'fake-tag';
 import jwt from 'jsonwebtoken';
+import { generateSecret } from 'otplib';
 import { createSandbox } from 'sinon';
-import speakeasy from 'speakeasy';
 import request from 'supertest';
 
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
@@ -87,8 +87,8 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
     });
 
     it('should enforce 2FA if enabled on the account', async () => {
-      const secret = speakeasy.generateSecret({ length: 64 });
-      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken, passwordHash: null });
       const result = await graphqlQueryV2(setPasswordMutation, { password: 'newPassword' }, user);
       expect(result.errors).to.exist;

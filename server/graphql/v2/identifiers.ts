@@ -30,10 +30,12 @@ export const IDENTIFIER_TYPES = {
   PAYOUT_METHOD: 'payout-method',
   PAYMENT_METHOD: 'paymentMethod',
   EXPENSE: 'expense',
+  EXPORT_REQUEST: 'export-request',
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
   LEGAL_DOCUMENT: 'legal-document',
+  MANUAL_PAYMENT_PROVIDER: 'manual-payment-provider',
   RECURRING_EXPENSE: 'recurring-expense',
   TIER: 'tier',
   ORDER: 'order',
@@ -48,6 +50,7 @@ export const IDENTIFIER_TYPES = {
   VIRTUAL_CARD_REQUEST: 'virtual-card-request',
   TRANSACTIONS_IMPORT: 'transactions-import',
   TRANSACTIONS_IMPORT_ROW: 'transactions-import-row',
+  KYC_VERIFICATION: 'kyc-verification',
 } as const;
 
 export type IdentifierType = (typeof IDENTIFIER_TYPES)[keyof typeof IDENTIFIER_TYPES];

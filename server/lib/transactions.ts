@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import { get, groupBy, memoize, round, set, sumBy, truncate, uniq } from 'lodash';
+import moment from 'moment';
 import { Order, Transaction as SequelizeTransaction } from 'sequelize';
 import Stripe from 'stripe';
 
@@ -247,7 +248,7 @@ export async function createTransactionsFromPaidStripeExpense(
     PaymentMethod: paymentMethod,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: 0,
-    clearedAt: new Date(balanceTransaction.available_on),
+    clearedAt: moment.unix(balanceTransaction.available_on).toDate(),
     data,
   };
 

@@ -136,6 +136,23 @@ export const optsSanitizeHtmlForSimplified: SanitizeOptions = buildSanitizerOpti
   links: true,
 });
 
+export const optsSanitizeOnlyTextFormatting = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+});
+
+/**
+ * For rich text editor in simplified mode with imageUploadEnabled=true.
+ */
+export const optsSanitizedSimplifiedWithImages = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+  images: true,
+  mainTitles: true,
+  titles: true,
+});
+
 /**
  * Sanitize the given input to strip the HTML content.
  *
@@ -235,13 +252,47 @@ const isTrustedLinkUrl = (url: string): boolean => {
 
   const rootDomain = parsedUrl.host.replace(/^www\./, '');
   const trustedDomains = [
-    new RegExp(`^(.+\\.)?${config.host.website.replace(/^https?:\/\//, '')}$`),
-    /^(.+\.)?opencollective.com$/,
-    /^(.+\.)?oscollective.org$/,
-    /^(.+\.)?oceurope.org$/,
-    /^(.+\.)?github.com$/,
-    /^(.+\.)?meetup.com$/,
-    /^(.+\.)?wikipedia.com$/,
+    // Open Collective website
+    new RegExp(`^(.+\\.)?${config.host.website.replace(/^https?:\/\//, '').replaceAll('.', '\\.')}$`),
+    /^(.+\.)?opencollective\.com$/,
+    // Trusted services
+    /^(.+\.)?github\.com$/,
+    /^(.+\.)?meetup\.com$/,
+    /^(.+\.)?wikipedia\.com$/,
+    /^(.+\.)?youtube\.com$/,
+    /^(.+\.)?vimeo\.com$/,
+    /^(.+\.)?anchor\.fm$/,
+    // Trusted organizations
+    /^(.+\.)?raft\.foundation$/,
+    /^(.+\.)?kiakotahi\.org$/,
+    /^(.+\.)?oscollective\.org$/,
+    /^(.+\.)?xwiki\.com$/,
+    /^(.+\.)?platform6\.coop$/,
+    /^(.+\.)?ferrous-systems\.com$/,
+    /^(.+\.)?compassionate-revolution\.net$/,
+    /^(.+\.)?e-nable\.org$/,
+    /^(.+\.)?womenwhocode\.com$/,
+    /^(.+\.)?codeforscience\.org$/,
+    /^(.+\.)?allforclimate\.earth$/,
+    /^(.+\.)?permaculture\.org\.uk$/,
+    /^(.+\.)?fission\.codes$/,
+    /^(.+\.)?schumacherinstitute\.org\.uk$/,
+    /^(.+\.)?numfocus\.org$/,
+    /^(.+\.)?piratpartiet\.se$/,
+    /^(.+\.)?reparations\.org$/,
+    /^(.+\.)?fya\.org\.au$/,
+    /^(.+\.)?huddlecraft\.com$/,
+    /^(.+\.)?themuseumofhumanachievement\.com$/,
+    /^(.+\.)?oceurope\.org$/,
+    /^(.+\.)?gatherfor\.org$/,
+    /^(.+\.)?massvis\.se$/,
+    /^(.+\.)?coopcloud\.tech$/,
+    /^(.+\.)?pactcollective\.xyz$/,
+    /^(.+\.)?thesocialchangenest\.org$/,
+    /^(.+\.)?protozoa\.nz$/,
+    /^(.+\.)?oficonsortium\.org$/,
+    /^(.+\.)?giftcollective\.nz$/,
+    /^(.+\.)?metagov\.org$/,
   ];
 
   return (

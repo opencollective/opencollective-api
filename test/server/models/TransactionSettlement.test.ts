@@ -46,7 +46,7 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
       kind: TransactionKind.CONTRIBUTION,
       FromCollectiveId: fromCollective.id,
       CollectiveId: collective.id,
-      HostCollectiveId: collective.isHostAccount ? collective.id : collective.HostCollectiveId,
+      HostCollectiveId: collective.hasMoneyManagement ? collective.id : collective.HostCollectiveId,
       amount: 1000,
       description: 'A contribution **with** platform tip',
     },

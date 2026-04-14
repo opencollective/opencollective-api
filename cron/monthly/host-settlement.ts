@@ -2,20 +2,20 @@ import '../../server/env';
 
 import { Parser } from '@json2csv/plainjs';
 import config from 'config';
-import { groupBy, sumBy } from 'lodash';
+import { groupBy, min, sumBy } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
-import { getPlatformConstantsForDate, PLATFORM_MIGRATION_DATE } from '../../server/constants/platform';
+import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
-import { CommentType } from '../../server/models/Comment';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { runCronJob } from '../utils';
@@ -32,22 +32,6 @@ const HOST_ID = process.env.HOST_ID;
 const isProduction = config.env === 'production';
 const KIND = process.env.KIND;
 const { PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT } = TransactionKind;
-
-// Only run on the 1th of the month
-if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
-  console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
-  process.exit();
-} else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
-  console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
-  process.exit();
-} else if (!KIND && !DRY) {
-  console.log('KIND must be set when not running in dry mode.');
-  process.exit();
-}
-
-if (DRY) {
-  console.info('Running dry, changes are not going to be persisted to the DB.');
-}
 
 // return last payout method used for the last paid settlement if its was not manual or other.
 async function getLastPaidSettlementManagedPayoutMethod(host): Promise<PayoutMethod> {
@@ -115,7 +99,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   const month = momentDate.month();
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 1);
-  const PlatformConstants = getPlatformConstantsForDate(momentDate);
 
   console.info(`Invoicing hosts pending fees and tips for ${momentDate.format('MMMM')}.`);
 
@@ -134,14 +117,14 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       SELECT c.*
       FROM "Collectives" c
       INNER JOIN "Transactions" t ON t."HostCollectiveId" = c.id AND t."deletedAt" IS NULL
-      WHERE c."isHostAccount" IS TRUE
+      WHERE c."hasMoneyManagement" IS TRUE
       AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
       AND c.id NOT IN (:ignoreSettlementForIds) -- Make sure we don't invoice OC Inc as reverse settlements are not supported yet
       GROUP BY c.id
     `,
     {
       mapToModel: true,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
       replacements: {
         startDate: startDate,
@@ -178,7 +161,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
     }
 
-    const plan = await host.getPlan();
+    const plan = host.getLegacyPlan();
 
     let items = [];
 
@@ -329,7 +312,9 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
       // Attach CSV
       const csvUrl = getTransactionsCsvUrl('transactions', host, {
-        startDate,
+        startDate: moment(min(transactions.map(t => t.createdAt)))
+          .startOf('month')
+          .toDate(),
         endDate,
         kind: transactionsKinds,
         add: ['orderLegacyId'],
@@ -347,22 +332,26 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 
       const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
       await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
-
-      // If running for the month of `PLATFORM_MIGRATION_DATE`, add a comment to explain why we're using a different profile
-      if (momentDate.isSame(PLATFORM_MIGRATION_DATE, 'month') && momentDate.isSame(PLATFORM_MIGRATION_DATE, 'year')) {
-        await models.Comment.create({
-          CreatedByUserId: platformUser.id,
-          FromCollectiveId: platformUser.CollectiveId,
-          CollectiveId: host.id,
-          ExpenseId: expense.id,
-          type: CommentType.COMMENT,
-          html: `<div>Dear ${host.name},<br /><br /></div><div>You may notice that this expense comes from the "<a href="https://opencollective.com/ofitech">Ofitech</a>" profile instead of "<a href="https://opencollective.com/opencollective">Open Collective</a>". This change is part of a recent transition of the Open Collective platform to a community-governed non-profit. For more information, you can read the full announcement <a href="https://blog.opencollective.com/the-open-collective-platform-is-moving-to-a-community-governed-non-profit/">here</a>.<br /><br />As always, if you have any questions or need assistance, please reach out via <a href="https://opencollective.com/contact">our contact page</a>.<br /><br />Thank you for your understanding and continued support!</div>`,
-        });
-      }
     }
   }
 }
 
 if (require.main === module) {
+  // Only run on the 1th of the month
+  if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
+    console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
+    process.exit();
+  } else if (parseToBoolean(process.env.SKIP_HOST_SETTLEMENT)) {
+    console.log('Skipping because SKIP_HOST_SETTLEMENT is set.');
+    process.exit();
+  } else if (!KIND && !DRY) {
+    console.log('KIND must be set when not running in dry mode.');
+    process.exit();
+  }
+
+  if (DRY) {
+    console.info('Running dry, changes are not going to be persisted to the DB.');
+  }
+
   runCronJob('host-settlement', () => run(defaultDate), 23 * 60 * 60);
 }

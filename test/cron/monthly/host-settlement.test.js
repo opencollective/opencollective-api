@@ -4,7 +4,7 @@ import sinon, { useFakeTimers } from 'sinon';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
-import PlatformConstants, { PLATFORM_MIGRATION_DATE } from '../../../server/constants/platform';
+import PlatformConstants from '../../../server/constants/platform';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { createRefundTransaction } from '../../../server/lib/payments';
 import { getTaxesSummary } from '../../../server/lib/transactions';
@@ -28,6 +28,7 @@ import * as utils from '../../utils';
 
 describe('cron/monthly/host-settlement', () => {
   const lastMonth = moment.utc().subtract(1, 'month').startOf('month');
+  const twoMonthsAgo = moment.utc().subtract(2, 'months').startOf('month');
 
   let gbpHost,
     eurHost,
@@ -253,7 +254,23 @@ describe('cron/monthly/host-settlement', () => {
     });
 
     // Create Contributions
-    clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] }); // Manually setting today's date
+    clock = sinon.useFakeTimers({ now: twoMonthsAgo.toDate(), toFake: ['Date'] }); // Manually setting today's date
+    const oldOrder = await fakeOrder({
+      description: 'Old EUR Contribution with tip + host fee',
+      CollectiveId: eurCollective.id,
+      currency: 'EUR',
+      status: 'PENDING',
+      data: { tax: { id: 'VAT', percentage: 21 } },
+      // 1000€ contribution + 300€ platform tip + 210€ VAT (21% of 1000€) = 1510€
+      // Will also include 100€ host fee (10% of 1000€), of which 50% will be shared with OC (hostFeeSharePercent: 50)
+      platformTipAmount: 300e2,
+      taxAmount: 210e2,
+      totalAmount: 1510e2,
+    });
+    await oldOrder.markAsPaid(eurHostAdmin);
+    clock.restore();
+
+    clock = sinon.useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] }); // Manually setting today's date
     const order = await fakeOrder({
       description: 'EUR Contribution with tip + host fee',
       CollectiveId: eurCollective.id,
@@ -339,6 +356,15 @@ describe('cron/monthly/host-settlement', () => {
     expect(attachment.url).to.have.string('.csv');
   });
 
+  it('should include entries from previous months in the CSV url startDate', async () => {
+    const [attachment] = await eurHostSettlementExpense.getAttachedFiles();
+    expect(attachment).to.have.property('url');
+    const csvUrl = new URL(attachment.url);
+    const dateFrom = csvUrl.searchParams.get('dateFrom');
+    expect(dateFrom).to.exist;
+    expect(dateFrom).to.eq(twoMonthsAgo.toISOString());
+  });
+
   it('should consider fixed fee per host collective', async () => {
     const reimburseItem = gphHostSettlementExpense.items.find(p => p.description === 'Fixed Fee per Hosted Collective');
     expect(reimburseItem).to.have.property('amount', 100);
@@ -362,7 +388,7 @@ describe('cron/monthly/host-settlement', () => {
       order: [['id', 'ASC']],
     });
 
-    expect(await countSettlements('INVOICED')).to.eq(2); // Only 1 contribution, but it has platform tip + host fee share
+    expect(await countSettlements('INVOICED')).to.eq(4); // 2 contributions, each one with platform tip + host fee share
     expect(await countSettlements('SETTLED')).to.eq(0);
   });
 
@@ -395,16 +421,16 @@ describe('cron/monthly/host-settlement', () => {
     expect(eurHostSettlementExpense.currency).to.eq('EUR');
     expect(eurHostSettlementExpense.items).to.have.length(2);
     expect(eurHostSettlementExpense.items[0].description).to.eq('Platform Tips');
-    expect(eurHostSettlementExpense.items[0].amount).to.eq(300e2);
+    expect(eurHostSettlementExpense.items[0].amount).to.eq(600e2); // 2 contributions
     expect(eurHostSettlementExpense.items[1].description).to.eq('Platform Share');
-    expect(eurHostSettlementExpense.items[1].amount).to.eq(50e2); // 50€ (100€ host fee * 50% host fee share)
-    expect(eurHostSettlementExpense.amount).to.eq(350e2); // Tips + shared revenue
+    expect(eurHostSettlementExpense.items[1].amount).to.eq(100e2); // 50€ (100€ host fee * 50% host fee share)
+    expect(eurHostSettlementExpense.amount).to.eq(700e2); // Tips + shared revenue
   });
 
   it('collective balance reflects the taxes & host fees properly', async () => {
     const balanceAmount = await eurCollective.getBalanceAmount();
     expect(balanceAmount.currency).to.eq('EUR');
-    expect(balanceAmount.value).to.eq(900e2); // 1000€ contribution - 100€ (host fee)
+    expect(balanceAmount.value).to.eq(1800e2); // 2 contributions x 1000€ - 200€ (host fee)
   });
 
   it('has recorded the right amount of taxes', async () => {
@@ -420,17 +446,6 @@ describe('cron/monthly/host-settlement', () => {
     });
 
     const summary = getTaxesSummary(eurHostTransactions);
-    expect(summary.VAT.collected).to.eq(210e2); // 21% of 1000€
-  });
-
-  it('should add a comment with the platform migration info if running for October 2024', async () => {
-    if (moment.utc().isAfter(PLATFORM_MIGRATION_DATE.clone().add(1, 'month'))) {
-      console.warn('This test can safely be removed after November 2024');
-      return;
-    }
-
-    const comments = await gphHostSettlementExpense.getComments();
-    expect(comments).to.have.length(1);
-    expect(comments[0]).to.have.property('html').that.includes('transition of the Open Collective platform');
+    expect(summary.VAT.collected).to.eq(420e2); // 2 contributions x 21% of 1000€
   });
 });

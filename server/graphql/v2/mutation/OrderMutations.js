@@ -24,10 +24,12 @@ import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import logger from '../../../lib/logger';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -42,7 +44,10 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
-import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import {
+  isPaypalSubscriptionPaymentMethod,
+  updateSubscriptionWithPaypal,
+} from '../../../paymentProviders/paypal/subscription';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
@@ -90,6 +95,7 @@ import {
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
+import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 import { GraphQLStripeError } from '../object/StripeError';
@@ -365,7 +371,9 @@ const orderMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
 
-      const decodedId = idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
+      const decodedId = isEntityPublicId(args.order.id, EntityShortIdPrefix.Order)
+        ? await req.loaders.Order.idByPublicId.load(args.order.id)
+        : idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
       const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod) || Boolean(args.paypalSubscriptionId);
 
@@ -407,6 +415,13 @@ const orderMutations = {
 
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
+
+      // PayPal bills via the external subscription plan; amount/tier changes must go through PayPal approval.
+      if (haveDetailsChanged && isPaypalSubscriptionPaymentMethod(order.paymentMethod) && !args.paypalSubscriptionId) {
+        throw new ValidationFailed(
+          'To change the amount or tier for a PayPal subscription, you must complete the PayPal approval flow.',
+        );
+      }
 
       let previousOrderValues, previousSubscriptionValues;
 
@@ -452,6 +467,7 @@ const orderMutations = {
               await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
             }
 
+            reportErrorToSentry(error, { req });
             throw error;
           }
         } else {
@@ -510,6 +526,7 @@ const orderMutations = {
       } else if (args.accountingCategory) {
         newAccountingCategory = await fetchAccountingCategoryWithReference(args.accountingCategory, {
           throwIfMissing: true,
+          loaders: req.loaders,
         });
       }
 
@@ -519,7 +536,23 @@ const orderMutations = {
       // Trigger update
       const previousAccountingCategory = order.accountingCategory;
       if (previousAccountingCategory?.id !== newAccountingCategory?.id) {
-        await order.update({ AccountingCategoryId: newAccountingCategory?.id || null });
+        const valuesByRole = {
+          ...(order.data?.valuesByRole ?? {}),
+          ...{
+            hostAdmin: {
+              accountingCategory: newAccountingCategory?.id
+                ? newAccountingCategory?.publicInfo
+                : { code: UncategorizedValue },
+            },
+          },
+        };
+        await order.update({
+          AccountingCategoryId: newAccountingCategory?.id || null,
+          data: {
+            ...order.data,
+            valuesByRole,
+          },
+        });
         await models.Activity.create({
           type: activities.ORDER_UPDATED,
           UserId: req.remoteUser.id,
@@ -603,7 +636,7 @@ const orderMutations = {
           );
         }
 
-        const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
+        const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId', 'publicId']));
         if (hasChanges) {
           const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
 
@@ -1144,8 +1177,9 @@ const orderMutations = {
 
       // Check accounting category
       let AccountingCategoryId = null;
+      let accountingCategory = null;
       if (args.order.accountingCategory) {
-        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
           throwIfMissing: true,
           loaders: req.loaders,
         });
@@ -1175,6 +1209,17 @@ const orderMutations = {
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
+
+      const valuesByRole = {
+        ...(accountingCategory
+          ? {
+              hostAdmin: {
+                accountingCategory: accountingCategory?.publicInfo,
+              },
+            }
+          : {}),
+      };
+
       const orderProps = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
@@ -1195,6 +1240,7 @@ const orderMutations = {
           isPendingContribution: true,
           hostFeePercent: args.order.hostFeePercent,
           tax: taxInfo,
+          valuesByRole,
         },
         status: OrderStatuses.PENDING,
       };
@@ -1207,6 +1253,9 @@ const orderMutations = {
       }
 
       const order = await models.Order.create(orderProps);
+      if (!AccountingCategoryId) {
+        await applyContributionAccountingCategoryRules(order);
+      }
 
       await models.Activity.create({
         type: activities.ORDER_PENDING_CREATED,
@@ -1292,8 +1341,9 @@ const orderMutations = {
 
       // Check accounting category
       let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;
+      let accountingCategory = null;
       if (args.order.accountingCategory) {
-        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
           throwIfMissing: true,
           loaders: req.loaders,
         });
@@ -1326,6 +1376,20 @@ const orderMutations = {
       const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
       const platformTip = args.order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+
+      const valuesByRole = {
+        ...(order.data?.valuesByRole || {}),
+        ...(isUndefined(args.order.accountingCategory)
+          ? {}
+          : {
+              hostAdmin: {
+                accountingCategory: accountingCategory?.id
+                  ? accountingCategory?.publicInfo
+                  : { code: UncategorizedValue },
+              },
+            }),
+      };
+
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
         TierId: tier?.id || undefined,
@@ -1350,6 +1414,7 @@ const orderMutations = {
             },
             isUndefined,
           ),
+          valuesByRole,
         },
         status: OrderStatuses.PENDING,
       });

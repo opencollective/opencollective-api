@@ -5,28 +5,31 @@ import { createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import status from '../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import * as applyContributionAccountingCategoryRules from '../../../server/lib/accounting/categorization/contribution-rules';
 import emailLib from '../../../server/lib/email';
 import {
   createRefundTransaction,
   executeOrder,
+  getHostFeePercent,
   pauseOrder,
   resumeOrder,
   sendOrderPendingEmail,
 } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeHost,
+  fakeManualPaymentProvider,
   fakeOrder,
   fakePaymentMethod,
-  fakePayoutMethod,
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
@@ -789,24 +792,18 @@ describe('server/lib/payments', () => {
     let order;
 
     beforeEach(async () => {
-      const host = await fakeHost({
-        settings: {
-          paymentMethods: {
-            manual: {
-              instructions:
-                'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
-            },
-          },
-        },
-      });
+      const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      await fakePayoutMethod({
+      const manualPaymentProvider = await fakeManualPaymentProvider({
         CollectiveId: host.id,
-        type: PayoutMethodTypes.BANK_ACCOUNT,
+        name: 'Bank Transfer',
+        instructions:
+          'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
         data: {
           type: 'sort_code',
           accountHolderName: 'John Malkovich',
           currency: 'GBP',
+          IBAN: 'DE893219828398123',
           details: {
             IBAN: 'DE893219828398123',
             sortCode: '40-30-20',
@@ -819,18 +816,28 @@ describe('server/lib/payments', () => {
               zip: '10001',
             },
           },
-          isManualBankTransfer: true,
         },
       });
-      order = await fakeOrder({ CollectiveId: collective.id });
+      order = await fakeOrder({
+        CollectiveId: collective.id,
+        ManualPaymentProviderId: manualPaymentProvider.id,
+        status: 'PENDING',
+      });
+      order = await models.Order.findByPk(order.id, {
+        include: [{ association: 'collective' }, { association: 'fromCollective' }, { association: 'createdByUser' }],
+      });
     });
 
     it('should include account information', async () => {
       await sendOrderPendingEmail(order);
       await utils.waitForCondition(() => emailSendSpy.callCount > 0);
 
-      expect(emailSendSpy.lastCall.args[2]).to.have.property('account');
-      expect(emailSendSpy.lastCall.args[2].instructions).to.include('IBAN: DE893219828398123');
+      const emailData = emailSendSpy.lastCall.args[2];
+      expect(emailData).to.have.property('account');
+      expect(emailData).to.have.property('instructions');
+      // ManualPaymentProvider bank data is in account and embedded in instructions via {account}
+      expect(emailData.account).to.include('John Malkovich');
+      expect(emailData.account).to.include('DE893219828398123');
     });
   });
 
@@ -913,6 +920,487 @@ describe('server/lib/payments', () => {
         expect(updatedOrder.status).to.equal('ACTIVE');
         expect(updatedOrder.Subscription.isActive).to.be.true;
       });
+    });
+  });
+
+  describe('getHostFeePercent', () => {
+    let testHost, testCollective, testParent, testOrder, testPaymentMethod;
+
+    beforeEach(async () => {
+      // Create a host with default settings
+      testHost = await fakeHost({
+        name: 'Test Host',
+      });
+
+      // Create a parent collective
+      testParent = await fakeCollective({
+        name: 'Parent Collective',
+        HostCollectiveId: testHost.id,
+      });
+
+      // Create a collective with a host
+      testCollective = await fakeCollective({
+        name: 'Test Collective',
+        HostCollectiveId: testHost.id,
+        ParentCollectiveId: testParent.id,
+        hostFeePercent: 10,
+      });
+
+      // Create a default payment method
+      testPaymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
+
+      // Create a test order
+      testOrder = await fakeOrder({
+        CollectiveId: testCollective.id,
+        PaymentMethodId: testPaymentMethod.id,
+        totalAmount: 10000,
+      });
+
+      await testOrder.populate();
+    });
+
+    describe('basic cases', () => {
+      it('returns 0 when collective is a host itself', async () => {
+        const hostOrder = await fakeOrder({
+          CollectiveId: testHost.id,
+          PaymentMethodId: testPaymentMethod.id,
+        });
+        await hostOrder.populate();
+
+        const feePercent = await getHostFeePercent(hostOrder);
+        expect(feePercent).to.equal(0);
+      });
+
+      it('returns collective hostFeePercent as default', async () => {
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(10);
+      });
+
+      it('returns order.data.hostFeePercent if set', async () => {
+        testOrder.data = { hostFeePercent: 15 };
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(15);
+      });
+
+      it('returns platform default if no other value is set', async () => {
+        testCollective.hostFeePercent = null;
+        await testCollective.save();
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(config.fees.default.hostPercent);
+      });
+    });
+
+    describe('pending and manual contributions', () => {
+      it('uses bankTransfersHostFeePercent from collective for pending contributions', async () => {
+        testCollective.data = { bankTransfersHostFeePercent: 6 };
+        await testCollective.save();
+        testOrder.data = { isPendingContribution: true };
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(6);
+      });
+
+      it('uses bankTransfersHostFeePercent from parent for pending contributions', async () => {
+        testParent.data = { bankTransfersHostFeePercent: 5 };
+        await testParent.save();
+        testOrder.data = { isPendingContribution: true };
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(5);
+      });
+
+      it('uses bankTransfersHostFeePercent from host for pending contributions', async () => {
+        testHost.data = { bankTransfersHostFeePercent: 8 };
+        await testHost.save();
+        testOrder.data = { isPendingContribution: true };
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(8);
+      });
+
+      it('uses custom host fee from collective when useCustomHostFee is set', async () => {
+        testCollective.data = { useCustomHostFee: true };
+        testCollective.hostFeePercent = 12;
+        await testCollective.save();
+        testOrder.data = { isPendingContribution: true };
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(12);
+      });
+
+      it('uses custom host fee from parent when useCustomHostFee is set', async () => {
+        testParent.data = { useCustomHostFee: true };
+        testParent.hostFeePercent = 7;
+        await testParent.save();
+        testOrder.PaymentMethodId = null;
+        testOrder.data = { isPendingContribution: true };
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(7);
+      });
+
+      it('handles manual contributions with opencollective.manual payment method', async () => {
+        const manualPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.MANUAL,
+        });
+        testOrder.PaymentMethodId = manualPM.id;
+        testOrder.paymentMethod = manualPM;
+        testHost.data = { bankTransfersHostFeePercent: 9 };
+        await testHost.save();
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(9);
+      });
+
+      it('handles isManualContribution flag', async () => {
+        testCollective.data = { bankTransfersHostFeePercent: 6 };
+        await testCollective.save();
+        testOrder.data = { isManualContribution: true };
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(6);
+      });
+    });
+
+    describe('prepaid payment methods', () => {
+      it('uses hostFeePercent from prepaid payment method data', async () => {
+        const prepaidPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.PREPAID,
+          data: { hostFeePercent: 3 },
+        });
+        testOrder.PaymentMethodId = prepaidPM.id;
+        testOrder.paymentMethod = prepaidPM;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(3);
+      });
+
+      it('falls back to collective fee if prepaid has no hostFeePercent', async () => {
+        const prepaidPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.PREPAID,
+          data: {},
+        });
+        testOrder.PaymentMethodId = prepaidPM.id;
+        testOrder.paymentMethod = prepaidPM;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(10);
+      });
+    });
+
+    describe('added funds (host payment method)', () => {
+      it('uses addedFundsHostFeePercent from collective', async () => {
+        const hostPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        testCollective.data = { addedFundsHostFeePercent: 4 };
+        await testCollective.save();
+        testOrder.PaymentMethodId = hostPM.id;
+        testOrder.paymentMethod = hostPM;
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(4);
+      });
+
+      it('uses addedFundsHostFeePercent from parent', async () => {
+        const hostPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        testParent.data = { addedFundsHostFeePercent: 2 };
+        await testParent.save();
+        testOrder.PaymentMethodId = hostPM.id;
+        testOrder.paymentMethod = hostPM;
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(2);
+      });
+
+      it('uses addedFundsHostFeePercent from host', async () => {
+        const hostPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        testHost.data = { addedFundsHostFeePercent: 1 };
+        await testHost.save();
+        testOrder.PaymentMethodId = hostPM.id;
+        testOrder.paymentMethod = hostPM;
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(1);
+      });
+
+      it('uses custom host fee from collective when useCustomHostFee is set', async () => {
+        const hostPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        testCollective.data = { useCustomHostFee: true };
+        testCollective.hostFeePercent = 11;
+        await testCollective.save();
+        testOrder.PaymentMethodId = hostPM.id;
+        testOrder.paymentMethod = hostPM;
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(11);
+      });
+
+      it('uses custom host fee from parent when useCustomHostFee is set', async () => {
+        const hostPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.HOST,
+        });
+        testParent.data = { useCustomHostFee: true };
+        testParent.hostFeePercent = 9;
+        await testParent.save();
+        testOrder.PaymentMethodId = hostPM.id;
+        testOrder.paymentMethod = hostPM;
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(9);
+      });
+    });
+
+    describe('collective to collective (same host)', () => {
+      it('returns 0 for collective payment method', async () => {
+        const collectivePM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        });
+        testOrder.PaymentMethodId = collectivePM.id;
+        testOrder.paymentMethod = collectivePM;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(0);
+      });
+    });
+
+    describe('stripe payments', () => {
+      it('uses custom host fee from collective when useCustomHostFee is set', async () => {
+        testCollective.data = { useCustomHostFee: true };
+        testCollective.hostFeePercent = 13;
+        await testCollective.save();
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(13);
+      });
+
+      it('uses custom host fee from parent when useCustomHostFee is set', async () => {
+        testParent.data = { useCustomHostFee: true };
+        testParent.hostFeePercent = 8;
+        await testParent.save();
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(8);
+      });
+
+      it('uses stripeNotPlatformTipEligibleHostFeePercent when not platform tip eligible', async () => {
+        testHost.data = { stripeNotPlatformTipEligibleHostFeePercent: 15 };
+        await testHost.save();
+        testOrder.platformTipEligible = false;
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(15);
+      });
+
+      it('does not use stripeNotPlatformTipEligibleHostFeePercent when platform tip eligible', async () => {
+        testHost.data = { stripeNotPlatformTipEligibleHostFeePercent: 15 };
+        await testHost.save();
+        testOrder.platformTipEligible = true;
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(10); // Falls back to collective fee
+      });
+    });
+
+    describe('paypal payments', () => {
+      beforeEach(async () => {
+        const paypalPM = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.PAYMENT,
+        });
+        testOrder.PaymentMethodId = paypalPM.id;
+        testOrder.paymentMethod = paypalPM;
+      });
+
+      it('uses custom host fee from collective when useCustomHostFee is set', async () => {
+        testCollective.data = { useCustomHostFee: true };
+        testCollective.hostFeePercent = 14;
+        await testCollective.save();
+        testOrder.collective = testCollective;
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(14);
+      });
+
+      it('uses custom host fee from parent when useCustomHostFee is set', async () => {
+        testParent.data = { useCustomHostFee: true };
+        testParent.hostFeePercent = 6;
+        await testParent.save();
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(6);
+      });
+
+      it('uses paypalNotPlatformTipEligibleHostFeePercent when not platform tip eligible', async () => {
+        testHost.data = { paypalNotPlatformTipEligibleHostFeePercent: 16 };
+        await testHost.save();
+        testOrder.platformTipEligible = false;
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(16);
+      });
+
+      it('does not use paypalNotPlatformTipEligibleHostFeePercent when platform tip eligible', async () => {
+        testHost.data = { paypalNotPlatformTipEligibleHostFeePercent: 16 };
+        await testHost.save();
+        testOrder.platformTipEligible = true;
+        await testOrder.populate();
+
+        const feePercent = await getHostFeePercent(testOrder);
+        expect(feePercent).to.equal(10); // Falls back to collective fee
+      });
+    });
+
+    describe('edge cases', () => {
+      it('handles null parent collective', async () => {
+        const noParentCollective = await fakeCollective({
+          name: 'No Parent Collective',
+          HostCollectiveId: testHost.id,
+          ParentCollectiveId: null,
+          hostFeePercent: 7,
+        });
+        const noParentOrder = await fakeOrder({
+          CollectiveId: noParentCollective.id,
+          PaymentMethodId: testPaymentMethod.id,
+        });
+        await noParentOrder.populate();
+
+        const feePercent = await getHostFeePercent(noParentOrder);
+        expect(feePercent).to.equal(7);
+      });
+
+      it('handles null host', async () => {
+        const noHostCollective = await fakeCollective({
+          name: 'No Host Collective',
+          HostCollectiveId: null,
+          hostFeePercent: 5,
+        });
+        const noHostOrder = await fakeOrder({
+          CollectiveId: noHostCollective.id,
+          PaymentMethodId: testPaymentMethod.id,
+        });
+        await noHostOrder.populate();
+
+        const feePercent = await getHostFeePercent(noHostOrder);
+        expect(feePercent).to.equal(5);
+      });
+    });
+  });
+
+  describe('applyContributionAccountingCategoryRules', () => {
+    let sandbox;
+    let user, collective;
+    beforeEach(async () => {
+      sandbox = createSandbox();
+      user = await fakeUser();
+      const host = await fakeActiveHost();
+      await models.ConnectedAccount.create({
+        service: 'stripe',
+        token: 'abc',
+        CollectiveId: host.id,
+        username: 'stripeAccount',
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing stripe order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      await order.setPaymentMethod({ token: STRIPE_TOKEN });
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing paypal order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      await order.setPaymentMethod({ paypalToken: 'abc' });
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing manual order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      };
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
     });
   });
 });

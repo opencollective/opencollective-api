@@ -19,7 +19,7 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
   });
 
   it('bundle expenses by hostId', async () => {
-    const collectives = await multiple(fakeCollective, 2, { isHostAccount: true });
+    const collectives = await multiple(fakeCollective, 2, { hasMoneyManagement: true });
     const payoutMethod = await fakePayoutMethod({
       type: PayoutMethodTypes.PAYPAL,
       data: {

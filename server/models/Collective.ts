@@ -7,8 +7,8 @@ import * as ics from 'ics';
 import slugify from 'limax';
 import {
   cloneDeep,
+  compact,
   defaults,
-  difference,
   differenceBy,
   differenceWith,
   get,
@@ -40,7 +40,6 @@ import {
   HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   NonAttribute,
   WhereOptions,
 } from 'sequelize';
@@ -57,7 +56,7 @@ import expenseTypes from '../constants/expense-type';
 import FEATURE from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import plans, { HostPlan } from '../constants/plans';
+import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
 import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
@@ -98,6 +97,7 @@ import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { openSearchFullAccountReIndex } from '../lib/open-search/sync-postgres';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { getPolicy, POLICIES_EDITABLE_BY_HOST_ONLY } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, optsSanitizeHtmlForSimplified, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
@@ -115,12 +115,13 @@ import AccountingCategory from './AccountingCategory';
 import Activity from './Activity';
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
-import Expense from './Expense';
+import Expense, { ExpenseType } from './Expense';
 import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
@@ -133,8 +134,11 @@ import Update from './Update';
 import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 import VirtualCard from './VirtualCard';
+import { PlatformSubscription } from '.';
 
 const debug = debugLib('models:Collective');
+
+const { ORGANIZATION } = CollectiveType;
 
 type Goal = {
   type: string;
@@ -157,7 +161,6 @@ type Settings = {
   budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
   disablePublicExpenseSubmission?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
-  canHostAccounts?: boolean;
   // @deprecated Use `data.features` instead
   features?: {
     contactForm?: boolean;
@@ -189,6 +192,9 @@ type Settings = {
   apply?: boolean;
   applyMessage?: string;
   tos?: string;
+  expenseTypes?: Partial<Record<ExpenseType, boolean>>;
+  /** Set when the account was automatically migrated to the new platform subscription pricing. */
+  automaticBillingMigration?: Date | string;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -275,7 +281,8 @@ const sanitizeSettingsValue = value => {
   return value;
 };
 
-class Collective extends Model<
+class Collective extends ModelWithPublicId<
+  EntityShortIdPrefix.Collective,
   InferAttributes<
     Collective,
     {
@@ -294,6 +301,9 @@ class Collective extends Model<
   >,
   InferCreationAttributes<Collective>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Collective;
+  public static readonly tableName = 'Collectives' as const;
+
   declare public id: number;
   declare public type: CollectiveType;
   declare public slug: string;
@@ -333,7 +343,8 @@ class Collective extends Model<
   declare public tags: Array<string>;
   declare public monthlySpending: number;
   declare public deactivatedAt: Date;
-  declare public isHostAccount: boolean;
+  declare public hasMoneyManagement: boolean;
+  declare public hasHosting: boolean;
   declare public plan: string;
 
   declare public createdAt: CreationOptional<Date>;
@@ -416,42 +427,35 @@ class Collective extends Model<
     return res && res.MemberCollectiveId;
   };
 
-  /*
-   * Generates best unique slug by checking a base slug and adding a count if it is reserved/non-unique.
-   * If multiple suggestions are provided, the first non-null suggestion is used as the base.
-   *
-   * @param [array] suggestions Array of suggested base slugs in order of priority.
+  /**
+   * Generates a unique slug based on the provided base, appending a random suffix if needed.
+   * E.g. "Hello World" -> "hello-world". If taken: "hello-world-agb5d6".
    */
-  static generateSlug = (suggestions, useSlugify = true) => {
-    /*
-     * Checks a given slug against existing and reserved slugs. Increments count if non-unique/reserved and
-     * recursively checks again until acceptable slug is found.
-     */
-    const slugSuggestionHelper = (slugToCheck, slugList, count): string => {
-      const slug = count > 0 ? `${slugToCheck}${count}` : slugToCheck;
-      if (slugList.indexOf(slug) === -1 && !isCollectiveSlugReserved(slug)) {
-        return slug;
-      } else {
-        return slugSuggestionHelper(`${slugToCheck}`, slugList, count + 1);
-      }
-    };
-
-    suggestions = suggestions.filter(slug => (slug ? true : false)); // filter out any nulls
-    let baseSlug = suggestions[0]; // Use the first non-null suggestion as the base
-
-    if (useSlugify) {
-      baseSlug = slugify(baseSlug); // Will also trim, lowercase and remove + signs
+  static generateSlug = async (nameOrSlug: string): Promise<string> => {
+    const getRandomHash = () => uuid().split('-')[0];
+    const generateRandomSlug = () => `user-${getRandomHash()}`;
+    if (!nameOrSlug) {
+      return generateRandomSlug();
     }
 
-    // fetch any existing slugs which match or start with baseSlug. Used as list for helper function.
-    return Collective.findAll({
-      attributes: ['slug'],
-      where: { slug: { [Op.startsWith]: baseSlug } },
+    const baseSlug = slugify(nameOrSlug);
+    if (!baseSlug || isCollectiveSlugReserved(baseSlug)) {
+      return generateRandomSlug();
+    } else if (baseSlug === 'incognito') {
+      return `incognito-${getRandomHash()}`;
+    }
+
+    const slugExists = await Collective.findOne({
+      attributes: ['id'],
+      where: { slug: baseSlug },
       paranoid: false,
-      raw: true,
-    })
-      .then(userObjectList => userObjectList.map(user => user.slug))
-      .then(slugList => slugSuggestionHelper(baseSlug, slugList, 0));
+    });
+
+    if (!slugExists) {
+      return baseSlug;
+    } else {
+      return `${baseSlug}-${getRandomHash()}`;
+    }
   };
 
   static findBySlug = (slug, options = {}, throwIfMissing = true) => {
@@ -480,6 +484,7 @@ class Collective extends Model<
   get info() {
     return {
       id: this.id,
+      publicId: this.publicId,
       name: this.name,
       description: this.description,
       longDescription: this.longDescription,
@@ -495,7 +500,8 @@ class Collective extends Model<
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       isActive: this.isActive,
-      isHostAccount: this.isHostAccount,
+      hasMoneyManagement: this.hasMoneyManagement,
+      hasHosting: this.hasHosting,
       slug: this.slug,
       tiers: (this as any).tiers,
       type: this.type,
@@ -546,6 +552,7 @@ class Collective extends Model<
   get minimal() {
     return {
       id: this.id,
+      publicId: this.publicId,
       type: this.type,
       name: this.name,
       image: this.image,
@@ -561,6 +568,7 @@ class Collective extends Model<
   get activity() {
     return {
       id: this.id,
+      publicId: this.publicId,
       type: this.type,
       slug: this.slug,
       name: this.name,
@@ -974,56 +982,72 @@ class Collective extends Model<
 
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
-  becomeHost = async function (remoteUser) {
-    if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
-      throw new Error('This account type cannot become a host');
-    } else if (this.HostCollectiveId && this.HostCollectiveId !== this.id) {
-      throw new Error('This account is already attached to another host, please remove host first');
+  activateMoneyManagement = async function ({
+    remoteUser = null,
+    force = false,
+    silent = false,
+    transaction,
+  }: {
+    force?: boolean;
+    silent?: boolean;
+    remoteUser?: User;
+    transaction?: SequelizeTransaction;
+  } = {}): Promise<Collective> {
+    if (this.type !== ORGANIZATION) {
+      throw new Error('This account type cannot activate "Money Management".');
     }
 
-    if (!this.isHostAccount) {
-      const updatedValues = {
-        isHostAccount: true,
-        plan: parseToBoolean(config.features?.newPricing) ? undefined : 'start-plan-2021',
-        hostFeePercent: undefined,
-        platformFeePercent: undefined,
-      };
-      // hostFeePercent and platformFeePercent are not supposed to be set at this point
-      // but we're dealing with legacy tests here
-      if (this.hostFeePercent === null) {
-        updatedValues.hostFeePercent = config.fees.default.hostPercent;
+    const hasNewPricing = parseToBoolean(config.features?.newPricing);
+    const updateInTransaction = async transaction => {
+      if (!this.hasMoneyManagement || force) {
+        const updatedValues = {
+          hasMoneyManagement: true,
+          plan: hasNewPricing ? undefined : 'start-plan-2021',
+          hostFeePercent: undefined,
+          platformFeePercent: undefined,
+        };
+        // hostFeePercent and platformFeePercent are not supposed to be set at this point
+        // but we're dealing with legacy tests here
+        if (this.hostFeePercent === null) {
+          updatedValues.hostFeePercent = config.fees.default.hostPercent;
+        }
+        if (this.platformFeePercent === null) {
+          updatedValues.platformFeePercent = config.fees.default.platformPercent;
+        }
+        await this.update(updatedValues, { transaction });
       }
-      if (this.platformFeePercent === null) {
-        updatedValues.platformFeePercent = config.fees.default.platformPercent;
+
+      await this.getOrCreateHostPaymentMethod({ transaction });
+
+      await this.activateBudget({ transaction });
+
+      if (hasNewPricing) {
+        const defaultPlan = PlatformSubscriptionTiers[0]; // Discover plan
+        await PlatformSubscription.createSubscription(this, new Date(), defaultPlan, remoteUser, {
+          notify: !silent,
+          transaction,
+        });
       }
-      await this.update(updatedValues);
+
+      if (!silent) {
+        await Activity.create(
+          {
+            type: activities.ACTIVATED_MONEY_MANAGEMENT,
+            CollectiveId: this.id,
+            FromCollectiveId: this.id,
+            UserId: remoteUser?.id,
+            data: { collective: this.info },
+          },
+          { transaction },
+        );
+      }
+    };
+
+    if (transaction) {
+      await updateInTransaction(transaction);
+    } else {
+      await sequelize.transaction(updateInTransaction);
     }
-
-    await this.getOrCreateHostPaymentMethod();
-
-    if (this.type === 'ORGANIZATION' || this.type === 'USER') {
-      await Activity.create({
-        type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
-        CollectiveId: this.id,
-        FromCollectiveId: this.id,
-        UserId: remoteUser.id,
-        data: { collective: this.info },
-      });
-    } else if (this.type === CollectiveType.COLLECTIVE) {
-      await Activity.create({
-        type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
-        CollectiveId: this.id,
-        FromCollectiveId: this.id,
-        UserId: remoteUser.id,
-        data: { collective: this.info },
-      });
-    }
-
-    await this.activateBudget();
-
-    const settings = this.settings ? cloneDeep(this.settings) : {};
-    set(settings, 'canHostAccounts', true);
-    await this.update({ settings });
 
     return this;
   };
@@ -1052,7 +1076,7 @@ class Collective extends Model<
     });
   };
 
-  getOrCreateHostPaymentMethod = async function () {
+  getOrCreateHostPaymentMethod = async function ({ transaction }: { transaction?: SequelizeTransaction } = {}) {
     const hostPaymentMethod = await PaymentMethod.findOne({
       where: {
         service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
@@ -1060,74 +1084,165 @@ class Collective extends Model<
         CollectiveId: this.id,
         currency: this.currency,
       },
+      transaction,
     });
 
     if (hostPaymentMethod) {
       return hostPaymentMethod;
     }
 
-    return PaymentMethod.create({
-      CollectiveId: this.id,
-      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-      type: PAYMENT_METHOD_TYPE.HOST,
-      name: `${this.name} (Host)`,
-      primary: true,
-      currency: this.currency,
-    });
+    return PaymentMethod.create(
+      {
+        CollectiveId: this.id,
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+        name: `${this.name} (Host)`,
+        primary: true,
+        currency: this.currency,
+      },
+      { transaction },
+    );
   };
 
   /**
    * If the collective is a host, it needs to remove existing hosted collectives before
    * deactivating it as a host.
    */
-  deactivateAsHost = async function () {
-    const hostedCollectives = await this.getHostedCollectivesCount();
-    if (hostedCollectives >= 1) {
-      throw new Error(
-        `You can't deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
-      );
+  deactivateMoneyManagement = async function ({
+    remoteUser = null,
+    transaction,
+    silent = false,
+  }: { remoteUser?: User; transaction?: SequelizeTransaction; silent?: boolean } = {}) {
+    if (this.hasHosting) {
+      throw new Error(`Can't deactive money management with hosting activated.`);
     }
 
-    // Make sure we clean up all pending applications
-    await HostApplication.update({ status: HostApplicationStatus.EXPIRED }, { where: { HostCollectiveId: this.id } });
+    const updateInTransaction = async transaction => {
+      await this.deactivateBudget({ transaction });
 
-    await Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' } });
+      const settings = this.settings ? cloneDeep(this.settings) : {};
+      unset(settings, 'paymentMethods.manual');
 
-    await Collective.update(
-      { HostCollectiveId: null },
-      { hooks: false, where: { HostCollectiveId: this.id, isActive: false } },
-    );
+      await this.update({ hasMoneyManagement: false, plan: null, settings }, { transaction });
 
-    // TODO unsubscribe from OpenCollective tier plan.
+      await ConnectedAccount.destroy({
+        where: {
+          service: [Service.STRIPE, Service.TRANSFERWISE],
+          CollectiveId: this.id,
+        },
+        transaction,
+      });
 
-    await this.deactivateBudget();
+      if (!silent) {
+        await Activity.create(
+          {
+            type: activities.DEACTIVATED_MONEY_MANAGEMENT,
+            CollectiveId: this.id,
+            FromCollectiveId: this.id,
+            UserId: remoteUser?.id,
+            data: { collective: this.info },
+          },
+          { transaction },
+        );
+      }
 
-    const settings = this.settings ? cloneDeep(this.settings) : {};
-    set(settings, 'canHostAccounts', false);
-    unset(settings, 'paymentMethods.manual');
+      // Cancel the platform subscription if it exists
+      const currentSubscription = await PlatformSubscription.getCurrentSubscription(this.id, { transaction });
+      if (currentSubscription) {
+        // Inclusive: false in case they start a new subscription on the same day. This also means we won't bill for the last day.
+        await currentSubscription.terminate({ inclusive: false, transaction });
+      }
+    };
 
-    await this.update({ isHostAccount: false, plan: null, settings });
+    if (transaction) {
+      await updateInTransaction(transaction);
+    } else {
+      await sequelize.transaction(updateInTransaction);
+    }
 
-    await PayoutMethod.destroy({
-      where: {
-        data: { isManualBankTransfer: true },
-        CollectiveId: this.id,
-      },
-    });
+    return this;
+  };
 
-    await ConnectedAccount.destroy({
-      where: {
-        service: 'stripe',
-        CollectiveId: this.id,
-      },
-    });
+  activateHosting = async function ({
+    remoteUser = null,
+    transaction,
+  }: { remoteUser?: User; transaction?: SequelizeTransaction } = {}) {
+    if (this.type !== ORGANIZATION) {
+      throw new Error('This account type cannot activate "Fiscal Hosting".');
+    }
 
-    await Activity.create({
-      type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
-      CollectiveId: this.id,
-      FromCollectiveId: this.id,
-      data: { collective: this.info },
-    });
+    if (!this.hasMoneyManagement) {
+      throw new Error(`Can't active hosting without money management.`);
+    }
+
+    const updateInTransaction = async transaction => {
+      await this.update({ hasHosting: true }, { transaction });
+
+      await Activity.create(
+        {
+          type: activities.ACTIVATED_HOSTING,
+          CollectiveId: this.id,
+          FromCollectiveId: this.id,
+          UserId: remoteUser?.id,
+          data: { collective: this.info },
+        },
+        { transaction },
+      );
+    };
+
+    if (transaction) {
+      await updateInTransaction(transaction);
+    } else {
+      await sequelize.transaction(updateInTransaction);
+    }
+
+    return this;
+  };
+
+  deactivateHosting = async function ({
+    remoteUser = null,
+    transaction = undefined,
+  }: { remoteUser?: User; transaction?: SequelizeTransaction } = {}) {
+    const updateInTransaction = async transaction => {
+      const hostedCollectives = await this.getHostedCollectivesCount({ transaction });
+      if (hostedCollectives >= 1) {
+        throw new Error(
+          `You can't deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
+        );
+      }
+
+      // Make sure we clean up all pending applications
+      await HostApplication.update(
+        { status: HostApplicationStatus.EXPIRED },
+        { where: { HostCollectiveId: this.id }, transaction },
+      );
+
+      await Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' }, transaction });
+
+      await Collective.update(
+        { HostCollectiveId: null },
+        { hooks: false, where: { HostCollectiveId: this.id, isActive: false }, transaction },
+      );
+
+      await this.update({ hasHosting: false }, { transaction });
+
+      await Activity.create(
+        {
+          type: activities.DEACTIVATED_HOSTING,
+          CollectiveId: this.id,
+          FromCollectiveId: this.id,
+          UserId: remoteUser?.id,
+          data: { collective: this.info },
+        },
+        { transaction },
+      );
+    };
+
+    if (transaction) {
+      await updateInTransaction(transaction);
+    } else {
+      await sequelize.transaction(updateInTransaction);
+    }
 
     return this;
   };
@@ -1245,7 +1360,7 @@ class Collective extends Model<
     ) {
       return true;
     } else if (this.type === CollectiveType.ORGANIZATION) {
-      return this.isHostAccount && this.isActive;
+      return this.hasMoneyManagement && this.isActive;
     } else {
       return false;
     }
@@ -1258,38 +1373,57 @@ class Collective extends Model<
   /**
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
-  activateBudget = async function () {
+  activateBudget = async function ({ transaction }: { transaction?: SequelizeTransaction } = {}) {
     if (
-      !this.isHostAccount ||
+      !this.hasMoneyManagement ||
       ![CollectiveType.ORGANIZATION].includes(this.type) ||
       (this.HostCollectiveId && this.HostCollectiveId !== this.id)
     ) {
       return;
     }
 
-    await this.update({
-      isActive: true,
-      HostCollectiveId: this.id,
-      settings: { ...this.settings, hostCollective: { id: this.id } },
-      approvedAt: new Date(),
-    });
+    const updateInTransaction = async transaction => {
+      await this.update(
+        {
+          isActive: true,
+          HostCollectiveId: this.id,
+          settings: { ...this.settings, hostCollective: { id: this.id } },
+          approvedAt: new Date(),
+        },
+        {
+          transaction,
+        },
+      );
 
-    await PaymentMethod.destroy({
-      where: {
-        CollectiveId: this.id,
-        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
-      },
-    });
+      await PaymentMethod.destroy({
+        where: {
+          CollectiveId: this.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        },
+        transaction,
+      });
 
-    await PaymentMethod.create({
-      CollectiveId: this.id,
-      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-      type: PAYMENT_METHOD_TYPE.COLLECTIVE,
-      name: `${capitalize(this.name)} (${capitalize(this.type.toLowerCase())})`,
-      primary: true,
-      currency: this.currency,
-    });
+      await PaymentMethod.create(
+        {
+          CollectiveId: this.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+          name: `${capitalize(this.name)} (${capitalize(this.type.toLowerCase())})`,
+          primary: true,
+          currency: this.currency,
+        },
+        {
+          transaction,
+        },
+      );
+    };
+
+    if (transaction) {
+      await updateInTransaction(transaction);
+    } else {
+      await sequelize.transaction(updateInTransaction);
+    }
 
     return this;
   };
@@ -1297,29 +1431,42 @@ class Collective extends Model<
   /**
    * Deactivate Budget
    */
-  deactivateBudget = async function () {
-    await this.update({
-      isActive: false,
-      HostCollectiveId: null,
-      settings: omit(this.settings, ['hostCollective']),
-      approvedAt: null,
-    });
+  deactivateBudget = async function ({ transaction }: { transaction?: SequelizeTransaction } = {}) {
+    const updateInTransaction = async transaction => {
+      await this.update(
+        {
+          isActive: false,
+          HostCollectiveId: null,
+          settings: omit(this.settings, ['hostCollective']),
+          approvedAt: null,
+        },
+        { transaction },
+      );
 
-    await Member.destroy({
-      where: {
-        role: roles.HOST,
-        MemberCollectiveId: this.id,
-        CollectiveId: this.id,
-      },
-    });
+      await Member.destroy({
+        where: {
+          role: roles.HOST,
+          MemberCollectiveId: this.id,
+          CollectiveId: this.id,
+        },
+        transaction,
+      });
 
-    await PaymentMethod.destroy({
-      where: {
-        CollectiveId: this.id,
-        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-        type: PAYMENT_METHOD_TYPE.COLLECTIVE,
-      },
-    });
+      await PaymentMethod.destroy({
+        where: {
+          CollectiveId: this.id,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        },
+        transaction,
+      });
+    };
+
+    if (transaction) {
+      await updateInTransaction(transaction);
+    } else {
+      await sequelize.transaction(updateInTransaction);
+    }
 
     return this;
   };
@@ -1328,7 +1475,7 @@ class Collective extends Model<
    * Returns true if Collective is a host account open to applications.
    */
   canApply = async function () {
-    return Boolean(this.isHostAccount && this.settings?.apply);
+    return Boolean(this.hasMoneyManagement && this.settings?.apply);
   };
 
   /**
@@ -2076,7 +2223,7 @@ class Collective extends Model<
       let { structured } = locationInput;
       let { address } = locationInput;
 
-      structured = omitBy(structured, isNil);
+      structured = omitBy(structured, v => v === null || v === undefined || v === '');
 
       // If structured is empty, set it to null
       if (Object.keys(structured).length === 0) {
@@ -2106,7 +2253,44 @@ class Collective extends Model<
     await Promise.all(promises);
   };
 
-  updateHostFee = async function (hostFeePercent, remoteUser) {
+  /**
+   * Similar to `updateHostFeeAsUser`, but doesn't check for permissions.
+   */
+  updateHostFeeAsSystem = async function (
+    hostFeePercent: number,
+    {
+      transaction = undefined,
+      dropCustomHostedCollectivesFees = false,
+    }: { transaction?: SequelizeTransaction; dropCustomHostedCollectivesFees?: boolean } = {},
+  ): Promise<Collective> {
+    if (typeof hostFeePercent === 'undefined' || hostFeePercent === this.hostFeePercent) {
+      return this;
+    } else if (
+      [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.FUND, CollectiveType.PROJECT].includes(this.type)
+    ) {
+      return this.update({ hostFeePercent }, { transaction });
+    } else if (await this.isHost({ transaction })) {
+      await Collective.update(
+        { hostFeePercent },
+        {
+          transaction,
+          hooks: false,
+          where: {
+            HostCollectiveId: this.id,
+            approvedAt: { [Op.not]: null },
+            ...(dropCustomHostedCollectivesFees ? {} : { data: { useCustomHostFee: { [Op.not]: true } } }),
+          },
+        },
+      );
+
+      // Update host
+      return this.update({ hostFeePercent }, { transaction });
+    }
+
+    return this;
+  };
+
+  updateHostFeeAsUser = async function (hostFeePercent, remoteUser) {
     if (typeof hostFeePercent === 'undefined' || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
     }
@@ -2117,7 +2301,7 @@ class Collective extends Model<
       if (!remoteUser.isAdmin(this.HostCollectiveId)) {
         throw new Error('Only an admin of the host collective can edit the host fee for this collective');
       }
-      return this.update({ hostFeePercent });
+      return this.updateHostFeeAsSystem(hostFeePercent);
     } else {
       const isHost = await this.isHost();
       if (isHost) {
@@ -2125,22 +2309,7 @@ class Collective extends Model<
           throw new Error('You must be an admin of this host to change the host fee');
         }
 
-        await Collective.update(
-          { hostFeePercent },
-          {
-            hooks: false,
-            where: {
-              HostCollectiveId: this.id,
-              approvedAt: { [Op.not]: null },
-              data: {
-                useCustomHostFee: { [Op.not]: true },
-              },
-            },
-          },
-        );
-
-        // Update host
-        return this.update({ hostFeePercent });
+        return this.updateHostFeeAsSystem(hostFeePercent);
       }
     }
     return this;
@@ -2215,73 +2384,85 @@ class Collective extends Model<
    *
    * This is meant to be used internally, no access control.
    */
-  setCurrency = async function (currency) {
+  setCurrency = async function (currency, { transaction }: { transaction?: SequelizeTransaction } = {}) {
     if (currency === this.currency) {
       return this;
     }
 
-    const isHost = await this.isHost();
-    if (isHost) {
-      // We only expect currency change at the beginning of the history of the Host
-      // We're however good with it if currency is already recorded as hostCurrency in the ledger
-      const transactionCount = await Transaction.count({
-        where: { HostCollectiveId: this.id, hostCurrency: { [Op.not]: currency } },
-      });
-      if (transactionCount > 0) {
-        throw new Error(
-          'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
-        );
+    const updateInTransaction = async transaction => {
+      const isHost = await this.isHost({ transaction });
+      if (isHost) {
+        // We only expect currency change at the beginning of the history of the Host
+        // We're however good with it if currency is already recorded as hostCurrency in the ledger
+        const transactionCount = await Transaction.count({
+          where: { HostCollectiveId: this.id, hostCurrency: { [Op.not]: currency } },
+          transaction,
+        });
+        if (transactionCount > 0) {
+          throw new Error(
+            'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
+          );
+        }
+        let collectives = <Array<Collective>>await this.getHostedCollectives({ transaction });
+        collectives = collectives.filter(collective => collective.id !== this.id);
+        // We use setCurrency so that it will cascade to Tiers
+        if (collectives.length > 0) {
+          await pMap(
+            collectives,
+            async collective => {
+              const collectiveTransactionCount = await Transaction.count({
+                where: { CollectiveId: collective.id },
+                transaction,
+              });
+              // We only proceed with Collectives without Transactions
+              if (collectiveTransactionCount === 0) {
+                return collective.setCurrency(currency, { transaction });
+              }
+            },
+            { concurrency: 3 },
+          );
+        }
       }
-      let collectives = <Array<any>>await this.getHostedCollectives();
-      collectives = collectives.filter(collective => collective.id !== this.id);
-      // We use setCurrency so that it will cascade to Tiers
-      if (collectives.length > 0) {
+
+      // What about transactions?
+      // No, the currency should not matter, and for the Hosts it's forbidden to change currency
+
+      // Update tiers, skip or delete when they are already used?
+      const tiers = <Array<Tier>>await this.getTiers({ transaction });
+      if (tiers.length > 0) {
         await pMap(
-          collectives,
-          async collective => {
-            const collectiveTransactionCount = await Transaction.count({
-              where: { CollectiveId: collective.id },
-            });
-            // We only proceed with Collectives without Transactions
-            if (collectiveTransactionCount === 0) {
-              return collective.setCurrency(currency);
+          tiers,
+          async tier => {
+            // We only proceed with Tiers without Orders
+            const orderCount = await Order.count({ where: { TierId: tier.id }, transaction });
+            if (orderCount === 0) {
+              return tier.setCurrency(currency, { transaction });
             }
           },
           { concurrency: 3 },
         );
       }
+
+      // Cascade currency to events and projects
+      const events = <Array<Collective>>await this.getEvents({ transaction });
+      if (events.length > 0) {
+        await pMap(events, event => event.setCurrency(currency, { transaction }), { concurrency: 3 });
+      }
+      const projects = <Array<Collective>>await this.getProjects({ transaction });
+      if (projects.length > 0) {
+        await pMap(projects, project => project.setCurrency(currency, { transaction }), { concurrency: 3 });
+      }
+
+      return this.update({ currency }, { transaction });
+    };
+
+    if (transaction) {
+      await updateInTransaction(transaction);
+    } else {
+      await sequelize.transaction(updateInTransaction);
     }
 
-    // What about transactions?
-    // No, the currency should not matter, and for the Hosts it's forbidden to change currency
-
-    // Update tiers, skip or delete when they are already used?
-    const tiers = <Array<any>>await this.getTiers();
-    if (tiers.length > 0) {
-      await pMap(
-        tiers,
-        async tier => {
-          // We only proceed with Tiers without Orders
-          const orderCount = await Order.count({ where: { TierId: tier.id } });
-          if (orderCount === 0) {
-            return tier.setCurrency(currency);
-          }
-        },
-        { concurrency: 3 },
-      );
-    }
-
-    // Cascade currency to events and projects
-    const events = <Array<any>>await this.getEvents();
-    if (events.length > 0) {
-      await pMap(events, event => event.setCurrency(currency), { concurrency: 3 });
-    }
-    const projects = <Array<any>>await this.getProjects();
-    if (projects.length > 0) {
-      await pMap(projects, project => project.setCurrency(currency), { concurrency: 3 });
-    }
-
-    return this.update({ currency });
+    return this;
   };
 
   /**
@@ -2293,7 +2474,7 @@ class Collective extends Model<
   addHost = async function (hostCollective, creatorUser, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
-    } else if (this.isHostAccount) {
+    } else if (this.hasMoneyManagement) {
       throw new Error(`This collective already is a host`);
     }
 
@@ -2393,7 +2574,7 @@ class Collective extends Model<
         // and we recreate new ones
         tiers.map(t => {
           if (t.currency !== hostCollective.currency) {
-            const newTierData = omit(t.dataValues, ['id']);
+            const newTierData = omit(t.dataValues, ['id', 'publicId']);
             newTierData.currency = hostCollective.currency;
             promises.push(Tier.create(newTierData));
             promises.push(t.destroy());
@@ -2550,7 +2731,7 @@ class Collective extends Model<
     if (this.id === this.HostCollectiveId) {
       await ConnectedAccount.destroy({
         where: {
-          service: 'stripe',
+          service: [Service.STRIPE, Service.TRANSFERWISE],
           CollectiveId: this.id,
         },
       });
@@ -2615,7 +2796,8 @@ class Collective extends Model<
       approvedAt: null,
       hostFeePercent: null,
       platformFeePercent: null,
-      isHostAccount: false,
+      hasMoneyManagement: false,
+      hasHosting: false,
       plan: null,
       data: omit(
         this.data,
@@ -2628,9 +2810,11 @@ class Collective extends Model<
       const newHostCollective = await Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
         throw new Error('Host not found');
-      } else if (!newHostCollective.isHostAccount) {
+      } else if (!newHostCollective.hasMoneyManagement) {
+        // TODO(hasHosting): simply throw error if account doesn't have hosting activated
+        // throw new Error(`{${newHostCollective.name}} is not activated as Host`);
         if (remoteUser.isAdminOfCollective(newHostCollective)) {
-          await newHostCollective.becomeHost(remoteUser);
+          await newHostCollective.activateMoneyManagement({ remoteUser });
         } else {
           throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
         }
@@ -2781,48 +2965,6 @@ class Collective extends Model<
     return this.getMembers({
       where: { role: { [Op.in]: allowedRoles } },
     });
-  };
-
-  // edit the tiers of this collective (create/update/remove)
-  editTiers = function (tiers?: Array<any>) {
-    // All kind of accounts can have Tiers
-
-    if (!tiers) {
-      return this.getTiers();
-    }
-
-    return <Promise<Array<any>>>this.getTiers()
-      .then(oldTiers => {
-        // remove the tiers that are not present anymore in the updated collective
-        const diff = difference(
-          oldTiers.map(t => t.id),
-          tiers.map(t => t.id),
-        );
-        if (diff.length > 0) {
-          return Tier.destroy({ where: { id: { [Op.in]: diff } } });
-        }
-      })
-      .then(() => {
-        return Promise.all(
-          tiers.map(tier => {
-            if (tier.amountType === 'FIXED') {
-              tier.presets = null;
-              tier.minimumAmount = null;
-            }
-            if (tier.invoiceTemplate) {
-              tier.data = { ...tier.data, invoiceTemplate: tier.invoiceTemplate };
-            }
-            if (tier.id) {
-              return Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
-            } else {
-              tier.CollectiveId = this.id;
-              tier.currency = tier.currency || this.currency;
-              return Tier.create(tier);
-            }
-          }),
-        );
-      })
-      .then(() => this.getTiers());
   };
 
   // Where `this` collective is a type == ORGANIZATION collective.
@@ -3152,8 +3294,8 @@ class Collective extends Model<
     });
   };
 
-  isHost = function () {
-    if (this.isHostAccount) {
+  isHost = function ({ transaction = undefined }: { transaction?: SequelizeTransaction } = {}) {
+    if (this.hasMoneyManagement) {
       return Promise.resolve(true);
     }
 
@@ -3161,7 +3303,7 @@ class Collective extends Model<
       return Promise.resolve(false);
     }
 
-    return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' } }).then(r => Boolean(r));
+    return Member.findOne({ where: { MemberCollectiveId: this.id, role: 'HOST' }, transaction }).then(r => Boolean(r));
   };
 
   isHostOf = function (CollectiveId) {
@@ -3313,9 +3455,9 @@ class Collective extends Model<
     return getCollectiveBackgroundImageUrl(this.backgroundImage, this.slug, args);
   };
 
-  getHostedCollectivesCount = function () {
+  getHostedCollectivesCount = function ({ transaction = undefined }: { transaction?: SequelizeTransaction } = {}) {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
     return Collective.count({
@@ -3325,12 +3467,13 @@ class Collective extends Model<
         isActive: true,
         approvedAt: { [Op.not]: null },
       },
+      transaction,
     });
   };
 
   getTotalAddedFunds = async function () {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
 
@@ -3378,7 +3521,7 @@ class Collective extends Model<
 
   getTotalTransferwisePayouts = async function () {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
 
@@ -3421,7 +3564,7 @@ class Collective extends Model<
 
   getTotalBankTransfers = async function () {
     // This method is intended for hosts
-    if (!this.isHostAccount) {
+    if (!this.hasMoneyManagement) {
       return Promise.resolve(null);
     }
 
@@ -3458,7 +3601,10 @@ class Collective extends Model<
     return total;
   };
 
-  getPlan = async function () {
+  /**
+   * @deprecated Make sure to check the subscription first.
+   */
+  getLegacyPlan = function () {
     if (this.plan) {
       const planData = plans[this.plan];
       if (planData) {
@@ -3472,6 +3618,8 @@ class Collective extends Model<
           transferwisePayouts: 0,
           ...planData,
           ...extraPlanData,
+          publicId: this.publicId,
+          createdAt: this.createdAt,
         };
         return plan;
       }
@@ -3485,6 +3633,8 @@ class Collective extends Model<
       bankTransfers: 0,
       transferwisePayouts: 0,
       ...plans.default,
+      publicId: this.publicId,
+      createdAt: this.createdAt,
     };
 
     return plan;
@@ -3497,13 +3647,13 @@ class Collective extends Model<
    * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
   getHostMetrics = async function (from, to, collectiveIds) {
-    if (!this.isHostAccount || !this.isActive || this.type !== CollectiveType.ORGANIZATION) {
+    if (!this.hasMoneyManagement || !this.isActive || this.type !== CollectiveType.ORGANIZATION) {
       return null;
     }
     from = from ? moment(from) : null;
     to = to ? moment(to) : null;
 
-    const plan = await this.getPlan();
+    const plan = await this.getLegacyPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
     const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });
@@ -3567,7 +3717,10 @@ class Collective extends Model<
       UserTokenId: userToken?.id,
       CollectiveId: this.id,
       HostCollectiveId: this.approvedAt ? this.HostCollectiveId : null,
-      data,
+      data: {
+        ...data,
+        collective: this.info,
+      },
     });
   };
 
@@ -3586,7 +3739,7 @@ class Collective extends Model<
   };
 
   async findOrCreatePaymentMethod(paymentMethodService, paymentMethodType) {
-    const host = this.isHostAccount ? this : await this.getHostCollective();
+    const host = this.hasMoneyManagement ? this : await this.getHostCollective();
     const attributes = {
       CollectiveId: this.id,
       service: paymentMethodService,
@@ -3608,6 +3761,11 @@ Collective.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     type: {
@@ -4091,7 +4249,12 @@ Collective.init(
       allowNull: true,
     },
 
-    isHostAccount: {
+    hasMoneyManagement: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+
+    hasHosting: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
@@ -4109,23 +4272,24 @@ Collective.init(
         if (instance.slug) {
           return Promise.resolve();
         }
-        let potentialSlugs,
-          useSlugify = true;
+
         // Populate potentialSlugs, priority of choices is the same as order in the array
         if (instance.isIncognito) {
-          useSlugify = false;
-          potentialSlugs = [`incognito-${uuid().split('-')[0]}`];
-        } else {
-          potentialSlugs = [
-            instance.name ? instance.name.replace(/ /g, '-') : null,
-            instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
-            instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
-            `${instance.type || 'account'}-${uuid().split('-')[0]}`,
-          ];
+          instance.slug = `incognito-${uuid().split('-')[0]}`;
+          return Promise.resolve();
         }
-        return Collective.generateSlug(potentialSlugs, useSlugify).then(slug => {
+
+        const potentialSlugs: (string | null)[] = [
+          instance.name ? instance.name.replace(/ /g, '-') : null,
+          instance.image ? userlib.getUsernameFromGithubURL(instance.image) : null,
+          instance.twitterHandle ? instance.twitterHandle.replace(/@/g, '') : null,
+          `${instance.type || 'account'}-${uuid().split('-')[0]}`,
+        ];
+
+        const baseSlug = compact(potentialSlugs)[0];
+        return Collective.generateSlug(baseSlug).then(slug => {
           if (!slug) {
-            return Promise.reject(new Error("We couldn't generate a unique slug for this collective", potentialSlugs));
+            return Promise.reject(new Error("We couldn't generate a unique slug for this collective"));
           }
           instance.slug = slug;
           return Promise.resolve();

@@ -294,6 +294,27 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         expect(noOneAudienceResult.data.publishUpdate.publishedAt).to.not.be.null;
       });
     });
+
+    it('accepts publicId when publishing an update', async () => {
+      const user = await fakeUser();
+      const update = await models.Update.create({
+        CollectiveId: user.collective.id,
+        FromCollectiveId: user.collective.id,
+        CreatedByUserId: user.id,
+        notificationAudience: 'ALL',
+        title: 'public-id-update',
+        html: 'text',
+      });
+
+      const result = await utils.graphqlQueryV2(
+        publishUpdateMutation,
+        { id: update.publicId, notificationAudience: update.notificationAudience },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.publishUpdate.slug).to.equal('public-id-update');
+    });
   });
 
   describe('edit an update', () => {
@@ -425,6 +446,25 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       return models.Update.findByPk(update1.id).then(updateFound => {
+        expect(updateFound).to.be.null;
+      });
+    });
+
+    it('accepts publicId when deleting an update', async () => {
+      const user = await fakeUser();
+      const update = await models.Update.create({
+        CollectiveId: user.collective.id,
+        FromCollectiveId: user.collective.id,
+        CreatedByUserId: user.id,
+        notificationAudience: 'ALL',
+        title: 'public-id-update',
+        html: 'text',
+      });
+
+      const res = await utils.graphqlQueryV2(deleteUpdateMutation, { id: update.publicId }, user);
+      res.errors && console.error(res.errors[0]);
+      expect(res.errors).to.not.exist;
+      return models.Update.findByPk(update.id).then(updateFound => {
         expect(updateFound).to.be.null;
       });
     });

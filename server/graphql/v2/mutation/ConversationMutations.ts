@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { createConversation, editConversation } from '../../common/conversations';
 import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
@@ -65,8 +66,14 @@ const conversationMutations = {
         description: 'A list of tags for this conversation',
       },
     },
-    resolve(_, args, req) {
-      args.id = idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION);
+    async resolve(_, args, req) {
+      let id;
+      if (isEntityPublicId(args.id, EntityShortIdPrefix.Conversation)) {
+        id = await req.loaders.Conversation.idByPublicId.load(args.id);
+      } else {
+        id = idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION);
+      }
+      args.id = id;
       return editConversation(req, args);
     },
   },
@@ -87,7 +94,12 @@ const conversationMutations = {
     async resolve(_, { id, isActive }, req) {
       checkRemoteUserCanUseConversations(req);
 
-      const conversationId = idDecode(id, IDENTIFIER_TYPES.CONVERSATION);
+      let conversationId;
+      if (isEntityPublicId(id, EntityShortIdPrefix.Conversation)) {
+        conversationId = await req.loaders.Conversation.idByPublicId.load(id);
+      } else {
+        conversationId = idDecode(id, IDENTIFIER_TYPES.CONVERSATION);
+      }
 
       if (isActive) {
         await models.ConversationFollower.follow(req.remoteUser.id, conversationId);

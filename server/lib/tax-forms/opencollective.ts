@@ -68,6 +68,7 @@ type W9TaxFormValues = {
   isSigned?: boolean;
   businessName?: string;
   federalTaxClassificationDetails?: string;
+  llcTaxClassification?: 'C' | 'S' | 'P' | '';
   exemptPayeeCode?: string;
   fatcaExemptionCode?: string;
   taxIdNumberType?: 'SSN' | 'EIN';
@@ -238,6 +239,12 @@ const isW8BenEData = (data: Record<string, unknown>): data is W8BenETaxFormValue
 export const getStandardizedDataFromOCLegalDocumentData = (
   data: W8BenETaxFormValues | W8BenTaxFormValues | W9TaxFormValues,
 ): TaxFormCSVRow => {
+  const formatAddress2FromStructured = (structured: {
+    address2?: string;
+    city?: string;
+    zone?: string;
+    postalCode?: string;
+  }) => [structured?.address2, structured?.city, structured?.zone, structured?.postalCode].filter(Boolean).join(', ');
   const common = {
     [TaxFormCSVColumns.RECIPIENT_NAME]: `${data?.signer?.firstName} ${data?.signer?.lastName}`.trim(),
     [TaxFormCSVColumns.TYPE]: data?.formType,
@@ -251,7 +258,7 @@ export const getStandardizedDataFromOCLegalDocumentData = (
       [TaxFormCSVColumns.TAX_ID_TYPE]: data.taxIdNumberType,
       [TaxFormCSVColumns.TAX_ID]: data.taxIdNumber,
       [TaxFormCSVColumns.RECIPIENT_ADDRESS_1]: data.location?.structured?.address1,
-      [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: data.location?.structured?.address2,
+      [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: formatAddress2FromStructured(data.location?.structured),
       [TaxFormCSVColumns.RECIPIENT_COUNTRY]: data.location?.country,
       [TaxFormCSVColumns.RECIPIENT_EMAIL]: data.email,
     };
@@ -264,7 +271,7 @@ export const getStandardizedDataFromOCLegalDocumentData = (
         (data.taxpayerIdentificationNumberForeign && 'Foreign') || data.taxpayerIdentificationNumberTypeUS,
       [TaxFormCSVColumns.TAX_ID]: data.taxpayerIdentificationNumberUS || data.taxpayerIdentificationNumberForeign,
       [TaxFormCSVColumns.RECIPIENT_ADDRESS_1]: data.residenceAddress?.structured?.address1,
-      [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: data.residenceAddress?.structured?.address2,
+      [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: formatAddress2FromStructured(data.residenceAddress?.structured),
       [TaxFormCSVColumns.RECIPIENT_COUNTRY]: data.residenceAddress?.country,
       [TaxFormCSVColumns.RECIPIENT_EMAIL]: data.email,
     };
@@ -277,7 +284,7 @@ export const getStandardizedDataFromOCLegalDocumentData = (
       [TaxFormCSVColumns.TAX_ID]:
         data.taxpayerIdentificationNumberForeign || data.giin || data.taxpayerIdentificationNumberUS,
       [TaxFormCSVColumns.RECIPIENT_ADDRESS_1]: data.businessAddress?.structured?.address1,
-      [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: data.businessAddress?.structured?.address2,
+      [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: formatAddress2FromStructured(data.businessAddress?.structured),
       [TaxFormCSVColumns.RECIPIENT_COUNTRY]: data.businessAddress?.country,
       [TaxFormCSVColumns.RECIPIENT_EMAIL]: data.email,
     };

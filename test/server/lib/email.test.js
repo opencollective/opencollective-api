@@ -143,6 +143,7 @@ describe('server/lib/email', () => {
       const result = emailLib.render('user.new.token', { loginLink: 'https://opencollective/USER_LOGIN_LINK' });
       expect(result.html).to.matchSnapshot();
       expect(result.text).to.matchSnapshot();
+      expect(result.html).to.match(/class="btn blue"[^>]*style="/);
     });
   });
 

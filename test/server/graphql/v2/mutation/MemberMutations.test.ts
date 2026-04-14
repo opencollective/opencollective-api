@@ -7,7 +7,7 @@ import roles from '../../../../../server/constants/roles';
 import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models, { Member } from '../../../../../server/models';
-import { fakeCollective, fakeMember, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeMember, fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let collectiveAdminUser, collectiveMemberUser, collective;
@@ -144,6 +144,8 @@ describe('memberMutations', () => {
     it('should remove a member from the collective and document the change in an activity', async () => {
       const randomUser = await fakeUser();
       await collective.addUserWithRole(randomUser, roles.MEMBER);
+      const personalToken = await fakePersonalToken({ UserId: randomUser.id, CollectiveId: collective.id });
+
       const result = await utils.graphqlQueryV2(
         removeMemberMutation,
         {
@@ -165,7 +167,12 @@ describe('memberMutations', () => {
       expect(result.errors).to.not.exist;
       expect(activity.length).to.equal(1);
       expect(activity[0].data.memberCollective.id).to.equal(randomUser.CollectiveId);
+      expect(activity[0].data.member.MemberCollectiveId).to.equal(randomUser.CollectiveId);
+      expect(activity[0].data.member.CollectiveId).to.equal(collective.id);
       expect(result.data.removeMember).to.equal(true);
+
+      await personalToken.reload({ paranoid: false });
+      expect(personalToken.deletedAt).to.not.be.null;
     });
     it('should remove the invitation (if not accepted yet)', async () => {
       const randomInvitedUser = await fakeUser();

@@ -59,9 +59,11 @@ if (process.argv.length < 3) {
   process.exit(1);
 }
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

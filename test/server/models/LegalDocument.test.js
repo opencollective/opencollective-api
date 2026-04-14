@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import moment from 'moment';
 import sinon from 'sinon';
 
+import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../server/constants/tax-form';
 import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
@@ -10,6 +11,9 @@ import { fakeActiveHost, fakeExpense, fakePayoutMethod, fakeUser } from '../../t
 import * as utils from '../../utils';
 
 const { LegalDocument, User, Collective } = models;
+
+const YEAR = moment().year();
+const US_TAX_FORM_THRESHOLD = YEAR >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
 
 const createExpenseSubjectToTaxForm = async (payee, host) => {
   const payoutMethod = await fakePayoutMethod({
@@ -22,7 +26,7 @@ const createExpenseSubjectToTaxForm = async (payee, host) => {
     type: 'INVOICE',
     FromCollectiveId: payee.id,
     CollectiveId: host.id,
-    amount: 600e2,
+    amount: US_TAX_FORM_THRESHOLD + 100e2,
     currency: 'USD',
     PayoutMethodId: payoutMethod.id,
   });

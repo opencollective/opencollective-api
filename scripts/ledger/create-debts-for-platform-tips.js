@@ -7,11 +7,6 @@ import { TransactionSettlementStatus } from '../../server/models/TransactionSett
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-05-01');
 
-if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/create-debts-for-platform-tips.js migrate|rollback|check');
-  process.exit(1);
-}
-
 const migrate = async () => {
   const [tipCreditTransactions] = await sequelize.query(
     `
@@ -143,6 +138,11 @@ const check = async () => {
 };
 
 const main = async () => {
+  if (process.argv.length < 3) {
+    console.error('Usage: ./scripts/create-debts-for-platform-tips.js migrate|rollback|check');
+    process.exit(1);
+  }
+
   const command = process.argv[2];
   switch (command) {
     case 'migrate':
@@ -156,9 +156,11 @@ const main = async () => {
   }
 };
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

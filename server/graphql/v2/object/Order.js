@@ -13,6 +13,7 @@ import { get, pick, round } from 'lodash';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { getHostFeePercent } from '../../../lib/payments';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -31,6 +32,7 @@ import { GraphQLPaymentMethod } from '../object/PaymentMethod';
 import { GraphQLTier } from '../object/Tier';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
+import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
@@ -78,11 +80,20 @@ export const GraphQLOrder = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve(order) {
-          return idEncode(order.id, 'order');
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Order, order.createdAt)) {
+            return order.publicId;
+          } else {
+            return idEncode(order.id, 'order');
+          }
         },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.Order}_xxxxxxxx)`,
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
+        deprecationReason: '2026-02-25: use publicId',
         resolve(order) {
           return order.id;
         },
@@ -222,6 +233,14 @@ export const GraphQLOrder = new GraphQLObjectType({
         resolve(order, _, req) {
           if (order.PaymentMethodId) {
             return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+          }
+        },
+      },
+      manualPaymentProvider: {
+        type: GraphQLManualPaymentProvider,
+        async resolve(order, _, req) {
+          if (order.ManualPaymentProviderId) {
+            return req.loaders.ManualPaymentProvider.byId.load(order.ManualPaymentProviderId);
           }
         },
       },

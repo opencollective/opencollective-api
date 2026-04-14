@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import models, { Op, sequelize } from '../../server/models';
 
@@ -26,7 +27,7 @@ const BACKUP_COLUMNS = [
 const migrate = async () => {
   const transactions = await sequelize.query(getTransactionsToMigrateQuery, {
     replacements: { startDate },
-    type: sequelize.QueryTypes.SELECT,
+    type: QueryTypes.SELECT,
     model: models.Transaction,
     mapToModel: true,
   });

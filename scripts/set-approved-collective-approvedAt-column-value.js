@@ -1,5 +1,7 @@
 import '../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import { sequelize } from '../server/models';
 
 /**
@@ -13,7 +15,7 @@ async function run() {
       WHERE "Collectives"."isActive" IS TRUE
       AND "Collectives"."approvedAt" = '2019-08-06'
   `,
-    { type: sequelize.QueryTypes.SELECT },
+    { type: QueryTypes.SELECT },
   );
 
   for (const collective of collectives) {
@@ -29,7 +31,7 @@ async function run() {
           collectiveId: collective.id,
           MemberCollectiveId: collective.HostCollectiveId,
         },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     );
 
@@ -51,12 +53,14 @@ async function run() {
   }
 }
 
-run()
-  .then(() => {
-    console.log('>>> Completed!');
-    process.exit();
-  })
-  .catch(err => {
-    console.error(err);
-    process.exit();
-  });
+if (require.main === module) {
+  run()
+    .then(() => {
+      console.log('>>> Completed!');
+      process.exit();
+    })
+    .catch(err => {
+      console.error(err);
+      process.exit();
+    });
+}

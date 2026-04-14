@@ -1,6 +1,7 @@
 import sequelize, { Op } from '../lib/sequelize';
 
 import AccountingCategory from './AccountingCategory';
+import { AccountingCategoryRule } from './AccountingCategoryRule';
 import Activity from './Activity';
 import Agreement from './Agreement';
 import Application from './Application';
@@ -14,9 +15,12 @@ import EmojiReaction from './EmojiReaction';
 import Expense from './Expense';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
+import ExportRequest from './ExportRequest';
 import HostApplication from './HostApplication';
+import { KYCVerification } from './KYCVerification';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
+import ManualPaymentProvider from './ManualPaymentProvider';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
@@ -65,9 +69,11 @@ const models = {
   Expense,
   ExpenseAttachedFile,
   ExpenseItem,
+  ExportRequest,
   HostApplication,
   LegalDocument,
   Location,
+  ManualPaymentProvider,
   Member,
   MemberInvitation,
   MigrationLog,
@@ -95,8 +101,10 @@ const models = {
   UserToken,
   UserTwoFactorMethod,
   PlatformSubscription,
+  KYCVerification,
   VirtualCard,
   VirtualCardRequest,
+  AccountingCategoryRule,
 } as const;
 
 /**
@@ -143,6 +151,7 @@ Collective.hasMany(Collective, { foreignKey: 'ParentCollectiveId', as: 'children
 Collective.hasMany(ConnectedAccount);
 Collective.hasMany(Expense, { foreignKey: 'CollectiveId', as: 'expenses' });
 Collective.hasMany(Expense, { foreignKey: 'FromCollectiveId', as: 'submittedExpenses' });
+Collective.hasMany(ExportRequest, { foreignKey: 'CollectiveId', as: 'exportRequests' });
 Collective.hasMany(HostApplication, { foreignKey: 'CollectiveId', as: 'hostApplications' });
 Collective.hasMany(LegalDocument);
 Collective.hasMany(LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
@@ -187,6 +196,11 @@ ConversationFollower.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 EmojiReaction.belongsTo(Comment);
 EmojiReaction.belongsTo(User);
 
+// ExportRequests
+ExportRequest.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+ExportRequest.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+ExportRequest.belongsTo(UploadedFile, { foreignKey: 'UploadedFileId', as: 'uploadedFile' });
+
 // Expense
 Expense.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
 Expense.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
@@ -220,6 +234,11 @@ LegalDocument.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collectiv
 // Location
 Location.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 
+// ManualPaymentProvider
+ManualPaymentProvider.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+ManualPaymentProvider.hasMany(Order, { foreignKey: 'ManualPaymentProviderId', as: 'orders' });
+Collective.hasMany(ManualPaymentProvider, { foreignKey: 'CollectiveId', as: 'manualPaymentProviders' });
+
 // Members
 Member.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Member.belongsTo(Collective, { foreignKey: 'MemberCollectiveId', as: 'memberCollective' });
@@ -244,6 +263,7 @@ OAuthAuthorizationCode.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 Order.belongsTo(AccountingCategory, { as: 'accountingCategory', foreignKey: 'AccountingCategoryId' });
 Order.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 Order.belongsTo(Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
+Order.belongsTo(ManualPaymentProvider, { foreignKey: 'ManualPaymentProviderId', as: 'manualPaymentProvider' });
 Order.belongsTo(PaymentMethod, { foreignKey: 'PaymentMethodId', as: 'paymentMethod' });
 Order.belongsTo(Subscription); // adds SubscriptionId to the Orders table
 Order.belongsTo(Tier);
@@ -322,6 +342,7 @@ UploadedFile.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'user' });
 User.belongsTo(Collective, { as: 'collective', foreignKey: 'CollectiveId', constraints: false });
 User.hasMany(Activity);
 User.hasMany(ConnectedAccount, { foreignKey: 'CreatedByUserId' });
+User.hasMany(ExportRequest, { foreignKey: 'CreatedByUserId', as: 'exportRequests' });
 User.hasMany(Member, { foreignKey: 'CreatedByUserId' });
 User.hasMany(Notification);
 User.hasMany(Order, { foreignKey: 'CreatedByUserId', as: 'orders' });
@@ -331,7 +352,7 @@ User.hasMany(UserToken, { foreignKey: 'UserId' });
 User.hasMany(UserTwoFactorMethod);
 
 // UserToken
-UserToken.belongsTo(Application, { foreignKey: 'ApplicationId', as: 'client' });
+UserToken.belongsTo(Application, { foreignKey: 'ApplicationId', as: 'application' });
 UserToken.belongsTo(User, { foreignKey: 'UserId', as: 'user' });
 
 // UserTwoFactorMethod
@@ -353,6 +374,19 @@ VirtualCardRequest.belongsTo(VirtualCard, { foreignKey: 'VirtualCardId', as: 'vi
 // PlatformSubscription
 PlatformSubscription.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 
+// KYCVerification
+KYCVerification.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+KYCVerification.belongsTo(Collective, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
+
+// AccountingCategoryRule
+AccountingCategoryRule.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+AccountingCategoryRule.belongsTo(AccountingCategory, {
+  foreignKey: 'AccountingCategoryId',
+  as: 'accountingCategory',
+});
+
+Collective.hasMany(KYCVerification, { foreignKey: 'CollectiveId', as: 'kycVerifications' });
+Collective.hasMany(KYCVerification, { foreignKey: 'RequestedByCollectiveId', as: 'requestedByCollective' });
 export default models;
 
 export { sequelize, Op };
@@ -375,12 +409,14 @@ export {
   ConversationFollower,
   CurrencyExchangeRate,
   EmojiReaction,
+  ExportRequest as ExportRequests,
   Expense,
   ExpenseAttachedFile,
   ExpenseItem,
   HostApplication,
   LegalDocument,
   Location,
+  ManualPaymentProvider,
   Member,
   MemberInvitation,
   MigrationLog,

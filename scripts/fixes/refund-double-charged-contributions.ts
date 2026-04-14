@@ -7,6 +7,8 @@
 
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import { RefundKind } from '../../server/constants/refund-kind';
 import logger from '../../server/lib/logger';
 import { refundTransaction } from '../../server/lib/payments';
@@ -31,7 +33,7 @@ const main = async () => {
     ORDER BY o.id
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Order,
       mapToModel: true,
     },
@@ -75,9 +77,11 @@ const main = async () => {
   }
 };
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

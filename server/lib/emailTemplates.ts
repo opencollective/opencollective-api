@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { idEncode } from '../graphql/v2/identifiers';
+import config from 'config';
 
 import handlebars from './handlebars';
 
@@ -53,12 +53,12 @@ export const templateNames = [
   'collective.virtualcard.deleted',
   'collective.virtualcard.request.approved',
   'collective.virtualcard.request.rejected',
-  'confirm-guest-account',
   'event.reminder.1d',
   'event.reminder.7d',
   'expense-accounting-category-educational',
   'host.application.contact',
   'host.application.comment.created',
+  'host.application.comment.created.host',
   'member.invitation',
   'oauth.application.authorized',
   'onboarding.day2',
@@ -88,6 +88,8 @@ export const templateNames = [
   'platform.billing.overdue.reminder',
   'platform.billing.additional.charges.notification',
   'platform.billing.payment.confirmation',
+  'export.request.completed',
+  'export.request.failed',
   'report.platform',
   'report.platform.weekly',
   'subscription.canceled',
@@ -108,9 +110,10 @@ export const templateNames = [
   'user.resetPassword',
   'user.yearlyreport',
   'user.otp.requested',
-  'activated.collective.as.host',
-  'activated.collective.as.independent',
-  'deactivated.collective.as.host',
+  'activated.moneyManagement',
+  'deactivated.moneyManagement',
+  'activated.hosting',
+  'deactivated.hosting',
   'contribution.rejected',
   'virtualcard.charge.declined',
   'virtualcard.requested',
@@ -138,6 +141,7 @@ const eventdata = fs.readFileSync(`${templatesPath}/partials/eventdata.hbs`, 'ut
 const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
 const linkCollective = fs.readFileSync(`${templatesPath}/partials/link-collective.hbs`, 'utf8');
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
+const erratumBox = fs.readFileSync(`${templatesPath}/partials/erratum-box.hbs`, 'utf8');
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
 const mthReportSubscription = fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
 const planDetails = fs.readFileSync(`${templatesPath}/partials/plan-details.hbs`, 'utf8');
@@ -154,12 +158,27 @@ handlebars.registerPartial('eventsnippet', eventsnippet);
 handlebars.registerPartial('expenseItems', expenseItems);
 handlebars.registerPartial('eventdata', eventdata);
 handlebars.registerPartial('charge_date_notice', chargeDateNotice);
+handlebars.registerPartial('erratum-box', erratumBox);
 handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
 handlebars.registerPartial('plan-details', planDetails);
 handlebars.registerPartial('subscription-details', subscriptionDetails);
-handlebars.registerHelper('idEncode', (id, type) => {
-  return idEncode(id, type);
+
+handlebars.registerHelper('concat', (...args) => {
+  args.pop();
+  return args.join('');
+});
+
+// Generates a permalink if the first argument contains a publicId, otherwise returns the fallbackURL
+handlebars.registerHelper('permalink', ({ publicId } = {}, fallbackURL) => {
+  if (publicId) {
+    return `${config.host.website}/permalink/${publicId}`;
+  }
+
+  if (typeof fallbackURL !== 'string' || fallbackURL === '') {
+    throw new Error('no publicId set, fallbackURL is required');
+  }
+  return fallbackURL;
 });
 
 export const isValidTemplate = (template: string): template is EmailTemplates => {

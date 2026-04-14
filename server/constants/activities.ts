@@ -19,7 +19,10 @@ enum ActivityTypes {
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
+  COLLECTIVE_BALANCE_TRANSFERRED = 'collective.balance.transferred',
+  COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
+  ORGANIZATION_CONVERTED_TO_COLLECTIVE = 'organization.convertedToCollective',
   // Freezing collectives
   COLLECTIVE_FROZEN = 'collective.frozen',
   COLLECTIVE_UNFROZEN = 'collective.unfrozen',
@@ -52,6 +55,10 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_INVITE_DECLINED = 'collective.expense.invite.declined',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',
   COLLECTIVE_EXPENSE_MISSING_RECEIPT = 'collective.expense.missing.receipt',
+  COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED = 'collective.expense.kyc.payoutMethod.changed',
+  COLLECTIVE_EXPENSE_KYC_REQUESTED = 'collective.expense.kyc.requested',
+  COLLECTIVE_EXPENSE_KYC_VERIFIED = 'collective.expense.kyc.verified',
+  COLLECTIVE_EXPENSE_KYC_REVOKED = 'collective.expense.kyc.revoked',
   TAXFORM_REQUEST = 'taxform.request',
   TAXFORM_RECEIVED = 'taxform.received',
   TAXFORM_INVALIDATED = 'taxform.invalidated',
@@ -80,6 +87,9 @@ enum ActivityTypes {
   // Transactions imports
   TRANSACTIONS_IMPORT_CREATED = 'transactions.import.created',
   TRANSACTIONS_IMPORT_ROW_UPDATED = 'transactions.import.updated',
+  // Export requests
+  EXPORT_REQUEST_COMPLETED = 'export.request.completed',
+  EXPORT_REQUEST_FAILED = 'export.request.failed',
   // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',
@@ -112,6 +122,12 @@ enum ActivityTypes {
   VENDOR_CREATED = 'vendor.created',
   VENDOR_EDITED = 'vendor.edited',
   VENDOR_DELETED = 'vendor.deleted',
+
+  // Manual payment providers
+  MANUAL_PAYMENT_PROVIDER_CREATED = 'manual_payment_provider.created',
+  MANUAL_PAYMENT_PROVIDER_UPDATED = 'manual_payment_provider.updated',
+  MANUAL_PAYMENT_PROVIDER_DELETED = 'manual_payment_provider.deleted',
+  MANUAL_PAYMENT_PROVIDER_ARCHIVED = 'manual_payment_provider.archived',
 
   // PENDING CONTRIBUTIONS
   ORDER_PENDING_CREATED = 'order.pending.created',
@@ -146,12 +162,17 @@ enum ActivityTypes {
   // Reports
   COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
   // Host
-  ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
-  ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
-  DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
+  ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host', // deprecated
+  ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent', // deprecated
+  DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host', // deprecated
+  // Money Management
+  ACTIVATED_MONEY_MANAGEMENT = 'activated.moneyManagement',
+  DEACTIVATED_MONEY_MANAGEMENT = 'deactivated.moneyManagement',
+  // Hosting
+  ACTIVATED_HOSTING = 'activated.hosting',
+  DEACTIVATED_HOSTING = 'deactivated.hosting',
 
   // Agreements
-
   AGREEMENT_CREATED = 'agreement.created',
   AGREEMENT_EDITED = 'agreement.edited',
   AGREEMENT_DELETED = 'agreement.deleted',
@@ -171,6 +192,10 @@ enum ActivityTypes {
   COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
   ORDER_PENDING_CRYPTO = 'order.pending.crypto',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
+
+  KYC_REQUESTED = 'kyc.requested',
+  KYC_REVOKED = 'kyc.revoked',
+  KYC_VERIFIED = 'kyc.verified',
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
@@ -189,11 +214,12 @@ export const TransactionalActivities = [
   ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
   ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
   ActivityTypes.HOST_APPLICATION_CONTACT,
-  ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
   ActivityTypes.OAUTH_APPLICATION_AUTHORIZED,
   ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
   ActivityTypes.PLATFORM_BILLING_OVERDUE_REMINDER,
   ActivityTypes.PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION,
+  ActivityTypes.EXPORT_REQUEST_COMPLETED,
+  ActivityTypes.EXPORT_REQUEST_FAILED,
 ];
 
 export enum ActivityClasses {
@@ -224,9 +250,13 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_UNFROZEN,
     ActivityTypes.COLLECTIVE_UNHOSTED,
     ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
-    ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST,
-    ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST,
-    ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
+    ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST, // deprecated
+    ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST, // deprecated
+    ActivityTypes.ACTIVATED_MONEY_MANAGEMENT,
+    ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT,
+    ActivityTypes.ACTIVATED_HOSTING,
+    ActivityTypes.DEACTIVATED_HOSTING,
+    ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT, // deprecated
     ActivityTypes.COLLECTIVE_TRANSACTION_CREATED, // TODO: Should not be here. See https://github.com/opencollective/opencollective/issues/5903
     ActivityTypes.COLLECTIVE_EDITED,
     ActivityTypes.COLLECTIVE_DELETED,
@@ -252,6 +282,10 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.EXPENSE_COMMENT_CREATED,
     ActivityTypes.TAXFORM_REQUEST,
     ActivityTypes.TAXFORM_RECEIVED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_REQUESTED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_VERIFIED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_REVOKED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED,
   ],
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,

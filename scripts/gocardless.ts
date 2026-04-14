@@ -85,6 +85,20 @@ program
   });
 
 program
+  .command('get-institution')
+  .argument('<institutionId>', 'GoCardless Institution ID')
+  .description('Get a GoCardless institution by ID')
+  .action(async institutionId => {
+    const client = getGoCardlessClient();
+    await getOrRefreshGoCardlessToken(client);
+    const institution = await client.institution.getInstitutionById(institutionId);
+    if (!institution) {
+      throw new Error(`Institution with ID ${institutionId} not found`);
+    }
+    console.log(JSON.stringify(institution, null, 2));
+  });
+
+program
   .command('refresh-requisition')
   .argument('<connectedAccountId>', 'GoCardless Connected account ID to refresh')
   .description('Refresh GoCardless requisition data and accounts')

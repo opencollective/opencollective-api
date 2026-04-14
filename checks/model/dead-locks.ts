@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { flatten, uniq } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
@@ -10,7 +11,7 @@ import { runAllChecksThenExit } from './_utils';
 async function checkTransactionsImports({ fix = false } = {}) {
   const message = 'No deadlocks found in TransactionsImports';
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<{ id: number }>(
     `
       SELECT id
       FROM "TransactionsImports"
@@ -18,7 +19,7 @@ async function checkTransactionsImports({ fix = false } = {}) {
       AND "data"->>'lockedAt' IS NOT NULL
       AND ("data"->>'lockedAt')::timestamptz < NOW() - INTERVAL '24 hour'
     `,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.length > 0) {

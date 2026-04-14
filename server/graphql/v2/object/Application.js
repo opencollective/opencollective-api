@@ -1,9 +1,10 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLApplicationType } from '../enum';
-import { idEncode } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLOAuthAuthorization } from '../object/OAuthAuthorization';
 import URL from '../scalar/URL';
@@ -14,12 +15,21 @@ export const GraphQLApplication = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve(order) {
-        return idEncode(order.id, 'order');
+      resolve(application) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Application, application.createdAt)) {
+          return application.publicId;
+        } else {
+          return idEncode(application.id, IDENTIFIER_TYPES.APPLICATION);
+        }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.Application}_xxxxxxxx)`,
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
+      deprecationReason: '2026-02-25: use publicId',
       resolve(order) {
         return order.id;
       },
@@ -93,7 +103,7 @@ export const GraphQLApplication = new GraphQLObjectType({
           return {
             id: userToken.id,
             account: req.remoteUser.collective,
-            application: userToken.client,
+            application: userToken.application,
             expiresAt: userToken.accessTokenExpiresAt,
             createdAt: userToken.createdAt,
             updatedAt: userToken.updatedAt,

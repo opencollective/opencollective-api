@@ -65,7 +65,7 @@ async function createFund(_, args, req) {
     host = await fetchAccountWithReference(args.host, { loaders: req.loaders });
     if (!host) {
       throw new ValidationFailed('Host Not Found');
-    } else if (!host.isHostAccount) {
+    } else if (!host.hasMoneyManagement) {
       throw new ValidationFailed('Host account is not activated as Host.');
     }
 

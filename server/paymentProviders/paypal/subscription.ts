@@ -71,11 +71,12 @@ export const cancelPaypalSubscription = async (
   }
 };
 
-export const createPaypalPaymentMethodForSubscription = (
+const createPaypalPaymentMethodForSubscription = async (
   order: Order,
   user: User,
   paypalSubscriptionId: string,
 ): Promise<PaymentMethod> => {
+  const hostCollective = await order.collective.getHostCollective();
   return models.PaymentMethod.create({
     service: PAYMENT_METHOD_SERVICE.PAYPAL,
     type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
@@ -84,6 +85,9 @@ export const createPaypalPaymentMethodForSubscription = (
     currency: order.currency,
     saved: false,
     token: paypalSubscriptionId,
+    data: {
+      HostCollectiveId: hostCollective?.id,
+    },
   });
 };
 
@@ -301,7 +305,31 @@ export const setupPaypalSubscriptionForOrder = async (order: Order, paymentMetho
     throw error;
   }
 
+  // We don't await as this doesn't block the order from being activated
+  setPaypalSubscriptionOrderId(hostCollective, paypalSubscriptionId, order);
+
   return order;
+};
+
+export const setPaypalSubscriptionOrderId = async (
+  hostCollective: Collective,
+  paypalSubscriptionId: string,
+  order: Order,
+) => {
+  // Set custom_id so our order reference appears on the PayPal dashboard
+  const customId = `Contribution #${order.id}`;
+  const customIdMaxLength = 127; // PayPal custom_id limit
+  try {
+    await paypalRequest(
+      `billing/subscriptions/${paypalSubscriptionId}`,
+      [{ op: 'replace', path: '/custom_id', value: customId.slice(0, customIdMaxLength) }],
+      hostCollective,
+      'PATCH',
+      { shouldReportErrors: false },
+    );
+  } catch (e) {
+    reportErrorToSentry(e, { extra: { paypalSubscriptionId, customId } });
+  }
 };
 
 export const updateSubscriptionWithPaypal = async (

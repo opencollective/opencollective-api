@@ -20,7 +20,7 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
       longDescription: { type: 'text' },
       website: { type: 'keyword' },
       isActive: { type: 'boolean' },
-      isHostAccount: { type: 'boolean' },
+      hasMoneyManagement: { type: 'boolean' },
       deactivatedAt: { type: 'date' },
       tags: { type: 'keyword' },
       // Relationships
@@ -38,7 +38,7 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
     // Ignored fields
     HostCollectiveId: 0,
     ParentCollectiveId: 0,
-    isHostAccount: 0,
+    hasMoneyManagement: 0,
     isActive: 0,
     createdAt: 0,
     updatedAt: 0,
@@ -91,7 +91,7 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
       longDescription: stripHTMLOrEmpty(instance.longDescription),
       website: instance.website,
       isActive: instance.isActive,
-      isHostAccount: instance.isHostAccount,
+      hasMoneyManagement: instance.hasMoneyManagement,
       deactivatedAt: instance.deactivatedAt,
       HostCollectiveId: !instance.isActive ? null : instance.HostCollectiveId,
       ParentCollectiveId: instance.ParentCollectiveId,

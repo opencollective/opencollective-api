@@ -16,6 +16,7 @@ const getProgram = argv => {
   program.option('--onlyInDatabase', 'Only refund the transaction in the database, do not call the payment provider');
   program.option('--as <userSlug>', 'User triggering the refund');
   program.option('-r --reason <reason>', 'Reason for the refund', 'Refund transaction');
+  program.option('-i --ignoreBalanceCheck', 'Ignore balance check');
   program.parse(argv);
   return program;
 };
@@ -61,9 +62,11 @@ const main = async () => {
   }
 };
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

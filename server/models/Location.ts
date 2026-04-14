@@ -11,6 +11,8 @@ type GeoLocationLatLong = {
 };
 
 class Location extends Model<InferAttributes<Location>, InferCreationAttributes<Location>> {
+  public static readonly tableName = 'Locations' as const;
+
   declare id: CreationOptional<number>;
 
   declare name: CreationOptional<string>;
@@ -76,7 +78,7 @@ Location.init(
       allowNull: true,
     },
     address: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     lat: {

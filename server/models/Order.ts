@@ -19,7 +19,6 @@ import {
   HasManySetAssociationsMixin,
   InferAttributes,
   InferCreationAttributes,
-  Model,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -27,12 +26,12 @@ import { roles } from '../constants';
 import ActivityTypes from '../constants/activities';
 import { SupportedCurrency } from '../constants/currencies';
 import OrderStatus from '../constants/order-status';
-import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionTypes } from '../constants/transactions';
 import { executeOrder } from '../lib/payments';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
@@ -44,6 +43,7 @@ import Collective from './Collective';
 import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PaymentMethod from './PaymentMethod';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -63,8 +63,24 @@ export type OrderTax = {
   taxIDNumberFrom?: string;
 };
 
-class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
-  declare id: CreationOptional<number>;
+type OrderDataValuesRoleDetails = {
+  accountingCategory?: AccountingCategory['publicInfo'];
+};
+
+type OrderDataValuesByRole = {
+  hostAdmin?: OrderDataValuesRoleDetails;
+  accountingRules?: OrderDataValuesRoleDetails;
+};
+
+class Order extends ModelWithPublicId<
+  EntityShortIdPrefix.Order,
+  InferAttributes<Order>,
+  InferCreationAttributes<Order>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Order;
+  public static readonly tableName = 'Orders' as const;
+
+  declare public readonly id: CreationOptional<number>;
   declare CreatedByUserId: ForeignKey<User['id']>;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare currency: SupportedCurrency;
@@ -97,8 +113,10 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     paypalStatusChangeNote?: string;
     savePaymentMethod?: boolean;
     isBalanceTransfer?: boolean;
+    isRootBalanceTransfer?: boolean;
     isGuest?: boolean;
     isPendingContribution?: boolean;
+    isManualContribution?: boolean;
     closedReason?: string;
     taxRemovedFromMigration?: OrderTax;
     taxAmountRemovedFromMigration?: number;
@@ -116,6 +134,8 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     platformTip?: number;
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
     reqIp?: string;
+    lockedAt?: Date;
+    valuesByRole?: OrderDataValuesByRole;
   };
 
   declare taxAmount?: number;
@@ -124,6 +144,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
   declare platformTipAmount: number;
   declare platformTipEligible: boolean;
   declare AccountingCategoryId?: number;
+  declare ManualPaymentProviderId?: number;
 
   // Order belongsTo AccountingCategory via AccountingCategory['id']
   declare accountingCategory?: AccountingCategory;
@@ -231,7 +252,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
    * @param options.retries - Number of retries before giving up (default: 0)
    * @param options.retryDelay - Interval between retries in milliseconds (default: 500)
    */
-  declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<T>;
+  declare lock: <T>(callback: () => T, options?: { retries?: number; retryDelay?: number }) => Promise<void>;
   declare isLocked: () => boolean;
   declare createProcessedActivity: ({
     user,
@@ -329,38 +350,11 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     );
   }
 
-  /**
-   * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
-   */
-  static cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]> {
-    return sequelize.query(
-      `
-        UPDATE public."Orders"
-        SET
-          status = 'CANCELLED',
-          "updatedAt" = NOW()
-        WHERE id IN (
-          SELECT "Orders".id FROM public."Orders"
-          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
-          WHERE
-            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
-            "Subscriptions"."isManagedExternally" AND
-            "Subscriptions"."isActive" AND
-            "Orders"."CollectiveId" = ?
-        )
-      `,
-      {
-        type: QueryTypes.UPDATE,
-        replacements: [collectiveId],
-      },
-    );
-  }
-
   static countActiveRecurringForPaymentService(
     paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
   ) {
     return models.Order.count({
-      where: { status: { [Op.or]: [OrderStatuses.ACTIVE, OrderStatuses.ERROR] } },
+      where: { status: { [Op.or]: [OrderStatus.ACTIVE, OrderStatus.ERROR] } },
       include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
     });
   }
@@ -526,6 +520,11 @@ Order.init(
       autoIncrement: true,
     },
 
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
+
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
@@ -644,6 +643,14 @@ Order.init(
       allowNull: true,
     },
 
+    ManualPaymentProviderId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'ManualPaymentProviders' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
     PaymentMethodId: {
       type: DataTypes.INTEGER,
       references: {
@@ -700,6 +707,7 @@ Order.init(
       info() {
         return {
           id: this.id,
+          publicId: this.publicId,
           type: get(this, 'collective.type') === 'EVENT' ? 'registration' : 'donation',
           CreatedByUserId: this.CreatedByUserId,
           TierId: this.TierId,
@@ -941,13 +949,10 @@ Order.prototype.getSubscriptionForUser = function (user) {
   });
 };
 
-Order.prototype.lock = async function (
-  callback,
-  { retries = 0, retryDelay = 500 } = {},
-): Promise<ReturnType<typeof callback>> {
+Order.prototype.lock = async function (callback, { retries = 0, retryDelay = 500 } = {}): Promise<void> {
   // Reload the order and mark it as locked
   const success = await sequelize.transaction(async sqlTransaction => {
-    const orderToLock = await models.Order.findByPk(this.id, { transaction: sqlTransaction, lock: true });
+    const orderToLock = await Order.findByPk(this.id, { transaction: sqlTransaction, lock: true });
     if (!orderToLock) {
       throw new Error('Order not found'); // Not supposed to happen, just in case we try to lock a deleted order
     } else if (orderToLock.isLocked()) {
@@ -974,7 +979,6 @@ Order.prototype.lock = async function (
   // Call the callback
   try {
     await callback();
-    return success;
   } finally {
     // Unlock order
     await sequelize.query(`UPDATE "Orders" SET data = data - 'lockedAt' WHERE id = :orderId`, {

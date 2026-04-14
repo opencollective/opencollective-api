@@ -207,6 +207,39 @@ export interface DetailSchema {
   additionalAccountData?: AdditionalAccountDataSchema;
 }
 
+/**
+ * @example {
+    "id": "COOPERATIVE_CPBKGB22",
+    "name": "The Co-Operative Bank Business",
+    "bic": "CPBKGB22",
+    "transaction_total_days": "730",
+    "countries": [
+      "GB"
+    ],
+    "logo": "https://cdn-logos.gocardless.com/ais/COOPERATIVE_CPBKGB22.png",
+    "max_access_valid_for_days": "90",
+    "max_access_valid_for_days_reconfirmation": "730",
+    "supported_features": [
+      "business_accounts",
+      "reconfirmation_of_consent",
+      "submit_payment"
+    ],
+    "identification_codes": []
+  }
+ */
+export interface Institution {
+  id: string;
+  name: string;
+  bic: string;
+  logo: string;
+  max_access_valid_for_days: string;
+  max_access_valid_for_days_reconfirmation: string;
+  transaction_total_days: string;
+  supported_features: string[];
+  identification_codes: string[];
+  countries: string[];
+}
+
 /** Represents an end-user agreement. */
 // ts-unused-exports:disable-next-line
 export interface EndUserAgreement {

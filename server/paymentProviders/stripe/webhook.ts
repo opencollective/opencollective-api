@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { Request } from 'express';
 import { get, omit } from 'lodash';
 import moment from 'moment';
-import { Transaction } from 'sequelize';
+import { QueryTypes, Transaction } from 'sequelize';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -17,6 +17,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } fro
 import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { applyContributionAccountingCategoryRules } from '../../lib/accounting/categorization/contribution-rules';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import {
@@ -236,22 +237,26 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
   const transaction = await createChargeTransactions(charge, { order });
-  const sideEffects: Promise<unknown>[] = [
-    order.update({
-      status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
-      processedAt: new Date(),
-      data: {
-        ...omit(order.data, 'paymentIntent'),
-        previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
-      },
-    }),
-    order.getOrCreateMembers(),
+  const sideEffects: (() => Promise<unknown>)[] = [
+    () =>
+      order.update({
+        status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
+        processedAt: new Date(),
+        data: {
+          ...omit(order.data, 'paymentIntent'),
+          previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+        },
+      }),
+    () => order.getOrCreateMembers(),
   ];
 
   // after successful first payment of a recurring subscription where the payment confirmation is async
   // and the subscription is managed by us.
   if (order.interval && !order.SubscriptionId) {
-    sideEffects.push(createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }));
+    sideEffects.push(() =>
+      createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }),
+    );
+    sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
     order.Subscription = subscription;
@@ -267,10 +272,16 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
         nextChargeDate,
       }),
     );
+  } else {
+    sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   }
 
   sendEmailNotifications(order, transaction, { firstPayment: order.interval && !order.SubscriptionId });
-  await Promise.all(sideEffects);
+
+  await sideEffects.reduce(async (promise, effect) => {
+    await promise;
+    return effect();
+  }, Promise.resolve());
 };
 
 async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
@@ -282,7 +293,7 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     charge = await stripe.charges.retrieve(charge, { expand: ['balance_transaction'] }, { stripeAccount });
   }
 
-  const [expense, shouldMarkPaid] = await sequelize.transaction(async transaction => {
+  const [expense, shouldMarkPaid, paidAt] = await sequelize.transaction(async transaction => {
     const expense = await models.Expense.findOne({
       lock: transaction.LOCK.UPDATE,
       transaction,
@@ -344,16 +355,18 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
       sequelizeTransaction: transaction,
     });
 
-    return [expense, true];
+    const paidAtField = balanceTransaction?.available_on || (charge as Stripe.Charge).created;
+    const paidAt = paidAtField ? moment.unix(paidAtField).toDate() : new Date();
+    return [expense, true, paidAt];
   });
 
   if (shouldMarkPaid) {
-    await expense.markAsPaid();
+    await expense.markAsPaid({ paidAt });
   }
 }
 
 async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise<'ORDER' | 'EXPENSE'> {
-  const result = await sequelize.query(
+  const result = await sequelize.query<{ target: 'ORDER' | 'EXPENSE' }>(
     `
     (
       SELECT 'ORDER' as "target"
@@ -368,11 +381,9 @@ async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise
     )
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       raw: true,
-      replacements: {
-        paymentIntentId: paymentIntent.id,
-      },
+      replacements: { paymentIntentId: paymentIntent.id },
     },
   );
 

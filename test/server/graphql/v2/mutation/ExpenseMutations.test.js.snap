@@ -32,6 +32,16 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-cu
 | DEBIT  | PAYMENT_PROCESSOR_FEE | -100   | -100                          | 0          | USD      | USD          | 1                  | Babel                   | Other Payment Processor | OSC       | false    |"
 `;
 
+exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Records payment processor fee when provided without forceManual 1`] = `
+"
+| type   | kind                  | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To                      | From                    | Host | isRefund |
+| ------ | --------------------- | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----------------------- | ----------------------- | ---- | -------- |
+| CREDIT | EXPENSE               | 49000  | 49000                         | 0          | USD      | USD          | 1                  | Heroku                  | Babel                   | OSC  | false    |
+| DEBIT  | EXPENSE               | -49000 | -49000                        | 0          | USD      | USD          | 1                  | Babel                   | Heroku                  | OSC  | false    |
+| CREDIT | PAYMENT_PROCESSOR_FEE | 1000   | 1000                          | 0          | USD      | USD          | 1                  | Other Payment Processor | Babel                   | NULL | false    |
+| DEBIT  | PAYMENT_PROCESSOR_FEE | -1000  | -1000                         | 0          | USD      | USD          | 1                  | Babel                   | Other Payment Processor | OSC  | false    |"
+`;
+
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Taxes with VAT (manual payment) 1`] = `
 "
 | type   | isRefund | To           | From         | amount   | tax   | netAmountInCollectiveCurrency | currency | amountInHostCurrency | hostCurrency | hostCurrencyFxRate |

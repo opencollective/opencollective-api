@@ -22,7 +22,7 @@ describe('scripts/accounts/convert-independent-to-host', () => {
       HostCollectiveId: collective.id,
       isActive: true,
       approvedAt: new Date(),
-      isHostAccount: true,
+      hasMoneyManagement: true,
     });
 
     // Add some admin members
@@ -52,7 +52,7 @@ describe('scripts/accounts/convert-independent-to-host', () => {
     // Verify the main collective was converted
     const updatedCollective = await collective.reload();
     expect(updatedCollective.type).to.equal(CollectiveType.ORGANIZATION);
-    expect(updatedCollective.isHostAccount).to.be.true;
+    expect(updatedCollective.hasMoneyManagement).to.be.true;
 
     // Verify projects were converted
     const updatedProject1 = await project1.reload();
@@ -83,7 +83,7 @@ describe('scripts/accounts/convert-independent-to-host', () => {
     const user = await fakeUser();
     const collective = await fakeCollective({
       type: CollectiveType.COLLECTIVE,
-      isHostAccount: false,
+      hasMoneyManagement: false,
       HostCollectiveId: null,
       CreatedByUserId: user.id,
     });
@@ -103,7 +103,7 @@ describe('scripts/accounts/convert-independent-to-host', () => {
     const updatedProject = await project.reload();
 
     expect(updatedCollective.type).to.equal(CollectiveType.COLLECTIVE);
-    expect(updatedCollective.isHostAccount).to.be.false;
+    expect(updatedCollective.hasMoneyManagement).to.be.false;
     expect(updatedProject.type).to.equal(CollectiveType.PROJECT);
     expect(updatedProject.ParentCollectiveId).to.equal(collective.id);
   });
@@ -117,7 +117,7 @@ describe('scripts/accounts/convert-independent-to-host', () => {
   it('throws an error if collective is not independent', async () => {
     const collective = await fakeCollective({
       type: CollectiveType.COLLECTIVE,
-      isHostAccount: false,
+      hasMoneyManagement: false,
     });
 
     await expect(runConvert(collective.slug, { isDryRun: false, projectsToCollectives: false })).to.be.rejectedWith(
@@ -147,7 +147,7 @@ describe('scripts/accounts/convert-independent-to-host', () => {
     const user = await fakeUser();
     const collective = await fakeCollective({
       type: CollectiveType.COLLECTIVE,
-      isHostAccount: false,
+      hasMoneyManagement: false,
       HostCollectiveId: null,
       CreatedByUserId: user.id,
     });
@@ -165,7 +165,7 @@ describe('scripts/accounts/convert-independent-to-host', () => {
     // Verify main collective was converted
     const updatedCollective = await collective.reload();
     expect(updatedCollective.type).to.equal(CollectiveType.ORGANIZATION);
-    expect(updatedCollective.isHostAccount).to.be.true;
+    expect(updatedCollective.hasMoneyManagement).to.be.true;
 
     // Verify project was not converted
     const updatedProject = await project.reload();

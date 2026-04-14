@@ -63,6 +63,7 @@ export async function processInviteMembersInput(
     throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
   }
 
+  const returnValue = [];
   for (const inviteMember of inviteMemberInputs) {
     if (!options.supportedRoles?.includes(inviteMember.role)) {
       throw new Forbidden('You can only invite accountants, admins, or members.');
@@ -72,18 +73,26 @@ export async function processInviteMembersInput(
     if (inviteMember.memberAccount) {
       memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
     } else if (inviteMember.memberInfo) {
+      const email = inviteMember.memberInfo.email.toLowerCase().trim();
+      if (!email) {
+        throw new Error('Email is required to invite a member.');
+      }
+
       let user = await models.User.findOne({
-        where: { email: inviteMember.memberInfo.email.toLowerCase() },
+        where: { email },
         transaction: options.transaction,
       });
       if (!user) {
         const userData = {
-          ...pick(inviteMember.memberInfo, ['name', 'email']),
+          email,
+          ...pick(inviteMember.memberInfo, ['name']),
           data: { requiresProfileCompletion: true },
         };
         user = await models.User.createUserWithCollective(userData, options.transaction);
       }
       memberAccount = await models.Collective.findByPk(user.CollectiveId, { transaction: options.transaction });
+    } else {
+      throw new Error('memberAccount or memberInfo is required to invite a member.');
     }
 
     const memberParams = {
@@ -91,9 +100,12 @@ export async function processInviteMembersInput(
       MemberCollectiveId: memberAccount.id,
       CreatedByUserId: options.user?.id,
     };
-    await models.MemberInvitation.invite(collective, memberParams, {
+    const invite = await models.MemberInvitation.invite(collective, memberParams, {
       transaction: options.transaction,
       skipDefaultAdmin: options.skipDefaultAdmin,
     });
+    returnValue.push(invite);
   }
+
+  return returnValue;
 }

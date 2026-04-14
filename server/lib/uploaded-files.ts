@@ -66,6 +66,12 @@ export const FileFieldsDefinition: Record<
     field: 'longDescription',
     fieldType: 'richText',
   },
+  CUSTOM_PAYMENT_METHOD_TEMPLATE: {
+    model: models.ManualPaymentProvider,
+    fieldType: 'richText',
+    field: 'instructions',
+    UserIdField: 'CreatedByUserId',
+  },
   ACCOUNT_CUSTOM_EMAIL: {
     model: models.Collective,
     field: 'settings.customEmailMessage',
@@ -74,6 +80,11 @@ export const FileFieldsDefinition: Record<
   RECEIPT_EMBEDDED_IMAGE: {
     model: models.Collective,
     field: ['settings.invoice.templates.default.embeddedImage', 'settings.invoice.templates.alternative.embeddedImage'],
+    fieldType: 'url',
+  },
+  TRANSACTIONS_CSV_EXPORT: {
+    model: models.ExportRequest,
+    field: 'data.url',
     fieldType: 'url',
   },
 };

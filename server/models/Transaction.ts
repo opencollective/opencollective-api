@@ -5,10 +5,10 @@ import debugLib from 'debug';
 import { compact, get, head, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
 import {
+  BelongsToGetAssociationMixin,
   CreationOptional,
   InferAttributes,
   InferCreationAttributes,
-  Model,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
 import Stripe from 'stripe';
@@ -26,6 +26,7 @@ import { getFxRate } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
@@ -39,6 +40,7 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order, { OrderTax } from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
@@ -82,6 +84,8 @@ export type TransactionData = {
     expenseToPayoutMethod?: number;
   };
   hasPlatformTip?: boolean;
+  isBalanceTransfer?: boolean;
+  isRootBalanceTransfer?: boolean;
   hostFeeMigration?: string;
   hostFeeSharePercent?: number;
   hostToPlatformFxRate?: number;
@@ -96,7 +100,8 @@ export type TransactionData = {
   paypalTransaction?: Partial<PaypalTransaction>;
   platformTip?: number;
   platformTipInHostCurrency?: number;
-  preMigrationData?: TransactionData;
+  preMigrationData?: Record<string, unknown>;
+  migration?: unknown;
   refund?: Stripe.Refund;
   refundedFromDoubleTransactionsScript?: boolean;
   refundReason?: string;
@@ -111,9 +116,23 @@ export type TransactionData = {
   id?: string; // Up to 2021-06-08, this field was used to store the external IDs of virtual card transactions
   token?: string; // Up to 2021-11-19, this field was used to store the external IDs of privacy.com transactions
   refundWiseEventTimestamp?: string; // This field is used to guarantee that the Wise refund event is processed only once
+  createPaymentResponse?: {
+    defaultFundingPlan: {
+      fundingAmount: {
+        amount: string;
+      };
+    };
+  };
 };
 
-class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttributes<Transaction>> {
+class Transaction extends ModelWithPublicId<
+  EntityShortIdPrefix.Transaction,
+  InferAttributes<Transaction>,
+  InferCreationAttributes<Transaction>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Transaction;
+  public static readonly tableName = 'Transactions' as const;
+
   declare id: CreationOptional<number>;
   declare type: TransactionTypes | `${TransactionTypes}`;
   declare kind: TransactionKind;
@@ -178,10 +197,16 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
 
   // Class methods
   declare getHostCollective: (options?: { loaders?: any }) => Promise<Collective>;
-  declare getCollective: () => Promise<Collective | null>;
-  declare getOrder: (options?: { paranoid?: boolean }) => Promise<Order | null>;
+  declare getCollective: BelongsToGetAssociationMixin<Collective>;
+  declare getOrder: BelongsToGetAssociationMixin<Order>;
+  declare getExpense: BelongsToGetAssociationMixin<Expense>;
   declare hasPlatformTip: () => boolean;
-  declare getRelatedTransaction: (options: { type?: string; kind?: string; isDebt?: boolean }) => Promise<Transaction>;
+  declare getRelatedTransaction: (options: {
+    type?: string | string[];
+    kind?: string | string[];
+    isDebt?: boolean;
+  }) => Promise<Transaction>;
+
   declare getRelatedTransactions: (options: {
     type?: string;
     kind?: string;
@@ -512,7 +537,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
         const collective = await Collective.findByPk(transaction.CollectiveId);
         const collectiveHost = await collective.getHostCollective();
         if (collectiveHost.id !== fromCollectiveHost.id) {
-          const hostFeePercent = fromCollective.isHostAccount ? 0 : fromCollective.hostFeePercent;
+          const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
           const taxAmountInHostCurrency = Math.round((transaction.taxAmount || 0) * hostCurrencyFxRate);
           oppositeTransaction.hostFeeInHostCurrency = calcFee(
             oppositeTransaction.amountInHostCurrency +
@@ -1105,7 +1130,7 @@ class Transaction extends Model<InferAttributes<Transaction>, InferCreationAttri
     // Retrieve Host
     const collective = await Collective.findByPk(transaction.CollectiveId);
     const host = await collective.getHostCollective();
-    transaction.HostCollectiveId = collective.isHostAccount ? collective.id : host.id;
+    transaction.HostCollectiveId = collective.hasMoneyManagement ? collective.id : host.id;
     if (!transaction.HostCollectiveId) {
       throw new Error(
         `Cannot create transaction: Collective with id '${transaction.CollectiveId}' doesn't have a Host`,
@@ -1475,6 +1500,10 @@ Transaction.init(
       primaryKey: true,
       autoIncrement: true,
     },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
 
     type: DataTypes.STRING, // DEBIT or CREDIT
 
@@ -1819,8 +1848,8 @@ Transaction.prototype.getRefundTransaction = function (): Promise<Transaction | 
 Transaction.prototype.hasPlatformTip = function (): boolean {
   return Boolean(
     this.data?.hasPlatformTip &&
-      this.kind !== TransactionKind.PLATFORM_TIP &&
-      this.kind !== TransactionKind.PLATFORM_TIP_DEBT,
+    this.kind !== TransactionKind.PLATFORM_TIP &&
+    this.kind !== TransactionKind.PLATFORM_TIP_DEBT,
   );
 };
 

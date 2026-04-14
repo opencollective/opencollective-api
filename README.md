@@ -12,13 +12,13 @@ If you see a step below that could be improved (or is outdated), please update t
 
 ### Prerequisite
 
-1. Make sure you have Node.js version 20.x and NPM version 10.x.
+1. Make sure you have Node.js version 24.x and NPM version 11.x.
 
 - We recommend using [nvm](https://github.com/creationix/nvm): `nvm install && nvm use`.
 
 2. Make sure you have a PostgreSQL database available
 
-- Check the version: 14.x or newer
+- Check the version: 16.x or newer
 - More info in our [PostgreSQL Database](docs/postgres.md) documentation
 
 3. For [node-gyp](https://github.com/nodejs/node-gyp), make sure you have Python 2 available and configured as the active version.

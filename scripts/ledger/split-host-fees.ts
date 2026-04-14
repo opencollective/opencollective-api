@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { groupBy, omit, pick } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { RefundKind } from '../../server/constants/refund-kind';
 import {
@@ -11,11 +12,6 @@ import {
 import models, { Op, sequelize } from '../../server/models';
 
 const startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date('2021-06-01');
-
-if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/ledger/split-host-fees.ts migrate|rollback|check (rollbackTimestamp)');
-  process.exit(1);
-}
 
 const getTransactionsToMigrateQuery = `
   SELECT *
@@ -38,7 +34,7 @@ const BACKUP_COLUMNS = [
 const migrate = async () => {
   const transactions = await sequelize.query(getTransactionsToMigrateQuery, {
     replacements: { startDate },
-    type: sequelize.QueryTypes.SELECT,
+    type: QueryTypes.SELECT,
     model: models.Transaction,
     mapToModel: true,
   });
@@ -221,6 +217,10 @@ const check = async () => {
 };
 
 const main = async () => {
+  if (process.argv.length < 3) {
+    console.error('Usage: ./scripts/ledger/split-host-fees.ts migrate|rollback|check (rollbackTimestamp)');
+    process.exit(1);
+  }
   const command = process.argv[2];
   switch (command) {
     case 'migrate':
@@ -234,9 +234,11 @@ const main = async () => {
   }
 };
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

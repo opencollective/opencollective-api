@@ -58,7 +58,7 @@ const main = async () => {
     console.info('Will update groups:');
     console.dir(groups);
   } else {
-    console.info(meta.rowCount, 'transactions updated.');
+    console.info(meta['rowCount'], 'transactions updated.');
   }
 };
 

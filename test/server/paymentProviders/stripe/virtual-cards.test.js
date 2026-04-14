@@ -28,7 +28,7 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
     );
 
     sendMessage = sandbox.spy(emailLib, 'sendMessage');
-    host = await fakeCollective({ id: PlatformConstants.PlatformCollectiveId, isHostAccount: true });
+    host = await fakeCollective({ id: PlatformConstants.PlatformCollectiveId, hasMoneyManagement: true });
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'stripe',

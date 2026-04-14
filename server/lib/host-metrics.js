@@ -1,5 +1,6 @@
 import config from 'config';
 import { orderBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import PlatformConstants from '../constants/platform';
 import { sequelize } from '../models';
@@ -106,7 +107,7 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
         ...computeDatesAsISOStrings(startDate, endDate),
         groupTimeUnit,
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -153,7 +154,7 @@ GROUP BY t."hostCurrency"`,
         status: status,
         ...computeDatesAsISOStrings(startDate, endDate),
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -177,7 +178,7 @@ GROUP BY t1."hostCurrency"`,
         FromCollectiveIds: fromCollectiveIds,
         ...computeDatesAsISOStrings(startDate, endDate),
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -198,7 +199,7 @@ GROUP BY t1."hostCurrency"`,
         FromCollectiveIds: fromCollectiveIds,
         ...computeDatesAsISOStrings(startDate, endDate),
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -227,7 +228,7 @@ GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     {
       replacements: { CollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -247,7 +248,7 @@ GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
       {
         replacements: { HostCollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     );
   }
@@ -306,7 +307,7 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
         HostCollectiveId: host.id,
         CollectiveIds: collectiveIds,
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -355,7 +356,7 @@ GROUP BY t1."hostCurrency"`,
         CollectiveIds: collectiveIds,
         ...computeDatesAsISOStrings(startDate, endDate),
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -388,7 +389,7 @@ export async function getHostFeeShareTimeSeries(host, { startDate = null, endDat
     ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt"), COALESCE(ts."status", 'SETTLED')`,
     {
       replacements: { CollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -429,7 +430,7 @@ export async function getPendingHostFeeShare(
         status: status,
         ...computeDatesAsISOStrings(startDate, endDate),
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
     },
   );
 
@@ -459,7 +460,7 @@ export const getTransactionsTimeSeries = async (
        ORDER BY DATE_TRUNC(:timeUnit, "createdAt"),
       `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: {
         kind: Array.isArray(kind) ? kind : [kind],
         type,
@@ -495,7 +496,7 @@ export const getTransactionsTimeSeriesByKind = async (
        ORDER BY DATE_TRUNC(:timeUnit, "createdAt"), "kind"
       `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: {
         kind: Array.isArray(kind) ? kind : [kind],
         type,

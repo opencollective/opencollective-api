@@ -18,7 +18,9 @@ import { Parser } from '@json2csv/plainjs';
 import { Command } from 'commander';
 import { isEmpty, omitBy, truncate } from 'lodash';
 import markdownTable from 'markdown-table';
+import { QueryTypes } from 'sequelize';
 
+import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../server/constants/tax-form';
 import logger from '../../server/lib/logger';
 import { getFormFieldsFromHelloWorksInstance } from '../../server/lib/tax-forms/helloworks';
 import { getStandardizedDataFromOCLegalDocumentData } from '../../server/lib/tax-forms/opencollective';
@@ -64,7 +66,6 @@ const taxFormsQuery = `
         ) AS rank
       FROM "LegalDocuments"
       WHERE "deletedAt" IS NULL
-      AND year + 3 >= :year
       AND "documentType" = 'US_TAX_FORM'
     ) ld ON ld."CollectiveId" = account.id AND ld.rank = 1
     INNER JOIN "Transactions" t
@@ -84,7 +85,7 @@ const taxFormsQuery = `
     AND EXTRACT('year' FROM t."createdAt") = :year
     AND pm."type" != 'PAYPAL' AND pm."type" != 'ACCOUNT_BALANCE'
     GROUP BY account.id, d."documentType"
-    HAVING ABS(SUM(t."amountInHostCurrency")) >= 60000
+    HAVING ABS(SUM(t."amountInHostCurrency")) >= :threshold
   ) SELECT
     c.name,
     c."legalName",
@@ -106,6 +107,19 @@ const taxFormsQuery = `
   GROUP BY c.id, tax_form_status."accountId"
   ORDER BY c."name"
 `;
+
+type Recipient = {
+  name: string;
+  service: string;
+  legalName: string;
+  profileUrl: string;
+  type: string;
+  country: string;
+  adminEmails: string;
+  documentPath: string;
+  paid: number;
+  data: string;
+};
 
 /**
  * A small helper to convert the path to the format produced by https://github.com/opencollective/encrypt_dir/blob/f038ffc8d53d679f9edbd1b1131de484be99e81f/decryptDir.js
@@ -133,7 +147,8 @@ const prepareDocumentPath = (basePath: string) => {
 const parseCommandLine = () => {
   const program = new Command();
   program.showSuggestionAfterError();
-  program.arguments('<year> <hostSlugs>');
+  program.arguments('<year>');
+  program.option('--hostSlugs <hostSlugs>', 'Comma-separated list of host slugs');
   program.option('--files-dir <path>', 'Directory where the tax forms are stored');
   program.option('--output-dir <path>', 'Directory where the output files will be stored');
   program.parse();
@@ -145,18 +160,72 @@ const parseCommandLine = () => {
     );
   }
 
-  return { year: program.args[0], hostSlugs: program.args[1].split(','), options };
+  return { year: parseInt(program.args[0]), options };
 };
 
 // Setting the `fields` argument to enforce columns order
 const generateCSVFromData = data => new Parser({ header: true, fields: Object.values(TaxFormCSVColumns) }).parse(data);
 
-const generateExport = async (
+const parseCountryFromHelloWorks = (country: string | undefined) => {
+  if (!country) {
+    return '';
+  } else if (country.length === 2) {
+    return country;
+  } else {
+    // HelloWorks instances are aimed to be removed, so we only hardcode the ones we need
+    return (
+      {
+        ukraine: 'UA',
+        pakistan: 'PK',
+        nigeria: 'NG',
+        japan: 'JP',
+        india: 'IN',
+        china: 'CN',
+        netherlands: 'NL',
+        'united arab emirates': 'AE',
+        france: 'FR',
+        deutschland: 'DE',
+        australia: 'AU',
+        'united states': 'US',
+        poland: 'PL',
+        philippines: 'PH',
+        spain: 'ES',
+        'south africa': 'ZA',
+        canada: 'CA',
+        'the netherlands': 'NL',
+        russia: 'RU',
+        'sri lanka': 'LK',
+        ireland: 'IE',
+        indonesia: 'ID',
+        bangladesh: 'BD',
+        hungary: 'HU',
+        undefined: '',
+        finland: 'FI',
+        'united kingdom': 'GB',
+        portugal: 'PT',
+        denmark: 'DK',
+        'wales, united kingdom': 'GB',
+        belgium: 'BE',
+        germany: 'DE',
+        brazil: 'BR',
+        austria: 'AT',
+        italy: 'IT',
+        singapore: 'SG',
+        norway: 'NO',
+        tanzania: 'TZ',
+        kazakhstan: 'KZ',
+      }[country.toLowerCase()] || country
+    );
+  }
+};
+
+export const generateExport = async (
   hostSlug: string,
   year: number | string,
-  recipients,
-  { outputDir = null, filesDir = null },
+  recipients: Recipient[],
+  { outputDir = null, filesDir = null, initialWarnings = [] },
 ) => {
+  const warnings: string[] = [...initialWarnings];
   const preparedData: TaxFormCSVRow[] = [];
   for (const recipient of recipients) {
     const data = JSON.parse(recipient.data);
@@ -174,7 +243,7 @@ const generateExport = async (
         [TaxFormCSVColumns.TAX_ID]: formData.taxIdNumber,
         [TaxFormCSVColumns.RECIPIENT_ADDRESS_1]: formData.address1,
         [TaxFormCSVColumns.RECIPIENT_ADDRESS_2]: formData.address2,
-        [TaxFormCSVColumns.RECIPIENT_COUNTRY]: formData.country,
+        [TaxFormCSVColumns.RECIPIENT_COUNTRY]: parseCountryFromHelloWorks(formData.country),
         [TaxFormCSVColumns.RECIPIENT_EMAIL]: formData.email || recipient.adminEmails,
         [TaxFormCSVColumns.BOX_1_NONEMPLOYEE_COMPENSATION]: formatCurrency(recipient.paid, 'USD'),
         [TaxFormCSVColumns.FILE]: prepareDocumentPath(recipient.documentPath),
@@ -200,7 +269,16 @@ const generateExport = async (
         preparedData.push(baseRow);
       }
     } else {
-      console.warn(`Unknown service`, recipient);
+      const warning = `Unknown service: ${JSON.stringify(recipient)}`;
+      console.warn(warning);
+      warnings.push(warning);
+      preparedData.push({
+        [TaxFormCSVColumns.RECIPIENT_NAME]: recipient.legalName || recipient.name,
+        [TaxFormCSVColumns.ACCOUNT]: recipient.profileUrl,
+        [TaxFormCSVColumns.BOX_1_NONEMPLOYEE_COMPENSATION]: formatCurrency(recipient.paid, 'USD'),
+        [TaxFormCSVColumns.RECIPIENT_EMAIL]: recipient.adminEmails,
+        [TaxFormCSVColumns.RECIPIENT_COUNTRY]: recipient.country,
+      });
     }
   }
 
@@ -219,7 +297,9 @@ const generateExport = async (
 
     // Copy all PDFs
     if (!filesDir) {
-      console.warn('Files directory (--files-dir) not specified, the script will not copy the tax forms');
+      const warning = 'Files directory (--files-dir) not specified, the script will not copy the tax forms';
+      console.warn(warning);
+      warnings.push(warning);
     } else {
       for (const row of preparedData) {
         if (!row.File || !row.File.startsWith('US_TAX_FORM/')) {
@@ -227,22 +307,39 @@ const generateExport = async (
         }
 
         const filePath = path.join(filesDir, row.File);
-        if (fs.existsSync(filePath)) {
-          const outputFile = path.join(tmpDir, row.File);
-          const fileDir = path.dirname(outputFile);
-          if (!fs.existsSync(fileDir)) {
-            fs.mkdirSync(fileDir, { recursive: true });
-          }
+        let actualFilePath = filePath;
 
-          fs.copyFileSync(filePath, outputFile);
-        } else {
-          console.warn(`File not found: ${filePath}`);
+        // If file not found at expected path, try fallback to root folder
+        if (!fs.existsSync(filePath)) {
+          const filename = path.basename(row.File);
+          const fallbackPath = path.join(filesDir, filename);
+          if (fs.existsSync(fallbackPath)) {
+            actualFilePath = fallbackPath;
+          } else {
+            const warning = `File not found: ${filePath} (also tried fallback: ${fallbackPath})`;
+            console.warn(warning);
+            warnings.push(warning);
+            continue;
+          }
         }
+
+        const outputFile = path.join(tmpDir, row.File);
+        const fileDir = path.dirname(outputFile);
+        if (!fs.existsSync(fileDir)) {
+          fs.mkdirSync(fileDir, { recursive: true });
+        }
+
+        fs.copyFileSync(actualFilePath, outputFile);
       }
     }
 
     // Generate CSV
     fs.writeFileSync(`${tmpDir}/${hostSlug}-${year}-tax-forms.csv`, csv);
+
+    // Write warnings to file
+    if (warnings.length > 0) {
+      fs.writeFileSync(path.join(tmpDir, 'warnings.log'), `${warnings.join('\n')}\n`);
+    }
 
     console.log(`Export generated in ${tmpDir}`);
   } else {
@@ -264,7 +361,14 @@ const generateExport = async (
 };
 
 const main = async () => {
-  const { year, hostSlugs, options } = parseCommandLine();
+  const { year, options } = parseCommandLine();
+  let hostSlugs: string[] = options.hostSlugs?.split(',');
+  if (!hostSlugs) {
+    const hostsWithTaxFormSystem = await models.Collective.findAll({
+      include: [{ model: models.RequiredLegalDocument, where: { documentType: 'US_TAX_FORM' }, required: true }],
+    });
+    hostSlugs = hostsWithTaxFormSystem.map(host => host.slug);
+  }
 
   for (const hostSlug of hostSlugs) {
     logger.info(`Exporting tax forms for ${hostSlug} in ${year}`);
@@ -279,25 +383,31 @@ const main = async () => {
       throw new Error(`${hostSlug} is not connected to the tax form system`);
     }
 
-    const allRecipients = await sequelize.query(taxFormsQuery, {
-      replacements: { hostSlug, year },
-      type: sequelize.QueryTypes.SELECT,
+    const threshold = year >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
+    const allRecipients: Recipient[] = await sequelize.query(taxFormsQuery, {
+      replacements: { hostSlug, year, threshold },
+      type: QueryTypes.SELECT,
     });
 
     const pendingRecipients = allRecipients.filter(recipient => recipient['document_id'] === null);
+    const initialWarnings: string[] = [];
     if (pendingRecipients.length) {
-      logger.warn(`${pendingRecipients.length} tax forms are still pending for ${hostSlug}`);
+      const warning = `${pendingRecipients.length} tax forms are still pending for ${hostSlug}`;
+      logger.warn(warning);
+      initialWarnings.push(warning);
     }
 
     console.log(`Found ${allRecipients.length} tax forms for ${hostSlug}`);
 
-    await generateExport(hostSlug, year, allRecipients, options);
+    await generateExport(hostSlug, year, allRecipients, { ...options, initialWarnings });
   }
 };
 
-main()
-  .then(() => process.exit(0))
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

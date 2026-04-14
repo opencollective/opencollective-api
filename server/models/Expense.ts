@@ -23,10 +23,11 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymen
 import roles from '../constants/roles';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 import { Location } from '../types/Location';
@@ -46,6 +47,7 @@ import Collective from './Collective';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import LegalDocument, { LEGAL_DOCUMENT_TYPE } from './LegalDocument';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import { Billing } from './PlatformSubscription';
@@ -84,7 +86,14 @@ export enum ExpenseLockableFields {
   TYPE = 'TYPE',
 }
 
-class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Expense>> {
+class Expense extends ModelWithPublicId<
+  EntityShortIdPrefix.Expense,
+  InferAttributes<Expense>,
+  InferCreationAttributes<Expense>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Expense;
+  public static readonly tableName = 'Expenses' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public UserId: ForeignKey<User['id']>;
   declare public lastEditedById: ForeignKey<User['id']>;
@@ -142,6 +151,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare public tags: string[];
 
   declare public incurredAt: CreationOptional<Date>;
+  declare public paidAt: CreationOptional<Date>;
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
@@ -152,6 +162,8 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare public fromCollective?: Collective;
   declare public host?: Collective;
   declare public User?: User;
+  // @deprecated Some parts of the code rely on this legacy user field, populated by getSubmitterUser
+  declare public user?: User;
   declare public PayoutMethod?: PayoutMethod;
   declare public PaymentMethod?: PaymentMethod;
   declare public virtualCard?: VirtualCard;
@@ -171,6 +183,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getTransactions: HasManyGetAssociationsMixin<Transaction>;
   declare getVirtualCard: BelongsToGetAssociationMixin<VirtualCard>;
   declare getAccountingCategory: BelongsToGetAssociationMixin<AccountingCategory>;
+  declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
 
   // Association setters
   declare setPaymentMethod: BelongsToSetAssociationMixin<PaymentMethod, number>;
@@ -323,13 +336,21 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     }
   };
 
-  markAsPaid = async function ({ user = null, isManualPayout = false, skipActivity = false } = {}) {
+  markAsPaid = async function ({
+    user = null,
+    isManualPayout = false,
+    skipActivity = false,
+    paidAt = new Date() as Date,
+  } = {}) {
     const collective = this.collective || (await this.getCollective());
     const lastEditedById = user?.id || this.lastEditedById;
+
     await this.update({
       status: ExpenseStatus.PAID,
       lastEditedById,
       HostCollectiveId: collective.HostCollectiveId,
+      paidAt,
+      onHold: false,
     });
 
     // Update transactions settlement
@@ -459,6 +480,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     return {
       type: this.type,
       id: this.id,
+      publicId: this.publicId,
       UserId: this.UserId,
       CollectiveId: this.CollectiveId,
       FromCollectiveId: this.FromCollectiveId,
@@ -586,7 +608,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.gte,
           isMoment(dateFrom) ? dateFrom.toDate() : dateFrom,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
     if (dateTo) {
@@ -595,7 +617,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.lte,
           isMoment(dateTo) ? dateTo.toDate() : dateTo,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
 
@@ -654,7 +676,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.gte,
           isMoment(dateFrom) ? dateFrom.toDate() : dateFrom,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
     if (dateTo) {
@@ -663,7 +685,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           sequelize.literal(`COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")`),
           Op.lte,
           isMoment(dateTo) ? dateTo.toDate() : dateTo,
-        ),
+        ) as unknown as (typeof wheres)[number],
       );
     }
 
@@ -749,6 +771,11 @@ Expense.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     UserId: {
@@ -971,6 +998,11 @@ Expense.init(
       allowNull: false,
     },
 
+    paidAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+
     deletedAt: {
       type: DataTypes.DATE,
     },
@@ -1009,22 +1041,26 @@ Expense.init(
     paranoid: true,
     tableName: 'Expenses',
     hooks: {
-      async afterDestroy(expense: Expense) {
+      async afterDestroy(expense: Expense, options) {
         // Not considering ExpensesAttachedFiles because they don't support soft delete (they should)
         const promises = [
-          ExpenseItem.destroy({ where: { ExpenseId: expense.id } }),
-          models.Comment.destroy({ where: { ExpenseId: expense.id } }),
+          ExpenseItem.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
+          models.Comment.destroy({ where: { ExpenseId: expense.id }, transaction: options.transaction }),
           models.TransactionsImportRow.update(
             { ExpenseId: null, status: 'PENDING' },
-            { where: { ExpenseId: expense.id } },
+            { where: { ExpenseId: expense.id }, transaction: options.transaction },
           ),
         ];
 
         if (expense.RecurringExpenseId) {
-          promises.push(RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId } }));
+          promises.push(
+            RecurringExpense.destroy({ where: { id: expense.RecurringExpenseId }, transaction: options.transaction }),
+          );
         }
         if (expense.InvoiceFileId) {
-          promises.push(UploadedFile.destroy({ where: { id: expense.InvoiceFileId } }));
+          promises.push(
+            UploadedFile.destroy({ where: { id: expense.InvoiceFileId }, transaction: options.transaction }),
+          );
         }
 
         await Promise.all(promises);

@@ -135,6 +135,15 @@ const FeaturesAccess: Partial<
       CollectiveType.PROJECT,
     ],
   },
+  [FEATURE.RECEIVE_GRANTS]: {
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
+  },
   [FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]: {
     accountTypes: [
       CollectiveType.ORGANIZATION,
@@ -186,6 +195,15 @@ const FeaturesAccess: Partial<
       CollectiveType.VENDOR,
     ],
   },
+  [FEATURE.KYC]: {
+    accountTypes: [CollectiveType.ORGANIZATION],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
+    optIn: true,
+  },
+  [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
+    optIn: true,
+  },
 } as const;
 
 /**
@@ -216,18 +234,16 @@ const checkFeatureAccessParty = (
       case FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS:
         return collective.isActive;
       case FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES:
-        return collective.type === CollectiveType.COLLECTIVE && collective.isHostAccount && collective.isActive;
+        return collective.type === CollectiveType.COLLECTIVE && collective.hasMoneyManagement && collective.isActive;
       case FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS:
-        return collective.isHostAccount && collective.data?.isFirstPartyHost;
+        return collective.hasMoneyManagement && collective.data?.isFirstPartyHost;
       case FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS:
         return PlatformConstants.CurrentPlatformCollectiveIds.includes(collective.id);
       case FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS:
-        return collective.type === CollectiveType.ORGANIZATION && collective.isHostAccount;
+        return collective.type === CollectiveType.ORGANIZATION && collective.hasMoneyManagement;
       case FEATURE_ACCESS_PARTY.HOSTS:
         return (
-          collective.isHostAccount &&
-          collective.settings?.canHostAccounts !== false &&
-          collective.type === CollectiveType.ORGANIZATION
+          collective.hasMoneyManagement && collective.hasHosting && collective.type === CollectiveType.ORGANIZATION
         );
     }
   });
@@ -242,7 +258,7 @@ const loadPLatformSubscription = (collectiveId: number, loaders?: Loaders) => {
 };
 
 const loadHost = async (collective: Collective, loaders?: Loaders): Promise<Collective | null> => {
-  if (collective.isHostAccount) {
+  if (collective.hasMoneyManagement) {
     return collective;
   } else if (!collective.HostCollectiveId || !collective.isActive) {
     return null;

@@ -1,11 +1,12 @@
 import DataLoader from 'dataloader';
+import { QueryTypes } from 'sequelize';
 
 import { sequelize } from '../../models';
 
 export const generateTierAvailableQuantityLoader = () => {
   return new DataLoader(tierIds =>
     sequelize
-      .query(
+      .query<{ id: number; availableQuantity: number }>(
         `
       SELECT t.id, (t."maxQuantity" - (
         SELECT COALESCE(SUM(o.quantity), 0)
@@ -30,7 +31,7 @@ export const generateTierAvailableQuantityLoader = () => {
     `,
         {
           replacements: [tierIds],
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
         },
       )
       .then(results => {

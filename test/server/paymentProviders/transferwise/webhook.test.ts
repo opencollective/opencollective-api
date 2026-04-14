@@ -80,7 +80,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
         .resolves({ paymentOptions: [{ fee: { total: 10 }, sourceAmount: 110 }] });
     });
     beforeEach(async () => {
-      host = await fakeCollective({ isHostAccount: true });
+      host = await fakeCollective({ hasMoneyManagement: true });
       await fakeConnectedAccount({
         CollectiveId: host.id,
         service: 'transferwise',
@@ -135,6 +135,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
       await expense.reload();
       expect(expense).to.have.property('status', status.PAID);
+      expect(expense.paidAt).to.be.a('date');
+      expect(expense.paidAt.toISOString()).to.eq(new Date(event.data.occurred_at).toISOString());
       const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
       expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
       expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11000);
@@ -235,7 +237,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       getQuote = sandbox.stub(transferwiseLib, 'getQuote');
 
       await utils.seedDefaultVendors();
-      host = await fakeActiveHost({ isHostAccount: true, currency: 'USD', name: 'Fiscal Host' });
+      host = await fakeActiveHost({ hasMoneyManagement: true, currency: 'USD', name: 'Fiscal Host' });
       await fakeConnectedAccount({
         CollectiveId: host.id,
         service: 'transferwise',

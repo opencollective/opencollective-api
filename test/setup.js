@@ -2,13 +2,26 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import chaiJestSnapshot from 'chai-jest-snapshot';
 import chaiSorted from 'chai-sorted';
-import chaiSubset from 'chai-subset';
 import { mapValues } from 'lodash';
 import markdownTable from 'markdown-table';
 import Sequelize from 'sequelize';
 import sinonChai from 'sinon-chai';
 
 import { checkS3Configured, dangerouslyInitNonProductionBuckets } from '../server/lib/awsS3';
+import { getDBConf } from '../server/lib/db.js';
+
+/** Tests truncate and reset data; they must never run against a dev or shared DB. */
+const REQUIRED_TEST_DATABASE_NAME = 'opencollective_test';
+
+function assertPostgresTestDatabase() {
+  const { database } = getDBConf('database');
+  if (database !== REQUIRED_TEST_DATABASE_NAME) {
+    throw new Error(
+      `Refusing to run API tests: configured PostgreSQL database is "${database}" but must be "${REQUIRED_TEST_DATABASE_NAME}". ` +
+        'Check DATABASE_URL, PG_URL, and PG_DATABASE.',
+    );
+  }
+}
 
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {
@@ -17,33 +30,34 @@ if (!process.env.NODE_ENV) {
 
 chai.use(chaiAsPromised);
 chai.use(chaiJestSnapshot);
-chai.use(chaiSubset);
 chai.use(chaiSorted);
 chai.use(sinonChai);
 
-before(() => {
-  chaiJestSnapshot.resetSnapshotRegistry();
-});
+// ts-unused-exports:disable-next-line
+export const mochaHooks = {
+  beforeAll: async function () {
+    assertPostgresTestDatabase();
 
-beforeEach(function () {
-  chaiJestSnapshot.configureUsingMochaContext(this);
-});
+    chaiJestSnapshot.resetSnapshotRegistry();
 
-before(async () => {
-  try {
-    if (checkS3Configured()) {
-      await dangerouslyInitNonProductionBuckets();
-    } else {
-      console.warn('S3 is not configured, skipping S3 bucket initialization');
+    try {
+      if (checkS3Configured()) {
+        await dangerouslyInitNonProductionBuckets();
+      } else {
+        console.warn('S3 is not configured, skipping S3 bucket initialization');
+      }
+    } catch {
+      if (process.env.OC_ENV !== 'ci') {
+        console.warn(
+          'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start minio (see docs/s3.md).',
+        );
+      }
     }
-  } catch {
-    if (process.env.OC_ENV !== 'ci') {
-      console.warn(
-        'Unable to initialize test S3 buckets. This is expected if you are running the tests locally without touching uploaded files tests. Otherwise, start minio (see docs/s3.md).',
-      );
-    }
-  }
-});
+  },
+  beforeEach: function () {
+    chaiJestSnapshot.configureUsingMochaContext(this);
+  },
+};
 
 // Chai plugins
 const sortDeep = item => {

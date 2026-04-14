@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { flatten, min, uniq } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import MemberRoles from '../../server/constants/roles';
 import logger from '../../server/lib/logger';
@@ -12,7 +13,7 @@ import { runAllChecksThenExit } from './_utils';
 async function checkDeletedMembers({ fix = false } = {}) {
   const message = 'No non-deleted Members without a matching non-deleted Collective';
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<{ count: number }>(
     `SELECT COUNT(*) as count
      FROM "Members" m
      LEFT JOIN "Collectives" c1
@@ -21,7 +22,7 @@ async function checkDeletedMembers({ fix = false } = {}) {
      ON c2."id" = m."MemberCollectiveId"
      WHERE m."deletedAt" IS NULL
      AND (c1."deletedAt" IS NOT NULL OR c1."id" IS NULL OR c2."deletedAt" IS NOT NULL OR c2."id" IS NULL)`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
@@ -45,7 +46,7 @@ async function checkDeletedMembers({ fix = false } = {}) {
 async function checkMemberTypes() {
   const message = 'No ACCOUNTANT OR ADMIN member with a type different than USER (no auto fix)';
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<{ count: number }>(
     `SELECT COUNT(*) as count
      FROM "Members" as m
      LEFT JOIN "Users" u ON u."CollectiveId" = m."MemberCollectiveId"
@@ -55,7 +56,7 @@ async function checkMemberTypes() {
      AND m."deletedAt" IS NULL
      AND u."id" IS NULL
      AND c."type" != 'USER'`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results[0].count > 0) {
@@ -67,7 +68,7 @@ async function checkMemberTypes() {
 async function checkDuplicateMembers({ fix = false } = {}) {
   const message = 'No duplicate members';
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<{ duplicate_ids: number[] }>(
     `SELECT ARRAY_AGG(DISTINCT m2.id) AS duplicate_ids
      FROM "Members" m1
      INNER JOIN "Members" m2
@@ -80,7 +81,7 @@ async function checkDuplicateMembers({ fix = false } = {}) {
      AND m2."deletedAt" IS NULL
      GROUP BY m1.id
     `,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.length > 0) {
@@ -111,7 +112,14 @@ async function checkDuplicateMembers({ fix = false } = {}) {
 async function checkMissingMembers({ fix = false }) {
   const message = 'No missing members';
 
-  const results = await sequelize.query(
+  const results = await sequelize.query<{
+    FromCollectiveId: number;
+    CollectiveId: number;
+    TierId: number;
+    tierType: string;
+    CreatedByUserId: number[];
+    createdAt: Date[];
+  }>(
     `
     SELECT
       o."FromCollectiveId",
@@ -150,7 +158,7 @@ async function checkMissingMembers({ fix = false }) {
     )
     GROUP BY o."FromCollectiveId", o."CollectiveId", o."TierId", t."type"
     `,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.length > 0) {
@@ -194,7 +202,7 @@ async function checkExtraMembers({ fix = false }) {
       AND "Transactions"."CollectiveId" = "Members"."CollectiveId"
       AND "Transactions"."FromCollectiveId" = "Members"."MemberCollectiveId"
     )`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.length > 0) {

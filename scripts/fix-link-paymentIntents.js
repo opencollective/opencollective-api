@@ -11,11 +11,6 @@ import models from '../server/models';
 import { createChargeTransactions } from '../server/paymentProviders/stripe/common';
 import { createOrUpdateOrderStripePaymentMethod } from '../server/paymentProviders/stripe/webhook';
 
-if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/fix-link-paymentIntents.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
-  process.exit(1);
-}
-
 const HOST_SLUG = process.argv[2];
 const NB_CHARGES_TO_CHECK = parseInt(process.argv[3]) || 100;
 const LAST_CHARGE_ID = process.argv[4] || undefined;
@@ -99,6 +94,11 @@ async function checkAndRecordCharge(charge, paymentIntent, stripeAccount) {
 }
 
 async function main() {
+  if (process.argv.length < 3) {
+    console.error('Usage: ./scripts/fix-link-paymentIntents.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
+    process.exit(1);
+  }
+
   const stripeUserName = await getHostStripeAccountUsername(HOST_SLUG);
   let lastChargeId = LAST_CHARGE_ID;
   let totalAlreadyChecked = 0;

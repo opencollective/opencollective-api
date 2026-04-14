@@ -3,8 +3,11 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQL
 import { cloneDeep, isNil, omit, pick, uniqBy } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
+import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
+import OrderStatuses from '../../../constants/order-status';
 import roles from '../../../constants/roles';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
@@ -29,10 +32,12 @@ import {
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
+import { getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { fetchExpensesWithReferences, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLMergeAccountsResponse } from '../object/MergeAccountsResponse';
+import { GraphQLOrder } from '../object/Order';
 
 const GraphQLBanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
@@ -123,7 +128,7 @@ export default {
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
 
-      if (account.isHostAccount) {
+      if (account.hasMoneyManagement) {
         throw new Error('Cannot change type of host account');
       } else if (account.type !== CollectiveType.USER) {
         throw new Error('editAccountType only works on individual profiles');
@@ -131,7 +136,7 @@ export default {
         throw new Error('editAccountType does not work on guest profiles');
       }
 
-      const collectiveData = omit(cloneDeep(account.dataValues), ['id']);
+      const collectiveData = omit(cloneDeep(account.dataValues), ['id', 'publicId']);
       collectiveData.slug = `${collectiveData.slug}-user`;
       collectiveData.createdAt = new Date();
       let collective;
@@ -146,6 +151,19 @@ export default {
 
         // Change the type of the original USER account to Organization
         await account.update({ type: CollectiveType.ORGANIZATION }, { transaction });
+
+        // Transfer outbound ADMIN/ACCOUNTANT memberships from old collective to new user collective
+        await models.Member.update(
+          { MemberCollectiveId: collective.id },
+          {
+            where: {
+              MemberCollectiveId: account.id,
+              role: [roles.ADMIN, roles.ACCOUNTANT],
+              deletedAt: null,
+            },
+            transaction,
+          },
+        );
       });
 
       // Add admin user for the new Organization
@@ -364,6 +382,136 @@ export default {
           },
           { transaction },
         );
+      });
+    },
+  },
+  rootTransferBalance: {
+    type: new GraphQLNonNull(GraphQLOrder),
+    description: '[Root only] Transfers balance from one account to another, creating BALANCE_TRANSFER transactions',
+    args: {
+      fromAccount: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Source account (balance goes down)',
+      },
+      toAccount: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Destination account (balance goes up)',
+      },
+      amount: {
+        type: GraphQLAmountInput,
+        description: 'Amount to transfer. Defaults to full balance of source account.',
+      },
+      message: {
+        type: GraphQLString,
+        description: 'Optional reason for audit trail',
+      },
+    },
+    async resolve(_: void, args, req: express.Request) {
+      checkRemoteUserCanRoot(req);
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
+      const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
+      const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
+
+      if (fromAccount.id === toAccount.id) {
+        throw new Error('Cannot transfer balance to the same account');
+      }
+      if (!fromAccount.HostCollectiveId) {
+        throw new Error('Source account has no host');
+      }
+      if (!toAccount.HostCollectiveId) {
+        throw new Error('Destination account has no host');
+      }
+      if (fromAccount.HostCollectiveId !== toAccount.HostCollectiveId) {
+        throw new Error('Cannot transfer balance between accounts with different hosts');
+      }
+
+      const hostId = fromAccount.HostCollectiveId;
+      const host = await models.Collective.findByPk(hostId);
+      if (!host) {
+        throw new Error(`Host collective #${hostId} not found`);
+      }
+      const hostCurrency = host.currency;
+
+      const balance = await fromAccount.getBalance();
+      let transferAmount: number;
+      if (args.amount) {
+        transferAmount = getValueInCentsFromAmountInput(args.amount, {
+          expectedCurrency: hostCurrency,
+          allowNilCurrency: true,
+        });
+        if (transferAmount > balance) {
+          throw new Error(`Transfer amount (${transferAmount}) exceeds available balance (${balance})`);
+        }
+      } else {
+        transferAmount = balance;
+      }
+
+      if (transferAmount <= 0) {
+        throw new Error('Transfer amount must be greater than zero');
+      }
+      const description = args.message || 'Balance Transfer';
+
+      return sequelize.transaction(async transaction => {
+        const order = await models.Order.create(
+          {
+            status: OrderStatuses.PAID,
+            processedAt: new Date(),
+            FromCollectiveId: fromAccount.id,
+            CollectiveId: toAccount.id,
+            CreatedByUserId: req.remoteUser.id,
+            totalAmount: transferAmount,
+            currency: hostCurrency,
+            description,
+            data: { isBalanceTransfer: true, isRootBalanceTransfer: true },
+          },
+          { transaction },
+        );
+
+        await models.Transaction.createDoubleEntry(
+          {
+            CreatedByUserId: req.remoteUser.id,
+            FromCollectiveId: fromAccount.id,
+            CollectiveId: toAccount.id,
+            HostCollectiveId: hostId,
+            OrderId: order.id,
+            kind: TransactionKind.BALANCE_TRANSFER,
+            amount: transferAmount,
+            netAmountInCollectiveCurrency: transferAmount,
+            currency: hostCurrency,
+            hostCurrency,
+            hostCurrencyFxRate: 1,
+            amountInHostCurrency: transferAmount,
+            hostFeeInHostCurrency: 0,
+            platformFeeInHostCurrency: 0,
+            paymentProcessorFeeInHostCurrency: 0,
+            description,
+            clearedAt: new Date(),
+            data: { isBalanceTransfer: true, isRootBalanceTransfer: true },
+          },
+          { sequelizeTransaction: transaction },
+        );
+
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_BALANCE_TRANSFERRED,
+            UserId: req.remoteUser.id,
+            FromCollectiveId: fromAccount.id,
+            CollectiveId: toAccount.id,
+            HostCollectiveId: hostId,
+            OrderId: order.id,
+            data: {
+              amount: transferAmount,
+              currency: hostCurrency,
+              fromAccount: { id: fromAccount.id, slug: fromAccount.slug, name: fromAccount.name },
+              toAccount: { id: toAccount.id, slug: toAccount.slug, name: toAccount.name },
+              message: args.message,
+            },
+          },
+          { transaction },
+        );
+
+        return order;
       });
     },
   },

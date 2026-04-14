@@ -12,15 +12,26 @@ import type {
 } from 'sequelize';
 
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
+import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export type ApplicationType = 'apiKey' | 'oAuth';
 
-class Application extends Model<InferAttributes<Application>, InferCreationAttributes<Application>> {
+class Application extends ModelWithPublicId<
+  EntityShortIdPrefix.Application,
+  InferAttributes<Application>,
+  InferCreationAttributes<Application>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Application;
+  public static readonly tableName = 'Applications' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: number;
+  declare public collective?: NonAttribute<Collective>;
   declare public CreatedByUserId: ForeignKey<User['id']>;
   declare public type: ApplicationType;
   declare public apiKey: string;
@@ -34,7 +45,7 @@ class Application extends Model<InferAttributes<Application>, InferCreationAttri
   declare public createdAt: CreationOptional<Date>;
   declare public updatedAt: CreationOptional<Date>;
   declare public deletedAt: CreationOptional<Date>;
-  declare public data: JSON;
+  declare public data: Record<string, unknown>;
 
   declare public createdByUser: NonAttribute<User>;
   declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
@@ -45,6 +56,7 @@ class Application extends Model<InferAttributes<Application>, InferCreationAttri
 
   get info(): NonAttribute<Partial<Application>> {
     return {
+      publicId: this.publicId,
       name: this.name,
       description: this.description,
       apiKey: this.apiKey,
@@ -57,6 +69,7 @@ class Application extends Model<InferAttributes<Application>, InferCreationAttri
   get publicInfo(): NonAttribute<Partial<Application>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       name: this.name,
       description: this.description,
       type: this.type,
@@ -75,6 +88,10 @@ Application.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,

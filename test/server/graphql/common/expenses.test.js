@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import moment from 'moment';
 
 import { expenseStatus } from '../../../../server/constants';
+import FEATURE from '../../../../server/constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import POLICIES from '../../../../server/constants/policies';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
@@ -12,6 +13,7 @@ import {
   canComment,
   canDeleteExpense,
   canEditExpense,
+  canEditExpenseAccountingCategory,
   canEditExpenseTags,
   canEditItemDescription,
   canEditItems,
@@ -20,6 +22,7 @@ import {
   canEditPayoutMethod,
   canEditTitle,
   canEditType,
+  canMarkAsPaid,
   canMarkAsUnpaid,
   canPayExpense,
   canReject,
@@ -45,6 +48,7 @@ import {
   fakeExpense,
   fakeHost,
   fakePayoutMethod,
+  fakePlatformSubscription,
   fakeTransaction,
   fakeUser,
 } from '../../../test-helpers/fake-data';
@@ -76,6 +80,7 @@ describe('server/graphql/common/expenses', () => {
     normal: cloneDeep(contextShape),
     selfHosted: cloneDeep(contextShape),
     virtualCard: cloneDeep(contextShape),
+    manuallyCreatedVirtualCardCharge: cloneDeep(contextShape),
     settlement: cloneDeep(contextShape),
     platformBilling: cloneDeep(contextShape),
     collectiveWithSpecialPayoutPolicy: cloneDeep(contextShape),
@@ -153,8 +158,19 @@ describe('server/graphql/common/expenses', () => {
     contexts.virtualCard = await prepareContext({ name: 'virtualCard' });
     await contexts.virtualCard.expense.update({ type: 'CHARGE' });
 
+    // Manually created virtual card charge
+    contexts.manuallyCreatedVirtualCardCharge = await prepareContext({ name: 'manuallyCreatedVirtualCardCharge' });
+    await contexts.manuallyCreatedVirtualCardCharge.expense.update({
+      type: 'CHARGE',
+      data: { isManualVirtualCardCharge: true },
+    });
+
     // A self-hosted collective
-    const selfHostedCollective = await fakeCollective({ isHostAccount: true, isActive: true, HostCollectiveId: null });
+    const selfHostedCollective = await fakeCollective({
+      hasMoneyManagement: true,
+      isActive: true,
+      HostCollectiveId: null,
+    });
     await selfHostedCollective.update({ HostCollectiveId: selfHostedCollective.id });
     selfHostedCollective.host = selfHostedCollective;
     contexts.selfHosted = await prepareContext({
@@ -195,6 +211,10 @@ describe('server/graphql/common/expenses', () => {
     await contexts.settlement.expense.update({ type: 'SETTLEMENT' });
     await contexts.virtualCard.expense.update({ type: 'CHARGE' });
     await contexts.platformBilling.expense.update({ type: 'PLATFORM_BILLING' });
+    await contexts.manuallyCreatedVirtualCardCharge.expense.update({
+      type: 'CHARGE',
+      data: { isManualVirtualCardCharge: true },
+    });
   });
 
   /**
@@ -264,7 +284,9 @@ describe('server/graphql/common/expenses', () => {
           expect(await checkAllPermissions(canSeeExpensePayoutMethodPrivateDetails, context)).to.deep.equal({
             public: false,
             randomUser: false,
-            collectiveAdmin: ['collectiveWithSpecialPayoutPolicy', 'selfHosted', 'virtualCard'].includes(context.name),
+            collectiveAdmin:
+              ['collectiveWithSpecialPayoutPolicy', 'selfHosted', 'virtualCard'].includes(context.name) &&
+              context.name !== 'manuallyCreatedVirtualCardCharge',
             collectiveAccountant: context.name === 'selfHosted',
             hostAdmin: true,
             hostAccountant: true,
@@ -448,6 +470,47 @@ describe('server/graphql/common/expenses', () => {
           platformAdmin: ['settlement', 'platformBilling'].includes(context.name),
         });
       });
+    });
+  });
+
+  describe('canEditExpenseAccountingCategory', () => {
+    it('denies new host admin when expense was paid by a different host (collective changed hosts)', async () => {
+      const oldHost = await fakeHost();
+      const newHost = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: oldHost.id });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: oldHost.id,
+        status: 'PAID',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      await fakePlatformSubscription({
+        CollectiveId: oldHost.id,
+        plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+      });
+      await fakePlatformSubscription({
+        CollectiveId: newHost.id,
+        plan: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } },
+      });
+
+      const oldHostAdmin = await fakeUser();
+      const newHostAdmin = await fakeUser();
+      await oldHost.addUserWithRole(oldHostAdmin, 'ADMIN');
+      await newHost.addUserWithRole(newHostAdmin, 'ADMIN');
+      await Promise.all([oldHostAdmin, newHostAdmin].map(u => u.populateRoles()));
+
+      await collective.update({ HostCollectiveId: newHost.id });
+      await expense.reload({ include: [{ association: 'collective' }] });
+
+      expect(await canEditExpenseAccountingCategory(makeRequest(oldHostAdmin), expense)).to.be.true;
+
+      expect(await canEditExpenseAccountingCategory(makeRequest(newHostAdmin), expense)).to.be.false;
+
+      expect(
+        await getApolloErrorCode(canEditExpenseAccountingCategory(makeRequest(newHostAdmin), expense, { throw: true })),
+      ).to.equal(EXPENSE_PERMISSION_ERROR_CODES.EXPENSE_BELONGS_TO_DIFFERENT_HOST);
     });
   });
 
@@ -929,9 +992,9 @@ describe('server/graphql/common/expenses', () => {
         expect(await checkAllPermissions(canEditItems, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: false,
+          collectiveAdmin: true,
           collectiveAccountant: false,
-          hostAdmin: false,
+          hostAdmin: context.isSelfHosted,
           hostAccountant: false,
           expenseOwner: true,
           limitedHostAdmin: false,
@@ -1200,6 +1263,45 @@ describe('server/graphql/common/expenses', () => {
     });
   });
 
+  describe('canMarkAsPaid', () => {
+    it('only if approved or error', async () => {
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+        await expense.update({ status: 'PENDING' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.eq(context.expense.type !== 'CHARGE');
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'ERROR' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.eq(context.expense.type !== 'CHARGE');
+        await expense.update({ status: 'PAID' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+      });
+    });
+
+    it('only with the allowed roles', async () => {
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'APPROVED' });
+        await expense.reload();
+        expect(await checkAllPermissions(canMarkAsPaid, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted ? true : false,
+          hostAdmin: expense.type !== 'CHARGE' || !!expense.data?.isManualVirtualCardCharge,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+          collectiveAccountant: false,
+          hostAccountant: false,
+          platformAdmin: false,
+        });
+      });
+    });
+  });
+
   describe('canApprove', () => {
     it('only if pending or rejected', async () => {
       const { expense, req } = contexts.normal;
@@ -1224,7 +1326,7 @@ describe('server/graphql/common/expenses', () => {
           public: false,
           randomUser: false,
           collectiveAdmin: context.expense.type !== 'CHARGE',
-          hostAdmin: context.expense.type !== 'CHARGE',
+          hostAdmin: context.expense.type !== 'CHARGE' || Boolean(context.expense.data?.isManualVirtualCardCharge),
           expenseOwner: false,
           limitedHostAdmin: false,
           collectiveAccountant: false,
@@ -1349,6 +1451,91 @@ describe('server/graphql/common/expenses', () => {
         expect(await canApprove(req.collectiveAdmin, newExpense)).to.be.false;
       });
     });
+
+    describe('manually created virtual card charges', () => {
+      it('allows host admins to approve', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PENDING' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.true;
+      });
+
+      it('does not allow other roles to approve', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PENDING' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.collectiveAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.expenseOwner,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.randomUser,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.public,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+      });
+
+      it('only allows approval when status is PENDING, REJECTED, or INCOMPLETE', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PENDING' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.true;
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'REJECTED' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.true;
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'INCOMPLETE' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.true;
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'APPROVED' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PAID' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canApprove(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+      });
+    });
   });
 
   describe('canReject', () => {
@@ -1451,7 +1638,9 @@ describe('server/graphql/common/expenses', () => {
             public: false,
             randomUser: false,
             collectiveAdmin: isVirtualCard ? false : context.isSelfHosted,
-            hostAdmin: !isVirtualCard && !['SETTLEMENT', 'PLATFORM_BILLING'].includes(expense.type),
+            hostAdmin: !isVirtualCard
+              ? !['SETTLEMENT', 'PLATFORM_BILLING'].includes(expense.type)
+              : Boolean(expense.data?.isManualVirtualCardCharge),
             expenseOwner: false,
             limitedHostAdmin: false,
             collectiveAccountant: false,
@@ -1474,6 +1663,48 @@ describe('server/graphql/common/expenses', () => {
           expect(await canMarkAsUnpaid(userReq, expense)).to.be.false;
         });
       }
+    });
+
+    describe('manually created virtual card charges', () => {
+      it('allows host admins to mark as unpaid', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PAID' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canMarkAsUnpaid(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.true;
+      });
+
+      it('does not allow other roles to mark as unpaid', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PAID' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canMarkAsUnpaid(
+            contexts.manuallyCreatedVirtualCardCharge.req.collectiveAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canMarkAsUnpaid(
+            contexts.manuallyCreatedVirtualCardCharge.req.expenseOwner,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canMarkAsUnpaid(
+            contexts.manuallyCreatedVirtualCardCharge.req.randomUser,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canMarkAsUnpaid(
+            contexts.manuallyCreatedVirtualCardCharge.req.public,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+      });
     });
   });
 

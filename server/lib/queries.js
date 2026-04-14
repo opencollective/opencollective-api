@@ -1,6 +1,6 @@
 import config from 'config';
 import { get, pick } from 'lodash';
-import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } from '../constants/tax-form';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
@@ -63,7 +63,7 @@ const getHosts = async args => {
         AND c."deletedAt" IS NULL
         AND c."isActive" = TRUE
         AND c."type" IN ('COLLECTIVE', 'FUND')
-      WHERE hosts."deletedAt" IS NULL AND hosts."isHostAccount" = TRUE ${hostConditions}
+      WHERE hosts."deletedAt" IS NULL AND hosts."hasMoneyManagement" = TRUE ${hostConditions}
       GROUP BY hosts.id
       HAVING count(c.id) >= $minNbCollectivesHosted
     ) SELECT c.*, (SELECT COUNT(*) FROM all_hosts) AS __hosts_count__, SUM(all_hosts.count) as __members_count__
@@ -84,7 +84,7 @@ const getHosts = async args => {
       offset: args.offset,
       minNbCollectivesHosted: args.minNbCollectivesHosted,
     },
-    type: sequelize.QueryTypes.SELECT,
+    type: QueryTypes.SELECT,
     model: models.Collective,
     mapToModel: true,
   });
@@ -149,7 +149,7 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
   `,
       {
         replacements: { HostCollectiveId },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
@@ -195,7 +195,7 @@ const getTotalAnnualBudget = async () => {
     "yearlyIncome"
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => Math.round(parseInt(res[0].yearlyIncome, 10)));
@@ -253,7 +253,7 @@ export const usersToNotifyForUpdateSQLQuery = `
     INNER JOIN "Collectives" mc ON mc."id" = m."CollectiveId"
     INNER JOIN collective c ON m."MemberCollectiveId" = c.id
     WHERE :includeHostedAccounts = TRUE
-    AND c."isHostAccount" = TRUE
+    AND c."hasMoneyManagement" = TRUE
     AND m."role" = 'HOST'
     AND m."deletedAt" IS NULL
     AND mc."isActive" IS TRUE
@@ -384,7 +384,7 @@ const getGiftCardBatchesForCollective = async collectiveId => {
   `,
     {
       raw: true,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: { collectiveId },
     },
   );
@@ -429,7 +429,7 @@ const getTopSponsors = () => {
     `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
       {
         replacements: { limit: 6, since: d },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(sponsors =>
@@ -517,7 +517,7 @@ const getMembersOfCollectiveWithRole = CollectiveIds => {
 `,
     {
       replacements: { collectiveids },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
     },
   );
@@ -633,7 +633,7 @@ const getMembersWithTotalDonations = (where, options = {}) => {
         types,
         role: where.role,
       },
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
     },
   );
@@ -727,7 +727,7 @@ const getMembersWithBalance = (where, options = {}) => {
     query.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
     {
       replacements,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
     },
   );
@@ -745,7 +745,7 @@ const getTotalNumberOfActiveCollectives = (since, until) => {
     WHERE c.type='COLLECTIVE' ${sinceClause} ${untilClause}
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => parseInt(res[0].count));
@@ -761,7 +761,7 @@ const getTotalNumberOfDonors = () => {
     WHERE c.type='COLLECTIVE'
   `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(res => parseInt(res[0].count));
@@ -777,20 +777,21 @@ const getTotalNumberOfDonors = () => {
  *
  * @argument {Object[]} results - The results of a tax form query.
  */
-const getTaxFormsOverTheLimit = (results, idKey) => {
+const getTaxFormsOverTheLimit = (results, idKey, year = undefined) => {
   // Group results in a map like Map<idKey, { paypalTotal, otherTotal }>
   const groupedResults = new Map();
   for (const result of results) {
-    const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0 };
+    const groupResult = groupedResults.get(result[idKey]) || { paypalTotal: 0, otherTotal: 0, year: undefined };
     const totalKey = result.payoutMethodType === PayoutMethodTypes.PAYPAL ? 'paypalTotal' : 'otherTotal';
     groupResult[totalKey] += result.total;
+    groupResult.year = result.year;
     groupedResults.set(result[idKey], groupResult);
   }
 
   // Filter entries in the map to return a set with only the IDs that require a tax form (over the limits)
   const resultSet = new Set();
   groupedResults.forEach((groupResult, id) => {
-    if (amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal)) {
+    if (amountsRequireTaxForm(groupResult.paypalTotal, groupResult.otherTotal, year || groupResult.year)) {
       resultSet.add(id);
     }
   });
@@ -808,6 +809,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       analyzed_expenses."FromCollectiveId",
       analyzed_expenses.id as "expenseId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      EXTRACT('year' FROM NOW()) AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -817,7 +819,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
             WHERE er."from" = all_expenses."currency"
             AND er."to" = host.currency
             -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-            AND er."createdAt" <= all_expenses."createdAt"
+            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
             ORDER BY "createdAt" DESC
             LIMIT 1
           )
@@ -859,12 +861,12 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND all_expenses.type NOT IN (:ignoredExpenseTypes)
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
+    AND date_trunc('year', COALESCE(all_expenses."paidAt", NOW())) = date_trunc('year', NOW())
     AND ld.id IS NULL -- Ignore documents that have already been received
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       raw: true,
       replacements: {
         expenseIds,
@@ -892,12 +894,14 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
 const getTaxFormsRequiredForAccounts = async ({
   HostCollectiveId = null,
   CollectiveId = null,
-  year = moment().year(),
+  year,
   ignoreReceived = false,
   allTime = false,
 } = {}) => {
   if (CollectiveId && Array.isArray(CollectiveId) && CollectiveId.length === 0) {
     return new Set();
+  } else if (!allTime && !year) {
+    throw new Error('year is required when allTime is false');
   }
 
   const results = await sequelize.query(
@@ -905,6 +909,7 @@ const getTaxFormsRequiredForAccounts = async ({
     SELECT
       account.id as "collectiveId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
+      EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -913,8 +918,8 @@ const getTaxFormsRequiredForAccounts = async ({
             FROM "CurrencyExchangeRates" er
             WHERE er."from" = all_expenses."currency"
             AND er."to" = host.currency
-            AND er."createdAt" <= all_expenses."createdAt"
-            ORDER BY "createdAt" DESC
+            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
+            ORDER BY er."createdAt" DESC
             LIMIT 1
           )
         END
@@ -952,13 +957,13 @@ const getTaxFormsRequiredForAccounts = async ({
     AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    ${ifStr(!allTime, `AND EXTRACT('year' FROM all_expenses."incurredAt") = :year`)}
+    ${ifStr(!allTime, `AND EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
-    GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
+    GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type", 'OTHER')
   `,
     {
       raw: true,
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       replacements: {
         CollectiveId,
         HostCollectiveId,
@@ -969,7 +974,7 @@ const getTaxFormsRequiredForAccounts = async ({
     },
   );
 
-  return getTaxFormsOverTheLimit(results, 'collectiveId');
+  return getTaxFormsOverTheLimit(results, 'collectiveId', year);
 };
 
 const serializeCollectivesResult = JSON.stringify;

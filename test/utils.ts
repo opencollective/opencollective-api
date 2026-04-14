@@ -13,8 +13,8 @@ import Upload from 'graphql-upload/Upload.js';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
+import { generateSync } from 'otplib';
 import sinon, { assert } from 'sinon';
-import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
 import PlatformConstants from '../server/constants/platform';
@@ -707,10 +707,10 @@ export const generateValid2FAHeader = user => {
   }
 
   const decryptedToken = crypto.decrypt(user.twoFactorAuthToken).toString();
-  const twoFactorAuthenticatorCode = speakeasy.totp({
-    algorithm: 'SHA1',
-    encoding: 'base32',
+  const twoFactorAuthenticatorCode = generateSync({
     secret: decryptedToken,
+    algorithm: 'sha1',
+    strategy: 'totp',
   });
 
   return `totp ${twoFactorAuthenticatorCode}`;

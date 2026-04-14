@@ -16,6 +16,7 @@ import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import PlatformConstants from '../../../constants/platform';
 import roles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import { generateDescription } from '../../../lib/transactions';
 import PaymentMethod from '../../../models/PaymentMethod';
@@ -25,7 +26,7 @@ import * as TransactionLib from '../../common/transactions';
 import { GraphQLRefundKind } from '../enum/RefundKind';
 import { GraphQLTransactionKind } from '../enum/TransactionKind';
 import { GraphQLTransactionType } from '../enum/TransactionType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAmount } from '../object/Amount';
 import { GraphQLExpense } from '../object/Expense';
 import { GraphQLOrder } from '../object/Order';
@@ -61,7 +62,13 @@ const GraphQLTransactionPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.TRANSACTION),
+      resolve(transaction) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Transaction, transaction.createdAt)) {
+          return transaction.publicId;
+        } else {
+          return idEncode(transaction.id, IDENTIFIER_TYPES.TRANSACTION);
+        }
+      },
     },
     canRefund: {
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -87,6 +94,10 @@ const transactionFieldsDefinition = () => ({
   },
   legacyId: {
     type: new GraphQLNonNull(GraphQLInt),
+  },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${Transaction.nanoIdPrefix}_xxxxxxxx)`,
   },
   uuid: {
     type: new GraphQLNonNull(GraphQLString),
@@ -169,6 +180,9 @@ const transactionFieldsDefinition = () => ({
         description: 'Fetch TAX transaction for retro-compatiblity.',
       },
     },
+  },
+  netAmountInPayeeCurrency: {
+    type: GraphQLAmount,
   },
   taxAmount: {
     type: new GraphQLNonNull(GraphQLAmount),
@@ -358,6 +372,7 @@ export const TransactionFields = () => {
         return { value: transaction.amountInHostCurrency, currency: transaction.hostCurrency };
       },
     },
+
     hostCurrencyFxRate: {
       type: GraphQLFloat,
       description:
@@ -453,6 +468,15 @@ export const TransactionFields = () => {
           value: netAmountInHostCurrency,
           currency: transaction.hostCurrency,
         };
+      },
+    },
+    netAmountInPayeeCurrency: {
+      type: GraphQLAmount,
+      resolve(transaction) {
+        const transfer = transaction.data?.transfer;
+        if (transaction.kind === EXPENSE && transaction.type === 'CREDIT' && transfer) {
+          return { value: transfer.targetValue * 100 || 0, currency: transfer.targetCurrency };
+        }
       },
     },
     taxAmount: {
@@ -596,6 +620,7 @@ export const TransactionFields = () => {
       resolve(transaction, _, req) {
         if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.CollectiveId);
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.CollectiveId);
         }
 
         return req.loaders.Collective.byId.load(transaction.CollectiveId);
@@ -607,6 +632,7 @@ export const TransactionFields = () => {
       resolve(transaction, _, req) {
         if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
           allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.FromCollectiveId);
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, transaction.FromCollectiveId);
         }
 
         return req.loaders.Collective.byId.load(transaction.FromCollectiveId);

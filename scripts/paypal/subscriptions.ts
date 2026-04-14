@@ -35,7 +35,7 @@ const checkSubscription = async (hostSlug: string, subscriptionId: string): Prom
 
   const subscription = await fetchPaypalSubscription(host, subscriptionId);
   console.log('Subscription:');
-  console.log(subscription);
+  console.log(JSON.stringify(subscription, null, 2));
   console.log('-------');
 
   const result = await fetchPaypalTransactionsForSubscription(host, subscriptionId);
@@ -46,9 +46,11 @@ const checkSubscription = async (hostSlug: string, subscriptionId: string): Prom
   console.log('-------');
 };
 
-main()
-  .then(() => process.exit(0))
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

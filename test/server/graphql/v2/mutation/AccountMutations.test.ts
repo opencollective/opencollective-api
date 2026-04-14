@@ -1,12 +1,15 @@
 import { expect } from 'chai';
+import config from 'config';
+import crypto from 'crypto-js';
 import gql from 'fake-tag';
+import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
-import speakeasy from 'speakeasy';
 
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
 import OrderStatuses from '../../../../../server/constants/order-status';
+import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import POLICIES from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
@@ -20,6 +23,7 @@ import {
   fakeEvent,
   fakeHost,
   fakeLocation,
+  fakeMember,
   fakeOrder,
   fakeProject,
   fakeTier,
@@ -27,7 +31,10 @@ import {
   fakeUserTwoFactorMethod,
   randStr,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+import { getOrCreatePlatformAccount, graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+
+const SECRET_KEY = config.dbEncryption.secretKey;
+const CIPHER = config.dbEncryption.cipher;
 
 const editSettingsMutation = gql`
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -386,11 +393,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     const sandbox = createSandbox();
     afterEach(sandbox.restore);
 
-    const secret = speakeasy.generateSecret({ length: 64 });
+    const secret = generateSecret({ length: 64 });
     it('must be authenticated', async () => {
       const result = await graphqlQueryV2(addTwoFactorAuthTokenMutation, {
         account: { id: idEncode(adminUser.collective.id, 'account') },
-        token: secret.base32,
+        token: secret,
       });
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
@@ -401,7 +408,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(adminUser.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
         },
         randomUser,
       );
@@ -414,7 +421,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(adminUser.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
         },
         adminUser,
       );
@@ -436,7 +443,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(adminUser.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
         },
         adminUser,
       );
@@ -466,7 +473,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(user.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
           type: 'TOTP',
         },
         user,
@@ -487,7 +494,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     afterEach(sandbox.restore);
 
     let user;
-    const secret = speakeasy.generateSecret({ length: 64 });
+    const secret = generateSecret({ length: 64 });
 
     beforeEach(async () => {
       sandbox.stub(yubikeyOtp, 'validateYubikeyOTP').resolves(true);
@@ -511,7 +518,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         addTwoFactorAuthTokenMutation,
         {
           account: { id: idEncode(user.collective.id, 'account') },
-          token: secret.base32,
+          token: secret,
           type: 'TOTP',
         },
         user,
@@ -1785,6 +1792,235 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.editTwoFactorAuthenticationMethod.hasTwoFactorAuth).to.eq(true);
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods).to.have.lengthOf(1);
       expect(result.data.editTwoFactorAuthenticationMethod.twoFactorMethods[0].name).to.equal('New name');
+    });
+  });
+
+  describe('convertAccountToOrganization', () => {
+    const convertAccountToOrganizationMutation = gql`
+      mutation ConvertAccountToOrganization($account: AccountReferenceInput!, $hasMoneyManagement: Boolean) {
+        convertAccountToOrganization(account: $account, hasMoneyManagement: $hasMoneyManagement) {
+          id
+          type
+          isHost
+          isActive
+          settings
+        }
+      }
+    `;
+
+    it('must be authenticated', async () => {
+      const collective = await fakeCollective();
+      const result = await graphqlQueryV2(convertAccountToOrganizationMutation, {
+        account: { legacyId: collective.id },
+      });
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('must be admin of the account', async () => {
+      const collective = await fakeCollective();
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
+    });
+
+    it('must not be hosted', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal("Can't convert an hosted Collective.");
+    });
+
+    it('converts a COLLECTIVE to ORGANIZATION', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
+
+      expect(collective.type).to.equal(CollectiveType.COLLECTIVE);
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+
+      // Verify in database
+      await collective.reload();
+      expect(collective.type).to.equal(CollectiveType.ORGANIZATION);
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: {
+          UserId: user.id,
+          type: ACTIVITY.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
+          CollectiveId: collective.id,
+        },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.data.collective).to.exist;
+    });
+
+    it('activates money management when requested', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
+
+      expect(collective.hasMoneyManagement).to.be.false;
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+          hasMoneyManagement: true,
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+      expect(result.data.convertAccountToOrganization.isHost).to.be.true;
+      expect(result.data.convertAccountToOrganization.isActive).to.be.true;
+
+      // Verify in database
+      await collective.reload();
+      expect(collective.type).to.equal(CollectiveType.ORGANIZATION);
+      expect(collective.hasMoneyManagement).to.be.true;
+      expect(collective.isActive).to.be.true;
+    });
+
+    it('does not activate money management by default', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
+
+      expect(collective.hasMoneyManagement).to.be.false;
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+      expect(result.data.convertAccountToOrganization.isHost).to.be.false;
+
+      // Verify in database
+      await collective.reload();
+      expect(collective.hasMoneyManagement).to.be.false;
+    });
+
+    it('allows root users to convert any account', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
+      const rootUser = await fakeUser({ data: { isRoot: true } });
+
+      const platform = await getOrCreatePlatformAccount();
+      await fakeMember({ MemberCollectiveId: rootUser.CollectiveId, CollectiveId: platform.id, role: roles.ADMIN });
+
+      const result = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+
+      await collective.reload();
+      expect(collective.type).to.equal(CollectiveType.ORGANIZATION);
+    });
+
+    it('enforces 2FA when enabled on account', async () => {
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
+
+      const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
+
+      // Try without 2FA token
+      const resultWithout2FA = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(resultWithout2FA.errors).to.exist;
+      expect(resultWithout2FA.errors[0].extensions.code).to.equal('2FA_REQUIRED');
+
+      // Try with valid 2FA token
+      const twoFactorAuthenticatorCode = generateSync({ secret });
+
+      const resultWith2FA = await graphqlQueryV2(
+        convertAccountToOrganizationMutation,
+        {
+          account: { legacyId: collective.id },
+        },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
+        },
+      );
+
+      expect(resultWith2FA.errors).to.not.exist;
+      expect(resultWith2FA.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+    });
+
+    describe('with new pricing enabled', () => {
+      const defaultNewPricing = config.features.newPricing;
+
+      before(() => {
+        config.features.newPricing = true;
+      });
+
+      after(() => {
+        config.features.newPricing = defaultNewPricing;
+      });
+
+      it('provisions a discover plan subscription', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
+
+        const result = await graphqlQueryV2(
+          convertAccountToOrganizationMutation,
+          { account: { legacyId: collective.id }, hasMoneyManagement: true },
+          user,
+        );
+
+        expect(result.errors).to.not.exist;
+
+        const subscription = await models.PlatformSubscription.findOne({ where: { CollectiveId: collective.id } });
+        expect(subscription).to.exist;
+        expect(subscription.plan.id).to.equal(PlatformSubscriptionTiers[0].id);
+        // The subscription starts as PENDING and is provisioned by the CRON job
+        expect(subscription.featureProvisioningStatus).to.equal('PENDING');
+      });
     });
   });
 });

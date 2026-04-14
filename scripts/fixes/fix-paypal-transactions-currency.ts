@@ -1,7 +1,9 @@
 import '../../server/env';
 
 import { get, groupBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
+import { SupportedCurrency } from '../../server/constants/currencies';
 import { getFxRate } from '../../server/lib/currency';
 import { paypalAmountToCents } from '../../server/lib/paypal';
 import models, { sequelize } from '../../server/models';
@@ -20,7 +22,7 @@ const migrate = async () => {
       AND t."data" -> 'capture' -> 'amount' ->> 'currency_code' != t.currency 
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Transaction,
       mapToModel: true,
     },
@@ -38,7 +40,7 @@ const migrate = async () => {
     const amount = paypalAmountToCents(credit.data.capture.amount.value);
     const rawPaypalFee = get(credit.data.capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0');
     const paypalFee = paypalAmountToCents(rawPaypalFee);
-    const currency = credit.data.capture.amount.currency_code;
+    const currency = credit.data.capture.amount.currency_code as SupportedCurrency;
 
     // Compute amounts
     const hostCurrencyFxRate = await getFxRate(currency, credit.hostCurrency, credit.createdAt);
@@ -84,9 +86,11 @@ const main = async () => {
   return migrate();
 };
 
-main()
-  .then(() => process.exit())
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit())
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

@@ -68,6 +68,7 @@ const platformSubscriptionMutations = {
             pricePerAdditionalExpense: args.subscription.plan.pricing.pricePerAdditionalExpense.valueInCents,
             includedCollectives: args.subscription.plan.pricing.includedCollectives,
             includedExpensesPerMonth: args.subscription.plan.pricing.includedExpensesPerMonth,
+            platformTips: true,
           },
           features: args.subscription.plan.features,
         };

@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { shuffle, times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
@@ -121,6 +122,31 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         const result = await graphqlQueryV2(accountQuery, { slug: incognitoProfile.slug });
         expect(result.data.account.legalName).to.be.null;
       });
+    });
+  });
+
+  describe('publicId', () => {
+    it('can fetch an account by publicId', async () => {
+      const user = await fakeUser({}, { legalName: 'PRIVATE!' });
+      const publicId = `${EntityShortIdPrefix.Collective}_${user.collective.id}`;
+      await user.collective.update({ publicId });
+
+      const accountByIdQuery = gql`
+        query AccountById($id: String!) {
+          account(id: $id) {
+            id
+            legacyId
+            slug
+          }
+        }
+      `;
+
+      const result = await graphqlQueryV2(accountByIdQuery, { id: publicId }, user);
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.legacyId).to.eq(user.collective.id);
+      expect(result.data.account.slug).to.eq(user.collective.slug);
     });
   });
 

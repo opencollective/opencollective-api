@@ -4,6 +4,7 @@ import { createSandbox } from 'sinon';
 import { expenseStatus } from '../../../server/constants';
 import * as transferwiseController from '../../../server/controllers/transferwise';
 import { idEncode, IDENTIFIER_TYPES } from '../../../server/graphql/v2/identifiers';
+import emailLib from '../../../server/lib/email';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import transferwise from '../../../server/paymentProviders/transferwise';
 import {
@@ -25,9 +26,9 @@ describe('server/controllers/transferwise', () => {
   beforeEach(async () => {
     sandbox.restore();
     remoteUser = await fakeUser();
-    host = await fakeCollective({ isHostAccount: true, admin: remoteUser.collective });
+    host = await fakeCollective({ hasMoneyManagement: true, admin: remoteUser.collective });
     await remoteUser.populateRoles();
-    const collective = await fakeCollective({ isHostAccount: false, HostCollectiveId: host.id });
+    const collective = await fakeCollective({ hasMoneyManagement: false, HostCollectiveId: host.id });
     const payoutMethod = await fakePayoutMethod({
       type: PayoutMethodTypes.BANK_ACCOUNT,
       data: {
@@ -108,6 +109,7 @@ describe('server/controllers/transferwise', () => {
     sandbox.stub(transferwise, 'quoteExpense').resolves(quote);
     payExpensesBatchGroup = sandbox.stub(transferwise, 'payExpensesBatchGroup').resolves({ status: 'COMPLETED' });
     sandbox.stub(transferwise, 'approveExpenseBatchGroupPayment').resolves({ status: 'COMPLETED' });
+    sandbox.stub(emailLib, 'send').resolves();
   });
 
   it('should throw if remote user is not a host admin', async () => {

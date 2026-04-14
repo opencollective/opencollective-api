@@ -5,6 +5,7 @@ export const TransactionsImportRowActionTypes = [
   'RESTORE_ALL',
   'PUT_ON_HOLD_ALL',
   'UPDATE_ROWS',
+  'UNLINK',
 ] as const;
 
 export const GraphQLTransactionsImportRowAction = new GraphQLEnumType({

@@ -1,5 +1,6 @@
 import DataLoader from 'dataloader';
-import { first, groupBy, uniq } from 'lodash';
+import { first, groupBy, uniq, uniqBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { roles } from '../../constants';
 import { CollectiveType } from '../../constants/collectives';
@@ -7,6 +8,16 @@ import MemberRoles from '../../constants/roles';
 import models, { Collective, Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
+
+type CommunityActivitySummaryRow = {
+  HostCollectiveId: number;
+  CollectiveId: number;
+  FromCollectiveId: number;
+  activities: string[];
+  relations: string[];
+  lastInteractionAt: Date;
+  firstInteractionAt: Date;
+};
 
 export default {
   /**
@@ -22,7 +33,7 @@ export default {
           AND         c."deletedAt" IS NULL
           GROUP BY    u."id", c.id`,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           model: models.Collective,
           mapToModel: true,
           replacements: { userIds },
@@ -199,15 +210,20 @@ export default {
 
           const results: Collective[] = await sequelize.query(
             `
-          SELECT
-            c.*, JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") AS "associatedCollectives",
-            cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt" 
-          FROM
-            "CommunityActivitySummary" cas
-            INNER JOIN "Collectives" c ON c.id = cas."FromCollectiveId"
-          WHERE
-            c."deletedAt" IS NULL AND (${conditionalQuery}) 
-            GROUP BY c.id, cas."HostCollectiveId"`,
+            SELECT
+              fc.*,
+              JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") FILTER (WHERE c."type" IN ('COLLECTIVE', 'FUND', 'PROJECT', 'EVENT')) AS "associatedCollectives",
+              JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") FILTER (WHERE c."type" = 'ORGANIZATION') AS "associatedOrganizations",
+              cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt"
+            FROM
+              "CommunityActivitySummary" cas
+              INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
+              LEFT JOIN "Collectives" c ON c.id = cas."CollectiveId"
+            WHERE
+              fc."deletedAt" IS NULL
+              AND c."deletedAt" IS NULL
+              AND (${conditionalQuery})
+            GROUP BY fc.id, cas."HostCollectiveId"`,
             {
               model: Collective,
               mapToModel: true,
@@ -222,5 +238,42 @@ export default {
         },
         { cacheKeyFn: arg => `${arg.HostCollectiveId}-${arg.FromCollectiveId}` },
       ),
+    forSpecificHostedCollective: (): DataLoader<
+      { CollectiveId: number; HostCollectiveId: number; FromCollectiveId: number },
+      CommunityActivitySummaryRow
+    > => {
+      const makeKey = pair => `${pair.HostCollectiveId}-${pair.CollectiveId}-${pair.FromCollectiveId}`;
+      return new DataLoader(
+        async hostedCollectivePairs => {
+          const keys = hostedCollectivePairs.map(makeKey);
+
+          const uniqCombinations = uniqBy(hostedCollectivePairs, makeKey);
+          const conditionals = uniqCombinations
+            .map(
+              ({ HostCollectiveId, CollectiveId, FromCollectiveId }) =>
+                `("HostCollectiveId" = ${HostCollectiveId} AND "CollectiveId" = ${CollectiveId} AND "FromCollectiveId" = ${FromCollectiveId})`,
+            )
+            .join(' OR ');
+
+          const results: CommunityActivitySummaryRow[] = await sequelize.query(
+            `
+            SELECT
+              *
+            FROM
+              "CommunityActivitySummary"
+            WHERE
+              (${conditionals})
+            `,
+            {
+              raw: true,
+              type: QueryTypes.SELECT,
+            },
+          );
+
+          return sortResultsSimple(keys, results, makeKey);
+        },
+        { cacheKeyFn: makeKey },
+      );
+    },
   },
 };

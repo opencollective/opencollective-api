@@ -7,10 +7,13 @@ import isIP from 'validator/lib/isIP';
 import ActivityTypes, { ActivitiesPerClass, ActivityClasses, TransactionalActivities } from '../constants/activities';
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { getRootDomain, prependHttp } from '../lib/url-utils';
 
 import Collective from './Collective';
+import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 const debug = debugLib('models:Notification');
@@ -21,7 +24,14 @@ const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
   [channels.WEBHOOK]: false,
 };
 
-class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
+class Notification extends ModelWithPublicId<
+  EntityShortIdPrefix.Notification,
+  InferAttributes<Notification>,
+  InferCreationAttributes<Notification>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Notification;
+  public static readonly tableName = 'Notifications' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public channel: channels;
   declare public type: ActivityTypes | ActivityClasses | string;
@@ -152,7 +162,7 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
    * (e.g. backers@:collectiveSlug.opencollective.com, :eventSlug@:collectiveSlug.opencollective.com)
    * We exclude users that have unsubscribed (by looking for rows in the Notifications table that are active: false)
    */
-  static async getSubscribers(collectiveSlug: string | number, mailinglist: string) {
+  static async getSubscribers(collectiveSlug: string | number, mailinglist: string): Promise<Member[]> {
     const findByAttribute = typeof collectiveSlug === 'string' ? 'findBySlug' : 'findById';
     const collective = await Collective[findByAttribute](collectiveSlug);
 
@@ -202,7 +212,7 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
     }
     return User.findAll({
       where: {
-        CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+        CollectiveId: { [Op.in]: uniq(memberships.map(m => m.MemberCollectiveId)) },
       },
     });
   }
@@ -215,7 +225,7 @@ class Notification extends Model<InferAttributes<Notification>, InferCreationAtt
     }
     return Collective.findAll({
       where: {
-        id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
+        id: { [Op.in]: uniq(memberships.map(m => m.MemberCollectiveId)) },
       },
     });
   }
@@ -337,6 +347,10 @@ Notification.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     channel: {

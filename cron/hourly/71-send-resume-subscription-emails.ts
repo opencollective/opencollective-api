@@ -10,11 +10,6 @@ import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 import { runCronJob } from '../utils';
 
-if (parseToBoolean(process.env.SKIP_RESUME_SUBSCRIPTION_EMAILS)) {
-  console.log('Skipping because SKIP_RESUME_SUBSCRIPTION_EMAILS is set.');
-  process.exit();
-}
-
 const NB_REMINDERS = 3;
 
 /**
@@ -120,5 +115,10 @@ export async function run() {
 }
 
 if (require.main === module) {
+  if (parseToBoolean(process.env.SKIP_RESUME_SUBSCRIPTION_EMAILS)) {
+    console.log('Skipping because SKIP_RESUME_SUBSCRIPTION_EMAILS is set.');
+    process.exit();
+  }
+
   runCronJob('send-resume-subscription-emails', run, 60 * 60);
 }

@@ -5,17 +5,6 @@ import { get, last } from 'lodash';
 import stripe from '../server/lib/stripe';
 import models from '../server/models';
 
-if (process.argv.length < 3) {
-  console.error('Usage: ./scripts/diff-stripe-transactions.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
-  process.exit(1);
-}
-
-const HOST_SLUG = process.argv[2];
-const NB_CHARGES_TO_CHECK = parseInt(process.argv[3]) || 100;
-const LAST_CHARGE_ID = process.argv[4] || undefined;
-const NB_CHARGES_PER_QUERY = 100; // Max allowed by Stripe
-const NB_PAGES = NB_CHARGES_TO_CHECK / NB_CHARGES_PER_QUERY;
-
 async function checkCharge(charge) {
   if (charge.failure_code) {
     // Ignore failed transaction
@@ -69,6 +58,17 @@ const getHostStripeAccountUsername = async slug => {
 };
 
 async function main() {
+  if (process.argv.length < 3) {
+    console.error('Usage: ./scripts/diff-stripe-transactions.js HOST_SLUG [NB_CHARGES_TO_CHECK=100] [LAST_CHARGE_ID]');
+    process.exit(1);
+  }
+
+  const HOST_SLUG = process.argv[2];
+  const NB_CHARGES_TO_CHECK = parseInt(process.argv[3]) || 100;
+  const LAST_CHARGE_ID = process.argv[4] || undefined;
+  const NB_CHARGES_PER_QUERY = 100; // Max allowed by Stripe
+  const NB_PAGES = NB_CHARGES_TO_CHECK / NB_CHARGES_PER_QUERY;
+
   const stripeUserName = await getHostStripeAccountUsername(HOST_SLUG);
   let lastChargeId = LAST_CHARGE_ID;
   let totalAlreadyChecked = 0;

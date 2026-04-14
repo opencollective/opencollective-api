@@ -2,7 +2,7 @@ import http from 'http';
 
 import { ApolloServer } from '@apollo/server';
 import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
-import { expressMiddleware } from '@as-integrations/express4';
+import { expressMiddleware } from '@as-integrations/express5';
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import config from 'config';
 import type express from 'express';
@@ -30,6 +30,7 @@ import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
+import { handlePermalink } from './lib/permalink/handler';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { checkIfSentryConfigured } from './lib/sentry/init';
@@ -38,6 +39,7 @@ import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
+import paypal from './paymentProviders/paypal';
 
 const upload = multer();
 
@@ -50,15 +52,16 @@ export default async (app: express.Application) => {
   /**
    * Extract GraphQL API Key
    */
-  app.use('/graphql/:version?/:apiKey?', (req, res, next) => {
+  app.use('/graphql{/:version}{/:apiKey}', (req, res, next) => {
     req.isGraphQL = true; // Helps identify that the request is handled by GraphQL
-    req.apiKey = req.params.apiKey;
+    const params = req.params as Record<string, string | undefined>;
+    req.apiKey = params.apiKey;
     next();
   });
 
-  app.use('*', withTiming('checkPersonalToken', authentication.checkPersonalToken));
+  app.use(withTiming('checkPersonalToken', authentication.checkPersonalToken));
 
-  app.use('*', withTiming('authorizeClient', authentication.authorizeClient));
+  app.use(withTiming('authorizeClient', authentication.authorizeClient));
 
   /**
    * Sign In related features
@@ -79,7 +82,7 @@ export default async (app: express.Application) => {
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
    * (an error will be returned if the JWT token is invalid, if not present it will simply continue)
    */
-  app.use('*', withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
+  app.use(withTiming('authenticateUser', authentication.authenticateUser)); // populate req.remoteUser if JWT token provided in the request
 
   // OAuth server (after authentication/JWT handling, at least for authorize)
   app['oauth'] = oauth;
@@ -163,6 +166,9 @@ export default async (app: express.Application) => {
     );
   }
 
+  app.get('/id/:id', withTiming('handlePermalink', handlePermalink));
+  app.get('/permalink/:id', withTiming('handlePermalink', handlePermalink));
+
   /**
    * GraphQL scope
    */
@@ -173,7 +179,7 @@ export default async (app: express.Application) => {
       // 2) GraphQL v1 is not officially supported and should not be used by third party developers
       if (req.userToken && req.userToken.type === 'OAUTH') {
         // We need exceptions for prototype and internal tools
-        if (!req.userToken.client?.data?.enableGraphqlV1) {
+        if (!req.userToken.application?.data?.enableGraphqlV1) {
           const errorMessage = 'OAuth access tokens are not accepted on GraphQL v1';
           logger.warn(errorMessage);
           return next(new errors.Unauthorized(errorMessage));
@@ -225,7 +231,7 @@ export default async (app: express.Application) => {
       onReject: [getGraphQLComplexityRejectionLogger('costLimit')],
       ignoreIntrospection: true,
       propagateOnRejection: parseToBoolean(config.graphql.rejectOnMaxComplexity),
-      maxCost: 125_000, // Currently identified max: around 103926 on the "ExpenseFormSchema" mutation
+      maxCost: 150_000, // Currently identified max: around 131214 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
@@ -338,18 +344,34 @@ export default async (app: express.Application) => {
   app.use('/graphql', expressMiddleware(graphqlServerV2, apolloExpressMiddlewareOptions));
 
   /**
+   * Generic OAuth (ConnectedAccounts)
+   * To keep in sync with opencollective-frontend/pages/api/connected-accounts/[service]/oauthUrl.js
+   */
+  const oauthServiceAllowlist = new Set(['github', 'stripe', 'transferwise', 'paypal']);
+
+  /**
    * Webhooks that should bypass api key check
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
-  app.post('/webhooks/paypal/:hostId?', paypalWebhook);
+  app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
   app.post('/webhooks/plaid', plaidWebhook);
-  app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
+  app.get('/connected-accounts/:service/callback', noCache, (req, res, next) => {
+    if (!oauthServiceAllowlist.has(req.params.service)) {
+      return next(new errors.NotFound('Service not supported'));
+    }
+    return authentication.authenticateServiceCallback(req, res, next);
+  }); // oauth callback
   app.delete(
     '/connected-accounts/:service/disconnect/:collectiveId',
     noCache,
     authentication.authenticateServiceDisconnect,
   );
+
+  /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
+  app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);
+  /** PayPal Connect JSON endpoint (used by the PayPal SDK button in the expense form) */
+  app.post('/connected-accounts/paypal/connect', noCache, paypal.oauth.connect);
 
   /**
    * Contact Form
@@ -370,15 +392,19 @@ export default async (app: express.Application) => {
    */
   app.post('/images', upload.single('file'), uploadImage);
 
-  /**
-   * Generic OAuth (ConnectedAccounts)
-   */
-  app.get('/connected-accounts/:service(github|transferwise)', noCache, authentication.authenticateService); // backward compatibility
-  app.get(
-    '/connected-accounts/:service(github|stripe|paypal|transferwise)/oauthUrl',
-    noCache,
-    authentication.authenticateService,
-  );
+  // backward compatibility
+  app.get('/connected-accounts/:service', noCache, (req, res, next) => {
+    if (!oauthServiceAllowlist.has(req.params.service)) {
+      return next(new errors.NotFound('Service not supported'));
+    }
+    return authentication.authenticateService(req, res, next);
+  });
+  app.get('/connected-accounts/:service/oauthUrl', noCache, (req, res, next) => {
+    if (!oauthServiceAllowlist.has(req.params.service)) {
+      return next(new errors.NotFound('Service not supported'));
+    }
+    return authentication.authenticateService(req, res, next);
+  });
   app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
@@ -405,6 +431,19 @@ export default async (app: express.Application) => {
    * Gitbook Search API
    */
   app.get('/docs/search', gitbook.search);
+
+  /**
+   * Status endpoint
+   */
+  const statusHandler = (req: express.Request, res: express.Response) => {
+    res.json({
+      status: 'ok',
+      authenticated: Boolean(req.remoteUser && req.remoteUser.id),
+    });
+  };
+
+  app.get('/status', statusHandler);
+  app.post('/status', statusHandler);
 
   /**
    * An endpoint to easily test Sentry integration

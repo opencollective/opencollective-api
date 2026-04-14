@@ -39,7 +39,7 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       collective = await fakeCollective({
         plan: 'start-plan-2021',
         admin: user.collective,
-        isHostAccount: true,
+        hasMoneyManagement: true,
         isActive: true,
       });
     });

@@ -8,6 +8,7 @@ import '../../server/env';
 import { Command } from 'commander';
 import { toPath } from 'lodash';
 import moment from 'moment';
+import { QueryTypes } from 'sequelize';
 
 import logger from '../../server/lib/logger';
 import { FileFieldsDefinition } from '../../server/lib/uploaded-files';
@@ -42,7 +43,7 @@ const main = async options => {
       const hasSoftDelete = Boolean(definition.model['options']['paranoid']);
       const timeLabel = `Performance for analyzing ${kind}`;
       console.time(timeLabel);
-      const result = await sequelize.query(
+      const result = await sequelize.query<{ id: number; url: string }>(
         `
           ${DRY_RUN ? 'BEGIN;' : ''}
           -- Pre-extract all links from the field as it makes the query way faster for rich text
@@ -76,7 +77,7 @@ const main = async options => {
           ${DRY_RUN ? 'ROLLBACK;' : ''}
         `,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           replacements: { kind, olderThanDate: olderThanDate.toDate() },
         },
       );
@@ -90,11 +91,13 @@ const program = new Command()
   .option('--olderThan', 'Only delete files removed since more than X days', '60')
   .parse(process.argv);
 
-main(program.opts())
-  .then(() => {
-    process.exit(0);
-  })
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main(program.opts())
+    .then(() => {
+      process.exit(0);
+    })
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

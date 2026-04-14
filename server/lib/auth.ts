@@ -76,7 +76,7 @@ export function setAuthCookie(res, token) {
 
 export const OTP_RATE_LIMIT_WINDOW = minutesToSeconds(15);
 export const OTP_RATE_LIMIT_MAX_ATTEMPTS = 5;
-export const OTP_TOKEN_EXPIRATION = minutesToSeconds(5);
+export const OTP_TOKEN_EXPIRATION = minutesToSeconds(15);
 
 const OTP_SYMBOLS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 

@@ -2,6 +2,7 @@ import config from 'config';
 import { get, isEmpty, sum, times } from 'lodash';
 import moment from 'moment';
 import sanitize from 'sanitize-html';
+import { QueryTypes } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { activities } from '../../constants';
@@ -354,7 +355,7 @@ async function getAmountLeftToSpendForMonthlyLimits(sourcePaymentMethod) {
        AND "expiryDate" > NOW()`,
       {
         replacements: { sourcePaymentMethodId: sourcePaymentMethod.id },
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
       },
     )
     .then(results => results[0].totalAmountLeftToSpend);

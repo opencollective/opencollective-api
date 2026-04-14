@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import { QueryTypes } from 'sequelize';
 
 import models, { sequelize } from '../../models';
 
@@ -16,7 +17,7 @@ export default {
         GROUP BY    f."ConversationId", c.id
       `,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           model: models.Collective,
           mapToModel: true,
           replacements: { conversationIds },
@@ -28,7 +29,7 @@ export default {
       }
 
       const groupedCollectives = subscribedCollectives.reduce((result, collective) => {
-        const conversationId = collective.dataValues.__conversation_id__;
+        const conversationId = (collective.dataValues as { __conversation_id__?: number }).__conversation_id__;
         result[conversationId] = result[conversationId] || [];
         result[conversationId].push(collective);
         return result;
@@ -49,7 +50,7 @@ export default {
         GROUP BY "ConversationId"
       `,
         {
-          type: sequelize.QueryTypes.SELECT,
+          type: QueryTypes.SELECT,
           mapToModel: false,
           replacements: { conversationsIds },
         },

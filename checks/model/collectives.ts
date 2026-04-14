@@ -1,34 +1,16 @@
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
+import logger from '../../server/lib/logger';
 import { sequelize } from '../../server/models';
 
 import { runAllChecksThenExit } from './_utils';
 
-async function checkDeletedUsers() {
-  const message = 'No USER Collective without a matching User (no auto fix)';
-
-  const results = await sequelize.query(
-    `SELECT COUNT(*) as count
-     FROM "Collectives" c
-     LEFT JOIN "Users" u
-     ON c."id" = u."CollectiveId"
-     WHERE c."type" = 'USER'
-     AND c."isIncognito" IS FALSE
-     AND c."deletedAt" IS NULL
-     AND (u."deletedAt" IS NOT NULL or u."id" IS NULL)`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
-  );
-
-  if (results[0].count > 0) {
-    // Not fixable
-    throw new Error(message);
-  }
-}
-
 async function checkActiveApprovedAtInconsistency() {
   const message = 'approvedAt and isActive are inconsistent (no auto fix)';
 
-  const [results] = await sequelize.query(
+  const [results] = await sequelize.query<{ activeUnapproved: number; inactiveApproved: number }>(
     `
     SELECT
       COUNT(*) FILTER (WHERE "isActive" IS TRUE and "approvedAt" IS NULL) as "activeUnapproved",
@@ -39,7 +21,7 @@ async function checkActiveApprovedAtInconsistency() {
       ("isActive" IS TRUE and "approvedAt" IS NULL)
       OR ("isActive" IS NOT TRUE and "approvedAt" IS NOT NULL)
     )`,
-    { type: sequelize.QueryTypes.SELECT, raw: true },
+    { type: QueryTypes.SELECT, raw: true },
   );
 
   if (results.activeUnapproved > 0 || results.inactiveApproved > 0) {
@@ -49,7 +31,37 @@ async function checkActiveApprovedAtInconsistency() {
   }
 }
 
-export const checks = [checkDeletedUsers, checkActiveApprovedAtInconsistency];
+async function checkNonActiveHostOrganizations({ fix = false } = {}) {
+  const results = await sequelize.query<{ count: number }>(
+    `
+    SELECT COUNT(*) as count FROM "Collectives"
+    WHERE "deletedAt" is null
+      AND "hasMoneyManagement" is true
+      AND "isActive" is FALSE
+      AND type = 'ORGANIZATION';
+    `,
+    { type: QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    const message = `Host Organizations must be active, found ${results[0].count} inactive ones.`;
+    if (fix) {
+      logger.warn(`Fixing: ${message}`);
+      await sequelize.query(`
+        UPDATE "Collectives"
+        SET "isActive" = true
+        WHERE "deletedAt" is null
+          AND "hasMoneyManagement" is true
+          AND "isActive" is FALSE
+          AND type = 'ORGANIZATION';
+      `);
+    } else {
+      throw new Error(message);
+    }
+  }
+}
+
+export const checks = [checkActiveApprovedAtInconsistency, checkNonActiveHostOrganizations];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);

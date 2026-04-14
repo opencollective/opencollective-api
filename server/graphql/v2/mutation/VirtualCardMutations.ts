@@ -5,6 +5,7 @@ import { activities } from '../../../constants';
 import POLICIES from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import logger from '../../../lib/logger';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -269,7 +270,9 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: isEntityPublicId(args.virtualCard.id, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
         include: [
           { association: 'host', required: true },
           { association: 'collective', required: true },
@@ -489,7 +492,9 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: isEntityPublicId(args.virtualCard.id as string, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
         include: [
           {
             model: models.Collective,
@@ -547,8 +552,13 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
-        include: [{ association: 'host', required: true }],
+        where: isEntityPublicId(args.virtualCard.id as string, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
+        include: [
+          { association: 'host', required: true },
+          { association: 'collective', required: true },
+        ],
       });
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
@@ -592,7 +602,9 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: isEntityPublicId(args.virtualCard.id as string, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
         include: [
           {
             model: models.Collective,

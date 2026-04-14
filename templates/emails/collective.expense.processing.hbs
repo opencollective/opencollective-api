@@ -5,14 +5,14 @@ Subject: Payment being processed: {{{expense.description}}} for {{{collective.na
 <center>
   <h3>{{> greeting}}</h3>
   <p>
-    Your expense, <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>,
+    Your expense, <b><a href="{{permalink expense}}">{{expense.description}}</a></b>,
     submitted to {{> linkCollective collective=collective}} on {{moment expense.createdAt}}, is currently being processed by Wise and should be paid soon.
   </p>
 </center>
 
 <p>
   <center>
-    <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+    <a href="{{permalink expense}}" class="btn blue">
       <div>View Expense</div>
     </a>
   </center>

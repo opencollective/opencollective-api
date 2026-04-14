@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { Activity, Collective, LegalDocument, Op } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -138,7 +139,7 @@ const vendorMutations = {
         description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
       },
     },
-    resolve: async (_, args, req) => {
+    resolve: async (_, args, req: Express.Request) => {
       checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
@@ -222,9 +223,10 @@ const vendorMutations = {
       if (args.vendor.payoutMethod) {
         let payoutMethod;
         const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
+        // If the payout method doesn't have an id, we consider it as a new payout method and we archive the previous one(s)
         if (!args.vendor.payoutMethod.id) {
           if (!isEmpty(existingPayoutMethods)) {
-            existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
+            await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false })));
           }
 
           payoutMethod = await models.PayoutMethod.create({
@@ -233,12 +235,20 @@ const vendorMutations = {
             CreatedByUserId: req.remoteUser.id,
             isSaved: true,
           });
-        } else {
-          const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
-          payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
+        }
+        // Otherwise the user is only selecting another existing payout method, we just need to update the isSaved flag
+        else {
+          if (isEntityPublicId(args.vendor.payoutMethod.id, EntityShortIdPrefix.PayoutMethod)) {
+            payoutMethod = await req.loaders.PayoutMethod.byPublicId.load(args.vendor.payoutMethod.id);
+          } else {
+            const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+            payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
+          }
+          assert(payoutMethod, new NotFound('Payout method not found'));
           await Promise.all(
-            existingPayoutMethods.filter(pm => pm.id !== payoutMethodId).map(pm => pm.update({ isSaved: false })),
+            existingPayoutMethods.filter(pm => pm.id !== payoutMethod.id).map(pm => pm.update({ isSaved: false })),
           );
+          await payoutMethod.update({ isSaved: true });
         }
 
         // Since vendors can only have a single payout method, we update all expenses to use the new one

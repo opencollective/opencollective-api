@@ -19,6 +19,7 @@ export enum HandlerType {
   FALLBACK = 'FALLBACK',
   WEBHOOK = 'WEBHOOK',
   OPENSEARCH_SYNC_JOB = 'OPENSEARCH_SYNC_JOB',
+  EXPORTS_WORKER = 'EXPORTS_WORKER',
 }
 
 export const redactSensitiveDataFromRequest = rawRequest => {
@@ -74,16 +75,16 @@ Sentry.init({
   tracesSampler: samplingContext => {
     if (!TRACES_SAMPLE_RATE || !samplingContext) {
       return 0;
-    } else if (samplingContext.parentSampled !== undefined) {
-      return samplingContext.parentSampled;
     } else if (samplingContext.normalizedRequest?.headers?.['x-sentry-force-sample']) {
       return 1;
     } else {
-      return TRACES_SAMPLE_RATE;
+      return samplingContext.inheritOrSampleWith(TRACES_SAMPLE_RATE);
     }
   },
   // Relative to tracesSampler
   profilesSampleRate: PROFILES_SAMPLE_RATE,
+  release: process.env.HEROKU_SLUG_COMMIT,
+  dist: config.env,
 });
 
 export default Sentry;

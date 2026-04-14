@@ -31,7 +31,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -40,7 +40,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -67,7 +67,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -85,7 +85,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -94,7 +94,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -113,7 +113,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -122,7 +122,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -141,7 +141,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -150,7 +150,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -161,7 +161,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Cache build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: dist
           key: ${{ runner.os }}-api-build-${{ github.sha }}
@@ -175,7 +175,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -184,7 +184,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -195,7 +195,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Cache build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: dist
           key: ${{ runner.os }}-api-build-${{ github.sha }}
@@ -207,7 +207,8 @@ jobs:
     runs-on: ubuntu-24.04
 
     timeout-minutes: 30
-
+    env:
+      PG_DATABASE: opencollective_test
     services:
       redis:
         image: redis
@@ -215,7 +216,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.10
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -234,7 +235,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -243,7 +244,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -253,8 +254,7 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: npm run db:restore:test
 
       - run: npm run test:coverage -- --ignore "test/server/graphql/**"
 
@@ -275,6 +275,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
+    env:
+      PG_DATABASE: opencollective_test
+
     services:
       redis:
         image: redis
@@ -282,7 +285,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.10
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -313,7 +316,7 @@ jobs:
           MINIO_ROOT_PASSWORD: password
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -322,7 +325,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -332,8 +335,7 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: npm run db:restore:test
 
       - run: npm run test:coverage test/server/graphql
 
@@ -361,7 +363,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.10
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -372,7 +374,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node
         uses: actions/setup-node@v6
@@ -381,7 +383,7 @@ jobs:
           cache: 'npm'
 
       - name: Restore node_modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: api-node-modules
         with:
           path: node_modules
@@ -403,7 +405,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.10
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -413,7 +415,7 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: GraphQL Inspector (V1)
         uses: kamilkisiela/graphql-inspector@v3.4.0

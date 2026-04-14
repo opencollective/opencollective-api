@@ -4,9 +4,11 @@ import { PlaidApi } from 'plaid';
 import sinon from 'sinon';
 
 import { Service } from '../../../../../server/constants/connected-account';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as PlaidClient from '../../../../../server/lib/plaid/client';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models, { ConnectedAccount } from '../../../../../server/models';
@@ -204,6 +206,27 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
         name: 'New Name',
         source: 'New Source',
       });
+    });
+
+    it('accepts publicId when editing a transactions import', async () => {
+      const remoteUser = await fakeUser({ data: { isRoot: true } });
+      const transactionsImport = await fakeTransactionsImport();
+      await transactionsImport.collective.addUserWithRole(remoteUser, 'ADMIN');
+
+      const publicId =
+        `${EntityShortIdPrefix.TransactionsImport}_${transactionsImport.id}` as EntityPublicId<EntityShortIdPrefix.TransactionsImport>;
+      await transactionsImport.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        EDIT_TRANSACTIONS_IMPORT_MUTATION,
+        { id: publicId, name: 'New Name 2', source: 'New Source 2' },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editTransactionsImport.name).to.equal('New Name 2');
+      expect(result.data.editTransactionsImport.source).to.equal('New Source 2');
     });
 
     it('can associate an expense to multiple import rows', async () => {
@@ -448,6 +471,128 @@ describe('server/graphql/v2/mutation/TransactionImportsMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.include('GoCardless API error');
+    });
+  });
+
+  describe('updateTransactionsImportRows - UNLINK', () => {
+    const UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION = gql`
+      mutation UpdateTransactionsImportRows(
+        $rows: [TransactionsImportRowUpdateInput!]!
+        $action: TransactionsImportRowAction!
+      ) {
+        updateTransactionsImportRows(rows: $rows, action: $action) {
+          rows {
+            id
+            status
+            expense {
+              id
+              legacyId
+            }
+            order {
+              id
+              legacyId
+            }
+          }
+        }
+      }
+    `;
+
+    it('should revert a row linked to an expense', async () => {
+      const remoteUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+      const row = await fakeTransactionsImportRow({
+        TransactionsImportId: transactionsImport.id,
+        status: 'LINKED',
+      });
+      const expense = await fakeExpense({
+        CollectiveId: transactionsImport.CollectiveId,
+        status: 'PAID',
+      });
+      await row.update({ ExpenseId: expense.id });
+
+      const result = await graphqlQueryV2(
+        UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION,
+        {
+          action: 'UNLINK',
+          rows: [{ id: idEncode(row.id, 'transactions-import-row') }],
+        },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateTransactionsImportRows.rows).to.have.length(1);
+      expect(result.data.updateTransactionsImportRows.rows[0].status).to.equal('PENDING');
+      expect(result.data.updateTransactionsImportRows.rows[0].expense).to.be.null;
+
+      await row.reload();
+      expect(row.status).to.equal('PENDING');
+      expect(row.ExpenseId).to.be.null;
+
+      // Verify expense still exists
+      const expenseStillExists = await models.Expense.findByPk(expense.id);
+      expect(expenseStillExists).to.not.be.null;
+    });
+
+    it('should revert a row linked to an order', async () => {
+      const remoteUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+      const row = await fakeTransactionsImportRow({
+        TransactionsImportId: transactionsImport.id,
+        status: 'LINKED',
+      });
+      const order = await fakeOrder({
+        CollectiveId: transactionsImport.CollectiveId,
+        status: OrderStatuses.PAID,
+      });
+      await row.update({ OrderId: order.id });
+
+      const result = await graphqlQueryV2(
+        UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION,
+        {
+          action: 'UNLINK',
+          rows: [{ id: idEncode(row.id, 'transactions-import-row') }],
+        },
+        remoteUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateTransactionsImportRows.rows).to.have.length(1);
+      expect(result.data.updateTransactionsImportRows.rows[0].status).to.equal('PENDING');
+      expect(result.data.updateTransactionsImportRows.rows[0].order).to.be.null;
+
+      await row.reload();
+      expect(row.status).to.equal('PENDING');
+      expect(row.OrderId).to.be.null;
+
+      // Verify order still exists
+      const orderStillExists = await models.Order.findByPk(order.id);
+      expect(orderStillExists).to.not.be.null;
+    });
+
+    it('should return an error if no linked rows found', async () => {
+      const remoteUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: remoteUser });
+      const transactionsImport = await fakeTransactionsImport({ CollectiveId: host.id });
+      const row = await fakeTransactionsImportRow({
+        TransactionsImportId: transactionsImport.id,
+        status: 'PENDING',
+      });
+
+      const result = await graphqlQueryV2(
+        UPDATE_TRANSACTIONS_IMPORT_ROWS_MUTATION,
+        {
+          action: 'UNLINK',
+          rows: [{ id: idEncode(row.id, 'transactions-import-row') }],
+        },
+        remoteUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Some rows are not linked');
     });
   });
 });

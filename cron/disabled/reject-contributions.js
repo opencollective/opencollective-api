@@ -2,6 +2,7 @@ import '../../server/env';
 
 import { ArgumentParser } from 'argparse';
 import { get, intersection } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { activities } from '../../server/constants';
 import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation-categories';
@@ -47,7 +48,7 @@ const getContributorRejectedCategories = (fromCollective, collective) => {
 };
 
 async function run({ dryRun, limit, force } = {}) {
-  let rows = await sequelize.query(query, { type: sequelize.QueryTypes.SELECT });
+  let rows = await sequelize.query(query, { type: QueryTypes.SELECT });
 
   if (rows.length > 0 && limit) {
     rows = rows.slice(0, limit);

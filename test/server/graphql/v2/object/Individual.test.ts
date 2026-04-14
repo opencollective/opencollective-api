@@ -2,7 +2,20 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
-import { fakeActiveHost, fakeCollective, fakeEvent, fakeUser } from '../../../../test-helpers/fake-data';
+import FEATURE from '../../../../../server/constants/feature';
+import MemberRoles from '../../../../../server/constants/roles';
+import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeEvent,
+  fakeKYCVerification,
+  fakeMember,
+  fakeOrganization,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const individualQuery = gql`
@@ -153,6 +166,388 @@ describe('server/graphql/v2/object/Individual', () => {
       expect(result.data.me.contributorProfiles[0].account.slug).to.eq(user.collective.slug);
       expect(result.data.me.contributorProfiles[1].account.slug).to.eq(anotherCollective.slug);
       expect(result.data.me.contributorProfiles[2].account.slug).to.eq(event.slug);
+    });
+  });
+
+  describe('emailWaitingForValidation', () => {
+    const emailWaitingForValidationQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            emailWaitingForValidation
+          }
+        }
+      }
+    `;
+
+    it('returns error if user is not logged in', async () => {
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: user.collective.slug });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('returns null when querying another user account', async () => {
+      const otherUser = await fakeUser({ emailWaitingForValidation: 'pending@test.com' });
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: otherUser.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emailWaitingForValidation).to.be.null;
+    });
+
+    it('returns the pending email for the logged-in user', async () => {
+      await user.update({ emailWaitingForValidation: 'newemail@test.com' });
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emailWaitingForValidation).to.equal('newemail@test.com');
+    });
+
+    it('returns null if there is no pending email', async () => {
+      const result = await graphqlQueryV2(emailWaitingForValidationQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.emailWaitingForValidation).to.be.null;
+    });
+  });
+
+  describe('account query with publicId', () => {
+    it('can fetch an Individual account by publicId', async () => {
+      const publicId = `${EntityShortIdPrefix.Collective}_${user.collective.id}`;
+      await user.collective.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        gql`
+          query Individual($id: String!) {
+            account(id: $id) {
+              ... on Individual {
+                id
+                legacyId
+                slug
+              }
+            }
+          }
+        `,
+        { id: publicId },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.legacyId).to.equal(user.collective.id);
+      expect(result.data.account.slug).to.equal(user.collective.slug);
+    });
+  });
+
+  describe('isLimited', () => {
+    const isLimitedQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            isLimited
+          }
+        }
+      }
+    `;
+
+    it('returns false for a normal user', async () => {
+      const result = await graphqlQueryV2(isLimitedQuery, { slug: user.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isLimited).to.be.false;
+    });
+
+    it('returns true for a limited user', async () => {
+      const limitedUser = await fakeUser();
+      await limitedUser.update({ data: { features: { [FEATURE.ALL]: false } as Record<FEATURE, boolean> } });
+      const result = await graphqlQueryV2(isLimitedQuery, { slug: limitedUser.collective.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isLimited).to.be.true;
+    });
+  });
+
+  describe('isRoot', () => {
+    const isRootQuery = gql`
+      query Individual($slug: String!) {
+        account(slug: $slug) {
+          ... on Individual {
+            isRoot
+          }
+        }
+      }
+    `;
+
+    it('throws error if user is not logged in', async () => {
+      const result = await graphqlQueryV2(isRootQuery, { slug: user.collective.slug });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('throws error when querying another user account', async () => {
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(isRootQuery, { slug: otherUser.collective.slug }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Only visible to the logged in user');
+    });
+
+    it('returns false for a non-root user querying themselves', async () => {
+      const result = await graphqlQueryV2(isRootQuery, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isRoot).to.be.false;
+    });
+
+    it('returns false for a platform admin without the isRoot data flag', async () => {
+      const platformAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: 1,
+        MemberCollectiveId: platformAdmin.CollectiveId,
+        role: MemberRoles.ADMIN,
+      });
+      const result = await graphqlQueryV2(isRootQuery, { slug: platformAdmin.collective.slug }, platformAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isRoot).to.be.false;
+    });
+
+    it('returns false for a user with the isRoot data flag but not a platform admin', async () => {
+      const nonAdminUser = await fakeUser({ data: { isRoot: true } });
+      const result = await graphqlQueryV2(isRootQuery, { slug: nonAdminUser.collective.slug }, nonAdminUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isRoot).to.be.false;
+    });
+
+    it('returns true for a root user querying themselves', async () => {
+      const rootUser = await fakeUser({ data: { isRoot: true } });
+      await fakeMember({
+        CollectiveId: 1,
+        MemberCollectiveId: rootUser.CollectiveId,
+        role: MemberRoles.ADMIN,
+      });
+      const result = await graphqlQueryV2(isRootQuery, { slug: rootUser.collective.slug }, rootUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isRoot).to.be.true;
+    });
+  });
+
+  describe('kycVerifications', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    const query = gql`
+      query KYCVerificationTest(
+        $slug: String!
+        $limit: Int
+        $offset: Int
+        $requestedByAccounts: [AccountReferenceInput!]
+      ) {
+        account(slug: $slug) {
+          ... on Individual {
+            kycVerifications(limit: $limit, offset: $offset, requestedByAccounts: $requestedByAccounts) {
+              limit
+              offset
+              totalCount
+
+              nodes {
+                status
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    it('returns error if user is not authenticated', async () => {
+      const user = await fakeUser();
+
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage KYC.');
+    });
+
+    it('returns error if user is the individual', async () => {
+      const user = await fakeUser();
+
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
+    });
+
+    it('returns individual kyc verifications', async () => {
+      const admin = await fakeUser();
+      const user = await fakeUser();
+      const org = await fakeOrganization({ admin });
+
+      await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        CollectiveId: user.CollectiveId,
+        status: KYCVerificationStatus.REVOKED,
+      });
+
+      await fakeKYCVerification({
+        RequestedByCollectiveId: org.id,
+        CollectiveId: user.CollectiveId,
+        status: KYCVerificationStatus.FAILED,
+      });
+
+      const result = await graphqlQueryV2(
+        query,
+        { slug: user.collective.slug, requestedByAccounts: [{ slug: org.slug }] },
+        admin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.kycVerifications.totalCount).to.eql(2);
+    });
+  });
+
+  describe('kycStatus', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    const query = gql`
+      query KYCStatusTest($slug: String!, $requestedByAccount: AccountReferenceInput!) {
+        account(slug: $slug) {
+          ... on Individual {
+            kycStatus(requestedByAccount: $requestedByAccount) {
+              manual {
+                status
+                verifiedAt
+                providerData {
+                  ... on ManualKYCProviderData {
+                    notes
+                  }
+                }
+                verifiedData {
+                  legalName
+                  legalAddress
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    it('returns error if user is not authenticated', async () => {
+      const user = await fakeUser();
+      const org = await fakeOrganization();
+
+      const result = await graphqlQueryV2(query, {
+        slug: user.collective.slug,
+        requestedByAccount: { slug: org.slug },
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage KYC.');
+    });
+
+    it('returns error if user is the individual', async () => {
+      const user = await fakeUser();
+      const org = await fakeOrganization();
+
+      const result = await graphqlQueryV2(
+        query,
+        { slug: user.collective.slug, requestedByAccount: { slug: org.slug } },
+        user,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You are authenticated but forbidden to perform this action');
+    });
+
+    it('returns latest verification status per provider', async () => {
+      const user = await fakeUser();
+      const admin = await fakeUser();
+      const org = await fakeOrganization({ admin });
+      const otherOrg = await fakeOrganization();
+
+      await fakeKYCVerification({
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: org.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.VERIFIED,
+        data: {
+          legalName: 'Legal name 1',
+          legalAddress: 'Legal address 1',
+        },
+        providerData: {
+          notes: '',
+        },
+      });
+
+      await fakeKYCVerification({
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: org.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.VERIFIED,
+        data: {
+          legalName: 'Legal name 2',
+          legalAddress: 'Legal address 2',
+        },
+        providerData: {
+          notes: 'updated',
+        },
+      });
+
+      await fakeKYCVerification({
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: otherOrg.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.VERIFIED,
+        data: {
+          legalName: 'Legal name other org',
+          legalAddress: 'Legal address 2',
+        },
+        providerData: {
+          notes: 'updated',
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        query,
+        { slug: user.collective.slug, requestedByAccount: { slug: org.slug } },
+        admin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.kycStatus.manual.verifiedData.legalName).to.equal('Legal name 2');
+      expect(result.data.account.kycStatus.manual.verifiedData.legalAddress).to.equal('Legal address 2');
+      expect(result.data.account.kycStatus.manual.providerData.notes).to.equal('updated');
+    });
+
+    it('returns null for missing verification status', async () => {
+      const user = await fakeUser();
+      const admin = await fakeUser();
+      const org = await fakeOrganization();
+      const otherOrg = await fakeOrganization({ admin });
+
+      await fakeKYCVerification({
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: org.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const result = await graphqlQueryV2(
+        query,
+        { slug: user.collective.slug, requestedByAccount: { slug: otherOrg.slug } },
+        admin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.kycStatus.manual).to.be.null;
+    });
+
+    it('returns null for revoked verification status', async () => {
+      const user = await fakeUser();
+      const admin = await fakeUser();
+      const org = await fakeOrganization({ admin });
+
+      await fakeKYCVerification({
+        CollectiveId: user.collective.id,
+        RequestedByCollectiveId: org.id,
+        provider: KYCProviderName.MANUAL,
+        status: KYCVerificationStatus.REVOKED,
+      });
+
+      const result = await graphqlQueryV2(
+        query,
+        { slug: user.collective.slug, requestedByAccount: { slug: org.slug } },
+        admin,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.kycStatus.manual).to.be.null;
     });
   });
 });

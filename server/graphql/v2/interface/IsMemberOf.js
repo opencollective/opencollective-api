@@ -1,7 +1,8 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { cloneDeep, invert, isNil, isUndefined } from 'lodash';
+import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -26,6 +27,7 @@ export const IsMemberOfFields = {
       isHostAccount: {
         type: GraphQLBoolean,
         description: 'Filter on whether the account is a host or not',
+        deprecationReason: '2025-12-20: Deprecated. Will be eventually replaced by hasMoneyManagement or hasHosting.',
       },
       isApproved: {
         type: GraphQLBoolean,
@@ -34,6 +36,10 @@ export const IsMemberOfFields = {
       isArchived: {
         type: GraphQLBoolean,
         description: 'Filter on archived collectives',
+      },
+      isFrozen: {
+        type: GraphQLBoolean,
+        description: 'Filter on (not) frozen collectives',
       },
       includeIncognito: {
         type: GraphQLBoolean,
@@ -78,12 +84,20 @@ export const IsMemberOfFields = {
 
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
       const collectiveConditions = {};
+      const collectiveDataConditions = [];
 
       if (!isNil(args.isApproved)) {
         collectiveConditions.approvedAt = { [args.isApproved ? Op.not : Op.is]: null };
       }
       if (!isNil(args.isArchived)) {
         collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
+      }
+      if (!isNil(args.isFrozen)) {
+        collectiveDataConditions.push(
+          args.isFrozen
+            ? { features: { ALL: false } }
+            : { [Op.or]: [{ features: { ALL: true } }, { features: { ALL: null } }, { features: null }] },
+        );
       }
 
       // We don't want to apply the other filters for fetching the existing roles
@@ -105,14 +119,14 @@ export const IsMemberOfFields = {
         collectiveConditions.isIncognito = false;
       }
       if (!isNil(args.isHostAccount)) {
-        collectiveConditions.isHostAccount = args.isHostAccount;
+        collectiveConditions.hasMoneyManagement = args.isHostAccount;
       }
 
       if (args.hostFeesStructure) {
         if (args.hostFeesStructure === HOST_FEE_STRUCTURE.DEFAULT) {
-          collectiveConditions.data = { useCustomHostFee: { [Op.not]: true } };
+          collectiveDataConditions.push({ useCustomHostFee: { [Op.not]: true } });
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.CUSTOM_FEE) {
-          collectiveConditions.data = { useCustomHostFee: true };
+          collectiveDataConditions.push({ useCustomHostFee: true });
         } else if (args.hostFeesStructure === HOST_FEE_STRUCTURE.MONTHLY_RETAINER) {
           throw new ValidationFailed('The MONTHLY_RETAINER fees structure is not supported yet');
         }
@@ -137,10 +151,18 @@ export const IsMemberOfFields = {
         stringArrayFields: ['$collective.tags$'],
         stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
         castStringArraysToVarchar: true,
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Member },
+          { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
       });
 
       if (searchTermConditions.length) {
         where[Op.or] = searchTermConditions;
+      }
+
+      if (!isEmpty(collectiveDataConditions)) {
+        collectiveConditions.data = { [Op.and]: collectiveDataConditions };
       }
 
       const order = [];

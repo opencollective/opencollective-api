@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import { groupBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import models, { sequelize } from '../../server/models';
 
@@ -19,7 +20,7 @@ const getTransactions = async () => {
     order by t."createdAt" DESC
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Transaction,
       mapToModel: true,
     },
@@ -103,9 +104,11 @@ const main = async (): Promise<void> => {
   }
 };
 
-main()
-  .then(() => process.exit(0))
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

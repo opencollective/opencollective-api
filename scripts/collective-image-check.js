@@ -4,14 +4,14 @@ import fetch from 'node-fetch';
 
 import models, { Op } from '../server/models';
 
-const searchPattern = process.argv[2];
-if (!searchPattern) {
-  console.log('Please pass a search pattern to filter collective images to process.');
-  console.log('Ie: %logo.clearbit.com% or %pbs.twimg.com% or %opencollective-production.s3.us-west-1.amazonaws.com%');
-  process.exit();
-}
-
 async function main() {
+  const searchPattern = process.argv[2];
+  if (!searchPattern) {
+    console.log('Please pass a search pattern to filter collective images to process.');
+    console.log('Ie: %logo.clearbit.com% or %pbs.twimg.com% or %opencollective-production.s3.us-west-1.amazonaws.com%');
+    process.exit();
+  }
+
   const collectives = await models.Collective.findAll({
     where: {
       image: { [Op.iLike]: searchPattern },
@@ -56,4 +56,6 @@ async function main() {
   console.log('Done.');
 }
 
-main();
+if (require.main === module) {
+  main();
+}

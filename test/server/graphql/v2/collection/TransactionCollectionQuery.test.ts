@@ -4,10 +4,12 @@ import type Stripe from 'stripe';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import {
   fakeAccountingCategory,
   fakeCollective,
   fakeHost,
+  fakeManualPaymentProvider,
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
@@ -26,6 +28,7 @@ const transactionsQuery = gql`
     $searchTerm: String
     $paymentMethodType: [PaymentMethodType]
     $paymentMethodService: [PaymentMethodService]
+    $manualPaymentProvider: [ManualPaymentProviderReferenceInput!]
     $merchantId: [String]
     $accountingCategory: [String]
     $group: [String]
@@ -40,6 +43,7 @@ const transactionsQuery = gql`
       searchTerm: $searchTerm
       paymentMethodType: $paymentMethodType
       paymentMethodService: $paymentMethodService
+      manualPaymentProvider: $manualPaymentProvider
       merchantId: $merchantId
       accountingCategory: $accountingCategory
       group: $group
@@ -78,6 +82,10 @@ const transactionsQuery = gql`
         fromAccount {
           id
           legalName
+          location {
+            address
+            country
+          }
         }
         toAccount {
           id
@@ -262,6 +270,109 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
       });
     });
 
+    describe('by manualPaymentProvider', () => {
+      let hostWithProvider, collectiveWithProvider, provider, orderWithProvider, hostAdminUser;
+
+      before(async () => {
+        hostAdminUser = await fakeUser();
+        hostWithProvider = await fakeHost({ admin: hostAdminUser.collective });
+        collectiveWithProvider = await fakeCollective({
+          HostCollectiveId: hostWithProvider.id,
+        });
+        provider = await fakeManualPaymentProvider({
+          CollectiveId: hostWithProvider.id,
+          name: 'Bank Transfer Test',
+        });
+        orderWithProvider = await fakeOrder({
+          FromCollectiveId: (await fakeUser()).CollectiveId,
+          CollectiveId: collectiveWithProvider.id,
+          ManualPaymentProviderId: provider.id,
+          PaymentMethodId: null,
+        });
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          type: 'CREDIT',
+          amount: 5000,
+          FromCollectiveId: orderWithProvider.FromCollectiveId,
+          CollectiveId: collectiveWithProvider.id,
+          HostCollectiveId: hostWithProvider.id,
+          OrderId: orderWithProvider.id,
+          PaymentMethodId: null,
+        });
+      });
+
+      it('returns transactions for contributions that used the given manual payment provider', async () => {
+        const result = await graphqlQueryV2(
+          transactionsQuery,
+          {
+            slug: collectiveWithProvider.slug,
+            manualPaymentProvider: { id: idEncode(provider.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER) },
+          },
+          hostAdminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.transactions.totalCount).to.eq(1);
+        expect(result.data.transactions.nodes[0].order.id).to.eq(
+          idEncode(orderWithProvider.id, IDENTIFIER_TYPES.ORDER),
+        );
+      });
+
+      it('returns 403 when non-admin filters by manual payment provider', async () => {
+        const randomUser = await fakeUser();
+        const result = await graphqlQueryV2(
+          transactionsQuery,
+          {
+            slug: collectiveWithProvider.slug,
+            manualPaymentProvider: { id: idEncode(provider.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER) },
+          },
+          randomUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('admin of the host');
+      });
+    });
+
+    describe('by payment method OPENCOLLECTIVE + MANUAL (includes manual payment provider orders)', () => {
+      let hostMpp, collectiveMpp, providerMpp, orderMpp;
+
+      before(async () => {
+        hostMpp = await fakeHost();
+        collectiveMpp = await fakeCollective({ HostCollectiveId: hostMpp.id });
+        providerMpp = await fakeManualPaymentProvider({
+          CollectiveId: hostMpp.id,
+          name: 'Custom Bank',
+        });
+        orderMpp = await fakeOrder({
+          FromCollectiveId: (await fakeUser()).CollectiveId,
+          CollectiveId: collectiveMpp.id,
+          ManualPaymentProviderId: providerMpp.id,
+          PaymentMethodId: null,
+        });
+        await fakeTransaction({
+          kind: TransactionKind.CONTRIBUTION,
+          type: 'CREDIT',
+          amount: 3000,
+          FromCollectiveId: orderMpp.FromCollectiveId,
+          CollectiveId: collectiveMpp.id,
+          HostCollectiveId: hostMpp.id,
+          OrderId: orderMpp.id,
+          PaymentMethodId: null,
+        });
+      });
+
+      it('includes transactions whose order has ManualPaymentProviderId when filtering OPENCOLLECTIVE + MANUAL', async () => {
+        const result = await graphqlQueryV2(transactionsQuery, {
+          slug: collectiveMpp.slug,
+          paymentMethodService: ['OPENCOLLECTIVE'],
+          paymentMethodType: ['MANUAL'],
+        });
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.exist;
+        expect(result.data.transactions.totalCount).to.eq(1);
+        expect(result.data.transactions.nodes[0].order.id).to.eq(idEncode(orderMpp.id, IDENTIFIER_TYPES.ORDER));
+      });
+    });
+
     it('by merchantId', async () => {
       const result = await graphqlQueryV2(
         transactionsQuery,
@@ -359,6 +470,57 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
           expect(transaction.toAccount.legalName).to.eq('Secret Corp');
           expect(transaction.account.legalName).to.be.null;
         }
+      });
+    });
+
+    it('can see fromAccount.location.address if host admin', async () => {
+      const randomUser = await fakeUser();
+      const testHostAdmin = await fakeUser();
+      const testFromCollectiveAdmin = await fakeUser();
+      const testHost = await fakeHost({ admin: testHostAdmin.collective });
+      const testFromCollective = await fakeOrganization({
+        legalName: 'Test Corp',
+        location: { address: '123 Secret Street' },
+        admin: testFromCollectiveAdmin.collective,
+      });
+      const testCollective = await fakeCollective({ HostCollectiveId: testHost.id });
+      const testOrder = await fakeOrder({
+        FromCollectiveId: testFromCollective.id,
+        CollectiveId: testCollective.id,
+      });
+      await fakeTransaction({
+        FromCollectiveId: testFromCollective.id,
+        CollectiveId: testCollective.id,
+        HostCollectiveId: testHost.id,
+        OrderId: testOrder.id,
+        kind: TransactionKind.CONTRIBUTION,
+        amount: 1000,
+      });
+
+      const queryArgs = { slug: testCollective.slug };
+
+      // Unauthenticated user should not see location address
+      const resultUnauthenticated = await graphqlQueryV2(transactionsQuery, queryArgs);
+      resultUnauthenticated.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.be.null;
+      });
+
+      // Random user should not see location address
+      const resultRandomUser = await graphqlQueryV2(transactionsQuery, queryArgs, randomUser);
+      resultRandomUser.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.be.null;
+      });
+
+      // FromCollective admin should see their own location address
+      const resultFromCollectiveAdmin = await graphqlQueryV2(transactionsQuery, queryArgs, testFromCollectiveAdmin);
+      resultFromCollectiveAdmin.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
+      });
+
+      // Host admin should see the location address
+      const resultHostAdmin = await graphqlQueryV2(transactionsQuery, queryArgs, testHostAdmin);
+      resultHostAdmin.data.transactions.nodes.forEach(transaction => {
+        expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
       });
     });
   });

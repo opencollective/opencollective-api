@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 
 import { pick, startCase } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import models, { Collective, Op, sequelize } from '../models';
 import { MigrationLogType } from '../models/MigrationLog';
@@ -44,7 +45,7 @@ export const getAccountsNetwork = async (accounts: Collective[]): Promise<Collec
     ORDER BY c.name, c.slug
   `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Collective,
       mapToModel: true,
       replacements: {
@@ -63,19 +64,24 @@ type BanSummary = {
   usersCount: number;
 };
 
+// "TransactionGroup" is nullable. As of 2026-03-18, there are 29 soft-deleted transactions with a null "TransactionGroup".
+// They should probably be migrated, and the column moved to not nullable.
 const allTransactionGroupsForAccountQuery = `
-  SELECT DISTINCT "TransactionGroup"
-  FROM "Transactions" t
-  WHERE t."deletedAt" IS NULL
-  AND (
-    t."CollectiveId" IN (:collectiveIds)
-    OR t."FromCollectiveId" IN (:collectiveIds)
-    OR t."HostCollectiveId" IN (:collectiveIds)
-  )
+  SELECT DISTINCT "TransactionGroup" FROM "Transactions"
+  WHERE "deletedAt" IS NULL AND "TransactionGroup" IS NOT NULL
+  AND "CollectiveId" IN (:collectiveIds)
+  UNION
+  SELECT DISTINCT "TransactionGroup" FROM "Transactions"
+  WHERE "deletedAt" IS NULL AND "TransactionGroup" IS NOT NULL
+  AND "FromCollectiveId" IN (:collectiveIds)
+  UNION
+  SELECT DISTINCT "TransactionGroup" FROM "Transactions"
+  WHERE "deletedAt" IS NULL AND "TransactionGroup" IS NOT NULL
+  AND "HostCollectiveId" IN (:collectiveIds)
 `;
 
 const getAllRelatedTransactionsCount = async collectiveIds => {
-  const result = await sequelize.query(
+  const result = await sequelize.query<{ count: number }>(
     `
     WITH transaction_groups AS (
       ${allTransactionGroupsForAccountQuery}
@@ -85,6 +91,7 @@ const getAllRelatedTransactionsCount = async collectiveIds => {
     AND t."deletedAt" IS NULL
   `,
     {
+      type: QueryTypes.SELECT,
       plain: true,
       replacements: { collectiveIds },
     },
@@ -94,7 +101,7 @@ const getAllRelatedTransactionsCount = async collectiveIds => {
 };
 
 const getUndeletableTransactionsCount = async collectiveIds => {
-  const result = await sequelize.query(
+  const result = await sequelize.query<{ count: number }>(
     `
     -- Get all transactions groups somehow associated with this collective
     WITH transaction_groups AS (
@@ -127,7 +134,7 @@ const getUndeletableTransactionsCount = async collectiveIds => {
           payout.type NOT IN ('OTHER', 'ACCOUNT_BALANCE')
           AND (
             (e."VirtualCardId" IS NOT NULL) -- Can't delete virtual cards-related transactions
-            OR (payout.type = 'BANK_ACCOUNT' AND t.data -> 'transfer' IS NOT NULL) -- Can't delete wise transactions that were not paid manually
+            OR (payout.type = 'BANK_ACCOUNT' AND (t.data #>> '{transfer,id}') IS NOT NULL) -- Can't delete wise transactions that were not paid manually (uses transaction_wise_transfer_id index)
             OR (payout.type = 'PAYPAL' AND (t.data -> 'links' IS NOT NULL OR t.data -> 'createPaymentResponse' IS NOT NULL)) -- Can't delete paypal transactions that were not paid manually
           )
         )
@@ -135,6 +142,7 @@ const getUndeletableTransactionsCount = async collectiveIds => {
     END
   `,
     {
+      type: QueryTypes.SELECT,
       plain: true,
       replacements: { collectiveIds },
     },
@@ -188,10 +196,11 @@ export const banAccounts = (accounts: Collective[], userId: number): Promise<Ban
   const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');
 
   return sequelize.transaction(async transaction => {
-    const result = await sequelize.query(banCollectivesQuery, {
+    const result = await sequelize.query<BanResult>(banCollectivesQuery, {
       bind: { collectiveSlugs: accounts.map(c => c.slug) },
       plain: true,
       transaction,
+      type: QueryTypes.SELECT,
     });
 
     await models.MigrationLog.create(

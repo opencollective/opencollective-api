@@ -21,12 +21,7 @@ const CREATED_AT_HORIZON = { [Op.gt]: Sequelize.literal("NOW() - INTERVAL '6 mon
 
 const makeTimelineQuery = async (
   collective: Collective,
-  classes: ActivityClasses[] = [
-    ActivityClasses.EXPENSES,
-    ActivityClasses.CONTRIBUTIONS,
-    ActivityClasses.VIRTUAL_CARDS,
-    ActivityClasses.ACTIVITIES_UPDATES,
-  ],
+  classes: ActivityClasses[],
 ): Promise<WhereOptions<InferAttributes<Activity, { omit: never }>>> => {
   if (collective.type === CollectiveType.USER) {
     const user = await collective.getUser();
@@ -37,6 +32,7 @@ const makeTimelineQuery = async (
       conditionals.push(
         {
           type: [
+            ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
             ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
             ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
             ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
@@ -108,7 +104,7 @@ const makeTimelineQuery = async (
     return {
       [Op.or]: conditionals,
     };
-  } else if (collective.isHost && collective.type !== CollectiveType.COLLECTIVE) {
+  } else if (collective.hasHosting) {
     return {
       type: {
         [Op.in]: [
@@ -197,6 +193,20 @@ const makeTimelineQuery = async (
     );
   }
 
+  // New
+  if (classes.includes(ActivityClasses.COLLECTIVE)) {
+    types.push(
+      ...[
+        ActivityTypes.ACTIVATED_MONEY_MANAGEMENT,
+        ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT,
+        ActivityTypes.ACTIVATED_HOSTING,
+        ActivityTypes.DEACTIVATED_HOSTING,
+        ActivityTypes.ORGANIZATION_CONVERTED_TO_COLLECTIVE,
+        ActivityTypes.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
+      ],
+    );
+  }
+
   return {
     type: { [Op.in]: types },
     [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
@@ -212,12 +222,21 @@ const EMPTY_FLAG = 'EMPTY';
 debug('Cache TTL: %d (%d days)', TTL, config.timeline.daysCached);
 
 /**
+ * Generates a cache key that includes the collective slug and activity classes.
+ * Classes are sorted to ensure consistent cache keys regardless of input order.
+ */
+const getCacheKey = (collectiveSlug: string, classes: ActivityClasses[]): string => {
+  const sortedClasses = [...classes].sort().join('-');
+  return `timeline-${collectiveSlug}-${sortedClasses || 'none'}`;
+};
+
+/**
  * Updates an existing cached timeline feed and trim it to the limit.
  */
-const updateFeed = async (collective: Collective, sinceId: number) => {
-  const cacheKey = `timeline-${collective.slug}`;
+const updateFeed = async (collective: Collective, classes: ActivityClasses[], sinceId: number) => {
+  const cacheKey = getCacheKey(collective.slug, classes);
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
-  const where = await makeTimelineQuery(collective);
+  const where = await makeTimelineQuery(collective, classes);
   where['id'] = { [Op.gt]: sinceId };
 
   debug('Fetching %d activities since #%s for %s', PAGE_SIZE, sinceId, collective.slug);
@@ -246,11 +265,11 @@ const updateFeed = async (collective: Collective, sinceId: number) => {
   }
 };
 
-const createNewFeed = async (collective: Collective) => {
-  const cacheKey = `timeline-${collective.slug}`;
+const createNewFeed = async (collective: Collective, classes: ActivityClasses[]) => {
+  const cacheKey = getCacheKey(collective.slug, classes);
   const redis = await createRedisClient(RedisInstanceType.TIMELINE);
 
-  const where = await makeTimelineQuery(collective);
+  const where = await makeTimelineQuery(collective, classes);
   let result = [];
   let lastId = null;
   let total = 0;
@@ -324,7 +343,7 @@ export const getCollectiveFeed = async ({
 
   const cache = await makeRedisProvider(RedisInstanceType.TIMELINE);
   // Check if timeline cache exists
-  const cacheKey = `timeline-${collective.slug}`;
+  const cacheKey = getCacheKey(collective.slug, classes);
   const cacheExists = await redis.exists(cacheKey);
   if (!cacheExists) {
     const lockKey = `${cacheKey}-semaphore`;
@@ -337,7 +356,7 @@ export const getCollectiveFeed = async ({
 
     await cache.set(lockKey, true, 120);
     // If we don't have a cache, generate it asynchronously
-    createNewFeed(collective).finally(() => cache.delete(lockKey));
+    createNewFeed(collective, classes).finally(() => cache.delete(lockKey));
     return null;
   }
 
@@ -364,7 +383,7 @@ export const getCollectiveFeed = async ({
     }
     const activity = JSON.parse(latest) as SerializedActivity;
     debug(`Updating timeline for ${collective.slug} from id ${activity.id}`);
-    await updateFeed(collective, activity.id);
+    await updateFeed(collective, classes, activity.id);
   }
 
   const idsToLoad = [];

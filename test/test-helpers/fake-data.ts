@@ -10,8 +10,8 @@ import config from 'config';
 import deepmerge from 'deepmerge';
 import { get, kebabCase, padStart, sample } from 'lodash';
 import moment from 'moment';
+import { generateSecret } from 'otplib';
 import type { CreateOptions, InferCreationAttributes } from 'sequelize';
-import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
@@ -24,7 +24,9 @@ import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/cons
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
+import { VirtualCardLimitIntervals } from '../../server/constants/virtual-cards';
 import { crypto } from '../../server/lib/encryption';
+import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
@@ -48,13 +50,17 @@ import models, {
   Update,
   UploadedFile,
   VirtualCard,
+  VirtualCardRequest,
 } from '../../server/models';
 import AccountingCategory from '../../server/models/AccountingCategory';
 import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
+import ExportRequest, { ExportRequestTypes } from '../../server/models/ExportRequest';
 import HostApplication, { HostApplicationStatus } from '../../server/models/HostApplication';
+import { KYCVerification, KYCVerificationStatus } from '../../server/models/KYCVerification';
 import LegalDocument, { LEGAL_DOCUMENT_SERVICE, LEGAL_DOCUMENT_TYPE } from '../../server/models/LegalDocument';
+import ManualPaymentProvider, { ManualPaymentProviderTypes } from '../../server/models/ManualPaymentProvider';
 import Member from '../../server/models/Member';
 import MemberInvitation from '../../server/models/MemberInvitation';
 import Order from '../../server/models/Order';
@@ -70,6 +76,7 @@ import User from '../../server/models/User';
 import UserToken, { TokenType } from '../../server/models/UserToken';
 import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
 import { VirtualCardStatus } from '../../server/models/VirtualCard';
+import { VirtualCardRequestStatus } from '../../server/models/VirtualCardRequest';
 import { randEmail, randUrl } from '../stores';
 
 export { randEmail, sequelize };
@@ -158,8 +165,8 @@ export const fakeUser = async (
   { enable2FA = false } = {},
 ): Promise<User> => {
   const generate2FAAuthToken = () => {
-    const twoFactorAuthSecret = speakeasy.generateSecret({ length: 64 });
-    return crypto.encrypt(twoFactorAuthSecret.base32).toString();
+    const twoFactorAuthSecret = generateSecret({ length: 64 });
+    return crypto.encrypt(twoFactorAuthSecret).toString();
   };
 
   const user = await models.User.create({
@@ -230,7 +237,7 @@ export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = 
     name: randStr('Test Host '),
     slug: randStr('host-'),
     HostCollectiveId: null,
-    isHostAccount: true,
+    hasMoneyManagement: true,
     ...hostData,
   });
 };
@@ -242,7 +249,7 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     name: randStr('Test Host '),
     slug: randStr('host-'),
     HostCollectiveId: null,
-    isHostAccount: true,
+    hasMoneyManagement: true,
     isActive: true,
     approvedAt: new Date(),
     ...hostData,
@@ -289,7 +296,7 @@ export const fakeCollective = async (
     collectiveData.CreatedByUserId = (await fakeUser()).id;
   }
   if (collectiveData.HostCollectiveId === undefined) {
-    collectiveData.HostCollectiveId = (await fakeHost()).id;
+    collectiveData.HostCollectiveId = (await fakeActiveHost({ hasHosting: true })).id;
   }
 
   const collectiveSequelizeParams = Object.assign({}, sequelizeParams);
@@ -301,8 +308,8 @@ export const fakeCollective = async (
   const collective = await models.Collective.create(
     {
       type,
-      name: collectiveData.isHostAccount ? randStr('Test Host ') : randStr('Test Collective '),
-      slug: collectiveData.isHostAccount ? randStr('host-') : randStr('collective-'),
+      name: collectiveData.hasMoneyManagement ? randStr('Test Host ') : randStr('Test Collective '),
+      slug: collectiveData.hasMoneyManagement ? randStr('host-') : randStr('collective-'),
       description: randStr('Description '),
       currency: 'USD',
       twitterHandle: randStr('twitter'),
@@ -316,7 +323,7 @@ export const fakeCollective = async (
     collectiveSequelizeParams,
   );
 
-  if (collective.isHostAccount && !collective.HostCollectiveId && collectiveData.HostCollectiveId === undefined) {
+  if (collective.hasMoneyManagement && !collective.HostCollectiveId && collectiveData.HostCollectiveId === undefined) {
     await collective.update({ HostCollectiveId: collective.id });
   }
 
@@ -364,8 +371,8 @@ export const fakeCollective = async (
 export const fakeOrganization = (organizationData: Record<string, unknown> = {}) => {
   return fakeCollective({
     HostCollectiveId: null,
-    name: organizationData.isHostAccount ? randStr('Test Host ') : randStr('Test Organization '),
-    slug: organizationData.isHostAccount ? randStr('host-') : randStr('org-'),
+    name: organizationData.hasMoneyManagement ? randStr('Test Host ') : randStr('Test Organization '),
+    slug: organizationData.hasMoneyManagement ? randStr('host-') : randStr('org-'),
     ...organizationData,
     type: CollectiveType.ORGANIZATION,
   });
@@ -483,7 +490,7 @@ export const fakePayoutMethod = async ({
 }: Partial<InferCreationAttributes<PayoutMethod>> = {}) => {
   const generateData = type => {
     if (type === PayoutMethodTypes.PAYPAL) {
-      return { email: randEmail(), ...data };
+      return { email: randEmail(), currency: 'USD', ...data };
     } else if (type === PayoutMethodTypes.OTHER) {
       return { content: randStr(), ...data };
     } else if (type === PayoutMethodTypes.BANK_ACCOUNT) {
@@ -612,6 +619,7 @@ export const fakeComment = async (
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
   let ExpenseId = get(commentData, 'ExpenseId') || get(commentData, 'expense.id');
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
+  const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -621,7 +629,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
@@ -728,7 +736,8 @@ export const fakeOrder = async (
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(<number>CreatedByUserId);
-  const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
+  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
+  const FromCollectiveId = orderData.FromCollectiveId || fromCollective.id;
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
@@ -737,6 +746,13 @@ export const fakeOrder = async (
     : withTier
       ? await fakeTier()
       : null;
+  const data = {
+    ...orderData.data,
+    fromAccountInfo: {
+      name: fromCollective.name,
+      email: user.email,
+    },
+  };
 
   const order: Order & {
     subscription?: typeof Subscription;
@@ -751,6 +767,7 @@ export const fakeOrder = async (
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId: collective.id,
+    data,
   });
 
   if (order.PaymentMethodId) {
@@ -1107,6 +1124,26 @@ export const fakeVirtualCard = async (virtualCardData: Partial<InferCreationAttr
   });
 };
 
+export const fakeVirtualCardRequest = async (
+  virtualCardRequestData: Partial<InferCreationAttributes<VirtualCardRequest>> = {},
+) => {
+  const CollectiveId = virtualCardRequestData.CollectiveId || (await fakeCollective()).id;
+  const HostCollectiveId =
+    virtualCardRequestData.HostCollectiveId || (await models.Collective.getHostCollectiveId(CollectiveId));
+  return models.VirtualCardRequest.create({
+    purpose: randStr('purpose'),
+    notes: randStr('notes'),
+    status: VirtualCardRequestStatus.PENDING,
+    currency: 'USD',
+    spendingLimitAmount: randAmount(),
+    spendingLimitInterval: VirtualCardLimitIntervals.ALL_TIME,
+    ...virtualCardRequestData,
+    CollectiveId,
+    HostCollectiveId,
+    UserId: virtualCardRequestData.UserId || (await fakeUser()).id,
+  });
+};
+
 export const fakePaypalProduct = async (data: Partial<InferCreationAttributes<PaypalProduct>> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
   const collective = await models.Collective.findByPk(CollectiveId);
@@ -1350,4 +1387,93 @@ export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
     },
     data,
   );
+};
+
+export async function fakeKYCVerification<Provider extends KYCProviderName = KYCProviderName>(
+  opts: Partial<InferCreationAttributes<KYCVerification<Provider>>> = {},
+): Promise<KYCVerification<Provider>> {
+  const status = opts.status || sample(Object.values(KYCVerificationStatus));
+  const provider = opts['provider'] || sample(Object.values(KYCProviderName));
+
+  const data = {
+    ...(status === KYCVerificationStatus.VERIFIED
+      ? {
+          legalName: randStr('legalName'),
+          legalAddress: randStr('legalAddress'),
+        }
+      : {}),
+    ...opts.data,
+  };
+  let providerData = opts['providerData'];
+  if (!providerData) {
+    switch (provider) {
+      case KYCProviderName.MANUAL:
+        (providerData as KYCVerification<KYCProviderName.MANUAL>['providerData']) = {
+          notes: randStr('notes'),
+        };
+        break;
+    }
+  }
+
+  const collectiveId = opts.CollectiveId ?? (await fakeCollective()).id;
+  const requestedByCollectiveId = opts.RequestedByCollectiveId ?? (await fakeOrganization()).id;
+
+  return await KYCVerification.create<KYCVerification<Provider>>({
+    status,
+    provider,
+    CollectiveId: collectiveId,
+    RequestedByCollectiveId: requestedByCollectiveId,
+    data,
+    providerData,
+    CreatedByUserId: opts.CreatedByUserId ?? (await fakeUser()).id,
+    verifiedAt: opts.verifiedAt ?? new Date(),
+    revokedAt: opts.revokedAt ?? (status === KYCVerificationStatus.REVOKED ? new Date() : null),
+  });
+}
+
+/**
+ * Creates a fake manual payment provider. All params are optional.
+ */
+export const fakeManualPaymentProvider = async (
+  data: Partial<{
+    CollectiveId: number;
+    type: ManualPaymentProviderTypes;
+    name: string;
+    instructions: string;
+    icon: string;
+    data: Record<string, unknown>;
+    order: number;
+    archivedAt: Date;
+  }> = {},
+): Promise<ManualPaymentProvider> => {
+  const CollectiveId = data.CollectiveId || (await fakeActiveHost()).id;
+  return ManualPaymentProvider.create({
+    type: ManualPaymentProviderTypes.BANK_TRANSFER,
+    name: randStr('Payment Provider '),
+    instructions: '<p>Please transfer to our bank account</p>',
+    icon: 'Landmark',
+    order: 0,
+    ...data,
+    CollectiveId,
+  });
+};
+
+/**
+ * Creates a fake export request. All params are optional.
+ */
+export const fakeExportRequest = async (exportRequestData: Partial<InferCreationAttributes<ExportRequest>> = {}) => {
+  const collective = exportRequestData.CollectiveId
+    ? await models.Collective.findByPk(exportRequestData.CollectiveId)
+    : await fakeCollective();
+  const createdByUser = exportRequestData.CreatedByUserId
+    ? await models.User.findByPk(exportRequestData.CreatedByUserId)
+    : await fakeUser();
+
+  return ExportRequest.create({
+    name: randStr('Export Request '),
+    type: ExportRequestTypes.TRANSACTIONS,
+    CollectiveId: collective.id,
+    CreatedByUserId: createdByUser.id,
+    ...exportRequestData,
+  });
 };

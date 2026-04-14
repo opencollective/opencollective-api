@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 usage() {
   echo "Usage: db_restore.sh -d DBNAME -U DBUSER --use-postgis -f DBDUMP_FILE"
@@ -7,7 +7,7 @@ usage() {
   exit 0
 }
 
-while [[ $# -gt 0 ]]; do
+while [ "$#" -gt 0 ]; do
   key="$1"
 
   case $key in
@@ -65,7 +65,7 @@ CMD_CREATE_DB="createdb"
 CMD_PSQL="psql"
 CMD_PG_RESTORE="pg_restore"
 
-if [ "$USE_DOCKER" = "true" || "$USE_PODMAN" = "true" ]; then
+if [ "$USE_DOCKER" = "true" ] || [ "$USE_PODMAN" = "true" ]; then
   if [ "$USE_DOCKER" = "true" ]; then
     echo "Using docker to run Postgres commands"
     CMD_DOCKER="./scripts/dev/run-docker.sh run --rm --network host"
@@ -88,15 +88,11 @@ $CMD_DROP_DB -U postgres -h $PG_HOST --if-exists $LOCALDBNAME
 echo "Creating '$LOCALDBNAME'"
 $CMD_CREATE_DB -U postgres -h $PG_HOST $LOCALDBNAME 2>/dev/null
 
-# When restoring old backups, you may need to enable Postgis
 if [ "$USE_POSTGIS" = "1" ]; then
-  echo "Enabling Postgis"
-  $CMD_PSQL "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
-  $CMD_PSQL "${LOCALDBNAME}" -c "ALTER TABLE public.spatial_ref_sys OWNER TO ${LOCALDBUSER};"
-  $CMD_PSQL "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
+  ./scripts/db_restore_extensions.sh -d $LOCALDBNAME -U $LOCALDBUSER -h $PG_HOST --use-postgis
+else
+  ./scripts/db_restore_extensions.sh -d $LOCALDBNAME -U $LOCALDBUSER -h $PG_HOST
 fi
-
-$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
 
 # cool trick: all stdout ignored in this block
 {
@@ -109,6 +105,7 @@ $CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "CREATE EXTENSION IF NOT EXIST
 # Update table permissions
 echo "Updating table permissions"
 $CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "GRANT ALL ON SCHEMA public TO ${LOCALDBUSER};"
+$CMD_PSQL -U postgres -h $PG_HOST $LOCALDBNAME -c "ALTER ROLE ${LOCALDBUSER} WITH SUPERUSER;"
 
 # The first time we run it, we will trigger FK constraints errors
 set +e

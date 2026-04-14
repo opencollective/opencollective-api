@@ -208,7 +208,9 @@ export class OpenSearchBatchProcessor {
 
       // Preload all updated entries
       let groupedEntriesToIndex = {};
-      const updateRequests = requests.filter(request => request.type === OpenSearchRequestType.UPDATE);
+      const updateRequests = requests.filter(
+        request => request.type === OpenSearchRequestType.UPDATE || request.type === OpenSearchRequestType.INSERT,
+      );
       if (updateRequests.length) {
         const updateRequestsIds = updateRequests.map(request => request.payload.id);
         const entriesToIndex = await adapter.findEntriesToIndex({ ids: updateRequestsIds });
@@ -217,7 +219,7 @@ export class OpenSearchBatchProcessor {
 
       // Iterate over requests and create bulk indexing operations
       for (const request of requests) {
-        if (request.type === OpenSearchRequestType.UPDATE) {
+        if (request.type === OpenSearchRequestType.UPDATE || request.type === OpenSearchRequestType.INSERT) {
           const entry = groupedEntriesToIndex[request.payload.id];
           if (!entry) {
             operations.push({

@@ -53,13 +53,13 @@ describe('server/lib/allowed-features', () => {
     });
 
     it('returns DISABLED + PRICING if feature is not available in current plan', async () => {
-      const host = await fakeActiveHost({ data: { features: { [FEATURE.RECEIVE_HOST_APPLICATIONS]: true } } });
+      const host = await fakeActiveHost({ data: { features: { [FEATURE.CHART_OF_ACCOUNTS]: true } } });
       await fakePlatformSubscription({
         CollectiveId: host.id,
-        plan: { features: { RECEIVE_HOST_APPLICATIONS: false } },
+        plan: { features: { CHART_OF_ACCOUNTS: false } },
       });
 
-      expect(await getFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
+      expect(await getFeatureAccess(host, FEATURE.CHART_OF_ACCOUNTS)).to.deep.eq({
         access: 'DISABLED',
         reason: 'PRICING',
       });
@@ -69,7 +69,7 @@ describe('server/lib/allowed-features', () => {
       it('is AVAILABLE for active hosts, UNSUPPORTED otherwise', async () => {
         const host = await fakeActiveHost();
         expect(await getFeatureAccess(host, FEATURE.ALIPAY)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const inactiveHost = await fakeCollective({ isHostAccount: true, isActive: false });
+        const inactiveHost = await fakeCollective({ hasMoneyManagement: true, isActive: false });
         expect(await getFeatureAccess(inactiveHost, FEATURE.ALIPAY)).to.deep.eq({
           access: 'UNSUPPORTED',
           reason: 'ACCOUNT_TYPE',
@@ -233,13 +233,60 @@ describe('server/lib/allowed-features', () => {
       it('is AVAILABLE for hosts, UNSUPPORTED for others', async () => {
         const host = await fakeActiveHost();
         expect(await getFeatureAccess(host, FEATURE.HOST_DASHBOARD)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-        const independentCollective = await fakeCollective({ isHostAccount: true, isActive: false });
+        const independentCollective = await fakeCollective({ hasMoneyManagement: true, isActive: false });
         expect(await getFeatureAccess(independentCollective, FEATURE.HOST_DASHBOARD)).to.deep.eq({
           access: 'UNSUPPORTED',
           reason: 'ACCOUNT_TYPE',
         });
         const org = await fakeOrganization();
         expect(await getFeatureAccess(org, FEATURE.HOST_DASHBOARD)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+      });
+    });
+
+    describe('KYC', () => {
+      it('is AVAILABLE with plan for first party hosts, UNSUPPORTED for others', async () => {
+        const host = await fakeActiveHost({
+          data: {
+            isFirstPartyHost: true,
+            features: { [FEATURE.KYC]: true },
+          },
+        });
+        expect(await getFeatureAccess(host, FEATURE.KYC)).to.deep.eq({ access: 'AVAILABLE', reason: null });
+        const independentCollective = await fakeCollective({ hasMoneyManagement: true, isActive: false });
+        expect(await getFeatureAccess(independentCollective, FEATURE.KYC)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+        const org = await fakeOrganization();
+        expect(await getFeatureAccess(org, FEATURE.KYC)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+      });
+    });
+
+    describe('ACCOUNTING_CATEGORIZATION_RULES', () => {
+      it('is AVAILABLE for first party hosts, UNSUPPORTED for others', async () => {
+        const host = await fakeActiveHost({
+          data: {
+            isFirstPartyHost: true,
+            features: { [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: true },
+          },
+        });
+        expect(await getFeatureAccess(host, FEATURE.ACCOUNTING_CATEGORIZATION_RULES)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+        const independentCollective = await fakeCollective({ hasMoneyManagement: true, isActive: false });
+        expect(await getFeatureAccess(independentCollective, FEATURE.ACCOUNTING_CATEGORIZATION_RULES)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+        const org = await fakeOrganization();
+        expect(await getFeatureAccess(org, FEATURE.ACCOUNTING_CATEGORIZATION_RULES)).to.deep.eq({
           access: 'UNSUPPORTED',
           reason: 'ACCOUNT_TYPE',
         });
@@ -285,7 +332,7 @@ describe('server/lib/allowed-features', () => {
         it('is supported for independent collectives', async () => {
           const collective = await fakeCollective({
             plan: 'start-plan-2021',
-            isHostAccount: true,
+            hasMoneyManagement: true,
             isActive: true,
             data: { features: { [FEATURE.OFF_PLATFORM_TRANSACTIONS]: true } },
           });
@@ -327,7 +374,7 @@ describe('server/lib/allowed-features', () => {
 
         it('is supported for independent collectives', async () => {
           const collective = await fakeCollective({
-            isHostAccount: true,
+            hasMoneyManagement: true,
             isActive: true,
           });
           await fakePlatformSubscription({
@@ -442,7 +489,11 @@ describe('server/lib/allowed-features', () => {
           access: 'AVAILABLE',
           reason: null,
         });
-        const inactiveHost = await fakeCollective({ plan: 'start-plan-2021', isHostAccount: true, isActive: false });
+        const inactiveHost = await fakeCollective({
+          plan: 'start-plan-2021',
+          hasMoneyManagement: true,
+          isActive: false,
+        });
         expect(await getFeatureAccess(inactiveHost, FEATURE.RECEIVE_EXPENSES)).to.deep.eq({
           access: 'AVAILABLE',
           reason: null,
@@ -467,7 +518,7 @@ describe('server/lib/allowed-features', () => {
           access: 'AVAILABLE',
           reason: null,
         });
-        const inactiveHost = await fakeHost({ plan: 'start-plan-2021', isHostAccount: true, isActive: false });
+        const inactiveHost = await fakeHost({ plan: 'start-plan-2021', hasMoneyManagement: true, isActive: false });
         expect(await getFeatureAccess(inactiveHost, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)).to.deep.eq({
           access: 'AVAILABLE',
           reason: null,
@@ -486,22 +537,24 @@ describe('server/lib/allowed-features', () => {
           const host = await fakeActiveHost({
             plan: 'start-plan-2021',
             data: { features: { [FEATURE.RECEIVE_HOST_APPLICATIONS]: true } },
+            hasHosting: true,
           });
           expect(await getFeatureAccess(host, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'AVAILABLE',
             reason: null,
           });
-          const notOpted = await fakeActiveHost({ plan: 'start-plan-2021' });
+          const notOpted = await fakeActiveHost({ hasHosting: true, plan: 'start-plan-2021' });
           expect(await getFeatureAccess(notOpted, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'DISABLED',
             reason: 'OPT_IN',
           });
-          const org = await fakeOrganization({ plan: 'start-plan-2021' });
+          const org = await fakeOrganization({ hasHosting: true, plan: 'start-plan-2021' });
           expect(await getFeatureAccess(org, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'UNSUPPORTED',
             reason: 'ACCOUNT_TYPE',
           });
           const flagOverride = await fakeActiveHost({
+            hasHosting: true,
             plan: 'start-plan-2021',
             settings: { apply: true },
           });
@@ -514,7 +567,7 @@ describe('server/lib/allowed-features', () => {
 
       describe('with the new pricing', () => {
         it('is AVAILABLE for active hosts if opted in, DISABLED if not, UNSUPPORTED for others', async () => {
-          const host = await fakeActiveHost({ settings: { apply: true } });
+          const host = await fakeActiveHost({ hasHosting: true, settings: { apply: true } });
           await fakePlatformSubscription({
             CollectiveId: host.id,
             plan: { features: { RECEIVE_HOST_APPLICATIONS: true } },
@@ -526,7 +579,7 @@ describe('server/lib/allowed-features', () => {
         });
 
         it('is DISABLED if not opted in', async () => {
-          const host = await fakeActiveHost();
+          const host = await fakeActiveHost({ hasHosting: true });
           await fakePlatformSubscription({
             CollectiveId: host.id,
             plan: { features: { RECEIVE_HOST_APPLICATIONS: true } },
@@ -537,8 +590,8 @@ describe('server/lib/allowed-features', () => {
           });
         });
 
-        it('is UNSUPPORTED for independent collectives', async () => {
-          const org = await fakeCollective({ isHostAccount: true, isActive: true });
+        it('is UNSUPPORTED for organizations without hosting', async () => {
+          const org = await fakeActiveHost({ hasHosting: false });
           expect(await getFeatureAccess(org, FEATURE.RECEIVE_HOST_APPLICATIONS)).to.deep.eq({
             access: 'UNSUPPORTED',
             reason: 'ACCOUNT_TYPE',
@@ -680,7 +733,7 @@ describe('server/lib/allowed-features', () => {
         it('is AVAILABLE for active hosts', async () => {
           const host = await fakeActiveHost({ plan: 'start-plan-2021' });
           expect(await getFeatureAccess(host, FEATURE.TRANSFERWISE)).to.deep.eq({ access: 'AVAILABLE', reason: null });
-          const inactiveHost = await fakeCollective({ isHostAccount: true, isActive: false });
+          const inactiveHost = await fakeCollective({ hasMoneyManagement: true, isActive: false });
           expect(await getFeatureAccess(inactiveHost, FEATURE.TRANSFERWISE)).to.deep.eq({
             access: 'UNSUPPORTED',
             reason: 'ACCOUNT_TYPE',
@@ -765,13 +818,17 @@ describe('server/lib/allowed-features', () => {
         EMIT_GIFT_CARDS: { access: 'AVAILABLE', reason: null },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
+        PAYPAL_CONNECT: { access: 'AVAILABLE', reason: null },
         PAYPAL_DONATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PAYPAL_PAYOUTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PROJECTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_EXPENSES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        RECEIVE_GRANTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
@@ -804,24 +861,18 @@ describe('server/lib/allowed-features', () => {
       });
 
       it('for a HOST user', async () => {
-        const user = await fakeUser({}, { plan: 'start-plan-2021', isHostAccount: true, countryISO: 'US' });
+        const user = await fakeUser({}, { plan: 'start-plan-2021', hasMoneyManagement: true, countryISO: 'US' });
         const featuresMap = await getFeaturesAccessMap(user.collective);
         expect(featuresMap).to.deep.equal({
           ...basePermissions,
-          AGREEMENTS: { access: 'AVAILABLE', reason: null },
-          ALIPAY: { access: 'AVAILABLE', reason: null },
-          CHARGE_HOSTING_FEES: { access: 'AVAILABLE', reason: null },
-          CHART_OF_ACCOUNTS: { access: 'AVAILABLE', reason: null },
-          EXPECTED_FUNDS: { access: 'AVAILABLE', reason: null },
-          EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
-          FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
-          HOST_DASHBOARD: { access: 'AVAILABLE', reason: null },
-          PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
-          PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
-          RECEIVE_HOST_APPLICATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
-          TAX_FORMS: { access: 'AVAILABLE', reason: null },
-          TRANSFERWISE: { access: 'AVAILABLE', reason: null },
-          VENDORS: { access: 'AVAILABLE', reason: null },
+          AGREEMENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          CHARGE_HOSTING_FEES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          CHART_OF_ACCOUNTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         });
       });
     });
@@ -840,13 +891,17 @@ describe('server/lib/allowed-features', () => {
         EMIT_GIFT_CARDS: { access: 'AVAILABLE', reason: null },
         EVENTS: { access: 'AVAILABLE', reason: null },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
+        PAYPAL_CONNECT: { access: 'AVAILABLE', reason: null },
         PAYPAL_DONATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PAYPAL_PAYOUTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PROJECTS: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        RECEIVE_GRANTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
@@ -877,6 +932,7 @@ describe('server/lib/allowed-features', () => {
           plan: 'start-plan-2021',
           type: CollectiveType.ORGANIZATION,
           countryISO: 'US',
+          hasHosting: true,
         });
         const featuresMap = await getFeaturesAccessMap(hostOrg);
         expect(featuresMap).to.deep.equal({
@@ -887,6 +943,7 @@ describe('server/lib/allowed-features', () => {
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
+          RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
           RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
           RECEIVE_HOST_APPLICATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           TRANSFERWISE: { access: 'AVAILABLE', reason: null },
@@ -908,13 +965,17 @@ describe('server/lib/allowed-features', () => {
         EMIT_GIFT_CARDS: { access: 'AVAILABLE', reason: null },
         EVENTS: { access: 'AVAILABLE', reason: null },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
+        PAYPAL_CONNECT: { access: 'AVAILABLE', reason: null },
         PAYPAL_DONATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PAYPAL_PAYOUTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PROJECTS: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
+        RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
@@ -952,7 +1013,7 @@ describe('server/lib/allowed-features', () => {
       it('for a self-hosted collective', async () => {
         const selfHosted = await fakeCollective({
           plan: 'start-plan-2021',
-          isHostAccount: true,
+          hasMoneyManagement: true,
           isActive: true,
           countryISO: 'US',
         });
@@ -966,9 +1027,12 @@ describe('server/lib/allowed-features', () => {
           EXPENSE_SECURITY_CHECKS: { access: 'AVAILABLE', reason: null },
           FUNDS_GRANTS_MANAGEMENT: { access: 'AVAILABLE', reason: null },
           HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
+          RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
           RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
           RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           TAX_FORMS: { access: 'AVAILABLE', reason: null },
@@ -1013,13 +1077,17 @@ describe('server/lib/allowed-features', () => {
         EMIT_GIFT_CARDS: { access: 'AVAILABLE', reason: null },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
+        PAYPAL_CONNECT: { access: 'AVAILABLE', reason: null },
         PAYPAL_DONATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PAYPAL_PAYOUTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PROJECTS: { access: 'AVAILABLE', reason: null },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
+        RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
@@ -1066,13 +1134,17 @@ describe('server/lib/allowed-features', () => {
         EMIT_GIFT_CARDS: { access: 'AVAILABLE', reason: null },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
+        PAYPAL_CONNECT: { access: 'AVAILABLE', reason: null },
         PAYPAL_DONATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PAYPAL_PAYOUTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PROJECTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
+        RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1119,13 +1191,17 @@ describe('server/lib/allowed-features', () => {
         EMIT_GIFT_CARDS: { access: 'AVAILABLE', reason: null },
         EVENTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
+        PAYPAL_CONNECT: { access: 'AVAILABLE', reason: null },
         PAYPAL_DONATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PAYPAL_PAYOUTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         PROJECTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
+        RECEIVE_GRANTS: { access: 'AVAILABLE', reason: null },
         RECEIVE_FINANCIAL_CONTRIBUTIONS: { access: 'AVAILABLE', reason: null },
         RECEIVE_HOST_APPLICATIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         RECURRING_CONTRIBUTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },

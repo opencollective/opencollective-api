@@ -7,19 +7,24 @@ import type {
 } from 'sequelize';
 
 import { TransactionsImportRowStatus } from '../graphql/v2/enum/TransactionsImportRowStatus';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import type { BookedTransaction } from '../lib/gocardless/sync';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
-import Collective from './Collective';
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import TransactionsImport from './TransactionsImport';
 
-class TransactionsImportRow extends Model<
+class TransactionsImportRow extends ModelWithPublicId<
+  EntityShortIdPrefix.TransactionsImportRow,
   InferAttributes<TransactionsImportRow>,
   InferCreationAttributes<TransactionsImportRow>
 > {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.TransactionsImportRow;
+  public static readonly tableName = 'TransactionsImportsRows' as const;
+
   declare public id: CreationOptional<number>;
-  declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public TransactionsImportId: ForeignKey<TransactionsImport['id']>;
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public OrderId: ForeignKey<Order['id']>;
@@ -31,7 +36,7 @@ class TransactionsImportRow extends Model<
   declare public isUnique: boolean;
   declare public currency: string;
   declare public accountId: string | null;
-  declare public rawValue: Record<string, unknown>;
+  declare public rawValue: Record<string, unknown> | BookedTransaction;
   declare public note: string | null;
   declare public createdAt: Date;
   declare public updatedAt: Date;
@@ -39,6 +44,10 @@ class TransactionsImportRow extends Model<
 
   declare public import?: TransactionsImport;
   declare public getImport: BelongsToGetAssociationMixin<TransactionsImport>;
+  declare public expense?: Expense;
+  declare public getExpense: BelongsToGetAssociationMixin<Expense>;
+  declare public order?: Order;
+  declare public getOrder: BelongsToGetAssociationMixin<Order>;
 
   public isProcessed(): boolean {
     return this.status === 'LINKED' || this.status === 'IGNORED';
@@ -52,6 +61,10 @@ TransactionsImportRow.init(
       allowNull: false,
       autoIncrement: true,
       primaryKey: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     TransactionsImportId: {
       type: DataTypes.INTEGER,

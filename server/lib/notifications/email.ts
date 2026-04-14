@@ -1,6 +1,6 @@
 import config from 'config';
 import debugLib from 'debug';
-import { cloneDeep, compact, get } from 'lodash';
+import { cloneDeep, compact, get, uniq } from 'lodash';
 import PQueue from 'p-queue';
 
 import { roles } from '../../constants';
@@ -114,7 +114,7 @@ export const notify = {
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
-      UserId: cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id)),
+      UserId: uniq(cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id))),
       attributes: ['id'],
     });
 
@@ -216,6 +216,8 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
     case ActivityTypes.USER_CARD_CLAIMED:
+    case ActivityTypes.EXPORT_REQUEST_COMPLETED:
+    case ActivityTypes.EXPORT_REQUEST_FAILED:
       await notify.user(activity);
       break;
 
@@ -612,6 +614,11 @@ export const notifyByEmail = async (activity: Activity) => {
         await notify.collective(activity, {
           replyTo: activity.data.host.data?.replyToEmail || undefined,
         });
+      } else {
+        await notify.collective(activity, {
+          collectiveId: activity.data.host.id,
+          template: 'host.application.comment.created.host',
+        });
       }
 
       break;
@@ -642,29 +649,39 @@ export const notifyByEmail = async (activity: Activity) => {
         get(activity, 'data.host.id') === PlatformConstants.FiscalHostOSCCollectiveId
       ) {
         break;
+      } else if (!['COLLECTIVE', 'FUND'].includes(activity.data.collective.type)) {
+        break;
       }
+
       // Normal case
       await notify.collective(activity, { collectiveId: activity.data.collective.id });
       break;
 
-    case ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST:
+    case ActivityTypes.ACTIVATED_MONEY_MANAGEMENT:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        template: 'activated.collective.as.host',
+        template: 'activated.moneyManagement',
       });
       break;
 
-    case ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT:
+    case ActivityTypes.DEACTIVATED_MONEY_MANAGEMENT:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        template: 'activated.collective.as.independent',
+        template: 'deactivated.moneyManagement',
       });
       break;
 
-    case ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST:
+    case ActivityTypes.ACTIVATED_HOSTING:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        template: 'deactivated.collective.as.host',
+        template: 'activated.hosting',
+      });
+      break;
+
+    case ActivityTypes.DEACTIVATED_HOSTING:
+      await notify.collective(activity, {
+        collectiveId: activity.data.collective.id,
+        template: 'deactivated.hosting',
       });
       break;
 

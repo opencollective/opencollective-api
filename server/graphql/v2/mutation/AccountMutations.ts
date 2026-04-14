@@ -19,12 +19,14 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { duplicateAccount } from '../../../lib/duplicate-account';
 import { crypto } from '../../../lib/encryption';
+import { DEFAULT_GUEST_NAME } from '../../../lib/guest-accounts';
 import { canEditPolicy } from '../../../lib/policies';
 import { containsProtectedBrandName } from '../../../lib/string-utils';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
-import models, { Collective, sequelize } from '../../../models';
+import models, { Collective, HostApplication, sequelize } from '../../../models';
+import { HostApplicationStatus } from '../../../models/HostApplication';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { PAYPAL_SUSPEND_MAX_REASON_LENGTH } from '../../../paymentProviders/paypal/subscription';
 import { sendMessage } from '../../common/collective';
@@ -32,7 +34,6 @@ import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../c
 import { BadRequest, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { GraphQLTwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
-import { idDecode } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLAccountUpdateInput } from '../input/AccountUpdateInput';
 import { GraphQLDuplicateAccountDataTypeInput } from '../input/DuplicateAccountDataTypeInput';
@@ -44,6 +45,8 @@ import {
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLIndividual } from '../object/Individual';
 import GraphQLAccountSettingsKey from '../scalar/AccountSettingsKey';
+
+const { COLLECTIVE, FUND, ORGANIZATION } = CollectiveType;
 
 const GraphQLAddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
   name: 'AddTwoFactorAuthTokenToIndividualResponse',
@@ -97,7 +100,7 @@ const accountMutations = {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden('You need to be logged in as an Admin of the account to duplicate it.');
-      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
+      } else if (![COLLECTIVE, FUND].includes(account.type)) {
         throw new ValidationFailed(`${account.type} accounts cannot be duplicated.`);
       }
 
@@ -125,7 +128,7 @@ const accountMutations = {
         description: 'The value to set for this key',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
@@ -137,7 +140,7 @@ const accountMutations = {
           throwIfMissing: true,
         });
 
-        const isKeyEditableByHostAdmins = ['expenseTypes', 'canHostAccounts'].includes(args.key);
+        const isKeyEditableByHostAdmins = ['expenseTypes'].includes(args.key);
         const permissionMethod = isKeyEditableByHostAdmins ? 'isAdminOfCollectiveOrHost' : 'isAdminOfCollective';
         if (!req.remoteUser[permissionMethod](account)) {
           throw new Forbidden();
@@ -166,15 +169,6 @@ const accountMutations = {
           const budgetSection = args.value.sections?.find(s => s.section === 'budget');
           if (budgetSection && !budgetSection.isEnabled) {
             throw new Forbidden();
-          }
-        }
-
-        if (args.key === 'canHostAccounts' && args.value === false) {
-          const hostedCollectives = await account.getHostedCollectivesCount();
-          if (hostedCollectives >= 1) {
-            throw new Error(
-              `You can't deactivate hosting while still hosting ${hostedCollectives} collectives. Please contact support: support@opencollective.com.`,
-            );
           }
         }
 
@@ -227,7 +221,7 @@ const accountMutations = {
         description: 'If using a custom fee, set this to true',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseHost(req);
 
       return sequelize.transaction(async dbTransaction => {
@@ -337,7 +331,7 @@ const accountMutations = {
         throw new ValidationFailed('Cannot find the host of this account');
       } else if (!req.remoteUser.isAdminOfCollective(account.host)) {
         throw new Unauthorized();
-      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(account.type)) {
+      } else if (![COLLECTIVE, FUND].includes(account.type)) {
         throw new ValidationFailed(
           'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
         );
@@ -380,7 +374,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request) {
       checkRemoteUserCanUseAccount(req);
 
-      const account = await fetchAccountWithReference(args.account);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
@@ -420,7 +414,7 @@ const accountMutations = {
     ): Promise<Record<string, unknown>> {
       checkRemoteUserCanUseAccount(req);
 
-      const account = await fetchAccountWithReference(args.account);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
@@ -551,7 +545,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
-      const account = await fetchAccountWithReference(args.account);
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Forbidden();
@@ -657,11 +651,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
-      const id = idDecode(args.account.id, 'account');
-      const account = await req.loaders.Collective.byId.load(id);
-      if (!account) {
-        throw new NotFound('Account Not Found');
-      }
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
         throw new Forbidden();
@@ -684,7 +674,7 @@ const accountMutations = {
             if (args.account.hostFeePercent !== undefined && args.account.hostFeePercent !== account.hostFeePercent) {
               previousData['hostFeePercent'] = account.hostFeePercent;
               newData['hostFeePercent'] = args.account.hostFeePercent;
-              await account.updateHostFee(args.account.hostFeePercent, req.remoteUser);
+              await account.updateHostFeeAsUser(args.account.hostFeePercent, req.remoteUser);
             }
             break;
           }
@@ -719,12 +709,6 @@ const accountMutations = {
               previousData[key] = account[key];
               newData[key] = args.account[key];
               updateParams[key] = args.account[key];
-              if (account.data?.requiresProfileCompletion) {
-                updateParams.data = { ...account.data, requiresProfileCompletion: false };
-                updateParams.slug = await Collective.generateSlug([args.account.name], true);
-                previousData.slug = account.slug;
-                newData.slug = updateParams.slug;
-              }
             }
             break;
           case 'slug':
@@ -770,23 +754,35 @@ const accountMutations = {
         }
       }
 
-      if (!isEmpty(updateParams)) {
-        await account.update(updateParams);
+      if (account.data?.requiresProfileCompletion === true) {
+        updateParams.data = Object.assign({}, account.data, updateParams.data, { requiresProfileCompletion: false });
+        // Update slug if either the name is updated or if this is a previous guest account that already had a name
+        if (
+          (updateParams.name || ![DEFAULT_GUEST_NAME, 'Incognito'].includes(account.name)) &&
+          (!updateParams.slug || account.slug.startsWith('guest-') || account.slug.startsWith('user-'))
+        ) {
+          updateParams.slug = await Collective.generateSlug((updateParams.name as string) || account.name);
+          previousData.slug = account.slug;
+          newData.slug = updateParams.slug;
+        }
       }
 
-      await models.Activity.create({
-        type: activities.COLLECTIVE_EDITED,
-        UserId: req.remoteUser.id,
-        UserTokenId: req.userToken?.id,
-        CollectiveId: account.id,
-        FromCollectiveId: account.id,
-        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: {
-          collective: account.minimal,
-          previousData,
-          newData,
-        },
-      });
+      if (!isEmpty(updateParams)) {
+        await account.update(updateParams);
+        await models.Activity.create({
+          type: activities.COLLECTIVE_EDITED,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          CollectiveId: account.id,
+          FromCollectiveId: account.id,
+          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+          data: {
+            collective: account.minimal,
+            previousData,
+            newData,
+          },
+        });
+      }
 
       return account;
     },
@@ -808,11 +804,7 @@ const accountMutations = {
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
-      const id = args.account.legacyId || idDecode(args.account.id, 'account');
-      const account = await req.loaders.Collective.byId.load(id);
-      if (!account) {
-        throw new NotFound('Account Not Found');
-      }
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       // Check host only policies
       const previousPolicies = account.data?.policies || {};
@@ -865,11 +857,7 @@ const accountMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
 
-      const id = args.account.legacyId || idDecode(args.account.id, 'account');
-      const account = await req.loaders.Collective.byId.load(id);
-      if (!account) {
-        throw new NotFound('Account Not Found');
-      }
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be logged in as an Admin of the account.');
@@ -939,6 +927,89 @@ const accountMutations = {
       await req.remoteUser.update({ twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
 
       return recoveryCodesArray;
+    },
+  },
+  convertAccountToOrganization: {
+    type: new GraphQLNonNull(GraphQLAccount),
+    description: 'Convert an account to an Organization. Scope: "account".',
+    args: {
+      account: {
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
+        description: 'Account to convert.',
+      },
+      hasMoneyManagement: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Should the Organization have money management capabilities',
+      },
+      legalName: {
+        type: GraphQLString,
+        description: 'Legal name of the Organization.',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
+      checkRemoteUserCanUseAccount(req);
+
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+
+      if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
+        throw new Forbidden();
+      }
+
+      // Disallow if not Collective or Fund
+      if (![COLLECTIVE, FUND].includes(account.type)) {
+        throw new Error('Mutation only available to COLLECTIVEs and FUNDs.');
+      }
+
+      // Disallow if Hosted
+      if (account.HostCollectiveId && account.approvedAt) {
+        throw new Error("Can't convert an hosted Collective.");
+      }
+
+      // Check host applications
+      const hostApplications = await HostApplication.findAll({
+        where: { CollectiveId: account.id, status: HostApplicationStatus.PENDING },
+        include: [{ association: 'host', required: true }],
+      });
+
+      if (hostApplications.length > 0) {
+        throw new Error(
+          `Can't convert a Collective with pending host applications. Please withdraw the application from ${hostApplications.map(a => a.host.name).join(', ')} first.`,
+        );
+      }
+
+      await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
+
+      return sequelize.transaction(async transaction => {
+        await account.update(
+          {
+            type: ORGANIZATION,
+            ...(args.legalName ? { legalName: args.legalName } : {}),
+          },
+          { transaction },
+        );
+
+        if (args.hasMoneyManagement === true) {
+          await account.activateMoneyManagement({ remoteUser: req.remoteUser, silent: true, transaction });
+        }
+
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            CollectiveId: account.id,
+            FromCollectiveId: account.id,
+            HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+            data: {
+              collective: account.minimal,
+            },
+          },
+          { transaction },
+        );
+
+        return account;
+      });
     },
   },
 };

@@ -1,8 +1,10 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import RecurringExpenseModel from '../../../models/RecurringExpense';
 import { GraphQLRecurringExpenseInterval } from '../enum/RecurringExpenseInterval';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLExpense } from './Expense';
@@ -13,8 +15,18 @@ const GraphQLRecurringExpense = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.RECURRING_EXPENSE),
+      resolve: recurringExpense => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.RecurringExpense, recurringExpense.createdAt)) {
+          return recurringExpense.publicId;
+        } else {
+          return idEncode(recurringExpense.id, IDENTIFIER_TYPES.RECURRING_EXPENSE);
+        }
+      },
       description: 'Unique identifier for this recurring expense',
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${RecurringExpenseModel.nanoIdPrefix}_xxxxxxxx)`,
     },
     interval: {
       type: new GraphQLNonNull(GraphQLRecurringExpenseInterval),

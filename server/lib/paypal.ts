@@ -100,7 +100,7 @@ export const getHostPaypalAccount = async (host): Promise<ConnectedAccount> => {
 
 export const getHostsWithPayPalConnected = async (): Promise<Collective[]> => {
   return Collective.findAll({
-    where: { isHostAccount: true },
+    where: { hasMoneyManagement: true },
     group: [sequelize.col('Collective.id')],
     order: [[sequelize.col('Collective.slug'), 'ASC']],
     include: [

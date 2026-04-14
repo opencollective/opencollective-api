@@ -77,7 +77,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     ) {
       logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
       // Mark Expense as Paid, create activity and send notifications
-      await expense.markAsPaid();
+      await expense.markAsPaid({ paidAt: transaction.clearedAt || transaction.createdAt });
     } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
       logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
       const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
@@ -129,8 +129,9 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       });
       await expense.update({ data: { ...expense.data, feesInHostCurrency, transfer } });
 
+      const paidAt = (event.data?.occurred_at && new Date(event.data.occurred_at)) || new Date();
       // Mark Expense as Paid, create activity and send notifications
-      await expense.markAsPaid();
+      await expense.markAsPaid({ paidAt });
     }
     // Legacy refund handler
     else if (

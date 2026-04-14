@@ -59,6 +59,7 @@ describe('stripe', () => {
         paymentIntent = { id, ...params, ...options };
         return paymentIntent;
       });
+      sandbox.stub(stripe.customers, 'create').callsFake(() => ({ id: randStr('cus_fake') }));
 
       let paymentMethod;
       sandbox.stub(stripe.paymentMethods, 'retrieve').callsFake((id, options) => {

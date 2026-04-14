@@ -1,5 +1,6 @@
 import DataLoader from 'dataloader';
 import { groupBy } from 'lodash';
+import { QueryTypes } from 'sequelize';
 
 import { sequelize } from '../../models';
 
@@ -36,7 +37,7 @@ export const generateTransactionsImportStatsLoader = () => {
       GROUP BY row."TransactionsImportId"
       `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         replacements: { importIds },
       },
     );
@@ -59,7 +60,7 @@ export const generateTransactionsImportStatsLoader = () => {
   });
 };
 
-export const generateOffPlatformTransactionsStatsLoader = () => {
+export const generateBankSynchronizationTransactionsStatsLoader = () => {
   return new DataLoader(async (hostIds: number[]): Promise<TransactionsImportStats[]> => {
     const results: Partial<TransactionsImportStats>[] = await sequelize.query(
       `
@@ -77,12 +78,12 @@ export const generateOffPlatformTransactionsStatsLoader = () => {
       FROM "TransactionsImportsRows" row
       INNER JOIN "TransactionsImports" ti ON ti.id = row."TransactionsImportId"
       WHERE ti."CollectiveId" IN (:hostIds)
-      AND ti."type" = 'PLAID'
+      AND ti."type" NOT IN ('CSV', 'MANUAL')
       AND row."deletedAt" IS NULL
       GROUP BY ti."CollectiveId"
       `,
       {
-        type: sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         replacements: { hostIds },
       },
     );

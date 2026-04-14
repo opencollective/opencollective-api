@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } fro
 import { intersection, uniq } from 'lodash';
 import { FindOptions, InferAttributes, ProjectionAlias } from 'sequelize';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { Collective, Op } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
@@ -9,12 +10,12 @@ import { idDecode } from '../identifiers';
 export const AccountReferenceInputFields = {
   id: {
     type: GraphQLString,
-    description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    description: `The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
   },
   legacyId: {
     type: GraphQLInt,
     description: 'The internal id of the account (ie: 580)',
-    deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
+    deprecationReason: '2026-02-25: use id',
   },
   slug: {
     type: GraphQLString,
@@ -94,8 +95,18 @@ export const fetchAccountWithReference = async (
     }
   };
 
+  const loadCollectiveByPublicId = publicId => {
+    if (!loaders || dbTransaction) {
+      return models.Collective.findOne({ where: { publicId }, paranoid, transaction: dbTransaction, lock });
+    } else {
+      return loaders.Collective.byPublicId.load(publicId);
+    }
+  };
+
   let collective;
-  if (input.id && typeof input.id === 'string') {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Collective)) {
+    collective = await loadCollectiveByPublicId(input.id);
+  } else if (input.id && typeof input.id === 'string') {
     const id = idDecode(input.id, 'account');
     collective = await loadCollectiveById(id);
   } else if (input['legacyId'] || typeof input.id === 'number') {
@@ -151,7 +162,9 @@ export const fetchAccountsWithReferences = async (
   const getSQLConditionFromAccountReferenceInput = inputs => {
     const conditions = [];
     inputs.forEach(input => {
-      if (input.id) {
+      if (isEntityPublicId(input.id, EntityShortIdPrefix.Collective)) {
+        conditions.push({ publicId: input.id });
+      } else if (input.id) {
         conditions.push({ id: idDecode(input.id, 'account') });
       } else if (input.legacyId) {
         conditions.push({ id: input.legacyId });
@@ -167,7 +180,9 @@ export const fetchAccountsWithReferences = async (
 
   // Checks whether the given account and input matches
   const accountMatchesInput = (account, input) => {
-    if (input.id) {
+    if (isEntityPublicId(input.id, EntityShortIdPrefix.Collective)) {
+      return account.publicId === input.id;
+    } else if (input.id) {
       return account.id === idDecode(input.id, 'account');
     } else if (input.legacyId) {
       return account.id === input.legacyId;
@@ -207,7 +222,7 @@ export const fetchAccountsIdsWithReference = async (accounts, options = null) =>
   if (!accounts?.length) {
     return [];
   } else {
-    const fetchedAccounts = await fetchAccountsWithReferences(accounts, { ...options, attributes: ['id'] });
+    const fetchedAccounts = await fetchAccountsWithReferences(accounts, { ...options, attributes: ['id', 'publicId'] });
     return fetchedAccounts.map(account => account.id);
   }
 };

@@ -28,7 +28,6 @@ import {
 } from '../enum/TransactionsImportRowAction';
 import { TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
-import { idDecode } from '../identifiers';
 import {
   fetchAccountsWithReferences,
   fetchAccountWithReference,
@@ -43,6 +42,7 @@ import {
   GraphQLTransactionsImportReferenceInput,
 } from '../input/TransactionsImportReferenceInput';
 import { GraphQLTransactionsImportRowCreateInput } from '../input/TransactionsImportRowCreateInput';
+import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import {
   GraphQLTransactionsImportRowUpdateInput,
   TransactionImportRowGraphQLType,
@@ -123,7 +123,7 @@ const transactionImportsMutations = {
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be an admin of the account to create an import');
-      } else if (!account.isHostAccount) {
+      } else if (!account.hasMoneyManagement) {
         throw new Error('Only host accounts can have imports');
       }
 
@@ -165,8 +165,13 @@ const transactionImportsMutations = {
     },
     resolve: async (_: void, args, req: Request) => {
       checkRemoteUserCanUseTransactions(req);
-      const importId = idDecode(args.id, 'transactions-import');
-      const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+      const importInstance = await fetchTransactionsImportWithReference(
+        { id: args.id },
+        {
+          include: [{ association: 'collective' }],
+        },
+      );
+
       if (!importInstance) {
         throw new NotFound('Import not found');
       } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
@@ -231,8 +236,12 @@ const transactionImportsMutations = {
     },
     resolve: async (_: void, args, req: Request) => {
       checkRemoteUserCanUseTransactions(req);
-      const importId = idDecode(args.id, 'transactions-import');
-      const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
+      const importInstance = await fetchTransactionsImportWithReference(
+        { id: args.id },
+        {
+          include: [{ association: 'collective' }],
+        },
+      );
       const maxRows = config.limits.transactionsImports.rowsPerHourPerUser;
       if (!importInstance) {
         throw new NotFound(`Import not found: ${args.id}`);
@@ -340,7 +349,13 @@ const transactionImportsMutations = {
         return { host: null, rows: [] };
       }
 
-      const inputRowIds = args.rows.map(row => idDecode(row.id, 'transactions-import-row'));
+      const inputRowIds = await Promise.all(
+        args.rows.map(row =>
+          fetchTransactionsImportRowWithReference({ id: row.id }, { loaders: req.loaders, throwIfMissing: true }).then(
+            row => row.id,
+          ),
+        ),
+      );
       const importMetadata = (await TransactionsImportRow.findAll({
         raw: true,
         attributes: [
@@ -405,7 +420,7 @@ const transactionImportsMutations = {
               }
 
               if (row.order) {
-                const orderId = getDatabaseIdFromOrderReference(row.order);
+                const orderId = await getDatabaseIdFromOrderReference(row.order);
                 const order = await req.loaders.Order.byId.load(orderId);
                 const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
                 if (!order || !collective || collective.HostCollectiveId !== hostId) {
@@ -485,6 +500,35 @@ const transactionImportsMutations = {
               },
             },
           );
+        } else if (args.action === 'UNLINK') {
+          // Load rows that are linked
+          const rows = await TransactionsImportRow.findAll({
+            where: {
+              id: { [Op.in]: selectedRowIds },
+              status: TransactionsImportRowStatus.LINKED,
+            },
+            transaction,
+          });
+
+          if (rows.length === 0 || rows.length !== selectedRowIds.length) {
+            throw new ValidationFailed('Some rows are not linked');
+          }
+
+          // Unlink all rows (set ExpenseId/OrderId to null, status to PENDING)
+          await TransactionsImportRow.update(
+            {
+              ExpenseId: null,
+              OrderId: null,
+              status: TransactionsImportRowStatus.PENDING,
+            },
+            {
+              transaction,
+              where: {
+                id: { [Op.in]: selectedRowIds },
+                status: TransactionsImportRowStatus.LINKED,
+              },
+            },
+          );
         }
 
         // Update matching imports
@@ -511,10 +555,12 @@ const transactionImportsMutations = {
     },
     resolve: async (_: void, args, req: Request) => {
       checkRemoteUserCanUseTransactions(req);
-
-      const importId = idDecode(args.id, 'transactions-import');
-      const importInstance = await TransactionsImport.findByPk(importId, { include: [{ association: 'collective' }] });
-
+      const importInstance = await fetchTransactionsImportWithReference(
+        { id: args.id },
+        {
+          include: [{ association: 'collective' }],
+        },
+      );
       if (!importInstance) {
         throw new NotFound('Import not found');
       } else if (!req.remoteUser.isAdminOfCollective(importInstance.collective)) {
@@ -542,7 +588,7 @@ const transactionImportsMutations = {
         await importInstance.destroy({ transaction });
 
         // Delete import rows
-        await TransactionsImportRow.destroy({ transaction, where: { TransactionsImportId: importId } });
+        await TransactionsImportRow.destroy({ transaction, where: { TransactionsImportId: importInstance.id } });
 
         // Delete uploaded files
         await UploadedFile.destroy({ transaction, where: { id: importInstance.UploadedFileId } });

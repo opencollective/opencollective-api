@@ -14,7 +14,7 @@ import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import models, { Op } from '../../models';
+import models from '../../models';
 import { PayoutWebhookRequest, PaypalCapture } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
@@ -134,7 +134,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
       await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
     }
 
-    const nextChargeDate = moment().add(1, order.interval as any);
+    const nextChargeDate = moment().add(1, order.interval);
     await order.Subscription.update({
       chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
       nextChargeDate: nextChargeDate,
@@ -197,7 +197,7 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
     const existingTransaction = await models.Transaction.findOne({
       where: {
         OrderId: order.id,
-        data: { capture: { id: capture.id } },
+        data: { paypalCaptureId: capture.id },
       },
     });
 
@@ -249,13 +249,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
       kind: TransactionKind.CONTRIBUTION,
       isRefund: false,
       RefundTransactionId: null,
-      data: {
-        [Op.or]: [
-          { capture: { id: captureDetails.id } },
-          { paypalSale: { id: captureDetails.id } },
-          { paypalTransaction: { id: captureDetails.id } },
-        ],
-      },
+      data: { paypalCaptureId: captureDetails.id },
     },
     include: [
       {

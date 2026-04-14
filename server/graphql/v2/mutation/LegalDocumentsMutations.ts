@@ -12,6 +12,7 @@ import FEATURE from '../../../constants/feature';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { notify } from '../../../lib/notifications/email';
 import { getUSTaxFormPdf } from '../../../lib/pdf';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../../../lib/tax-forms';
 import { Activity, LegalDocument, UploadedFile } from '../../../models';
@@ -83,25 +84,26 @@ export const legalDocumentsMutations = {
         throw new ValidationFailed('No tax form request found for this account');
       }
 
-      // If a previous document exists, it must be expired
-      let legalDocument = existingLegalDocuments[0];
-      const receivedLegalDocuments = existingLegalDocuments.filter(
-        ld => ld.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+      // Find (or create) an active request
+      let legalDocument = null;
+      const activeRequests = existingLegalDocuments.filter(
+        ld => ld.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
       );
 
-      if (receivedLegalDocuments.length) {
-        if (receivedLegalDocuments.every(ld => ld.isExpired())) {
-          legalDocument = await LegalDocument.create({
-            CollectiveId: account.id,
-            documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
-            year: new Date().getFullYear(),
-            requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
-            service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
-            data: {},
-          });
-        } else {
-          throw new ValidationFailed('A tax form has already been submitted for this account');
-        }
+      if (activeRequests.length) {
+        legalDocument = activeRequests[0];
+      } else if (existingLegalDocuments.every(ld => ld.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED)) {
+        // If all requests are expired, create a new request
+        legalDocument = await LegalDocument.create({
+          CollectiveId: account.id,
+          documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+          year: new Date().getFullYear(),
+          requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
+          service: LEGAL_DOCUMENT_SERVICE.OPENCOLLECTIVE,
+          data: {},
+        });
+      } else {
+        throw new ValidationFailed('A tax form has already been submitted for this account');
       }
 
       // Generate PDF and store it on S3
@@ -194,7 +196,10 @@ export const legalDocumentsMutations = {
     ) => {
       checkRemoteUserCanUseHost(req);
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
-      const decodedDocumentId = idDecode(args.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
+      const decodedDocumentId = isEntityPublicId(args.id, EntityShortIdPrefix.LegalDocument)
+        ? await req.loaders.LegalDocument.idByPublicId.load(args.id)
+        : idDecode(args.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
+
       const legalDocument = await LegalDocument.findByPk(decodedDocumentId, {
         include: [{ association: 'collective', required: true }],
       });
@@ -205,7 +210,7 @@ export const legalDocumentsMutations = {
         throw new Forbidden('You do not have permission to edit legal documents for this host');
       } else if (!(await legalDocument.isAccessibleByHost(host))) {
         throw new Forbidden('You do not have permission to edit this legal document');
-      } else if (legalDocument.isExpired()) {
+      } else if (legalDocument.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.EXPIRED) {
         throw new ValidationFailed('Legal document is expired');
       } else if (args.status === LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED) {
         await checkFeatureAccess(host, FEATURE.TAX_FORMS, { loaders: req.loaders });

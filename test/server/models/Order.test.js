@@ -51,14 +51,12 @@ describe('server/models/Order', () => {
   describe('lock', () => {
     it('sets the date of the lock', async () => {
       // Lock the order
-      const lockSuccess = await order.lock(async () => {
+      await order.lock(async () => {
         await order.reload();
         expect(order.data.lockedAt).to.exist;
         expect(moment(order.lockedAt).isSameOrAfter(moment().subtract(30, 'second'))).to.be.true;
         expect(order.isLocked()).to.be.true;
       });
-
-      expect(lockSuccess).to.be.true;
 
       // Unlocks the order
       await order.reload();
@@ -74,13 +72,11 @@ describe('server/models/Order', () => {
 
     it('retries the lock if it fails', async () => {
       const lockSpy = sandbox.spy(order, 'lock');
-      const [firstLockSuccess, secondLockSuccess] = await Promise.all([
+      await Promise.all([
         order.lock(() => new Promise(resolve => setTimeout(resolve, 100))),
         order.lock(() => {}, { retries: 1000, retryDelay: 1 }),
       ]);
 
-      expect(firstLockSuccess).to.be.true;
-      expect(secondLockSuccess).to.be.true;
       expect(lockSpy.callCount).to.be.above(2); // Function is a recursive, we make sure it called itself at least once
       expect(lockSpy.firstCall.args[1]).to.not.exist; // We haven't passed any options to the first call
       expect(lockSpy.secondCall.args[1].retries).to.equal(1000);

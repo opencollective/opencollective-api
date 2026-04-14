@@ -21,5 +21,5 @@
     "outDir": "dist",
     "skipLibCheck": true
   },
-  "include": ["server", "test", "scripts", "migrations", "reports", "cron"]
+  "include": ["server", "test", "scripts", "migrations", "reports", "cron", "checks"]
 }

@@ -13,7 +13,7 @@ import models, { Collective, Op, sequelize } from '../../server/models';
 
 const getAllHostsWithPaypalAccounts = () => {
   return models.Collective.findAll({
-    where: { isHostAccount: true },
+    where: { hasMoneyManagement: true },
     group: [sequelize.col('Collective.id')],
     include: [
       {
@@ -87,9 +87,11 @@ const main = async (): Promise<void> => {
   await program.parseAsync();
 };
 
-main()
-  .then(() => process.exit(0))
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}

@@ -3,6 +3,9 @@ import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.confi
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
 
+import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
+import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
+
 export default [
   ...openCollectiveConfig,
   // Global ignores
@@ -50,6 +53,13 @@ export default [
       'require-atomic-updates': 'off',
       camelcase: 'error',
       'n/no-unsupported-features/node-builtins': 'off',
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ObjectExpression > Property[key.name='logging'][value.value=true]",
+          message: 'Using `logging: true` in Sequelize queries is forbidden.',
+        },
+      ],
     },
   },
   // Disable some rules for migrations
@@ -100,6 +110,16 @@ export default [
                       return;
                     }
 
+                    // Allow if used in next(...)
+                    if (
+                      parent.type === 'CallExpression' &&
+                      parent.callee.name === 'next' &&
+                      parent.arguments.length >= 1 &&
+                      parent.arguments[0] === node
+                    ) {
+                      return;
+                    }
+
                     context.report({
                       node,
                       message: `Error '${node.callee.name}' is created but not thrown. Add 'throw' before this statement.`,
@@ -116,6 +136,22 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-unused-vars': 'error',
       'custom-errors/no-unthrown-errors': 'error',
+    },
+  },
+  // Sequelize models: require public static readonly tableName = '...' as const
+  {
+    files: ['server/models/**/*.ts'],
+    plugins: {
+      'sequelize-model': {
+        rules: {
+          'require-table-name': sequelizeModelRequireTableName,
+          'require-public-id-prefix': sequelizeModelRequirePublicIdPrefix,
+        },
+      },
+    },
+    rules: {
+      'sequelize-model/require-table-name': 'error',
+      'sequelize-model/require-public-id-prefix': 'error',
     },
   },
   // Tests

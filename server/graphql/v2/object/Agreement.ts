@@ -2,8 +2,9 @@ import type express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import AgreementModel from '../../../models/Agreement';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLFileInfo } from '../interface/FileInfo';
 
@@ -13,7 +14,20 @@ export const GraphQLAgreement = new GraphQLObjectType<AgreementModel, express.Re
   name: 'Agreement',
   description: 'An agreement',
   fields: () => ({
-    id: { type: GraphQLString, resolve: getIdEncodeResolver(IDENTIFIER_TYPES.AGREEMENT) },
+    id: {
+      type: GraphQLString,
+      resolve(agreement: AgreementModel) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Agreement, agreement.createdAt)) {
+          return agreement.publicId;
+        } else {
+          return idEncode(agreement.id, IDENTIFIER_TYPES.AGREEMENT);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${AgreementModel.nanoIdPrefix}_xxxxxxxx)`,
+    },
     title: { type: new GraphQLNonNull(GraphQLString) },
     notes: {
       type: GraphQLString,

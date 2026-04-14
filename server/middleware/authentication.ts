@@ -1,0 +1,503 @@
+import { URLSearchParams } from 'url';
+
+import * as Sentry from '@sentry/node';
+import config from 'config';
+import debugLib from 'debug';
+import type { NextFunction, Request, Response } from 'express';
+import gqlmin from 'gqlmin';
+import { get, isNil, omitBy, pick } from 'lodash';
+import moment from 'moment';
+import passport from 'passport';
+
+import * as connectedAccounts from '../controllers/connectedAccounts';
+import { verifyJwt } from '../lib/auth';
+import errors from '../lib/errors';
+import logger from '../lib/logger';
+import RateLimit from '../lib/rate-limit';
+import { clearRedirectCookie, setRedirectCookie } from '../lib/redirect-cookie';
+import { dbUserToSentryUser, reportMessageToSentry } from '../lib/sentry';
+import { getBearerTokenFromCookie, getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
+import models from '../models';
+import paymentProviders from '../paymentProviders';
+
+const { User, UserToken } = models;
+
+const { CustomError, Unauthorized } = errors;
+
+const debug = debugLib('auth');
+
+/**
+ * Middleware related to authentication.
+ *
+ * Identification is provided through two vectors:
+ * - api_key URL parameter which uniquely identifies an application
+ * - JSON web token JWT payload which contains 3 items:
+ *   - sub: user ID
+ *   - scope: user scope (e.g. 'subscriptions')
+ *
+ * Thus:
+ * - a user is identified with a JWT
+ */
+
+/**
+ * Express-jwt will either force all routes to have auth and throw
+ * errors for public routes. Or authorize all the routes and not throw
+ * expirations errors. This is a cleaned up version of that code that only
+ * decodes the token (expected behaviour).
+ */
+const parseJwt = (req: Request) => {
+  const params = req.params || {};
+  const query = req.query || {};
+  const body = req.body || {};
+  let token: string = params.access_token || query.access_token || body.access_token;
+  if (!token) {
+    token = getBearerTokenFromRequestHeaders(req) || getBearerTokenFromCookie(req);
+  }
+
+  if (token) {
+    try {
+      return verifyJwt(token) as Request['jwtPayload'];
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        throw new CustomError(401, 'jwt_expired', 'jwt expired');
+      } else {
+        // If a token was submitted but is invalid, we continue without authenticating the user
+        // NOTE: This is historical behavior and could be reconsidered.
+        return;
+        // throw new BadRequest(err.message);
+      }
+    }
+  }
+};
+
+const checkJwtScope = (req: Request) => {
+  const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
+
+  const scope = req.jwtPayload.scope || 'session';
+
+  const path = req.originalUrl || req.path;
+
+  switch (scope) {
+    case 'twofactorauth':
+      if (!path.startsWith('/users/two-factor-auth')) {
+        throw new errors.Unauthorized(errorMessage);
+      }
+      break;
+
+    case 'connected-account':
+      if (!path.startsWith('/github-repositories') && !path.startsWith('/connected-accounts/github/verify')) {
+        throw new errors.Unauthorized(errorMessage);
+      }
+      break;
+
+    case 'login':
+      if (!path.startsWith('/users/exchange-login-token')) {
+        if (['production', 'staging'].includes(config.env)) {
+          throw new errors.Unauthorized(errorMessage);
+        } else {
+          logger.info(`${errorMessage}. Ignoring in non-production environment.`);
+        }
+      }
+      break;
+
+    case 'reset-password':
+      {
+        const minifiedGraphqlOperation = req.body?.query ? gqlmin(req.body.query) : null;
+        const allowedResetPasswordGraphqlOperations = [
+          'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
+          'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
+        ];
+        if (
+          // We verify that the mutation is exactly the one we expect
+          !req.isGraphQL ||
+          !minifiedGraphqlOperation ||
+          !allowedResetPasswordGraphqlOperations.includes(minifiedGraphqlOperation)
+        ) {
+          throw new errors.Unauthorized(
+            'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword allowed GraphQL operations',
+          );
+        }
+      }
+
+      break;
+
+    case 'oauth':
+    case 'session':
+      // No generic check
+
+      // In other places, OAuth tokens will be prevented to:
+      // - use GraphQL v1
+      // - refreshToken to get a session token
+      break;
+
+    default:
+      // Unknown scope
+      throw new errors.Unauthorized(errorMessage);
+  }
+};
+
+/**
+ * Authenticate the user using the JWT token and populates:
+ *  - req.remoteUser
+ *  - req.remoteUser.memberships[CollectiveId] = [roles]
+ */
+const _authenticateUserByJwt = async (req: Request, res: Response, next: NextFunction) => {
+  const userId = Number(req.jwtPayload.sub);
+  const user = await User.findByPk(userId, {
+    include: [{ association: 'collective', required: false }],
+  });
+  if (!user) {
+    logger.warn(`User id ${userId} not found`);
+    next();
+    return;
+  } else if (!user.collective) {
+    logger.error(`User id ${userId} has no collective linked`);
+    reportMessageToSentry(`User has no collective linked`, { user });
+    next();
+    return;
+  } else if (req.jwtPayload.email && user.email !== req.jwtPayload.email) {
+    return next(new errors.Unauthorized('This token has expired'));
+  }
+
+  Sentry.setUser(dbUserToSentryUser(user));
+
+  if (
+    // Ignore redirect if profile completion is required
+    !user.collective?.data?.requiresProfileCompletion
+  ) {
+    setRedirectCookie(res);
+  } else {
+    clearRedirectCookie(res);
+  }
+
+  // Make tokens expire on password update
+  const iat = moment(req.jwtPayload.iat * 1000);
+  if (user.passwordUpdatedAt && moment(user.passwordUpdatedAt).diff(iat, 'seconds') > 0) {
+    const errorMessage = 'This token is expired';
+    logger.warn(errorMessage);
+    return next(new errors.Unauthorized(errorMessage));
+  }
+
+  const accessToken = req.jwtPayload.access_token;
+  if (accessToken) {
+    const userToken = await UserToken.findOne({ where: { accessToken } });
+    if (!userToken) {
+      logger.warn(`UserToken for ${userId} not found`);
+      next();
+      return;
+    }
+    const now = moment();
+    // Check token expiration
+    if (userToken.accessTokenExpiresAt && now.diff(moment(userToken.accessTokenExpiresAt), 'seconds') > 0) {
+      logger.warn(`UserToken expired for ${userId}`);
+      next();
+      return;
+    }
+    // Update lastUsedAt if lastUsedAt older than 1 minute ago
+    if (!userToken.lastUsedAt || now.diff(moment(userToken.lastUsedAt), 'minutes') > 1) {
+      if (!parseToBoolean(config.database.readOnly)) {
+        await userToken.update({ lastUsedAt: new Date() });
+      }
+    }
+    req.userToken = userToken;
+  }
+
+  // Extra checks for `login` and `reset-password` scopes
+  if (req.jwtPayload.scope === 'login') {
+    if (user.lastLoginAt) {
+      if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
+        const errorMessage = 'This login link is expired or has already been used';
+        if (['production', 'staging'].includes(config.env)) {
+          logger.warn(errorMessage);
+          return next(new errors.Unauthorized(errorMessage));
+        } else {
+          logger.info(`${errorMessage}. Ignoring in non-production environment.`);
+        }
+      }
+    } else {
+      // Verify any Expenses marked as UNVERIFIED that were created before the login link was generated
+      await models.Expense.verifyUserExpenses(user);
+    }
+  } else if (req.jwtPayload.scope === 'reset-password' && user.passwordUpdatedAt) {
+    if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {
+      const errorMessage = 'This reset password token is expired or has already been used';
+      logger.warn(errorMessage);
+      return next(new errors.Unauthorized(errorMessage));
+    }
+  }
+
+  await user.populateRoles();
+
+  req.remoteUser = user;
+
+  debug('logged in user', req.remoteUser.id, 'roles:', req.remoteUser.rolesByCollectiveId);
+  next();
+};
+
+/**
+ * Authenticate the user with the JWT token if any, otherwise continues
+ *
+ * @PRE: Request with a `Authorization: Bearer [token]` with a valid token
+ * @POST: req.remoteUser is set to the logged in user or null if authentication failed
+ * @ERROR: Will return an error if a JWT token is provided and invalid
+ */
+export function authenticateUser(req: Request, res: Response, next: NextFunction) {
+  if (req.remoteUser && req.remoteUser.id) {
+    return next();
+  }
+
+  try {
+    req.jwtPayload = parseJwt(req);
+  } catch (e) {
+    debug('>>> parseJwt invalid error', e);
+    return next(e);
+  }
+
+  if (!req.jwtPayload) {
+    return next();
+  }
+
+  try {
+    checkJwtScope(req);
+  } catch (e) {
+    debug('>>> checkJwtScope error', e);
+    return next(e);
+  }
+
+  _authenticateUserByJwt(req, res, next);
+}
+
+export const authenticateService = async (req: Request, res: Response, next: NextFunction) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-authenticate-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch {
+    return next(new errors.RateLimitExceeded());
+  }
+
+  const { service } = req.params;
+  const { context } = req.query || {};
+  const opts: passport.AuthenticateOptions = { callbackURL: getOAuthCallbackUrl(req) };
+
+  if (service === 'github') {
+    if (context === 'createCollective') {
+      opts.scope = [
+        // We need this to call github.getOrgMemberships and check if the user is an admin of a given Organization
+        'read:org',
+        // We need this for the `github.getValidatorInfo` query
+        'public_repo',
+      ];
+    } else {
+      // We try to deprecate this scope by progressively forcing a context
+      opts.scope = ['user:email', 'public_repo', 'read:org'];
+    }
+
+    return passport.authenticate(service, opts)(req, res, next);
+  }
+
+  if (!req.query.CollectiveId) {
+    return next(new errors.ValidationFailed(undefined, 'CollectiveId', 'Please provide a CollectiveId'));
+  } else if (Array.isArray(req.query.CollectiveId)) {
+    return next(new errors.ValidationFailed(undefined, 'CollectiveId', 'Please provide a single CollectiveId'));
+  } else if (!req.remoteUser || !req.remoteUser.isAdmin(req.query.CollectiveId as string)) {
+    return next(new errors.Unauthorized('Please login as an admin of this collective to add a connected account'));
+  }
+
+  if (paymentProviders[service]) {
+    return paymentProviders[service].oauth
+      .redirectUrl(req.remoteUser, req.query.CollectiveId, req.query)
+      .then(redirectUrl => res.send({ redirectUrl }))
+      .catch(next);
+  }
+
+  return passport.authenticate(service, opts)(req, res, next);
+};
+
+export const authenticateServiceCallback = async (req: Request, res: Response, next: NextFunction) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-callback-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch {
+    return next(new errors.RateLimitExceeded());
+  }
+
+  const { service } = req.params;
+  if (get(paymentProviders, `${service}.oauth.callback`)) {
+    return paymentProviders[service].oauth.callback(req, res, next);
+  }
+
+  const opts = { callbackURL: getOAuthCallbackUrl(req) };
+  return passport.authenticate(service, opts, async (err, accessToken, data) => {
+    if (err) {
+      return next(err);
+    } else if (!accessToken) {
+      return next(new errors.Unauthorized('No access token returned from OAuth provider'));
+    }
+
+    return connectedAccounts.createOrUpdate(req, res, next, accessToken, data).catch(next);
+  })(req, res, next);
+};
+
+export const authenticateServiceDisconnect = async (req: Request, res: Response, next: NextFunction) => {
+  // How many times a user can call this endpoint in a minute.
+  const rateLimit = new RateLimit(`connected-accounts-disconnect-${req.ip}`, 60, 10);
+  try {
+    await rateLimit.registerCallOrThrow();
+  } catch {
+    return next(new errors.RateLimitExceeded());
+  }
+
+  await connectedAccounts.disconnect(req, res);
+};
+
+function getOAuthCallbackUrl(req: Request) {
+  const { service } = req.params;
+
+  // TODO We should not pass `access_token` to 3rd party services. Github likely still relies on this
+  const params = new URLSearchParams(omitBy(pick(req.query, ['access_token', 'context', 'CollectiveId']), isNil));
+
+  if (params.toString().length > 0) {
+    return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
+  } else {
+    return `${config.host.website}/api/connected-accounts/${service}/callback`;
+  }
+}
+
+/**
+ * Check Personal Token
+ */
+export async function checkPersonalToken(req: Request, res: Response, next: NextFunction) {
+  const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
+  const token = req.get('Personal-Token') || req.query.personalToken;
+
+  if (apiKey || token) {
+    const now = moment();
+    if (Array.isArray(apiKey)) {
+      return next(new errors.ValidationFailed(undefined, 'apiKey', 'Please provide a single apiKey'));
+    } else if (Array.isArray(token)) {
+      return next(new errors.ValidationFailed(undefined, 'token', 'Please provide a single token'));
+    }
+
+    const personalToken = await models.PersonalToken.findOne({
+      where: { token: apiKey || token },
+      include: [
+        {
+          association: 'user',
+          required: true,
+          include: [{ association: 'collective', required: true }],
+        },
+        {
+          association: 'collective',
+          required: true,
+        },
+      ],
+    });
+
+    if (personalToken) {
+      if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
+        debug(`Expired Personal Token (Api Key): ${personalToken.id}`);
+        next(new Unauthorized(`Expired Personal Token (Api Key)`));
+        return;
+      } else if (personalToken.data?.isSuspended) {
+        debug(`Suspended Personal Token (Api Key)`);
+        next(
+          new Unauthorized(
+            `Your personal token has been suspended, likely due to abuse. Please contact support to reactivate it.`,
+          ),
+        );
+        return;
+      }
+
+      debug('Valid Personal Token (Api Key)');
+      // Update lastUsedAt if lastUsedAt older than 1 minute ago
+      if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
+        if (!parseToBoolean(config.database.readOnly)) {
+          await personalToken.update({ lastUsedAt: new Date() });
+        }
+      }
+
+      req.personalToken = personalToken;
+      req.remoteUser = personalToken.user;
+
+      if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
+        next(new Unauthorized(`Invalid personal token for collective: ${apiKey || token}`));
+        return;
+      }
+
+      await req.remoteUser.populateRoles();
+      next();
+    } else {
+      clearRedirectCookie(res);
+      debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
+      next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
+    }
+  } else {
+    clearRedirectCookie(res);
+    next();
+    debug('No Personal Token (Api Key)');
+  }
+}
+
+/**
+ * Authorize api_key
+ */
+export function authorizeClient(req: Request, res: Response, next: NextFunction) {
+  // TODO: we should remove those exceptions
+  // those routes should only be accessed via the website (which automatically adds the api_key)
+  const exceptions = [
+    { method: 'POST', regex: /^\/webhooks\/(mailgun|stripe|transferwise)/ },
+    {
+      method: 'GET',
+      regex: /^\/connected-accounts\/(stripe)\/callback/,
+    },
+    {
+      method: 'GET',
+      regex: /^\/services\/email\/unsubscribe\/(.+)\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_\.]+)\/.+/,
+    },
+  ];
+
+  for (const exception of exceptions) {
+    if (req.method === exception.method && req.originalUrl.match(exception.regex)) {
+      return next();
+    }
+  }
+
+  if (req.personalToken) {
+    debug('Valid Personal Token');
+    next();
+    return;
+  }
+
+  const query = req.query || {};
+  const body = req.body || {};
+  const apiKey = req.get('Api-Key') || query.apiKey || query.api_key || body.api_key;
+  if (apiKey === config.keys.opencollective.apiKey) {
+    debug(`Valid API key: ${apiKey}`);
+    next();
+  } else if (apiKey) {
+    debug(`Invalid API key: ${apiKey}`);
+    next(new Unauthorized(`Invalid API key: ${apiKey}`));
+  } else {
+    debug('Missing API key');
+    next();
+  }
+}
+
+/**
+ * Makes sure that the user is logged in and req.remoteUser is populated.
+ * If we cannot authenticate the user, we directly return an Unauthorized error.
+ */
+export function mustBeLoggedIn(req: Request, res: Response, next: NextFunction) {
+  authenticateUser(req, res, e => {
+    if (e) {
+      return next(e);
+    }
+    if (!req.remoteUser) {
+      return next(new Unauthorized('User is not authenticated'));
+    } else {
+      return next();
+    }
+  });
+}

@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
-import { OrderItem, Sequelize } from 'sequelize';
+import { OrderItem, QueryTypes, Sequelize } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import { Service } from '../../constants/connected-account';
@@ -18,23 +18,39 @@ import {
 import { getFxRate } from '../../lib/currency';
 import { ifStr } from '../../lib/utils';
 import {
+  AccountingCategory,
+  Agreement,
   Collective,
   ConnectedAccount,
+  Conversation,
+  Expense,
   ExpenseAttachedFile,
   ExpenseItem,
+  HostApplication,
+  LegalDocument,
+  ManualPaymentProvider,
   Member,
   Models,
   Op,
   Order,
   PaymentMethod,
+  PayoutMethod,
+  PersonalToken,
   PlatformSubscription,
   sequelize,
   SocialLink,
   Subscription,
+  Tier,
   Transaction,
+  TransactionsImport,
   TransactionsImportRow,
+  Update,
   UploadedFile,
+  VirtualCard,
 } from '../../models';
+import Comment from '../../models/Comment';
+import ExportRequest from '../../models/ExportRequest';
+import { KYCVerification } from '../../models/KYCVerification';
 
 import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
@@ -54,11 +70,12 @@ import {
 } from './members';
 import * as orderLoaders from './order';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
+import { generateEntityByPublicIdLoader, generateEntityIdByPublicIdLoader } from './publicId';
 import { generateSearchLoaders } from './search';
 import { generateTierAvailableQuantityLoader } from './tiers';
 import * as transactionLoaders from './transactions';
 import {
-  generateOffPlatformTransactionsStatsLoader,
+  generateBankSynchronizationTransactionsStatsLoader,
   generateTransactionsImportStatsLoader,
 } from './transactions-import';
 import updatesLoader from './updates';
@@ -87,6 +104,11 @@ export const generateLoaders = req => {
 
   const loaders = {
     ...context.loaders,
+    AccountingCategory: {
+      ...context.loaders.AccountingCategory,
+      byPublicId: generateEntityByPublicIdLoader(AccountingCategory),
+      idByPublicId: generateEntityIdByPublicIdLoader(AccountingCategory),
+    },
     CurrencyExchangeRate: {
       ...context.loaders.CurrencyExchangeRate,
       convert: generateConvertToCurrencyLoader(),
@@ -99,12 +121,16 @@ export const generateLoaders = req => {
       // Comment Reactions
       reactionsByCommentId: commentsLoader.reactionsByCommentId(),
       remoteUserReactionsByCommentId: commentsLoader.remoteUserReactionsByCommentId(req),
+      byPublicId: generateEntityByPublicIdLoader(Comment),
+      idByPublicId: generateEntityIdByPublicIdLoader(Comment),
     },
     Update: {
       ...context.loaders.Update,
       // Update Reactions
       reactionsByUpdateId: updatesLoader.reactionsByUpdateId(),
       remoteUserReactionsByUpdateId: updatesLoader.remoteUserReactionsByUpdateId(req),
+      byPublicId: generateEntityByPublicIdLoader(Update),
+      idByPublicId: generateEntityIdByPublicIdLoader(Update),
     },
     UploadedFile: {
       ...context.loaders.UploadedFile,
@@ -118,11 +144,15 @@ export const generateLoaders = req => {
         });
         return sortResultsArray(checksums, files, file => file.data.s3SHA256);
       }),
+      byPublicId: generateEntityByPublicIdLoader(UploadedFile),
+      idByPublicId: generateEntityIdByPublicIdLoader(UploadedFile),
     },
     Conversation: {
       ...context.loaders.Conversation,
       followers: conversationLoaders.followers(),
       commentsCount: conversationLoaders.commentsCount(),
+      byPublicId: generateEntityByPublicIdLoader(Conversation),
+      idByPublicId: generateEntityIdByPublicIdLoader(Conversation),
     },
     Expense: {
       ...context.loaders.Expense,
@@ -132,21 +162,29 @@ export const generateLoaders = req => {
       taxFormRequiredBeforePayment: expenseLoaders.taxFormRequiredBeforePayment(),
       expenseToHostTransactionFxRateLoader: expenseLoaders.generateExpenseToHostTransactionFxRateLoader(),
       securityChecks: expenseLoaders.generateExpensesSecurityCheckLoader(req),
+      byPublicId: generateEntityByPublicIdLoader(Expense),
+      idByPublicId: generateEntityIdByPublicIdLoader(Expense),
     },
     Agreement: {
       ...context.loaders.Agreement,
       totalAccountHostAgreements: generateTotalAccountHostAgreementsLoader(),
+      byPublicId: generateEntityByPublicIdLoader(Agreement),
+      idByPublicId: generateEntityIdByPublicIdLoader(Agreement),
     },
     PayoutMethod: {
       ...context.loaders.PayoutMethod,
       paypalByCollectiveId: generateCollectivePaypalPayoutMethodsLoader(),
       byCollectiveId: generateCollectivePayoutMethodsLoader(),
       allByCollectiveId: generateCollectivePayoutMethodsLoader({ excludeArchived: false }),
+      byPublicId: generateEntityByPublicIdLoader(PayoutMethod),
+      idByPublicId: generateEntityIdByPublicIdLoader(PayoutMethod),
     },
     VirtualCard: {
       ...context.loaders.VirtualCard,
       byCollectiveId: generateCollectiveVirtualCardLoader(),
       byHostCollectiveId: generateHostCollectiveVirtualCardLoader(),
+      byPublicId: generateEntityByPublicIdLoader(VirtualCard),
+      idByPublicId: generateEntityIdByPublicIdLoader(VirtualCard),
     },
     User: {
       ...context.loaders.User,
@@ -159,6 +197,8 @@ export const generateLoaders = req => {
     },
     Collective: {
       ...context.loaders.Collective,
+      byPublicId: generateEntityByPublicIdLoader(Collective),
+      idByPublicId: generateEntityIdByPublicIdLoader(Collective),
       byUserId: collectiveLoaders.byUserId(),
       mainProfileFromIncognito: collectiveLoaders.mainProfileFromIncognito(),
       hostByCollectiveId: new DataLoader<number, Collective>(ids =>
@@ -178,7 +218,7 @@ export const generateLoaders = req => {
         ConnectedAccount.findAll({
           attributes: ['id', 'username'],
           where: { username: { [Op.in]: ids }, service: Service.STRIPE },
-          include: [{ model: Collective, as: 'collective', where: { isHostAccount: true } }],
+          include: [{ model: Collective, as: 'collective', where: { hasMoneyManagement: true } }],
         }).then(results => {
           const resultsById = {};
           for (const result of results) {
@@ -221,21 +261,42 @@ export const generateLoaders = req => {
           hostCurrency: string;
           CollectiveId: number;
         }
-      >(collectiveIds =>
-        sequelize
-          .query(
-            `SELECT ccb.*
+      >(
+        collectiveIds =>
+          sequelize
+            .query<
+              Array<{
+                netAmountInHostCurrnecy: number;
+                disputednetAmountInHostCurrency: number;
+                hostCurrency: string;
+                CollectiveId: number;
+              }>
+            >(
+              `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
-         AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+         AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
-            {
-              replacements: { collectiveIds },
-              type: sequelize.QueryTypes.SELECT,
-              raw: true,
-            },
-          )
-          .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
+              {
+                replacements: { collectiveIds },
+                type: QueryTypes.SELECT,
+                raw: true,
+              },
+            )
+            .then(results =>
+              sortResults(
+                collectiveIds,
+                Object.values(Array.isArray(results) ? results : (results as Record<string, unknown>)),
+                'CollectiveId',
+              ),
+            ) as PromiseLike<
+            ArrayLike<{
+              netAmountInHostCurrnecy: number;
+              disputednetAmountInHostCurrency: number;
+              hostCurrency: string;
+              CollectiveId: number;
+            }>
+          >,
       ),
 
       currentCollectiveTransactionStats: new DataLoader<
@@ -248,14 +309,42 @@ export const generateLoaders = req => {
           totalNetAmountSpentInHostCurrency: number;
           hostCurrency: string;
         }
-      >(collectiveIds =>
-        sequelize
-          .query(`SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`, {
-            replacements: { collectiveIds },
-            type: sequelize.QueryTypes.SELECT,
-            raw: true,
-          })
-          .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
+      >(
+        collectiveIds =>
+          sequelize
+            .query<
+              Array<{
+                CollectiveId: number;
+                totalAmountReceivedInHostCurrency: number;
+                totalNetAmountReceivedInHostCurrency: number;
+                totalAmountSpentInHostCurrency: number;
+                totalNetAmountSpentInHostCurrency: number;
+                hostCurrency: string;
+              }>
+            >(`SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`, {
+              replacements: { collectiveIds },
+              type: QueryTypes.SELECT,
+              raw: true,
+            })
+            .then(results =>
+              sortResults(
+                collectiveIds,
+                Object.values(Array.isArray(results) ? results : (results as Record<string, unknown>)),
+                'CollectiveId',
+              ),
+            ) as Promise<
+            ArrayLike<
+              | Error
+              | {
+                  CollectiveId: number;
+                  totalAmountReceivedInHostCurrency: number;
+                  totalNetAmountReceivedInHostCurrency: number;
+                  totalAmountSpentInHostCurrency: number;
+                  totalNetAmountSpentInHostCurrency: number;
+                  hostCurrency: string;
+                }
+            >
+          >,
       ),
 
       // Collective - Balance
@@ -468,7 +557,10 @@ export const generateLoaders = req => {
         Collective.findAll({
           mapToModel: false,
           raw: true,
-          where: { ParentCollectiveId: { [Op.in]: ids } },
+          where: {
+            ParentCollectiveId: { [Op.in]: ids },
+            type: { [Op.ne]: CollectiveType.VENDOR },
+          },
           attributes: ['ParentCollectiveId', 'id'],
         }).then((results: { ParentCollectiveId: number; id: number }[]) => {
           const groupedResults = new Map<number, Set<number>>();
@@ -515,7 +607,7 @@ export const generateLoaders = req => {
             cbc."HostCollectiveId", cbc."hostCurrency";
         `,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             replacements: { ids },
           },
         );
@@ -531,6 +623,7 @@ export const generateLoaders = req => {
       }),
       communityStats: {
         onHostContext: collectiveLoaders.communityStats.onHostContext(),
+        forSpecificHostedCollective: collectiveLoaders.communityStats.forSpecificHostedCollective(),
       },
       // // Collective - Stats
       stats: {
@@ -691,7 +784,7 @@ export const generateLoaders = req => {
             `SELECT * FROM "CollectiveOrderStats" WHERE "CollectiveId" IN (:collectiveIds)`,
             {
               replacements: { collectiveIds },
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
               raw: true,
             },
           )) as {
@@ -761,7 +854,7 @@ export const generateLoaders = req => {
                       dateFrom,
                       dateTo,
                     },
-                    type: sequelize.QueryTypes.SELECT,
+                    type: QueryTypes.SELECT,
                     raw: true,
                   },
                 )) as {
@@ -791,6 +884,8 @@ export const generateLoaders = req => {
     },
     Tier: {
       ...context.loaders.Tier,
+      byPublicId: generateEntityByPublicIdLoader(Tier),
+      idByPublicId: generateEntityIdByPublicIdLoader(Tier),
       availableQuantity: generateTierAvailableQuantityLoader(),
       // Tier - totalDistinctOrders
       totalDistinctOrders: new DataLoader<number, number>(ids =>
@@ -865,7 +960,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result['totalDonated'] : 0))),
@@ -887,7 +982,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result['total'] : 0))),
@@ -909,7 +1004,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result['total'] : 0))),
@@ -940,7 +1035,7 @@ export const generateLoaders = req => {
       `,
             {
               replacements: [ids],
-              type: sequelize.QueryTypes.SELECT,
+              type: QueryTypes.SELECT,
             },
           )
           .then(results =>
@@ -956,13 +1051,13 @@ export const generateLoaders = req => {
         const results = (await Member.findAll({
           attributes: [
             'TierId',
-            sequelize.col('memberCollective.type'),
+            sequelize.col('memberCollective.type') as unknown as string,
             [sequelize.fn('COUNT', sequelize.col('memberCollective.id')), 'count'],
           ],
           where: {
             TierId: { [Op.in]: tiersIds },
           },
-          group: ['TierId', sequelize.col('memberCollective.type')],
+          group: ['TierId', sequelize.col('memberCollective.type') as unknown as string],
           include: [
             {
               model: Collective,
@@ -1004,6 +1099,8 @@ export const generateLoaders = req => {
     },
     PaymentMethod: {
       ...context.loaders.PaymentMethod,
+      byPublicId: generateEntityByPublicIdLoader(PaymentMethod),
+      idByPublicId: generateEntityIdByPublicIdLoader(PaymentMethod),
       // PaymentMethod - findByCollectiveId
       findByCollectiveId: new DataLoader<number, PaymentMethod[]>(async CollectiveIds => {
         const results = await PaymentMethod.findAll({
@@ -1022,6 +1119,8 @@ export const generateLoaders = req => {
     },
     Order: {
       ...context.loaders.Order,
+      byPublicId: generateEntityByPublicIdLoader(Order),
+      idByPublicId: generateEntityIdByPublicIdLoader(Order),
       // Order - findByMembership
       findByMembership: new DataLoader<string, Order[]>(combinedKeys =>
         Order.findAll({
@@ -1060,6 +1159,8 @@ export const generateLoaders = req => {
     },
     Member: {
       ...context.loaders.Member,
+      byPublicId: generateEntityByPublicIdLoader(Member),
+      idByPublicId: generateEntityIdByPublicIdLoader(Member),
       transactions: new DataLoader<string, Transaction[]>(combinedKeys =>
         Transaction.findAll({
           where: {
@@ -1095,6 +1196,8 @@ export const generateLoaders = req => {
     },
     Transaction: {
       ...context.loaders.Transaction,
+      byPublicId: generateEntityByPublicIdLoader(Transaction),
+      idByPublicId: generateEntityIdByPublicIdLoader(Transaction),
       byOrderId: new DataLoader<number, Transaction[]>(async keys => {
         const where = { OrderId: { [Op.in]: keys } };
         const order = [['createdAt', 'ASC']] as OrderItem[];
@@ -1183,13 +1286,13 @@ export const generateLoaders = req => {
       taxAmountForTransaction: transactionLoaders.generateTaxAmountForTransactionLoader(),
       relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
       relatedContributionTransaction: transactionLoaders.generateRelatedContributionTransactionLoader(),
-      balanceById: new DataLoader<number, number>(async transactionIds => {
-        const transactionBalances = await sequelize.query(
-          ` SELECT      id, balance
+      balanceById: new DataLoader<number, { id: number; balance: number }>(async (transactionIds: number[]) => {
+        const transactionBalances = await sequelize.query<{ id: number; balance: number }>(
+          `SELECT      id, balance
           FROM        "TransactionBalances"
           WHERE       id in (:transactionIds)`,
           {
-            type: sequelize.QueryTypes.SELECT,
+            type: QueryTypes.SELECT,
             replacements: { transactionIds },
           },
         );
@@ -1199,11 +1302,15 @@ export const generateLoaders = req => {
     },
     TransactionsImport: {
       ...context.loaders.TransactionsImport,
+      byPublicId: generateEntityByPublicIdLoader(TransactionsImport),
+      idByPublicId: generateEntityIdByPublicIdLoader(TransactionsImport),
       stats: generateTransactionsImportStatsLoader(),
-      hostStats: generateOffPlatformTransactionsStatsLoader(),
+      bankSynchronizationHostTransactionsStats: generateBankSynchronizationTransactionsStatsLoader(),
     },
     TransactionsImportRow: {
       ...context.loaders.TransactionsImportRow,
+      byPublicId: generateEntityByPublicIdLoader(TransactionsImportRow),
+      idByPublicId: generateEntityIdByPublicIdLoader(TransactionsImportRow),
       byExpenseId: new DataLoader<number, TransactionsImportRow>(async expenseIds => {
         const rows = await TransactionsImportRow.findAll({
           where: { ExpenseId: { [Op.in]: expenseIds } },
@@ -1223,12 +1330,20 @@ export const generateLoaders = req => {
       ...context.loaders.PlatformSubscription,
       ...PlatformSubscription.loaders,
     },
+    KYCVerification: {
+      ...context.loaders.KYCVerification,
+      ...KYCVerification.loaders,
+      byPublicId: generateEntityByPublicIdLoader(KYCVerification),
+      idByPublicId: generateEntityIdByPublicIdLoader(KYCVerification),
+    },
     ExpenseItem: {
       ...context.loaders.ExpenseItem,
       byUrl: new DataLoader(async (urls: string[]) => {
         const items = await ExpenseItem.findAll({ where: { url: urls } });
         return sortResultsSimple(urls, items, file => file.getDataValue('url'));
       }),
+      byPublicId: generateEntityByPublicIdLoader(ExpenseItem),
+      idByPublicId: generateEntityIdByPublicIdLoader(ExpenseItem),
     },
     ExpenseAttachedFile: {
       ...context.loaders.ExpenseAttachedFile,
@@ -1236,6 +1351,33 @@ export const generateLoaders = req => {
         const files = await ExpenseAttachedFile.findAll({ where: { url: urls } });
         return sortResultsSimple(urls, files, file => file.getDataValue('url'));
       }),
+      byPublicId: generateEntityByPublicIdLoader(ExpenseAttachedFile),
+      idByPublicId: generateEntityIdByPublicIdLoader(ExpenseAttachedFile),
+    },
+    ExportRequest: {
+      ...context.loaders.ExportRequest,
+      byPublicId: generateEntityByPublicIdLoader(ExportRequest),
+      idByPublicId: generateEntityIdByPublicIdLoader(ExportRequest),
+    },
+    HostApplication: {
+      ...context.loaders.HostApplication,
+      byPublicId: generateEntityByPublicIdLoader(HostApplication),
+      idByPublicId: generateEntityIdByPublicIdLoader(HostApplication),
+    },
+    ManualPaymentProvider: {
+      ...context.loaders.ManualPaymentProvider,
+      byPublicId: generateEntityByPublicIdLoader(ManualPaymentProvider),
+      idByPublicId: generateEntityIdByPublicIdLoader(ManualPaymentProvider),
+    },
+    PersonalToken: {
+      ...context.loaders.PersonalToken,
+      byPublicId: generateEntityByPublicIdLoader(PersonalToken),
+      idByPublicId: generateEntityIdByPublicIdLoader(PersonalToken),
+    },
+    LegalDocument: {
+      ...context.loaders.LegalDocument,
+      byPublicId: generateEntityByPublicIdLoader(LegalDocument),
+      idByPublicId: generateEntityIdByPublicIdLoader(LegalDocument),
     },
 
     // Non-model loaders

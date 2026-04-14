@@ -31,6 +31,7 @@ import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
 
@@ -348,11 +349,14 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
   fields: () => {
     return {
       id: { type: GraphQLInt },
+      idV2: { type: GraphQLString },
       createdByUser: { type: UserType },
       parentCollective: { type: CollectiveInterfaceType },
       children: { type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)) },
       type: { type: GraphQLString },
       isActive: { type: GraphQLBoolean },
+      hasHosting: { type: GraphQLBoolean },
+      hasMoneyManagement: { type: GraphQLBoolean },
       name: { type: GraphQLString },
       legalName: { type: GraphQLString },
       company: { type: GraphQLString },
@@ -500,6 +504,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           type: { type: GraphQLString },
           active: { type: GraphQLBoolean },
         },
+      },
+      platformContributionAvailable: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description:
+          'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
       },
       tiers: {
         type: new GraphQLList(TierType),
@@ -665,6 +674,12 @@ const CollectiveFields = () => {
         return collective.id;
       },
     },
+    idV2: {
+      type: GraphQLString,
+      resolve(collective) {
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      },
+    },
     createdByUser: {
       type: UserType,
       async resolve(collective, args, req) {
@@ -712,6 +727,18 @@ const CollectiveFields = () => {
       type: GraphQLBoolean,
       resolve(collective) {
         return collective.isActive;
+      },
+    },
+    hasHosting: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve(collective) {
+        return collective.hasHosting;
+      },
+    },
+    hasMoneyManagement: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve(collective) {
+        return collective.hasMoneyManagement;
       },
     },
     name: {
@@ -1024,7 +1051,7 @@ const CollectiveFields = () => {
           const ParentCollectiveId = collective.ParentCollectiveId;
           const parentCollective = ParentCollectiveId && (await req.loaders.Collective.byId.load(ParentCollectiveId));
           // In the future, we should make it possible to directly read the approvedAt of the event
-          return parentCollective && (parentCollective.isHostAccount || parentCollective.isApproved());
+          return parentCollective && (parentCollective.hasMoneyManagement || parentCollective.isApproved());
         } else {
           return collective.isApproved();
         }
@@ -1304,8 +1331,37 @@ const CollectiveFields = () => {
         });
       },
     },
+    platformContributionAvailable: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description:
+        'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
+      async resolve(account, _, req) {
+        if (!isNil(account.data?.platformTips)) {
+          return Boolean(account.data.platformTips);
+        } else if (PlatformConstants.AllPlatformCollectiveIds.includes(account.id)) {
+          return false;
+        }
+
+        // Look at the host's plan
+        const host = await req.loaders.Collective.host.load(account);
+        if (host) {
+          // New pricing
+          const hasPlatformTips = await req.loaders.PlatformSubscription.hasPlatformTips.load(host.id);
+          if (typeof hasPlatformTips === 'boolean') {
+            return hasPlatformTips;
+          }
+
+          // hasPlatformTips undefined means we're on a legacy plan
+          const plan = host.getLegacyPlan();
+          return Boolean(plan.platformTips);
+        }
+
+        return false;
+      },
+    },
     tiers: {
       type: new GraphQLList(TierType),
+      deprecationReason: '2025-12-05: Will be deleted soon. Use GraphQL v2',
       args: {
         id: { type: GraphQLInt },
         slug: { type: GraphQLString },
@@ -1434,7 +1490,7 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
       description: 'The list of expense types supported by this account',
       async resolve(collective, _, req) {
-        const host = collective.isHostAccount
+        const host = collective.hasMoneyManagement
           ? collective
           : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
         const parent =
@@ -1728,8 +1784,9 @@ const CollectiveFields = () => {
     },
     plan: {
       type: PlanType,
+      deprecationReason: '2026-04-02: Replaced by new pricing',
       resolve(collective) {
-        return collective.getPlan();
+        return collective.getLegacyPlan();
       },
     },
     stats: {

@@ -11,7 +11,6 @@ import { EmailTheme } from '../constants/email-theme';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import models from '../models';
 
-import authorizedEmailDomains from './authorizedEmailDomains';
 import templates, { EmailTemplates } from './emailTemplates';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
@@ -46,9 +45,9 @@ type SendMessageData = {
 export const getMailer = () => {
   if (config.mailpit.client && config.env !== 'production') {
     return nodemailer.createTransport({
-      host: '127.0.0.1',
+      host: config.mailpit.host,
       ignoreTLS: true,
-      port: 1025,
+      port: config.mailpit.smtpPort,
     });
   }
   if (get(config, 'mailgun.user') && get(config, 'mailgun.password')) {
@@ -266,11 +265,6 @@ const getNotificationLabel = (template): string => {
   return notificationTypeLabels[template];
 };
 
-const isAuthorizedEmailDomain = email => {
-  const domain = email.split('@');
-  return authorizedEmailDomains.includes(domain[1].toLowerCase());
-};
-
 /*
  * Given a template, recipient and data, generates email.
  */
@@ -403,7 +397,6 @@ const emailLib = {
   isValidUnsubscribeToken,
   generateEmailFromTemplate,
   send: generateEmailFromTemplateAndSend,
-  isAuthorizedEmailDomain,
   generateFromEmailHeader,
 };
 

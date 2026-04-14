@@ -76,6 +76,23 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     }
   } else if (
     [
+      ActivityTypes.MANUAL_PAYMENT_PROVIDER_CREATED,
+      ActivityTypes.MANUAL_PAYMENT_PROVIDER_DELETED,
+      ActivityTypes.MANUAL_PAYMENT_PROVIDER_ARCHIVED,
+    ].includes(activity.type)
+  ) {
+    const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
+    if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
+      toPick.push('manualPaymentProvider');
+    }
+  } else if (activity.type === ActivityTypes.MANUAL_PAYMENT_PROVIDER_UPDATED) {
+    const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
+    if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
+      toPick.push('previousData');
+      toPick.push('newData');
+    }
+  } else if (
+    [
       ActivityTypes.ORDER_PAYMENT_FAILED,
       ActivityTypes.PAYMENT_FAILED,
       ActivityTypes.ORDER_PROCESSING,

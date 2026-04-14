@@ -1,5 +1,7 @@
 import '../../server/env';
 
+import { QueryTypes } from 'sequelize';
+
 import models, { sequelize } from '../../server/models';
 
 const IS_DRY = process.env.DRY !== 'false';
@@ -20,7 +22,7 @@ const getTransactions = async () => {
       AND t.type = 'CREDIT'
     `,
     {
-      type: sequelize.QueryTypes.SELECT,
+      type: QueryTypes.SELECT,
       model: models.Transaction,
       mapToModel: true,
     },
@@ -59,8 +61,8 @@ const main = async (): Promise<void> => {
     // Validate / log if dry
     if (IS_DRY) {
       try {
-        await creditTransaction.validate({ validateOppositeTransaction: false });
-        await debitTransaction.validate({ validateOppositeTransaction: false });
+        await models.Transaction.validate(creditTransaction, { validateOppositeTransaction: false });
+        await models.Transaction.validate(debitTransaction, { validateOppositeTransaction: false });
         console.log(
           `Would update transaction ${creditTransaction.id} and ${debitTransaction.id}: ${oldFee} -> ${newFee}`,
         );
@@ -74,9 +76,11 @@ const main = async (): Promise<void> => {
   }
 };
 
-main()
-  .then(() => process.exit(0))
-  .catch(e => {
-    console.error(e);
-    process.exit(1);
-  });
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch(e => {
+      console.error(e);
+      process.exit(1);
+    });
+}
