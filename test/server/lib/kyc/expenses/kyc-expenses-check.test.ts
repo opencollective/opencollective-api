@@ -74,9 +74,8 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
       const result = await kycExpensesCheck.expenseKycStatus(expense, { loaders });
 
       expect(result).to.not.be.null;
-      expect(result?.payee.type).to.equal('ACCOUNT');
+      expect(result?.isIndividual).to.be.false;
       expect(result?.payee.status).to.equal('PENDING');
-      expect(result?.payee.adminVerifications).to.have.length(1);
     });
 
     it('returns NOT_REQUESTED for an organization payee with no admin KYC requests', async () => {
@@ -96,9 +95,8 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
       const result = await kycExpensesCheck.expenseKycStatus(expense, { loaders });
 
       expect(result).to.not.be.null;
-      expect(result?.payee.type).to.equal('ACCOUNT');
+      expect(result?.isIndividual).to.be.false;
       expect(result?.payee.status).to.equal('NOT_REQUESTED');
-      expect(result?.payee.adminVerifications).to.deep.equal([]);
     });
 
     it('returns PENDING for an organization when any admin has a pending KYC request', async () => {
@@ -133,9 +131,8 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
       const result = await kycExpensesCheck.expenseKycStatus(expense, { loaders });
 
       expect(result).to.not.be.null;
-      expect(result?.payee.type).to.equal('ACCOUNT');
+      expect(result?.isIndividual).to.be.false;
       expect(result?.payee.status).to.equal('PENDING');
-      expect(result?.payee.adminVerifications).to.have.length(2);
     });
 
     it('returns VERIFIED for an organization when every admin with an active request is verified', async () => {
@@ -169,7 +166,6 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
       const result = await kycExpensesCheck.expenseKycStatus(expense, { loaders });
 
       expect(result?.payee.status).to.equal('VERIFIED');
-      expect(result?.payee.adminVerifications).to.have.length(2);
     });
 
     it('ignores non-admin members and KYC requests issued by other hosts when computing the org rollup', async () => {
@@ -206,12 +202,11 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
 
       const result = await kycExpensesCheck.expenseKycStatus(expense, { loaders });
 
-      expect(result?.payee.type).to.equal('ACCOUNT');
+      expect(result?.isIndividual).to.be.false;
       expect(result?.payee.status).to.equal('NOT_REQUESTED');
-      expect(result?.payee.adminVerifications).to.deep.equal([]);
     });
 
-    it('marks individual payees with payee.type INDIVIDUAL and adminVerifications null', async () => {
+    it('sets isIndividual to true for individual payees', async () => {
       const user = await fakeUser();
       const host = await fakeActiveHost();
       const collective = await fakeProject({ ParentCollectiveId: host.id });
@@ -231,9 +226,8 @@ describe('server/lib/kyc/expenses/kyc-expenses-check', () => {
 
       const result = await kycExpensesCheck.expenseKycStatus(expense, { loaders });
 
-      expect(result?.payee.type).to.equal('INDIVIDUAL');
+      expect(result?.isIndividual).to.be.true;
       expect(result?.payee.status).to.equal('VERIFIED');
-      expect(result?.payee.adminVerifications).to.be.null;
     });
 
     it('returns NOT_REQUESTED when no KYC verifications exist', async () => {

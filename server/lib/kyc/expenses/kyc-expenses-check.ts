@@ -11,10 +11,9 @@ import { KYCProviderName } from '../providers';
 
 type ExpenseKYCStatus = {
   latestVerification: KYCVerification | null;
+  isIndividual: boolean;
   payee: {
-    type: 'INDIVIDUAL' | 'ACCOUNT';
     status: 'NOT_REQUESTED' | 'PENDING' | 'VERIFIED';
-    adminVerifications: KYCVerification[] | null;
   };
 };
 
@@ -108,10 +107,9 @@ export async function expenseKycStatus(
 
   return {
     latestVerification: kycRequests.length > 0 ? kycRequests[0] : null,
+    isIndividual,
     payee: {
-      type: isIndividual ? 'INDIVIDUAL' : 'ACCOUNT',
       status,
-      adminVerifications: isIndividual ? null : kycRequests,
     },
   };
 }
@@ -131,7 +129,7 @@ export async function handleExpensePayoutMethodChange(
   }
 
   // Payout-method-change KYC activities only apply to individual payees today.
-  if (kycStatus.payee.type !== 'INDIVIDUAL' || kycStatus.payee.status !== 'VERIFIED') {
+  if (!kycStatus.isIndividual || kycStatus.payee.status !== 'VERIFIED') {
     return;
   }
 
@@ -171,7 +169,7 @@ async function handleExpensePayoutMethodEdited(
     return;
   }
 
-  if (kycStatus.payee.type !== 'INDIVIDUAL' || kycStatus.payee.status !== 'VERIFIED') {
+  if (!kycStatus.isIndividual || kycStatus.payee.status !== 'VERIFIED') {
     return;
   }
 
@@ -308,18 +306,17 @@ export async function handleExpenseKycSecurityChecks(
     return;
   }
 
-  const isAccount = expenseKYCStatus.payee.type === 'ACCOUNT';
   if (expenseKYCStatus.payee.status === 'VERIFIED') {
     checks.push({
       scope: Scope.PAYEE,
       level: Level.PASS,
-      message: isAccount ? 'Account admin KYC verified' : 'KYC Verified',
+      message: expenseKYCStatus.isIndividual ? 'KYC Verified' : 'Account admin KYC verified',
     });
   } else if (expenseKYCStatus.payee.status === 'PENDING') {
     checks.push({
       scope: Scope.PAYEE,
       level: Level.HIGH,
-      message: isAccount ? 'Account admin KYC pending' : 'KYC Verification pending',
+      message: expenseKYCStatus.isIndividual ? 'KYC Verification pending' : 'Account admin KYC pending',
     });
   }
 }
