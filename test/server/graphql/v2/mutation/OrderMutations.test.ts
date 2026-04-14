@@ -1151,6 +1151,115 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           });
         });
       });
+
+      describe('zero-decimal currencies', () => {
+        let hostWithGST, jpyCollective, jpyTier, fromUser, sandbox;
+
+        before(async () => {
+          sandbox = createSandbox();
+          sandbox.stub(OrderSecurityLib, 'orderFraudProtection').callsFake(() => Promise.resolve());
+          sandbox.stub(stripe.tokens, 'retrieve').resolves({
+            card: {
+              token: 'tok_testtoken123456789012345',
+              brand: 'VISA',
+              country: 'NZ',
+              expMonth: 11,
+              expYear: 2024,
+              last4: '4242',
+              name: 'Test User',
+            },
+          });
+
+          const stripePaymentMethodId = randStr('pm_');
+          sandbox.stub(StripeCommon, 'resolvePaymentMethodForOrder').resolves({
+            id: stripePaymentMethodId,
+            customer: 'cus_test',
+          });
+          sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pi_test', status: 'requires_confirmation' });
+          sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
+            id: stripePaymentMethodId,
+            status: 'succeeded',
+            // eslint-disable-next-line camelcase
+            charges: { data: [{ id: 'ch_id', balance_transaction: 'txn_id' }] },
+          });
+          // ¥127 in Stripe's zero-decimal representation (= 12700 in internal cents-everywhere convention)
+          sandbox.stub(stripe.balanceTransactions, 'retrieve').resolves({
+            amount: 127,
+            currency: 'jpy',
+            fee: 0,
+            // eslint-disable-next-line camelcase
+            fee_details: [],
+          });
+
+          fromUser = await fakeUser({ countryISO: 'NZ' });
+          // A NZ host using JPY as its currency, with GST enabled
+          hostWithGST = await fakeActiveHost({
+            countryISO: 'NZ',
+            currency: 'JPY',
+            settings: { GST: { number: 'NZ123456789' } },
+          });
+          await models.ConnectedAccount.create({
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            token: 'abc',
+            CollectiveId: hostWithGST.id,
+            username: 'stripeAccount',
+          });
+          jpyCollective = await fakeCollective({ HostCollectiveId: hostWithGST.id, currency: 'JPY', countryISO: 'NZ' });
+          // Tier is required so getApplicableTaxes returns GST (empty tier type yields no applicable taxes).
+          jpyTier = await fakeTier({
+            type: 'PRODUCT',
+            amount: 11000,
+            interval: null,
+            currency: 'JPY',
+            CollectiveId: jpyCollective.id,
+          });
+        });
+
+        after(() => sandbox.restore());
+
+        it('tax computed from rate is rounded to a whole yen for JPY orders', async () => {
+          // ¥110 base (stored as 11000 internally). 15% NZ GST on ¥110 = ¥16.5, which must round to ¥17 (1700 internally).
+          const baseAmountInCents = 11000;
+          const res = await callCreateOrder(
+            {
+              order: {
+                fromAccount: { legacyId: fromUser.CollectiveId },
+                toAccount: { legacyId: jpyCollective.id },
+                tier: { legacyId: jpyTier.id },
+                frequency: 'ONETIME',
+                amount: { valueInCents: baseAmountInCents, currency: 'JPY' },
+                tax: { type: 'GST', rate: 0.15, country: 'NZ' },
+                paymentMethod: {
+                  service: 'STRIPE',
+                  type: 'CREDITCARD',
+                  name: '4242',
+                  creditCardInfo: {
+                    token: 'tok_testtoken123456789012345',
+                    brand: 'VISA',
+                    country: 'NZ',
+                    expMonth: 11,
+                    expYear: 2024,
+                  },
+                },
+              },
+            },
+            fromUser,
+          );
+
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+
+          const createdOrder = res.data.createOrder.order;
+          // Tax must be a whole yen (multiple of 100 in internal representation)
+          expect(createdOrder.taxAmount.valueInCents).to.equal(1700); // ¥17, rounded up from raw ¥16.5
+          expect(createdOrder.taxAmount.valueInCents % 100).to.equal(0);
+
+          // Total must also be a whole yen
+          const orderFromDB = await models.Order.findByPk(createdOrder.legacyId);
+          expect(orderFromDB.totalAmount).to.equal(baseAmountInCents + 1700); // ¥110 + ¥17 = ¥127
+          expect(orderFromDB.totalAmount % 100).to.equal(0);
+        });
+      });
     });
 
     describe('payment methods', () => {

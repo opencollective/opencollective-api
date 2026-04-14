@@ -17,7 +17,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import { executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
+import { calcFee, executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -411,7 +411,7 @@ export async function createOrder(order, req) {
     const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
     const netAmountForCollective = Math.round(order.totalAmount - order.taxAmount - tipAmount);
     const expectedAmountForCollective = Math.round(order.quantity * expectedGrossUnitAmount); // order.amount is always set when called from GraphQL v2
-    const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
+    const expectedTaxAmount = calcFee(expectedAmountForCollective, taxPercent, currency);
 
     // Make sure net amount and tax amount are correct
     if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {

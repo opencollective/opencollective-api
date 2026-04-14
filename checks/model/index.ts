@@ -17,6 +17,7 @@ import { checks as tiersChecks } from './tiers';
 import { checks as transactionsChecks } from './transactions';
 import { checks as usersChecks } from './users';
 import { checks as virtualCardsChecks } from './virtual-cards';
+import { checks as zeroDecimalCurrenciesChecks } from './zero-decimal-currencies';
 
 const allModelChecks: CheckFn[] = [
   ...collectivesChecks,
@@ -33,6 +34,7 @@ const allModelChecks: CheckFn[] = [
   ...transactionsChecks,
   ...usersChecks,
   ...virtualCardsChecks,
+  ...zeroDecimalCurrenciesChecks,
 ];
 
 export async function checkAllModels({ closeConnection = false }: { closeConnection?: boolean } = {}) {

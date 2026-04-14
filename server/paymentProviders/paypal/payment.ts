@@ -3,8 +3,7 @@ import { get, isUndefined, omit, pickBy, truncate } from 'lodash';
 import FEATURE from '../../constants/feature';
 import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
-import { floatAmountToCents } from '../../lib/math';
+import { floatAmountToCents, getFxRate } from '../../lib/currency';
 import {
   createRefundTransaction,
   getHostFee,

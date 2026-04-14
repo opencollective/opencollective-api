@@ -12,6 +12,7 @@ import { TransactionKind } from '../../../server/constants/transaction-kind';
 import * as applyContributionAccountingCategoryRules from '../../../server/lib/accounting/categorization/contribution-rules';
 import emailLib from '../../../server/lib/email';
 import {
+  calcFee,
   createRefundTransaction,
   executeOrder,
   getHostFeePercent,
@@ -1401,6 +1402,58 @@ describe('server/lib/payments', () => {
       await executeOrder(user, order);
 
       expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+  });
+
+  describe('calcFee', () => {
+    it('computes percentage-based fees for standard decimal currencies', () => {
+      expect(calcFee(10000, 3.5, 'USD')).to.equal(350); // 3.5% of $100.00 = $3.50
+      expect(calcFee(10000, 5, 'EUR')).to.equal(500); // 5% of €100.00 = €5.00
+      expect(calcFee(10000, 0, 'USD')).to.equal(0);
+    });
+
+    it('rounds to the nearest whole unit (100 internally) for zero-decimal currencies', () => {
+      // 3.5% of ¥100 (10000 internal) = ¥3.5 → rounds to ¥400 (nearest 100)
+      expect(calcFee(10000, 3.5, 'JPY')).to.equal(400);
+      // 15% of ¥110 (11000 internal) = ¥16.5 (1650 internal) → rounds to ¥17 (1700 internal)
+      expect(calcFee(11000, 15, 'JPY')).to.equal(1700);
+      // 15% of ¥100 (10000 internal) = ¥15 (1500 internal) → already a whole yen, unchanged
+      expect(calcFee(10000, 15, 'JPY')).to.equal(1500);
+      // 5% of ¥100 (10000 internal) = ¥5 (500 internal) → already a whole yen, unchanged
+      expect(calcFee(10000, 5, 'JPY')).to.equal(500);
+      // KRW same behaviour
+      expect(calcFee(11000, 15, 'KRW')).to.equal(1700);
+    });
+
+    it('never produces a non-multiple-of-100 result for zero-decimal currencies', () => {
+      const zeroDecimal = [
+        'BIF',
+        'CLP',
+        'DJF',
+        'GNF',
+        'JPY',
+        'KMF',
+        'KRW',
+        'MGA',
+        'PYG',
+        'RWF',
+        'UGX',
+        'VND',
+        'VUV',
+        'XAF',
+        'XOF',
+        'XPF',
+      ];
+      for (const currency of zeroDecimal) {
+        expect(calcFee(11000, 15, currency) % 100).to.equal(
+          0,
+          `calcFee result for ${currency} must be a multiple of 100`,
+        );
+        expect(calcFee(13000, 7, currency) % 100).to.equal(
+          0,
+          `calcFee result for ${currency} must be a multiple of 100`,
+        );
+      }
     });
   });
 });

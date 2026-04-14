@@ -7,9 +7,8 @@ import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
-import { getFxRate } from '../../lib/currency';
+import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/currency';
 import logger from '../../lib/logger';
-import { floatAmountToCents } from '../../lib/math';
 import * as paypal from '../../lib/paypal';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
@@ -272,7 +271,7 @@ export const estimatePaypalPayoutFeeInExpenseCurrency = async (host: Collective,
   const hostCurrency = host.currency;
   const payeeCountry = payee.countryISO;
   const isDomestic = hostCountry === payeeCountry;
-  const baseFee = Math.round(expense.amount * 0.02);
+  const baseFee = roundCentsAmount(expense.amount * 0.02, expense.currency);
   const caps = PAYPAL_PAYOUT_CAPS_BY_CURRENCY[hostCurrency];
 
   // No known cap for this currency => best-effort: return 2% uncapped (can overestimate for large payouts).

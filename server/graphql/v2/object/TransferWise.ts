@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
-import { floatAmountToCents } from '../../../lib/math';
+import { floatAmountToCents } from '../../../lib/currency';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models, { Op } from '../../../models';
 import transferwise from '../../../paymentProviders/transferwise';
