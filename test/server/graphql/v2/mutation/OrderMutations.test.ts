@@ -12,6 +12,7 @@ import PlatformConstants from '../../../../../server/constants/platform';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import * as applyContributionAccountingCategoryRules from '../../../../../server/lib/accounting/categorization/contribution-rules';
 import emailLib from '../../../../../server/lib/email';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as OrderSecurityLib from '../../../../../server/lib/security/order';
@@ -763,6 +764,53 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(result.errors[0].message).to.equal('You need to provide a valid captcha token');
 
           config.captcha.enabled = captchaDefaultValue;
+        });
+
+        it('Persists the guest location and derives a formatted address from structured fields', async () => {
+          const email = randEmail();
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email,
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+              location: {
+                country: 'US',
+                structured: {
+                  address1: '123 Main St',
+                  city: 'New York',
+                  zone: 'NY',
+                  postalCode: '10001',
+                },
+                // Intentionally omitting `address` — it must be auto-derived from `structured`
+              },
+            },
+          };
+
+          const result = await callCreateOrder({ order: orderData });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
+          const location = await fromCollective.getLocation();
+
+          // Location row must exist and carry the country
+          expect(location).to.exist;
+          expect(location.country).to.eq('US');
+
+          // Structured fields must be stored as-is
+          expect(location.structured).to.deep.include({
+            address1: '123 Main St',
+            city: 'New York',
+            zone: 'NY',
+            postalCode: '10001',
+          });
+
+          // address must be auto-derived from structured — never null when structured has data
+          expect(location.address).to.be.a('string').that.is.not.empty;
+          expect(location.address).to.include('123 Main St');
+          expect(location.address).to.include('New York');
         });
       });
 
@@ -1634,14 +1682,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
   describe('createPendingOrder', () => {
     let validOrderPrams, host, hostAdmin, collectiveAdmin;
-
+    let validAccountingCategory;
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
       host = await fakeActiveHost({ plan: 'start-plan-2021', admin: hostAdmin, data: { isTrustedHost: true } });
       const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
       const user = await fakeUser();
-      const validAccountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
+      validAccountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
       validOrderPrams = {
         fromAccount: { legacyId: user.CollectiveId },
         toAccount: { legacyId: collective.id },
@@ -1728,6 +1776,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     });
 
     describe('accounting category', () => {
+      let sandbox;
+      beforeEach(() => {
+        sandbox = createSandbox();
+      });
+      afterEach(() => {
+        sandbox.restore();
+      });
+
       it('must exist', async () => {
         const orderInput = {
           ...validOrderPrams,
@@ -1760,6 +1816,33 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors[0].message).to.equal(
           'This accounting category is not allowed for contributions and added funds',
         );
+      });
+
+      it('calls applyContributionAccountingCategoryRules after creating a pending order', async () => {
+        const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+          applyContributionAccountingCategoryRules,
+          'applyContributionAccountingCategoryRules',
+        );
+        const result = await callCreatePendingOrder(
+          { order: { ...validOrderPrams, accountingCategory: null } },
+          hostAdmin,
+        );
+        expect(result.errors).to.not.exist;
+        expect(
+          applyContributionAccountingCategoryRulesSpy.calledWithMatch({ id: result.data.createPendingOrder.legacyId }),
+        ).to.be.true;
+      });
+
+      it('does not call applyContributionAccountingCategoryRules if the accounting category is set', async () => {
+        const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+          applyContributionAccountingCategoryRules,
+          'applyContributionAccountingCategoryRules',
+        );
+        const result = await callCreatePendingOrder({ order: validOrderPrams }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(applyContributionAccountingCategoryRulesSpy).to.not.have.been.called;
+        const order = await models.Order.findByPk(result.data.createPendingOrder.legacyId);
+        expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.equal(validAccountingCategory.code);
       });
     });
   });
@@ -1878,6 +1961,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       );
       expect(result.errors).to.not.exist;
       expect(result.data.updateOrderAccountingCategory.accountingCategory.code).to.equal(accountingCategory.code);
+      await order.reload();
+      expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.equal(accountingCategory.code);
     });
 
     it('accepts publicId in OrderReferenceInput and AccountingCategoryReferenceInput', async () => {
@@ -2112,6 +2197,24 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors).to.not.exist;
         const resultOrder = result.data.editPendingOrder;
         expect(resultOrder.accountingCategory).to.be.null;
+        await order.reload();
+        expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.be.eq('__uncategorized__');
+      });
+
+      it('can be set', async () => {
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
+        const orderInput = {
+          ...validEditOrderParams,
+          accountingCategory: { id: idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callEditPendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        const resultOrder = result.data.editPendingOrder;
+        expect(resultOrder.accountingCategory.id).to.be.eq(
+          idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
+        );
+        await order.reload();
+        expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.be.eq(accountingCategory.code);
       });
     });
   });

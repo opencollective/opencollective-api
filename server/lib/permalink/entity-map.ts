@@ -2,6 +2,7 @@ import moment from 'moment';
 
 export enum EntityShortIdPrefix {
   AccountingCategory = 'acat',
+  AccountingCategoryRule = 'acrule',
   Activity = 'act',
   Agreement = 'agr',
   Application = 'app',

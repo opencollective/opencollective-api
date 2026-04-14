@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSONObject, GraphQLNonEmptyString } from 'graphql-scalars';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import AccountingCategoryModel from '../../../models/AccountingCategory';
@@ -72,4 +72,36 @@ export const GraphQLAccountingCategory = new GraphQLObjectType({
       description: 'If the category is applicable to the Host or Hosted Collectives',
     },
   }),
+});
+
+export const GraphQLContributionAccountingCategoryRule = new GraphQLObjectType({
+  name: 'ContributionAccountingCategoryRule',
+  description: 'A rule for categorizing contributions',
+  fields: {
+    id: {
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
+      resolve(rule) {
+        return rule.publicId;
+      },
+    },
+    name: {
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
+    },
+    enabled: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+    },
+    predicates: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLJSONObject))),
+    },
+    accountingCategory: {
+      type: new GraphQLNonNull(GraphQLAccountingCategory),
+      resolve: ({ AccountingCategoryId }, _, req) => req.loaders.AccountingCategory.byId.load(AccountingCategoryId),
+    },
+    createdAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+    },
+    updatedAt: {
+      type: new GraphQLNonNull(GraphQLDateTime),
+    },
+  },
 });

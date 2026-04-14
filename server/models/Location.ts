@@ -78,7 +78,7 @@ Location.init(
       allowNull: true,
     },
     address: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
     },
     lat: {

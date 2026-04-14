@@ -63,6 +63,15 @@ export type OrderTax = {
   taxIDNumberFrom?: string;
 };
 
+type OrderDataValuesRoleDetails = {
+  accountingCategory?: AccountingCategory['publicInfo'];
+};
+
+type OrderDataValuesByRole = {
+  hostAdmin?: OrderDataValuesRoleDetails;
+  accountingRules?: OrderDataValuesRoleDetails;
+};
+
 class Order extends ModelWithPublicId<
   EntityShortIdPrefix.Order,
   InferAttributes<Order>,
@@ -126,6 +135,7 @@ class Order extends ModelWithPublicId<
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
     reqIp?: string;
     lockedAt?: Date;
+    valuesByRole?: OrderDataValuesByRole;
   };
 
   declare taxAmount?: number;

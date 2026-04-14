@@ -31,6 +31,7 @@ import {
   type PaymentProviderServiceWithInternalRecurringManagement,
 } from '../paymentProviders/types';
 
+import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
 import { getFxRate } from './currency';
 import emailLib from './email';
@@ -931,6 +932,8 @@ export const executeOrder = async (
       processedAt: order.processedAt || new Date(),
       data: omit(order.data, ['paymentIntent']),
     });
+
+    await applyContributionAccountingCategoryRules(order);
 
     // Credit card charges are synchronous. If the transaction is
     // created here it means that the payment went through so it's
