@@ -54,11 +54,10 @@ export async function expenseKycStatus(
   let subjectCollectiveIds: number[];
   if (isIndividual) {
     subjectCollectiveIds = [payee.id];
-  } else if (loaders) {
-    subjectCollectiveIds = await loaders.Member.adminMemberCollectiveIdsOfCollective.load(payee.id);
   } else {
-    const admins = await payee.getAdmins();
-    subjectCollectiveIds = admins.map(a => a.id);
+    subjectCollectiveIds = loaders
+      ? await loaders.Member.adminMemberCollectiveIdsOfCollective.load(payee.id)
+      : await payee.getAdmins().then(admins => admins.map(a => a.id));
   }
 
   // Fetch the latest KYC request per provider for each subject collective.
