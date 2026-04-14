@@ -263,7 +263,7 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     const chargeRetryCount = getChargeRetryCount('success', order);
     const { nextPeriodStart, nextChargeDate } = getNextChargeAndPeriodStartDates('success', order);
 
-    sideEffects.push(
+    sideEffects.push(() =>
       subscription.update({
         chargeNumber: subscription.chargeNumber + 1,
         lastChargedAt: transaction.clearedAt,
