@@ -6,7 +6,13 @@ import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/grap
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../../../server/models/PayoutMethod';
-import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeExpense,
+  fakePayoutMethod,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -148,6 +154,117 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(result.errors).to.not.exist;
       await payoutMethod.reload({ paranoid: false });
       expect(payoutMethod.deletedAt).to.not.be.null;
+    });
+
+    describe('PayPal OAuth disconnection', () => {
+      let paypalAdminUser;
+
+      before(async () => {
+        paypalAdminUser = await fakeUser();
+      });
+
+      it('soft-deletes the linked ConnectedAccount when archiving (payout method has been used)', async () => {
+        const connectedAccount = await fakeConnectedAccount({
+          service: 'paypal',
+          CollectiveId: paypalAdminUser.CollectiveId,
+          token: 'paypal-access-token',
+          refreshToken: 'paypal-refresh-token',
+        });
+        const pm = await fakePayoutMethod({
+          CollectiveId: paypalAdminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          isSaved: true,
+          data: {
+            email: 'user@paypal.com',
+            currency: 'USD',
+            isPayPalOAuth: true,
+            verifiedAt: new Date().toISOString(),
+            connectedAccountId: connectedAccount.id,
+            // eslint-disable-next-line camelcase
+            paypalUserInfo: { payer_id: 'PAYERID123' },
+          },
+        });
+        await fakeExpense({ PayoutMethodId: pm.id, status: 'PAID' });
+
+        const result = await graphqlQueryV2(
+          removePayoutMethodMutation,
+          { id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+          paypalAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.removePayoutMethod.isSaved).to.be.false;
+
+        await connectedAccount.reload({ paranoid: false });
+        expect(connectedAccount.deletedAt).to.not.be.null;
+
+        // PayoutMethod data (verification status, email, payee ID) is preserved
+        await pm.reload({ paranoid: false });
+        const paypalData = pm.data as PaypalPayoutMethodData;
+        expect(paypalData.verifiedAt).to.exist;
+        expect(paypalData.email).to.equal('user@paypal.com');
+        expect(paypalData.connectedAccountId).to.equal(connectedAccount.id);
+      });
+
+      it('soft-deletes the linked ConnectedAccount when hard-deleting (payout method never used)', async () => {
+        const connectedAccount = await fakeConnectedAccount({
+          service: 'paypal',
+          CollectiveId: paypalAdminUser.CollectiveId,
+          token: 'paypal-access-token',
+          refreshToken: 'paypal-refresh-token',
+        });
+        const pm = await fakePayoutMethod({
+          CollectiveId: paypalAdminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          isSaved: true,
+          data: {
+            email: 'user@paypal.com',
+            currency: 'USD',
+            isPayPalOAuth: true,
+            verifiedAt: new Date().toISOString(),
+            connectedAccountId: connectedAccount.id,
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          removePayoutMethodMutation,
+          { id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+          paypalAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await pm.reload({ paranoid: false });
+        expect(pm.deletedAt).to.not.be.null;
+
+        await connectedAccount.reload({ paranoid: false });
+        expect(connectedAccount.deletedAt).to.not.be.null;
+      });
+
+      it('does not fail for non-OAuth PayPal payout methods (no connectedAccountId)', async () => {
+        const pm = await fakePayoutMethod({
+          CollectiveId: paypalAdminUser.CollectiveId,
+          type: PayoutMethodTypes.PAYPAL,
+          isSaved: true,
+          data: {
+            email: 'manual@paypal.com',
+            currency: 'USD',
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          removePayoutMethodMutation,
+          { id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+          paypalAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await pm.reload({ paranoid: false });
+        expect(pm.deletedAt).to.not.be.null;
+      });
     });
   });
 
