@@ -95,8 +95,9 @@ const tierMutations = {
       }
 
       const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Unauthorized();
+      const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
+      if (!req.remoteUser.isAdminOfCollective(collective) && (!host || !req.remoteUser.isAdminOfCollective(host))) {
+        throw new Unauthorized(`Only collective admins or host admins can edit tiers for an account`);
       }
 
       // Check 2FA
@@ -128,7 +129,8 @@ const tierMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-      if (!req.remoteUser.isAdminOfCollective(account)) {
+      const host = account.HostCollectiveId && (await req.loaders.Collective.host.load(account));
+      if (!req.remoteUser.isAdminOfCollective(account) && (!host || !req.remoteUser.isAdminOfCollective(host))) {
         throw new Unauthorized();
       }
 
@@ -165,8 +167,9 @@ const tierMutations = {
 
       const tier = await fetchTierWithReference(args.tier, { throwIfMissing: true });
       const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Unauthorized();
+      const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
+      if (!req.remoteUser.isAdminOfCollective(collective) && (!host || !req.remoteUser.isAdminOfCollective(host))) {
+        throw new Unauthorized(`Only collective admins or host admins can delete tiers for an account`);
       }
 
       // Check 2FA

@@ -5,7 +5,14 @@ import OrderStatuses from '../../../../../server/constants/order-status';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeMember, fakeOrder, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeMember,
+  fakeOrder,
+  fakeTier,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const CREATE_TIER_MUTATION = gql`
@@ -46,6 +53,9 @@ const fakeTierCreateInput = {
     currency: 'USD',
   },
 };
+
+const HOST_ADMIN_UNAUTHORIZED = 'Only collective admins or host admins can edit tiers for an account';
+const HOST_ADMIN_DELETE_UNAUTHORIZED = 'Only collective admins or host admins can delete tiers for an account';
 
 describe('server/graphql/v2/mutation/TierMutations', () => {
   let adminUser;
@@ -89,6 +99,28 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
         adminUser,
       );
       expect(result.errors).to.exist;
+    });
+
+    it('allows host admin who is not collective admin', async () => {
+      const hostAdminUser = await fakeUser();
+      const collectiveAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+
+      const result = await graphqlQueryV2(
+        CREATE_TIER_MUTATION,
+        {
+          account: { legacyId: hostedCollective.id },
+          tier: { ...fakeTierCreateInput, name: 'Host admin tier' },
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createTier.legacyId).to.exist;
+      const createdTier = await models.Tier.findByPk(result.data.createTier.legacyId);
+      expect(createdTier).to.exist;
+      expect(createdTier.CollectiveId).to.equal(hostedCollective.id);
     });
 
     it('created if request user is admin and tier input is valid', async () => {
@@ -155,7 +187,29 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
     it('validates if request user is not an admin', async () => {
       const result = await graphqlQueryV2(EDIT_TIER_MUTATION, { tier: updateFields }, memberUser);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+      expect(result.errors[0].message).to.equal(HOST_ADMIN_UNAUTHORIZED);
+    });
+
+    it('allows host admin who is not collective admin', async () => {
+      const hostAdminUser = await fakeUser();
+      const collectiveAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+      const tier = await fakeTier({ CollectiveId: hostedCollective.id, minimumAmount: 42 });
+
+      const result = await graphqlQueryV2(
+        EDIT_TIER_MUTATION,
+        {
+          tier: {
+            id: idEncode(tier.id, IDENTIFIER_TYPES.TIER),
+            name: 'Host admin edit',
+          },
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.editTier.name).to.equal('Host admin edit');
     });
 
     it('validates request tier input', async () => {
@@ -250,12 +304,30 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
     it('validates if request user is not an admin', async () => {
       const result = await graphqlQueryV2(DELETE_TIER_MUTATION, { tier: { legacyId: existingTier.id } }, memberUser);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+      expect(result.errors[0].message).to.equal(HOST_ADMIN_DELETE_UNAUTHORIZED);
     });
 
     it('validates request tier input', async () => {
       const result = await graphqlQueryV2(DELETE_TIER_MUTATION, { tier: {} }, adminUser);
       expect(result.errors).to.exist;
+    });
+
+    it('allows host admin who is not collective admin', async () => {
+      const hostAdminUser = await fakeUser();
+      const collectiveAdminUser = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdminUser });
+      const hostedCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+      const tier = await fakeTier({ CollectiveId: hostedCollective.id });
+
+      const result = await graphqlQueryV2(
+        DELETE_TIER_MUTATION,
+        { tier: { legacyId: tier.id }, stopRecurringContributions: false },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.deleteTier.legacyId).to.equal(tier.id);
+      expect(await models.Tier.findByPk(tier.id)).to.not.exist;
     });
 
     it('deleted if request user is admin and tier input is valid', async () => {
