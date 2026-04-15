@@ -7,6 +7,7 @@ import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
+import POLICIES from '../../../../../server/constants/policies';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
@@ -388,6 +389,58 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
   });
 
   describe('applyToHost', () => {
+    it('rejects application when collective does not meet host minimum admin policy', async () => {
+      const host = await fakeHost({
+        data: {
+          policies: {
+            [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 3 },
+          },
+        },
+      });
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
+      const result = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host.slug }, collective: { slug: collective.slug } },
+        adminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.eq('This host policy requires at least 3 admins for this account.');
+    });
+
+    it('allows application when invite members satisfy host minimum admin policy', async () => {
+      const host = await fakeHost({
+        data: {
+          policies: {
+            [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 3 },
+          },
+        },
+      });
+      const adminUser = await fakeUser();
+      const existingUserToInvite = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
+      const result = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        {
+          host: { slug: host.slug },
+          collective: { slug: collective.slug },
+          inviteMembers: [
+            {
+              memberAccount: { slug: existingUserToInvite.collective.slug },
+              role: 'ADMIN',
+            },
+            {
+              memberInfo: { name: 'Another admin', email: randEmail() },
+              role: 'ADMIN',
+            },
+          ],
+        },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+    });
+
     it('needs to be an admin of the applying collective', async () => {
       const host = await fakeHost();
       const adminUser = await fakeUser();
