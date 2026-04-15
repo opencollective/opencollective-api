@@ -102,6 +102,9 @@ class Order extends ModelWithPublicId<
     hostFeePercent?: number;
     paymentProcessorFee?: number;
     paymentProcessorFeeInHostCurrency?: number;
+    expectedAt?: Date;
+    ponumber?: string;
+    paymentMethod?: PaymentMethod;
     memo?: string;
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
@@ -136,6 +139,7 @@ class Order extends ModelWithPublicId<
     reqIp?: string;
     lockedAt?: Date;
     valuesByRole?: OrderDataValuesByRole;
+    previousStatus?: OrderStatus;
   };
 
   declare taxAmount?: number;

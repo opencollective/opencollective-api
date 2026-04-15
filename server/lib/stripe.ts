@@ -3,8 +3,9 @@ import { get, pick } from 'lodash';
 import moment from 'moment';
 import Stripe from 'stripe';
 
-import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
+
+import { isZeroDecimalCurrency } from './currency';
 
 // Starting on stripe@v12, the default API version is set by the stripe package.
 // We need to hardcode the API version that we are compatible with.
@@ -68,7 +69,7 @@ export const isTestToken = token => {
  * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
  */
 export const convertToStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+  if (isZeroDecimalCurrency(currency?.toUpperCase())) {
     return Math.floor(amount / 100);
   } else {
     return amount;
@@ -76,7 +77,7 @@ export const convertToStripeAmount = (currency, amount) => {
 };
 
 export const convertFromStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+  if (isZeroDecimalCurrency(currency?.toUpperCase())) {
     return Math.round(amount * 100);
   } else {
     return amount;

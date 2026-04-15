@@ -24,7 +24,6 @@ import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
 import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
-import { calcFee } from '../server/lib/payments';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
 import { formatCurrency } from '../server/lib/utils';
@@ -355,34 +354,6 @@ export async function oAuthGraphqlQueryV2(
 export async function personalTokenGraphqlQueryV2(query, variables, personalToken, jwtPayload = null, headers = {}) {
   return graphqlQuery(query, variables, personalToken.user, schemaV2, jwtPayload, headers, null, personalToken);
 }
-
-/** Helper for interpreting fee description in BDD tests
- *
- * The fee can be expressed as an absolute value, like "50" which
- * means $50.00 (the value will be multiplied by 100 to account for
- * the cents).
- *
- * The fee can also be expressed as a percentage of the value. In that
- * case it looks like "5%". That's why this helper takes the amount
- * parameter so the absolute value of the fee can be calculated.
- *
- * @param {Number} amount is the total amount of the expense. Used to
- *  calculate the absolute value of fees expressed as percentages.
- * @param {String} feeStr is the data read from the `.features` test
- *  file. That can be expressed as an absolute value or as a
- *  percentage.
- */
-export const readFee = (amount, feeStr) => {
-  if (!feeStr) {
-    return 0;
-  } else if (feeStr.endsWith('%')) {
-    const asFloat = parseFloat(feeStr.replace('%', ''));
-    return asFloat > 0 ? calcFee(amount, asFloat) : asFloat;
-  } else {
-    /* The `* 100` is for converting from cents */
-    return parseFloat(feeStr) * 100;
-  }
-};
 
 export const getTerminalCols = () => {
   let length = 40;

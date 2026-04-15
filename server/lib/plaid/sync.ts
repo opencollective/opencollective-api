@@ -4,8 +4,8 @@ import ActivityTypes from '../../constants/activities';
 import { Activity, TransactionsImport, TransactionsImportRow } from '../../models';
 import ConnectedAccount from '../../models/ConnectedAccount';
 import { TransactionsImportLockedError } from '../../models/TransactionsImport';
+import { floatAmountToCents } from '../currency';
 import logger from '../logger';
-import { floatAmountToCents } from '../math';
 import { reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
 import { getPlaidClient } from './client';

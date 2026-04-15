@@ -4,8 +4,8 @@ import NordigenClient from 'nordigen-node';
 
 import { Service } from '../../constants/connected-account';
 import { ConnectedAccount, TransactionsImport } from '../../models';
+import { floatAmountToCents } from '../currency';
 import logger from '../logger';
-import { floatAmountToCents } from '../math';
 import { sleep } from '../utils';
 
 import { getGoCardlessClient, getOrRefreshGoCardlessToken } from './client';

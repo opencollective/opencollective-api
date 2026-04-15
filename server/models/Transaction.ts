@@ -544,6 +544,7 @@ class Transaction extends ModelWithPublicId<
               oppositeTransaction.paymentProcessorFeeInHostCurrency +
               taxAmountInHostCurrency,
             hostFeePercent,
+            hostCurrency,
           );
           if (oppositeTransaction.hostFeeInHostCurrency) {
             await Transaction.createHostFeeTransactions(oppositeTransaction, null, { sequelizeTransaction });
@@ -1008,8 +1009,8 @@ class Transaction extends ModelWithPublicId<
     }
 
     // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
-    const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent);
     const currency = hostFeeTransaction.hostCurrency;
+    const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent, currency);
 
     // Skip if the amount is zero (e.g.: 15% * 0.03 = 0.0045 and rounded to 0)
     if (amount === 0) {
