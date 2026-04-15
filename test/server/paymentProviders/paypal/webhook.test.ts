@@ -5,6 +5,8 @@ import { Request } from 'express';
 import { createSandbox } from 'sinon';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
+import { TransactionTypes } from '../../../../server/constants/transactions';
 import * as PaypalLib from '../../../../server/lib/paypal';
 import * as Sentry from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
@@ -16,6 +18,7 @@ import {
   fakeHost,
   fakeOrder,
   fakePaymentMethod,
+  fakeTransaction,
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
@@ -194,6 +197,158 @@ describe('server/paymentProviders/paypal/webhook', () => {
       expect(order.data.paypalStatusChangeNote).to.eq(
         'Cancelling because I received too many potatoes. This is outrageous!',
       );
+    });
+  });
+
+  describe('PAYMENT.SALE.REFUNDED', () => {
+    const callPaymentSaleRefunded = body =>
+      paypalWebhook(<Request>{
+        body: { event_type: 'PAYMENT.SALE.REFUNDED', ...body },
+      });
+
+    it('ignores if resource has no sale_id', async () => {
+      await expect(callPaymentSaleRefunded({ resource: {} })).to.be.fulfilled;
+    });
+
+    it('ignores if no transaction matches the sale_id', async () => {
+      await expect(callPaymentSaleRefunded({ resource: { sale_id: 'unknown-sale-id' } })).to.be.fulfilled;
+    });
+
+    it('fails if webhook event is invalid', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
+      const saleId = 'SALE-001';
+      await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          RefundTransactionId: null,
+          OrderId: order.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          PaymentMethodId: order.PaymentMethodId,
+          data: { paypalCaptureId: saleId },
+        },
+        {
+          createDoubleEntry: true,
+        },
+      );
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').rejects(new Error('Invalid webhook request'));
+      await expect(
+        callPaymentSaleRefunded({ resource: { sale_id: saleId, transaction_fee: { value: '1.20' } } }),
+      ).to.be.rejectedWith('Invalid webhook request');
+    });
+
+    it('creates a refund transaction for the matching sale', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id, status: 'ACTIVE' });
+      const saleId = 'SALE-002';
+      const originalTransaction = await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          RefundTransactionId: null,
+          OrderId: order.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          PaymentMethodId: order.PaymentMethodId,
+          amount: 1000,
+          data: { paypalCaptureId: saleId },
+        },
+        {
+          createDoubleEntry: true,
+        },
+      );
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleRefunded({
+        resource: { sale_id: saleId, transaction_fee: { value: '0.50' } },
+      });
+
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: originalTransaction.id },
+      });
+      expect(refundTransaction).to.exist;
+      expect(refundTransaction.data.isRefundedFromPayPal).to.be.true;
+    });
+  });
+
+  describe('PAYMENT.SALE.REVERSED', () => {
+    const callPaymentSaleReversed = body =>
+      paypalWebhook(<Request>{
+        body: { event_type: 'PAYMENT.SALE.REVERSED', ...body },
+      });
+
+    it('ignores if no transaction matches the sale id', async () => {
+      await expect(callPaymentSaleReversed({ resource: { id: 'unknown-sale-id' } })).to.be.fulfilled;
+    });
+
+    it('fails if webhook event is invalid', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id });
+      const saleId = 'SALE-REV-001';
+      await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          RefundTransactionId: null,
+          OrderId: order.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          PaymentMethodId: order.PaymentMethodId,
+          data: { paypalCaptureId: saleId },
+        },
+        {
+          createDoubleEntry: true,
+        },
+      );
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').rejects(new Error('Invalid webhook request'));
+      await expect(callPaymentSaleReversed({ resource: { id: saleId } })).to.be.rejectedWith('Invalid webhook request');
+    });
+
+    it('creates a refund transaction for the reversed sale', async () => {
+      const host = await fakeHost();
+      await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const order = await createOrderWithSubscription({ CollectiveId: collective.id, status: 'ACTIVE' });
+      const saleId = 'SALE-REV-002';
+      const originalTransaction = await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          RefundTransactionId: null,
+          OrderId: order.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          PaymentMethodId: order.PaymentMethodId,
+          amount: 2000,
+          data: { paypalCaptureId: saleId },
+        },
+        {
+          createDoubleEntry: true,
+        },
+      );
+
+      sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+      await callPaymentSaleReversed({ resource: { id: saleId } });
+
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: originalTransaction.id },
+      });
+      expect(refundTransaction).to.exist;
+      expect(refundTransaction.data.isRefundedFromPayPal).to.be.true;
     });
   });
 });

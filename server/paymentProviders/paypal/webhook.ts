@@ -219,6 +219,117 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
   ]);
 }
 
+/**
+ * Shared lookup for sale-based refund/reversal events.
+ * Returns the matching CREDIT CONTRIBUTION transaction or null.
+ */
+async function findSaleTransaction(saleId: string) {
+  return models.Transaction.findOne({
+    where: {
+      type: TransactionTypes.CREDIT,
+      kind: TransactionKind.CONTRIBUTION,
+      isRefund: false,
+      RefundTransactionId: null,
+      data: { paypalCaptureId: saleId },
+    },
+    include: [
+      {
+        model: models.PaymentMethod,
+        required: true,
+        where: { service: PAYMENT_METHOD_SERVICE.PAYPAL },
+      },
+      {
+        model: models.Order,
+        required: true,
+        include: [{ association: 'collective', required: true }],
+      },
+    ],
+  });
+}
+
+/**
+ * Handles `PAYMENT.SALE.REFUNDED` (merchant-initiated refund on a subscription sale).
+ * resource = Refund object; `resource.sale_id` identifies the original sale.
+ */
+async function handleSaleRefunded(req: Request): Promise<void> {
+  const refund = req.body.resource;
+  const saleId = refund.sale_id;
+  if (!saleId) {
+    logger.debug('PayPal: PAYMENT.SALE.REFUNDED - no sale_id in resource, ignoring');
+    return;
+  }
+
+  const transaction = await findSaleTransaction(saleId);
+  if (!transaction) {
+    logger.debug(`PayPal: Refund - No transaction found for sale ${saleId}`);
+    return;
+  } else if (transaction.data?.isRefundedFromOurSystem) {
+    return;
+  } else if (transaction.Order.isLocked()) {
+    throw new Error('This order is already been processed, please try again later');
+  }
+
+  const host = await transaction.Order.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${transaction.Order.collective.slug}`);
+  }
+
+  const paypalAccount = await getPaypalAccount(host);
+  await validateWebhookEvent(paypalAccount, req);
+
+  await transaction.Order.lock(async () => {
+    const reloadedTransaction = await models.Transaction.findByPk(transaction.id);
+    if (reloadedTransaction.data.isRefundedFromOurSystem || reloadedTransaction.RefundTransactionId) {
+      return;
+    }
+
+    const rawRefundedPaypalFee = <string>get(refund, 'transaction_fee.value', '0.00');
+    const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
+    await createRefundTransaction(
+      transaction,
+      refundedPaypalFee,
+      { paypalResponse: refund, isRefundedFromPayPal: true },
+      null,
+    );
+  });
+}
+
+/**
+ * Handles `PAYMENT.SALE.REVERSED` (chargeback / reversal on a subscription sale).
+ * resource = Sale object in reversed state; `resource.id` is the original sale ID.
+ */
+async function handleSaleReversed(req: Request): Promise<void> {
+  const sale = req.body.resource;
+  const saleId = sale.id;
+
+  const transaction = await findSaleTransaction(saleId);
+  if (!transaction) {
+    logger.debug(`PayPal: Reversal - No transaction found for sale ${saleId}`);
+    return;
+  } else if (transaction.data?.isRefundedFromOurSystem) {
+    return;
+  } else if (transaction.Order.isLocked()) {
+    throw new Error('This order is already been processed, please try again later');
+  }
+
+  const host = await transaction.Order.collective.getHostCollective();
+  if (!host) {
+    throw new Error(`No host found for collective ${transaction.Order.collective.slug}`);
+  }
+
+  const paypalAccount = await getPaypalAccount(host);
+  await validateWebhookEvent(paypalAccount, req);
+
+  await transaction.Order.lock(async () => {
+    const reloadedTransaction = await models.Transaction.findByPk(transaction.id);
+    if (reloadedTransaction.data.isRefundedFromOurSystem || reloadedTransaction.RefundTransactionId) {
+      return;
+    }
+
+    await createRefundTransaction(transaction, 0, { paypalResponse: sale, isRefundedFromPayPal: true }, null);
+  });
+}
+
 async function handleCaptureRefunded(req: Request): Promise<void> {
   if (!req.params.hostId) {
     // Received on legacy webhook
@@ -268,7 +379,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
   if (!transaction) {
     logger.debug(`PayPal: Refund - No transaction found for capture ${captureDetails.id}`);
     return;
-  } else if (transaction.data.isRefundedFromOurSystem) {
+  } else if (transaction.data?.isRefundedFromOurSystem) {
     // Ignore
     return;
   } else if (transaction.Order.isLocked()) {
@@ -384,6 +495,10 @@ async function webhook(req: Request): Promise<void> {
         return handlePayoutTransactionUpdate(req);
       case 'PAYMENT.SALE.COMPLETED':
         return handleSaleCompleted(req);
+      case 'PAYMENT.SALE.REFUNDED':
+        return handleSaleRefunded(req);
+      case 'PAYMENT.SALE.REVERSED':
+        return handleSaleReversed(req);
       case 'PAYMENT.CAPTURE.COMPLETED':
         return handleCaptureCompleted(req);
       case 'PAYMENT.CAPTURE.REFUNDED':
