@@ -5,7 +5,7 @@ module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`DROP INDEX IF EXISTS "UploadedFiles_s3_hash"`);
     await queryInterface.sequelize.query(`
-      CREATE INDEX "UploadedFiles_s3_hash"
+      CREATE INDEX CONCURRENTLY "UploadedFiles_s3_hash"
       ON public."UploadedFiles" ((data #>> '{s3SHA256}'))
       WHERE "deletedAt" IS NULL AND data #>> '{s3SHA256}' IS NOT NULL
     `);
