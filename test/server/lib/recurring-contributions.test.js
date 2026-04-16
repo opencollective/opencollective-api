@@ -197,6 +197,21 @@ describe('server/lib/recurring-contributions', () => {
         clock.restore();
       }
     });
+
+    it("should keep dates unchanged when status is 'processing'", () => {
+      const order = {
+        Subscription: {
+          interval: 'month',
+          nextPeriodStart: new Date('2018-01-20 0:0'),
+          nextChargeDate: new Date('2018-01-22 0:0'),
+        },
+      };
+
+      const updatedDates = getNextChargeAndPeriodStartDates('processing', order);
+
+      expect(updatedDates.nextPeriodStart.getTime()).to.equal(new Date('2018-01-20 0:0').getTime());
+      expect(updatedDates.nextChargeDate.getTime()).to.equal(new Date('2018-01-22 0:0').getTime());
+    });
   });
 
   describe('#getChargeRetryCount', () => {
@@ -214,6 +229,11 @@ describe('server/lib/recurring-contributions', () => {
       const order = { Subscription: { chargeRetryCount: 5 } };
       const chargeRetryCount = getChargeRetryCount('updated', order);
       expect(chargeRetryCount).to.equal(0);
+    });
+    it('should keep the counter unchanged when status is processing', () => {
+      const order = { Subscription: { chargeRetryCount: 3 } };
+      const chargeRetryCount = getChargeRetryCount('processing', order);
+      expect(chargeRetryCount).to.equal(3);
     });
   });
 
@@ -565,6 +585,53 @@ describe('server/lib/recurring-contributions', () => {
       // Then we get just one. The second one doesn't have a
       // subscription id
       expect(rows.length).to.equal(1);
+    });
+
+    it('should exclude orders in PROCESSING status', async () => {
+      // Given two due subscription orders, one ACTIVE and one PROCESSING
+      const payment = { amount: 1000, currency: 'USD', interval: 'month' };
+      const activeSubscription = await models.Subscription.create({
+        ...payment,
+        isActive: true,
+        activatedAt: new Date('2018-01-29'),
+        nextChargeDate: new Date('2018-01-29'),
+      });
+      const activeOrder = await models.Order.create({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        TierId: tier.id,
+        SubscriptionId: activeSubscription.id,
+        totalAmount: payment.amount,
+        currency: payment.currency,
+        interval: payment.interval,
+        status: status.ACTIVE,
+      });
+
+      const processingSubscription = await models.Subscription.create({
+        ...payment,
+        isActive: true,
+        activatedAt: new Date('2018-01-29'),
+        nextChargeDate: new Date('2018-01-29'),
+      });
+      await models.Order.create({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        TierId: tier.id,
+        SubscriptionId: processingSubscription.id,
+        totalAmount: payment.amount,
+        currency: payment.currency,
+        interval: payment.interval,
+        status: status.PROCESSING,
+      });
+
+      // When the orders with pending charges are listed
+      const { rows } = await ordersWithPendingCharges();
+
+      // Then only the ACTIVE order should be returned (PROCESSING is awaiting async confirmation)
+      expect(rows.length).to.equal(1);
+      expect(rows[0].id).to.equal(activeOrder.id);
     });
   });
 
