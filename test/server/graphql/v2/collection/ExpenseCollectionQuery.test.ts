@@ -5,6 +5,7 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../../server/constants/activities';
+import roles from '../../../../../server/constants/roles';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
   US_TAX_FORM_THRESHOLD_PRE_2026,
@@ -24,6 +25,8 @@ import {
   fakeHost,
   fakeKYCVerification,
   fakeLegalDocument,
+  fakeMember,
+  fakeOrganization,
   fakePayoutMethod,
   fakeProject,
   fakeTransaction,
@@ -619,6 +622,236 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(ids).to.not.include(expenseWithPendingKyc.id);
       expect(ids).to.include(expenseWithNoKyc.id);
       expect(ids).to.include(expenseWithVerifiedKyc.id);
+    });
+
+    it('applies the admin KYC rollup to organization payees for READY_TO_PAY', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHostWithRequiredLegalDocument({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      // Org payee with one admin who has a PENDING admin KYC → should NOT be ready.
+      const orgPendingAdmin = await fakeOrganization();
+      const pendingAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: orgPendingAdmin.id,
+        MemberCollectiveId: pendingAdmin.collective.id,
+        role: roles.ADMIN,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingAdmin.collective.id,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+
+      // Org payee with one admin who has VERIFIED admin KYC → ready.
+      const orgVerifiedAdmin = await fakeOrganization();
+      const verifiedAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: orgVerifiedAdmin.id,
+        MemberCollectiveId: verifiedAdmin.collective.id,
+        role: roles.ADMIN,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedAdmin.collective.id,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      // Org payee with no admin KYC requests → ready (NOT_REQUESTED rollup).
+      const orgNoAdminKyc = await fakeOrganization();
+      const noKycAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: orgNoAdminKyc.id,
+        MemberCollectiveId: noKycAdmin.collective.id,
+        role: roles.ADMIN,
+      });
+
+      const expensePending = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: orgPendingAdmin.id,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseVerified = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: orgVerifiedAdmin.id,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseNoKyc = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: orgNoAdminKyc.id,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'READY_TO_PAY' },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.not.include(expensePending.id);
+      expect(ids).to.include(expenseVerified.id);
+      expect(ids).to.include(expenseNoKyc.id);
+    });
+
+    it('returns ON_HOLD organization payee expenses when any admin KYC is pending', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const orgPendingAdmin = await fakeOrganization();
+      const pendingAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: orgPendingAdmin.id,
+        MemberCollectiveId: pendingAdmin.collective.id,
+        role: roles.ADMIN,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingAdmin.collective.id,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      const orgVerifiedAdmin = await fakeOrganization();
+      const verifiedAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: orgVerifiedAdmin.id,
+        MemberCollectiveId: verifiedAdmin.collective.id,
+        role: roles.ADMIN,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedAdmin.collective.id,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const expensePending = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: orgPendingAdmin.id,
+        status: 'APPROVED',
+        onHold: false,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseVerified = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: orgVerifiedAdmin.id,
+        status: 'APPROVED',
+        onHold: false,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'ON_HOLD' },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.include(expensePending.id);
+      expect(ids).to.not.include(expenseVerified.id);
+    });
+
+    it('applies the admin KYC rollup to the kycStatus filter for organization payees', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const orgPendingAdmin = await fakeOrganization();
+      const pendingAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: orgPendingAdmin.id,
+        MemberCollectiveId: pendingAdmin.collective.id,
+        role: roles.ADMIN,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: pendingAdmin.collective.id,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.PENDING,
+      });
+      const orgVerifiedAdmin = await fakeOrganization();
+      const verifiedAdmin = await fakeUser();
+      await fakeMember({
+        CollectiveId: orgVerifiedAdmin.id,
+        MemberCollectiveId: verifiedAdmin.collective.id,
+        role: roles.ADMIN,
+      });
+      await fakeKYCVerification({
+        provider: KYCProviderName.MANUAL,
+        CollectiveId: verifiedAdmin.collective.id,
+        RequestedByCollectiveId: host.id,
+        status: KYCVerificationStatus.VERIFIED,
+      });
+
+      const expensePending = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: orgPendingAdmin.id,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+      const expenseVerified = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: orgVerifiedAdmin.id,
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      const verifiedResult = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'APPROVED', kycStatus: 'VERIFIED' },
+        hostAdmin,
+      );
+      verifiedResult.errors && console.error(verifiedResult.errors);
+      expect(verifiedResult.errors).to.not.exist;
+      const verifiedIds = verifiedResult.data.expenses.nodes.map(n => n.legacyId);
+      expect(verifiedIds).to.include(expenseVerified.id);
+      expect(verifiedIds).to.not.include(expensePending.id);
+
+      const pendingResult = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: 'APPROVED', kycStatus: 'PENDING' },
+        hostAdmin,
+      );
+      pendingResult.errors && console.error(pendingResult.errors);
+      expect(pendingResult.errors).to.not.exist;
+      const pendingIds = pendingResult.data.expenses.nodes.map(n => n.legacyId);
+      expect(pendingIds).to.include(expensePending.id);
+      expect(pendingIds).to.not.include(expenseVerified.id);
     });
 
     it('filters expenses by kycStatus argument for host admins', async () => {

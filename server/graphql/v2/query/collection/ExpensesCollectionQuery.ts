@@ -25,7 +25,6 @@ import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../l
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
-import { KYCVerificationStatus } from '../../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
@@ -797,79 +796,78 @@ export const ExpensesCollectionQueryResolver = async (
 
   const kycStatusFilter: 'VERIFIED' | 'PENDING' | undefined = args.kycStatus;
 
+  const escapedHostId = sequelize.escape(host?.id ?? 0);
+  // Non-correlated: computes the set of collective IDs with pending-only KYC from this host once,
+  // then Postgres hashes it and does O(1) probes per expense row. This avoids the correlated
+  // EXISTS that previously ran one index seek per expense (67K+ loops in production plans).
+  const individualPendingIn = `"Expense"."FromCollectiveId" IN (
+    SELECT pend."CollectiveId"
+    FROM "KYCVerifications" pend
+    WHERE pend."RequestedByCollectiveId" = ${escapedHostId}
+      AND pend."status" = 'PENDING'
+      AND pend."deletedAt" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "KYCVerifications" ver
+        WHERE ver."CollectiveId" = pend."CollectiveId"
+          AND ver."RequestedByCollectiveId" = ${escapedHostId}
+          AND ver."status" = 'VERIFIED'
+          AND ver."deletedAt" IS NULL
+      )
+  )`;
+  const individualVerifiedIn = `"Expense"."FromCollectiveId" IN (
+    SELECT kyc."CollectiveId"
+    FROM "KYCVerifications" kyc
+    WHERE kyc."RequestedByCollectiveId" = ${escapedHostId}
+      AND kyc."status" = 'VERIFIED'
+      AND kyc."deletedAt" IS NULL
+  )`;
+  const adminPendingExists = `EXISTS (
+    SELECT 1
+    FROM "Members" m
+    INNER JOIN "KYCVerifications" pend
+      ON pend."CollectiveId" = m."MemberCollectiveId"
+     AND pend."RequestedByCollectiveId" = ${escapedHostId}
+     AND pend."status" = 'PENDING'
+     AND pend."deletedAt" IS NULL
+    WHERE m."CollectiveId" = "Expense"."FromCollectiveId"
+      AND m."role" = 'ADMIN'
+      AND m."deletedAt" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "KYCVerifications" ver
+        WHERE ver."CollectiveId" = m."MemberCollectiveId"
+          AND ver."RequestedByCollectiveId" = ${escapedHostId}
+          AND ver."status" = 'VERIFIED'
+          AND ver."deletedAt" IS NULL
+      )
+  )`;
+  const adminVerifiedExists = `EXISTS (
+    SELECT 1
+    FROM "Members" m
+    INNER JOIN "KYCVerifications" kyc
+      ON kyc."CollectiveId" = m."MemberCollectiveId"
+     AND kyc."RequestedByCollectiveId" = ${escapedHostId}
+     AND kyc."status" = 'VERIFIED'
+     AND kyc."deletedAt" IS NULL
+    WHERE m."CollectiveId" = "Expense"."FromCollectiveId"
+      AND m."role" = 'ADMIN'
+      AND m."deletedAt" IS NULL
+  )`;
+
   if (isHostAdmin && args.status?.includes('READY_TO_PAY')) {
-    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
-    if (!fromCollectiveJoin) {
-      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
-      include.push(fromCollectiveJoin);
-    }
-    fromCollectiveJoin.include = [
-      ...(fromCollectiveJoin.include || []),
-      {
-        association: 'kycVerifications',
-        attributes: [],
-        required: false,
-        where: {
-          RequestedByCollectiveId: host.id,
-          status: { [Op.not]: KYCVerificationStatus.REVOKED },
-        },
-      },
-    ];
-    const ors = [
-      { '$fromCollective.type$': { [Op.notIn]: [CollectiveType.USER] } },
-      { '$fromCollective.kycVerifications.id$': { [Op.eq]: null } },
-      { '$fromCollective.kycVerifications.status$': { [Op.eq]: KYCVerificationStatus.VERIFIED } },
-    ];
-    where[Op.and].push({ [Op.or]: ors });
+    where[Op.and].push(sequelize.literal(`NOT (${individualPendingIn}) AND NOT ${adminPendingExists}`));
   } else if (isHostAdmin && args.status?.includes('ON_HOLD')) {
-    // should ALSO return expenses that are not strictly on hold, but have a kyc verification that is pending
     delete where['onHold'];
-    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
-    if (!fromCollectiveJoin) {
-      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
-      include.push(fromCollectiveJoin);
-    }
-    fromCollectiveJoin.include = [
-      ...(fromCollectiveJoin.include || []),
-      {
-        association: 'kycVerifications',
-        attributes: [],
-        required: false,
-        where: {
-          RequestedByCollectiveId: host.id,
-          status: KYCVerificationStatus.PENDING,
-        },
-      },
-    ];
-    const ors = [{ onHold: true }, { '$fromCollective.kycVerifications.status$': KYCVerificationStatus.PENDING }];
-    where[Op.and].push({ [Op.or]: ors });
+    where[Op.and].push({
+      [Op.or]: [{ onHold: true }, sequelize.literal(`(${individualPendingIn}) OR ${adminPendingExists}`)],
+    });
   }
 
   if (isHostAdmin && kycStatusFilter) {
-    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
-    if (!fromCollectiveJoin) {
-      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
-      include.push(fromCollectiveJoin);
-    }
-    fromCollectiveJoin.attributes = ['id'];
-    fromCollectiveJoin.include = [
-      ...(fromCollectiveJoin.include || []),
-      {
-        association: 'kycVerifications',
-        attributes: ['id'],
-        required: false,
-        where: {
-          ...(kycStatusFilter === 'VERIFIED'
-            ? { status: KYCVerificationStatus.VERIFIED }
-            : kycStatusFilter === 'PENDING'
-              ? { status: KYCVerificationStatus.PENDING }
-              : {}),
-          RequestedByCollectiveId: host.id,
-        },
-      },
-    ];
-
-    where[Op.and].push({ '$fromCollective.kycVerifications.id$': { [Op.not]: null } });
+    const literal =
+      kycStatusFilter === 'PENDING'
+        ? `(${individualPendingIn}) OR ${adminPendingExists}`
+        : `(${individualVerifiedIn}) OR ${adminVerifiedExists}`;
+    where[Op.and].push(sequelize.literal(literal));
   }
 
   let order: OrderItem[];
