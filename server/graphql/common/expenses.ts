@@ -1024,7 +1024,7 @@ export const canReject: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
-  } else if (expense.type === ExpenseType.CHARGE) {
+  } else if (expense.type === ExpenseType.CHARGE && !isManuallyCreatedCharge(expense)) {
     if (options?.throw) {
       throw new Forbidden('User cannot reject charge expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE);
     }
