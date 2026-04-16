@@ -98,6 +98,7 @@ const payoutMethodMutations = {
           if (connectedAccount) {
             // As of 2026-04-15, PayPal does not offer an API endpoint to revoke user OAuth tokens
             // (https://developer.paypal.com/docs/api/identity/v1/), so we only destroy the record locally.
+            await connectedAccount.update({ token: null, refreshToken: null }, { transaction });
             await connectedAccount.destroy({ transaction });
           }
         }

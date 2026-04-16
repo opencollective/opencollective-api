@@ -198,6 +198,8 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
 
         await connectedAccount.reload({ paranoid: false });
         expect(connectedAccount.deletedAt).to.not.be.null;
+        expect(connectedAccount.token).to.be.null;
+        expect(connectedAccount.refreshToken).to.be.null;
 
         // PayoutMethod data (verification status, email, payee ID) is preserved
         await pm.reload({ paranoid: false });
