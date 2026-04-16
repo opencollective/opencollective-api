@@ -18,7 +18,7 @@ import {
 import models from '../../../server/models';
 import collective from '../../../server/paymentProviders/opencollective/collective';
 import { randEmail } from '../../stores';
-import { fakeCollective, fakeOrder } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {
@@ -319,11 +319,50 @@ describe('server/lib/recurring-contributions', () => {
         await utils.resetTestDB();
       });
 
-      it('should update dates after successfully processing monthly ', async () => {
+      it('should update dates after successfully processing async order monthly ', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('month', '2018-01-27');
 
         processOrderStub.resolves(null);
+
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
+
+        // Expect the processOrder function was called
+        expect(processOrderStub.called).to.be.true;
+
+        // And then the status of the processing is successful
+        expect(entry.status).to.equal('processing');
+
+        // And then the dates are kept the same
+        expect(order.Subscription.nextChargeDate.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());
+        expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());
+      });
+
+      it('should update dates after successfully processing async order yearly', async () => {
+        // Given an order with a subscription
+        const { order } = await createOrderWithSubscription('year', '2018-01-27');
+
+        processOrderStub.resolves(null);
+
+        const entry = await processOrderWithSubscription(order, { dryRun: false });
+
+        // Expect the processOrder function was called
+        expect(processOrderStub.called).to.be.true;
+
+        // And then the status of the processing is successful
+        expect(entry.status).to.equal('processing');
+
+        // And then the dates are kept the same
+        expect(order.Subscription.nextChargeDate.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());
+        expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());
+      });
+
+      it('should update dates after successfully processing monthly ', async () => {
+        // Given an order with a subscription
+        const { order } = await createOrderWithSubscription('month', '2018-01-27');
+        const transaction = await fakeTransaction({ OrderId: order.id });
+
+        processOrderStub.resolves(transaction);
 
         const entry = await processOrderWithSubscription(order, { dryRun: false });
 
@@ -345,10 +384,11 @@ describe('server/lib/recurring-contributions', () => {
       it('should update dates after successfully processing yearly', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
+        const transaction = await fakeTransaction({ OrderId: order.id });
 
         // And that the payments library will return a transaction (to
         // be included in the email)
-        processOrderStub.resolves(null);
+        processOrderStub.resolves(transaction);
 
         // When the order is processed
         const entry = await processOrderWithSubscription(order, { dryRun: false });
@@ -394,8 +434,9 @@ describe('server/lib/recurring-contributions', () => {
       it('should increment chargeNumber after successfully processing the order', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('month', '2018-04-17');
+        const transaction = await fakeTransaction({ OrderId: order.id });
 
-        processOrderStub.resolves({});
+        processOrderStub.resolves(transaction);
 
         // When the order is processed
         const entry = await processOrderWithSubscription(order, { dryRun: false });
