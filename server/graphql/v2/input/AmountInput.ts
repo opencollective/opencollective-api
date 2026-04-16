@@ -1,7 +1,7 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt } from 'graphql';
 import { isNil } from 'lodash';
 
-import { floatAmountToCents } from '../../../lib/math';
+import { floatAmountToCents } from '../../../lib/currency';
 import { GraphQLCurrency } from '../enum/Currency';
 
 import GraphQLCurrencyExchangeRateInput from './CurrencyExchangeRateInput';

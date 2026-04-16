@@ -20,7 +20,7 @@ import { PayoutMethodTypes } from '../models/PayoutMethod';
 import Tier from '../models/Tier';
 import Transaction, { TransactionData } from '../models/Transaction';
 
-import { getFxRate } from './currency';
+import { getFxRate, roundCentsAmount } from './currency';
 import { calcFee } from './payments';
 
 const { CREDIT, DEBIT } = TransactionTypes;
@@ -125,7 +125,7 @@ export const getPaidTaxTransactions = async (
  */
 export const computeExpenseAmounts = async (
   expense: Expense,
-  hostCurrency: string,
+  hostCurrency: SupportedCurrency,
   expenseToHostFxRate: number,
   fees: FEES_IN_HOST_CURRENCY,
 ) => {
@@ -162,29 +162,41 @@ export const computeExpenseAmounts = async (
   return {
     fxRates,
     amount: {
-      inHostCurrency: Math.round(expense.amount * fxRates.expenseToHost),
-      inCollectiveCurrency: Math.round(expense.amount * fxRates.expenseToCollective),
+      inHostCurrency: roundCentsAmount(expense.amount * fxRates.expenseToHost, hostCurrency),
+      inCollectiveCurrency: roundCentsAmount(expense.amount * fxRates.expenseToCollective, expense.collective.currency),
       inExpenseCurrency: expense.amount,
     },
     tax: {
       inExpenseCurrency: taxAmount,
-      inHostCurrency: Math.round(taxAmount * fxRates.expenseToHost),
-      inCollectiveCurrency: Math.round(taxAmount * fxRates.expenseToCollective),
+      inHostCurrency: roundCentsAmount(taxAmount * fxRates.expenseToHost, hostCurrency),
+      inCollectiveCurrency: roundCentsAmount(taxAmount * fxRates.expenseToCollective, expense.collective.currency),
     },
     paymentProcessorFee: {
       inHostCurrency: fees.paymentProcessorFeeInHostCurrency,
-      inCollectiveCurrency: Math.round(fees.paymentProcessorFeeInHostCurrency / fxRates.collectiveToHost),
-      inExpenseCurrency: Math.round(fees.paymentProcessorFeeInHostCurrency / fxRates.expenseToHost),
+      inCollectiveCurrency: roundCentsAmount(
+        fees.paymentProcessorFeeInHostCurrency / fxRates.collectiveToHost,
+        expense.collective.currency,
+      ),
+      inExpenseCurrency: roundCentsAmount(
+        fees.paymentProcessorFeeInHostCurrency / fxRates.expenseToHost,
+        expense.currency,
+      ),
     },
     hostFee: {
       inHostCurrency: fees.hostFeeInHostCurrency,
-      inCollectiveCurrency: Math.round(fees.hostFeeInHostCurrency / fxRates.collectiveToHost),
-      inExpenseCurrency: Math.round(fees.hostFeeInHostCurrency / fxRates.expenseToHost),
+      inCollectiveCurrency: roundCentsAmount(
+        fees.hostFeeInHostCurrency / fxRates.collectiveToHost,
+        expense.collective.currency,
+      ),
+      inExpenseCurrency: roundCentsAmount(fees.hostFeeInHostCurrency / fxRates.expenseToHost, expense.currency),
     },
     platformFee: {
       inHostCurrency: fees.platformFeeInHostCurrency,
-      inCollectiveCurrency: Math.round(fees.platformFeeInHostCurrency / fxRates.collectiveToHost),
-      inExpenseCurrency: Math.round(fees.platformFeeInHostCurrency / fxRates.expenseToHost),
+      inCollectiveCurrency: roundCentsAmount(
+        fees.platformFeeInHostCurrency / fxRates.collectiveToHost,
+        expense.collective.currency,
+      ),
+      inExpenseCurrency: roundCentsAmount(fees.platformFeeInHostCurrency / fxRates.expenseToHost, expense.currency),
     },
   };
 };
@@ -206,19 +218,12 @@ export async function createTransactionsFromPaidStripeExpense(
   const payeeHost =
     payee.host || (await Collective.findByPk(payee.HostCollectiveId, { transaction: sequelizeTransaction }));
 
-  const balanceTransactionToPayeeCurrencyRate = await getFxRate(
-    balanceTransaction.currency as SupportedCurrency,
-    payee.currency,
-    new Date(),
-  );
-
-  const balanceTransactionToHostCurrencyRate = await getFxRate(
-    balanceTransaction.currency.toUpperCase() as SupportedCurrency,
-    payeeHost.currency,
-  );
+  const balanceTransactionCurrency = balanceTransaction.currency?.toUpperCase() as SupportedCurrency;
+  const balanceTransactionToPayeeCurrencyRate = await getFxRate(balanceTransactionCurrency, payee.currency, new Date());
+  const balanceTransactionToHostCurrencyRate = await getFxRate(balanceTransactionCurrency, payeeHost.currency);
 
   const hostFeeInHostCurrency =
-    calcFee(balanceTransaction.amount - balanceTransaction.fee, payee.hostFeePercent || 0) *
+    calcFee(balanceTransaction.amount - balanceTransaction.fee, payee.hostFeePercent || 0, balanceTransactionCurrency) *
     balanceTransactionToHostCurrencyRate;
   const data = {
     charge,
@@ -438,7 +443,7 @@ const computeExpenseTaxes = (expense: Expense): number | null => {
   } else {
     const ratesSum = sumBy(expense.data.taxes, 'rate');
     const amountWithoutTaxes = expense.amount / (1 + ratesSum);
-    return -Math.round(expense.amount - amountWithoutTaxes) || 0;
+    return -roundCentsAmount(expense.amount - amountWithoutTaxes, expense.currency) || 0;
   }
 };
 

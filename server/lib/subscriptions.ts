@@ -182,8 +182,8 @@ export const updateOrderSubscription = async (
   order: Order,
   member: Member,
   newOrderData: Record<string, unknown>,
-  newSubscriptionData: Record<string, unknown>,
-  newMemberData: Record<string, unknown>,
+  newSubscriptionData: Record<string, unknown> = undefined,
+  newMemberData: Record<string, unknown> = undefined,
 ): Promise<OrderSubscriptionUpdate> => {
   const previousOrderValues = pick(order.dataValues, keys(newOrderData));
   const previousSubscriptionValues = pick(order.Subscription.dataValues, keys(newSubscriptionData));

@@ -87,7 +87,7 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
         }
         const collective = await req.loaders.Collective.byId.load(payoutMethod.CollectiveId);
         if (req.remoteUser?.isAdminOfCollective(collective)) {
-          return (await payoutMethod.canBeEdited()) || (await payoutMethod.canBeArchived());
+          return (await payoutMethod.canBeEdited()) || payoutMethod.canBeArchived();
         } else {
           return false;
         }

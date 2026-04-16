@@ -44,12 +44,18 @@ import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
-import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
+import {
+  convertToCurrency,
+  floatAmountToCents,
+  getDate,
+  getFxRate,
+  loadFxRatesMap,
+  roundCentsAmount,
+} from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import { formatAddress } from '../../lib/format-address';
 import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
-import { floatAmountToCents } from '../../lib/math';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
@@ -1018,7 +1024,7 @@ export const canReject: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
-  } else if (expense.type === ExpenseType.CHARGE) {
+  } else if (expense.type === ExpenseType.CHARGE && !isManuallyCreatedCharge(expense)) {
     if (options?.throw) {
       throw new Forbidden('User cannot reject charge expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE);
     }
@@ -3485,7 +3491,8 @@ export const getExpenseFees = async (
       platformFee: resultFees['platformFeeInCollectiveCurrency'],
     };
   } else {
-    const applyCollectiveToExpenseFxRate = (amount: number) => Math.round((amount || 0) * collectiveToExpenseFxRate);
+    const applyCollectiveToExpenseFxRate = (amount: number) =>
+      roundCentsAmount((amount || 0) * collectiveToExpenseFxRate, expense.currency);
     feesInExpenseCurrency = {
       paymentProcessorFee: applyCollectiveToExpenseFxRate(resultFees['paymentProcessorFeeInCollectiveCurrency']),
       hostFee: applyCollectiveToExpenseFxRate(resultFees['hostFeeInCollectiveCurrency']),

@@ -28,7 +28,6 @@ const START_DATE = process.env.START_DATE ? moment.utc(process.env.START_DATE) :
 const END_DATE = process.env.END_DATE ? moment.utc(process.env.END_DATE) : moment(START_DATE).add(1, 'day');
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : false;
 const ONLY_CHECK_PAYPAL = process.env.ONLY_CHECK_PAYPAL ? parseToBoolean(process.env.ONLY_CHECK_PAYPAL) : false;
-const IGNORE_ERRORS = process.env.IGNORE_ERRORS ? parseToBoolean(process.env.IGNORE_ERRORS) : false;
 
 // Filter out transactions that are not related to contributions
 // See https://developer.paypal.com/docs/transaction-search/transaction-event-codes/
@@ -42,19 +41,16 @@ const WATCHED_EVENT_TYPES = [
 ];
 
 // Ignore some hosts, usually because they haven't enabled transactions search API yet
+// Checked again on 2026-04-15
 const IGNORED_HOSTS = [
-  // Token is invalid
-  'access2perspectives',
-  'foundation',
-  // Transactions search API is not enabled
-  'bruijnlogistics', // Checked again on 2025-06-11, still not enabled
-  'kragelund-developments', // Checked again on 2025-06-11, still not enabled
-  'lucy-parsons-labs', // Checked again on 2025-06-11, still not enabled
-  'madeinjlm', // Checked again on 2025-06-11, still not enabled
-  'osgeo-foundation', // Checked again on 2025-06-11, still not enabled
-  'ppy', // Checked again on 2025-06-11, still not enabled
-  'proofing-future', // Checked again on 2025-06-11, still not enabled
-  'secdsm', // Checked again on 2025-06-11, still not enabled
+  'dxura',
+  'lucyparsonsinstitute',
+  'naarprdfw',
+  'taon',
+  'tts-miniature-wargames-collective',
+  'lucy-parsons-labs',
+  'osgeo-foundation',
+  'secdsm',
 ];
 
 /**
@@ -291,22 +287,30 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         }
       } catch (e) {
         if (e.message.includes('Authorization failed due to insufficient permissions')) {
-          logger.warn(`Skipping @${host.slug} because Transactions Search API is not enabled`);
-          return;
-        } else if (IGNORE_ERRORS) {
-          console.error(`Error while fetching transactions for @${host.slug}: ${e.message}`);
+          reportMessageToSentry(`PayPal: Skipping @${host.slug} because Transactions Search API is not enabled`, {
+            extra: { fullResponse, fromDate, toDate, currentPage, totalPages },
+            feature: FEATURE.PAYPAL_DONATIONS,
+            severity: 'warning',
+          });
           return;
         } else {
-          throw e;
+          reportErrorToSentry(e, {
+            extra: { fullResponse, fromDate, toDate, currentPage, totalPages },
+            feature: FEATURE.PAYPAL_DONATIONS,
+            severity: 'error',
+          });
+          return;
         }
       }
 
       if (!transactions) {
-        reportMessageToSentry(`Empty response from PayPal sync job`, {
-          extra: { fullResponse, fromDate, toDate, currentPage, totalPages },
-          feature: FEATURE.PAYPAL_DONATIONS,
-          severity: 'warning',
-        });
+        if (fullResponse?.['total_items'] !== 0) {
+          reportMessageToSentry(`Empty response from PayPal sync job while total items is not 0`, {
+            extra: { fullResponse, fromDate, toDate, currentPage, totalPages },
+            feature: FEATURE.PAYPAL_DONATIONS,
+            severity: 'warning',
+          });
+        }
         return;
       }
 

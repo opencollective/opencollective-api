@@ -7,6 +7,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { SupportedCurrency } from '../constants/currencies';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
@@ -33,7 +34,7 @@ import {
 
 import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
-import { getFxRate } from './currency';
+import { getFxRate, roundCentsAmount } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
@@ -268,12 +269,15 @@ export async function refundTransaction(
  *
  * @param {Number} amount is the amount of the transaction.
  * @param {Number} fee is the percentage of the transaction.
+ * @param {SupportedCurrency} currency is the currency of the transaction, used to check the expected number of decimals
  * @example
- * calcFee(100, 3.5); // 4.0
+ * calcFee(100, 3.5, 'USD'); // 4
+ * calcFee(10_000, 3.5, 'USD'); // 350
+ * calcFee(10_000, 3.5, 'JPY'); // 400
  * @return {Number} fee-percent of the amount rounded
  */
-export function calcFee(amount: number, fee: number): number {
-  return Math.round((amount * fee) / 100);
+export function calcFee(amount: number, fee: number, currency: SupportedCurrency): number {
+  return roundCentsAmount((amount * fee) / 100, currency);
 }
 
 const makeRefundDescription = (refundKind: RefundKind, referencedTransaction: Transaction): string => {
@@ -1305,7 +1309,7 @@ export const getApplicationFee = async (order: Order): Promise<number> => {
   const hostFeeAmount = await getHostFee(order);
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
   if (hostFeeAmount && hostFeeSharePercent) {
-    const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent);
+    const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent, order.currency);
     applicationFee += hostFeeShareAmount;
   }
 
@@ -1330,7 +1334,7 @@ export const getHostFee = async (order: Order): Promise<number> => {
 
   const hostFeePercent = await getHostFeePercent(order);
 
-  return calcFee(totalAmount - taxAmount - platformTipAmount, hostFeePercent);
+  return calcFee(totalAmount - taxAmount - platformTipAmount, hostFeePercent, order.currency);
 };
 
 export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {

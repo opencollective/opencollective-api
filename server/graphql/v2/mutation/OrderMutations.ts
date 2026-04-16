@@ -16,6 +16,7 @@ import {
   uniq,
   uniqBy,
 } from 'lodash';
+import { CreationAttributes } from 'sequelize';
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
@@ -28,6 +29,7 @@ import { applyContributionAccountingCategoryRules } from '../../../lib/accountin
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
+import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
@@ -42,7 +44,7 @@ import {
 } from '../../../lib/subscriptions';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
-import models, { Op, sequelize } from '../../../models';
+import models, { Op, Order, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import {
   isPaypalSubscriptionPaymentMethod,
@@ -119,14 +121,14 @@ const GraphQLOrderWithPayment = new GraphQLObjectType({
   }),
 });
 
-const getTaxAmount = (baseAmount, tax) => {
+const getTaxAmount = (baseAmount, tax, currency) => {
   if (tax) {
     if (tax.amount) {
       return getValueInCentsFromAmountInput(tax.amount);
     } else if (tax.rate) {
-      return Math.round(tax.rate * baseAmount);
+      return roundCentsAmount(tax.rate * baseAmount, currency);
     } else if (tax.percentage) {
-      return Math.round((tax.percentage / 100) * baseAmount);
+      return roundCentsAmount((tax.percentage / 100) * baseAmount, currency);
     }
   }
 
@@ -138,10 +140,11 @@ const getTaxAmount = (baseAmount, tax) => {
  * @param {number} baseAmount
  * @param {number} platformTipAmount
  * @param {OrderTaxInput | TaxInput | OrderTax} taxInput
+ * @param {SupportedCurrency} currency
  */
-const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax) => {
+const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax, currency) => {
   if (tax) {
-    baseAmount += getTaxAmount(baseAmount, tax);
+    baseAmount += getTaxAmount(baseAmount, tax, currency);
   }
 
   if (platformTipAmount) {
@@ -158,12 +161,12 @@ const getOrderBaseAmount = order => {
 /**
  * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
  */
-const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host) => {
+const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host, currency) => {
   let taxInfo, taxAmount;
   if (taxInput) {
     const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
-    taxAmount = getTaxAmount(grossAmount, taxInput);
+    taxAmount = getTaxAmount(grossAmount, taxInput, currency);
     const taxAmountFromInput = taxInput.amount && getValueInCentsFromAmountInput(taxInput.amount);
     if (taxInfo.percentage && taxAmountFromInput) {
       const amountDiff = Math.abs(taxAmountFromInput - taxAmount);
@@ -236,13 +239,13 @@ const orderMutations = {
         amount: amountInCents,
         currency: expectedCurrency,
         interval: getIntervalFromContributionFrequency(order.frequency),
-        taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
+        taxAmount: tax && getTaxAmount(amountInCents * quantity, tax, expectedCurrency),
         tax: tax,
         paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,
         collective: { id: collective.id },
-        totalAmount: getTotalAmountForOrderInput(amountInCents * quantity, platformTipAmount, tax),
+        totalAmount: getTotalAmountForOrderInput(amountInCents * quantity, platformTipAmount, tax, expectedCurrency),
         data: order.data, // We're filtering data before saving it (see `ORDER_PUBLIC_DATA_FIELDS`)
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
@@ -659,7 +662,7 @@ const orderMutations = {
             }
 
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
-            order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
+            order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
@@ -670,16 +673,17 @@ const orderMutations = {
               fromAccount,
               toAccount,
               host,
+              order.currency,
             );
             order.set('taxAmount', taxAmount);
-            order.set('data.tax', taxInfo);
+            order.set('data', { ...order.data, tax: taxInfo });
           }
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
             order.set('platformTipAmount', platformTipInCents);
           }
           if (!isNil(hostFeePercent)) {
-            order.set('data.hostFeePercent', hostFeePercent);
+            order.set('data', { ...order.data, hostFeePercent });
           }
 
           if (!isNil(processedAt)) {
@@ -692,7 +696,12 @@ const orderMutations = {
             : getOrderBaseAmount(order);
           order.set(
             'totalAmount',
-            getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, args.order.tax || order.data?.tax),
+            getTotalAmountForOrderInput(
+              baseAmount,
+              order.platformTipAmount,
+              args.order.tax || order.data?.tax,
+              order.currency,
+            ),
           );
 
           // Link transactions import row
@@ -1206,6 +1215,7 @@ const orderMutations = {
         fromAccount,
         toAccount,
         host,
+        expectedCurrency,
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
@@ -1220,14 +1230,14 @@ const orderMutations = {
           : {}),
       };
 
-      const orderProps = {
+      const orderProps: CreationAttributes<Order> = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
         quantity,
-        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax, expectedCurrency),
         currency: args.order.amount.currency,
-        description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
+        description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined, tier),
         taxAmount,
         platformTipEligible: false, // Pending Contributions are not eligible to Platform Tips
         AccountingCategoryId,
@@ -1370,6 +1380,7 @@ const orderMutations = {
         fromAccount,
         order.collective,
         host,
+        expectedCurrency,
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
@@ -1393,7 +1404,7 @@ const orderMutations = {
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
         TierId: tier?.id || undefined,
-        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, expectedCurrency),
         platformTipAmount,
         taxAmount: taxAmount || null,
         currency: args.order.amount.currency,

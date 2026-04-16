@@ -384,6 +384,7 @@ describe('refundTransaction legacy tests', () => {
       hostFeeInHostCurrency: calcFee(
         convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
         collective.hostFeePercent,
+        balanceTransaction.currency as SupportedCurrency,
       ),
       platformFeeInHostCurrency: fees.applicationFee,
       paymentProcessorFeeInHostCurrency: fees.stripeFee,

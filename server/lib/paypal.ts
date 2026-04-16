@@ -17,8 +17,8 @@ import {
   PaypalWebhookPatch,
 } from '../types/paypal';
 
+import { floatAmountToCents } from './currency';
 import logger from './logger';
-import { floatAmountToCents } from './math';
 
 const getPaypalWebhookUrl = host => {
   if (config.env === 'development') {
