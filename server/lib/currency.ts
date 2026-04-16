@@ -230,7 +230,7 @@ export async function getFxRate(
  */
 export async function getFxRates(
   fromCurrency: SupportedCurrency,
-  toCurrencies: SupportedCurrency[],
+  toCurrencies: readonly SupportedCurrency[],
   date: string | Date = 'latest',
 ): Promise<ResultCurrencyMap> {
   fromCurrency = fromCurrency?.toUpperCase() as SupportedCurrency;
@@ -262,6 +262,10 @@ export async function getFxRates(
   }
 }
 
+/**
+ * @param amount in cents
+ * @returns amount in cents
+ */
 export function convertToCurrency(
   amount: number,
   fromCurrency: SupportedCurrency,
@@ -279,7 +283,11 @@ export function convertToCurrency(
   }
 
   return getFxRate(fromCurrency, toCurrency, date).then(fxrate => {
-    return fxrate * amount;
+    const isNegative = amount < 0;
+    const rounded = roundCentsAmount(fxrate * amount, toCurrency);
+    const minAmount = isZeroDecimalCurrency(toCurrency) ? 100 : 1; // Converting an amount can never result in 0
+    const result = Math.max(minAmount, Math.abs(rounded));
+    return isNegative ? -result : result;
   });
 }
 
