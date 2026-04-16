@@ -99,7 +99,7 @@ ConnectedAccount.init(
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
       },
       set(value: string) {
-        this.setDataValue('token', crypto.encrypt(value));
+        this.setDataValue('token', value ? crypto.encrypt(value) : null);
       },
     },
     refreshToken: {
@@ -109,7 +109,7 @@ ConnectedAccount.init(
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
       },
       set(value: string) {
-        this.setDataValue('refreshToken', crypto.encrypt(value));
+        this.setDataValue('refreshToken', value ? crypto.encrypt(value) : null);
       },
     },
     data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
