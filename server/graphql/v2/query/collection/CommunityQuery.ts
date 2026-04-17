@@ -192,7 +192,7 @@ const CommunityQuery = {
       description: 'Account filter',
     },
     host: {
-      type: GraphQLAccountReferenceInput,
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'Host context filter',
     },
     type: { type: new GraphQLList(GraphQLAccountType) },
@@ -229,38 +229,26 @@ const CommunityQuery = {
       throw new Error(`Cannot fetch more than ${DEFAULT_LIMIT} members at the same time, please adjust the limit`);
     }
 
+    const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
     assert(
-      Boolean(args.account) || Boolean(args.host),
-      'You must provide either an account or a host to fetch its community',
+      req.remoteUser?.isAdminOfCollective(host),
+      new BadRequest('Only admins of the host can access the community endpoint'),
     );
 
     const replacements: CommunitySummaryArgs = {
       limit: args.limit,
       offset: args.offset,
+      HostCollectiveId: host.id,
     };
 
     const account = args.account && (await fetchAccountWithReference(args.account, { throwIfMissing: false }));
-    const host = args.host && (await fetchAccountWithReference(args.host, { throwIfMissing: false }));
-    if (host && account) {
+    if (account) {
       // TODO: Add exception for accounts that were previously hosted by the host
       assert(
         host.id === account.HostCollectiveId,
         new BadRequest('The account provided is not hosted by the host provided'),
       );
-    }
-    if (account) {
-      assert(
-        req.remoteUser?.isAdminOfCollective(host) || req.remoteUser?.isAdminOfCollective(account),
-        new BadRequest('Only admins can lookup for members using the "account" argument'),
-      );
       replacements.CollectiveId = account.id;
-    }
-    if (host) {
-      assert(
-        req.remoteUser?.isAdminOfCollective(host),
-        new BadRequest('Only admins can lookup for members using the "host" argument'),
-      );
-      replacements.HostCollectiveId = host.id;
     }
 
     const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
@@ -280,12 +268,7 @@ const CommunityQuery = {
       replacements.relation = JSON.stringify(args.relation);
     }
     if (args.searchTerm) {
-      if (req.remoteUser?.isAdminOfCollective(account) || req.remoteUser?.isAdminOfCollective(host)) {
-        replacements.searchTerm = args.searchTerm;
-      } else {
-        throw new BadRequest('Only admins can lookup for members using the "searchTerm" argument');
-      }
-      // TODO: Before returning the result, double check if the remoteUser has access to see the result email
+      replacements.searchTerm = args.searchTerm;
     }
 
     const { nodes, totalCount } = await getHostCommunity(replacements, { orderBy: args.orderBy });
