@@ -438,7 +438,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     return;
   }
 
-  const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+  const amount = roundCentsAmount(amountInHostCurrency / hostCurrencyFxRate, transactionCurrency);
   await Transaction.createDoubleEntry({
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_COVER,

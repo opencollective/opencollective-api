@@ -3462,20 +3462,24 @@ export const getExpenseFees = async (
     }
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
     const paypalFeesInExpenseCurrency = await estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = Math.round(
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = roundCentsAmount(
       paypalFeesInExpenseCurrency / collectiveToExpenseFxRate,
+      expense.collective.currency,
     );
   }
 
   // Build fees in host currency
-  feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
+  feesInHostCurrency.paymentProcessorFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['paymentProcessorFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
-  feesInHostCurrency.hostFeeInHostCurrency = Math.round(
+  feesInHostCurrency.hostFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['hostFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
-  feesInHostCurrency.platformFeeInHostCurrency = Math.round(
+  feesInHostCurrency.platformFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['platformFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
 
   if (!resultFees['paymentProcessorFeeInCollectiveCurrency']) {
@@ -3539,7 +3543,7 @@ export const checkHasBalanceToPayExpense = async (
   if (forceManual) {
     assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
     const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
-    const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
+    const balanceInHostCurrency = roundCentsAmount(balanceInCollectiveCurrency * collectiveToHostFxRate, host.currency);
     if (
       ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type) &&
       balanceInHostCurrency < totalAmountPaidInHostCurrency
@@ -3584,21 +3588,21 @@ export const checkHasBalanceToPayExpense = async (
       }
     } else if (isNumber(exchangeStats?.latestRate)) {
       const rate = exchangeStats.latestRate - exchangeStats.stddev * 2;
-      const safeAmount = Math.round(amountToPayInExpenseCurrency / rate);
+      const safeAmount = roundCentsAmount(amountToPayInExpenseCurrency / rate, expense.collective.currency);
       if (balanceInCollectiveCurrency < safeAmount) {
         throw new ValidationFailed(
           `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
-            Math.round(balanceInCollectiveCurrency * rate),
+            roundCentsAmount(balanceInCollectiveCurrency * rate, expense.currency),
             expense.currency,
           )}.`,
         );
       }
     } else {
-      const safeAmount = Math.round(amountToPayInExpenseCurrency * 1.2);
+      const safeAmount = roundCentsAmount(amountToPayInExpenseCurrency * 1.2, expense.collective.currency);
       if (balanceInCollectiveCurrency < safeAmount) {
         throw new ValidationFailed(
           `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
-            Math.round(balanceInCollectiveCurrency / 1.2),
+            roundCentsAmount(balanceInCollectiveCurrency / 1.2, expense.collective.currency),
             expense.collective.currency,
           )}.`,
         );
@@ -3966,7 +3970,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
     isApproximate: boolean,
     date = expense.createdAt,
   ) => ({
-    value: Math.round(expense.amount * fxRatePercentage),
+    value: roundCentsAmount(expense.amount * fxRatePercentage, toCurrency),
     currency: toCurrency,
     exchangeRate: {
       value: fxRatePercentage,

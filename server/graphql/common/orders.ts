@@ -5,6 +5,7 @@ import { InferCreationAttributes } from 'sequelize';
 import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
+import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
 import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
@@ -140,7 +141,10 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   }
 
   if (order.tax?.rate) {
-    orderData.taxAmount = Math.round(orderData.totalAmount - orderData.totalAmount / (1 + order.tax.rate));
+    orderData.taxAmount = roundCentsAmount(
+      orderData.totalAmount - orderData.totalAmount / (1 + order.tax.rate),
+      orderData.currency,
+    );
     orderData.data.tax = getOrderTaxInfoFromTaxInput(order.tax, fromCollective, collective, host);
   }
 

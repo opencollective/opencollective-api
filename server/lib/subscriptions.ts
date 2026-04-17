@@ -12,6 +12,7 @@ import PaymentMethod from '../models/PaymentMethod';
 import Tier from '../models/Tier';
 import User from '../models/User';
 
+import { roundCentsAmount } from './currency';
 import { findPaymentMethodProvider } from './payments';
 
 const getIsSubscriptionManagedExternally = pm => {
@@ -231,7 +232,7 @@ export const updateSubscriptionDetails = async (
       const taxRate = order.data.tax.percentage / 100;
       const amountWithoutTip = amountInCents - order.platformTipAmount;
       const grossAmount = amountWithoutTip / (1 + taxRate);
-      newOrderData['taxAmount'] = Math.round(amountWithoutTip - grossAmount);
+      newOrderData['taxAmount'] = roundCentsAmount(amountWithoutTip - grossAmount, order.currency);
     }
   }
 

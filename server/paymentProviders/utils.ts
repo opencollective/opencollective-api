@@ -9,7 +9,7 @@ import ExpenseType from '../constants/expense-type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { getFxRate } from '../lib/currency';
+import { getFxRate, roundCentsAmount } from '../lib/currency';
 import { crypto as cryptoLib } from '../lib/encryption';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
@@ -102,7 +102,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
         amount: toNegative(amount),
         netAmountInCollectiveCurrency: toNegative(amount),
         hostCurrency: host.currency,
-        amountInHostCurrency: Math.round(toNegative(amount) * hostCurrencyFxRate),
+        amountInHostCurrency: roundCentsAmount(toNegative(amount) * hostCurrencyFxRate, host.currency),
         paymentProcessorFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
         platformFeeInHostCurrency: 0,
@@ -194,7 +194,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
       amount: amount,
       netAmountInCollectiveCurrency: amount,
       hostCurrency: host.currency,
-      amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
+      amountInHostCurrency: roundCentsAmount(amount * hostCurrencyFxRate, host.currency),
       paymentProcessorFeeInHostCurrency: 0,
       hostFeeInHostCurrency: 0,
       platformFeeInHostCurrency: 0,
@@ -250,7 +250,7 @@ export const persistVirtualCardTransaction = async (virtualCard, transaction) =>
       amount: toNegative(amount),
       netAmountInCollectiveCurrency: toNegative(amount),
       hostCurrency: host.currency,
-      amountInHostCurrency: Math.round(toNegative(amount) * hostCurrencyFxRate),
+      amountInHostCurrency: roundCentsAmount(toNegative(amount) * hostCurrencyFxRate, host.currency),
       paymentProcessorFeeInHostCurrency: 0,
       hostFeeInHostCurrency: 0,
       platformFeeInHostCurrency: 0,

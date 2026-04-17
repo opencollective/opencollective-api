@@ -66,11 +66,11 @@ const paymentMethodProvider: BasePaymentProviderService = {
     const currency = order.currency;
     const hostCurrency = host.currency;
     const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
-    const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
+    const amountInHostCurrency = roundCentsAmount(order.totalAmount * hostCurrencyFxRate, hostCurrency);
 
     // It will be usually zero but it's best to support it
     const hostFee = await getHostFee(order);
-    const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+    const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
     const platformTip = getPlatformTip(order);
     const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);

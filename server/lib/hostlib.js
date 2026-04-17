@@ -2,7 +2,7 @@ import { intersection, sum } from 'lodash';
 import pMap from 'p-map';
 import { QueryTypes } from 'sequelize';
 
-import { convertToCurrency } from '../lib/currency';
+import { convertToCurrency, roundCentsAmount } from '../lib/currency';
 import models, { Op, sequelize } from '../models';
 
 export function getHostedCollectives(hostid, startDate, endDate = new Date()) {
@@ -108,12 +108,13 @@ export function sumTransactionsByCurrency(attribute = 'netAmountInCollectiveCurr
  */
 export async function sumTransactions(attribute, query = {}, hostCurrency) {
   const amountsByCurrency = await sumTransactionsByCurrency(attribute, query);
+  const targetCurrency = hostCurrency || 'USD';
   const convertedAmounts = await pMap(amountsByCurrency, s =>
-    convertToCurrency(s.amount, s.currency || s.hostCurrency, hostCurrency || 'USD'),
+    convertToCurrency(s.amount, s.currency || s.hostCurrency, targetCurrency),
   );
   return {
     byCurrency: amountsByCurrency,
-    totalInHostCurrency: Math.round(sum(convertedAmounts)), // in cents
+    totalInHostCurrency: roundCentsAmount(sum(convertedAmounts), targetCurrency), // in cents
   };
 }
 

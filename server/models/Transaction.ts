@@ -1948,6 +1948,7 @@ Transaction.prototype.hasPlatformTip = function (): boolean {
 
 Transaction.prototype.getRelatedTransaction = function (
   options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<Transaction | null> {
   return Transaction.findOne({
     where: {
@@ -1956,6 +1957,7 @@ Transaction.prototype.getRelatedTransaction = function (
       kind: options.kind || this.kind,
       isDebt: options.isDebt || { [Op.not]: true },
     },
+    transaction: sqlTransaction,
   });
 };
 

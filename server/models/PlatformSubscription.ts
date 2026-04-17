@@ -21,6 +21,7 @@ import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import FEATURE from '../constants/feature';
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
+import { roundCentsAmount } from '../lib/currency';
 import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
@@ -372,7 +373,7 @@ class PlatformSubscription extends Model<
           title: sub.plan.title,
           startDate: effectiveStart,
           endDate: subBillingEnd,
-          amount: Math.round(basePrice * (subSeconds / totalBillingSeconds)),
+          amount: roundCentsAmount(basePrice * (subSeconds / totalBillingSeconds), 'USD'),
         };
       },
     );

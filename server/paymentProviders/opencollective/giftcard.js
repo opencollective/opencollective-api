@@ -65,7 +65,7 @@ async function getBalance(paymentMethod) {
     }
   }
   const balance = {
-    amount: Math.round(initialBalance + spent),
+    amount: currency.roundCentsAmount(initialBalance + spent, paymentMethod.currency),
     currency: paymentMethod.currency,
   };
   return balance;
@@ -296,7 +296,7 @@ async function checkSourcePaymentMethodBalance(paymentMethod, amount, giftCardCu
 
   // Convert amounts if not the same currency
   const fxRate = await currency.getFxRate(giftCardCurrency, balance.currency);
-  const totalAmountInPaymentMethodCurrency = Math.round(amount * fxRate);
+  const totalAmountInPaymentMethodCurrency = currency.roundCentsAmount(amount * fxRate, balance.currency);
 
   // Check balance
   if (totalAmountInPaymentMethodCurrency > balance.amount) {
@@ -341,7 +341,7 @@ async function getTotalAmountAllocatedForGiftCards(sourcePaymentMethod) {
     }),
   ]);
 
-  return Math.round(sum(results.filter(Boolean)));
+  return currency.roundCentsAmount(sum(results.filter(Boolean)), sourcePaymentMethod.currency);
 }
 
 async function getAmountLeftToSpendForMonthlyLimits(sourcePaymentMethod) {

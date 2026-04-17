@@ -10,6 +10,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import OrderStatuses from '../../../constants/order-status';
 import { RefundKind } from '../../../constants/refund-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import { roundCentsAmount } from '../../../lib/currency';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { executeOrder } from '../../../lib/payments';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -383,7 +384,10 @@ export default {
       };
 
       if (args.tax?.rate) {
-        orderData.taxAmount = Math.round(orderData.totalAmount - orderData.totalAmount / (1 + args.tax.rate));
+        orderData.taxAmount = roundCentsAmount(
+          orderData.totalAmount - orderData.totalAmount / (1 + args.tax.rate),
+          orderData.currency,
+        );
         orderData.data.tax = getOrderTaxInfoFromTaxInput(args.tax, fromAccount, account, host);
       }
       await order.update(orderData);

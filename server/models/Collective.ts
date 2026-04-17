@@ -82,7 +82,7 @@ import {
   validateSettings,
 } from '../lib/collectivelib';
 import { invalidateContributorsCache } from '../lib/contributors';
-import { getFxRate } from '../lib/currency';
+import { getFxRate, roundCentsAmount } from '../lib/currency';
 import emailLib from '../lib/email';
 import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
@@ -651,7 +651,7 @@ class Collective extends ModelWithPublicId<
             nextGoal.progress = Math.round((stats.yearlyBudget / goal.amount) * 100) / 100;
             nextGoal.percentage = `${Math.round(nextGoal.progress * 100)}%`;
             nextGoal.missing = {
-              amount: Math.round((goal.amount - stats.yearlyBudget) / 12),
+              amount: roundCentsAmount((goal.amount - stats.yearlyBudget) / 12, this.currency),
               interval: 'month',
             };
             nextGoal.interval = 'year';
@@ -3513,7 +3513,7 @@ class Collective extends ModelWithPublicId<
 
     const processOtherCurrency = async t => {
       const fx = await getFxRate(t.currency, 'USD');
-      return Math.round(t.total * fx);
+      return roundCentsAmount(t.total * fx, 'USD');
     };
     const total = sum(await Promise.all(transactions.map(processOtherCurrency)));
     return total;
@@ -3556,7 +3556,7 @@ class Collective extends ModelWithPublicId<
 
     const processTransaction = async t => {
       const fx = await getFxRate(t.currency, 'USD');
-      return Math.round(t.total * fx);
+      return roundCentsAmount(t.total * fx, 'USD');
     };
     const total = Math.abs(sum(await Promise.all(transactions.map(processTransaction))));
     return total;
@@ -3595,7 +3595,7 @@ class Collective extends ModelWithPublicId<
 
     const processTransaction = async t => {
       const fx = await getFxRate(t.currency, 'USD');
-      return Math.round(t.total * fx);
+      return roundCentsAmount(t.total * fx, 'USD');
     };
     const total = sum(await Promise.all(transactions.map(processTransaction)));
     return total;

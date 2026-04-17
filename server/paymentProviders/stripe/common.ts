@@ -9,7 +9,7 @@ import { SupportedCurrency } from '../../constants/currencies';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
-import { convertToCurrency, isSupportedCurrency } from '../../lib/currency';
+import { convertToCurrency, isSupportedCurrency, roundCentsAmount } from '../../lib/currency';
 import logger from '../../lib/logger';
 import {
   createRefundTransaction,
@@ -167,7 +167,7 @@ export const createChargeTransactions = async (
   const hostCurrencyFxRate = amountInHostCurrency / amountInOrderCurrency;
 
   const hostFee = await getHostFee(order);
-  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+  const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
 
@@ -177,7 +177,7 @@ export const createChargeTransactions = async (
   let platformTipInHostCurrency, platformFeeInHostCurrency;
   if (platformTip) {
     platformTipInHostCurrency = isSharedRevenue
-      ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      ? roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency) || 0
       : fees.applicationFee;
   } else if (config.env === 'test' || config.env === 'ci') {
     // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
