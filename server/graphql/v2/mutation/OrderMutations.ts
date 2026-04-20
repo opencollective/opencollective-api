@@ -1344,7 +1344,9 @@ const orderMutations = {
       await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
 
       // Load data
-      const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
+      const fromAccount = args.order.fromAccount
+        ? await fetchAccountWithReference(args.order.fromAccount)
+        : await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
         : order.tier;
