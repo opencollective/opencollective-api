@@ -245,6 +245,10 @@ const vendorMutations = {
             payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
           }
           assert(payoutMethod, new NotFound('Payout method not found'));
+          assert(
+            payoutMethod.CollectiveId === vendor.id,
+            new Unauthorized('Payout method does not belong to this vendor'),
+          );
           await Promise.all(
             existingPayoutMethods.filter(pm => pm.id !== payoutMethod.id).map(pm => pm.update({ isSaved: false })),
           );
