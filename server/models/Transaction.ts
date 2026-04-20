@@ -268,10 +268,7 @@ class Transaction extends ModelWithPublicId<
     params?: { sqlTransaction?: SequelizeTransaction },
   ) => Promise<Transaction | null>;
 
-  declare getRefundTransaction: (
-    options?: null,
-    params?: { sqlTransaction?: SequelizeTransaction },
-  ) => Promise<Transaction | null>;
+  declare getRefundTransaction: () => Promise<Transaction | null>;
 
   declare getGiftCardEmitterCollective: () => Promise<Collective | null>;
   declare getSource: () => Promise<Collective | null>;
