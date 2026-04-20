@@ -9,6 +9,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import OrderStatuses from '../../../constants/order-status';
 import { RefundKind } from '../../../constants/refund-kind';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { roundCentsAmount } from '../../../lib/currency';
 import { getDiffBetweenInstances } from '../../../lib/data';
@@ -347,11 +348,24 @@ export default {
       }
       await twoFactorAuthLib.enforceForAccount(req, host);
 
+      const orderCollective = await req.loaders.Collective.byId.load(order.CollectiveId);
+      const orderFiscalHost = await orderCollective.getHostCollective({ loaders: req.loaders }); // Not ideal, as older PAID orders may belong to a different host.
+      if (!orderFiscalHost || orderFiscalHost.id !== host.id) {
+        throw new ValidationFailed(
+          'This order does not belong to the fiscal host of the selected account, it cannot be edited through editAddedFunds.',
+        );
+      }
+
       // Refund Existing Order
-      const transactions = await order.getTransactions({ order: [['id', 'desc']] });
+      const transactions = await order.getTransactions({
+        where: { kind: TransactionKind.ADDED_FUNDS },
+        order: [['id', 'desc']],
+      });
       assert(transactions.length > 0, 'No ADDED FUNDS transaction found for this order');
       const creditTransction = transactions.find(t => t.type === 'CREDIT');
       assert(creditTransction, 'No CREDIT transaction found for this order');
+
+      // `refundTransaction` will throw if the user is not authorized to refund the transaction (/edit the order)
       await refundTransaction(creditTransction, req, RefundKind.EDIT, { ignoreBalanceCheck: true });
 
       const previousData = order.toJSON();
