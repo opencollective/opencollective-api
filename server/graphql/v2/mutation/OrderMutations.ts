@@ -1349,6 +1349,18 @@ const orderMutations = {
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
         : order.tier;
 
+      if (
+        fromAccount &&
+        fromAccount.HostCollectiveId !== host.id &&
+        !req.remoteUser.isRoot() &&
+        !host.data?.allowAddFundsFromAllAccounts &&
+        !host.data?.isTrustedHost
+      ) {
+        throw new Error(
+          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        );
+      }
+
       // Check accounting category
       let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;
       let accountingCategory = null;

@@ -2110,11 +2110,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
-      const newFromUser = await fakeUser();
+      const newFromAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
       validEditOrderParams = {
         legacyId: order.id,
         tier: { legacyId: newTier.id },
-        fromAccount: { legacyId: newFromUser.CollectiveId },
+        fromAccount: { legacyId: newFromAccount.id },
         fromAccountInfo: { name: 'Hey', email: 'hey@opencollective.com' },
         description: 'New description',
         memo: 'New memo',
@@ -2306,6 +2306,31 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         await order.reload();
         expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.be.eq(accountingCategory.code);
       });
+    });
+
+    it('must be a trusted host if fromAccount and collective have different hosts', async () => {
+      // Create a foreign account hosted by a different host
+      const otherHost = await fakeHost();
+      const foreignAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: otherHost.id });
+
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            fromAccount: { legacyId: foreignAccount.id },
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+      );
+
+      // Verify the order was NOT updated
+      await order.reload();
+      expect(order.FromCollectiveId).to.not.equal(foreignAccount.id);
     });
   });
 
