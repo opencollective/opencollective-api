@@ -391,11 +391,15 @@ export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator
     isAdminOfCollectiveAndExpenseIsAVirtualCardButNotManuallyCreated, // Virtual cards are created by the collective admins, but manually created ones are managed by host admins
   ];
 
-  // Submitter can see own information until the expense is paid
-  if (expense.status === expenseStatus.PAID && expense.PayoutMethodId) {
+  if (expense.PayoutMethodId) {
     const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-    if (payoutMethod && !payoutMethod.isSaved) {
-      allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
+    if (payoutMethod) {
+      if (
+        (expense.status === expenseStatus.PAID && !payoutMethod.isSaved) || // Submitter can see own information until the expense is paid
+        payoutMethod.CollectiveId !== expense.FromCollectiveId // Remote user is somehow not an admin of the payee
+      ) {
+        allowedRoles = allowedRoles.filter(role => role !== isOwner && role !== isOwnerAccountant);
+      }
     }
   }
 

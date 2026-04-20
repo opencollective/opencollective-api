@@ -5,7 +5,9 @@ import { CollectiveType } from '../../../../../server/constants/collectives';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeExpense,
   fakeHost,
@@ -304,6 +306,125 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
       await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
+    });
+
+    it('rejects selecting a payout method that belongs to another vendor on a different host', async () => {
+      const hostAAdmin = await fakeUser();
+      const hostA = await fakeActiveHost({ admin: hostAAdmin });
+      const vendorA = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: hostA.id,
+      });
+
+      const hostB = await fakeActiveHost({ admin: await fakeUser() });
+      const vendorB = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: hostB.id,
+      });
+
+      const payoutMethodVendorA = await fakePayoutMethod({ CollectiveId: vendorA.id, isSaved: true });
+      const payoutMethodVendorB = await fakePayoutMethod({ CollectiveId: vendorB.id, isSaved: true });
+
+      const expenseA = await fakeExpense({
+        FromCollectiveId: vendorA.id,
+        CollectiveId: hostA.id,
+        HostCollectiveId: hostA.id,
+        PayoutMethodId: payoutMethodVendorA.id,
+        status: 'PENDING',
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendorA.id,
+            payoutMethod: {
+              id: payoutMethodVendorB.publicId,
+            },
+          },
+        },
+        hostAAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Payout method does not belong to this vendor/);
+
+      await expenseA.reload();
+      expect(expenseA.PayoutMethodId).to.equal(payoutMethodVendorA.id);
+      await payoutMethodVendorB.reload();
+      expect(payoutMethodVendorB.CollectiveId).to.equal(vendorB.id);
+      expect(payoutMethodVendorB.isSaved).to.be.true;
+
+      await models.Expense.destroy({ where: { id: expenseA.id }, force: true });
+      await models.PayoutMethod.destroy({
+        where: { id: [payoutMethodVendorA.id, payoutMethodVendorB.id] },
+        force: true,
+      });
+    });
+
+    it('rejects selecting a payout method that belongs to another vendor on the same host', async () => {
+      const sameHostAdmin = await fakeUser();
+      const sharedHost = await fakeActiveHost({ admin: sameHostAdmin });
+      const vendorOne = await fakeCollective({ type: CollectiveType.VENDOR, ParentCollectiveId: sharedHost.id });
+      const vendorTwo = await fakeCollective({ type: CollectiveType.VENDOR, ParentCollectiveId: sharedHost.id });
+
+      const vendorOnePm = await fakePayoutMethod({ CollectiveId: vendorOne.id, isSaved: true });
+      const vendorTwoPm = await fakePayoutMethod({ CollectiveId: vendorTwo.id, isSaved: true });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendorOne.id,
+            payoutMethod: { id: vendorTwoPm.publicId },
+          },
+        },
+        sameHostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Payout method does not belong to this vendor/);
+
+      await models.PayoutMethod.destroy({
+        where: { id: [vendorOnePm.id, vendorTwoPm.id] },
+        force: true,
+      });
+    });
+
+    it('rejects selecting a payout method that belongs to a regular user (not a vendor)', async () => {
+      const hostAdmin = await fakeUser();
+      const someHost = await fakeActiveHost({ admin: hostAdmin });
+      const vendor = await fakeCollective({ type: CollectiveType.VENDOR, ParentCollectiveId: someHost.id });
+
+      const victimUser = await fakeUser();
+      const victimPm = await fakePayoutMethod({
+        CollectiveId: victimUser.CollectiveId,
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        isSaved: true,
+        data: {
+          accountHolderName: 'Victim',
+          currency: 'USD',
+          type: 'aba',
+          details: { address: { country: 'US' }, accountNumber: '12345678', abartn: '026009593' },
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            payoutMethod: { id: victimPm.publicId },
+          },
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Payout method does not belong to this vendor/);
+
+      await victimPm.reload();
+      expect(victimPm.CollectiveId).to.equal(victimUser.CollectiveId);
+      expect(victimPm.isSaved).to.be.true;
+
+      await models.PayoutMethod.destroy({ where: { id: victimPm.id }, force: true });
     });
   });
 
