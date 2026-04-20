@@ -98,10 +98,7 @@ describe('server/graphql/common/expenses', () => {
     const hostAccountant = await fakeUser();
     const limitedHostAdmin = await fakeUser();
     const expenseOwner = await fakeUser();
-    const payoutMethod = await fakePayoutMethod({
-      type: PayoutMethodTypes.OTHER,
-      CollectiveId: expenseOwner.CollectiveId,
-    });
+    const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
     collective = collective || (await fakeCollective({ HostCollectiveId: host?.id }));
     const expense = await fakeExpense({
       CollectiveId: collective.id,
@@ -196,15 +193,11 @@ describe('server/graphql/common/expenses', () => {
       type: 'SETTLEMENT',
       FromCollectiveId: platform.id,
     });
-    const settlementPayoutMethod = await contexts.settlement.expense.getPayoutMethod();
-    await settlementPayoutMethod.update({ CollectiveId: platform.id });
     contexts.settlement.expense.fromCollective = await Collective.findByPk(platform.id);
 
     contexts.platformBilling = await prepareContext({
       name: 'platformBilling',
     });
-    const platformBillingPayoutMethod = await contexts.platformBilling.expense.getPayoutMethod();
-    await platformBillingPayoutMethod.update({ CollectiveId: platform.id });
 
     await contexts.platformBilling.expense.update({
       type: 'PLATFORM_BILLING',
