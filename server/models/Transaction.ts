@@ -22,7 +22,7 @@ import { RefundKind } from '../constants/refund-kind';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { shouldGenerateTransactionActivities } from '../lib/activities';
-import { getFxRate } from '../lib/currency';
+import { getFxRate, roundCentsAmount } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent } from '../lib/payments';
@@ -84,6 +84,7 @@ export type TransactionData = {
     expenseToPayoutMethod?: number;
   };
   hasPlatformTip?: boolean;
+  isSharedRevenue?: boolean;
   isBalanceTransfer?: boolean;
   isRootBalanceTransfer?: boolean;
   hostFeeMigration?: string;
@@ -99,6 +100,7 @@ export type TransactionData = {
   paypalSale?: Partial<PaypalSale>;
   paypalTransaction?: Partial<PaypalTransaction>;
   platformTip?: number;
+  platformTipEligible?: boolean;
   platformTipInHostCurrency?: number;
   preMigrationData?: Record<string, unknown>;
   migration?: unknown;
@@ -123,6 +125,11 @@ export type TransactionData = {
       };
     };
   };
+  /** Set by scripts/stripe/fix-invalid-amounts when a row is corrected. Can be removed once the fix has been confirmed. */
+  fixedByStripeInvalidOrderAmountScript?: {
+    date: string;
+    previousValues: Record<string, unknown>;
+  };
 };
 
 class Transaction extends ModelWithPublicId<
@@ -144,8 +151,11 @@ class Transaction extends ModelWithPublicId<
   declare hostCurrencyFxRate: number;
   declare netAmountInCollectiveCurrency: number;
   declare amountInHostCurrency: number;
+  /** @deprecated host fees are now recorded as separate transactions */
   declare hostFeeInHostCurrency: number | null;
+  /** @deprecated payment processor fees are now recorded as separate transactions */
   declare paymentProcessorFeeInHostCurrency: number | null;
+  /** @deprecated platform fees are now recorded as separate transactions */
   declare platformFeeInHostCurrency: number | null;
   declare taxAmount: number | null;
   declare data: TransactionData | null;
@@ -207,21 +217,59 @@ class Transaction extends ModelWithPublicId<
     isDebt?: boolean;
   }) => Promise<Transaction>;
 
-  declare getRelatedTransactions: (options: {
-    type?: string;
-    kind?: string;
-    isDebt?: boolean;
-  }) => Promise<Transaction[]>;
+  declare getRelatedTransactions: (
+    options?: {
+      type?: string;
+      kind?: string;
+      isDebt?: boolean;
+    },
+    params?: {
+      sqlTransaction?: SequelizeTransaction;
+    },
+  ) => Promise<Transaction[]>;
 
-  declare getOppositeTransaction: () => Promise<Transaction | null>;
-  declare getPaymentProcessorFeeTransaction: () => Promise<Transaction | null>;
-  declare getTaxTransaction: () => Promise<Transaction | null>;
-  declare getPlatformTipTransaction: (options?: Pick<Transaction, 'type'>) => Promise<Transaction | null>;
-  declare getPlatformTipDebtTransaction: () => Promise<Transaction | null>;
-  declare getHostFeeTransaction: (options?: Pick<Transaction, 'type'>) => Promise<Transaction | null>;
-  declare getHostFeeShareTransaction: () => Promise<Transaction | null>;
-  declare getHostFeeShareDebtTransaction: () => Promise<Transaction | null>;
+  declare getOppositeTransaction: (
+    options?: null,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
+  declare getPaymentProcessorFeeTransaction: (
+    options?: null,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
+  declare getTaxTransaction: (
+    options?: null,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
+  declare getPlatformTipTransaction: (
+    options?: Pick<Transaction, 'type'>,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
+  declare getPlatformTipDebtTransaction: (
+    options?: null,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
+  declare getHostFeeTransaction: (
+    options?: Pick<Transaction, 'type'>,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
+  declare getHostFeeShareTransaction: (
+    options?: null,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
+  declare getHostFeeShareDebtTransaction: (
+    options?: null,
+    params?: { sqlTransaction?: SequelizeTransaction },
+  ) => Promise<Transaction | null>;
+
   declare getRefundTransaction: () => Promise<Transaction | null>;
+
   declare getGiftCardEmitterCollective: () => Promise<Collective | null>;
   declare getSource: () => Promise<Collective | null>;
   declare getUser: () => Promise<User | null>;
@@ -454,7 +502,7 @@ class Transaction extends ModelWithPublicId<
 
     if (!isUndefined(transaction.amountInHostCurrency)) {
       // ensure this is always INT
-      transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
+      transaction.amountInHostCurrency = roundCentsAmount(transaction.amountInHostCurrency, transaction.hostCurrency);
     }
 
     const fromCollective = await Collective.findByPk(transaction.FromCollectiveId, {
@@ -475,7 +523,10 @@ class Transaction extends ModelWithPublicId<
         HostCollectiveId: null,
         amount: -transaction.netAmountInCollectiveCurrency,
         netAmountInCollectiveCurrency: -transaction.amount,
-        amountInHostCurrency: Math.round(-transaction.netAmountInCollectiveCurrency * transaction.hostCurrencyFxRate),
+        amountInHostCurrency: roundCentsAmount(
+          -transaction.netAmountInCollectiveCurrency * transaction.hostCurrencyFxRate,
+          transaction.hostCurrency,
+        ),
 
         hostFeeInHostCurrency: transaction.hostFeeInHostCurrency,
         platformFeeInHostCurrency: transaction.platformFeeInHostCurrency,
@@ -508,15 +559,23 @@ class Transaction extends ModelWithPublicId<
         HostCollectiveId,
         hostCurrency,
         hostCurrencyFxRate,
-        amount: -Math.round(transaction.netAmountInCollectiveCurrency),
-        netAmountInCollectiveCurrency: -Math.round(transaction.amount),
-        amountInHostCurrency: -Math.round(transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate),
-        hostFeeInHostCurrency: Math.round(transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate),
-        platformFeeInHostCurrency: Math.round(
-          transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
+        amount: -roundCentsAmount(transaction.netAmountInCollectiveCurrency, transaction.currency),
+        netAmountInCollectiveCurrency: -roundCentsAmount(transaction.amount, transaction.currency),
+        amountInHostCurrency: -roundCentsAmount(
+          transaction.netAmountInCollectiveCurrency * hostCurrencyFxRate,
+          transaction.hostCurrency,
         ),
-        paymentProcessorFeeInHostCurrency: Math.round(
+        hostFeeInHostCurrency: roundCentsAmount(
+          transaction.hostFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
+          transaction.hostCurrency,
+        ),
+        platformFeeInHostCurrency: roundCentsAmount(
+          transaction.platformFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
+          transaction.hostCurrency,
+        ),
+        paymentProcessorFeeInHostCurrency: roundCentsAmount(
           transaction.paymentProcessorFeeInHostCurrency * oppositeTransactionHostCurrencyFxRate,
+          transaction.hostCurrency,
         ),
         data: { ...omit(transaction.data, ['hostToPlatformFxRate']), oppositeTransactionHostCurrencyFxRate },
       };
@@ -538,7 +597,10 @@ class Transaction extends ModelWithPublicId<
         const collectiveHost = await collective.getHostCollective();
         if (collectiveHost.id !== fromCollectiveHost.id) {
           const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
-          const taxAmountInHostCurrency = Math.round((transaction.taxAmount || 0) * hostCurrencyFxRate);
+          const taxAmountInHostCurrency = roundCentsAmount(
+            (transaction.taxAmount || 0) * hostCurrencyFxRate,
+            transaction.hostCurrency,
+          );
           oppositeTransaction.hostFeeInHostCurrency = calcFee(
             oppositeTransaction.amountInHostCurrency +
               oppositeTransaction.paymentProcessorFeeInHostCurrency +
@@ -657,7 +719,7 @@ class Transaction extends ModelWithPublicId<
     // amountInHostCurrency of the CREDIT should be in platform currency
     const hostCurrency = PlatformConstants.PlatformCurrency;
     const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
-    const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
+    const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
 
     // we compute the Fx Rate between the original hostCurrency and the platform currency
     // it might be used later
@@ -717,11 +779,15 @@ class Transaction extends ModelWithPublicId<
 
     // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
     const platformTipInHostCurrency =
-      <number>transaction.data?.platformTipInHostCurrency || Math.round(platformTip * transaction.hostCurrencyFxRate);
+      <number>transaction.data?.platformTipInHostCurrency ||
+      roundCentsAmount(platformTip * transaction.hostCurrencyFxRate, transaction.hostCurrency);
 
     // Recalculate amount
-    transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency - platformTipInHostCurrency);
-    transaction.amount = Math.round(transaction.amount - platformTip);
+    transaction.amountInHostCurrency = roundCentsAmount(
+      transaction.amountInHostCurrency - platformTipInHostCurrency,
+      transaction.hostCurrency,
+    );
+    transaction.amount = roundCentsAmount(transaction.amount - platformTip, transaction.currency);
 
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     // This way of passing tips is deprecated but still used in some older tests
@@ -774,8 +840,8 @@ class Transaction extends ModelWithPublicId<
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
 
     // For the Collective/Fund, we calculate the matching amount using the hostCurrencyFxRate
-    const amount = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
     const currency = transaction.currency;
+    const amount = roundCentsAmount(amountInHostCurrency / transaction.hostCurrencyFxRate, currency);
 
     const hostFeeTransactionData = {
       type: CREDIT,
@@ -841,8 +907,8 @@ class Transaction extends ModelWithPublicId<
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate;
 
     // For the Collective/Fund, we calculate the matching amount using the hostCurrencyFxRate
-    const amount = Math.round(amountInHostCurrency / transaction.hostCurrencyFxRate);
     const currency = transaction.currency;
+    const amount = roundCentsAmount(amountInHostCurrency / transaction.hostCurrencyFxRate, currency);
 
     const paymentProcessorFeeTransactionData = {
       type: CREDIT,
@@ -1020,7 +1086,7 @@ class Transaction extends ModelWithPublicId<
     // This is a credit to Open Collective and needs to be inserted in USD
     const hostCurrency = PlatformConstants.PlatformCurrency;
     const hostCurrencyFxRate = await Transaction.getFxRate(currency, hostCurrency, transaction);
-    const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
+    const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
 
     const hostFeeShareTransactionData = {
       type: CREDIT,
@@ -1234,10 +1300,14 @@ class Transaction extends ModelWithPublicId<
     paymentProcessorFeeInHostCurrency,
     platformFeeInHostCurrency,
     taxAmount,
+    currency,
   }: Transaction | TransactionCreationAttributes): number {
     const transactionFees = platformFeeInHostCurrency + hostFeeInHostCurrency + paymentProcessorFeeInHostCurrency;
     const transactionTaxes = taxAmount || 0;
-    return Math.round((amountInHostCurrency + transactionFees) / (hostCurrencyFxRate || 1) + transactionTaxes);
+    return roundCentsAmount(
+      (amountInHostCurrency + transactionFees) / (hostCurrencyFxRate || 1) + transactionTaxes,
+      currency,
+    );
   }
 
   static calculateNetAmountInHostCurrency({
@@ -1247,10 +1317,14 @@ class Transaction extends ModelWithPublicId<
     paymentProcessorFeeInHostCurrency,
     platformFeeInHostCurrency,
     taxAmount,
+    hostCurrency,
   }: Transaction | TransactionCreationAttributes): number {
     const transactionFees = platformFeeInHostCurrency + hostFeeInHostCurrency + paymentProcessorFeeInHostCurrency;
     const transactionTaxes = taxAmount || 0;
-    return amountInHostCurrency + transactionFees + Math.round(transactionTaxes * (hostCurrencyFxRate || 1));
+    return roundCentsAmount(
+      amountInHostCurrency + transactionFees + transactionTaxes * (hostCurrencyFxRate || 1),
+      hostCurrency,
+    );
   }
 
   static async getFxRate(
@@ -1331,7 +1405,7 @@ class Transaction extends ModelWithPublicId<
     if (transaction.taxAmount) {
       const previousCurrency = transaction.currency;
       const fxRate = await Transaction.getFxRate(previousCurrency, currency, transaction);
-      transaction.taxAmount = Math.round(transaction.taxAmount * fxRate);
+      transaction.taxAmount = roundCentsAmount(transaction.taxAmount * fxRate, currency);
     }
 
     transaction.currency = currency;
@@ -1343,7 +1417,7 @@ class Transaction extends ModelWithPublicId<
 
     // REMINDER: amount * hostCurrencyFxRate = amountInHostCurrency
     // so: amount = amountInHostCurrency / hostCurrencyFxRate
-    transaction.amount = Math.round(transaction.amountInHostCurrency / transaction.hostCurrencyFxRate);
+    transaction.amount = roundCentsAmount(transaction.amountInHostCurrency / transaction.hostCurrencyFxRate, currency);
     transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
     return transaction;
@@ -1360,7 +1434,7 @@ class Transaction extends ModelWithPublicId<
    */
   static async validate(
     transaction: Transaction,
-    { validateOppositeTransaction = true, oppositeTransaction = null } = {},
+    { validateOppositeTransaction = true, oppositeTransaction = null, sqlTransaction = undefined } = {},
   ) {
     // Skip as there is a known bug there
     // https://github.com/opencollective/opencollective/issues/3935
@@ -1387,7 +1461,7 @@ class Transaction extends ModelWithPublicId<
     const hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
     Transaction.assertAmountsLooselyEqual(
-      Math.round(transaction.amountInHostCurrency / hostCurrencyFxRate),
+      roundCentsAmount(transaction.amountInHostCurrency / hostCurrencyFxRate, transaction.currency),
       transaction.amount,
       'amountInHostCurrency should match amount',
     );
@@ -1400,9 +1474,15 @@ class Transaction extends ModelWithPublicId<
     );
 
     if (transaction.currency === transaction.hostCurrency) {
-      assert(transaction.hostCurrencyFxRate === 1, 'hostCurrencyFxRate should be 1');
-    } else {
-      assert(transaction.hostCurrencyFxRate !== 1, 'hostCurrencyFxRate should not be 1');
+      assert(
+        transaction.hostCurrencyFxRate === 1,
+        `hostCurrencyFxRate should be 1, got ${transaction.hostCurrencyFxRate}`,
+      );
+    } else if (transaction.hostCurrencyFxRate === 1) {
+      // Through rare two currencies can still have the same value
+      logger.warn(
+        `hostCurrencyFxRate is 1 for transaction ${transaction.id} (${transaction.currency}/${transaction.hostCurrency})`,
+      );
     }
 
     if (!validateOppositeTransaction) {
@@ -1414,7 +1494,7 @@ class Transaction extends ModelWithPublicId<
       return;
     }
 
-    oppositeTransaction = oppositeTransaction || (await transaction.getOppositeTransaction());
+    oppositeTransaction = oppositeTransaction || (await transaction.getOppositeTransaction(null, { sqlTransaction }));
     assert(oppositeTransaction, 'oppositeTransaction should be existing');
 
     // Ideally, but we should not enforce it at this point
@@ -1450,19 +1530,28 @@ class Transaction extends ModelWithPublicId<
 
     Transaction.assertAmountsStrictlyEqual(
       oppositeTransaction.platformFeeInHostCurrency || 0,
-      Math.round((transaction.platformFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate),
+      roundCentsAmount(
+        (transaction.platformFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
+        transaction.hostCurrency,
+      ),
       'platformFeeInHostCurrency in oppositeTransaction should match',
     );
 
     Transaction.assertAmountsStrictlyEqual(
       oppositeTransaction.hostFeeInHostCurrency || 0,
-      Math.round((transaction.hostFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate),
+      roundCentsAmount(
+        (transaction.hostFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
+        transaction.hostCurrency,
+      ),
       'hostFeeInHostCurrency in oppositeTransaction should match',
     );
 
     Transaction.assertAmountsStrictlyEqual(
       oppositeTransaction.paymentProcessorFeeInHostCurrency || 0,
-      Math.round((transaction.paymentProcessorFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate),
+      roundCentsAmount(
+        (transaction.paymentProcessorFeeInHostCurrency || 0) * oppositeTransactionHostCurrencyFxRate,
+        transaction.hostCurrency,
+      ),
       'paymentProcessorFeeInHostCurrency in oppositeTransaction should match',
     );
 
@@ -1856,6 +1945,7 @@ Transaction.prototype.hasPlatformTip = function (): boolean {
 
 Transaction.prototype.getRelatedTransaction = function (
   options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<Transaction | null> {
   return Transaction.findOne({
     where: {
@@ -1864,13 +1954,16 @@ Transaction.prototype.getRelatedTransaction = function (
       kind: options.kind || this.kind,
       isDebt: options.isDebt || { [Op.not]: true },
     },
+    transaction: sqlTransaction,
   });
 };
 
 Transaction.prototype.getRelatedTransactions = function (
   options: Pick<Transaction, 'type' | 'kind' | 'isDebt'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<Transaction[] | null> {
   return Transaction.findAll({
+    transaction: sqlTransaction,
     where: {
       TransactionGroup: this.TransactionGroup,
       type: options.type || this.type,
@@ -1880,36 +1973,70 @@ Transaction.prototype.getRelatedTransactions = function (
   });
 };
 
-Transaction.prototype.getPaymentProcessorFeeTransaction = function () {
-  return this.getRelatedTransaction({ kind: TransactionKind.PAYMENT_PROCESSOR_FEE });
+Transaction.prototype.getPaymentProcessorFeeTransaction = function (
+  options?: Pick<Transaction, 'type'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction({ ...options, kind: TransactionKind.PAYMENT_PROCESSOR_FEE }, { sqlTransaction });
 };
 
-Transaction.prototype.getTaxTransaction = function () {
-  return this.getRelatedTransaction({ kind: TransactionKind.TAX });
+Transaction.prototype.getTaxTransaction = function (
+  options?: Pick<Transaction, 'type'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction({ ...options, kind: TransactionKind.TAX }, { sqlTransaction });
 };
 
-Transaction.prototype.getPlatformTipTransaction = function (options?: Pick<Transaction, 'type'>) {
-  return this.getRelatedTransaction({ ...options, kind: TransactionKind.PLATFORM_TIP });
+Transaction.prototype.getPlatformTipTransaction = function (
+  options?: Pick<Transaction, 'type'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction({ ...options, kind: TransactionKind.PLATFORM_TIP }, { sqlTransaction });
 };
 
-Transaction.prototype.getPlatformTipDebtTransaction = function () {
-  return this.getRelatedTransaction({ kind: TransactionKind.PLATFORM_TIP_DEBT, isDebt: true });
+Transaction.prototype.getPlatformTipDebtTransaction = function (
+  options?: Pick<Transaction, 'type'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction(
+    { ...options, kind: TransactionKind.PLATFORM_TIP_DEBT, isDebt: true },
+    { sqlTransaction },
+  );
 };
 
-Transaction.prototype.getHostFeeTransaction = function (options?: Pick<Transaction, 'type'>) {
-  return this.getRelatedTransaction({ ...options, kind: TransactionKind.HOST_FEE });
+Transaction.prototype.getHostFeeTransaction = function (
+  options?: Pick<Transaction, 'type'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction({ ...options, kind: TransactionKind.HOST_FEE }, { sqlTransaction });
 };
 
-Transaction.prototype.getHostFeeShareTransaction = function () {
-  return this.getRelatedTransaction({ kind: TransactionKind.HOST_FEE_SHARE });
+Transaction.prototype.getHostFeeShareTransaction = function (
+  options?: Pick<Transaction, 'type'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction({ ...options, kind: TransactionKind.HOST_FEE_SHARE }, { sqlTransaction });
 };
 
-Transaction.prototype.getHostFeeShareDebtTransaction = function () {
-  return this.getRelatedTransaction({ kind: TransactionKind.HOST_FEE_SHARE_DEBT, isDebt: true });
+Transaction.prototype.getHostFeeShareDebtTransaction = function (
+  options?: Pick<Transaction, 'type'>,
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction(
+    { ...options, kind: TransactionKind.HOST_FEE_SHARE_DEBT, isDebt: true },
+    { sqlTransaction },
+  );
 };
 
-Transaction.prototype.getOppositeTransaction = async function () {
-  return this.getRelatedTransaction({ type: this.type === CREDIT ? DEBIT : CREDIT, isDebt: this.isDebt });
+Transaction.prototype.getOppositeTransaction = async function (
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _optionsPlaceholder = null, // To keep a similar signature to the other getRelatedTransaction methods
+  { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+) {
+  return this.getRelatedTransaction(
+    { type: this.type === CREDIT ? DEBIT : CREDIT, isDebt: this.isDebt },
+    { sqlTransaction },
+  );
 };
 
 Transaction.prototype.setCurrency = async function (currency) {

@@ -4,6 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil } from 'lodash';
 
 import { SupportedCurrency } from '../../../../constants/currencies';
+import { roundCentsAmount } from '../../../../lib/currency';
 import { Op, sequelize } from '../../../../models';
 import Transaction from '../../../../models/Transaction';
 import { GraphQLTransactionGroupCollection } from '../../collection/TransactionGroupCollection';
@@ -122,7 +123,7 @@ export const TransactionGroupCollectionResolver = async (args, req: express.Requ
         toCurrency: account.currency,
         date: group.minCreatedAt.toISOString(),
       });
-      const amountInAccountCurrency = Math.round(group.sumAmount * fxRate);
+      const amountInAccountCurrency = roundCentsAmount(group.sumAmount * fxRate, account.currency);
 
       return {
         id: group.TransactionGroup,

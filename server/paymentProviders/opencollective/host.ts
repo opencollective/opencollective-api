@@ -1,7 +1,7 @@
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
+import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
@@ -60,14 +60,16 @@ const paymentMethodProvider: BasePaymentProviderService = {
     const currency = order.currency;
     const hostCurrency = host.currency;
     const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
-    const amountInHostCurrency = amount * hostCurrencyFxRate;
+    const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
 
     const hostFee = await getHostFee(order);
-    const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+    const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
     const paymentProcessorFee = order.data?.paymentProcessorFee || 0;
     const paymentProcessorFeeInHostCurrency =
-      order.data?.paymentProcessorFeeInHostCurrency || Math.round(paymentProcessorFee * hostCurrencyFxRate) || 0;
+      order.data?.paymentProcessorFeeInHostCurrency ||
+      roundCentsAmount(paymentProcessorFee * hostCurrencyFxRate, hostCurrency) ||
+      0;
 
     const transactionPayload = {
       CreatedByUserId: order.CreatedByUserId,

@@ -39,7 +39,7 @@ import {
   generateValid2FAHeader,
   graphqlQueryV2,
   resetTestDB,
-  stubStripeBalance,
+  stubStripeBalanceSyncWithPaymentIntent,
   stubStripeCreate,
   waitForCondition,
 } from '../../../../utils';
@@ -345,23 +345,7 @@ const stubStripePayments = sandbox => {
     id: stripePaymentMethodId,
     customer: 'cus_test',
   });
-  sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pi_test', status: 'requires_confirmation' });
-  sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
-    id: stripePaymentMethodId,
-    status: 'succeeded',
-    charges: {
-      // eslint-disable-next-line camelcase
-      data: [{ id: 'ch_id', balance_transaction: 'txn_id' }],
-    },
-  });
-
-  sandbox.stub(stripe.balanceTransactions, 'retrieve').resolves({
-    amount: 1100,
-    currency: 'usd',
-    fee: 0,
-    // eslint-disable-next-line camelcase
-    fee_details: [],
-  });
+  stubStripeBalanceSyncWithPaymentIntent(sandbox, { defaultStripeAmount: 5000, defaultCurrency: 'usd' });
 };
 
 describe('server/graphql/v2/mutation/OrderMutations', () => {
@@ -1405,7 +1389,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.js` + `test/server/graphql/v1/createOrder.test.js`
     describe('Collective to Collective Transactions', () => {
-      const ORDER_TOTAL_AMOUNT = 1000;
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,
         user1,
@@ -1484,11 +1467,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         sandbox = createSandbox();
         // And given that the endpoint for creating customers on Stripe
         // is patched
-        stubStripeCreate(sandbox, { charge: { currency: 'usd', status: 'succeeded' } });
-        // And given the stripe stuff that depends on values in the
-        // order struct is patch. It's here and not on each test because
-        // the `totalAmount' field doesn't change throught the tests.
-        stubStripeBalance(sandbox, ORDER_TOTAL_AMOUNT, 'usd', 0, STRIPE_FEE_STUBBED_VALUE); // This is the payment processor fee.
+        stubStripeCreate(sandbox, { charge: { currency: 'usd', status: 'succeeded' } }, { skipPaymentIntents: true });
+        // Balance tx must match PaymentIntent amount (createChargeTransactions uses balanceTransaction.amount).
+        stubStripeBalanceSyncWithPaymentIntent(sandbox, { stripeFee: STRIPE_FEE_STUBBED_VALUE });
       });
 
       afterEach(() => sandbox.restore());

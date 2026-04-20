@@ -122,18 +122,16 @@ describe('server/lib/currency', () => {
     });
 
     it('converts EUR to USD', () =>
-      CurrencyLib.convertToCurrency(1, 'EUR', 'USD', new Date(startDate)).then(amount =>
-        expect(amount).to.equal(1.079),
+      CurrencyLib.convertToCurrency(100, 'EUR', 'USD', new Date(startDate)).then(amount =>
+        expect(amount).to.equal(108),
       ));
 
     it('converts EUR to USD for another date', () =>
-      CurrencyLib.convertToCurrency(1, 'EUR', 'USD', new Date(endDate)).then(amount =>
-        expect(amount).to.equal(1.0533),
-      ));
+      CurrencyLib.convertToCurrency(100, 'EUR', 'USD', new Date(endDate)).then(amount => expect(amount).to.equal(105)));
 
     it('converts INR to USD', () =>
-      CurrencyLib.convertToCurrency(1, 'INR', 'USD', new Date(endDate)).then(amount =>
-        expect(amount).to.equal(0.014962),
+      CurrencyLib.convertToCurrency(1, 'INR', 'USD', new Date(endDate)).then(
+        amount => expect(amount).to.equal(1), // Would be 0.014962, but currency should never be 0
       ));
   });
 

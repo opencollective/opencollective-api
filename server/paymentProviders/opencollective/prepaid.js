@@ -1,7 +1,7 @@
 import { get } from 'lodash';
 
 import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
+import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import {
   createRefundTransaction,
   getHostFee,
@@ -55,7 +55,7 @@ async function getBalance(paymentMethod) {
     }
   }
   return {
-    amount: Math.round(paymentMethod.initialBalance + spent),
+    amount: roundCentsAmount(paymentMethod.initialBalance + spent, paymentMethod.currency),
     currency: paymentMethod.currency,
   };
 }
@@ -97,14 +97,14 @@ async function processOrder(order) {
   const currency = order.currency;
   const hostCurrency = host.currency;
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
-  const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
+  const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
 
   const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
-  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);
 
   const hostFee = await getHostFee(order);
-  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+  const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   // Use the above payment method to donate to Collective
   const transaction = await models.Transaction.createFromContributionPayload({

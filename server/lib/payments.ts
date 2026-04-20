@@ -359,7 +359,7 @@ export const buildRefundForTransaction = (
     refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(t);
   } else {
     refund.amountInHostCurrency = toNegative(refundedAmountInHostCurrency);
-    refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+    refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
     refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(refund);
   }
 
@@ -374,12 +374,12 @@ export const buildRefundForTransaction = (
         // Otherwise, payment processor fees are deducted from the refunded amount which means
         // the collective will receive the original expense amount minus payment processor fees
         refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-        refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+        refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
         refund.paymentProcessorFeeInHostCurrency = 0;
       }
     } else if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
       refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-      refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+      refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
       refund.paymentProcessorFeeInHostCurrency = 0;
     } else {
       throw new Error(`Refund not supported for feesPayer = '${feesPayer}'`);
@@ -438,7 +438,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     return;
   }
 
-  const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+  const amount = roundCentsAmount(amountInHostCurrency / hostCurrencyFxRate, transactionCurrency);
   await Transaction.createDoubleEntry({
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_COVER,

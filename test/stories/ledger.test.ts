@@ -17,6 +17,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/consta
 import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
+import { roundCentsAmount } from '../../server/lib/currency';
 import { createRefundTransaction, executeOrder, findPaymentMethodProvider } from '../../server/lib/payments';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -567,12 +568,18 @@ describe('test/stories/ledger', () => {
       const platformTipInCollectiveCurrency = 10000000;
       const platformTipInHostCurrency = platformTipInCollectiveCurrency * collectiveToHostFxRate;
       const processorFeeInHostCurrency = 200;
-      const processorFeeInCollectiveCurrency = Math.round(processorFeeInHostCurrency * hostToCollectiveFxRate);
+      const processorFeeInCollectiveCurrency = roundCentsAmount(
+        processorFeeInHostCurrency * hostToCollectiveFxRate,
+        collective.currency,
+      );
       const orderAmountInCollectiveCurrency = 100000000;
       const orderAmountInHostCurrency = orderAmountInCollectiveCurrency * collectiveToHostFxRate;
       const orderNetAmountInHostCurrency = orderAmountInHostCurrency - platformTipInHostCurrency;
       const expectedHostFeeInHostCurrency = Math.round(orderNetAmountInHostCurrency * 0.05);
-      const expectedHostFeeInCollectiveCurrency = Math.round(expectedHostFeeInHostCurrency * hostToCollectiveFxRate);
+      const expectedHostFeeInCollectiveCurrency = roundCentsAmount(
+        expectedHostFeeInHostCurrency * hostToCollectiveFxRate,
+        collective.currency,
+      );
       const expectedHostFeeShareInHostCurrency = Math.round(expectedHostFeeInHostCurrency * 0.15);
       const expectedHostProfitInHostCurrency = expectedHostFeeInHostCurrency - expectedHostFeeShareInHostCurrency;
       const expectedPlatformProfitInHostCurrency = expectedHostFeeShareInHostCurrency + platformTipInHostCurrency;
@@ -620,20 +627,25 @@ describe('test/stories/ledger', () => {
         );
 
         expect(await collective.getBalance({ useMaterializedView })).to.eq(
-          Math.round(
+          roundCentsAmount(
             (orderNetAmountInHostCurrency - processorFeeInHostCurrency - expectedHostFeeInHostCurrency) *
               RATES[host.currency][collective.currency],
+            collective.currency,
           ),
         );
 
         expect(await collective.getTotalAmountReceived({ useMaterializedView })).to.eq(
-          Math.round(orderNetAmountInHostCurrency * RATES[host.currency][collective.currency]),
+          roundCentsAmount(
+            orderNetAmountInHostCurrency * RATES[host.currency][collective.currency],
+            collective.currency,
+          ),
         );
 
         expect(await collective.getTotalAmountReceived({ useMaterializedView, net: true })).to.eq(
-          Math.round(
+          roundCentsAmount(
             (orderNetAmountInHostCurrency - processorFeeInHostCurrency - expectedHostFeeInHostCurrency) *
               RATES[host.currency][collective.currency],
+            collective.currency,
           ),
         );
       }

@@ -3,6 +3,7 @@ import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.confi
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
 
+import noMathRoundAmountNames from './eslint-rules/no-math-round-amount-names.js';
 import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
 import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
 
@@ -27,6 +28,14 @@ export default [
 
     processor: graphqlPlugin.processor,
 
+    plugins: {
+      'opencollective-currency': {
+        rules: {
+          'no-math-round-amount-names': noMathRoundAmountNames,
+        },
+      },
+    },
+
     settings: {
       'import/resolver': {
         // You will also need to install and configure the TypeScript resolver
@@ -43,6 +52,7 @@ export default [
     },
 
     rules: {
+      'opencollective-currency/no-math-round-amount-names': 'warn',
       'no-console': 'error',
       'import/no-commonjs': 'error',
       'import/no-named-as-default-member': 'off',
@@ -171,6 +181,7 @@ export default [
       '@typescript-eslint/no-unused-expressions': 'off', // Doesn't play well with chai
       'mocha/no-exclusive-tests': 'error',
       'no-console': 'off',
+      'opencollective-currency/no-math-round-amount-names': 'off',
     },
   },
   // Mocks
