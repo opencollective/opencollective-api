@@ -3104,7 +3104,7 @@ export async function editExpense(
     ) {
       payoutMethod =
         fromCollective.type === CollectiveType.VENDOR
-          ? await fromCollective.getPayoutMethods().then(first)
+          ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
           : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
 
       if (
