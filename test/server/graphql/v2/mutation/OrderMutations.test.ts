@@ -33,6 +33,7 @@ import {
   fakePaymentMethod,
   fakeTier,
   fakeUser,
+  fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import {
@@ -2331,6 +2332,25 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       // Verify the order was NOT updated
       await order.reload();
       expect(order.FromCollectiveId).to.not.equal(foreignAccount.id);
+    });
+
+    it('should allow editing a pending order where fromAccount is a vendor belonging to the host', async () => {
+      const vendor = await fakeVendor({ ParentCollectiveId: host.id, currency: 'USD' });
+
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            fromAccount: { legacyId: vendor.id },
+          },
+        },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await order.reload();
+      expect(order.FromCollectiveId).to.equal(vendor.id);
     });
   });
 

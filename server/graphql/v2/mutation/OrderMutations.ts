@@ -1174,6 +1174,7 @@ const orderMutations = {
       } else if (
         fromAccount.HostCollectiveId !== host.id &&
         !req.remoteUser.isRoot() &&
+        !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
         !host.data?.allowAddFundsFromAllAccounts &&
         !host.data?.isTrustedHost
       ) {
@@ -1354,6 +1355,7 @@ const orderMutations = {
       if (
         fromAccount &&
         fromAccount.HostCollectiveId !== host.id &&
+        !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
         !req.remoteUser.isRoot() &&
         !host.data?.allowAddFundsFromAllAccounts &&
         !host.data?.isTrustedHost
