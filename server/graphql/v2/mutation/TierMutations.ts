@@ -104,7 +104,6 @@ const tierMutations = {
       await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
       // Validate tier type restriction when changing type
-      const host = await req.loaders.Collective.host.load(collective);
       if (args.tier.type && !Tier.getAllowedTierTypes(collective, host).includes(args.tier.type)) {
         throw new ValidationFailed(
           'This tier type is not allowed by your fiscal host. Reach out to them for more information.',
@@ -146,7 +145,6 @@ const tierMutations = {
       await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
       // Validate tier type restriction
-      const host = await req.loaders.Collective.host.load(account);
       if (args.tier.type && !Tier.getAllowedTierTypes(account, host).includes(args.tier.type)) {
         throw new ValidationFailed(
           'This tier type is not allowed by your fiscal host. Reach out to them for more information.',
