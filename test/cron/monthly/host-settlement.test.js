@@ -19,6 +19,7 @@ import {
   fakeOrder,
   fakePaymentMethod,
   fakePayoutMethod,
+  fakePlatformSubscription,
   fakeTransaction,
   fakeUser,
   fakeUUID,
@@ -33,10 +34,16 @@ describe('cron/monthly/host-settlement', () => {
   let gbpHost,
     eurHost,
     newHost,
+    migratedHost,
+    smallMigratedHost,
+    smallMigratedHostDebtTransactions,
+    anomalyHost,
+    anomalyHostDebtTransactions,
     eurCollective,
     gphHostSettlementExpense,
     eurHostSettlementExpense,
     newHostSettlementExpense,
+    migratedHostSettlementExpense,
     ocStripePayoutMethod;
 
   before(async () => {
@@ -304,6 +311,108 @@ describe('cron/monthly/host-settlement', () => {
     await newOrder.markAsPaid(newHostAdmin);
     clock.restore();
 
+    // ---- Migrated Host (switched to new platform subscription billing this month) ----
+    const migratedHostAdmin = await fakeUser();
+    migratedHost = await fakeHost({
+      name: 'migrated-host',
+      currency: 'USD',
+      plan: 'grow-plan-2021',
+      hostFeePercent: 10,
+      data: { plan: { hostFeeSharePercent: 50 } },
+      // Migration date falls within the billing period being settled.
+      settings: { automaticBillingMigration: lastMonth.toDate() },
+      admin: migratedHostAdmin,
+    });
+    await fakeConnectedAccount({ CollectiveId: migratedHost.id, service: 'transferwise' });
+    await fakePlatformSubscription({ CollectiveId: migratedHost.id, plan: { pricing: { platformTips: true } } });
+
+    const migratedCollective = await fakeCollective({ HostCollectiveId: migratedHost.id, currency: 'USD' });
+    clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+    const migratedOrder = await fakeOrder({
+      description: 'Contribution on migrated host',
+      CollectiveId: migratedCollective.id,
+      currency: 'USD',
+      status: 'PENDING',
+      platformTipAmount: 300e2,
+      totalAmount: 1300e2,
+    });
+    await migratedOrder.markAsPaid(migratedHostAdmin);
+    clock.restore();
+
+    // ---- Migrated Host below the MIN_AMOUNT_USD settlement threshold ----
+    // Host fee share is too small to warrant an expense, but we still want to
+    // mark its HOST_FEE_SHARE_DEBT settlements as SETTLED so they are not
+    // carried over into the new platform subscription billing.
+    smallMigratedHost = await fakeHost({
+      name: 'small-migrated-host',
+      currency: 'USD',
+      settings: { automaticBillingMigration: lastMonth.toDate() },
+    });
+    await fakePlatformSubscription({ CollectiveId: smallMigratedHost.id });
+    const smallMigratedCollective = await fakeCollective({
+      HostCollectiveId: smallMigratedHost.id,
+      currency: 'USD',
+    });
+    const smallContribution = await fakeTransaction({
+      type: 'CREDIT',
+      kind: TransactionKind.CONTRIBUTION,
+      CollectiveId: smallMigratedCollective.id,
+      HostCollectiveId: smallMigratedHost.id,
+      currency: 'USD',
+      hostCurrency: 'USD',
+      amount: 100,
+      hostFeeInHostCurrency: -10,
+      createdAt: lastMonth,
+      data: { hostFeeSharePercent: 15 },
+      TransactionGroup: fakeUUID('00000020'),
+    });
+    const { transaction: smallWithHostFee, hostFeeTransaction: smallHostFee } =
+      await models.Transaction.createHostFeeTransactions(smallContribution);
+    await models.Transaction.createHostFeeShareTransactions({
+      transaction: smallWithHostFee,
+      hostFeeTransaction: smallHostFee,
+    });
+    smallMigratedHostDebtTransactions = await models.Transaction.findAll({
+      where: { HostCollectiveId: smallMigratedHost.id, isDebt: true, kind: TransactionKind.HOST_FEE_SHARE_DEBT },
+    });
+
+    // ---- Anomaly host: HOST_FEE_SHARE_DEBT transactions created while the
+    //      new platform subscription billing was already in place.
+    anomalyHost = await fakeHost({
+      name: 'anomaly-host',
+      currency: 'USD',
+    });
+    // Subscription started two months ago, so it covers `lastMonth` entirely.
+    await fakePlatformSubscription({
+      CollectiveId: anomalyHost.id,
+      period: [{ value: twoMonthsAgo.toDate(), inclusive: true }, null],
+    });
+    const anomalyCollective = await fakeCollective({ HostCollectiveId: anomalyHost.id, currency: 'USD' });
+    const anomalyContribution = await fakeTransaction({
+      type: 'CREDIT',
+      kind: TransactionKind.CONTRIBUTION,
+      CollectiveId: anomalyCollective.id,
+      HostCollectiveId: anomalyHost.id,
+      currency: 'USD',
+      hostCurrency: 'USD',
+      amount: 100000,
+      hostFeeInHostCurrency: -10000,
+      // Transactions happen during the new billing period — they should not be
+      // charged via Platform Share.
+      createdAt: lastMonth.clone().add(1, 'day').toDate(),
+      data: { hostFeeSharePercent: 20 },
+      TransactionGroup: fakeUUID('00000030'),
+    });
+    const { transaction: anomalyWithHostFee, hostFeeTransaction: anomalyHostFee } =
+      await models.Transaction.createHostFeeTransactions(anomalyContribution);
+    await models.Transaction.createHostFeeShareTransactions({
+      transaction: anomalyWithHostFee,
+      hostFeeTransaction: anomalyHostFee,
+    });
+    anomalyHostDebtTransactions = await models.Transaction.findAll({
+      where: { HostCollectiveId: anomalyHost.id, isDebt: true, kind: TransactionKind.HOST_FEE_SHARE_DEBT },
+    });
+
     // ---- Trigger settlement ----
     await invoicePlatformFees();
 
@@ -317,6 +426,10 @@ describe('cron/monthly/host-settlement', () => {
     newHostSettlementExpense = (await newHost.getExpenses())[0];
     expect(newHostSettlementExpense).to.exist;
     newHostSettlementExpense.items = await newHostSettlementExpense.getItems();
+
+    migratedHostSettlementExpense = (await migratedHost.getExpenses())[0];
+    expect(migratedHostSettlementExpense).to.exist;
+    migratedHostSettlementExpense.items = await migratedHostSettlementExpense.getItems();
   });
 
   // Resync DB to make sure we're not touching other tests
@@ -447,5 +560,95 @@ describe('cron/monthly/host-settlement', () => {
 
     const summary = getTaxesSummary(eurHostTransactions);
     expect(summary.VAT.collected).to.eq(420e2); // 2 contributions x 21% of 1000€
+  });
+
+  describe('last Platform Share settlement comment for migrated hosts', () => {
+    it('adds a comment on the Platform Share expense of a host migrated this month', async () => {
+      const comments = await models.Comment.findAll({
+        where: { ExpenseId: migratedHostSettlementExpense.id },
+      });
+      expect(comments).to.have.length(1);
+      const [comment] = comments;
+      expect(comment.FromCollectiveId).to.equal(PlatformConstants.PlatformCollectiveId);
+      expect(comment.CreatedByUserId).to.equal(PlatformConstants.PlatformUserId);
+      expect(comment.CollectiveId).to.equal(migratedHost.id);
+      expect(comment.html).to.include('last Platform Share settlement');
+      expect(comment.html).to.include('Platform Tips settlements will continue to be billed as usual.');
+    });
+
+    it('links to the new platform subscription dashboard in the comment', async () => {
+      const comment = await models.Comment.findOne({
+        where: { ExpenseId: migratedHostSettlementExpense.id },
+      });
+      expect(comment.html).to.include(`/dashboard/${migratedHost.slug}/platform-subscription`);
+    });
+
+    it('does not add the comment on expenses for hosts that were not migrated this month', async () => {
+      for (const expense of [gphHostSettlementExpense, eurHostSettlementExpense, newHostSettlementExpense]) {
+        const count = await models.Comment.count({ where: { ExpenseId: expense.id } });
+        expect(count, `Expense #${expense.id} should not have a comment`).to.equal(0);
+      }
+    });
+  });
+
+  describe('settle carried-over HOST_FEE_SHARE_DEBT for migrated hosts below the amount threshold', () => {
+    it('does not create a settlement expense when the total is below the threshold', async () => {
+      const expenses = await smallMigratedHost.getExpenses();
+      expect(expenses).to.have.length(0);
+    });
+
+    it('marks HOST_FEE_SHARE_DEBT settlements as SETTLED for migrated hosts below the threshold', async () => {
+      expect(smallMigratedHostDebtTransactions).to.have.length.greaterThan(0);
+      const settlements = await models.TransactionSettlement.findAll({
+        where: {
+          TransactionGroup: smallMigratedHostDebtTransactions.map(t => t.TransactionGroup),
+          kind: TransactionKind.HOST_FEE_SHARE_DEBT,
+        },
+      });
+      expect(settlements).to.have.length(smallMigratedHostDebtTransactions.length);
+      for (const settlement of settlements) {
+        expect(settlement.status).to.equal('SETTLED');
+      }
+    });
+  });
+
+  describe('never charges Platform Share for transactions during the new billing period', () => {
+    it('does not create a settlement expense when HOST_FEE_SHARE_DEBT overlaps with the platform subscription', async () => {
+      const expenses = await anomalyHost.getExpenses();
+      expect(expenses).to.have.length(0);
+    });
+
+    it('leaves HOST_FEE_SHARE_DEBT settlements as OWED so they can be investigated manually', async () => {
+      expect(anomalyHostDebtTransactions).to.have.length.greaterThan(0);
+      const settlements = await models.TransactionSettlement.findAll({
+        where: {
+          TransactionGroup: anomalyHostDebtTransactions.map(t => t.TransactionGroup),
+          kind: TransactionKind.HOST_FEE_SHARE_DEBT,
+        },
+      });
+      expect(settlements).to.have.length(anomalyHostDebtTransactions.length);
+      for (const settlement of settlements) {
+        expect(settlement.status).to.equal('OWED');
+      }
+    });
+
+    it('logs a loud warning pointing at the offending transactions', async () => {
+      // Re-run with a stubbed console.warn so we can assert on the log output.
+      const warnStub = sinon.stub(console, 'warn');
+      try {
+        await invoicePlatformFees();
+      } finally {
+        warnStub.restore();
+      }
+      const warnings = warnStub.getCalls().map(call => call.args.join(' '));
+      const anomalyWarning = warnings.find(
+        msg => msg.includes(anomalyHost.name) && msg.includes('HOST_FEE_SHARE_DEBT'),
+      );
+      expect(anomalyWarning, `expected a warning mentioning ${anomalyHost.name}`).to.exist;
+      expect(anomalyWarning).to.include('platform subscription');
+      for (const t of anomalyHostDebtTransactions) {
+        expect(anomalyWarning).to.include(`#${t.id}`);
+      }
+    });
   });
 });
