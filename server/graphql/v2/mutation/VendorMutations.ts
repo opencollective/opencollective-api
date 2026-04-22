@@ -222,10 +222,10 @@ const vendorMutations = {
 
       if (args.vendor.payoutMethod) {
         let payoutMethod;
-        const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
         // If the payout method doesn't have an id, we consider it as a new payout method and we archive the previous one(s)
         if (!args.vendor.payoutMethod.id) {
           payoutMethod = await sequelize.transaction(async transaction => {
+            const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
             if (!isEmpty(existingPayoutMethods)) {
               await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false }, { transaction })));
             }
@@ -254,6 +254,7 @@ const vendorMutations = {
             new Unauthorized('Payout method does not belong to this vendor'),
           );
           await sequelize.transaction(async transaction => {
+            const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
             await Promise.all(
               existingPayoutMethods
                 .filter(pm => pm.id !== payoutMethod.id)
