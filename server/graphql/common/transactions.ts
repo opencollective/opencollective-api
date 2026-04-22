@@ -4,20 +4,22 @@ import type Express from 'express';
 import { isNull } from 'lodash';
 import moment from 'moment';
 
-import { roles } from '../../constants';
+import { activities, roles } from '../../constants';
 import orderStatus from '../../constants/order-status';
 import POLICIES from '../../constants/policies';
 import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { purgeCacheForCollective } from '../../lib/cache';
 import { refundTransaction as refundTransactionPayment } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
+import models, { sequelize } from '../../models';
 import Transaction from '../../models/Transaction';
-import { Forbidden, NotFound } from '../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../errors';
 
 import { isHostAdmin } from './expenses';
+import { canHostCancelOrder, canHostRemoveContributorFromOrder, sanitizeMessageForContributor } from './orders';
 
 const getPayee = async (req, transaction) => {
   if (
@@ -298,4 +300,214 @@ export async function refundTransaction(
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.
   return result;
+}
+
+type RefundTransactionAsHostArgs = {
+  ignoreBalanceCheck?: boolean;
+  cancelRecurringContribution?: boolean;
+  removeAsContributor?: boolean;
+  messageForContributor?: string | null;
+};
+
+export async function refundTransactionAsHost(
+  passedTransaction: Transaction,
+  req: Express.Request,
+  args: RefundTransactionAsHostArgs = {},
+) {
+  const transaction = await models.Transaction.findByPk(passedTransaction.id, {
+    include: [
+      models.PaymentMethod,
+      { association: 'collective', required: false, paranoid: false },
+      { association: 'fromCollective', required: false, paranoid: false },
+    ],
+  });
+
+  if (!transaction) {
+    throw new NotFound('Transaction not found');
+  }
+
+  // Even though the mutation only routes host admins here, re-check at the
+  // function boundary so the host post-actions (CONTRIBUTION_REFUNDED activity,
+  // optional cancel/remove) can never run for a non-host caller that reaches
+  // this function from somewhere else.
+  if (!req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+    throw new Forbidden('Only host admins can use these options on refundTransaction');
+  }
+
+  // `canRefund` covers: CREDIT, OrderId !== null, not already refunded/disputed,
+  // refundable kind, parent order not REFUNDED, and that the user has permission.
+  // The inner `refundTransaction` call below also runs `canRefund`, but checking
+  // here lets us fail fast with a clear error before loading the order.
+  if (!(await canRefund(transaction, undefined, req))) {
+    throw new Forbidden('Cannot refund this transaction');
+  }
+
+  const order = await models.Order.findByPk(transaction.OrderId, {
+    include: [
+      { model: models.Subscription },
+      { model: models.Collective, as: 'collective', paranoid: false },
+      { model: models.Collective, as: 'fromCollective', paranoid: false },
+    ],
+  });
+
+  if (!order) {
+    // Defensive: canRefund guarantees a non-null OrderId, but the row could
+    // theoretically have been hard-deleted between the two queries.
+    throw new NotFound('Order not found');
+  }
+
+  if (args.cancelRecurringContribution && !order.SubscriptionId) {
+    throw new ValidationFailed('Only recurring contributions can be cancelled');
+  } else if (
+    args.cancelRecurringContribution &&
+    order.status === orderStatus.CANCELLED &&
+    !order.Subscription?.isActive
+  ) {
+    throw new ValidationFailed('Recurring contribution already canceled');
+  }
+
+  // Enforce the same permission booleans that the host dashboard relies on for
+  // the optional sub-actions. The refund itself is permission-checked per
+  // transaction by `canRefund` above.
+  if (args.cancelRecurringContribution && !(await canHostCancelOrder(req, order))) {
+    throw new Forbidden('Cannot cancel this recurring contribution as a host admin');
+  }
+  if (args.removeAsContributor && !(await canHostRemoveContributorFromOrder(req, order))) {
+    throw new Forbidden('Cannot remove this contributor from the collective');
+  }
+
+  const messageForContributor = sanitizeMessageForContributor(args.messageForContributor);
+  const host = transaction.HostCollectiveId
+    ? await req.loaders.Collective.byId.load(transaction.HostCollectiveId)
+    : null;
+
+  const previousStatus = order.status;
+
+  // Issue the refund first so we don't end up cancelling the order / removing the
+  // contributor when the payment processor refund itself fails. `refundTransaction`
+  // also enforces 2FA on the host, so no separate check is needed here.
+  const refundedTransaction = await refundTransaction(transaction, req, RefundKind.REFUND, {
+    ignoreBalanceCheck: args.ignoreBalanceCheck,
+    message: messageForContributor ?? undefined,
+  });
+
+  // The CONTRIBUTION_REFUNDED activity sends the single user-facing email for the
+  // whole refund flow (see `server/lib/notifications/email.ts`). The follow-up
+  // SUBSCRIPTION_CANCELED and CONTRIBUTOR_REMOVED_BY_HOST activities are recorded
+  // for the timeline / webhooks; SUBSCRIPTION_CANCELED suppresses its own email
+  // via `hostAction.refund`, and CONTRIBUTOR_REMOVED_BY_HOST has no email template.
+  const refundFlowHostAction = {
+    cancel: Boolean(args.cancelRecurringContribution),
+    refund: true,
+    removeAsContributor: Boolean(args.removeAsContributor),
+  };
+
+  await sequelize.transaction(async dbTransaction => {
+    if (args.cancelRecurringContribution) {
+      await order.update(
+        { status: orderStatus.CANCELLED, data: { ...order.data, previousStatus } },
+        { transaction: dbTransaction },
+      );
+    }
+
+    if (args.removeAsContributor) {
+      await models.Member.destroy({
+        where: {
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: roles.BACKER,
+        },
+        transaction: dbTransaction,
+      });
+    }
+
+    await models.Activity.create(
+      {
+        type: activities.CONTRIBUTION_REFUNDED,
+        CollectiveId: order.CollectiveId,
+        FromCollectiveId: order.FromCollectiveId,
+        HostCollectiveId: order.collective.HostCollectiveId,
+        OrderId: order.id,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        data: {
+          collective: order.collective.minimal,
+          host: host?.minimal,
+          user: req.remoteUser.minimal,
+          fromCollective: order.fromCollective.minimal,
+          order: order.info,
+          refundCount: 1,
+          refundedTransactionIds: [refundedTransaction.id],
+          messageForContributors: messageForContributor,
+          messageSource: 'HOST',
+          hostAction: refundFlowHostAction,
+        },
+      },
+      { transaction: dbTransaction },
+    );
+
+    if (args.cancelRecurringContribution) {
+      await models.Activity.create(
+        {
+          type: activities.SUBSCRIPTION_CANCELED,
+          CollectiveId: order.CollectiveId,
+          FromCollectiveId: order.FromCollectiveId,
+          HostCollectiveId: order.collective.HostCollectiveId,
+          OrderId: order.id,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          data: {
+            subscription: order.Subscription,
+            collective: order.collective.minimal,
+            host: host?.minimal,
+            user: req.remoteUser.minimal,
+            fromCollective: order.fromCollective.minimal,
+            order: order.info,
+            previousStatus,
+            messageForContributors: messageForContributor,
+            messageSource: 'HOST',
+            hostAction: refundFlowHostAction,
+          },
+        },
+        { transaction: dbTransaction },
+      );
+    }
+
+    if (args.removeAsContributor) {
+      await models.Activity.create(
+        {
+          type: activities.CONTRIBUTOR_REMOVED_BY_HOST,
+          CollectiveId: order.CollectiveId,
+          FromCollectiveId: order.FromCollectiveId,
+          HostCollectiveId: order.collective.HostCollectiveId,
+          OrderId: order.id,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          data: {
+            collective: order.collective.minimal,
+            host: host?.minimal,
+            user: req.remoteUser.minimal,
+            fromCollective: order.fromCollective.minimal,
+            order: order.info,
+            messageForContributors: messageForContributor,
+            messageSource: 'HOST',
+            hostAction: refundFlowHostAction,
+          },
+        },
+        { transaction: dbTransaction },
+      );
+    }
+  });
+
+  // `Subscription.deactivate` doesn't accept a transaction and performs an external
+  // PayPal call, so it's run after the DB transaction commits to avoid stranding a
+  // deactivated subscription on a rolled-back order.
+  if (args.cancelRecurringContribution && order.Subscription?.isActive) {
+    await order.Subscription.deactivate('Cancelled by host admin', host);
+  }
+
+  purgeCacheForCollective(order.fromCollective.slug);
+  purgeCacheForCollective(order.collective.slug);
+
+  return refundedTransaction;
 }

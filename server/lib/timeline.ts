@@ -168,6 +168,8 @@ const makeTimelineQuery = async (
       ...[
         ActivityTypes.COLLECTIVE_MEMBER_CREATED,
         ActivityTypes.CONTRIBUTION_REJECTED,
+        ActivityTypes.CONTRIBUTION_REFUNDED,
+        ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST,
         ActivityTypes.ORDER_PAYMENT_FAILED,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,

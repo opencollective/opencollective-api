@@ -259,7 +259,26 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.SUBSCRIPTION_CANCELED:
-      await notify.user(activity);
+      // When the cancel happens as part of a host-driven refund flow, the
+      // CONTRIBUTION_REFUNDED email already covers the cancellation, so we skip
+      // this one to avoid sending the contributor multiple emails for what they
+      // perceive as a single action.
+      if (activity.data?.hostAction?.refund) {
+        break;
+      }
+      if (activity.data?.messageSource === 'HOST' && activity.data?.fromCollective?.id) {
+        await notify.collective(activity, { collectiveId: activity.data.fromCollective.id });
+      } else {
+        await notify.user(activity);
+      }
+      break;
+
+    case ActivityTypes.CONTRIBUTION_REFUNDED:
+      if (activity.data?.fromCollective?.id) {
+        await notify.collective(activity, {
+          collectiveId: activity.data.fromCollective.id,
+        });
+      }
       break;
 
     case ActivityTypes.SUBSCRIPTION_PAUSED:
