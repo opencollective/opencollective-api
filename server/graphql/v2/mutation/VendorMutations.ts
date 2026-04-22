@@ -9,7 +9,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
-import models, { Activity, Collective, LegalDocument, Op } from '../../../models';
+import models, { Activity, Collective, LegalDocument, Op, sequelize } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -225,15 +225,19 @@ const vendorMutations = {
         const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
         // If the payout method doesn't have an id, we consider it as a new payout method and we archive the previous one(s)
         if (!args.vendor.payoutMethod.id) {
-          if (!isEmpty(existingPayoutMethods)) {
-            await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false })));
-          }
-
-          payoutMethod = await models.PayoutMethod.create({
-            ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-            CollectiveId: vendor.id,
-            CreatedByUserId: req.remoteUser.id,
-            isSaved: true,
+          payoutMethod = await sequelize.transaction(async transaction => {
+            if (!isEmpty(existingPayoutMethods)) {
+              await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false }, { transaction })));
+            }
+            return await models.PayoutMethod.create(
+              {
+                ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+                CollectiveId: vendor.id,
+                CreatedByUserId: req.remoteUser.id,
+                isSaved: true,
+              },
+              { transaction },
+            );
           });
         }
         // Otherwise the user is only selecting another existing payout method, we just need to update the isSaved flag
@@ -249,10 +253,14 @@ const vendorMutations = {
             payoutMethod.CollectiveId === vendor.id,
             new Unauthorized('Payout method does not belong to this vendor'),
           );
-          await Promise.all(
-            existingPayoutMethods.filter(pm => pm.id !== payoutMethod.id).map(pm => pm.update({ isSaved: false })),
-          );
-          await payoutMethod.update({ isSaved: true });
+          await sequelize.transaction(async transaction => {
+            await Promise.all(
+              existingPayoutMethods
+                .filter(pm => pm.id !== payoutMethod.id)
+                .map(pm => pm.update({ isSaved: false }, { transaction })),
+            );
+            await payoutMethod.update({ isSaved: true }, { transaction });
+          });
         }
 
         // Since vendors can only have a single payout method, we update all expenses to use the new one
