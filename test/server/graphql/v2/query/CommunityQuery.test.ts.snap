@@ -1,0 +1,232 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/graphql/v2/query/CommunityQuery community list snapshot snapshot: community list includes all expected user types 1`] = `
+Array [
+  Object {
+    "isGuest": false,
+    "isIncognito": false,
+    "name": "Collective Admin",
+    "relations": Array [
+      "ADMIN",
+    ],
+    "transactionSummary": Array [
+      Object {
+        "creditCount": 0,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "ALL",
+      },
+    ],
+    "type": "INDIVIDUAL",
+  },
+  Object {
+    "isGuest": false,
+    "isIncognito": false,
+    "name": "Contributor Order And Expense",
+    "relations": Array [
+      "CONTRIBUTOR",
+      "EXPENSE_SUBMITTER",
+      "PAYEE",
+    ],
+    "transactionSummary": Array [
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 10000,
+        },
+        "debitCount": 1,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "kind": "ALL",
+      },
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 10000,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "CONTRIBUTION",
+      },
+      Object {
+        "creditCount": 0,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "debitCount": 1,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "kind": "EXPENSE",
+      },
+    ],
+    "type": "INDIVIDUAL",
+  },
+  Object {
+    "isGuest": true,
+    "isIncognito": false,
+    "name": "Guest Contributor",
+    "relations": Array [
+      "CONTRIBUTOR",
+    ],
+    "transactionSummary": Array [
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "ALL",
+      },
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "CONTRIBUTION",
+      },
+    ],
+    "type": "INDIVIDUAL",
+  },
+  Object {
+    "isGuest": false,
+    "isIncognito": false,
+    "name": "Host Contributor Order And Expense",
+    "relations": Array [
+      "CONTRIBUTOR",
+      "EXPENSE_SUBMITTER",
+      "PAYEE",
+    ],
+    "transactionSummary": Array [
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 10000,
+        },
+        "debitCount": 1,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "kind": "ALL",
+      },
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 10000,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "CONTRIBUTION",
+      },
+      Object {
+        "creditCount": 0,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "debitCount": 1,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "kind": "EXPENSE",
+      },
+    ],
+    "type": "INDIVIDUAL",
+  },
+  Object {
+    "isGuest": false,
+    "isIncognito": true,
+    "name": "Incognito",
+    "relations": Array [
+      "CONTRIBUTOR",
+    ],
+    "transactionSummary": Array [
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "ALL",
+      },
+      Object {
+        "creditCount": 1,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 5000,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "CONTRIBUTION",
+      },
+    ],
+    "type": "INDIVIDUAL",
+  },
+  Object {
+    "isGuest": false,
+    "isIncognito": false,
+    "name": "Snapshot Host Admin",
+    "relations": Array [
+      "ADMIN",
+    ],
+    "transactionSummary": Array [
+      Object {
+        "creditCount": 0,
+        "creditTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "debitCount": 0,
+        "debitTotal": Object {
+          "currency": "USD",
+          "valueInCents": 0,
+        },
+        "kind": "ALL",
+      },
+    ],
+    "type": "INDIVIDUAL",
+  },
+]
+`;

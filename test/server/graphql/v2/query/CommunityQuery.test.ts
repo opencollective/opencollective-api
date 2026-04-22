@@ -7,10 +7,13 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import { sequelize } from '../../../../../server/models';
 import {
   fakeActiveHost,
+  fakeActivity,
   fakeCollective,
+  fakeIncognitoProfile,
   fakeMember,
   fakeTransaction,
   fakeUser,
+  randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -495,6 +498,293 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       );
       expect(result.errors).to.not.exist;
       expect(result.data.community.nodes.length).to.be.greaterThan(0);
+    });
+  });
+
+  describe('community list snapshot', () => {
+    const snapshotCommunityQuery = gql`
+      query CommunitySnapshot($host: AccountReferenceInput!, $limit: Int!, $offset: Int!) {
+        community(host: $host, limit: $limit, offset: $offset) {
+          totalCount
+          nodes {
+            name
+            type
+            isIncognito
+            ... on Individual {
+              isGuest
+            }
+            communityStats(host: $host) {
+              relations
+              transactionSummary {
+                kind
+                creditTotal {
+                  valueInCents
+                  currency
+                }
+                creditCount
+                debitTotal {
+                  valueInCents
+                  currency
+                }
+                debitCount
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    let snapshotHost, snapshotHostAdmin, snapshotCollective;
+
+    before(async () => {
+      // 1. Host Admin (snapshotHostAdmin) — already set up via fakeActiveHost
+      snapshotHostAdmin = await fakeUser({}, { name: 'Snapshot Host Admin' });
+      snapshotHost = await fakeActiveHost({ admin: snapshotHostAdmin });
+      snapshotCollective = await fakeCollective({ HostCollectiveId: snapshotHost.id });
+
+      // 2. Collective Admin
+      const collectiveAdmin = await fakeUser({}, { name: 'Collective Admin' });
+      await fakeMember({
+        CollectiveId: snapshotCollective.id,
+        MemberCollectiveId: collectiveAdmin.CollectiveId,
+        role: MemberRoles.ADMIN,
+      });
+
+      // 3. Contributor to Collective with order and expense
+      const contributorWithOrderAndExpense = await fakeUser({}, { name: 'Contributor Order And Expense' });
+      await fakeMember({
+        CollectiveId: snapshotCollective.id,
+        MemberCollectiveId: contributorWithOrderAndExpense.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+      const tg1 = uuid();
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: contributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotCollective.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: 10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg1,
+      });
+      await fakeTransaction({
+        type: 'DEBIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: snapshotCollective.id,
+        CollectiveId: contributorWithOrderAndExpense.CollectiveId,
+        HostCollectiveId: snapshotHost.id,
+        amount: -10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg1,
+      });
+      const tg2 = uuid();
+      await fakeTransaction({
+        type: 'DEBIT',
+        kind: TransactionKind.EXPENSE,
+        FromCollectiveId: contributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotCollective.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: -5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg2,
+      });
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.EXPENSE,
+        FromCollectiveId: snapshotCollective.id,
+        CollectiveId: contributorWithOrderAndExpense.CollectiveId,
+        HostCollectiveId: snapshotHost.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg2,
+      });
+      await fakeActivity({
+        type: 'collective.expense.created',
+        FromCollectiveId: contributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotCollective.id,
+        HostCollectiveId: snapshotHost.id,
+      });
+      await fakeActivity({
+        type: 'collective.expense.paid',
+        FromCollectiveId: contributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotCollective.id,
+        HostCollectiveId: snapshotHost.id,
+      });
+
+      // 4. Contributor to Host with order and expense
+      const hostContributorWithOrderAndExpense = await fakeUser({}, { name: 'Host Contributor Order And Expense' });
+      await fakeMember({
+        CollectiveId: snapshotHost.id,
+        MemberCollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
+        role: MemberRoles.BACKER,
+      });
+      const tg3 = uuid();
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotHost.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: 10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg3,
+      });
+      await fakeTransaction({
+        type: 'DEBIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: snapshotHost.id,
+        CollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
+        HostCollectiveId: snapshotHost.id,
+        amount: -10000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg3,
+      });
+      const tg4 = uuid();
+      await fakeTransaction({
+        type: 'DEBIT',
+        kind: TransactionKind.EXPENSE,
+        FromCollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotHost.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: -5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg4,
+      });
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.EXPENSE,
+        FromCollectiveId: snapshotHost.id,
+        CollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
+        HostCollectiveId: snapshotHost.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg4,
+      });
+      await fakeActivity({
+        type: 'collective.expense.created',
+        FromCollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotHost.id,
+        HostCollectiveId: snapshotHost.id,
+      });
+      await fakeActivity({
+        type: 'collective.expense.paid',
+        FromCollectiveId: hostContributorWithOrderAndExpense.CollectiveId,
+        CollectiveId: snapshotHost.id,
+        HostCollectiveId: snapshotHost.id,
+      });
+
+      // 5. Guest contributor to collective
+      const guestUser = await fakeUser(
+        {},
+        {
+          name: 'Guest Contributor',
+          slug: randStr('guest'),
+          data: { isGuest: true, requiresProfileCompletion: true },
+        },
+      );
+      const guestCollective = guestUser.collective;
+      await fakeMember({
+        CollectiveId: snapshotCollective.id,
+        MemberCollectiveId: guestCollective.id,
+        role: MemberRoles.BACKER,
+      });
+      const tg5 = uuid();
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: guestCollective.id,
+        CollectiveId: snapshotCollective.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg5,
+      });
+      await fakeTransaction({
+        type: 'DEBIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: snapshotCollective.id,
+        CollectiveId: guestCollective.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: -5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg5,
+      });
+
+      // 6. Contributor to Collective with incognito order
+      const incognitoUser = await fakeUser({}, { name: 'Real Contributor User' });
+      const incognitoProfile = await fakeIncognitoProfile(incognitoUser);
+      await fakeMember({
+        CollectiveId: snapshotCollective.id,
+        MemberCollectiveId: incognitoProfile.id,
+        role: MemberRoles.BACKER,
+      });
+      const tg6 = uuid();
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: incognitoProfile.id,
+        CollectiveId: snapshotCollective.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg6,
+      });
+      await fakeTransaction({
+        type: 'DEBIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: snapshotCollective.id,
+        CollectiveId: incognitoProfile.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: -5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg6,
+      });
+
+      await refreshCommunityMaterializedViews();
+    });
+
+    it('snapshot: community list includes all expected user types', async () => {
+      const result = await graphqlQueryV2(
+        snapshotCommunityQuery,
+        { host: { legacyId: snapshotHost.id }, limit: 100, offset: 0 },
+        snapshotHostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const community = result.data.community.nodes
+        .map(n => ({
+          name: n.name,
+          type: n.type,
+          isIncognito: n.isIncognito,
+          isGuest: n.isGuest,
+          relations: [...n.communityStats.relations].sort(),
+          transactionSummary: n.communityStats.transactionSummary
+            .map(s => ({
+              kind: s.kind,
+              creditTotal: s.creditTotal,
+              creditCount: s.creditCount,
+              debitTotal: s.debitTotal,
+              debitCount: s.debitCount,
+            }))
+            .sort((a, b) => String(a.kind).localeCompare(String(b.kind))),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      expect(community).to.matchSnapshot();
     });
   });
 
