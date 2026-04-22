@@ -14,6 +14,8 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
+import logger from '../../server/lib/logger';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
@@ -233,7 +235,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       pendingHostFeeShare &&
       autoPricingMigrationDate &&
       moment.utc(autoPricingMigrationDate).isSameOrAfter(startDate) &&
-      moment.utc(autoPricingMigrationDate).isBefore(endDate);
+      moment.utc(autoPricingMigrationDate).isSameOrBefore(endDate);
 
     // Safety: never charge Platform Share for HOST_FEE_SHARE_DEBT transactions
     // that happened while the new platform subscription billing was already in
@@ -378,7 +380,13 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, expense.id);
 
       const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
-      await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
+
+      try {
+        await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
+      } catch (error) {
+        logger.warn(`Error creating activity for expense ${expense.id}: ${error}`);
+        reportErrorToSentry(error, { extra: { expenseId: expense.id } });
+      }
 
       // For hosts that were migrated to the new platform subscription billing
       // this month, the Platform Share expense is the last one of its type. Add
