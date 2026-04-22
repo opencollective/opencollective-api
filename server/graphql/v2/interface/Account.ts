@@ -627,7 +627,7 @@ const accountFieldsDefinition = () => ({
       const searchTermConditions = buildSearchConditions(searchTerm, {
         idFields: ['id'],
         slugFields: ['$fromCollective.slug$'],
-        textFields: ['$fromCollective.name$', 'title', 'html'],
+        textFields: ['$fromCollective.name$', 'Update.title', 'Update.html'],
         publicIdFields: [
           { field: 'publicId', prefix: EntityShortIdPrefix.Update },
           { field: '$fromCollective.publicId$', prefix: EntityShortIdPrefix.Collective },

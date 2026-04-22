@@ -487,7 +487,7 @@ export const ExpensesCollectionQueryResolver = async (
     idFields: ['id'],
     dataFields: ['data.transactionId', 'data.transfer.id', 'data.transaction_id', 'data.batchGroup.id', 'reference'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
-    textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
+    textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'Expense.description'],
     emailFields: isHostAdmin ? ['$User.email$'] : [],
     amountFields: ['amount'],
     stringArrayFields: ['tags'],

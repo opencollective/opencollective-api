@@ -6,6 +6,7 @@ import { isNil } from 'lodash';
 import { QueryTypes, Sequelize } from 'sequelize';
 
 import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
+import { removeDiacritics } from '../../../../lib/string-utils';
 import { ifStr } from '../../../../lib/utils';
 import { Collective, sequelize } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
@@ -59,10 +60,10 @@ const buildSearchConditions = (
       replacements: { searchTerm: parsed.term },
     };
   } else {
-    const sanitizedTerm = sanitizeSearchTermForILike(parsed.term);
+    const sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(parsed.term));
     return {
       joinClause: `LEFT JOIN "Users" u ON u."CollectiveId" = fc.id AND u."deletedAt" IS NULL`,
-      whereClause: `AND (fc."name" ILIKE :searchTermPattern OR fc.slug ILIKE :searchTermPattern OR u."email" ILIKE :searchTermPattern)`,
+      whereClause: `AND (unaccent(fc."name") ILIKE :searchTermPattern OR unaccent(fc.slug) ILIKE :searchTermPattern OR unaccent(u."email") ILIKE :searchTermPattern)`,
       replacements: { searchTermPattern: `%${sanitizedTerm}%` },
     };
   }

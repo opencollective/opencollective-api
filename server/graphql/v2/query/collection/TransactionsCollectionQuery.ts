@@ -423,7 +423,7 @@ export const TransactionsCollectionResolver = async (
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
     idFields: ['id', 'ExpenseId', 'OrderId'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
-    textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+    textFields: ['$fromCollective.name$', '$collective.name$', 'Transaction.description'],
     amountFields: ['amount'],
     publicIdFields: [
       { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },

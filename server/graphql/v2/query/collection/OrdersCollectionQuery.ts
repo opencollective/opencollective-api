@@ -17,6 +17,7 @@ import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
+import { removeDiacritics } from '../../../../lib/string-utils';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
@@ -547,7 +548,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
           .select('Orders.id')
           .where('Orders.deletedAt', 'is', null)
           .$if(!!args.searchTerm, qb => {
-            return qb.where(({ or, eb }) => {
+            return qb.where(({ fn, or, eb }) => {
               if (isFinite(Number(args.searchTerm)) && isInteger(Number(args.searchTerm))) {
                 ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
               }
@@ -561,9 +562,17 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
                 ors.push(eb('Orders.FromCollectiveId', '=', collectiveBySearchTerm.id));
               }
 
-              ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
+              const searchTermNoDiacrits =
+                typeof args.searchTerm === 'string' ? removeDiacritics(args.searchTerm) : args.searchTerm;
+              ors.push(eb(fn<string>('unaccent', ['Orders.description']), 'ilike', `%${searchTermNoDiacrits}%`));
               ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
-              ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(
+                eb(
+                  fn<string>('unaccent', [sql`"Orders".data#>>'{fromAccountInfo,name}'`]),
+                  'ilike',
+                  `%${searchTermNoDiacrits}%`,
+                ),
+              );
               ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
               ors.push(
                 eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`),
@@ -984,8 +993,8 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       const { limit = 10, offset = 0, searchTerm } = subArgs;
 
       const searchConditions = buildSearchConditions(searchTerm, {
-        slugFields: ['slug'],
-        textFields: ['name'],
+        slugFields: ['Collective.slug'],
+        textFields: ['Collective.name'],
         publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
       });
 

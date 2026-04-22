@@ -147,7 +147,7 @@ export const IsMemberOfFields = {
       const searchTermConditions = buildSearchConditions(args.searchTerm, {
         idFields: ['id', '$collective.id$'],
         slugFields: ['$collective.slug$'],
-        textFields: ['$collective.name$', '$collective.description$', 'description', 'role'],
+        textFields: ['$collective.name$', '$collective.description$', 'Member.description', 'Member.role'],
         stringArrayFields: ['$collective.tags$'],
         stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
         castStringArraysToVarchar: true,

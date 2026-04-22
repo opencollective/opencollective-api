@@ -33,6 +33,7 @@ import { getPolicy } from '../../../lib/policies';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
 import { buildKyselySearchConditions, buildSearchConditions } from '../../../lib/sql-search';
+import { removeDiacritics } from '../../../lib/string-utils';
 import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-reports';
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
@@ -1019,7 +1020,10 @@ export const GraphQLHost = new GraphQLObjectType({
           const hasExpenseToDate = !isNil(args.withExpensesDateTo);
           const hasExpensePeriodFilter = hasExpenseFromDate || hasExpenseToDate;
           const hasSearchTerm = !isNil(args.searchTerm) && args.searchTerm.length !== 0;
-          const searchTerm = `%${args.searchTerm}%`;
+          const searchTerm =
+            hasSearchTerm && typeof args.searchTerm === 'string'
+              ? `%${removeDiacritics(args.searchTerm)}%`
+              : `%${args.searchTerm}%`;
 
           const baseQuery = `
             SELECT
@@ -1093,8 +1097,8 @@ export const GraphQLHost = new GraphQLObjectType({
               ${ifStr(
                 hasSearchTerm,
                 `AND (
-                vc.name ILIKE :searchTerm
-                OR vc.data#>>'{last4}' ILIKE :searchTerm
+                unaccent(vc.name) ILIKE :searchTerm
+                OR unaccent(vc.data#>>'{last4}') ILIKE :searchTerm
               )`,
               )}
           `;
@@ -2352,7 +2356,7 @@ export const GraphQLHost = new GraphQLObjectType({
           if (args.searchTerm) {
             where.push({
               [Op.or]: buildSearchConditions(args.searchTerm, {
-                textFields: ['description', 'sourceId'],
+                textFields: ['TransactionsImportRow.description', 'TransactionsImportRow.sourceId'],
                 publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.TransactionsImportRow }],
               }),
             });
