@@ -3102,10 +3102,12 @@ export async function editExpense(
       (!expenseData.payoutMethod?.id || // This represents a new payout method without an id
         expenseData.payoutMethod?.id !== expense.PayoutMethodId)
     ) {
-      payoutMethod =
-        fromCollective.type === CollectiveType.VENDOR
-          ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
-          : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+      if (fromCollective.type === CollectiveType.VENDOR) {
+        payoutMethod = await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first);
+        assert(payoutMethod, 'The vendor payee must have a saved payout method');
+      } else {
+        payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+      }
 
       if (
         payoutMethod?.type === PayoutMethodTypes.STRIPE &&
