@@ -19,8 +19,8 @@ import ExpenseTypes from '../../../constants/expense-type';
 import FEATURE from '../../../constants/feature';
 import OAuthScopes from '../../../constants/oauth-scopes';
 import { hasFeature } from '../../../lib/allowed-features';
+import { floatAmountToCents } from '../../../lib/currency';
 import { expenseKycStatus } from '../../../lib/kyc/expenses/kyc-expenses-check';
-import { floatAmountToCents } from '../../../lib/math';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
@@ -834,6 +834,8 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (expense.status === expenseStatus.DRAFT) {
             return null;
           }
+
+          expense.fromCollective = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
 
           const host = await loadHostForExpense(expense, req);
           if (!host || !req.remoteUser.isAdminOfCollective(host)) {

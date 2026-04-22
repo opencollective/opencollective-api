@@ -3,8 +3,7 @@ import { get, isUndefined, omit, pickBy, truncate } from 'lodash';
 import FEATURE from '../../constants/feature';
 import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
-import { floatAmountToCents } from '../../lib/math';
+import { floatAmountToCents, getFxRate, roundCentsAmount } from '../../lib/currency';
 import {
   createRefundTransaction,
   getHostFee,
@@ -46,15 +45,15 @@ const recordTransaction = async (
   const isSharedRevenue = !!hostFeeSharePercent;
 
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
-  const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
-  const paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paypalFee);
+  const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
+  const paymentProcessorFeeInHostCurrency = roundCentsAmount(hostCurrencyFxRate * paypalFee, hostCurrency);
 
   const hostFee = await getHostFee(order);
-  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+  const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
-  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);
 
   const transactionData = {
     CreatedByUserId: order.CreatedByUserId,

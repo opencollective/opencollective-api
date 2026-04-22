@@ -9,7 +9,7 @@ import { SupportedCurrency } from '../../constants/currencies';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { RefundKind } from '../../constants/refund-kind';
 import * as constants from '../../constants/transactions';
-import { isSupportedCurrency } from '../../lib/currency';
+import { convertToCurrency, isSupportedCurrency, roundCentsAmount } from '../../lib/currency';
 import logger from '../../lib/logger';
 import {
   createRefundTransaction,
@@ -145,28 +145,39 @@ export const createChargeTransactions = async (
   });
 
   // Create a Transaction
-  const amount = order.totalAmount;
-  const currency = order.currency;
-  const hostCurrency = balanceTransaction.currency.toUpperCase() as SupportedCurrency;
+  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
+  const hostCurrency = balanceTransaction.currency.toUpperCase() as SupportedCurrency; // This is supposed to match host currency (see the check below)
   if (!isSupportedCurrency(hostCurrency)) {
-    reportMessageToSentry(`Unsupported currency ${hostCurrency} for transaction ${order.id}`);
+    reportMessageToSentry(`Stripe: Unsupported currency for order`, {
+      severity: 'error',
+      extra: { currency: hostCurrency, balanceTransaction, order },
+    });
+  } else if (hostCurrency !== host.currency) {
+    reportMessageToSentry(`Stripe currency does not match host currency for order`, {
+      severity: 'error',
+      extra: { currency: hostCurrency, hostCurrency: host.currency, balanceTransaction, host, order },
+    });
   }
 
-  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
-  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
+  const amountInOrderCurrency =
+    order.currency === hostCurrency
+      ? amountInHostCurrency
+      : await convertToCurrency(amountInHostCurrency, hostCurrency, order.currency);
+
+  const hostCurrencyFxRate = amountInHostCurrency / amountInOrderCurrency;
 
   const hostFee = await getHostFee(order);
-  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+  const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   const fees = extractFees(balanceTransaction, balanceTransaction.currency);
 
   const platformTipEligible = await isPlatformTipEligible(order);
-  const platformTip = getPlatformTip(order);
+  const platformTip = getPlatformTip(order); // TODO: We may end up charging too much fees here if the order amount doesn't match the charged amount (rare)
 
   let platformTipInHostCurrency, platformFeeInHostCurrency;
   if (platformTip) {
     platformTipInHostCurrency = isSharedRevenue
-      ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      ? roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency) || 0
       : fees.applicationFee;
   } else if (config.env === 'test' || config.env === 'ci') {
     // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
@@ -199,8 +210,8 @@ export const createChargeTransactions = async (
     PaymentMethodId: order.PaymentMethodId,
     type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
-    amount,
-    currency,
+    amount: amountInOrderCurrency,
+    currency: order.currency,
     amountInHostCurrency,
     hostCurrency,
     hostCurrencyFxRate,

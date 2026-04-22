@@ -1559,17 +1559,76 @@ describe('server/graphql/common/expenses', () => {
       await runForAllContexts(async context => {
         const { expense } = context;
         await expense.update({ status: 'PENDING' });
+        await expense.reload();
+        const isRejectableCharge = expense.type === 'CHARGE' && Boolean(expense.data?.isManualVirtualCardCharge);
         expect(await checkAllPermissions(canReject, context)).to.deep.equal({
           public: false,
           randomUser: false,
-          collectiveAdmin: !['CHARGE', 'PLATFORM_BILLING', 'SETTLEMENT'].includes(expense.type),
-          hostAdmin: !['CHARGE', 'PLATFORM_BILLING', 'SETTLEMENT'].includes(expense.type),
+          collectiveAdmin:
+            !['PLATFORM_BILLING', 'SETTLEMENT'].includes(expense.type) &&
+            (expense.type !== 'CHARGE' || isRejectableCharge),
+          hostAdmin:
+            !['PLATFORM_BILLING', 'SETTLEMENT'].includes(expense.type) &&
+            (expense.type !== 'CHARGE' || isRejectableCharge),
           expenseOwner: false,
           limitedHostAdmin: false,
           collectiveAccountant: false,
           hostAccountant: false,
           platformAdmin: ['SETTLEMENT', 'PLATFORM_BILLING'].includes(expense.type),
         });
+      });
+    });
+
+    describe('manually created virtual card charges', () => {
+      it('allows host admins to reject', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PENDING' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canReject(
+            contexts.manuallyCreatedVirtualCardCharge.req.hostAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.true;
+      });
+
+      it('allows collective admins to reject', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PENDING' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canReject(
+            contexts.manuallyCreatedVirtualCardCharge.req.collectiveAdmin,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.true;
+      });
+
+      it('does not allow other roles to reject', async () => {
+        await contexts.manuallyCreatedVirtualCardCharge.expense.update({ status: 'PENDING' });
+        await contexts.manuallyCreatedVirtualCardCharge.expense.reload();
+        expect(
+          await canReject(
+            contexts.manuallyCreatedVirtualCardCharge.req.expenseOwner,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canReject(
+            contexts.manuallyCreatedVirtualCardCharge.req.randomUser,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+        expect(
+          await canReject(
+            contexts.manuallyCreatedVirtualCardCharge.req.public,
+            contexts.manuallyCreatedVirtualCardCharge.expense,
+          ),
+        ).to.be.false;
+      });
+
+      it('does not allow rejection of non-manually-created charges', async () => {
+        await contexts.virtualCard.expense.update({ status: 'PENDING' });
+        await contexts.virtualCard.expense.reload();
+        expect(await canReject(contexts.virtualCard.req.hostAdmin, contexts.virtualCard.expense)).to.be.false;
       });
     });
   });

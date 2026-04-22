@@ -7,6 +7,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { SupportedCurrency } from '../constants/currencies';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
@@ -15,7 +16,7 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { ManualPaymentProvider, Op } from '../models';
+import { ManualPaymentProvider, Op, PlatformSubscription } from '../models';
 import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
 import Order from '../models/Order';
@@ -31,8 +32,9 @@ import {
   type PaymentProviderServiceWithInternalRecurringManagement,
 } from '../paymentProviders/types';
 
+import { applyContributionAccountingCategoryRules } from './accounting/categorization/contribution-rules';
 import { notify } from './notifications/email';
-import { getFxRate } from './currency';
+import { getFxRate, roundCentsAmount } from './currency';
 import emailLib from './email';
 import { toNegative } from './math';
 import { getTransactionPdf } from './pdf';
@@ -267,12 +269,15 @@ export async function refundTransaction(
  *
  * @param {Number} amount is the amount of the transaction.
  * @param {Number} fee is the percentage of the transaction.
+ * @param {SupportedCurrency} currency is the currency of the transaction, used to check the expected number of decimals
  * @example
- * calcFee(100, 3.5); // 4.0
+ * calcFee(100, 3.5, 'USD'); // 4
+ * calcFee(10_000, 3.5, 'USD'); // 350
+ * calcFee(10_000, 3.5, 'JPY'); // 400
  * @return {Number} fee-percent of the amount rounded
  */
-export function calcFee(amount: number, fee: number): number {
-  return Math.round((amount * fee) / 100);
+export function calcFee(amount: number, fee: number, currency: SupportedCurrency): number {
+  return roundCentsAmount((amount * fee) / 100, currency);
 }
 
 const makeRefundDescription = (refundKind: RefundKind, referencedTransaction: Transaction): string => {
@@ -354,7 +359,7 @@ export const buildRefundForTransaction = (
     refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(t);
   } else {
     refund.amountInHostCurrency = toNegative(refundedAmountInHostCurrency);
-    refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+    refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
     refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(refund);
   }
 
@@ -369,12 +374,12 @@ export const buildRefundForTransaction = (
         // Otherwise, payment processor fees are deducted from the refunded amount which means
         // the collective will receive the original expense amount minus payment processor fees
         refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-        refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+        refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
         refund.paymentProcessorFeeInHostCurrency = 0;
       }
     } else if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
       refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-      refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+      refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
       refund.paymentProcessorFeeInHostCurrency = 0;
     } else {
       throw new Error(`Refund not supported for feesPayer = '${feesPayer}'`);
@@ -433,7 +438,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     return;
   }
 
-  const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+  const amount = roundCentsAmount(amountInHostCurrency / hostCurrencyFxRate, transactionCurrency);
   await Transaction.createDoubleEntry({
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
@@ -932,6 +937,8 @@ export const executeOrder = async (
       data: omit(order.data, ['paymentIntent']),
     });
 
+    await applyContributionAccountingCategoryRules(order);
+
     // Credit card charges are synchronous. If the transaction is
     // created here it means that the payment went through so it's
     // safe to create subscription after this.
@@ -1225,7 +1232,7 @@ const sendManualPendingOrderEmail = async (order: Order): Promise<void> => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    pendingOrderLink: `${config.host.website}/dashboard/${host.slug}/expected-funds?orderId=${order.id}`,
+    pendingOrderLink: `${config.host.website}/dashboard/${host.slug}/incomplete-contributions?orderId=${order.id}`,
     replyTo,
     isSystem: true,
   };
@@ -1256,7 +1263,7 @@ export const sendReminderPendingOrderEmail = async (order: Order): Promise<void>
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    viewDetailsLink: `${config.host.website}/dashboard/${host.slug}/expected-funds?orderId=${order.id}`,
+    viewDetailsLink: `${config.host.website}/dashboard/${host.slug}/incomplete-contributions?orderId=${order.id}`,
     isSystem: true,
   };
   await Activity.create({
@@ -1292,7 +1299,7 @@ export const getApplicationFee = async (order: Order): Promise<number> => {
   const hostFeeAmount = await getHostFee(order);
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
   if (hostFeeAmount && hostFeeSharePercent) {
-    const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent);
+    const hostFeeShareAmount = calcFee(hostFeeAmount, hostFeeSharePercent, order.currency);
     applicationFee += hostFeeShareAmount;
   }
 
@@ -1317,7 +1324,7 @@ export const getHostFee = async (order: Order): Promise<number> => {
 
   const hostFeePercent = await getHostFeePercent(order);
 
-  return calcFee(totalAmount - taxAmount - platformTipAmount, hostFeePercent);
+  return calcFee(totalAmount - taxAmount - platformTipAmount, hostFeePercent, order.currency);
 };
 
 export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
@@ -1340,9 +1347,16 @@ export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
 
   const host = await order.collective.getHostCollective();
   if (host) {
-    const plan = await host.getPlan();
+    // New pricing
+    const subscription = await PlatformSubscription.getCurrentSubscription(host.id);
+    if (subscription) {
+      return subscription.plan.pricing.platformTips;
+    }
+
+    // Legacy plan
+    const plan = host.getLegacyPlan();
     // At this stage, only OSC /opensourcce and Open Collective /opencollective will return false
-    return plan.platformTips;
+    return plan?.platformTips;
   }
 
   return false;
@@ -1501,7 +1515,7 @@ export const getHostFeeSharePercent = async (
 
   const host = await order.collective.getHostCollective({ loaders });
 
-  const plan = await host.getPlan();
+  const plan = host.getLegacyPlan();
 
   const possibleValues = [];
 

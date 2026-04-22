@@ -4,18 +4,22 @@ import sinon from 'sinon';
 import ActivityTypes from '../../../../server/constants/activities';
 import * as kycExpensesCheck from '../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { KYCProviderName } from '../../../../server/lib/kyc/providers';
-import { KYCProvider, ProviderKYCRequestBase } from '../../../../server/lib/kyc/providers/base';
+import { KYCProvider, ProviderKYCRequestBase, ProviderKYCSubmitBase } from '../../../../server/lib/kyc/providers/base';
 import Activity from '../../../../server/models/Activity';
 import { KYCVerification, KYCVerificationStatus } from '../../../../server/models/KYCVerification';
 import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
-class TestProvider extends KYCProvider<ProviderKYCRequestBase> {
+class TestProvider extends KYCProvider<ProviderKYCRequestBase, ProviderKYCSubmitBase> {
   constructor() {
     super('test' as KYCProviderName);
   }
 
   requestVerification(): Promise<KYCVerification> {
+    throw new Error('Method not implemented.');
+  }
+
+  submitVerification(): Promise<KYCVerification> {
     throw new Error('Method not implemented.');
   }
 

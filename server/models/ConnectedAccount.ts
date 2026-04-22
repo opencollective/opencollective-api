@@ -48,6 +48,7 @@ class ConnectedAccount extends ModelWithPublicId<
   get info() {
     return {
       id: this.id,
+      publicId: this.publicId,
       service: this.service,
       username: this.username,
       createdAt: this.createdAt,
@@ -58,6 +59,7 @@ class ConnectedAccount extends ModelWithPublicId<
   get activity() {
     return {
       id: this.id,
+      publicId: this.publicId,
       service: this.service,
       CollectiveId: this.CollectiveId,
       CreatedByUserId: this.CreatedByUserId,
@@ -97,7 +99,7 @@ ConnectedAccount.init(
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
       },
       set(value: string) {
-        this.setDataValue('token', crypto.encrypt(value));
+        this.setDataValue('token', value ? crypto.encrypt(value) : null);
       },
     },
     refreshToken: {
@@ -107,7 +109,7 @@ ConnectedAccount.init(
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
       },
       set(value: string) {
-        this.setDataValue('refreshToken', crypto.encrypt(value));
+        this.setDataValue('refreshToken', value ? crypto.encrypt(value) : null);
       },
     },
     data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }

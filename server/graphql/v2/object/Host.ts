@@ -37,6 +37,7 @@ import { getHostReportNodesFromQueryResult } from '../../../lib/transaction-repo
 import { ifStr, parseToBoolean } from '../../../lib/utils';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
+import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import Agreement from '../../../models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -101,6 +102,7 @@ import {
 import { CollectionArgs, getCollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
+import { GraphQLContributionAccountingCategoryRule } from './AccountingCategory';
 import { GraphQLContributionStats } from './ContributionStats';
 import { GraphQLExpenseStats } from './ExpenseStats';
 import { GraphQLHostExpensesReports } from './HostExpensesReport';
@@ -207,6 +209,18 @@ export const GraphQLHost = new GraphQLObjectType({
           };
         },
       },
+      contributionAccountingCategoryRules: {
+        type: new GraphQLList(new GraphQLNonNull(GraphQLContributionAccountingCategoryRule)),
+        resolve(host, _, req) {
+          if (!req?.remoteUser?.isAdmin(host.id)) {
+            return [];
+          }
+          return AccountingCategoryRule.findAll({
+            where: { CollectiveId: host.id, type: 'CONTRIBUTION' },
+            order: [['order', 'ASC']],
+          });
+        },
+      },
       hostFeePercent: {
         type: GraphQLFloat,
         resolve(collective) {
@@ -247,8 +261,9 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       plan: {
         type: new GraphQLNonNull(GraphQLHostPlan),
+        deprecationReason: '2026-04-02: Replaced by new pricing',
         resolve(host) {
-          return host.getPlan();
+          return host.getLegacyPlan();
         },
       },
       hostTransactionsReports: {
@@ -860,6 +875,7 @@ export const GraphQLHost = new GraphQLObjectType({
             textFields: ['name', 'description', 'longDescription'],
             stringArrayFields: ['tags'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
           });
 
           const { rows, count } = await models.HostApplication.findAndCountAll({
@@ -916,6 +932,7 @@ export const GraphQLHost = new GraphQLObjectType({
             textFields: ['name', 'description', 'longDescription'],
             stringArrayFields: ['tags'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
           });
 
           if (searchTermConditions.length) {
@@ -1431,8 +1448,14 @@ export const GraphQLHost = new GraphQLObjectType({
       },
       isFirstPartyHost: {
         type: new GraphQLNonNull(GraphQLBoolean),
-        description: 'Returns whether the host is trusted or not',
+        description: 'Returns whether the host is a first party host',
         resolve: account => get(account, 'data.isFirstPartyHost', false),
+      },
+      allowAddFundsFromAllAccounts: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the host allows adding funds from all accounts',
+        resolve: account =>
+          Boolean(get(account, 'data.allowAddFundsFromAllAccounts') || get(account, 'data.isFirstPartyHost')),
       },
       hasDisputedOrders: {
         type: GraphQLBoolean,
@@ -1575,10 +1598,11 @@ export const GraphQLHost = new GraphQLObjectType({
             .with('Vendors', db =>
               db
                 .selectFrom('Collectives')
-                .leftJoin('CommunityHostTransactionsAggregated', join =>
+                .leftJoin('CommunityHostTransactionSummary', join =>
                   join
-                    .onRef('CommunityHostTransactionsAggregated.FromCollectiveId', '=', 'Collectives.id')
-                    .on('CommunityHostTransactionsAggregated.HostCollectiveId', '=', host.id),
+                    .onRef('CommunityHostTransactionSummary.FromCollectiveId', '=', 'Collectives.id')
+                    .on('CommunityHostTransactionSummary.HostCollectiveId', '=', host.id)
+                    .on('CommunityHostTransactionSummary.kind', 'is', null),
                 )
                 .where('ParentCollectiveId', '=', host.id)
                 .where('type', '=', CollectiveType.VENDOR)
@@ -1586,10 +1610,10 @@ export const GraphQLHost = new GraphQLObjectType({
                 .where('deletedAt', 'is', null)
                 .selectAll('Collectives')
                 .select(({ ref }) => [
-                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.expenseTotalAcc')}, 1)], 0))`.as(
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionSummary.debitTotal')}, 0))`.as(
                     'totalExpended',
                   ),
-                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}[ARRAY_UPPER(${ref('CommunityHostTransactionsAggregated.contributionTotalAcc')}, 1)], 0))`.as(
+                  sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionSummary.creditTotal')}, 0))`.as(
                     'totalContributed',
                   ),
                 ]),
@@ -1627,12 +1651,17 @@ export const GraphQLHost = new GraphQLObjectType({
             );
 
           // Search Term
+          const textFields = ['name', 'description', 'longDescription'];
+          if (isAdmin) {
+            textFields.push('legalName');
+          }
           query = query.$if(
             args.searchTerm,
             buildKyselySearchConditions(args.searchTerm, {
-              idFields: ['Collectives.id'],
+              idFields: ['id'],
               slugFields: ['slug'],
-              textFields: ['name', 'description', 'longDescription'],
+              textFields,
+              publicIdFields: [{ field: ['publicId'], prefix: EntityShortIdPrefix.Collective }],
             }),
           );
 
@@ -1715,14 +1744,14 @@ export const GraphQLHost = new GraphQLObjectType({
           // Requested Ordering
           if (args.orderBy) {
             const direction = ob => (args.orderBy.direction === 'DESC' ? ob.desc().nullsLast() : ob.asc().nullsFirst());
-            if (args?.orderBy?.field === 'TOTAL_CONTRIBUTED' || args?.orderBy?.field === 'TOTAL_EXPENDED') {
-              nodeQuery = nodeQuery.orderBy(
-                args.orderBy.field === 'TOTAL_CONTRIBUTED' ? 'totalContributed' : 'totalExpended',
-                direction,
-              );
-            } else if (args?.orderBy?.field) {
-              nodeQuery = nodeQuery.orderBy(args.orderBy.field, direction);
-            }
+            const fields = {
+              TOTAL_CONTRIBUTED: 'totalContributed',
+              TOTAL_EXPENDED: 'totalExpended',
+              CREATED_AT: 'createdAt',
+            };
+            const field = fields[args.orderBy?.field] || args.orderBy?.field;
+            assert(field, `Invalid orderBy field ${args.orderBy?.field} for vendors.`);
+            nodeQuery = nodeQuery.orderBy(field, direction);
           }
           // Other additional ordering that were created throughout conditionals
           order.forEach(([field, direction]) => {
@@ -1965,6 +1994,7 @@ export const GraphQLHost = new GraphQLObjectType({
             stringArrayFields: ['tags'],
             stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
             castStringArraysToVarchar: true,
+            publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
           });
 
           if (searchTermConditions.length) {
@@ -2122,6 +2152,10 @@ export const GraphQLHost = new GraphQLObjectType({
             idFields: ['id', 'CollectiveId'],
             slugFields: ['$collective.slug$'],
             textFields: ['$collective.name$'],
+            publicIdFields: [
+              { field: 'publicId', prefix: EntityShortIdPrefix.LegalDocument },
+              { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+            ],
           });
 
           if (searchTermConditions.length) {
@@ -2319,6 +2353,7 @@ export const GraphQLHost = new GraphQLObjectType({
             where.push({
               [Op.or]: buildSearchConditions(args.searchTerm, {
                 textFields: ['description', 'sourceId'],
+                publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.TransactionsImportRow }],
               }),
             });
           }

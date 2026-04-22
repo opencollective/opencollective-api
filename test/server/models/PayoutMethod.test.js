@@ -316,7 +316,7 @@ describe('server/models/PayoutMethod', () => {
       const pm = await fakePayoutMethod({
         type: PayoutMethodTypes.STRIPE,
       });
-      expect(await pm.canBeArchived()).to.be.false;
+      expect(pm.canBeArchived()).to.be.false;
     });
 
     Object.keys(PayoutMethodTypes)
@@ -326,7 +326,7 @@ describe('server/models/PayoutMethod', () => {
           const pm = await fakePayoutMethod({
             type: t,
           });
-          expect(await pm.canBeArchived()).to.be.true;
+          expect(pm.canBeArchived()).to.be.true;
         });
       });
   });

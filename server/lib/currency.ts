@@ -1,10 +1,29 @@
 import config from 'config';
 import debugLib from 'debug';
-import { difference, get, groupBy, has, keys, mapValues, merge, set, uniq, zipObject } from 'lodash';
+import {
+  difference,
+  get,
+  groupBy,
+  has,
+  isNaN,
+  isNil,
+  keys,
+  mapValues,
+  merge,
+  round,
+  set,
+  uniq,
+  zipObject,
+} from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
 
-import { currencyFormats, SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
+import {
+  currencyFormats,
+  SUPPORTED_CURRENCIES,
+  SupportedCurrency,
+  ZERO_DECIMAL_CURRENCIES,
+} from '../constants/currencies';
 import models from '../models';
 
 import cache from './cache';
@@ -211,7 +230,7 @@ export async function getFxRate(
  */
 export async function getFxRates(
   fromCurrency: SupportedCurrency,
-  toCurrencies: SupportedCurrency[],
+  toCurrencies: readonly SupportedCurrency[],
   date: string | Date = 'latest',
 ): Promise<ResultCurrencyMap> {
   fromCurrency = fromCurrency?.toUpperCase() as SupportedCurrency;
@@ -243,6 +262,10 @@ export async function getFxRates(
   }
 }
 
+/**
+ * @param amount in cents
+ * @returns amount in cents
+ */
 export function convertToCurrency(
   amount: number,
   fromCurrency: SupportedCurrency,
@@ -260,7 +283,11 @@ export function convertToCurrency(
   }
 
   return getFxRate(fromCurrency, toCurrency, date).then(fxrate => {
-    return fxrate * amount;
+    const isNegative = amount < 0;
+    const rounded = roundCentsAmount(fxrate * amount, toCurrency);
+    const minAmount = isZeroDecimalCurrency(toCurrency) ? 100 : 1; // Converting an amount can never result in 0
+    const result = Math.max(minAmount, Math.abs(rounded));
+    return isNegative ? -result : result;
   });
 }
 
@@ -334,4 +361,47 @@ export const loadFxRatesMap = async (requests: Array<LoadFxRateRequest>): Promis
  */
 export const isSupportedCurrency = (value: string): boolean => {
   return Boolean(value && SUPPORTED_CURRENCIES.includes(value as SupportedCurrency));
+};
+
+/**
+ * Converts a float amount to cents. Also takes care of rounding the number
+ * to avoid floating numbers issues like `0.29 * 100 === 28.999999999999996`
+ */
+export function floatAmountToCents(floatAmount: number) {
+  return Math.round(floatAmount * 100);
+}
+
+/**
+ * Converts a cents amount to a float amount.
+ */
+export const centsAmountToFloat = (amount: number) => {
+  if (isNaN(amount) || isNil(amount)) {
+    return null;
+  } else {
+    return round(amount / 100, 2);
+  }
+};
+
+export const isZeroDecimalCurrency = (currency: string) => {
+  return (ZERO_DECIMAL_CURRENCIES as readonly string[]).includes(currency?.toUpperCase());
+};
+
+export const getDefaultCurrencyPrecision = (currency: string) => {
+  if (isZeroDecimalCurrency(currency?.toUpperCase())) {
+    return 0;
+  } else {
+    return 2;
+  }
+};
+
+/**
+ * Rounds a cents amount to the nearest unit. Useful when calculating percentage-based amounts,
+ * to make sure that zero-decimal currencies are rounded to the nearest 100.
+ *
+ * @example roundCentsAmount(1234, 'USD') => 1234
+ * @example roundCentsAmount(1234, 'JPY') => 1200
+ */
+export const roundCentsAmount = (amountInCents: number, currency: SupportedCurrency) => {
+  const roundDigits = isZeroDecimalCurrency(currency) ? -2 : 0;
+  return round(amountInCents, roundDigits);
 };

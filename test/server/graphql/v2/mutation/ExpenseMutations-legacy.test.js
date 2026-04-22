@@ -87,6 +87,7 @@ const addFunds = async (user, hostCollective, collective, amount) => {
 const mutationExpenseFields = gql`
   fragment ExpenseFields on Expense {
     id
+    publicId
     legacyId
     invoiceInfo
     amount
@@ -397,9 +398,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
       expect(emailSendMessageSpy.firstCall.args[1]).to.equal(
         `New expense on ${collective.name}: $42.00 for A valid expense`,
       );
-      expect(emailSendMessageSpy.firstCall.args[2]).to.contain(
-        `/${collective.slug}/expenses/${createdExpense.legacyId}`,
-      );
+      expect(emailSendMessageSpy.firstCall.args[2]).to.contain(`/permalink/${createdExpense.publicId}`);
     });
 
     it("use collective's location if not provided", async () => {

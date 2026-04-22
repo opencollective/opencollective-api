@@ -172,6 +172,26 @@ async function checkWisePaidTransactions() {
   }
 }
 
+async function checkHostCurrencyFxRateWhenCurrencyMatchesHost() {
+  const message = 'No Transaction where currency equals hostCurrency unless hostCurrencyFxRate is 1';
+
+  const results = await sequelize.query<{ count: number }>(
+    `
+    SELECT *
+    FROM "Transactions" t
+    WHERE t."deletedAt" IS NULL
+      AND t."currency" = t."hostCurrency"
+      AND t."hostCurrencyFxRate" != 1
+    `,
+    { type: QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    // Not fixable
+    throw new Error(message);
+  }
+}
+
 export const checks = [
   checkDeletedCollectives,
   checkOrphanTransactions,
@@ -179,6 +199,7 @@ export const checks = [
   checkUniqueTransactionGroup,
   checkPaidTransactionsWithHostCollectiveId,
   checkWisePaidTransactions,
+  checkHostCurrencyFxRateWhenCurrencyMatchesHost,
 ];
 
 if (!module.parent) {

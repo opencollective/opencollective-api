@@ -47,6 +47,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600, // $6.00 per additional collective
           pricePerAdditionalExpense: 200, // $2.00 per additional expense
+          platformTips: true,
         },
       },
     });
@@ -142,6 +143,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 20,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -218,6 +220,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -272,6 +275,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 20,
           pricePerAdditionalCollective: 300, // $3.00 per additional collective
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -325,6 +329,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 300,
           pricePerAdditionalExpense: 100, // $1.00 per additional expense
+          platformTips: true,
         },
       },
     });
@@ -379,6 +384,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -392,6 +398,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -405,6 +412,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });

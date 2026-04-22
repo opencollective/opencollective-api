@@ -44,12 +44,18 @@ import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { checkFeatureAccess, hasFeature } from '../../lib/allowed-features';
 import cache from '../../lib/cache';
-import { convertToCurrency, getDate, getFxRate, loadFxRatesMap } from '../../lib/currency';
+import {
+  convertToCurrency,
+  floatAmountToCents,
+  getDate,
+  getFxRate,
+  loadFxRatesMap,
+  roundCentsAmount,
+} from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import { formatAddress } from '../../lib/format-address';
 import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
-import { floatAmountToCents } from '../../lib/math';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
@@ -1018,7 +1024,7 @@ export const canReject: ExpensePermissionEvaluator = async (
       throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
-  } else if (expense.type === ExpenseType.CHARGE) {
+  } else if (expense.type === ExpenseType.CHARGE && !isManuallyCreatedCharge(expense)) {
     if (options?.throw) {
       throw new Forbidden('User cannot reject charge expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE);
     }
@@ -1684,6 +1690,7 @@ export const scheduleExpenseForPayment = async (
   const updatedExpense = await expense.update({
     status: 'SCHEDULED_FOR_PAYMENT',
     lastEditedById: req.remoteUser.id,
+    onHold: false,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
@@ -3346,7 +3353,11 @@ export const getWiseFxRateInfoFromExpenseData = (
 };
 
 export async function setTransferWiseExpenseAsProcessing({ host, expense, data, feesInHostCurrency, remoteUser }) {
-  await expense.update({ HostCollectiveId: host.id, data: { ...expense.data, ...data, feesInHostCurrency } });
+  await expense.update({
+    HostCollectiveId: host.id,
+    data: { ...expense.data, ...data, feesInHostCurrency },
+    onHold: false,
+  });
   await expense.setProcessing(remoteUser.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser, {
     message: expense.data?.paymentOption?.formattedEstimatedDelivery
@@ -3451,20 +3462,24 @@ export const getExpenseFees = async (
     }
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
     const paypalFeesInExpenseCurrency = await estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = Math.round(
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = roundCentsAmount(
       paypalFeesInExpenseCurrency / collectiveToExpenseFxRate,
+      expense.collective.currency,
     );
   }
 
   // Build fees in host currency
-  feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
+  feesInHostCurrency.paymentProcessorFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['paymentProcessorFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
-  feesInHostCurrency.hostFeeInHostCurrency = Math.round(
+  feesInHostCurrency.hostFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['hostFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
-  feesInHostCurrency.platformFeeInHostCurrency = Math.round(
+  feesInHostCurrency.platformFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['platformFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
 
   if (!resultFees['paymentProcessorFeeInCollectiveCurrency']) {
@@ -3480,7 +3495,8 @@ export const getExpenseFees = async (
       platformFee: resultFees['platformFeeInCollectiveCurrency'],
     };
   } else {
-    const applyCollectiveToExpenseFxRate = (amount: number) => Math.round((amount || 0) * collectiveToExpenseFxRate);
+    const applyCollectiveToExpenseFxRate = (amount: number) =>
+      roundCentsAmount((amount || 0) * collectiveToExpenseFxRate, expense.currency);
     feesInExpenseCurrency = {
       paymentProcessorFee: applyCollectiveToExpenseFxRate(resultFees['paymentProcessorFeeInCollectiveCurrency']),
       hostFee: applyCollectiveToExpenseFxRate(resultFees['hostFeeInCollectiveCurrency']),
@@ -3527,7 +3543,7 @@ export const checkHasBalanceToPayExpense = async (
   if (forceManual) {
     assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
     const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
-    const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
+    const balanceInHostCurrency = roundCentsAmount(balanceInCollectiveCurrency * collectiveToHostFxRate, host.currency);
     if (
       ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type) &&
       balanceInHostCurrency < totalAmountPaidInHostCurrency
@@ -3572,21 +3588,21 @@ export const checkHasBalanceToPayExpense = async (
       }
     } else if (isNumber(exchangeStats?.latestRate)) {
       const rate = exchangeStats.latestRate - exchangeStats.stddev * 2;
-      const safeAmount = Math.round(amountToPayInExpenseCurrency / rate);
+      const safeAmount = roundCentsAmount(amountToPayInExpenseCurrency / rate, expense.collective.currency);
       if (balanceInCollectiveCurrency < safeAmount) {
         throw new ValidationFailed(
           `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
-            Math.round(balanceInCollectiveCurrency * rate),
+            roundCentsAmount(balanceInCollectiveCurrency * rate, expense.currency),
             expense.currency,
           )}.`,
         );
       }
     } else {
-      const safeAmount = Math.round(amountToPayInExpenseCurrency * 1.2);
+      const safeAmount = roundCentsAmount(amountToPayInExpenseCurrency * 1.2, expense.collective.currency);
       if (balanceInCollectiveCurrency < safeAmount) {
         throw new ValidationFailed(
           `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
-            Math.round(balanceInCollectiveCurrency / 1.2),
+            roundCentsAmount(balanceInCollectiveCurrency / 1.2, expense.collective.currency),
             expense.collective.currency,
           )}.`,
         );
@@ -3954,7 +3970,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
     isApproximate: boolean,
     date = expense.createdAt,
   ) => ({
-    value: Math.round(expense.amount * fxRatePercentage),
+    value: roundCentsAmount(expense.amount * fxRatePercentage, toCurrency),
     currency: toCurrency,
     exchangeRate: {
       value: fxRatePercentage,

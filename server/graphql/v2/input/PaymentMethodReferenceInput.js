@@ -69,7 +69,7 @@ export const fetchPaymentMethodWithReferences = async (inputs, { sequelizeOpts }
   }
 
   const paymentMethods = await models.PaymentMethod.findAll({
-    where: { id: ids },
+    where,
     ...sequelizeOpts,
   });
 

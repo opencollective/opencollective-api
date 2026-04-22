@@ -277,7 +277,7 @@ class PayoutMethod extends ModelWithPublicId<
     return !expenses;
   }
 
-  async canBeDeleted(): Promise<boolean> {
+  async canBeDeleted({ transaction }: { transaction?: Transaction } = {}): Promise<boolean> {
     if (this.type === PayoutMethodTypes.STRIPE) {
       return false;
     }
@@ -285,12 +285,13 @@ class PayoutMethod extends ModelWithPublicId<
       where: {
         PayoutMethodId: this.id,
       },
+      transaction,
     });
 
     return !expenses;
   }
 
-  async canBeArchived(): Promise<boolean> {
+  canBeArchived(): boolean {
     return this.type !== PayoutMethodTypes.STRIPE;
   }
 }

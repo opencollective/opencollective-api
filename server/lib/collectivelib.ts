@@ -179,6 +179,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'showInitialOverviewSubscriptionCard',
   'kyc',
   'disabledTierTypes',
+  'automaticBillingMigration',
 ];
 
 /**

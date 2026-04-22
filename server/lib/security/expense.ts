@@ -30,7 +30,7 @@ import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile }
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
-import { KYCProviderName } from '../kyc/providers';
+import { handleExpenseKycSecurityChecks } from '../kyc/expenses/kyc-expenses-check';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 import { formatCurrency } from '../utils';
 
@@ -49,7 +49,7 @@ export enum Level {
   HIGH = 'HIGH',
 }
 
-type SecurityCheck = {
+export type SecurityCheck = {
   scope: Scope;
   level: Level;
   message: string;
@@ -212,7 +212,7 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
   );
 
   // Map Attachments and Items from scanned expenses
-  const urlToExpense = mapValues(groupBy(attachments, 'url'), ids => ids.map(id => id.expenseId));
+  const urlToExpenseId = mapValues(groupBy(attachments, 'url'), ids => ids.map(id => id.expenseId));
   // Load Files checksums
   const urls = uniq(attachments.map(a => a.url));
   const uploadedFiles = await req.loaders.UploadedFile.byUrl.loadMany(urls);
@@ -220,11 +220,11 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
     .filter(f => f instanceof models.UploadedFile)
     .filter(f => Boolean(f.data?.s3SHA256));
 
-  const checksumToExpense: Record<string, number[]> = filesWithChecksum.reduce((result, file) => {
+  const checksumToExpenseIds: Record<string, number[]> = filesWithChecksum.reduce((result, file) => {
     if (result[file.data.s3SHA256]) {
-      result[file.data.s3SHA256] = uniq([...result[file.data.s3SHA256], ...urlToExpense[file.getDataValue('url')]]);
+      result[file.data.s3SHA256] = uniq([...result[file.data.s3SHA256], ...urlToExpenseId[file.getDataValue('url')]]);
     } else {
-      result[file.data.s3SHA256] = urlToExpense[file.getDataValue('url')];
+      result[file.data.s3SHA256] = urlToExpenseId[file.getDataValue('url')];
     }
     return result;
   }, {});
@@ -244,13 +244,18 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
       ]),
     ) as Array<ExpenseItem | ExpenseAttachedFile>,
   );
+
   similarAttachments.forEach(item => {
     const checksum = similarFiles.find(f => f.getDataValue('url') === item.url)?.data?.s3SHA256;
-    checksumToExpense[checksum] = uniq([...checksumToExpense[checksum], item.ExpenseId]);
+    if (checksum) {
+      checksumToExpenseIds[checksum] = checksumToExpenseIds[checksum]
+        ? uniq(checksumToExpenseIds[checksum].concat(item.ExpenseId))
+        : [item.ExpenseId];
+    }
   });
 
   const checkExpense = (checks: Array<SecurityCheck>, expense: Expense) => {
-    forIn(checksumToExpense, (expenseIds, checksum) => {
+    forIn(checksumToExpenseIds, (expenseIds, checksum) => {
       if (expenseIds.includes(expense.id) && expenseIds.length > 1) {
         const files = uniq(similarFiles.filter(f => f.data.s3SHA256 === checksum).map(f => f.fileName));
         checks.push({
@@ -505,29 +510,7 @@ export const checkExpensesBatch = async (
         },
       );
 
-      const hostCollectiveId = expense.HostCollectiveId || expense.collective?.HostCollectiveId;
-
-      // KYC Verification Check: only for individual payees
-      const payeeCollective =
-        expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
-      if (payeeCollective?.type === CollectiveType.USER) {
-        const kycVerifications = await Promise.all(
-          Object.values(KYCProviderName).map(provider =>
-            req.loaders.KYCVerification.verifiedStatusByProvider(hostCollectiveId, provider).load(payeeCollective.id),
-          ),
-        );
-        for (const kycVerification of kycVerifications) {
-          if (!kycVerification) {
-            continue;
-          }
-          addBooleanCheck(checks, true, {
-            scope: Scope.PAYEE,
-            level: Level.PASS,
-            message: `Payee has KYC Verification with '${kycVerification.provider}' provider`,
-            details: kycVerification.data.legalName,
-          });
-        }
-      }
+      await handleExpenseKycSecurityChecks(expense, checks, { loaders: req.loaders });
 
       // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
       const userIsHostAdmin = expense.User.isAdmin(expense.HostCollectiveId);

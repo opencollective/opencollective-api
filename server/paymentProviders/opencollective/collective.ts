@@ -1,6 +1,6 @@
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
+import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import { createRefundTransaction, getHostFee, getHostFeeSharePercent, getPlatformTip } from '../../lib/payments';
 import { formatCurrency } from '../../lib/utils';
 import models, { type PaymentMethod } from '../../models';
@@ -66,14 +66,14 @@ const paymentMethodProvider: BasePaymentProviderService = {
     const currency = order.currency;
     const hostCurrency = host.currency;
     const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
-    const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
+    const amountInHostCurrency = roundCentsAmount(order.totalAmount * hostCurrencyFxRate, hostCurrency);
 
     // It will be usually zero but it's best to support it
     const hostFee = await getHostFee(order);
-    const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+    const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
     const platformTip = getPlatformTip(order);
-    const platformTipInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+    const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);
 
     const transactionPayload = {
       CreatedByUserId: order.CreatedByUserId,

@@ -15,14 +15,16 @@ import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized } from '../../../errors';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
 import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
 import GraphQLHostContext from '../../enum/HostContext';
+import GraphQLOppositeAccountScope from '../../enum/OppositeAccountScope';
 import { GraphQLOrderPausedBy } from '../../enum/OrderPausedBy';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
 import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
@@ -295,6 +297,11 @@ export const OrdersCollectionArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Return orders only for this host',
   },
+  oppositeAccountScope: {
+    type: GraphQLOppositeAccountScope,
+    description:
+      'Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.',
+  },
   createdBy: {
     type: new GraphQLList(GraphQLAccountReferenceInput),
     description: 'Return only orders created by these users. Limited to 1000 users at a time.',
@@ -339,6 +346,7 @@ interface OrdersCollectionArgsType {
   oppositeAccount?: AccountReferenceInput;
   hostedAccounts?: AccountReferenceInput[];
   host?: AccountReferenceInput;
+  oppositeAccountScope?: 'INTERNAL' | 'EXTERNAL';
   account?: AccountReferenceInput;
   createdBy?: AccountReferenceInput[];
 }
@@ -392,6 +400,25 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         }
       }
     });
+  }
+
+  // Resolve scope for oppositeAccountScope filtering.
+  // For fiscal host accounts: scope is all accounts under the host (HostCollectiveId check).
+  // For regular accounts: scope is the account + its children (parent/child check).
+  let oppositeAccountScopeHostId: number | null = null;
+  let oppositeAccountScopeAccountId: number | null = null;
+  if (args.oppositeAccountScope) {
+    if (host && !account) {
+      throw new ValidationFailed(
+        'oppositeAccountScope is not supported with the `host` argument. Use `account` with `hostContext` instead.',
+      );
+    } else if (account?.hasMoneyManagement) {
+      oppositeAccountScopeHostId = account.id;
+    } else if (account) {
+      oppositeAccountScopeAccountId = account.id;
+    } else {
+      throw new ValidationFailed('oppositeAccountScope requires an `account` argument to determine the scope.');
+    }
   }
 
   let incognitoProfile: Collective | null = null;
@@ -470,6 +497,16 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
   const isHostAdmin = account?.hasMoneyManagement && req.remoteUser?.isAdminOfCollective(account);
   const searchTermLooksLikeAnEmail = !!args.searchTerm && args.searchTerm.includes('@');
 
+  let collectiveBySearchTerm: Collective | null = null;
+  if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Collective)) {
+    const collective = await models.Collective.findOne({
+      where: { publicId: args.searchTerm },
+    });
+    if (collective) {
+      collectiveBySearchTerm = collective;
+    }
+  }
+
   const kysely = getKysely();
   const query = kysely
     .with('filterByAccounts', db => {
@@ -515,10 +552,19 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
                 ors.push(eb('Orders.id', '=', Number(args.searchTerm)));
               }
 
+              if (isEntityPublicId(args.searchTerm, EntityShortIdPrefix.Order)) {
+                ors.push(eb('Orders.publicId', '=', args.searchTerm));
+              }
+
+              if (collectiveBySearchTerm) {
+                ors.push(eb('Orders.CollectiveId', '=', collectiveBySearchTerm.id));
+                ors.push(eb('Orders.FromCollectiveId', '=', collectiveBySearchTerm.id));
+              }
+
               ors.push(eb('Orders.description', 'ilike', `%${args.searchTerm}%`));
               ors.push(eb(sql`"Orders".data->>'ponumber'`, 'ilike', `%${args.searchTerm}%`));
-              ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
-              ors.push(eb(sql`"Orders".data->>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,name}'`, 'ilike', `%${args.searchTerm}%`));
+              ors.push(eb(sql`"Orders".data#>>'{fromAccountInfo,email}'`, 'ilike', `%${args.searchTerm}%`));
               ors.push(
                 eb('Orders.tags', '&&', sql<string[]>`ARRAY[${args.searchTerm.toLocaleLowerCase()}]::varchar[]`),
               );
@@ -652,6 +698,49 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         }
 
         return or(ors);
+      });
+    })
+    .$if(!!args.oppositeAccountScope, qb => {
+      const isInternalScope = args.oppositeAccountScope === 'INTERNAL';
+      return qb.where(({ eb, not, and, or }) => {
+        type JoinAlias = 'collective' | 'fromCollective';
+        const orderIdField = (join: JoinAlias) =>
+          join === 'collective' ? ('Orders.CollectiveId' as const) : ('Orders.FromCollectiveId' as const);
+
+        // Host-level scoping: "internal" means hosted by the same fiscal host.
+        // The HostCollectiveId IS NOT NULL guard ensures null-safe negation via not().
+        const isWithinHost = (join: JoinAlias) =>
+          eb(`${join}.HostCollectiveId`, 'is not', null)
+            .and(eb(`${join}.HostCollectiveId`, '=', oppositeAccountScopeHostId))
+            .and(eb(`${join}.approvedAt`, 'is not', null));
+        const isOutsideHost = (join: JoinAlias) => not(isWithinHost(join));
+
+        // Account-level scoping: "internal" means the account itself or a non-vendor child.
+        // The ParentCollectiveId IS NOT NULL guard ensures null-safe negation via not().
+        const isWithinHierarchy = (join: JoinAlias) =>
+          or([
+            eb(orderIdField(join), '=', oppositeAccountScopeAccountId),
+            eb(`${join}.ParentCollectiveId`, 'is not', null)
+              .and(eb(`${join}.ParentCollectiveId`, '=', oppositeAccountScopeAccountId))
+              .and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+          ]);
+        const isOutsideHierarchy = (join: JoinAlias) => not(isWithinHierarchy(join));
+
+        const isWithinScope = oppositeAccountScopeHostId ? isWithinHost : isWithinHierarchy;
+        const isOutsideScope = oppositeAccountScopeHostId ? isOutsideHost : isOutsideHierarchy;
+
+        const oppositeJoins: JoinAlias[] =
+          args.filter === 'INCOMING'
+            ? ['fromCollective']
+            : args.filter === 'OUTGOING'
+              ? ['collective']
+              : ['collective', 'fromCollective'];
+
+        if (isInternalScope) {
+          return and(oppositeJoins.map(join => isWithinScope(join)));
+        } else {
+          return or(oppositeJoins.map(join => isOutsideScope(join)));
+        }
       });
     })
     .$if(paymentMethods.length > 0, qb => qb.where('PaymentMethodId', 'in', uniq(paymentMethods.map(pm => pm.id))))
@@ -897,6 +986,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       const searchConditions = buildSearchConditions(searchTerm, {
         slugFields: ['slug'],
         textFields: ['name'],
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
       });
 
       const ordersInclude: Includeable[] = [];

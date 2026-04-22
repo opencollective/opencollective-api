@@ -16,6 +16,7 @@ import {
   uniq,
   uniqBy,
 } from 'lodash';
+import { CreationAttributes } from 'sequelize';
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
@@ -24,9 +25,11 @@ import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
+import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
@@ -41,9 +44,12 @@ import {
 } from '../../../lib/subscriptions';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
-import models, { Op, sequelize } from '../../../models';
+import models, { Op, Order, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
-import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import {
+  isPaypalSubscriptionPaymentMethod,
+  updateSubscriptionWithPaypal,
+} from '../../../paymentProviders/paypal/subscription';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
@@ -91,6 +97,7 @@ import {
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
+import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
 import { GraphQLStripeError } from '../object/StripeError';
@@ -114,14 +121,14 @@ const GraphQLOrderWithPayment = new GraphQLObjectType({
   }),
 });
 
-const getTaxAmount = (baseAmount, tax) => {
+const getTaxAmount = (baseAmount, tax, currency) => {
   if (tax) {
     if (tax.amount) {
       return getValueInCentsFromAmountInput(tax.amount);
     } else if (tax.rate) {
-      return Math.round(tax.rate * baseAmount);
+      return roundCentsAmount(tax.rate * baseAmount, currency);
     } else if (tax.percentage) {
-      return Math.round((tax.percentage / 100) * baseAmount);
+      return roundCentsAmount((tax.percentage / 100) * baseAmount, currency);
     }
   }
 
@@ -133,10 +140,11 @@ const getTaxAmount = (baseAmount, tax) => {
  * @param {number} baseAmount
  * @param {number} platformTipAmount
  * @param {OrderTaxInput | TaxInput | OrderTax} taxInput
+ * @param {SupportedCurrency} currency
  */
-const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax) => {
+const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax, currency) => {
   if (tax) {
-    baseAmount += getTaxAmount(baseAmount, tax);
+    baseAmount += getTaxAmount(baseAmount, tax, currency);
   }
 
   if (platformTipAmount) {
@@ -153,12 +161,12 @@ const getOrderBaseAmount = order => {
 /**
  * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
  */
-const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host) => {
+const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host, currency) => {
   let taxInfo, taxAmount;
   if (taxInput) {
     const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
     taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
-    taxAmount = getTaxAmount(grossAmount, taxInput);
+    taxAmount = getTaxAmount(grossAmount, taxInput, currency);
     const taxAmountFromInput = taxInput.amount && getValueInCentsFromAmountInput(taxInput.amount);
     if (taxInfo.percentage && taxAmountFromInput) {
       const amountDiff = Math.abs(taxAmountFromInput - taxAmount);
@@ -231,13 +239,13 @@ const orderMutations = {
         amount: amountInCents,
         currency: expectedCurrency,
         interval: getIntervalFromContributionFrequency(order.frequency),
-        taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
+        taxAmount: tax && getTaxAmount(amountInCents * quantity, tax, expectedCurrency),
         tax: tax,
         paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,
         collective: { id: collective.id },
-        totalAmount: getTotalAmountForOrderInput(amountInCents * quantity, platformTipAmount, tax),
+        totalAmount: getTotalAmountForOrderInput(amountInCents * quantity, platformTipAmount, tax, expectedCurrency),
         data: order.data, // We're filtering data before saving it (see `ORDER_PUBLIC_DATA_FIELDS`)
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
@@ -411,6 +419,13 @@ const orderMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
+      // PayPal bills via the external subscription plan; amount/tier changes must go through PayPal approval.
+      if (haveDetailsChanged && isPaypalSubscriptionPaymentMethod(order.paymentMethod) && !args.paypalSubscriptionId) {
+        throw new ValidationFailed(
+          'To change the amount or tier for a PayPal subscription, you must complete the PayPal approval flow.',
+        );
+      }
+
       let previousOrderValues, previousSubscriptionValues;
 
       // Update details (eg. amount, tier)
@@ -455,6 +470,7 @@ const orderMutations = {
               await updateOrderSubscription(order, previousOrderValues, previousSubscriptionValues);
             }
 
+            reportErrorToSentry(error, { req });
             throw error;
           }
         } else {
@@ -523,7 +539,23 @@ const orderMutations = {
       // Trigger update
       const previousAccountingCategory = order.accountingCategory;
       if (previousAccountingCategory?.id !== newAccountingCategory?.id) {
-        await order.update({ AccountingCategoryId: newAccountingCategory?.id || null });
+        const valuesByRole = {
+          ...(order.data?.valuesByRole ?? {}),
+          ...{
+            hostAdmin: {
+              accountingCategory: newAccountingCategory?.id
+                ? newAccountingCategory?.publicInfo
+                : { code: UncategorizedValue },
+            },
+          },
+        };
+        await order.update({
+          AccountingCategoryId: newAccountingCategory?.id || null,
+          data: {
+            ...order.data,
+            valuesByRole,
+          },
+        });
         await models.Activity.create({
           type: activities.ORDER_UPDATED,
           UserId: req.remoteUser.id,
@@ -630,7 +662,7 @@ const orderMutations = {
             }
 
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
-            order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
+            order.set('data', { ...order.data, paymentProcessorFee: paymentProcessorFeeInCents });
           }
           if (!isNil(tax)) {
             const quantity = 1; // Not supported yet by OrderUpdateInput
@@ -641,16 +673,17 @@ const orderMutations = {
               fromAccount,
               toAccount,
               host,
+              order.currency,
             );
             order.set('taxAmount', taxAmount);
-            order.set('data.tax', taxInfo);
+            order.set('data', { ...order.data, tax: taxInfo });
           }
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
             order.set('platformTipAmount', platformTipInCents);
           }
           if (!isNil(hostFeePercent)) {
-            order.set('data.hostFeePercent', hostFeePercent);
+            order.set('data', { ...order.data, hostFeePercent });
           }
 
           if (!isNil(processedAt)) {
@@ -663,7 +696,12 @@ const orderMutations = {
             : getOrderBaseAmount(order);
           order.set(
             'totalAmount',
-            getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, args.order.tax || order.data?.tax),
+            getTotalAmountForOrderInput(
+              baseAmount,
+              order.platformTipAmount,
+              args.order.tax || order.data?.tax,
+              order.currency,
+            ),
           );
 
           // Link transactions import row
@@ -1136,6 +1174,7 @@ const orderMutations = {
       } else if (
         fromAccount.HostCollectiveId !== host.id &&
         !req.remoteUser.isRoot() &&
+        !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
         !host.data?.allowAddFundsFromAllAccounts &&
         !host.data?.isTrustedHost
       ) {
@@ -1148,8 +1187,9 @@ const orderMutations = {
 
       // Check accounting category
       let AccountingCategoryId = null;
+      let accountingCategory = null;
       if (args.order.accountingCategory) {
-        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
           throwIfMissing: true,
           loaders: req.loaders,
         });
@@ -1176,17 +1216,29 @@ const orderMutations = {
         fromAccount,
         toAccount,
         host,
+        expectedCurrency,
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
-      const orderProps = {
+
+      const valuesByRole = {
+        ...(accountingCategory
+          ? {
+              hostAdmin: {
+                accountingCategory: accountingCategory?.publicInfo,
+              },
+            }
+          : {}),
+      };
+
+      const orderProps: CreationAttributes<Order> = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
         quantity,
-        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax, expectedCurrency),
         currency: args.order.amount.currency,
-        description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
+        description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined, tier),
         taxAmount,
         platformTipEligible: false, // Pending Contributions are not eligible to Platform Tips
         AccountingCategoryId,
@@ -1199,6 +1251,7 @@ const orderMutations = {
           isPendingContribution: true,
           hostFeePercent: args.order.hostFeePercent,
           tax: taxInfo,
+          valuesByRole,
         },
         status: OrderStatuses.PENDING,
       };
@@ -1211,6 +1264,9 @@ const orderMutations = {
       }
 
       const order = await models.Order.create(orderProps);
+      if (!AccountingCategoryId) {
+        await applyContributionAccountingCategoryRules(order);
+      }
 
       await models.Activity.create({
         type: activities.ORDER_PENDING_CREATED,
@@ -1289,15 +1345,31 @@ const orderMutations = {
       await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
 
       // Load data
-      const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
+      const fromAccount = args.order.fromAccount
+        ? await fetchAccountWithReference(args.order.fromAccount)
+        : await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
         : order.tier;
 
+      if (
+        fromAccount &&
+        fromAccount.HostCollectiveId !== host.id &&
+        !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
+        !req.remoteUser.isRoot() &&
+        !host.data?.allowAddFundsFromAllAccounts &&
+        !host.data?.isTrustedHost
+      ) {
+        throw new Error(
+          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        );
+      }
+
       // Check accounting category
       let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;
+      let accountingCategory = null;
       if (args.order.accountingCategory) {
-        const accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
+        accountingCategory = await fetchAccountingCategoryWithReference(args.order.accountingCategory, {
           throwIfMissing: true,
           loaders: req.loaders,
         });
@@ -1324,16 +1396,31 @@ const orderMutations = {
         fromAccount,
         order.collective,
         host,
+        expectedCurrency,
       );
 
       const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
       const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
       const platformTip = args.order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+
+      const valuesByRole = {
+        ...(order.data?.valuesByRole || {}),
+        ...(isUndefined(args.order.accountingCategory)
+          ? {}
+          : {
+              hostAdmin: {
+                accountingCategory: accountingCategory?.id
+                  ? accountingCategory?.publicInfo
+                  : { code: UncategorizedValue },
+              },
+            }),
+      };
+
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
         TierId: tier?.id || undefined,
-        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, platformTipAmount, tax, expectedCurrency),
         platformTipAmount,
         taxAmount: taxAmount || null,
         currency: args.order.amount.currency,
@@ -1354,6 +1441,7 @@ const orderMutations = {
             },
             isUndefined,
           ),
+          valuesByRole,
         },
         status: OrderStatuses.PENDING,
       });

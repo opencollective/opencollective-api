@@ -2,7 +2,7 @@ import config from 'config';
 
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
+import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import { getHostFee, getHostFeeSharePercent, getPlatformTip, isPlatformTipEligible } from '../../lib/payments';
 import models from '../../models';
 
@@ -32,14 +32,14 @@ paymentMethodProvider.processOrder = async order => {
   const currency = order.currency;
   const hostCurrency = host.currency;
   const hostCurrencyFxRate = await getFxRate(currency, hostCurrency);
-  const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
+  const amountInHostCurrency = roundCentsAmount(amount * hostCurrencyFxRate, hostCurrency);
 
   const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
-  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);
 
   const hostFee = await getHostFee(order);
-  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+  const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,

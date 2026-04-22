@@ -1,9 +1,12 @@
 import config from 'config';
 import jwt from 'jsonwebtoken';
 
-import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
+import { fetchAccountWithReference } from '../../graphql/v2/input/AccountReferenceInput';
+import { fetchPayoutMethodWithReference } from '../../graphql/v2/input/PayoutMethodReferenceInput';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../lib/permalink/entity-map';
 import RateLimit from '../../lib/rate-limit';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { sequelize } from '../../models';
@@ -81,8 +84,8 @@ export default {
         return next(new errors.BadRequest('Missing redirect'));
       }
 
-      const collectiveId = idDecode(req.query.accountId, IDENTIFIER_TYPES.ACCOUNT);
-      const collective = await models.Collective.findByPk(collectiveId);
+      const collective = await fetchAccountWithReference({ id: req.query.accountId });
+
       if (!collective) {
         return next(new errors.NotFound('Collective not found'));
       } else if (!req.remoteUser.isAdminOfCollective(collective)) {
@@ -134,8 +137,12 @@ export default {
         );
       }
 
-      const collectiveId = idDecode(accountId, IDENTIFIER_TYPES.ACCOUNT);
-      if (statePayload.CollectiveId !== collectiveId) {
+      const collective = await fetchAccountWithReference({ id: accountId });
+      if (!collective) {
+        return next(new errors.NotFound('Collective not found'));
+      }
+
+      if (statePayload.CollectiveId !== collective.id) {
         return next(
           new errors.Forbidden(
             'The confirmation code does not match the requested account. Please restart the PayPal connect flow.',
@@ -151,17 +158,14 @@ export default {
       }
 
       // Ensure the remote user is an admin of the collective
-      const collective = await models.Collective.findByPk(collectiveId);
-      if (!collective) {
-        return next(new errors.NotFound('Collective not found'));
-      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
+      if (!req.remoteUser.isAdminOfCollective(collective)) {
         return next(new errors.Forbidden('You must be an admin of this collective'));
       }
 
       // Load & check payout method ID if provided
       let payoutMethod: PayoutMethod | null = null;
       if (payoutMethodId) {
-        payoutMethod = await models.PayoutMethod.findByPk(idDecode(payoutMethodId, IDENTIFIER_TYPES.PAYOUT_METHOD));
+        payoutMethod = await fetchPayoutMethodWithReference({ id: payoutMethodId });
         if (!payoutMethod) {
           return next(new errors.NotFound('Payout method not found'));
         } else if (payoutMethod.CollectiveId !== collective.id) {
@@ -185,9 +189,9 @@ export default {
         // Paypal supports multiple emails per account. We only keep the confirmed ones, and default to the "primary" one.
         const confirmedEmails = paypalUserInfo.emails.filter(email => email.confirmed);
         if (confirmedEmails.length === 0) {
-          throw new errors.BadRequest('This PayPal account is not associated with a confirmed email address');
+          return next(new errors.BadRequest('This PayPal account is not associated with a confirmed email address'));
         } else if (paypalUserInfo.verified_account !== 'true') {
-          throw new errors.BadRequest('This PayPal account is not verified');
+          return next(new errors.BadRequest('This PayPal account is not verified'));
         } else if (
           payoutMethod &&
           !confirmedEmails.find(email => email.value === (payoutMethod?.data as PaypalPayoutMethodData)?.email)
@@ -273,13 +277,23 @@ export default {
           return { connectedAccount, payoutMethod };
         });
 
-        const connectedAccountId = idEncode(result.connectedAccount.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
-        const payoutMethodId = idEncode(result.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+        const connectedAccountId = isEntityMigratedToPublicId(
+          EntityShortIdPrefix.ConnectedAccount,
+          result.connectedAccount.createdAt,
+        )
+          ? result.connectedAccount.publicId
+          : idEncode(result.connectedAccount.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
+        const payoutMethodId = isEntityMigratedToPublicId(
+          EntityShortIdPrefix.PayoutMethod,
+          result.payoutMethod.createdAt,
+        )
+          ? result.payoutMethod.publicId
+          : idEncode(result.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
         return res.json({ connectedAccountId, payoutMethodId });
       } catch (e) {
         logger.error('PayPal connect (SDK flow) failed', e);
         reportErrorToSentry(e, { req });
-        return next(e);
+        return next(new errors.ServerError('PayPal connect failed'));
       }
     },
   },

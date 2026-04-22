@@ -728,6 +728,11 @@ interface Account {
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
@@ -747,13 +752,11 @@ interface Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -764,20 +767,19 @@ interface Account {
     An alternative to filter by accounts, both cannot be used together
     """
     accounts: [AccountReferenceInput]
-    direction: ExpenseDirection
 
     """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -886,6 +888,12 @@ interface Account {
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
+    direction: ExpenseDirection
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -922,7 +930,7 @@ interface Account {
     Whether to include archived payout methods
     """
     includeArchived: Boolean = false
-  ): [PayoutMethod]
+  ): [PayoutMethod!]
 
   """
   The list of payment methods that this account can use to pay for Orders
@@ -1476,6 +1484,11 @@ enum Currency {
   Lari
   """
   GEL
+
+  """
+  Ghana Cedi
+  """
+  GHS
 
   """
   Gibraltar Pound
@@ -3557,11 +3570,18 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -3576,13 +3596,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -3595,22 +3613,17 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -3719,6 +3732,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -4126,6 +4144,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     account: AccountReferenceInput
   ): AccountingCategoryCollection!
+  contributionAccountingCategoryRules: [ContributionAccountingCategoryRule!]
   hostFeePercent: Float
   totalHostedCollectives: Int @deprecated(reason: "2023-03-20: Renamed to totalHostedAccounts")
   totalHostedAccounts: Int
@@ -4136,7 +4155,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   """
   hasMoneyManagement: Boolean!
   termsUrl: URL
-  plan: HostPlan!
+  plan: HostPlan! @deprecated(reason: "2026-04-02: Replaced by new pricing")
 
   """
   EXPERIMENTAL (this may change or be removed)
@@ -4375,9 +4394,14 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   isTrustedHost: Boolean!
 
   """
-  Returns whether the host is trusted or not
+  Returns whether the host is a first party host
   """
   isFirstPartyHost: Boolean!
+
+  """
+  Returns whether the host allows adding funds from all accounts
+  """
+  allowAddFundsFromAllAccounts: Boolean!
 
   """
   Returns whether the host has any Stripe disputed orders
@@ -5643,6 +5667,21 @@ enum ExpectedFundsFilter {
 }
 
 """
+Filters orders based on whether the opposite account (the other side of the order) is internal or external. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children (events/projects).
+"""
+enum OppositeAccountScope {
+  """
+  Only orders where the opposite account is within the same scope (same fiscal host, or same account hierarchy)
+  """
+  INTERNAL
+
+  """
+  Only orders where the opposite account is outside the scope
+  """
+  EXTERNAL
+}
+
+"""
 A collection of "Expenses"
 """
 type ExpenseCollection implements Collection {
@@ -5932,6 +5971,14 @@ enum ActivityType {
   KYC_REQUESTED
   KYC_REVOKED
   KYC_VERIFIED
+}
+
+"""
+Describes the values allowed to filter expenses KYC statuses, namely all the KYC statuses.
+"""
+enum ExpenseKYCStatusFilter {
+  VERIFIED
+  PENDING
 }
 
 """
@@ -6500,6 +6547,11 @@ type PaymentMethod {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
 
     """
     Return only orders created by these users. Limited to 1000 users at a time.
@@ -7319,6 +7371,7 @@ type CollectiveFeatures {
   RECEIVE_HOST_APPLICATIONS: CollectiveFeatureStatus
   PAYPAL_CONNECT: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
+  ACCOUNTING_CATEGORIZATION_RULES: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
@@ -7712,10 +7765,17 @@ type TransactionsAmountGroup {
 }
 
 type CommunityStats {
+  id: String!
   associatedCollectives: [CommunityAssociatedAccount]
   associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
   transactionSummary: [CommunityTransactionSummary!]!
+  transactionSummaryTimeSeries(
+    """
+    The type of transactions to return: CREDIT, DEBIT, or REFUND_DEBIT
+    """
+    type: CommunityTransactionType!
+  ): TimeSeriesAmount!
   lastInteractionAt: DateTime
   firstInteractionAt: DateTime
   activities(
@@ -7750,17 +7810,19 @@ enum CommunityRelationType {
 }
 
 type CommunityTransactionSummary {
-  year: Int
-  expenseTotal: Amount!
-  expenseCount: Int!
-  contributionTotal: Amount!
-  contributionCount: Int!
-  expenseTotalAcc: Amount!
-  expenseCountAcc: Int!
-  contributionTotalAcc: Amount!
-  contributionCountAcc: Int!
-  orderCount: Int!
-  orderCountAcc: Int!
+  kind: String
+  debitTotal: Amount!
+  debitCount: Int!
+  creditTotal: Amount!
+  creditCount: Int!
+  refundDebitTotal: Amount
+  refundDebitCount: Int
+}
+
+enum CommunityTransactionType {
+  CREDIT
+  DEBIT
+  REFUND_DEBIT
 }
 
 """
@@ -7924,6 +7986,29 @@ enum AccountingCategoryKind {
   CONTRIBUTION
   EXPENSE
 }
+
+"""
+A rule for categorizing contributions
+"""
+type ContributionAccountingCategoryRule {
+  id: NonEmptyString!
+  name: NonEmptyString!
+  enabled: Boolean!
+  predicates: [JSONObject!]!
+  accountingCategory: AccountingCategory!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject
 
 """
 EXPERIMENTAL (this may change or be deleted): Host transaction report
@@ -8262,11 +8347,6 @@ enum ManualPaymentProviderType {
   BANK_TRANSFER
   OTHER
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Stripe connected account properties
@@ -8738,11 +8818,6 @@ enum TransactionsImportRowStatus {
   """
   ON_HOLD
 }
-
-"""
-The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSONObject
 
 type TransactionsImportStats {
   """
@@ -9372,6 +9447,9 @@ type ExpenseKYCStatus {
 }
 
 type ExpensePayeeKYC {
+  """
+  Expense payee KYC status
+  """
   status: ExpensePayeeKYCStatus
 }
 
@@ -10118,11 +10196,18 @@ type Bot implements Account {
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -10137,13 +10222,11 @@ type Bot implements Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -10156,22 +10239,17 @@ type Bot implements Account {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -10280,6 +10358,11 @@ type Bot implements Account {
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -11168,11 +11251,18 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -11187,13 +11277,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -11206,22 +11294,17 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -11330,6 +11413,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -12788,11 +12876,18 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -12807,13 +12902,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -12826,22 +12919,17 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -12950,6 +13038,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -14127,11 +14220,18 @@ type Individual implements Account {
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -14146,13 +14246,11 @@ type Individual implements Account {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -14165,22 +14263,17 @@ type Individual implements Account {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -14289,6 +14382,11 @@ type Individual implements Account {
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -15502,11 +15600,18 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -15521,13 +15626,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -15540,22 +15643,17 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -15664,6 +15762,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -16697,11 +16800,18 @@ type Vendor implements Account & AccountWithContributions {
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -16716,13 +16826,11 @@ type Vendor implements Account & AccountWithContributions {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -16735,22 +16843,17 @@ type Vendor implements Account & AccountWithContributions {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -16859,6 +16962,11 @@ type Vendor implements Account & AccountWithContributions {
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -17750,13 +17858,11 @@ type Query {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -17769,22 +17875,17 @@ type Query {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -17893,6 +17994,11 @@ type Query {
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   expenseTagStats(
     """
@@ -18258,6 +18364,11 @@ type Query {
     Return orders only for this host
     """
     host: AccountReferenceInput
+
+    """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
 
     """
     Return only orders created by these users. Limited to 1000 users at a time.
@@ -20967,11 +21078,18 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -20986,13 +21104,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -21005,22 +21121,17 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -21129,6 +21240,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -22164,11 +22280,18 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     host: AccountReferenceInput
 
     """
+    Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.
+    """
+    oppositeAccountScope: OppositeAccountScope
+
+    """
     Return only orders created by these users. Limited to 1000 users at a time.
     """
     createdBy: [AccountReferenceInput]
   ): OrderCollection!
   expenses(
+    direction: ExpenseDirection
+
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -22183,13 +22306,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts or direction=SUBMITTED and account/accounts instead")
 
     """
     An alternative to filter by fromAccount (singular), both cannot be used together
     """
     fromAccounts: [AccountReferenceInput]
-      @deprecated(reason: "2026-03-04: Use oppositeAccounts direction=SUBMITTED and account/accounts instead")
 
     """
     Reference of an account that is the payer of an expense
@@ -22202,22 +22323,17 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     accounts: [AccountReferenceInput]
 
     """
-    Controls which side of the expense the account/accounts and host/hostContext arguments apply to. RECEIVED (default) filters expenses where the accounts are the payer/receiver. SUBMITTED filters expenses where the accounts are the payee/submitter.
-    """
-    direction: ExpenseDirection = RECEIVED
-
-    """
-    Filter by accounts on the opposite side of the expense from the direction. Should be used together with account/accounts or host to narrow results. Use a single-item array for one account.
-    """
-    oppositeAccounts: [AccountReferenceInput]
-
-    """
-    Return expenses only for this host
+    Return expenses only for this host (payer / collective side)
     """
     host: AccountReferenceInput
 
     """
-    If `host` is provided, select whether to include ALL, INTERNAL or HOSTED accounts expenses.
+    Return expenses only for payees (fromCollective) hosted by this host. Cannot be used together with `host`.
+    """
+    fromHost: AccountReferenceInput
+
+    """
+    If `host` or `fromHost` is provided, select whether to include ALL, INTERNAL or HOSTED accounts (payer when using `host`, payee when using `fromHost`).
     """
     hostContext: HostContext
 
@@ -22326,6 +22442,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Filter expenses by activities
     """
     activity: ExpenseActivityFilter
+
+    """
+    Filter expenses by KYC status
+    """
+    kycStatus: ExpenseKYCStatusFilter
   ): ExpenseCollection!
   settings: JSON!
   conversations(
@@ -23440,6 +23561,21 @@ type Mutation {
     The list of categories to edit
     """
     categories: [AccountingCategoryInput!]!
+  ): Account!
+
+  """
+  Update the contribution accounting category rules. Returns the account with the updated rules.
+  """
+  updateContributionAccountingCategoryRules(
+    """
+    The host to update the contribution accounting category rules for
+    """
+    account: AccountReferenceInput!
+
+    """
+    The contribution accounting category rules to update
+    """
+    rules: [ContributionAccountingCategoryRuleInput!]!
   ): Account!
 
   """
@@ -25481,6 +25617,27 @@ type Mutation {
   ): KYCVerification!
 
   """
+  Submits a KYC verification
+  """
+  submitKYCVerification(
+    """
+    Account request KYC Verification
+    """
+    requestedByAccount: AccountReferenceInput!
+
+    """
+    Account that will be verified
+    """
+    verifyAccount: AccountReferenceInput!
+    provider: KYCProvider!
+
+    """
+    Provider specific request data
+    """
+    request: SubmitKYCVerificationInput!
+  ): KYCVerification!
+
+  """
   Revoke the KYC Verification
   """
   revokeKYCVerification(kycVerification: KYCVerificationReferenceInput!): KYCVerification!
@@ -25852,6 +26009,93 @@ input AccountingCategoryInput {
 }
 
 """
+Input for creating or updating a contribution accounting category rule
+"""
+input ContributionAccountingCategoryRuleInput {
+  """
+  The ID of the contribution accounting category rule to edit
+  """
+  id: String
+
+  """
+  The accounting category to apply the rule to
+  """
+  accountingCategory: AccountingCategoryReferenceInput!
+
+  """
+  The name of the rule
+  """
+  name: NonEmptyString!
+
+  """
+  Whether the rule is enabled
+  """
+  enabled: Boolean!
+
+  """
+  The predicates of the rule
+  """
+  predicates: [ContributionAccountingCategoryRulePredicateInput!]!
+}
+
+"""
+Reference to an accounting category
+"""
+input AccountingCategoryReferenceInput {
+  """
+  The ID of the accounting category (ie: acat_xxxxxxxx)
+  """
+  id: NonEmptyString!
+}
+
+"""
+Input for creating or updating a contribution accounting category rule predicate
+"""
+input ContributionAccountingCategoryRulePredicateInput {
+  """
+  The subject of the predicate
+  """
+  subject: ContributionAccountingCategoryRuleSubject!
+
+  """
+  The operator of the predicate
+  """
+  operator: ContributionAccountingCategoryRuleOperator!
+
+  """
+  The value of the predicate
+  """
+  value: JSON!
+}
+
+"""
+The subject of the predicate
+"""
+enum ContributionAccountingCategoryRuleSubject {
+  description
+  amount
+  currency
+  frequency
+  toAccount
+  toAccountType
+  fromAccountType
+  tierType
+  paymentProcessor
+}
+
+"""
+The operator of the predicate
+"""
+enum ContributionAccountingCategoryRuleOperator {
+  eq
+  gte
+  lte
+  contains
+  in
+  childrenOf
+}
+
+"""
 Input to set taxes for an expense
 """
 input TaxInput {
@@ -25879,16 +26123,6 @@ input TaxInput {
   An optional tax amount to make sure the tax displayed in your frontend matches the one calculated by the API
   """
   amount: AmountInput
-}
-
-"""
-Reference to an accounting category
-"""
-input AccountingCategoryReferenceInput {
-  """
-  The ID of the accounting category (ie: acat_xxxxxxxx)
-  """
-  id: NonEmptyString!
 }
 
 input TransactionsImportRowReferenceInput {
@@ -28190,17 +28424,22 @@ input PlatformSubscriptionPlanPricing {
 
 input RequestKYCVerificationInput {
   manual: RequestManualKYCVerificationInput
-  persona: RequestPersonaKYCVerificationInput
 }
 
 input RequestManualKYCVerificationInput {
-  legalName: String!
+  legalName: String
   legalAddress: String
   notes: String
 }
 
-input RequestPersonaKYCVerificationInput {
-  importInquiryId: String
+input SubmitKYCVerificationInput {
+  manual: SubmitManualKYCVerificationInput
+}
+
+input SubmitManualKYCVerificationInput {
+  legalName: String!
+  legalAddress: String
+  notes: String
 }
 
 """

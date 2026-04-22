@@ -9,8 +9,10 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/con
 import PlatformConstants from '../../../server/constants/platform';
 import roles from '../../../server/constants/roles';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import * as applyContributionAccountingCategoryRules from '../../../server/lib/accounting/categorization/contribution-rules';
 import emailLib from '../../../server/lib/email';
 import {
+  calcFee,
   createRefundTransaction,
   executeOrder,
   getHostFeePercent,
@@ -23,6 +25,7 @@ import models from '../../../server/models';
 import * as paypalAPI from '../../../server/paymentProviders/paypal/api';
 import stripeMocks from '../../mocks/stripe';
 import {
+  fakeActiveHost,
   fakeCollective,
   fakeHost,
   fakeManualPaymentProvider,
@@ -1320,6 +1323,137 @@ describe('server/lib/payments', () => {
         const feePercent = await getHostFeePercent(noHostOrder);
         expect(feePercent).to.equal(5);
       });
+    });
+  });
+
+  describe('applyContributionAccountingCategoryRules', () => {
+    let sandbox;
+    let user, collective;
+    beforeEach(async () => {
+      sandbox = createSandbox();
+      user = await fakeUser();
+      const host = await fakeActiveHost();
+      await models.ConnectedAccount.create({
+        service: 'stripe',
+        token: 'abc',
+        CollectiveId: host.id,
+        username: 'stripeAccount',
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id });
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing stripe order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      await order.setPaymentMethod({ token: STRIPE_TOKEN });
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing paypal order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      await order.setPaymentMethod({ paypalToken: 'abc' });
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+
+    it('calls applyContributionAccountingCategoryRules after processing manual order', async () => {
+      const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+        applyContributionAccountingCategoryRules,
+        'applyContributionAccountingCategoryRules',
+      );
+      const order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: AMOUNT,
+        currency: collective.currency,
+      });
+      order.paymentMethod = {
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.MANUAL,
+        paid: true,
+      };
+      await executeOrder(user, order);
+
+      expect(applyContributionAccountingCategoryRulesSpy).to.have.been.calledWith(order);
+    });
+  });
+
+  describe('calcFee', () => {
+    it('computes percentage-based fees for standard decimal currencies', () => {
+      expect(calcFee(10000, 3.5, 'USD')).to.equal(350); // 3.5% of $100.00 = $3.50
+      expect(calcFee(10000, 5, 'EUR')).to.equal(500); // 5% of €100.00 = €5.00
+      expect(calcFee(10000, 0, 'USD')).to.equal(0);
+    });
+
+    it('rounds to the nearest whole unit (100 internally) for zero-decimal currencies', () => {
+      // 3.5% of ¥100 (10000 internal) = ¥3.5 → rounds to ¥400 (nearest 100)
+      expect(calcFee(10000, 3.5, 'JPY')).to.equal(400);
+      // 15% of ¥110 (11000 internal) = ¥16.5 (1650 internal) → rounds to ¥17 (1700 internal)
+      expect(calcFee(11000, 15, 'JPY')).to.equal(1700);
+      // 15% of ¥100 (10000 internal) = ¥15 (1500 internal) → already a whole yen, unchanged
+      expect(calcFee(10000, 15, 'JPY')).to.equal(1500);
+      // 5% of ¥100 (10000 internal) = ¥5 (500 internal) → already a whole yen, unchanged
+      expect(calcFee(10000, 5, 'JPY')).to.equal(500);
+      // KRW same behaviour
+      expect(calcFee(11000, 15, 'KRW')).to.equal(1700);
+    });
+
+    it('never produces a non-multiple-of-100 result for zero-decimal currencies', () => {
+      const zeroDecimal = [
+        'BIF',
+        'CLP',
+        'DJF',
+        'GNF',
+        'JPY',
+        'KMF',
+        'KRW',
+        'MGA',
+        'PYG',
+        'RWF',
+        'UGX',
+        'VND',
+        'VUV',
+        'XAF',
+        'XOF',
+        'XPF',
+      ];
+      for (const currency of zeroDecimal) {
+        expect(calcFee(11000, 15, currency) % 100).to.equal(
+          0,
+          `calcFee result for ${currency} must be a multiple of 100`,
+        );
+        expect(calcFee(13000, 7, currency) % 100).to.equal(
+          0,
+          `calcFee result for ${currency} must be a multiple of 100`,
+        );
+      }
     });
   });
 });

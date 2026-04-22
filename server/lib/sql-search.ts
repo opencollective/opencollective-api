@@ -20,7 +20,13 @@ import {
 } from '../graphql/v2/input/AmountRangeInput';
 import models, { Collective, Op, sequelize } from '../models';
 
-import { floatAmountToCents } from './math';
+import {
+  EntityShortIdPrefix,
+  getEntityShortIdPrefix,
+  isAnyEntityPublicId,
+  isEntityPublicId,
+} from './permalink/entity-map';
+import { floatAmountToCents } from './currency';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 import { removeDiacritics } from './string-utils';
 
@@ -299,6 +305,15 @@ export const searchCollectivesInDB = async (
     lastTransactionTo?: Date;
   } = {},
 ): Promise<[Collective[], number]> => {
+  if (isEntityPublicId(term, EntityShortIdPrefix.Collective)) {
+    const collective = await models.Collective.findOne({
+      where: { publicId: term },
+    });
+    if (collective) {
+      return [[collective], 1];
+    }
+  }
+
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
   let countryCodes = null;
@@ -513,6 +528,11 @@ export const parseSearchTerm = (
       type: 'number';
       term: number;
       isFloat?: boolean;
+    }
+  | {
+      type: 'publicId';
+      term: string;
+      prefix: EntityShortIdPrefix;
     } => {
   const searchTerm = trimSearchTerm(fullSearchTerm);
   if (!searchTerm) {
@@ -529,6 +549,8 @@ export const parseSearchTerm = (
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
     return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
+  } else if (isAnyEntityPublicId(searchTerm)) {
+    return { type: 'publicId', term: searchTerm, prefix: getEntityShortIdPrefix(searchTerm) };
   } else {
     // We use a custom pattern here because Lodash will split A123 to ['A', '123']
     const wordsCount = words(searchTerm, /[^, -]+/g).length;
@@ -556,6 +578,7 @@ export const buildSearchConditions = (
     stringArrayFields = [],
     stringArrayTransformFn = null,
     castStringArraysToVarchar = false,
+    publicIdFields = [],
   }: {
     slugFields?: string[];
     idFields?: string[];
@@ -566,6 +589,10 @@ export const buildSearchConditions = (
     stringArrayFields?: string[];
     stringArrayTransformFn?: (str: string) => string;
     castStringArraysToVarchar?: boolean;
+    publicIdFields?: {
+      field: string | string[];
+      prefix: EntityShortIdPrefix;
+    }[];
   },
 ) => {
   const parsedTerm = parseSearchTerm(searchTerm);
@@ -588,6 +615,18 @@ export const buildSearchConditions = (
   // Inclusive conditions, search all fields except
   const conditions = [];
 
+  if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
+    const fields = publicIdFields
+      .filter(field => field.prefix === parsedTerm.prefix)
+      .reduce((acc, field) => {
+        if (Array.isArray(field.field)) {
+          return [...acc, ...field.field];
+        }
+        return [...acc, field.field];
+      }, []);
+
+    conditions.push(...fields.map(field => ({ [field]: parsedTerm.term })));
+  }
   // Conditions for text fields
   const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
   const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
@@ -608,7 +647,9 @@ export const buildSearchConditions = (
 
   if (
     dataFields?.length &&
-    ((parsedTerm.type === 'text' && parsedTerm.words === 1) || (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+    ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
+      (parsedTerm.type === 'number' && !parsedTerm.isFloat) ||
+      parsedTerm.type === 'publicId')
   ) {
     conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
   }
@@ -634,11 +675,16 @@ export const buildKyselySearchConditions =
       idFields = [],
       textFields = [],
       emailFields = [],
+      publicIdFields = [],
     }: {
       slugFields?: string[];
       idFields?: string[];
       textFields?: string[];
       emailFields?: string[];
+      publicIdFields?: {
+        field: string | string[];
+        prefix: EntityShortIdPrefix;
+      }[];
     },
   ) =>
   (q: SelectQueryBuilder<any, any, T>): SelectQueryBuilder<any, any, T> => {
@@ -657,6 +703,16 @@ export const buildKyselySearchConditions =
       return q.where(({ eb, or }) => or(idFields.map(field => eb(field, '=', parsedTerm.term))));
     } else if (parsedTerm.type === 'email' && emailFields?.length) {
       return q.where(({ eb, or }) => or(emailFields.map(field => eb(field, '=', parsedTerm.term))));
+    } else if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
+      const fields = publicIdFields
+        .filter(field => field.prefix === parsedTerm.prefix)
+        .reduce((acc, field) => {
+          if (Array.isArray(field.field)) {
+            return [...acc, ...field.field];
+          }
+          return [...acc, field.field];
+        }, []);
+      return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
     }
 
     // Inclusive conditions, search all fields except

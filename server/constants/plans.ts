@@ -217,7 +217,7 @@ const legacyPlans: Record<string, HostPlan> = {
   },
 } as const;
 
-enum PlatformSubscriptionTierTypes {
+export enum PlatformSubscriptionTierTypes {
   FREE = 'Discover',
   BASIC = 'Basic',
   PRO = 'Pro',
@@ -243,6 +243,10 @@ export interface PlatformSubscriptionPlan {
     /** Price for each additional expense beyond the included amount (monthly) */
     pricePerAdditionalExpense: number;
 
+    /** Whether this plan has platform tips enabled */
+    platformTips: boolean;
+
+    /** If tips are not enabled, the fixed platform fee percentage on contributions */
     crowdfundingFeePercent?: number;
   };
   features: Partial<Record<CommercialFeaturesType, boolean>>;
@@ -287,6 +291,19 @@ const featuresForBasic = Object.fromEntries(
 
 const featuresForPro = Object.fromEntries(CommercialFeatures.map(feature => [feature, proFeatures.includes(feature)]));
 
+/** Canonical feature flags per subscription tier type (see `PlatformSubscriptionTiers`). */
+export const platformSubscriptionFeaturesByTierType: Record<
+  PlatformSubscriptionTierTypes,
+  Partial<Record<CommercialFeaturesType, boolean>>
+> = {
+  [PlatformSubscriptionTierTypes.FREE]: featuresForStarter,
+  [PlatformSubscriptionTierTypes.BASIC]: featuresForBasic,
+  [PlatformSubscriptionTierTypes.PRO]: featuresForPro,
+};
+
+/**
+ * Platform Subscription Tiers. Keep this in order, from cheapest to most expensive.
+ */
 export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlanId'>[] = [
   // Free
   {
@@ -299,6 +316,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 10,
       pricePerAdditionalExpense: 100,
+      platformTips: true,
     },
     features: featuresForStarter,
   },
@@ -325,6 +343,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 50,
       pricePerAdditionalExpense: 100,
+      platformTips: true,
     },
     features: featuresForStarter,
   },
@@ -338,6 +357,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 100,
       pricePerAdditionalExpense: 100,
+      platformTips: true,
     },
     features: featuresForStarter,
   },
@@ -351,6 +371,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1000,
       includedExpensesPerMonth: 200,
       pricePerAdditionalExpense: 100,
+      platformTips: true,
     },
     features: featuresForStarter,
   },
@@ -365,6 +386,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 50,
       pricePerAdditionalExpense: 150,
+      platformTips: true,
     },
     features: featuresForBasic,
   },
@@ -378,6 +400,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 100,
       pricePerAdditionalExpense: 150,
+      platformTips: true,
     },
     features: featuresForBasic,
   },
@@ -391,6 +414,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 200,
       pricePerAdditionalExpense: 150,
+      platformTips: true,
     },
     features: featuresForBasic,
   },
@@ -404,6 +428,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 1500,
       includedExpensesPerMonth: 500,
       pricePerAdditionalExpense: 150,
+      platformTips: true,
     },
     features: featuresForBasic,
   },
@@ -418,6 +443,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 200,
       pricePerAdditionalExpense: 200,
+      platformTips: true,
     },
     features: featuresForPro,
   },
@@ -431,6 +457,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 500,
       pricePerAdditionalExpense: 200,
+      platformTips: true,
     },
     features: featuresForPro,
   },
@@ -444,6 +471,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 1000,
       pricePerAdditionalExpense: 200,
+      platformTips: true,
     },
     features: featuresForPro,
   },
@@ -457,6 +485,7 @@ export const PlatformSubscriptionTiers: Omit<PlatformSubscriptionPlan, 'basePlan
       pricePerAdditionalCollective: 2000,
       includedExpensesPerMonth: 2000,
       pricePerAdditionalExpense: 200,
+      platformTips: true,
     },
     features: featuresForPro,
   },

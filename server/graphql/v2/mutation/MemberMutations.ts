@@ -159,7 +159,7 @@ const memberMutations = {
       toAccount = await fetchAccountWithReference(toAccount);
       fromAccount = await fetchAccountWithReference(fromAccount);
 
-      return await editPublicMessage(
+      const updatedMembers = await editPublicMessage(
         _,
         {
           fromAccount,
@@ -168,6 +168,8 @@ const memberMutations = {
         },
         req,
       );
+
+      return updatedMembers[0];
     },
   },
   createMember: {

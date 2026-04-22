@@ -6,8 +6,6 @@ import fastRedact from 'fast-redact';
 import { filter, get, isObject, omit, padStart, sumBy } from 'lodash';
 import moment from 'moment';
 
-import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
-
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);
   Object.keys(obj).forEach(key => {
@@ -177,14 +175,6 @@ export function formatArrayToString(arr, conjonction = 'and') {
   }
   return `${arr.slice(0, arr.length - 1).join(', ')} ${conjonction} ${arr.slice(-1)}`;
 }
-
-export const getDefaultCurrencyPrecision = currency => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
-    return 0;
-  } else {
-    return 2;
-  }
-};
 
 export function formatCurrency(amount, currency, precision = 2, isApproximate = false) {
   amount = amount / 100; // converting cents

@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`test/stories/ledger Level 1: Same currency (USD) 1. Simple contribution without host fees 1`] = `
+exports[`test/stories/ledger-legacy Level 1: Same currency (USD) 1. Simple contribution without host fees 1`] = `
 "
 | kind         | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
 | ------------ | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
@@ -8,7 +8,7 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 1. Simple contribution
 | CONTRIBUTION | DEBIT  | -10000 | 0          | Ben    | ESLint | NULL |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 1: Same currency (USD) 2. Simple contribution with 5% host fees 1`] = `
+exports[`test/stories/ledger-legacy Level 1: Same currency (USD) 2. Simple contribution with 5% host fees 1`] = `
 "
 | kind                | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -22,7 +22,7 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 2. Simple contribution
 | HOST_FEE            | DEBIT  | -500   | 0          | ESLint | OSC    | OSC    |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 1: Same currency (USD) 3. Simple contribution with 5% host fees and indirect platform tip (unsettled) 1`] = `
+exports[`test/stories/ledger-legacy Level 1: Same currency (USD) 3. Simple contribution with 5% host fees and indirect platform tip (unsettled) 1`] = `
 "
 | kind                | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -40,7 +40,7 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 3. Simple contribution
 | PLATFORM_TIP        | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 1: Same currency (USD) 4. Simple contribution with 5% host fees and indirect platform tip (settled) 1`] = `
+exports[`test/stories/ledger-legacy Level 1: Same currency (USD) 4. Simple contribution with 5% host fees and indirect platform tip (settled) 1`] = `
 "
 | kind                | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -60,7 +60,7 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 4. Simple contribution
 | PLATFORM_TIP        | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 1: Same currency (USD) 5. Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
+exports[`test/stories/ledger-legacy Level 1: Same currency (USD) 5. Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
 | kind                    | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ----------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -94,7 +94,7 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 5. Refunded contributi
 | PLATFORM_TIP            | DEBIT  | -1000  | 0          | Ben    | OC Inc | NULL   |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 1: Same currency (USD) 6. Expense with Payment Processor fees marked as unpaid 1`] = `
+exports[`test/stories/ledger-legacy Level 1: Same currency (USD) 6. Expense with Payment Processor fees marked as unpaid 1`] = `
 "
 | kind                    | type   | amount  | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
 | ----------------------- | ------ | ------- | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
@@ -108,7 +108,7 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 6. Expense with Paymen
 | CONTRIBUTION            | DEBIT  | -150000 | 0          | Ben    | ESLint | NULL |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 2: Host with a different currency (Host=EUR, Collective=EUR) Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
+exports[`test/stories/ledger-legacy Level 2: Host with a different currency (Host=EUR, Collective=EUR) Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
 | kind                    | type   | amount | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ----------------------- | ------ | ------ | -------- | -------------------- | ------------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -142,7 +142,7 @@ exports[`test/stories/ledger Level 2: Host with a different currency (Host=EUR, 
 | PLATFORM_TIP            | DEBIT  | -1000  | EUR      | -1190                | USD          | 0          | Ben    | OC Inc | NULL   |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 3: Host and collective with different currencies (Host=EUR, Collective=JPY) 🤯️ Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
+exports[`test/stories/ledger-legacy Level 3: Host and collective with different currencies (Host=EUR, Collective=JPY) 🤯️ Refunded contribution with host fees, payment processor fees and indirect platform tip 1`] = `
 "
 | kind                    | type   | amount    | currency | amountInHostCurrency | hostCurrency | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ----------------------- | ------ | --------- | -------- | -------------------- | ------------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -154,8 +154,8 @@ exports[`test/stories/ledger Level 3: Host and collective with different currenc
 | HOST_FEE_SHARE          | DEBIT  | -5063     | EUR      | -6025                | USD          | 0          | OC Inc | OSC    | OC Inc |            | true     | false      |
 | HOST_FEE                | CREDIT | 4500000   | JPY      | 33750                | EUR          | 0          | ESLint | OSC    | OSC    |            | true     | false      |
 | HOST_FEE                | DEBIT  | -4500000  | JPY      | -33750               | EUR          | 0          | OSC    | ESLint | OSC    |            | true     | false      |
-| PAYMENT_PROCESSOR_COVER | CREDIT | 26667     | JPY      | 200                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     | false      |
-| PAYMENT_PROCESSOR_COVER | DEBIT  | -26667    | JPY      | -200                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     | false      |
+| PAYMENT_PROCESSOR_COVER | CREDIT | 26700     | JPY      | 200                  | EUR          | 0          | ESLint | OSC    | OSC    |            | true     | false      |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | -26700    | JPY      | -200                 | EUR          | 0          | OSC    | ESLint | OSC    |            | true     | false      |
 | PLATFORM_TIP_DEBT       | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | OC Inc | OSC    | OC Inc | OWED       | true     | false      |
 | PLATFORM_TIP_DEBT       | DEBIT  | -10000000 | JPY      | -75000               | EUR          | 0          | OSC    | OC Inc | OSC    | OWED       | true     | false      |
 | PLATFORM_TIP            | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | Ben    | OC Inc | NULL   |            | true     | false      |
@@ -163,7 +163,7 @@ exports[`test/stories/ledger Level 3: Host and collective with different currenc
 | EXPENSE                 | CREDIT | 80063     | EUR      | 95275                | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    | false      |
 | EXPENSE                 | DEBIT  | -80063    | EUR      | -80063               | EUR          | 0          | OSC    | OC Inc | OSC    |            | false    | false      |
 | CONTRIBUTION            | CREDIT | 90000000  | JPY      | 675000               | EUR          | -200       | ESLint | Ben    | OSC    |            | false    | false      |
-| CONTRIBUTION            | DEBIT  | -89973333 | JPY      | -674800              | EUR          | -200       | Ben    | ESLint | NULL   |            | false    | false      |
+| CONTRIBUTION            | DEBIT  | -89973300 | JPY      | -674800              | EUR          | -200       | Ben    | ESLint | NULL   |            | false    | false      |
 | HOST_FEE_SHARE_DEBT     | CREDIT | 5063      | EUR      | 5063                 | EUR          | 0          | OSC    | OC Inc | OSC    | SETTLED    | false    | false      |
 | HOST_FEE_SHARE_DEBT     | DEBIT  | -5063     | EUR      | -6025                | USD          | 0          | OC Inc | OSC    | OC Inc | SETTLED    | false    | false      |
 | HOST_FEE_SHARE          | CREDIT | 5063      | EUR      | 6025                 | USD          | 0          | OC Inc | OSC    | OC Inc |            | false    | false      |
@@ -176,7 +176,7 @@ exports[`test/stories/ledger Level 3: Host and collective with different currenc
 | PLATFORM_TIP            | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | Ben    | OC Inc | NULL   |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 4: Refund added funds️ Refund added funds with different collectives 1`] = `
+exports[`test/stories/ledger-legacy Level 4: Refund added funds️ Refund added funds with different collectives 1`] = `
 "
 | kind        | type   | amount | paymentFee | To      | From    | Host | Settlement | isRefund | isDisputed |
 | ----------- | ------ | ------ | ---------- | ------- | ------- | ---- | ---------- | -------- | ---------- |
@@ -186,7 +186,7 @@ exports[`test/stories/ledger Level 4: Refund added funds️ Refund added funds w
 | ADDED_FUNDS | DEBIT  | -10000 | 0          | Webpack | ESLint  | OSC  |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 4: Refund added funds️ Refund added funds with same collective 1`] = `
+exports[`test/stories/ledger-legacy Level 4: Refund added funds️ Refund added funds with same collective 1`] = `
 "
 | kind        | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
 | ----------- | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
@@ -194,7 +194,7 @@ exports[`test/stories/ledger Level 4: Refund added funds️ Refund added funds w
 | ADDED_FUNDS | CREDIT | 10000  | 0          | ESLint | ESLint | OSC  |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 5: Refund Expenses️ Refund expense with different collectives 1`] = `
+exports[`test/stories/ledger-legacy Level 5: Refund Expenses️ Refund expense with different collectives 1`] = `
 "
 | kind                | type   | amount | paymentFee | To       | From     | Host   | Settlement | isRefund | isDisputed |
 | ------------------- | ------ | ------ | ---------- | -------- | -------- | ------ | ---------- | -------- | ---------- |
@@ -212,7 +212,7 @@ exports[`test/stories/ledger Level 5: Refund Expenses️ Refund expense with dif
 | HOST_FEE            | DEBIT  | -500   | 0          | ESLint   | OSC      | OSC    |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 5: Refund Expenses️ Refund expense with same collective 1`] = `
+exports[`test/stories/ledger-legacy Level 5: Refund Expenses️ Refund expense with same collective 1`] = `
 "
 | kind                | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -228,7 +228,7 @@ exports[`test/stories/ledger Level 5: Refund Expenses️ Refund expense with sam
 | HOST_FEE            | DEBIT  | -500   | 0          | ESLint | OSC    | OSC    |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 6: Disputed Transactions 1. Dispute is created 1`] = `
+exports[`test/stories/ledger-legacy Level 6: Disputed Transactions 1. Dispute is created 1`] = `
 "
 | kind                | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
 | ------------------- | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
@@ -242,7 +242,7 @@ exports[`test/stories/ledger Level 6: Disputed Transactions 1. Dispute is create
 | HOST_FEE            | DEBIT  | -500   | 0          | ESLint | OSC    | OSC  |            | false    | true       |"
 `;
 
-exports[`test/stories/ledger Level 6: Disputed Transactions 2. Dispute is created and then closed as lost 1`] = `
+exports[`test/stories/ledger-legacy Level 6: Disputed Transactions 2. Dispute is created and then closed as lost 1`] = `
 "
 | kind                          | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund | isDisputed |
 | ----------------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- | ---------- |
@@ -266,7 +266,7 @@ exports[`test/stories/ledger Level 6: Disputed Transactions 2. Dispute is create
 | HOST_FEE                      | DEBIT  | -500   | 0          | ESLint | OSC    | OSC    |            | false    | false      |"
 `;
 
-exports[`test/stories/ledger Level 6: Disputed Transactions 3. Dispute is created and then closed as won 1`] = `
+exports[`test/stories/ledger-legacy Level 6: Disputed Transactions 3. Dispute is created and then closed as won 1`] = `
 "
 | kind                          | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
 | ----------------------------- | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |

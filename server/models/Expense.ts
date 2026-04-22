@@ -350,6 +350,7 @@ class Expense extends ModelWithPublicId<
       lastEditedById,
       HostCollectiveId: collective.HostCollectiveId,
       paidAt,
+      onHold: false,
     });
 
     // Update transactions settlement
@@ -479,6 +480,7 @@ class Expense extends ModelWithPublicId<
     return {
       type: this.type,
       id: this.id,
+      publicId: this.publicId,
       UserId: this.UserId,
       CollectiveId: this.CollectiveId,
       FromCollectiveId: this.FromCollectiveId,

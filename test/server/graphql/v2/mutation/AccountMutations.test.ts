@@ -9,6 +9,7 @@ import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import FEATURE from '../../../../../server/constants/feature';
 import OrderStatuses from '../../../../../server/constants/order-status';
+import { PlatformSubscriptionTiers } from '../../../../../server/constants/plans';
 import POLICIES from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
@@ -1989,6 +1990,37 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(resultWith2FA.errors).to.not.exist;
       expect(resultWith2FA.data.convertAccountToOrganization.type).to.equal('ORGANIZATION');
+    });
+
+    describe('with new pricing enabled', () => {
+      const defaultNewPricing = config.features.newPricing;
+
+      before(() => {
+        config.features.newPricing = true;
+      });
+
+      after(() => {
+        config.features.newPricing = defaultNewPricing;
+      });
+
+      it('provisions a discover plan subscription', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user, HostCollectiveId: null });
+
+        const result = await graphqlQueryV2(
+          convertAccountToOrganizationMutation,
+          { account: { legacyId: collective.id }, hasMoneyManagement: true },
+          user,
+        );
+
+        expect(result.errors).to.not.exist;
+
+        const subscription = await models.PlatformSubscription.findOne({ where: { CollectiveId: collective.id } });
+        expect(subscription).to.exist;
+        expect(subscription.plan.id).to.equal(PlatformSubscriptionTiers[0].id);
+        // The subscription starts as PENDING and is provisioned by the CRON job
+        expect(subscription.featureProvisioningStatus).to.equal('PENDING');
+      });
     });
   });
 });

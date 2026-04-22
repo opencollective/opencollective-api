@@ -1,5 +1,6 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { roundCentsAmount } from '../../../lib/currency';
 import { sequelize, Transaction } from '../../../models';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLTransactionGroup } from '../object/TransactionGroup';
@@ -50,7 +51,7 @@ const TransactionGroupQuery = {
           toCurrency: account.currency,
           date: t.createdAt.toISOString(),
         });
-        return Math.round(t.netAmountInCollectiveCurrency * fxRate);
+        return roundCentsAmount(t.netAmountInCollectiveCurrency * fxRate, account.currency);
       }),
     );
     const totalAmountInAccountCurrency = convertedAmounts.reduce((total, amount) => total + amount, 0);

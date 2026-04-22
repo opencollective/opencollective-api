@@ -619,6 +619,7 @@ export const fakeComment = async (
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
   let ExpenseId = get(commentData, 'ExpenseId') || get(commentData, 'expense.id');
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
+  const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -628,7 +629,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
@@ -735,7 +736,8 @@ export const fakeOrder = async (
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(<number>CreatedByUserId);
-  const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
+  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
+  const FromCollectiveId = orderData.FromCollectiveId || fromCollective.id;
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
@@ -744,6 +746,13 @@ export const fakeOrder = async (
     : withTier
       ? await fakeTier()
       : null;
+  const data = {
+    ...orderData.data,
+    fromAccountInfo: {
+      name: fromCollective.name,
+      email: user.email,
+    },
+  };
 
   const order: Order & {
     subscription?: typeof Subscription;
@@ -758,6 +767,7 @@ export const fakeOrder = async (
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId: collective.id,
+    data,
   });
 
   if (order.PaymentMethodId) {

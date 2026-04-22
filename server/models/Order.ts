@@ -63,6 +63,15 @@ export type OrderTax = {
   taxIDNumberFrom?: string;
 };
 
+type OrderDataValuesRoleDetails = {
+  accountingCategory?: AccountingCategory['publicInfo'];
+};
+
+type OrderDataValuesByRole = {
+  hostAdmin?: OrderDataValuesRoleDetails;
+  accountingRules?: OrderDataValuesRoleDetails;
+};
+
 class Order extends ModelWithPublicId<
   EntityShortIdPrefix.Order,
   InferAttributes<Order>,
@@ -93,6 +102,9 @@ class Order extends ModelWithPublicId<
     hostFeePercent?: number;
     paymentProcessorFee?: number;
     paymentProcessorFeeInHostCurrency?: number;
+    expectedAt?: Date;
+    ponumber?: string;
+    paymentMethod?: PaymentMethod;
     memo?: string;
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
@@ -126,6 +138,8 @@ class Order extends ModelWithPublicId<
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
     reqIp?: string;
     lockedAt?: Date;
+    valuesByRole?: OrderDataValuesByRole;
+    previousStatus?: OrderStatus;
   };
 
   declare taxAmount?: number;
@@ -697,6 +711,7 @@ Order.init(
       info() {
         return {
           id: this.id,
+          publicId: this.publicId,
           type: get(this, 'collective.type') === 'EVENT' ? 'registration' : 'donation',
           CreatedByUserId: this.CreatedByUserId,
           TierId: this.TierId,

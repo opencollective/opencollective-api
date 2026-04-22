@@ -1,4 +1,5 @@
 import config from 'config';
+import express from 'express';
 import slugify from 'limax';
 import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate } from 'lodash';
 import { Op, QueryTypes } from 'sequelize';
@@ -14,8 +15,8 @@ import * as github from '../../../lib/github';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { containsProtectedBrandName } from '../../../lib/string-utils';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { sequelize } from '../../../models';
-import { SocialLinkType } from '../../../models/SocialLink';
+import models, { Collective, sequelize } from '../../../models';
+import SocialLink, { SocialLinkType } from '../../../models/SocialLink';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { VENDOR_INFO_FIELDS } from '../../v2/mutation/VendorMutations';
 import { CollectiveInputType } from '../inputTypes';
@@ -319,7 +320,7 @@ export function editCollective(_, args, req) {
     throw new ValidationFailed('collective.id required');
   }
 
-  const newCollectiveData = {
+  const newCollectiveData: Partial<Collective> = {
     ...omit(args.collective, ['location', 'type', 'ParentCollectiveId', 'data', 'privateInstructions']),
     LastEditedByUserId: req.remoteUser.id,
   };
@@ -328,7 +329,7 @@ export function editCollective(_, args, req) {
     throw new ValidationFailed('githubHandle must be a valid github handle');
   }
 
-  let originalCollective, collective, parentCollective;
+  let originalCollective: Collective, collective: Collective, parentCollective: Collective;
 
   return (
     req.loaders.Collective.byId
@@ -372,6 +373,7 @@ export function editCollective(_, args, req) {
             default:
               errorMsg = `You must be logged in as an admin or as the host of this ${collective.type.toLowerCase()} collective to edit it`;
           }
+          // eslint-disable-next-line custom-errors/no-unthrown-errors
           return Promise.reject(new Unauthorized(errorMsg));
         } else {
           return twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
@@ -444,7 +446,7 @@ export function editCollective(_, args, req) {
           args.collective.githubHandle ||
           args.collective.twitterHandle
         ) {
-          const socialLinks = await models.SocialLink.findAll({
+          const socialLinks: Partial<SocialLink>[] = await models.SocialLink.findAll({
             where: {
               CollectiveId: collective.id,
             },
@@ -559,24 +561,22 @@ export async function archiveCollective(_, args, req) {
 
   const isChildren = collective.type === CollectiveType.EVENT || collective.type === CollectiveType.PROJECT;
   const slugsToClearCacheFor = [collective.slug];
-  let children = [];
+  let children: { id: number; slug: string }[] = [];
   if (!isChildren) {
     // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
     const deactivatedAt = new Date();
-    [children] = await sequelize.query(
+    children = await sequelize.query<{ id: number; slug: string }>(
       `UPDATE "Collectives"
     SET "deactivatedAt" = :deactivatedAt,
     "data" = JSONB_SET(COALESCE("data", '{}'), '{archivedFromParent}', 'true')
     WHERE "ParentCollectiveId" = :collectiveId
     AND "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
-    RETURNING *
+    RETURNING id, slug
     `,
       {
-        type: QueryTypes.UPDATE,
         replacements: { collectiveId: collective.id, deactivatedAt },
-        model: models.Collective,
-        mapToModel: true,
+        type: QueryTypes.SELECT,
       },
     );
 
@@ -695,10 +695,10 @@ export async function activateCollectiveAsHost(_, args, req) {
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   // This is now equivalent to activate "Money Management"
-  return collective.activateMoneyManagement(req.remoteUser);
+  return collective.activateMoneyManagement({ remoteUser: req.remoteUser });
 }
 
-export async function deactivateCollectiveAsHost(_, args, req) {
+export async function deactivateCollectiveAsHost(_, args, req: express.Request) {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to deactivate a collective as Host.');
   }
@@ -715,12 +715,14 @@ export async function deactivateCollectiveAsHost(_, args, req) {
   await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   // This is expected as a combination of deactivateHosting and deactivateMoneyManagement
-  if (collective.hasHosting) {
-    await collective.deactivateHosting(req.remoteUser);
-  }
-  if (collective.hasMoneyManagement) {
-    await collective.deactivateMoneyManagement(req.remoteUser);
-  }
+  await sequelize.transaction(async transaction => {
+    if (collective.hasHosting) {
+      await collective.deactivateHosting({ remoteUser: req.remoteUser, transaction });
+    }
+    if (collective.hasMoneyManagement) {
+      await collective.deactivateMoneyManagement({ remoteUser: req.remoteUser, transaction });
+    }
+  });
 
   return collective;
 }

@@ -6,7 +6,7 @@ import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } fro
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
-import { convertToCurrency } from './currency';
+import { getFxRates } from './currency';
 import sequelize from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
 import { ifStr } from './utils';
@@ -26,16 +26,10 @@ const generateFXConversionSQL = async aggregate => {
     amountColumn = 'SUM("t."netAmountInCollectiveCurrency"")';
   }
 
-  const currencies = ['AUD', 'CAD', 'EUR', 'GBP', 'INR', 'MXN', 'SEK', 'USD', 'UYU'];
-
-  const result = await Promise.all(
-    currencies.map(async currency => {
-      const amount = await convertToCurrency(1, 'USD', currency);
-      return `WHEN ${currencyColumn} = '${currency}' THEN ${amountColumn} / ${amount}`;
-    }),
-  );
-
-  return `CASE ${result.join('\n')}ELSE 0 END`;
+  const fxRates = await getFxRates('USD', ['AUD', 'CAD', 'EUR', 'GBP', 'INR', 'MXN', 'SEK', 'USD', 'UYU']);
+  return `CASE ${Object.entries(fxRates)
+    .map(([currency, fxRate]) => `WHEN ${currencyColumn} = '${currency}' THEN ${amountColumn} / ${fxRate}`)
+    .join('\n')}ELSE 0 END`;
 };
 
 const getHosts = async args => {
@@ -809,7 +803,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       analyzed_expenses."FromCollectiveId",
       analyzed_expenses.id as "expenseId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
-      EXTRACT('year' FROM analyzed_expenses."createdAt") AS "year",
+      EXTRACT('year' FROM NOW()) AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -819,7 +813,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
             WHERE er."from" = all_expenses."currency"
             AND er."to" = host.currency
             -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
-            AND er."createdAt" <= all_expenses."createdAt"
+            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
             ORDER BY "createdAt" DESC
             LIMIT 1
           )
@@ -861,7 +855,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND all_expenses.type NOT IN (:ignoredExpenseTypes)
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    AND date_trunc('year', all_expenses."createdAt") = date_trunc('year', analyzed_expenses."createdAt") -- TODO: Should ideally be looking at the paidAt date
+    AND date_trunc('year', COALESCE(all_expenses."paidAt", NOW())) = date_trunc('year', NOW())
     AND ld.id IS NULL -- Ignore documents that have already been received
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
   `,
@@ -909,7 +903,7 @@ const getTaxFormsRequiredForAccounts = async ({
     SELECT
       account.id as "collectiveId",
       COALESCE(pm."type", 'OTHER') AS "payoutMethodType",
-      EXTRACT('year' FROM all_expenses."createdAt") AS "year",
+      EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) AS "year",
       SUM(all_expenses."amount" * (
         CASE
           WHEN all_expenses."currency" = host.currency THEN 1
@@ -918,8 +912,8 @@ const getTaxFormsRequiredForAccounts = async ({
             FROM "CurrencyExchangeRates" er
             WHERE er."from" = all_expenses."currency"
             AND er."to" = host.currency
-            AND er."createdAt" <= all_expenses."createdAt"
-            ORDER BY "createdAt" DESC
+            AND er."createdAt" <= COALESCE(all_expenses."paidAt", NOW())
+            ORDER BY er."createdAt" DESC
             LIMIT 1
           )
         END
@@ -957,9 +951,9 @@ const getTaxFormsRequiredForAccounts = async ({
     AND (account."type" != 'VENDOR' OR account."data"#>>'{vendorInfo, taxFormRequired}' = 'true') -- Ignore tax from tax exempt vendors
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
-    ${ifStr(!allTime, `AND EXTRACT('year' FROM all_expenses."createdAt") = :year`)} -- TODO: Should ideally be looking at the paidAt date
+    ${ifStr(!allTime, `AND EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())) = :year`)}
     ${ifStr(ignoreReceived, `AND ld.id IS NULL`)}
-    GROUP BY account.id, d."documentType", EXTRACT('year' FROM all_expenses."createdAt"), COALESCE(pm."type", 'OTHER') -- TODO: Should ideally be looking at the paidAt date
+    GROUP BY account.id, d."documentType", EXTRACT('year' FROM COALESCE(all_expenses."paidAt", NOW())), COALESCE(pm."type", 'OTHER')
   `,
     {
       raw: true,

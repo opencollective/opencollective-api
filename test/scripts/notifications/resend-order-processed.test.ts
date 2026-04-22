@@ -198,7 +198,7 @@ describe('scripts/notifications/resend-order-processed', () => {
       // Verify email was not sent
       expect(notifyCollectiveSpy.callCount).to.equal(0);
       expect(consoleWarnSpy.calledWithMatch(/SKIP/)).to.be.true;
-      expect(consoleWarnSpy.calledWithMatch(/No ORDER_PROCESSED activity found/)).to.be.true;
+      expect(consoleWarnSpy.calledWithMatch(/No ORDER_PROCESSED or TICKET_CONFIRMED activity found/)).to.be.true;
     } finally {
       process.argv = originalArgv;
       consoleWarnSpy.restore();

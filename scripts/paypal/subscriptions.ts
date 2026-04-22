@@ -35,7 +35,7 @@ const checkSubscription = async (hostSlug: string, subscriptionId: string): Prom
 
   const subscription = await fetchPaypalSubscription(host, subscriptionId);
   console.log('Subscription:');
-  console.log(subscription);
+  console.log(JSON.stringify(subscription, null, 2));
   console.log('-------');
 
   const result = await fetchPaypalTransactionsForSubscription(host, subscriptionId);

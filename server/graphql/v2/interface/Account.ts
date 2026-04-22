@@ -1,7 +1,7 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNil, orderBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNil, omit, orderBy } from 'lodash';
 import moment from 'moment';
 import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 
@@ -476,7 +476,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   payoutMethods: {
-    type: new GraphQLList(GraphQLPayoutMethod),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
     description: 'The list of payout methods that this account can use to get paid',
     args: {
       includeArchived: {
@@ -628,6 +628,10 @@ const accountFieldsDefinition = () => ({
         idFields: ['id'],
         slugFields: ['$fromCollective.slug$'],
         textFields: ['$fromCollective.name$', 'title', 'html'],
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Update },
+          { field: '$fromCollective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
       });
 
       if (searchTermConditions.length) {
@@ -1333,10 +1337,23 @@ export const AccountFields = {
   orders: accountOrders,
   expenses: {
     type: new GraphQLNonNull(GraphQLExpenseCollection),
-    args: ExpensesCollectionQueryArgs,
+    args: {
+      direction: {
+        type: GraphQLExpenseDirection,
+      },
+      ...ExpensesCollectionQueryArgs,
+    },
     resolve(collective: Collective, args, req) {
-      const accountRef = { legacyId: collective.id };
-      return ExpensesCollectionQueryResolver(undefined, { ...args, account: accountRef }, req);
+      const accountConditions = {};
+      if (!args.direction || args.direction === 'SUBMITTED') {
+        accountConditions['fromAccount'] = { legacyId: collective.id };
+      }
+      if (!args.direction || args.direction === 'RECEIVED') {
+        accountConditions['account'] = { legacyId: collective.id };
+      }
+
+      args = omit({ ...args, ...accountConditions }, ['direction']);
+      return ExpensesCollectionQueryResolver(undefined, args, req);
     },
   },
   conversations: {

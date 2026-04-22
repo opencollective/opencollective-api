@@ -62,6 +62,7 @@ import * as expenseLoaders from './expenses';
 import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
 import locationLoaders from './location';
 import {
+  generateAdminMemberCollectiveIdsOfCollectiveLoader,
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
   generateMemberIsActiveLoader,
@@ -557,7 +558,10 @@ export const generateLoaders = req => {
         Collective.findAll({
           mapToModel: false,
           raw: true,
-          where: { ParentCollectiveId: { [Op.in]: ids } },
+          where: {
+            ParentCollectiveId: { [Op.in]: ids },
+            type: { [Op.ne]: CollectiveType.VENDOR },
+          },
           attributes: ['ParentCollectiveId', 'id'],
         }).then((results: { ParentCollectiveId: number; id: number }[]) => {
           const groupedResults = new Map<number, Set<number>>();
@@ -1170,6 +1174,7 @@ export const generateLoaders = req => {
         }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', []) as Transaction[][]),
       ),
       adminUserEmailsForCollective: generateAdminUsersEmailsForCollectiveLoader(),
+      adminMemberCollectiveIdsOfCollective: generateAdminMemberCollectiveIdsOfCollectiveLoader(),
       isActive: generateMemberIsActiveLoader(req),
       remoteUserIdAdminOfHostedAccount: generateRemoteUserIsAdminOfHostedAccountLoader(req),
       countAdminMembersOfCollective: generateCountAdminMembersOfCollective(),

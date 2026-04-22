@@ -48,7 +48,7 @@ export const main = async (options: { isDryRun: boolean; limit?: number; offset?
 
       if (!options.isDryRun) {
         await collective.update({ type: CollectiveType.ORGANIZATION });
-        await collective.activateMoneyManagement(null, { force: true, silent: true });
+        await collective.activateMoneyManagement({ force: true, silent: true });
         await models.Activity.create({
           type: activities.COLLECTIVE_CONVERTED_TO_ORGANIZATION,
           UserId: null,

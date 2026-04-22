@@ -54,6 +54,7 @@ class Member extends ModelWithPublicId<
 
   get info() {
     return {
+      publicId: this.publicId,
       role: this.role,
       description: this.description,
       publicMessage: this.publicMessage,

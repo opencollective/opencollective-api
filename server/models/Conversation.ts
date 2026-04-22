@@ -90,6 +90,7 @@ class Conversation extends ModelWithPublicId<
       data: {
         conversation: {
           id: conversation.id,
+          publicId: conversation.publicId,
           hashId: conversation.hashId,
           slug: conversation.slug,
           title: conversation.title,
@@ -150,6 +151,7 @@ class Conversation extends ModelWithPublicId<
   get info(): NonAttribute<Partial<Conversation>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       hashId: this.hashId,
       title: this.title,
       slug: this.slug,

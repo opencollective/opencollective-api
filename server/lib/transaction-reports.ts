@@ -2,7 +2,7 @@ import moment from 'moment';
 
 import { SupportedCurrency } from '../constants/currencies';
 
-import { getFxRate } from './currency';
+import { getFxRate, roundCentsAmount } from './currency';
 import { fillTimeSeriesWithNodes } from './utils';
 
 async function calculateReportNode({ groups, startingBalanceByCurrency, currency, date }) {
@@ -10,7 +10,7 @@ async function calculateReportNode({ groups, startingBalanceByCurrency, currency
     await Promise.all(
       Object.keys(startingBalanceByCurrency).map(async (c: SupportedCurrency) => {
         const fxRate = await getFxRate(c, currency, date);
-        return Math.round(startingBalanceByCurrency[c] * fxRate);
+        return roundCentsAmount(startingBalanceByCurrency[c] * fxRate, currency);
       }),
     )
   ).reduce((acc, balance) => acc + balance, 0);
@@ -21,27 +21,27 @@ async function calculateReportNode({ groups, startingBalanceByCurrency, currency
       return {
         ...group,
         netAmount: {
-          value: Math.round(group.netAmountInHostCurrency * fxRate),
+          value: roundCentsAmount(group.netAmountInHostCurrency * fxRate, currency),
           currency,
         },
         amount: {
-          value: Math.round(group.amountInHostCurrency * fxRate),
+          value: roundCentsAmount(group.amountInHostCurrency * fxRate, currency),
           currency,
         },
         paymentProcessorFee: {
-          value: Math.round(group.paymentProcessorFeeInHostCurrency * fxRate),
+          value: roundCentsAmount(group.paymentProcessorFeeInHostCurrency * fxRate, currency),
           currency,
         },
         platformFee: {
-          value: Math.round(group.platformFeeInHostCurrency * fxRate),
+          value: roundCentsAmount(group.platformFeeInHostCurrency * fxRate, currency),
           currency,
         },
         hostFee: {
-          value: Math.round(group.hostFeeInHostCurrency * fxRate),
+          value: roundCentsAmount(group.hostFeeInHostCurrency * fxRate, currency),
           currency,
         },
         taxAmount: {
-          value: Math.round(group.taxAmountInHostCurrency * fxRate),
+          value: roundCentsAmount(group.taxAmountInHostCurrency * fxRate, currency),
           currency,
         },
       };

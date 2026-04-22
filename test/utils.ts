@@ -24,7 +24,6 @@ import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
 import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
-import { calcFee } from '../server/lib/payments';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
 import { formatCurrency } from '../server/lib/utils';
@@ -356,34 +355,6 @@ export async function personalTokenGraphqlQueryV2(query, variables, personalToke
   return graphqlQuery(query, variables, personalToken.user, schemaV2, jwtPayload, headers, null, personalToken);
 }
 
-/** Helper for interpreting fee description in BDD tests
- *
- * The fee can be expressed as an absolute value, like "50" which
- * means $50.00 (the value will be multiplied by 100 to account for
- * the cents).
- *
- * The fee can also be expressed as a percentage of the value. In that
- * case it looks like "5%". That's why this helper takes the amount
- * parameter so the absolute value of the fee can be calculated.
- *
- * @param {Number} amount is the total amount of the expense. Used to
- *  calculate the absolute value of fees expressed as percentages.
- * @param {String} feeStr is the data read from the `.features` test
- *  file. That can be expressed as an absolute value or as a
- *  percentage.
- */
-export const readFee = (amount, feeStr) => {
-  if (!feeStr) {
-    return 0;
-  } else if (feeStr.endsWith('%')) {
-    const asFloat = parseFloat(feeStr.replace('%', ''));
-    return asFloat > 0 ? calcFee(amount, asFloat) : asFloat;
-  } else {
-    /* The `* 100` is for converting from cents */
-    return parseFloat(feeStr) * 100;
-  }
-};
-
 export const getTerminalCols = () => {
   let length = 40;
   if (process.platform === 'win32') {
@@ -414,7 +385,11 @@ export const separator = length => {
  * @param {sinon.sandbox} sandbox is the sandbox that the test created
  *  and the one that *must* be reset after the test is done.
  */
-export function stubStripeCreate(sandbox, overloadDefaults = {}) {
+export function stubStripeCreate(
+  sandbox,
+  overloadDefaults = {},
+  { skipPaymentIntents = false }: { skipPaymentIntents?: boolean } = {},
+) {
   const paymentMethodId = randStr('pm_');
   const values = {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
@@ -432,8 +407,10 @@ export function stubStripeCreate(sandbox, overloadDefaults = {}) {
 
   sandbox.stub(stripe.customers, 'create').callsFake(factory('customer'));
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
-  sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
-  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
+  if (!skipPaymentIntents) {
+    sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
+    sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
+  }
   sandbox.stub(stripe.paymentMethods, 'create').callsFake(factory('paymentMethod'));
   sandbox.stub(stripe.paymentMethods, 'attach').callsFake(factory('paymentMethod'));
 }
@@ -460,6 +437,69 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0,
     type: 'charge',
   };
   sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(balanceTransaction));
+}
+
+/**
+ * Stubs paymentIntents create/confirm and balanceTransactions.retrieve so the balance
+ * transaction amount/currency match what createChargeTransactions reads from Stripe
+ * (must match the PaymentIntent amount from stripe.paymentIntents.create).
+ *
+ * @warning This function is not concurrent-safe! It uses global state to track the last stripe amount and currency. Do not use it in parallel tests.
+ */
+export function stubStripeBalanceSyncWithPaymentIntent(
+  sandbox,
+  {
+    applicationFee = 0,
+    stripeFee = 0,
+    defaultStripeAmount = 5000,
+    defaultCurrency = 'usd',
+  }: {
+    applicationFee?: number;
+    stripeFee?: number;
+    defaultStripeAmount?: number;
+    defaultCurrency?: string;
+  } = {},
+) {
+  let lastStripeAmount: number | undefined;
+  let lastCurrency: string | undefined;
+  const fee = applicationFee + stripeFee;
+  const feeDetails: Array<{ type: string; amount: number }> = [];
+  if (applicationFee > 0) {
+    feeDetails.push({ type: 'application_fee', amount: applicationFee });
+  }
+  if (stripeFee > 0) {
+    feeDetails.push({ type: 'stripe_fee', amount: stripeFee });
+  }
+
+  sandbox.stub(stripe.paymentIntents, 'create').callsFake((params: { amount: number; currency: string }) => {
+    lastStripeAmount = params.amount;
+    lastCurrency = params.currency;
+    return Promise.resolve({ id: 'pi_test', status: 'requires_confirmation' });
+  });
+  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(() =>
+    Promise.resolve({
+      id: 'pi_test',
+      status: 'succeeded',
+      charges: {
+        data: [{ id: 'ch_id', balance_transaction: 'txn_id' }],
+      },
+    }),
+  );
+  sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => {
+    const amount = lastStripeAmount ?? defaultStripeAmount;
+    const currency = (lastCurrency || defaultCurrency).toLowerCase();
+    return Promise.resolve({
+      id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
+      object: 'balance_transaction',
+      amount,
+      currency,
+      fee,
+      fee_details: feeDetails,
+      net: amount - fee,
+      status: 'pending',
+      type: 'charge',
+    });
+  });
 }
 
 export function expectNoErrorsFromResult(res) {

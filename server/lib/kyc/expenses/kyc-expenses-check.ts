@@ -6,10 +6,12 @@ import { CollectiveType } from '../../../constants/collectives';
 import { Collective, Op, PayoutMethod } from '../../../models';
 import Expense from '../../../models/Expense';
 import { KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
+import { Level, Scope, SecurityCheck } from '../../security/expense';
 import { KYCProviderName } from '../providers';
 
 type ExpenseKYCStatus = {
   latestVerification: KYCVerification | null;
+  isIndividual: boolean;
   payee: {
     status: 'NOT_REQUESTED' | 'PENDING' | 'VERIFIED';
   };
@@ -23,14 +25,11 @@ export async function expenseKycStatus(
     return null;
   }
 
-  const payee =
-    expense.fromCollective ||
-    (await (loaders
-      ? loaders.Collective.byId.load(expense.FromCollectiveId)
-      : Collective.findByPk(expense.FromCollectiveId)));
-  if (payee.type !== CollectiveType.USER) {
-    return null;
-  }
+  const payee = expense.fromCollective?.type
+    ? expense.fromCollective
+    : await (loaders
+        ? loaders.Collective.byId.load(expense.FromCollectiveId)
+        : Collective.findByPk(expense.FromCollectiveId));
 
   let host =
     expense.host ||
@@ -51,41 +50,65 @@ export async function expenseKycStatus(
     return null;
   }
 
-  const kycRequests = (
-    await Promise.all(
-      Object.values(KYCProviderName).map(provider =>
-        loaders
-          ? loaders.KYCVerification.latestKycRequestsByProvider(host.id, provider).load(payee.id)
-          : KYCVerification.findOne({
-              where: {
-                CollectiveId: payee.id,
-                provider,
-                RequestedByCollectiveId: host.id,
-              },
-              order: [['createdAt', 'DESC']],
-            }),
+  const isIndividual = payee.type === CollectiveType.USER;
+  let subjectCollectiveIds: number[];
+  if (isIndividual) {
+    subjectCollectiveIds = [payee.id];
+  } else {
+    subjectCollectiveIds = loaders
+      ? await loaders.Member.adminMemberCollectiveIdsOfCollective.load(payee.id)
+      : await payee.getAdmins().then(admins => admins.map(a => a.id));
+  }
+
+  // Fetch the latest KYC request per provider for each subject collective.
+  const kycRequests: KYCVerification[] = [];
+  if (subjectCollectiveIds.length > 0) {
+    const requestsBySubject = await Promise.all(
+      subjectCollectiveIds.flatMap(subjectId =>
+        Object.values(KYCProviderName).map(provider =>
+          loaders
+            ? loaders.KYCVerification.latestKycRequestsByProvider(host.id, provider).load(subjectId)
+            : KYCVerification.findOne({
+                where: {
+                  CollectiveId: subjectId,
+                  provider,
+                  RequestedByCollectiveId: host.id,
+                },
+                order: [['createdAt', 'DESC']],
+              }),
+        ),
       ),
-    )
-  ).filter(Boolean) as KYCVerification[];
+    );
+    kycRequests.push(...(requestsBySubject.filter(Boolean) as KYCVerification[]));
+  }
 
-  const hasKycRequests = kycRequests.length > 0;
-  const isVerified =
-    hasKycRequests && kycRequests.every(kycRequest => kycRequest.status === KYCVerificationStatus.VERIFIED);
+  const activeRequests = kycRequests.filter(r =>
+    [KYCVerificationStatus.VERIFIED, KYCVerificationStatus.PENDING].includes(r.status),
+  );
+  const hasKycRequests = activeRequests.length > 0;
 
-  if (isVerified && kycRequests[0]) {
-    const payoutMethod = await expense.getPayoutMethod();
-    if (payoutMethod?.updatedAt && payoutMethod.updatedAt > kycRequests[0].verifiedAt) {
-      return {
-        latestVerification: kycRequests[0],
-        payee: { status: 'VERIFIED' },
-      };
-    }
+  let status: 'NOT_REQUESTED' | 'PENDING' | 'VERIFIED';
+  if (!hasKycRequests) {
+    status = 'NOT_REQUESTED';
+  } else if (isIndividual) {
+    status = activeRequests.some(r => r.status === KYCVerificationStatus.VERIFIED) ? 'VERIFIED' : 'PENDING';
+  } else {
+    const verifiedSubjectIds = new Set(
+      activeRequests.filter(r => r.status === KYCVerificationStatus.VERIFIED).map(r => r.CollectiveId),
+    );
+    const pendingSubjectIds = new Set(
+      activeRequests
+        .filter(r => r.status === KYCVerificationStatus.PENDING && !verifiedSubjectIds.has(r.CollectiveId))
+        .map(r => r.CollectiveId),
+    );
+    status = pendingSubjectIds.size > 0 ? 'PENDING' : 'VERIFIED';
   }
 
   return {
     latestVerification: kycRequests.length > 0 ? kycRequests[0] : null,
+    isIndividual,
     payee: {
-      status: !hasKycRequests ? 'NOT_REQUESTED' : isVerified ? 'VERIFIED' : 'PENDING',
+      status,
     },
   };
 }
@@ -95,7 +118,7 @@ export async function handleExpensePayoutMethodChange(
   oldPayoutMethod: PayoutMethod,
   newPayoutMethod: PayoutMethod,
 ) {
-  if (oldPayoutMethod.id === newPayoutMethod.id) {
+  if (oldPayoutMethod?.id === newPayoutMethod.id) {
     return;
   }
 
@@ -104,14 +127,15 @@ export async function handleExpensePayoutMethodChange(
     return;
   }
 
-  if (kycStatus.payee.status !== 'VERIFIED') {
+  // Payout-method-change KYC activities only apply to individual payees today.
+  if (!kycStatus.isIndividual || kycStatus.payee.status !== 'VERIFIED') {
     return;
   }
 
   const collective = expense.collective || (await expense.getCollective());
   const hostId = expense.HostCollectiveId || collective.HostCollectiveId;
   if (newPayoutMethod.updatedAt > kycStatus.latestVerification?.verifiedAt) {
-    await recordKycPayoutMethodChange(expense, hostId, oldPayoutMethod.dataValues, newPayoutMethod.dataValues);
+    await recordKycPayoutMethodChange(expense, hostId, oldPayoutMethod?.dataValues, newPayoutMethod.dataValues);
   }
 }
 
@@ -144,7 +168,7 @@ async function handleExpensePayoutMethodEdited(
     return;
   }
 
-  if (kycStatus.payee.status !== 'VERIFIED') {
+  if (!kycStatus.isIndividual || kycStatus.payee.status !== 'VERIFIED') {
     return;
   }
 
@@ -268,5 +292,30 @@ export async function handleExpenseKycRevoked(kycVerification: KYCVerification) 
       { id: kycVerification.CreatedByUserId },
       {},
     );
+  }
+}
+
+export async function handleExpenseKycSecurityChecks(
+  expense: Expense,
+  checks: SecurityCheck[],
+  { loaders }: { loaders?: Express.Request['loaders'] },
+) {
+  const expenseKYCStatus = await expenseKycStatus(expense, { loaders });
+  if (!expenseKYCStatus) {
+    return;
+  }
+
+  if (expenseKYCStatus.payee.status === 'VERIFIED') {
+    checks.push({
+      scope: Scope.PAYEE,
+      level: Level.PASS,
+      message: expenseKYCStatus.isIndividual ? 'KYC Verified' : 'Account admin KYC verified',
+    });
+  } else if (expenseKYCStatus.payee.status === 'PENDING') {
+    checks.push({
+      scope: Scope.PAYEE,
+      level: Level.HIGH,
+      message: expenseKYCStatus.isIndividual ? 'KYC Verification pending' : 'Account admin KYC pending',
+    });
   }
 }

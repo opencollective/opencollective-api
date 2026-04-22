@@ -8,6 +8,7 @@ import {
   handleKycPayoutMethodReplaced,
 } from '../../../lib/kyc/expenses/kyc-expenses-check';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
@@ -78,16 +79,32 @@ const payoutMethodMutations = {
         throw new Forbidden();
       }
 
-      if (await payoutMethod.canBeDeleted()) {
-        await payoutMethod.destroy();
+      return sequelize.transaction(async transaction => {
+        if (await payoutMethod.canBeDeleted({ transaction })) {
+          await payoutMethod.destroy({ transaction });
+        } else if (payoutMethod.canBeArchived()) {
+          await payoutMethod.update({ isSaved: false }, { transaction });
+        } else {
+          throw new Forbidden();
+        }
+
+        const paypalData = payoutMethod.data as PaypalPayoutMethodData;
+        const linkedConnectedAccountId =
+          payoutMethod.type === PayoutMethodTypes.PAYPAL && paypalData?.isPayPalOAuth
+            ? paypalData?.connectedAccountId
+            : null;
+        if (linkedConnectedAccountId) {
+          const connectedAccount = await models.ConnectedAccount.findByPk(linkedConnectedAccountId, { transaction });
+          if (connectedAccount) {
+            // As of 2026-04-15, PayPal does not offer an API endpoint to revoke user OAuth tokens
+            // (https://developer.paypal.com/docs/api/identity/v1/), so we only destroy the record locally.
+            await connectedAccount.update({ token: null, refreshToken: null }, { transaction });
+            await connectedAccount.destroy({ transaction });
+          }
+        }
+
         return payoutMethod;
-      } else if (await payoutMethod.canBeArchived()) {
-        return payoutMethod.update({
-          isSaved: false,
-        });
-      } else {
-        throw new Forbidden();
-      }
+      });
     },
   },
   restorePayoutMethod: {
@@ -159,7 +176,7 @@ const payoutMethodMutations = {
           reportErrorToSentry(e, { req, user: req.remoteUser, extra: { payoutMethodId: updatedPayoutMethod.id } });
         }
         return updatedPayoutMethod;
-      } else if (await payoutMethod.canBeArchived()) {
+      } else if (payoutMethod.canBeArchived()) {
         // Archive the current payout method and create a new one
         await payoutMethod.update({ isSaved: false });
         const newPayoutMethod = await models.PayoutMethod.create({

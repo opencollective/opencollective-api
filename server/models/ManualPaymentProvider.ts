@@ -56,7 +56,7 @@ class ManualPaymentProvider extends ModelWithPublicId<
   declare public deletedAt: CreationOptional<Date>;
 
   // Associations
-  declare public Collective?: Collective;
+  declare public collective?: Collective;
 
   /**
    * Check if this provider can be deleted (no orders reference it)
