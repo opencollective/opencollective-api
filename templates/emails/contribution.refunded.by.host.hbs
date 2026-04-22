@@ -1,0 +1,33 @@
+Subject: Contribution to {{{collective.name}}} refunded by the Fiscal Host
+
+{{> header}}
+
+{{> toplogo}}
+
+{{#if fromCollective.name}}
+<p>Hi {{fromCollective.name}},</p>
+{{else}}
+<p>Hello,</p>
+{{/if}}
+
+{{#if (gt refundCount 1)}}
+<p>{{refundCount}} contributions to {{>linkCollective collective=collective}} have been refunded by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
+{{else}}
+<p>Your contribution to {{>linkCollective collective=collective}} has been refunded by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
+{{/if}}
+
+{{#if messageForContributor}}
+<p>Here is the message from the Fiscal Host:</p>
+<blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{{messageForContributor}}}</blockquote>
+{{/if}}
+
+<p>The refund should appear on your statement within a few business days, depending on your payment provider.</p>
+
+<p>If you have questions, contact <a href="mailto:support@opencollective.com">support@opencollective.com</a>.</p>
+
+<p>
+  Warmly,<br>
+  – {{host.name}}
+</p>
+
+{{> footer}}

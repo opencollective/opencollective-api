@@ -1,0 +1,27 @@
+Subject: You've been removed as a contributor to {{{collective.name}}}
+
+{{> header}}
+
+{{> toplogo}}
+
+{{#if fromCollective.name}}
+<p>Hi {{fromCollective.name}},</p>
+{{else}}
+<p>Hello,</p>
+{{/if}}
+
+<p>You have been removed as a contributor from {{>linkCollective collective=collective}} by {{host.name}}, the Fiscal Host of {{collective.name}}. You will no longer appear on the Collective's public profile.</p>
+
+{{#if messageForContributor}}
+<p>Here is the message from the Fiscal Host:</p>
+<blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{{messageForContributor}}}</blockquote>
+{{/if}}
+
+<p>If you believe this was a mistake, contact <a href="mailto:support@opencollective.com">support@opencollective.com</a>.</p>
+
+<p>
+  Warmly,<br>
+  – {{host.name}}
+</p>
+
+{{> footer}}

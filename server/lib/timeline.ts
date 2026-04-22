@@ -168,6 +168,8 @@ const makeTimelineQuery = async (
       ...[
         ActivityTypes.COLLECTIVE_MEMBER_CREATED,
         ActivityTypes.CONTRIBUTION_REJECTED,
+        ActivityTypes.CONTRIBUTION_REFUNDED_BY_HOST,
+        ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST,
         ActivityTypes.ORDER_PAYMENT_FAILED,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
@@ -176,6 +178,7 @@ const makeTimelineQuery = async (
         ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
         ActivityTypes.PAYMENT_FAILED,
         ActivityTypes.SUBSCRIPTION_CANCELED,
+        ActivityTypes.SUBSCRIPTION_CANCELED_BY_HOST,
         ActivityTypes.SUBSCRIPTION_PAUSED,
         ActivityTypes.SUBSCRIPTION_RESUMED,
       ],

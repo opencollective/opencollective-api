@@ -1,5 +1,13 @@
 import config from 'config';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLInputObjectType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import {
   difference,
   flatten,
@@ -46,13 +54,20 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, Order, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
+import type Transaction from '../../../models/Transaction';
 import {
   isPaypalSubscriptionPaymentMethod,
   updateSubscriptionWithPaypal,
 } from '../../../paymentProviders/paypal/subscription';
 import { checkReceiveFinancialContributions } from '../../common/features';
+import { manageOrderAsHost, ManageOrderRefundErrorCode } from '../../common/manageOrder';
 import * as OrdersLib from '../../common/orders';
-import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
+import {
+  checkRemoteUserCanRoot,
+  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseOrders,
+  checkScope,
+} from '../../common/scope-check';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -95,8 +110,10 @@ import {
   GraphQLPaymentMethodReferenceInput,
 } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { fetchTransactionsImportRowWithReference } from '../input/TransactionsImportRowReferenceInput';
 import { GraphQLAccount } from '../interface/Account';
+import { GraphQLTransaction } from '../interface/Transaction';
 import { UncategorizedValue } from '../object/AccountingCategory';
 import { GraphQLOrder } from '../object/Order';
 import GraphQLPaymentIntent from '../object/PaymentIntent';
@@ -157,6 +174,105 @@ const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax, currenc
 const getOrderBaseAmount = order => {
   return order.totalAmount - (order.taxAmount || 0) - (order.platformTipAmount || 0);
 };
+
+const GraphQLManageOrderRefundInput = new GraphQLInputObjectType({
+  name: 'ManageOrderRefundInput',
+  description: 'Refund action input for the host-admin manageOrder mutation',
+  fields: () => ({
+    transactions: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransactionReferenceInput))),
+      description: 'The transactions to refund. Must belong to the same order.',
+    },
+  }),
+});
+
+const GraphQLManageOrderInput = new GraphQLInputObjectType({
+  name: 'ManageOrderInput',
+  description: 'Action to perform on an order as a host admin via `manageOrder`',
+  fields: () => ({
+    cancel: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description: 'Cancel the recurring contribution (requires a subscription)',
+    },
+    refund: {
+      type: GraphQLManageOrderRefundInput,
+      description: 'Refund a set of past charges on the order',
+    },
+    removeAsContributor: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      defaultValue: false,
+      description: 'Remove the contributor from the collective public profile (destroys the BACKER membership)',
+    },
+    messageForContributor: {
+      type: GraphQLString,
+      description: 'Optional message forwarded to the contributor in the notification emails',
+    },
+  }),
+});
+
+const GraphQLManageOrderRefundErrorCode = new GraphQLEnumType({
+  name: 'ManageOrderRefundErrorCode',
+  description: 'Stable error code describing why a specific transaction could not be refunded',
+  values: {
+    [ManageOrderRefundErrorCode.ALREADY_REFUNDED]: {
+      description: 'The transaction has already been refunded at the payment provider',
+    },
+    [ManageOrderRefundErrorCode.CHARGED_BACK]: {
+      description: 'The transaction has been charged back and cannot be refunded',
+    },
+    [ManageOrderRefundErrorCode.STRIPE_REFUND_WINDOW_EXPIRED]: {
+      description: 'Stripe no longer accepts refunds for this charge (window expired)',
+    },
+    [ManageOrderRefundErrorCode.INSUFFICIENT_FUNDS]: {
+      description: 'The collective does not have enough funds to refund this transaction',
+    },
+    [ManageOrderRefundErrorCode.PAYMENT_PROVIDER_UNSUPPORTED]: {
+      description: 'The payment provider used for this transaction does not support refunds',
+    },
+    [ManageOrderRefundErrorCode.UNKNOWN]: {
+      description: 'An unknown error happened while refunding this transaction',
+    },
+  },
+});
+
+const GraphQLManageOrderRefundError = new GraphQLObjectType({
+  name: 'ManageOrderRefundError',
+  description: 'A per-transaction refund error returned by the manageOrder mutation',
+  fields: () => ({
+    transaction: {
+      type: new GraphQLNonNull(GraphQLTransaction),
+      description: 'The transaction that could not be refunded',
+    },
+    message: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'Human-readable message describing the failure',
+    },
+    code: {
+      type: new GraphQLNonNull(GraphQLManageOrderRefundErrorCode),
+      description: 'Stable machine-readable error code',
+    },
+  }),
+});
+
+const GraphQLManageOrderResult = new GraphQLObjectType({
+  name: 'ManageOrderResult',
+  description: 'Result of a host-admin `manageOrder` action',
+  fields: () => ({
+    order: {
+      type: new GraphQLNonNull(GraphQLOrder),
+      description: 'The order after the requested action(s) have been applied',
+    },
+    refundedTransactions: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTransaction))),
+      description: 'Transactions that were successfully refunded',
+    },
+    refundErrors: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLManageOrderRefundError))),
+      description: 'Per-transaction refund errors (soft failures). Empty if all refunds succeeded.',
+    },
+  }),
+});
 
 /**
  * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
@@ -344,6 +460,52 @@ const orderMutations = {
       });
 
       return order.reload();
+    },
+  },
+  manageOrder: {
+    type: new GraphQLNonNull(GraphQLManageOrderResult),
+    description:
+      'Host-admin action on an order. Atomically cancels the recurring contribution, refunds selected past charges, and/or removes the contributor from the collective public profile. Scope: "host".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(GraphQLOrderReferenceInput),
+        description: 'Reference to the order to manage',
+      },
+      action: {
+        type: new GraphQLNonNull(GraphQLManageOrderInput),
+        description: 'The action(s) to perform on the order',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanUseHost(req);
+
+      const order = await fetchOrderWithReference(args.order, {
+        throwIfMissing: true,
+        include: [
+          { model: models.Subscription },
+          { model: models.Collective, as: 'collective' },
+          { model: models.Collective, as: 'fromCollective' },
+        ],
+      });
+
+      const refundTransactions: Transaction[] | null = args.action.refund?.transactions
+        ? await Promise.all(
+            args.action.refund.transactions.map(ref =>
+              fetchTransactionWithReference(ref, { loaders: req.loaders, throwIfMissing: true }),
+            ),
+          )
+        : null;
+
+      return manageOrderAsHost(
+        order,
+        {
+          cancel: Boolean(args.action.cancel),
+          refundTransactions,
+          removeAsContributor: Boolean(args.action.removeAsContributor),
+          messageForContributor: args.action.messageForContributor ?? null,
+        },
+        req,
+      );
     },
   },
   updateOrder: {

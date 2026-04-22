@@ -789,6 +789,26 @@ interface Account {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -3633,6 +3653,26 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -4450,6 +4490,123 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): LegalDocumentCollection!
 
   """
+  List of accounting categories for this host
+  """
+  accountingCategories(
+    """
+    Filter accounting categories by kind
+    """
+    kind: [AccountingCategoryKind!]
+
+    """
+    Filter by accounting category applicable to this account
+    """
+    account: AccountReferenceInput
+  ): AccountingCategoryCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  contributionAccountingCategoryRules: [ContributionAccountingCategoryRule!]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  The list of payout methods this Host accepts for its expenses
+  """
+  supportedPayoutMethods: [PayoutMethodType]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Manual payment providers configured for this host
+  """
+  manualPaymentProviders(
+    """
+    Filter by provider type
+    """
+    type: ManualPaymentProviderType
+
+    """
+    Whether to include archived providers
+    """
+    includeArchived: Boolean! = false
+  ): [ManualPaymentProvider!]! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  If the host supports PayPal, this will contain the client ID to use in the frontend
+  """
+  paypalClientId: String @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
+  """
+  supportedPaymentMethods: [PaymentMethodLegacyType]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Stripe connected account
+  """
+  stripe: StripeConnectedAccount @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  contributionStats(
+    """
+    A collection of accounts for which the contribution stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate contribution statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate contribution statistics until this date.
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series
+    """
+    timeUnit: TimeUnit
+  ): ContributionStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  expenseStats(
+    """
+    A collection of accounts for which the expense stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate expense statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate expense statistics until this date.
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+  ): ExpenseStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host allows adding funds from all accounts
+  """
+  allowAddFundsFromAllAccounts: Boolean!
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host has any Stripe disputed orders
+  """
+  hasDisputedOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host has any Stripe in review orders
+  """
+  hasInReviewOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
   Returns a list of vendors that works with this host
   """
   vendors(
@@ -4513,6 +4670,12 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     offset: Int! = 0
   ): AccountCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns the legal documents required by this host
+  """
+  requiredLegalDocuments: [LegalDocumentType!]!
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
 
   """
   Returns a list of transactions imports for this host
@@ -4599,129 +4762,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Returns stats for off platform transactions
   """
   offPlatformTransactionsStats: TransactionsImportStats!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns the legal documents required by this host
-  """
-  requiredLegalDocuments: [LegalDocumentType!]!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host has any Stripe disputed orders
-  """
-  hasDisputedOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host has any Stripe in review orders
-  """
-  hasInReviewOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host allows adding funds from all accounts
-  """
-  allowAddFundsFromAllAccounts: Boolean!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  contributionStats(
-    """
-    A collection of accounts for which the contribution stats should be returned.
-    """
-    account: [AccountReferenceInput!]
-
-    """
-    Calculate contribution statistics beginning from this date.
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate contribution statistics until this date.
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series
-    """
-    timeUnit: TimeUnit
-  ): ContributionStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  expenseStats(
-    """
-    A collection of accounts for which the expense stats should be returned.
-    """
-    account: [AccountReferenceInput!]
-
-    """
-    Calculate expense statistics beginning from this date.
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate expense statistics until this date.
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
-    """
-    timeUnit: TimeUnit
-  ): ExpenseStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
-  """
-  supportedPaymentMethods: [PaymentMethodLegacyType]
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Manual payment providers configured for this host
-  """
-  manualPaymentProviders(
-    """
-    Filter by provider type
-    """
-    type: ManualPaymentProviderType
-
-    """
-    Whether to include archived providers
-    """
-    includeArchived: Boolean! = false
-  ): [ManualPaymentProvider!]! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  If the host supports PayPal, this will contain the client ID to use in the frontend
-  """
-  paypalClientId: String @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  The list of payout methods this Host accepts for its expenses
-  """
-  supportedPayoutMethods: [PayoutMethodType]
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Stripe connected account
-  """
-  stripe: StripeConnectedAccount @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the account has money management activated.
-  """
-  hasMoneyManagement: Boolean! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  List of accounting categories for this host
-  """
-  accountingCategories(
-    """
-    Filter accounting categories by kind
-    """
-    kind: [AccountingCategoryKind!]
-
-    """
-    Filter by accounting category applicable to this account
-    """
-    account: AccountReferenceInput
-  ): AccountingCategoryCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  contributionAccountingCategoryRules: [ContributionAccountingCategoryRule!]
     @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
 }
 
@@ -5928,8 +5968,11 @@ enum ActivityType {
   HOST_APPLICATION_CONTACT
   HOST_APPLICATION_COMMENT_CREATED
   CONTRIBUTION_REJECTED
+  CONTRIBUTION_REFUNDED_BY_HOST
+  CONTRIBUTOR_REMOVED_BY_HOST
   SUBSCRIPTION_ACTIVATED
   SUBSCRIPTION_CANCELED
+  SUBSCRIPTION_CANCELED_BY_HOST
   SUBSCRIPTION_PAUSED
   SUBSCRIPTION_RESUMED
   SUBSCRIPTION_READY_TO_BE_RESUMED
@@ -7799,8 +7842,6 @@ type TransactionsAmountGroup {
 
 type CommunityStats {
   id: String!
-  associatedCollectives: [CommunityAssociatedAccount]
-  associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
   transactionSummary: [CommunityTransactionSummary!]!
   transactionSummaryTimeSeries(
@@ -7822,14 +7863,6 @@ type CommunityStats {
     """
     offset: Int! = 0
   ): ActivityCollection
-}
-
-type CommunityAssociatedAccount {
-  account: Account
-  relations: [CommunityRelationType]
-  lastInteractionAt: DateTime
-  firstInteractionAt: DateTime
-  transactionSummary: CommunityTransactionSummary!
 }
 
 enum CommunityRelationType {
@@ -8335,6 +8368,175 @@ type LegalDocumentCollection implements Collection {
 }
 
 """
+A collection of "Accounting Categories"
+"""
+type AccountingCategoryCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+
+  """
+  The Accounting Categories
+  """
+  nodes: [AccountingCategory!]!
+}
+
+enum AccountingCategoryKind {
+  ADDED_FUNDS
+  CONTRIBUTION
+  EXPENSE
+}
+
+"""
+A rule for categorizing contributions
+"""
+type ContributionAccountingCategoryRule {
+  id: NonEmptyString!
+  name: NonEmptyString!
+  enabled: Boolean!
+  predicates: [JSONObject!]!
+  accountingCategory: AccountingCategory!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject
+
+"""
+A manual payment provider configured by a host for contributors to use
+"""
+type ManualPaymentProvider {
+  """
+  Unique identifier for this provider
+  """
+  id: String!
+
+  """
+  The resource public id (ie: mpp_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
+  The type of manual payment provider
+  """
+  type: ManualPaymentProviderType!
+
+  """
+  Display name for this payment provider
+  """
+  name: NonEmptyString!
+
+  """
+  Payment instructions to show contributors (HTML)
+  """
+  instructions: String
+
+  """
+  Icon name for this payment provider
+  """
+  icon: String
+
+  """
+  Bank account details for BANK_TRANSFER type providers
+  """
+  accountDetails: JSON
+
+  """
+  Whether this provider has been archived
+  """
+  isArchived: Boolean!
+
+  """
+  When this provider was created
+  """
+  createdAt: DateTime!
+
+  """
+  When this provider was last updated
+  """
+  updatedAt: DateTime!
+}
+
+"""
+The type of manual payment provider
+"""
+enum ManualPaymentProviderType {
+  BANK_TRANSFER
+  OTHER
+}
+
+"""
+Stripe connected account properties
+"""
+type StripeConnectedAccount {
+  username: String
+  issuingBalance: Amount
+}
+
+"""
+Contribution statistics related to the given accounts
+"""
+type ContributionStats {
+  """
+  The total number of contributions
+  """
+  contributionsCount: Int!
+
+  """
+  Number of one time contributions
+  """
+  oneTimeContributionsCount: Int!
+
+  """
+  Number of recurring contributions
+  """
+  recurringContributionsCount: Int!
+
+  """
+  The daily average income
+  """
+  dailyAverageIncomeAmount: Amount!
+}
+
+"""
+Expense statistics related to the given accounts
+"""
+type ExpenseStats {
+  """
+  The total number of expenses
+  """
+  expensesCount: Int!
+
+  """
+  The daily average paid in expenses
+  """
+  dailyAverageAmount: Amount!
+
+  """
+  Number of invoices
+  """
+  invoicesCount: Int!
+
+  """
+  Number of reimbursements
+  """
+  reimbursementsCount: Int!
+
+  """
+  Number of grants
+  """
+  grantsCount: Int!
+}
+
+"""
 A collection of Vendors
 """
 type VendorCollection implements Collection {
@@ -8476,11 +8678,6 @@ type TransactionsImport {
   ): TransactionsImportRowCollection!
   stats: TransactionsImportStats!
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Type of the import
@@ -8688,11 +8885,6 @@ enum TransactionsImportRowStatus {
   ON_HOLD
 }
 
-"""
-The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSONObject
-
 type TransactionsImportStats {
   """
   Total number of rows in the import
@@ -8772,165 +8964,6 @@ input TransactionsImportRowOrderInput {
 
 enum TransactionsImportRowOrderInputField {
   DATE
-}
-
-"""
-Contribution statistics related to the given accounts
-"""
-type ContributionStats {
-  """
-  The total number of contributions
-  """
-  contributionsCount: Int!
-
-  """
-  Number of one time contributions
-  """
-  oneTimeContributionsCount: Int!
-
-  """
-  Number of recurring contributions
-  """
-  recurringContributionsCount: Int!
-
-  """
-  The daily average income
-  """
-  dailyAverageIncomeAmount: Amount!
-}
-
-"""
-Expense statistics related to the given accounts
-"""
-type ExpenseStats {
-  """
-  The total number of expenses
-  """
-  expensesCount: Int!
-
-  """
-  The daily average paid in expenses
-  """
-  dailyAverageAmount: Amount!
-
-  """
-  Number of invoices
-  """
-  invoicesCount: Int!
-
-  """
-  Number of reimbursements
-  """
-  reimbursementsCount: Int!
-
-  """
-  Number of grants
-  """
-  grantsCount: Int!
-}
-
-"""
-A manual payment provider configured by a host for contributors to use
-"""
-type ManualPaymentProvider {
-  """
-  Unique identifier for this provider
-  """
-  id: String!
-
-  """
-  The resource public id (ie: mpp_xxxxxxxx)
-  """
-  publicId: String!
-
-  """
-  The type of manual payment provider
-  """
-  type: ManualPaymentProviderType!
-
-  """
-  Display name for this payment provider
-  """
-  name: NonEmptyString!
-
-  """
-  Payment instructions to show contributors (HTML)
-  """
-  instructions: String
-
-  """
-  Icon name for this payment provider
-  """
-  icon: String
-
-  """
-  Bank account details for BANK_TRANSFER type providers
-  """
-  accountDetails: JSON
-
-  """
-  Whether this provider has been archived
-  """
-  isArchived: Boolean!
-
-  """
-  When this provider was created
-  """
-  createdAt: DateTime!
-
-  """
-  When this provider was last updated
-  """
-  updatedAt: DateTime!
-}
-
-"""
-The type of manual payment provider
-"""
-enum ManualPaymentProviderType {
-  BANK_TRANSFER
-  OTHER
-}
-
-"""
-Stripe connected account properties
-"""
-type StripeConnectedAccount {
-  username: String
-  issuingBalance: Amount
-}
-
-"""
-A collection of "Accounting Categories"
-"""
-type AccountingCategoryCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-
-  """
-  The Accounting Categories
-  """
-  nodes: [AccountingCategory!]!
-}
-
-enum AccountingCategoryKind {
-  ADDED_FUNDS
-  CONTRIBUTION
-  EXPENSE
-}
-
-"""
-A rule for categorizing contributions
-"""
-type ContributionAccountingCategoryRule {
-  id: NonEmptyString!
-  name: NonEmptyString!
-  enabled: Boolean!
-  predicates: [JSONObject!]!
-  accountingCategory: AccountingCategory!
-  createdAt: DateTime!
-  updatedAt: DateTime!
 }
 
 enum AccountingCategoryAppliesTo {
@@ -9574,6 +9607,21 @@ type OrderPermissions {
   If paused, whether the current user can resume this order
   """
   canResume: Boolean!
+
+  """
+  Whether the current user can cancel this recurring contribution as a host admin through the host dashboard
+  """
+  canHostCancel: Boolean!
+
+  """
+  Whether the current user can refund at least one transaction of this order as a host admin through the host dashboard
+  """
+  canHostRefund: Boolean!
+
+  """
+  Whether the current user can remove the contributor from the collective public profile as a host admin
+  """
+  canHostRemoveAsContributor: Boolean!
 }
 
 type PendingOrderData {
@@ -10281,6 +10329,26 @@ type Bot implements Account {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -11336,6 +11404,26 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -12973,6 +13061,26 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -14325,6 +14433,26 @@ type Individual implements Account {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -15705,6 +15833,26 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -17181,6 +17329,26 @@ type Vendor implements Account & AccountWithContributions {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -18221,6 +18389,26 @@ type Query {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -20578,8 +20766,11 @@ enum ActivityAndClassesType {
   HOST_APPLICATION_CONTACT
   HOST_APPLICATION_COMMENT_CREATED
   CONTRIBUTION_REJECTED
+  CONTRIBUTION_REFUNDED_BY_HOST
+  CONTRIBUTOR_REMOVED_BY_HOST
   SUBSCRIPTION_ACTIVATED
   SUBSCRIPTION_CANCELED
+  SUBSCRIPTION_CANCELED_BY_HOST
   SUBSCRIPTION_PAUSED
   SUBSCRIPTION_RESUMED
   SUBSCRIPTION_READY_TO_BE_RESUMED
@@ -21467,6 +21658,26 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -22679,6 +22890,26 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -24842,6 +25073,21 @@ type Mutation {
     """
     reasonCode: String
   ): Order
+
+  """
+  Host-admin action on an order. Atomically cancels the recurring contribution, refunds selected past charges, and/or removes the contributor from the collective public profile. Scope: "host".
+  """
+  manageOrder(
+    """
+    Reference to the order to manage
+    """
+    order: OrderReferenceInput!
+
+    """
+    The action(s) to perform on the order
+    """
+    action: ManageOrderInput!
+  ): ManageOrderResult!
 
   """
   Update an Order's amount, tier, or payment method. Scope: "orders".
@@ -27730,6 +27976,116 @@ input OrderContextInput {
   Whether this order was created using the new platform tip flow
   """
   isNewPlatformTipFlow: Boolean
+}
+
+"""
+Result of a host-admin `manageOrder` action
+"""
+type ManageOrderResult {
+  """
+  The order after the requested action(s) have been applied
+  """
+  order: Order!
+
+  """
+  Transactions that were successfully refunded
+  """
+  refundedTransactions: [Transaction!]!
+
+  """
+  Per-transaction refund errors (soft failures). Empty if all refunds succeeded.
+  """
+  refundErrors: [ManageOrderRefundError!]!
+}
+
+"""
+A per-transaction refund error returned by the manageOrder mutation
+"""
+type ManageOrderRefundError {
+  """
+  The transaction that could not be refunded
+  """
+  transaction: Transaction!
+
+  """
+  Human-readable message describing the failure
+  """
+  message: String!
+
+  """
+  Stable machine-readable error code
+  """
+  code: ManageOrderRefundErrorCode!
+}
+
+"""
+Stable error code describing why a specific transaction could not be refunded
+"""
+enum ManageOrderRefundErrorCode {
+  """
+  The transaction has already been refunded at the payment provider
+  """
+  ALREADY_REFUNDED
+
+  """
+  The transaction has been charged back and cannot be refunded
+  """
+  CHARGED_BACK
+
+  """
+  Stripe no longer accepts refunds for this charge (window expired)
+  """
+  STRIPE_REFUND_WINDOW_EXPIRED
+
+  """
+  The collective does not have enough funds to refund this transaction
+  """
+  INSUFFICIENT_FUNDS
+
+  """
+  The payment provider used for this transaction does not support refunds
+  """
+  PAYMENT_PROVIDER_UNSUPPORTED
+
+  """
+  An unknown error happened while refunding this transaction
+  """
+  UNKNOWN
+}
+
+"""
+Action to perform on an order as a host admin via `manageOrder`
+"""
+input ManageOrderInput {
+  """
+  Cancel the recurring contribution (requires a subscription)
+  """
+  cancel: Boolean! = false
+
+  """
+  Refund a set of past charges on the order
+  """
+  refund: ManageOrderRefundInput
+
+  """
+  Remove the contributor from the collective public profile (destroys the BACKER membership)
+  """
+  removeAsContributor: Boolean! = false
+
+  """
+  Optional message forwarded to the contributor in the notification emails
+  """
+  messageForContributor: String
+}
+
+"""
+Refund action input for the host-admin manageOrder mutation
+"""
+input ManageOrderRefundInput {
+  """
+  The transactions to refund. Must belong to the same order.
+  """
+  transactions: [TransactionReferenceInput!]!
 }
 
 input OrderUpdateInput {
