@@ -4,6 +4,8 @@ import { InferCreationAttributes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { executeOrder } from '../../lib/payments';
 import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
@@ -244,6 +246,69 @@ export const canSetOrderTags = async (req: express.Request, order: Order): Promi
 
   const account = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
   return req.remoteUser.isAdminOfCollectiveOrHost(account);
+};
+
+const HOST_CANCELLABLE_ORDER_STATUSES = [status.ACTIVE, status.ERROR, status.PAUSED, status.PROCESSING];
+
+/**
+ * Whether the current user can cancel this order as a host admin from the host dashboard.
+ *
+ * Requires the order to be recurring (has a Subscription) and in a status where
+ * cancellation still makes sense.
+ */
+export const canHostCancelOrder = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!(await isOrderHostAdmin(req, order))) {
+    return false;
+  }
+  if (!order.SubscriptionId) {
+    return false;
+  }
+  return HOST_CANCELLABLE_ORDER_STATUSES.includes(order.status);
+};
+
+/**
+ * Whether the current user can refund any transaction of this order as a host admin
+ * from the host dashboard.
+ */
+export const canHostRefundOrder = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!(await isOrderHostAdmin(req, order))) {
+    return false;
+  }
+  // If the order was fully refunded there's nothing left to refund
+  if (order.status === status.REFUNDED) {
+    return false;
+  }
+
+  // Check that at least one CREDIT contribution transaction exists and is not already refunded
+  const refundableCount = await models.Transaction.count({
+    where: {
+      OrderId: order.id,
+      type: TransactionTypes.CREDIT,
+      kind: [TransactionKind.ADDED_FUNDS, TransactionKind.BALANCE_TRANSFER, TransactionKind.CONTRIBUTION],
+      isRefund: false,
+      isDisputed: false,
+      RefundTransactionId: null,
+    },
+  });
+  return refundableCount > 0;
+};
+
+/**
+ * Whether the current user can remove the contributor (BACKER member) from the
+ * collective's public profile as a host admin.
+ */
+export const canHostRemoveContributorFromOrder = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!(await isOrderHostAdmin(req, order))) {
+    return false;
+  }
+  const backerCount = await models.Member.count({
+    where: {
+      CollectiveId: order.CollectiveId,
+      MemberCollectiveId: order.FromCollectiveId,
+      role: 'BACKER',
+    },
+  });
+  return backerCount > 0;
 };
 
 export const canSeeOrderCreator = async (req: express.Request, order: Order): Promise<boolean> => {

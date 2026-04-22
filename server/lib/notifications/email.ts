@@ -262,6 +262,24 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.user(activity);
       break;
 
+    case ActivityTypes.SUBSCRIPTION_CANCELED_BY_HOST:
+      await notify.collective(activity, {
+        collectiveId: activity.data.fromCollective.id,
+      });
+      break;
+
+    case ActivityTypes.CONTRIBUTION_REFUNDED_BY_HOST:
+      await notify.collective(activity, {
+        collectiveId: activity.data.fromCollective.id,
+      });
+      break;
+
+    case ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST:
+      await notify.collective(activity, {
+        collectiveId: activity.data.fromCollective.id,
+      });
+      break;
+
     case ActivityTypes.SUBSCRIPTION_PAUSED:
     case ActivityTypes.SUBSCRIPTION_READY_TO_BE_RESUMED:
       await notify.collective(activity, { collectiveId: activity.FromCollectiveId });

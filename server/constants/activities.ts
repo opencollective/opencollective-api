@@ -99,8 +99,11 @@ enum ActivityTypes {
   HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
+  CONTRIBUTION_REFUNDED_BY_HOST = 'contribution.refunded.by.host',
+  CONTRIBUTOR_REMOVED_BY_HOST = 'contributor.removed.by.host',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
+  SUBSCRIPTION_CANCELED_BY_HOST = 'subscription.canceled.by.host',
   SUBSCRIPTION_PAUSED = 'subscription.paused',
   SUBSCRIPTION_RESUMED = 'subscription.resumed',
   SUBSCRIPTION_READY_TO_BE_RESUMED = 'subscription.ready.to.be.resumed',
@@ -290,6 +293,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.CONTRIBUTION_REJECTED,
+    ActivityTypes.CONTRIBUTION_REFUNDED_BY_HOST,
+    ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST,
     ActivityTypes.ORDER_PAYMENT_FAILED,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
@@ -303,6 +308,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.PAYMENT_FAILED,
     ActivityTypes.SUBSCRIPTION_ACTIVATED,
     ActivityTypes.SUBSCRIPTION_CANCELED,
+    ActivityTypes.SUBSCRIPTION_CANCELED_BY_HOST,
     ActivityTypes.SUBSCRIPTION_PAUSED,
     ActivityTypes.SUBSCRIPTION_RESUMED,
     ActivityTypes.SUBSCRIPTION_CONFIRMED,

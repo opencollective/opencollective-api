@@ -155,7 +155,12 @@ export const sanitizeActivityForWebhookPayload = activity => {
       cleanActivity.data.tier = getTierInfo({ id: activity.data.order.TierId });
     }
   } else if (
-    [activities.SUBSCRIPTION_CANCELED, activities.SUBSCRIPTION_PAUSED, activities.SUBSCRIPTION_RESUMED].includes(type)
+    [
+      activities.SUBSCRIPTION_CANCELED,
+      activities.SUBSCRIPTION_CANCELED_BY_HOST,
+      activities.SUBSCRIPTION_PAUSED,
+      activities.SUBSCRIPTION_RESUMED,
+    ].includes(type)
   ) {
     cleanActivity.data = pick(activity.data, ['subscription.id']);
     cleanActivity.data.order = getOrderInfo(activity.data.order);
