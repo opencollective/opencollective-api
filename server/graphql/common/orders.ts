@@ -4,10 +4,13 @@ import { InferCreationAttributes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
 import { canSeePrivateAccount } from '../../lib/private-accounts';
+import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../lib/sanitize-html';
 import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Order from '../../models/Order';
@@ -32,6 +35,29 @@ type AddFundsInput = {
   tax: TaxInput;
   accountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
+};
+
+const MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH = 2000;
+
+export const sanitizeMessageForContributor = (messageForContributor?: string | null): string | null => {
+  if (!messageForContributor) {
+    return null;
+  }
+
+  if (messageForContributor.length > 5 * MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH) {
+    throw new ValidationFailed(
+      `messageForContributor raw input must be at most ${5 * MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH} characters`,
+    );
+  }
+
+  const sanitized = sanitizeHTML(messageForContributor, optsSanitizeHtmlForSimplified).trim();
+  if (sanitized.length > MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH) {
+    throw new ValidationFailed(
+      `messageForContributor must be at most ${MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH} characters`,
+    );
+  }
+
+  return sanitized.length ? sanitized : null;
 };
 
 /*
@@ -220,7 +246,14 @@ export const isOrderHostAdmin = async (req: express.Request, order: Order): Prom
     return false;
   }
 
-  const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
+  // Prefer the already-loaded association (which may have been fetched with
+  // `paranoid: false`); fall back to the loader otherwise. The loader respects
+  // the model's `paranoid: true`, so a soft-deleted collective comes back as
+  // `null` — guard against that to avoid a TypeError on `HostCollectiveId`.
+  const toAccount = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+  if (!toAccount) {
+    return false;
+  }
   return req.remoteUser.isAdmin(toAccount.HostCollectiveId);
 };
 
@@ -274,6 +307,69 @@ export const canSetOrderTags = async (req: express.Request, order: Order): Promi
 
   const account = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
   return req.remoteUser.isAdminOfCollectiveOrHost(account);
+};
+
+const HOST_CANCELLABLE_ORDER_STATUSES = [status.ACTIVE, status.ERROR, status.PAUSED, status.PROCESSING];
+
+/**
+ * Whether the current user can cancel this order as a host admin from the host dashboard.
+ *
+ * Requires the order to be recurring (has a Subscription) and in a status where
+ * cancellation still makes sense.
+ */
+export const canHostCancelOrder = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!(await isOrderHostAdmin(req, order))) {
+    return false;
+  }
+  if (!order.SubscriptionId) {
+    return false;
+  }
+  return HOST_CANCELLABLE_ORDER_STATUSES.includes(order.status);
+};
+
+/**
+ * Whether the current user can refund any transaction of this order as a host admin
+ * from the host dashboard.
+ */
+export const canHostRefundOrder = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!(await isOrderHostAdmin(req, order))) {
+    return false;
+  }
+  // If the order was fully refunded there's nothing left to refund
+  if (order.status === status.REFUNDED) {
+    return false;
+  }
+
+  // Check that at least one CREDIT contribution transaction exists and is not already refunded
+  const refundableCount = await models.Transaction.count({
+    where: {
+      OrderId: order.id,
+      type: TransactionTypes.CREDIT,
+      kind: [TransactionKind.ADDED_FUNDS, TransactionKind.BALANCE_TRANSFER, TransactionKind.CONTRIBUTION],
+      isRefund: false,
+      isDisputed: false,
+      RefundTransactionId: null,
+    },
+  });
+  return refundableCount > 0;
+};
+
+/**
+ * Whether the current user can remove the contributor (BACKER member) from the
+ * collective's public profile as a host admin.
+ */
+export const canHostRemoveContributorFromOrder = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!(await isOrderHostAdmin(req, order))) {
+    return false;
+  }
+  const backerCount = await models.Member.count({
+    where: {
+      CollectiveId: order.CollectiveId,
+      MemberCollectiveId: order.FromCollectiveId,
+      role: 'BACKER',
+    },
+  });
+  return backerCount > 0;
 };
 
 export const canSeeOrderCreator = async (req: express.Request, order: Order): Promise<boolean> => {

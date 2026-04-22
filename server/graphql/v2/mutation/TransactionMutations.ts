@@ -9,7 +9,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import Transaction from '../../../models/Transaction';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
-import { canReject, refundTransaction } from '../../common/transactions';
+import { canReject, refundTransaction, refundTransactionAsHost } from '../../common/transactions';
 import { Forbidden, NotFound } from '../../errors';
 import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { GraphQLTransaction } from '../interface/Transaction';
@@ -17,7 +17,8 @@ import { GraphQLTransaction } from '../interface/Transaction';
 const transactionMutations = {
   refundTransaction: {
     type: GraphQLTransaction,
-    description: 'Refunds a transaction. Scope: "transactions".',
+    description:
+      'Refunds a transaction. When performed by a Fiscal Host admin, a CONTRIBUTION_REFUNDED activity is emitted and the contributor is notified by email. Scope: "transactions".',
     args: {
       transaction: {
         type: new GraphQLNonNull(GraphQLTransactionReferenceInput),
@@ -27,10 +28,47 @@ const transactionMutations = {
         type: GraphQLBoolean,
         description: 'If true, the refund will be processed even if it exceeds the balance of the Collective',
       },
+      cancelRecurringContribution: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'If true, cancel the associated recurring contribution. Host admins only.',
+      },
+      removeAsContributor: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'If true, remove the contributor from the collective public profile. Host admins only.',
+      },
+      messageForContributor: {
+        type: GraphQLString,
+        description: 'Optional message to include in the contributor notification email. Host admins only.',
+      },
     },
     async resolve(_: void, args, req: Express.Request): Promise<Transaction> {
       checkRemoteUserCanUseTransactions(req);
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
+      const hasHostOptions = Boolean(
+        args.cancelRecurringContribution || args.removeAsContributor || args.messageForContributor,
+      );
+      const isActingAsHost = Boolean(req.remoteUser?.isAdmin(transaction.HostCollectiveId));
+
+      // Host-only inputs are rejected for non-host callers regardless of routing,
+      // so collective admins can't sneak in a `messageForContributor` etc.
+      if (hasHostOptions && !isActingAsHost) {
+        throw new Forbidden('Only host admins can use these options on refundTransaction');
+      }
+
+      // Always route host admins through `refundTransactionAsHost` so that the
+      // CONTRIBUTION_REFUNDED activity (and contributor notification email) is
+      // emitted consistently, regardless of whether any host-only option was set.
+      if (isActingAsHost) {
+        return refundTransactionAsHost(transaction, req, {
+          ignoreBalanceCheck: args.ignoreBalanceCheck,
+          cancelRecurringContribution: args.cancelRecurringContribution,
+          removeAsContributor: args.removeAsContributor,
+          messageForContributor: args.messageForContributor,
+        });
+      }
+
       return refundTransaction(transaction, req, RefundKind.REFUND, { ignoreBalanceCheck: args.ignoreBalanceCheck });
     },
   },
