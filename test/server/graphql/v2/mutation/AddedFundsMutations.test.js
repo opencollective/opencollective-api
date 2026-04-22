@@ -4,6 +4,8 @@ import { groupBy } from 'lodash';
 import { createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
+import OrderStatuses from '../../../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
@@ -14,7 +16,9 @@ import {
   fakeAccountingCategory,
   fakeActiveHost,
   fakeCollective,
+  fakeOrder,
   fakeOrganization,
+  fakePaymentMethod,
   fakeProject,
   fakeTier,
   fakeUser,
@@ -695,6 +699,80 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
 
   describe('editAddedFunds', () => {
     let OrderId;
+
+    it('rejects when the order is No ADDED FUNDS transaction found', async () => {
+      const stripePm = await fakePaymentMethod({
+        CollectiveId: randomUser.CollectiveId,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
+      const badOrder = await fakeOrder(
+        {
+          CreatedByUserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+          CollectiveId: collective.id,
+          totalAmount: 1000,
+          currency: collective.currency,
+          status: OrderStatuses.PAID,
+          PaymentMethodId: stripePm.id,
+          processedAt: new Date(),
+        },
+        { withTransactions: true },
+      );
+      const result = await graphqlQueryV2(
+        editAddedFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          order: { legacyId: badOrder.id },
+          amount: { currency: 'USD', valueInCents: 1000 },
+          description: 'should fail',
+          hostFeePercent: 0,
+        },
+        hostAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/No ADDED FUNDS transaction found/);
+    });
+
+    it('rejects when the order recipient collective is under a different host than args.account', async () => {
+      const donor = await fakeUser();
+      const hostAAdmin = await fakeUser();
+      const hostA = await fakeActiveHost({ admin: hostAAdmin, data: { isTrustedHost: true } });
+      const collectiveA = await fakeCollective({ HostCollectiveId: hostA.id });
+      await hostAAdmin.populateRoles();
+      const hostBAdmin = await fakeUser();
+      const hostB = await fakeActiveHost({ admin: hostBAdmin, data: { isTrustedHost: true } });
+      const collectiveB = await fakeCollective({ HostCollectiveId: hostB.id });
+      await hostBAdmin.populateRoles();
+      let result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          account: { legacyId: collectiveA.id },
+          fromAccount: { legacyId: donor.CollectiveId },
+          amount: { currency: 'USD', valueInCents: 2000 },
+          description: 'add funds host A',
+          hostFeePercent: 0,
+        },
+        hostAAdmin,
+      );
+      expect(result.errors).to.not.exist;
+      const orderId = result.data.addFunds.id;
+      result = await graphqlQueryV2(
+        editAddedFundsMutation,
+        {
+          account: { legacyId: collectiveB.id },
+          fromAccount: { legacyId: donor.CollectiveId },
+          order: { id: orderId },
+          amount: { currency: 'USD', valueInCents: 3000 },
+          description: 'wrong host',
+          hostFeePercent: 0,
+        },
+        hostBAdmin,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/does not belong to the fiscal host/);
+    });
 
     it('can edit added funds properties', async () => {
       const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
