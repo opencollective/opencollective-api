@@ -308,6 +308,61 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
     });
 
+    it('prevents selecting a payout method owned by another account', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { vendorInfo: vendorData.vendorInfo },
+      });
+      const otherAccount = await fakeCollective();
+      const otherAccountPayoutMethod = await fakePayoutMethod({
+        CollectiveId: otherAccount.id,
+        type: PayoutMethodTypes.PAYPAL,
+        isSaved: true,
+        data: { email: 'other@example.com', currency: 'USD' },
+      });
+      const existingPayoutMethod = await fakePayoutMethod({ CollectiveId: vendor.id, isSaved: true });
+      const pendingExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'PENDING',
+      });
+      const paidExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'PAID',
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            payoutMethod: {
+              id: otherAccountPayoutMethod.publicId,
+            },
+          },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Payout method does not belong to this vendor/);
+
+      // The pending expense should now use the other account's payout method
+      await pendingExpense.reload();
+      expect(pendingExpense.PayoutMethodId).to.equal(existingPayoutMethod.id);
+
+      // Paid expenses should not be updated
+      await paidExpense.reload();
+      expect(paidExpense.PayoutMethodId).to.equal(existingPayoutMethod.id);
+
+      await models.Expense.destroy({ where: { id: [pendingExpense.id, paidExpense.id] }, force: true });
+      await models.PayoutMethod.destroy({
+        where: { id: [existingPayoutMethod.id, otherAccountPayoutMethod.id] },
+        force: true,
+      });
+    });
+
     it('rejects selecting a payout method that belongs to another vendor on a different host', async () => {
       const hostAAdmin = await fakeUser();
       const hostA = await fakeActiveHost({ admin: hostAAdmin });
