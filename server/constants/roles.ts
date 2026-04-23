@@ -34,4 +34,6 @@ export const MemberRoleLabels = {
   [MemberRoles.ACCOUNTANT]: 'Accountant',
 };
 
+export const MemberRolesForPrivateAccounts = new Set([MemberRoles.ADMIN, MemberRoles.ACCOUNTANT]);
+
 export default MemberRoles;

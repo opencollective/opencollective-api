@@ -15,6 +15,7 @@ import {
   fakeMemberInvitation,
   fakeOrganization,
   fakePayoutMethod,
+  fakePrivateHost,
   fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
@@ -98,6 +99,26 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/Host does not require tax forms/);
+    });
+
+    it('creates vendors as private when the fiscal host is private', async () => {
+      const admin = await fakeUser();
+      const privateHost = await fakePrivateHost({ admin });
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: privateHost.id },
+          vendor: { ...vendorData, vendorInfo: { ...vendorData.vendorInfo, taxFormUrl: null } },
+        },
+        admin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor).to.exist;
+      expect(vendor.isPrivate).to.be.true;
+      expect(vendor.ParentCollectiveId).to.equal(privateHost.id);
     });
 
     it('creates a vendor account', async () => {

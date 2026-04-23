@@ -7,6 +7,7 @@ import status from '../../constants/order-status';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
+import { canSeePrivateAccount } from '../../lib/private-accounts';
 import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Order from '../../models/Order';
@@ -70,6 +71,8 @@ export const canAddFundsFromAccount = (fromCollective: Collective, host: Collect
     return true;
   } else if (!remoteUser.isAdmin(host.id)) {
     return false;
+  } else if (host.isPrivate && fromCollective.HostCollectiveId !== host.id) {
+    return false;
   } else {
     return (
       // Allowed if admin of fromCollective
@@ -78,7 +81,7 @@ export const canAddFundsFromAccount = (fromCollective: Collective, host: Collect
       (fromCollective.type === CollectiveType.VENDOR && fromCollective.ParentCollectiveId === host.id) ||
       // Allowed from profiles under the same host
       fromCollective.HostCollectiveId === host.id ||
-      // Allowed with special flags
+      // Allowed with special flags if the host is not private
       host.data?.allowAddFundsFromAllAccounts ||
       host.data?.isFirstPartyHost ||
       host.data?.isTrustedHost
@@ -187,6 +190,28 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
   purgeCacheForCollective(fromCollective.slug);
 
   return models.Order.findByPk(orderCreated.id);
+}
+
+/**
+ * Blocks viewing an order when its destination account is private, unless the viewer may see that account
+ * or has a direct stake in the order (contributor, creator, fiscal host admin).
+ */
+export async function assertOrderAccessibleForPrivateCollective(req: express.Request, order: Order): Promise<void> {
+  const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
+  if (!collective?.isPrivate) {
+    return;
+  } else if (!req.remoteUser) {
+    throw new Forbidden('This account is private. You must be a member to view it.');
+  } else if (await canSeePrivateAccount(req, collective)) {
+    return;
+  }
+
+  const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+  if (canSeePrivateAccount(req, fromCollective)) {
+    return;
+  }
+
+  throw new Forbidden('This account is private. You must be a member to view it.');
 }
 
 export const isOrderHostAdmin = async (req: express.Request, order: Order): Promise<boolean> => {

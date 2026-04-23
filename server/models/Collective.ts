@@ -337,6 +337,7 @@ class Collective extends ModelWithPublicId<
   declare public timezone: string;
   declare public isActive: boolean;
   declare public isIncognito: boolean;
+  declare public isPrivate: boolean;
   declare public approvedAt: Date;
   declare public twitterHandle: string;
   declare public githubHandle: string;
@@ -2842,7 +2843,10 @@ class Collective extends ModelWithPublicId<
 
   // edit the list of members and admins of this collective (create/update/remove)
   // creates a User and a UserCollective if needed
-  editMembers = async function (members, defaultAttributes: { remoteUserCollectiveId?: any } = {}) {
+  editMembers = async function (
+    members,
+    defaultAttributes: { remoteUserCollectiveId?: number; CreatedByUserId?: number } = {},
+  ) {
     if (!members || members.length === 0) {
       return null;
     }
@@ -4141,6 +4145,12 @@ Collective.init(
       defaultValue: false,
     },
 
+    isPrivate: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
+
     approvedAt: {
       type: DataTypes.DATE,
     },
@@ -4311,6 +4321,20 @@ Collective.init(
         const user = instance.CreatedByUserId && (await User.findByPk(instance.CreatedByUserId));
         if (user && !canUseFeature(user, FEATURE.CREATE_COLLECTIVE)) {
           throw new Error("You're not authorized to create new collectives at the moment.");
+        }
+
+        // Inherit isPrivate from parent host: if the host is private, all hosted accounts must be private too
+        if (!instance.isPrivate && instance.HostCollectiveId) {
+          const host = await Collective.findByPk(instance.HostCollectiveId, { attributes: ['isPrivate'] });
+          if (host?.isPrivate) {
+            instance.isPrivate = true;
+          }
+        }
+        if (!instance.isPrivate && instance.ParentCollectiveId) {
+          const parent = await Collective.findByPk(instance.ParentCollectiveId, { attributes: ['isPrivate'] });
+          if (parent?.isPrivate) {
+            instance.isPrivate = true;
+          }
         }
 
         // Check if collective is spam

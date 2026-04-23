@@ -6,9 +6,10 @@ import roles from '../../../constants/roles';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { canUseSlug } from '../../../lib/collectivelib';
+import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { ValidationFailed } from '../../errors';
+import { Unauthorized, ValidationFailed } from '../../errors';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLFundCreateInput } from '../input/FundCreateInput';
@@ -67,6 +68,12 @@ async function createFund(_, args, req) {
       throw new ValidationFailed('Host Not Found');
     } else if (!host.hasMoneyManagement) {
       throw new ValidationFailed('Host account is not activated as Host.');
+    } else if (!(await canSeePrivateAccount(req, host))) {
+      throw new Unauthorized('You are not authorized to create a fund under this host');
+    }
+
+    if (host.isPrivate) {
+      fundData.isPrivate = true;
     }
 
     await checkFeatureAccess(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, { loaders: req.loaders });

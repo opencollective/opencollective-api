@@ -6,6 +6,7 @@ import { SequelizeValidationError } from 'sequelize';
 import { stub, useFakeTimers } from 'sinon';
 
 import { Service } from '../../../server/constants/connected-account';
+import MemberRoles from '../../../server/constants/roles';
 import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
@@ -178,6 +179,33 @@ describe('server/models/User', () => {
 
         await collective.addUserWithRole(user, 'ADMIN');
         expect(user.hasRoleInCollectiveOrHost(['BACKER'], collective)).to.be.false;
+      });
+    });
+
+    describe('getCollectiveIdsForRoles', () => {
+      it('returns an empty set when roles have not been populated', async () => {
+        const user = await fakeUser();
+        const ids = user.getCollectiveIdsForRoles(new Set([MemberRoles.ADMIN]));
+        expect(ids.size).to.equal(0);
+      });
+
+      it('returns collective ids where the user has at least one of the requested roles', async () => {
+        const user = await fakeUser();
+        const asAdmin = await fakeCollective({ admin: user });
+        const asAccountantCollective = await fakeCollective();
+        await asAccountantCollective.addUserWithRole(user, 'ACCOUNTANT');
+        const backerOnly = await fakeCollective();
+        await backerOnly.addUserWithRole(user, 'BACKER');
+        await user.populateRoles();
+
+        const adminOrAccountant = user.getCollectiveIdsForRoles(new Set([MemberRoles.ADMIN, MemberRoles.ACCOUNTANT]));
+        expect(adminOrAccountant.has(asAdmin.id)).to.be.true;
+        expect(adminOrAccountant.has(asAccountantCollective.id)).to.be.true;
+        expect(adminOrAccountant.has(backerOnly.id)).to.be.false;
+
+        const adminOnly = user.getCollectiveIdsForRoles(new Set([MemberRoles.ADMIN]));
+        expect(adminOnly.has(asAdmin.id)).to.be.true;
+        expect(adminOnly.has(asAccountantCollective.id)).to.be.false;
       });
     });
   });

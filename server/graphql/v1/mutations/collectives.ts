@@ -12,6 +12,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, sequelize } from '../../../models';
@@ -23,7 +24,7 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },
 };
 
-export async function createCollective(_, args, req) {
+export async function createCollective(_, args, req: express.Request) {
   const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create a collective');
@@ -44,7 +45,7 @@ export async function createCollective(_, args, req) {
   //   throw new ValidationFailed('This mutation should not be used to create Collectives, use GraphQL v2.');
   // }
 
-  let hostCollective, parentCollective, collective;
+  let hostCollective: Collective, parentCollective: Collective, collective: Collective;
 
   const collectiveData = {
     ...args.collective,
@@ -84,8 +85,15 @@ export async function createCollective(_, args, req) {
   if (collectiveData.HostCollectiveId) {
     hostCollective = await req.loaders.Collective.byId.load(collectiveData.HostCollectiveId);
     if (!hostCollective) {
-      return Promise.reject(new Error(`Host collective with id ${args.collective.HostCollectiveId} not found`));
-    } else if (req.remoteUser.hasRole([roles.ADMIN], hostCollective.id)) {
+      throw new Error(`Host collective with id ${args.collective.HostCollectiveId} not found`);
+    } else if (!(await canSeePrivateAccount(req, hostCollective))) {
+      throw new Unauthorized('You are not authorized to create a collective under this host');
+    } else if (!hostCollective.hasHosting) {
+      throw new Unauthorized('This host does not accept hosting new collectives');
+    }
+
+    // Handle approval logic
+    if (req.remoteUser.hasRole([roles.ADMIN], hostCollective.id)) {
       collectiveData.isActive = true;
     } else if (parentCollective && parentCollective.HostCollectiveId === hostCollective.id) {
       // We can approve the collective directly if same host and parent collective is already approved
@@ -97,6 +105,11 @@ export async function createCollective(_, args, req) {
 
     collectiveData.currency = collectiveData.currency || hostCollective.currency;
     collectiveData.hostFeePercent = hostCollective.hostFeePercent;
+  }
+
+  // Enforce private on the collecive if the host is private
+  if (hostCollective?.isPrivate || parentCollective?.isPrivate) {
+    collectiveData.isPrivate = true;
   }
 
   // To ensure uniqueness of the slug, if the type of collective is EVENT

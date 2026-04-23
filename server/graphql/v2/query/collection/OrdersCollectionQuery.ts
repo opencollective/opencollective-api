@@ -13,15 +13,17 @@ import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
+import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
-import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
+import { GraphQLAccountOrdersFilter, GraphQLAccountOrdersFilterValues } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
 import GraphQLHostContext from '../../enum/HostContext';
 import GraphQLOppositeAccountScope from '../../enum/OppositeAccountScope';
@@ -321,7 +323,7 @@ interface OrdersCollectionArgsType {
   paymentMethodType?: string[];
   manualPaymentProvider?: Array<{ id: string }>;
   includeIncognito?: boolean;
-  filter?: string;
+  filter?: GraphQLAccountOrdersFilterValues;
   frequency?: string[];
   status?: string[];
   orderBy: { field: string; direction: 'ASC' | 'DESC' };
@@ -400,6 +402,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         }
       }
     });
+  }
+
+  const allAccounts = [host, account, oppositeAccount].filter(Boolean);
+  if (allAccounts.length > 0) {
+    await assertCanSeeAllAccounts(req, allAccounts);
   }
 
   // Resolve scope for oppositeAccountScope filtering.
@@ -507,6 +514,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     }
   }
 
+  const shouldApplyPrivateRecipientVisibilityFilter = !req.remoteUser?.isRoot() && !host;
   const kysely = getKysely();
   const query = kysely
     .with('filterByAccounts', db => {
@@ -596,6 +604,23 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       join.onRef('fromCollective.id', '=', 'Orders.FromCollectiveId').on('fromCollective.deletedAt', 'is', null),
     )
     .where('Orders.deletedAt', 'is', null)
+    .$if(shouldApplyPrivateRecipientVisibilityFilter, qb => {
+      return qb.where(({ or, eb }) => {
+        const ors: Expression<SqlBool>[] = [eb('collective.isPrivate', '=', false)];
+
+        if (req.remoteUser) {
+          const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+          ors.push(eb('Orders.FromCollectiveId', 'in', [req.remoteUser.CollectiveId, ...directAccess]));
+          if (directAccess.length > 0) {
+            ors.push(eb('Orders.CollectiveId', 'in', directAccess));
+            ors.push(eb('collective.ParentCollectiveId', 'in', directAccess));
+            ors.push(eb('collective.HostCollectiveId', 'in', directAccess));
+          }
+        }
+
+        return or(ors);
+      });
+    })
     .$if(account && !isEmpty(hostedAccounts), qb => {
       return qb.where(({ or, eb }) => {
         const ors: Expression<SqlBool>[] = [];
