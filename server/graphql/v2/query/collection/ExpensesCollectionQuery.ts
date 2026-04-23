@@ -535,11 +535,10 @@ export const ExpensesCollectionQueryResolver = async (
 
   const buildActivitySubquery = async (account: Collective, activityType: ActivityTypes): Promise<void> => {
     const user = await req.loaders.User.byCollectiveId.load(account.id);
-    if (!user) {
-      // No user found, force empty result
-      where[Op.and].push(sequelize.literal('FALSE'));
-      return;
-    }
+    assert(
+      user,
+      'Account passed to paidByAccount, approvedByAccount, rejectedByAccount or invitedByAccount does not belongs to a user',
+    );
 
     const hostCondition = host
       ? sequelize.literal(
