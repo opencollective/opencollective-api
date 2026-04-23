@@ -131,7 +131,7 @@
     "throng": "5.0.0",
     "tweetnacl": "1.0.3",
     "tweetnacl-util": "0.15.1",
-    "uuid": "13.0.0",
+    "uuid": "14.0.0",
     "validator": "13.15.35",
     "winston": "3.19.0",
     "zod": "4.3.6"
