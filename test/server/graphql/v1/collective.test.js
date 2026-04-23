@@ -738,22 +738,6 @@ describe('server/graphql/v1/collective', () => {
       ).collective;
     });
 
-    it('edits legalName', async () => {
-      const user = await fakeUser();
-      const editCollectiveMutation = gqlV1 /* GraphQL */ `
-        mutation EditCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id
-            legalName
-          }
-        }
-      `;
-
-      const collective = { id: user.collective.id, legalName: 'New Legal Name' };
-      const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
-      expect(result.data.editCollective.legalName).to.eq('New Legal Name');
-    });
-
     it('edits social links', async () => {
       const user = await fakeUser();
       const editCollectiveMutation = gqlV1 /* GraphQL */ `
@@ -812,59 +796,6 @@ describe('server/graphql/v1/collective', () => {
       expect(result.data.editCollective.repositoryUrl).to.eq('https://github.com/opencollective/opencollective-api');
     });
 
-    it('updates social links', async () => {
-      const user = await fakeUser();
-      const editCollectiveMutation = gqlV1 /* GraphQL */ `
-        mutation EditCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id
-            socialLinks {
-              type
-              url
-            }
-            website
-            repositoryUrl
-            githubHandle
-            twitterHandle
-          }
-        }
-      `;
-
-      const collective = {
-        id: user.collective.id,
-        website: 'https://opencollective.com',
-        twitterHandle: 'opencollect',
-        githubHandle: 'opencollective',
-        repositoryUrl: 'https://github.com/opencollective/opencollective-api',
-      };
-      const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
-      console.log(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.editCollective.socialLinks).to.eql([
-        {
-          type: 'WEBSITE',
-          url: 'https://opencollective.com',
-        },
-        {
-          type: 'GIT',
-          url: 'https://github.com/opencollective/opencollective-api',
-        },
-        {
-          type: 'GITHUB',
-          url: 'https://github.com/opencollective',
-        },
-        {
-          type: 'TWITTER',
-          url: 'https://twitter.com/opencollect',
-        },
-      ]);
-
-      expect(result.data.editCollective.website).to.eq('https://opencollective.com');
-      expect(result.data.editCollective.twitterHandle).to.eq('opencollect');
-      expect(result.data.editCollective.githubHandle).to.eq('opencollective/opencollective-api');
-      expect(result.data.editCollective.repositoryUrl).to.eq('https://github.com/opencollective/opencollective-api');
-    });
-
     it('apply to host', async () => {
       const { hostCollective } = await store.newHost(
         'brusselstogether',
@@ -906,19 +837,19 @@ describe('server/graphql/v1/collective', () => {
     });
 
     it('check edit activity is created after', async () => {
-      const user = await fakeUser(null, { legalName: 'Old Legal Name' });
+      const user = await fakeUser(null, { tags: ['old tag'] });
       const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
-            legalName
+            tags
           }
         }
       `;
 
-      const collective = { id: user.collective.id, legalName: 'New Legal Name' };
+      const collective = { id: user.collective.id, tags: ['new tag'] };
       const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
-      expect(result.data.editCollective.legalName).to.eq('New Legal Name');
+      expect(result.data.editCollective.tags).to.deep.eq(['new tag']);
       // Check activity
       const activity = await models.Activity.findOne({
         where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED },
@@ -927,11 +858,12 @@ describe('server/graphql/v1/collective', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(user.collective.id);
       expect(activity.data).to.containSubset({
-        previousData: { legalName: 'Old Legal Name' },
-        newData: { legalName: 'New Legal Name' },
+        previousData: { tags: ['old tag'] },
+        newData: { tags: ['new tag'] },
       });
     });
   });
+
   describe('edits member public message', () => {
     const editPublicMessageMutation = gqlV1 /* GraphQL */ `
       mutation EditPublicMessage($fromCollectiveId: Int!, $collectiveId: Int!, $message: String) {
