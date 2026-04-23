@@ -59,6 +59,7 @@ import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
+import { canSeePrivateAccount } from '../../lib/private-accounts';
 import { reportErrorToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { deepJSONBSet } from '../../lib/sql';
@@ -372,6 +373,31 @@ export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, 
     isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
 };
+
+/**
+ * Throws when the expense's account is private and the viewer cannot access it, unless they have an
+ * expense-level role (submitter, host, draft invitee, etc.).
+ */
+export async function assertExpenseAccessibleForPrivateCollective(
+  req: express.Request,
+  expense: Expense,
+  options: { draftKey?: string } = {},
+): Promise<void> {
+  const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+  if (!collective?.isPrivate) {
+    return;
+  } else if (await canSeePrivateAccount(req, collective)) {
+    return;
+  } else if (
+    expense.status === expenseStatus.DRAFT &&
+    options.draftKey &&
+    expense.data?.draftKey === options.draftKey
+  ) {
+    return;
+  }
+
+  throw new Forbidden('You are not allowed to see this expense.');
+}
 
 /** Checks if the user can see expense's payout method private details (account number, PayPal email, ...etc) */
 export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
@@ -1965,6 +1991,17 @@ const checkCanUseAccountingCategory = (
   }
 };
 
+/** Private fiscal profiles cannot submit expenses where the payee's fiscal host differs from the collective's host. */
+const assertPrivateOrganizationNoCrossHostExpense = (fromCollective: Collective, collective: Collective): void => {
+  const collectiveHostId = collective.HostCollectiveId;
+  const payeeHostId = fromCollective.HostCollectiveId;
+  if (collective.isPrivate && collectiveHostId && payeeHostId && collectiveHostId !== payeeHostId) {
+    throw new ValidationFailed(
+      'Private organizations cannot submit expenses to accounts hosted by a different fiscal host.',
+    );
+  }
+};
+
 const checkFromCollective = async (
   fromCollective: Collective,
   remoteUser: User,
@@ -2324,6 +2361,7 @@ export async function createExpense(
 
   // Check payee
   await checkFromCollective(fromCollective, remoteUser, collective);
+  assertPrivateOrganizationNoCrossHostExpense(fromCollective, collective);
 
   // Update payee's location
   const existingLocation = await fromCollective.getLocation();
@@ -3030,6 +3068,7 @@ export async function editExpense(
     await checkFromCollective(expenseData.fromCollective, remoteUser, collective, {
       skipPermissionCheck: options?.skipPermissionCheck,
     });
+    assertPrivateOrganizationNoCrossHostExpense(expenseData.fromCollective, collective);
   }
 
   await checkLockedFields(expense, {

@@ -1,3 +1,6 @@
+import express from 'express';
+
+import { Collective } from '../../../models';
 import { GraphQLIndividual } from '../object/Individual';
 
 import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
@@ -85,7 +88,7 @@ const query = {
   offPlatformTransactionsInstitutions: OffPlatformTransactionsInstitutionsQuery,
   loggedInAccount: {
     type: GraphQLIndividual,
-    resolve(_, args, req) {
+    resolve(_, args, req: express.Request): Promise<Collective | null> {
       if (!req.remoteUser) {
         return null;
       } else {
@@ -95,7 +98,7 @@ const query = {
   },
   me: {
     type: GraphQLIndividual,
-    resolve(_, args, req) {
+    resolve(_, args, req: express.Request): Promise<Collective | null> {
       if (!req.remoteUser) {
         return null;
       } else {

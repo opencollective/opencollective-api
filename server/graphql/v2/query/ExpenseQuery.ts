@@ -2,6 +2,7 @@ import { GraphQLString } from 'graphql';
 
 import expenseStatus from '../../../constants/expense-status';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { assertExpenseAccessibleForPrivateCollective } from '../../common/expenses';
 import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
 import { GraphQLExpense } from '../object/Expense';
 
@@ -34,7 +35,11 @@ const ExpenseQuery = {
 
     if (!expense) {
       return null;
-    } else if (args.draftKey && expense.status === expenseStatus.DRAFT) {
+    }
+
+    await assertExpenseAccessibleForPrivateCollective(req, expense, { draftKey: args.draftKey });
+
+    if (args.draftKey && expense.status === expenseStatus.DRAFT) {
       if (expense.data?.draftKey !== args.draftKey) {
         return null;
       } else {

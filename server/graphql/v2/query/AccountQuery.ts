@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLString } from 'graphql';
 
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { NotFound } from '../../errors';
@@ -67,6 +68,9 @@ export const buildAccountQuery = ({ objectType }) => ({
         return null;
       }
     }
+
+    // Block access to private accounts for unauthorized viewers
+    await assertCanSeeAccount(req, collective);
 
     if (await req.loaders.Collective.canSeePrivateLocation.load(collective.id)) {
       allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, collective.id);

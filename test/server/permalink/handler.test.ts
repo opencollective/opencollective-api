@@ -43,6 +43,8 @@ import {
   fakeVirtualCard,
   fakeVirtualCardRequest,
 } from '../../test-helpers/fake-data';
+import { createPrivateAccountFixture, type PrivateAccountFixture } from '../../test-helpers/private-account-fixture';
+import { makeRequest, resetTestDB } from '../../utils';
 
 type RemoteUser = Awaited<ReturnType<typeof fakeUser>>;
 
@@ -62,7 +64,10 @@ const invokePermalink = async (publicId: string, remoteUser: RemoteUser | null) 
   if (remoteUser) {
     await remoteUser.populateRoles();
   }
-  const req = { params: { id: publicId }, remoteUser } as unknown as Parameters<typeof handlePermalink>[0];
+  const req = {
+    ...makeRequest(remoteUser ?? undefined),
+    params: { id: publicId },
+  } as unknown as Parameters<typeof handlePermalink>[0];
   const res = { redirect } as unknown as Parameters<typeof handlePermalink>[1];
 
   await handlePermalink(req, res);
@@ -1037,4 +1042,69 @@ describe('server/lib/permalink/handler', () => {
       expectedUrl: '/not-found',
     },
   ]);
+
+  describe('private accounts', () => {
+    let ctx: PrivateAccountFixture;
+
+    before(async function () {
+      this.timeout(60_000);
+      await resetTestDB();
+      ctx = await createPrivateAccountFixture();
+    });
+
+    const signinNext = (publicId: string) => `/signin?next=${encodeURIComponent(`/permalink/${publicId}`)}`;
+
+    it('blocks anonymous visitors for permalinks to resources on a private collective (update)', async () => {
+      const url = await invokePermalink(ctx.privateUpdate.publicId, null);
+      expect(url).to.equal(signinNext(ctx.privateUpdate.publicId));
+    });
+
+    it('blocks unrelated users for permalinks to resources on a private collective (update)', async () => {
+      const url = await invokePermalink(ctx.privateUpdate.publicId, ctx.randomUser);
+      expect(url).to.equal('/access-denied');
+    });
+
+    it('allows collective admins to resolve update permalinks on a private collective', async () => {
+      const url = await invokePermalink(ctx.privateUpdate.publicId, ctx.privateCollectiveAdmin);
+      expect(url).to.equal(`/dashboard/${ctx.privateCollective.slug}/updates/${ctx.privateUpdate.publicId}`);
+    });
+
+    it('blocks anonymous visitors for conversation permalinks on a private collective', async () => {
+      const url = await invokePermalink(ctx.privateConversation.publicId, null);
+      expect(url).to.equal(signinNext(ctx.privateConversation.publicId));
+    });
+
+    it('blocks anonymous visitors for expense permalinks on a private collective', async () => {
+      const url = await invokePermalink(ctx.privateExpense.publicId, null);
+      expect(url).to.equal(signinNext(ctx.privateExpense.publicId));
+    });
+
+    it('blocks anonymous visitors for order permalinks on a private collective', async () => {
+      const url = await invokePermalink(ctx.privateOrder.publicId, null);
+      expect(url).to.equal(signinNext(ctx.privateOrder.publicId));
+    });
+
+    it('blocks anonymous visitors for transaction permalinks on a private collective', async () => {
+      const url = await invokePermalink(ctx.privateTransaction.publicId, null);
+      expect(url).to.equal(signinNext(ctx.privateTransaction.publicId));
+    });
+
+    it('blocks anonymous visitors for tier permalinks on a private collective', async () => {
+      const tier = await fakeTier({ CollectiveId: ctx.privateCollective.id });
+      const url = await invokePermalink(tier.publicId, null);
+      expect(url).to.equal(signinNext(tier.publicId));
+    });
+
+    it('blocks anonymous visitors for user permalinks when the profile collective is private', async () => {
+      const user = await fakeUser({}, { isPrivate: true });
+      const url = await invokePermalink(user.publicId, null);
+      expect(url).to.equal(signinNext(user.publicId));
+    });
+
+    it('blocks unrelated users for activity permalinks tied to a private collective', async () => {
+      const activity = await fakeActivity({ CollectiveId: ctx.privateCollective.id }, { hooks: false });
+      const url = await invokePermalink(activity.publicId, ctx.randomUser);
+      expect(url).to.equal('/access-denied');
+    });
+  });
 });

@@ -1,7 +1,9 @@
+import express from 'express';
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { isEmpty } from 'lodash';
 import { Order } from 'sequelize';
 
+import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import models from '../../../../models';
 import { checkRemoteUserCanUseVirtualCards } from '../../../common/scope-check';
 import { Forbidden } from '../../../errors';
@@ -21,10 +23,11 @@ const VirtualCardRequestsCollectionQuery = {
     status: { type: new GraphQLList(GraphQLVirtualCardRequestStatus) },
     collective: { type: new GraphQLList(GraphQLAccountReferenceInput) },
   },
-  async resolve(_: void, args, req: Express.Request): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     checkRemoteUserCanUseVirtualCards(req);
 
     const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+    await assertCanSeeAccount(req, host);
     const isHostAdmin = req.remoteUser.isAdminOfCollective(host);
     const where = {
       HostCollectiveId: host.id,
@@ -45,6 +48,10 @@ const VirtualCardRequestsCollectionQuery = {
         }
       }
 
+      if (!isHostAdmin) {
+        // Collective admins cannot see other accounts that are hosted by the same host
+        await assertCanSeeAllAccounts(req, collectives);
+      }
       where['CollectiveId'] = collectives.map(collective => collective.id);
     } else if (!isHostAdmin) {
       throw new Forbidden('You are not authorized to view virtual card requests for this host.');

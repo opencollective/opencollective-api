@@ -5,6 +5,7 @@ import { isNil } from 'lodash';
 
 import { SupportedCurrency } from '../../../../constants/currencies';
 import { roundCentsAmount } from '../../../../lib/currency';
+import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { Op, sequelize } from '../../../../models';
 import Transaction from '../../../../models/Transaction';
 import { GraphQLTransactionGroupCollection } from '../../collection/TransactionGroupCollection';
@@ -37,7 +38,8 @@ export const TransactionGroupCollectionArgs = {
 };
 
 export const TransactionGroupCollectionResolver = async (args, req: express.Request): Promise<CollectionReturnType> => {
-  const account = await fetchAccountWithReference(args.account);
+  const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+  await assertCanSeeAccount(req, account);
 
   // Check Pagination arguments
   if (isNil(args.limit) || args.limit < 0) {

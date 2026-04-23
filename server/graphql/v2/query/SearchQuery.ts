@@ -5,6 +5,7 @@ import { v7 as uuidV7 } from 'uuid';
 
 import { isOpenSearchConfigured } from '../../../lib/open-search/client';
 import { getOpenSearchQueryId, GraphQLSearchParams } from '../../../lib/open-search/graphql-search';
+import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import RateLimit from '../../../lib/rate-limit';
 import { Forbidden, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -80,6 +81,9 @@ const SearchQuery = {
     // Parse arguments
     const host = args.host && (await fetchAccountWithReference(args.host));
     const account = args.account && (await fetchAccountWithReference(args.account));
+    if (account || host) {
+      await assertCanSeeAllAccounts(req, [account, host].filter(Boolean));
+    }
     const defaultLimit = args.defaultLimit;
 
     // Return the base arguments that will be digested by `GraphQLSearchResponse`

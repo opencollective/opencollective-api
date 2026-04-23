@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import TierModel from '../../../models/Tier';
 import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
 import { GraphQLTier } from '../object/Tier';
@@ -19,9 +20,12 @@ const TierQuery = {
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<TierModel | null> {
-    return <Promise<TierModel>>(
-      fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: args.throwIfMissing })
-    );
+    const tier = await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: args.throwIfMissing });
+    if (tier) {
+      const account = await req.loaders.Collective.byId.load(tier.CollectiveId);
+      await assertCanSeeAccount(req, account);
+    }
+    return tier;
   },
 };
 
