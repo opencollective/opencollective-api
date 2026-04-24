@@ -51,7 +51,9 @@ async function createProject(_, args, req) {
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...args.project.settings },
-    data: {},
+    data: {
+      ...pick(parent.data, 'allowedTierTypes'),
+    },
   };
 
   if (args.disableContributions) {

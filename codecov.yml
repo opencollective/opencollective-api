@@ -8,6 +8,8 @@ coverage:
 ignore:
   - reports
   - migrations
+  - eslint-rules
+  - config
 
 comment:
   behavior: once # update, if exists. Otherwise post new. Skip if deleted.

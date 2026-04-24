@@ -193,6 +193,7 @@ type Settings = {
   applyMessage?: string;
   tos?: string;
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
+  disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
   automaticBillingMigration?: Date | string;
 } & TaxSettings;
