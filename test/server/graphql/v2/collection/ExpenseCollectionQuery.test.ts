@@ -5,6 +5,7 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import ActivityTypes from '../../../../../server/constants/activities';
+import ExpenseStatuses from '../../../../../server/constants/expense-status';
 import roles from '../../../../../server/constants/roles';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
@@ -1991,6 +1992,46 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(legacyIds).to.include(expenseApprovedAndPaid.id);
       // The expense only approved (not paid by payer) should not appear
       expect(legacyIds).to.not.include(expenseApprovedByApprover.id);
+    });
+  });
+
+  describe('ON hold filter', () => {
+    it('does not require on-hold or KYC when ON_HOLD is combined with other statuses (e.g. INCOMPLETE)', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+
+      const expenseIncomplete = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        status: ExpenseStatuses.INCOMPLETE,
+      });
+
+      const expenseOnHold = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        status: ExpenseStatuses.APPROVED,
+        onHold: true,
+      });
+
+      const expenseApproved = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        status: ExpenseStatuses.APPROVED,
+        onHold: false,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesQuery,
+        { host: { legacyId: host.id }, status: ['INCOMPLETE', 'ON_HOLD'] },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.include(expenseIncomplete.id);
+      expect(ids).to.not.include(expenseOnHold.id);
+      expect(ids).to.not.include(expenseApproved.id);
     });
   });
 });

@@ -943,7 +943,10 @@ export const ExpensesCollectionQueryResolver = async (
 
   if (isHostAdmin && args.status?.includes('READY_TO_PAY')) {
     where[Op.and].push(sequelize.literal(`NOT (${individualPendingIn}) AND NOT ${adminPendingExists}`));
-  } else if (isHostAdmin && args.status?.includes('ON_HOLD')) {
+  } else if (isHostAdmin && args.status?.includes('ON_HOLD') && args.status.length === 1) {
+    // ON_HOLD is a pseudo-filter (onHold flag and/or KYC pending), not a DB status. Only apply this
+    // when it is the sole status; if combined with real statuses (e.g. Unreplied list), ANDing this
+    // OR would hide every row that is not on hold / KYC pending.
     delete where['onHold'];
     where[Op.and].push({
       [Op.or]: [{ onHold: true }, sequelize.literal(`(${individualPendingIn}) OR ${adminPendingExists}`)],
