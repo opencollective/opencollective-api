@@ -169,17 +169,17 @@ Array [
   },
   Object {
     "isGuest": false,
-    "isIncognito": true,
-    "name": "Incognito",
+    "isIncognito": false,
+    "name": "Real Contributor User",
     "relations": Array [
       "CONTRIBUTOR",
     ],
     "transactionSummary": Array [
       Object {
-        "creditCount": 1,
+        "creditCount": 2,
         "creditTotal": Object {
           "currency": "USD",
-          "valueInCents": 5000,
+          "valueInCents": 10000,
         },
         "debitCount": 0,
         "debitTotal": Object {
@@ -189,10 +189,10 @@ Array [
         "kind": "ALL",
       },
       Object {
-        "creditCount": 1,
+        "creditCount": 2,
         "creditTotal": Object {
           "currency": "USD",
-          "valueInCents": 5000,
+          "valueInCents": 10000,
         },
         "debitCount": 0,
         "debitTotal": Object {

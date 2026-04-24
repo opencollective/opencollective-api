@@ -723,6 +723,11 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
 
       // 6. Contributor to Collective with incognito order
       const incognitoUser = await fakeUser({}, { name: 'Real Contributor User' });
+      await fakeMember({
+        CollectiveId: snapshotCollective.id,
+        MemberCollectiveId: incognitoUser.collective.id,
+        role: MemberRoles.BACKER,
+      });
       const incognitoProfile = await fakeIncognitoProfile(incognitoUser);
       await fakeMember({
         CollectiveId: snapshotCollective.id,
@@ -733,7 +738,7 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
       await fakeTransaction({
         type: 'CREDIT',
         kind: TransactionKind.CONTRIBUTION,
-        FromCollectiveId: incognitoProfile.id,
+        FromCollectiveId: incognitoUser.collective.id,
         CollectiveId: snapshotCollective.id,
         HostCollectiveId: snapshotHost.id,
         amount: 5000,
@@ -745,12 +750,35 @@ describe('server/graphql/v2/query/CommunityQuery', () => {
         type: 'DEBIT',
         kind: TransactionKind.CONTRIBUTION,
         FromCollectiveId: snapshotCollective.id,
-        CollectiveId: incognitoProfile.id,
+        CollectiveId: incognitoUser.collective.id,
         HostCollectiveId: snapshotHost.id,
         amount: -5000,
         currency: 'USD',
         hostCurrency: 'USD',
         TransactionGroup: tg6,
+      });
+      const tg7 = uuid();
+      await fakeTransaction({
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: incognitoProfile.id,
+        CollectiveId: snapshotCollective.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg7,
+      });
+      await fakeTransaction({
+        type: 'DEBIT',
+        kind: TransactionKind.CONTRIBUTION,
+        FromCollectiveId: snapshotCollective.id,
+        CollectiveId: incognitoProfile.id,
+        HostCollectiveId: snapshotHost.id,
+        amount: -5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        TransactionGroup: tg7,
       });
 
       await refreshCommunityMaterializedViews();
