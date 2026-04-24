@@ -998,6 +998,36 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(ids).to.include(expenseOnHold.id);
       expect(ids).to.not.include(expenseWithVerifiedKyc.id);
     });
+
+    it('does not require on-hold or KYC when ON_HOLD is combined with other statuses (e.g. INCOMPLETE)', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD', approvedAt: new Date() });
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+
+      const payee = await fakeUser();
+      const expenseIncomplete = await fakeExpense({
+        type: 'RECEIPT',
+        CollectiveId: collective.id,
+        FromCollectiveId: payee.CollectiveId,
+        status: 'INCOMPLETE',
+        onHold: false,
+        amount: 1000,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesKycQuery,
+        { host: { legacyId: host.id }, status: ['INCOMPLETE', 'ON_HOLD'] },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const ids = result.data.expenses.nodes.map(n => n.legacyId);
+      expect(ids).to.include(expenseIncomplete.id);
+    });
   });
 
   describe('Activity filter', () => {
