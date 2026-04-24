@@ -302,19 +302,29 @@ const getMissingRefundTransactions = async (
       continue;
     }
 
-    const refundLink = captureDetails.links?.find(l => l.rel === 'refund');
-    if (!refundLink) {
+    // For fully-REFUNDED captures, PayPal includes a navigational HATEOAS link to the existing
+    // refund resource (rel: "refund", method: "GET"). This works for both checkout-order captures
+    // and subscription captures, unlike the supplementary_data.related_ids.order_id approach which
+    // is only populated for checkout-order captures.
+    const refundHref = captureDetails.links?.find(l => l.rel === 'refund')?.href;
+    const refundId = refundHref?.split('/').pop();
+
+    if (!refundId) {
       logger.warn(`PayPal capture ${captureId} is REFUNDED but has no refund link, skipping`);
+      reportMessageToSentry(`PayPal capture is REFUNDED but missing refund link in HATEOAS links`, {
+        extra: { captureId, transactionId: dbTransaction.id, hostSlug: host.slug },
+        feature: FEATURE.PAYPAL_DONATIONS,
+        severity: 'warning',
+      });
       continue;
     }
 
-    const refundPath = refundLink.href.replace(/^.+\/v2\//, '');
     let refundDetails: Record<string, unknown>;
     try {
-      refundDetails = await paypalRequestV2(refundPath, host, 'GET');
+      refundDetails = await paypalRequestV2(`payments/refunds/${refundId}`, host, 'GET');
     } catch (e) {
-      logger.error(`Error fetching refund details for capture ${captureId}: ${e.message}`);
-      reportErrorToSentry(e, { extra: { transactionId: dbTransaction.id, captureId, hostSlug: host.slug } });
+      logger.error(`Error fetching refund ${refundId} for capture ${captureId}: ${e.message}`);
+      reportErrorToSentry(e, { extra: { transactionId: dbTransaction.id, captureId, refundId, hostSlug: host.slug } });
       continue;
     }
 
@@ -456,7 +466,7 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         const expectedMinRefund = transaction.amount - Math.abs(transaction.paymentProcessorFeeInHostCurrency || 0);
         if (totalRefundedCents < expectedMinRefund) {
           throw new Error(
-            `PayPal partial refund detected for transaction #${transaction.id}: total refunded (${totalRefundedCents}) is less than expected (${expectedMinRefund}). Manual action required.`,
+            `PayPal partial refund detected for transaction #${transaction.id} (capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId}): expected at least ${expectedMinRefund} cents refunded but got ${totalRefundedCents}`,
           );
         }
 

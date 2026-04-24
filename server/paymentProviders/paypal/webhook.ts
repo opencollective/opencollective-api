@@ -300,7 +300,11 @@ async function handleSaleRefunded(req: Request): Promise<void> {
  */
 async function handleSaleReversed(req: Request): Promise<void> {
   const sale = req.body.resource;
-  const saleId = sale.id;
+  const saleId = sale?.id;
+  if (!saleId) {
+    logger.debug('PayPal: PAYMENT.SALE.REVERSED - no id in resource, ignoring');
+    return;
+  }
 
   const transaction = await findSaleTransaction(saleId);
   if (!transaction) {

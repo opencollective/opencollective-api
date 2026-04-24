@@ -37,6 +37,54 @@ const createOrderWithSubscription = async (params = {}): Promise<Order> => {
   );
 };
 
+type PayPalSubscriptionSaleRefundEventType = 'PAYMENT.SALE.REFUNDED' | 'PAYMENT.SALE.REVERSED';
+
+const PAYPAL_SUBSCRIPTION_SALE_WEBHOOK_CASES: Array<{
+  eventType: PayPalSubscriptionSaleRefundEventType;
+  buildBody: (saleId: string) => Record<string, unknown>;
+}> = [
+  {
+    eventType: 'PAYMENT.SALE.REFUNDED',
+    buildBody: saleId => ({ resource: { sale_id: saleId, transaction_fee: { value: '1.20' } } }),
+  },
+  {
+    eventType: 'PAYMENT.SALE.REVERSED',
+    buildBody: saleId => ({ resource: { id: saleId } }),
+  },
+];
+
+const callPayPalSubscriptionSaleWebhook = (
+  eventType: PayPalSubscriptionSaleRefundEventType,
+  body: Record<string, unknown>,
+) => paypalWebhook(<Request>{ body: { event_type: eventType, ...body } });
+
+async function setupPayPalSubscriptionContributionCredit(params: {
+  saleId: string;
+  amount?: number;
+  extraTransactionData?: Record<string, unknown>;
+}) {
+  const host = await fakeHost();
+  await fakeConnectedAccount({ CollectiveId: host.id, service: 'paypal', token: 'xxxxxx' });
+  const collective = await fakeCollective({ HostCollectiveId: host.id });
+  const order = await createOrderWithSubscription({ CollectiveId: collective.id, status: 'ACTIVE' });
+  const originalTransaction = await fakeTransaction(
+    {
+      type: TransactionTypes.CREDIT,
+      kind: TransactionKind.CONTRIBUTION,
+      isRefund: false,
+      RefundTransactionId: null,
+      OrderId: order.id,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      PaymentMethodId: order.PaymentMethodId,
+      amount: params.amount ?? 1000,
+      data: { paypalCaptureId: params.saleId, ...params.extraTransactionData },
+    },
+    { createDoubleEntry: true },
+  );
+  return { originalTransaction };
+}
+
 describe('server/paymentProviders/paypal/webhook', () => {
   let sandbox;
 
@@ -280,6 +328,48 @@ describe('server/paymentProviders/paypal/webhook', () => {
     });
   });
 
+  describe('PAYMENT.SALE.REFUNDED / PAYMENT.SALE.REVERSED (shared idempotency)', () => {
+    PAYPAL_SUBSCRIPTION_SALE_WEBHOOK_CASES.forEach(({ eventType, buildBody }) => {
+      it(`does not validate webhook or create a refund when already refunded from our system (${eventType})`, async () => {
+        const saleId = `SHARED-OUR-REFUND-${eventType.replace(/\./g, '-')}`;
+        const { originalTransaction } = await setupPayPalSubscriptionContributionCredit({
+          saleId,
+          extraTransactionData: { isRefundedFromOurSystem: true },
+        });
+
+        const validateWebhookEventStub = sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+        await callPayPalSubscriptionSaleWebhook(eventType, buildBody(saleId));
+
+        expect(validateWebhookEventStub.called).to.be.false;
+
+        const refundCount = await models.Transaction.count({
+          where: { RefundTransactionId: originalTransaction.id },
+        });
+        expect(refundCount).to.equal(0);
+      });
+
+      it(`does not create a second refund when the webhook is redelivered (${eventType})`, async () => {
+        const saleId = `SHARED-DUP-WEBHOOK-${eventType.replace(/\./g, '-')}`;
+        const { originalTransaction } = await setupPayPalSubscriptionContributionCredit({ saleId });
+
+        sandbox.stub(PaypalLib, 'validateWebhookEvent').resolves();
+        await callPayPalSubscriptionSaleWebhook(eventType, buildBody(saleId));
+
+        const refundCountAfterFirst = await models.Transaction.count({
+          where: { RefundTransactionId: originalTransaction.id },
+        });
+        expect(refundCountAfterFirst).to.be.greaterThan(0);
+
+        await callPayPalSubscriptionSaleWebhook(eventType, buildBody(saleId));
+
+        const refundCountAfterSecond = await models.Transaction.count({
+          where: { RefundTransactionId: originalTransaction.id },
+        });
+        expect(refundCountAfterSecond).to.equal(refundCountAfterFirst);
+      });
+    });
+  });
+
   describe('PAYMENT.SALE.REVERSED', () => {
     const callPaymentSaleReversed = body =>
       paypalWebhook(<Request>{
@@ -288,6 +378,13 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
     it('ignores if no transaction matches the sale id', async () => {
       await expect(callPaymentSaleReversed({ resource: { id: 'unknown-sale-id' } })).to.be.fulfilled;
+    });
+
+    it('ignores when resource.id is missing or falsy', async () => {
+      await expect(callPaymentSaleReversed({})).to.be.fulfilled;
+      await expect(callPaymentSaleReversed({ resource: {} })).to.be.fulfilled;
+      await expect(callPaymentSaleReversed({ resource: { id: null } })).to.be.fulfilled;
+      await expect(callPaymentSaleReversed({ resource: { id: '' } })).to.be.fulfilled;
     });
 
     it('fails if webhook event is invalid', async () => {
