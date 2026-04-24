@@ -2011,18 +2011,14 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         type: 'RECEIPT',
         CollectiveId: collective.id,
         status: ExpenseStatuses.APPROVED,
-        data: {
-          onHold: true,
-        },
+        onHold: true,
       });
 
       const expenseApproved = await fakeExpense({
         type: 'RECEIPT',
         CollectiveId: collective.id,
         status: ExpenseStatuses.APPROVED,
-        data: {
-          onHold: false,
-        },
+        onHold: false,
       });
 
       const result = await graphqlQueryV2(
