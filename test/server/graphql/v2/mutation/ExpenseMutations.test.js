@@ -2055,6 +2055,64 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('vendor payout method handling', () => {
+      it('should not rebind a vendor expense to an archived payout method when editing', async () => {
+        const hostAdminUser = await fakeUser();
+        const host = await fakeHost({ admin: hostAdminUser });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+
+        const archivedPayoutMethod = await fakePayoutMethod({
+          CollectiveId: vendor.id,
+          type: PayoutMethodTypes.OTHER,
+          isSaved: false,
+        });
+
+        const activePayoutMethod = await fakePayoutMethod({
+          CollectiveId: vendor.id,
+          type: PayoutMethodTypes.OTHER,
+          isSaved: true,
+        });
+
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          CollectiveId: collective.id,
+          FromCollectiveId: vendor.id,
+          PayoutMethodId: activePayoutMethod.id,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+              payoutMethod: { type: 'OTHER', data: { content: 'updated payout details' } },
+            },
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await expense.reload();
+        const assignedPayoutMethod = await models.PayoutMethod.findByPk(expense.PayoutMethodId);
+
+        // The expense must NOT be rebound to the archived payout method.
+        expect(expense.PayoutMethodId).to.not.equal(
+          archivedPayoutMethod.id,
+          'editExpense must not rebind a vendor expense to an archived payout method',
+        );
+
+        // The assigned payout method must be saved (active), never archived.
+        expect(assignedPayoutMethod).to.exist;
+        expect(assignedPayoutMethod.isSaved).to.equal(
+          true,
+          'The payout method assigned to a vendor expense after editing must have isSaved=true',
+        );
+      });
+    });
+
     describe('editOnlyTagsAndAccountingCategory', () => {
       it('can update the tags as admin (even if the expense is PAID)', async () => {
         const adminUser = await fakeUser();

@@ -224,6 +224,22 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Return expenses only created by this INDIVIDUAL account',
   },
+  paidByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only paid by this INDIVIDUAL account',
+  },
+  approvedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only approved by this INDIVIDUAL account',
+  },
+  rejectedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only rejected by this INDIVIDUAL account',
+  },
+  invitedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only invited by this INDIVIDUAL account',
+  },
   status: {
     type: new GraphQLList(GraphQLExpenseStatusFilter),
     description: 'Use this field to filter expenses on their statuses',
@@ -337,9 +353,13 @@ const loadAllAccountsFromArgs = async (
 ): Promise<{
   fromAccounts: Collective[];
   accounts: Collective[];
-  host: Collective;
-  fromHost: Collective;
-  createdByAccount: Collective;
+  host?: Collective;
+  fromHost?: Collective;
+  createdByAccount?: Collective;
+  paidByAccount?: Collective;
+  approvedByAccount?: Collective;
+  rejectedByAccount?: Collective;
+  invitedByAccount?: Collective;
 }> => {
   if (args.accounts && args.account) {
     throw new Error('accounts and account cannot be used together');
@@ -369,15 +389,39 @@ const loadAllAccountsFromArgs = async (
     }
   };
 
-  const [accounts, fromAccounts, host, fromHost, createdByAccount] = await Promise.all([
+  const [
+    accounts,
+    fromAccounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  ] = await Promise.all([
     getAccountsPromise(),
     getFromAccountPromise(),
     args.host && fetchAccountWithReference(args.host, fetchAccountParams),
     args.fromHost && fetchAccountWithReference(args.fromHost, fetchAccountParams),
     args.createdByAccount && fetchAccountWithReference(args.createdByAccount, fetchAccountParams),
+    args.paidByAccount && fetchAccountWithReference(args.paidByAccount, fetchAccountParams),
+    args.approvedByAccount && fetchAccountWithReference(args.approvedByAccount, fetchAccountParams),
+    args.rejectedByAccount && fetchAccountWithReference(args.rejectedByAccount, fetchAccountParams),
+    args.invitedByAccount && fetchAccountWithReference(args.invitedByAccount, fetchAccountParams),
   ]);
 
-  return { fromAccounts, accounts, host, fromHost, createdByAccount };
+  return {
+    fromAccounts,
+    accounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  };
 };
 
 export const ExpensesCollectionQueryResolver = async (
@@ -394,7 +438,17 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // Load accounts
-  const { fromAccounts, accounts, host, fromHost, createdByAccount } = await loadAllAccountsFromArgs(args, req);
+  const {
+    fromAccounts,
+    accounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  } = await loadAllAccountsFromArgs(args, req);
 
   if (fromAccounts.length > 0) {
     if (fromHost) {
@@ -477,6 +531,40 @@ export const ExpensesCollectionQueryResolver = async (
     }
 
     where['UserId'] = user.id;
+  }
+
+  const buildActivitySubquery = async (account: Collective, activityType: ActivityTypes): Promise<void> => {
+    const user = await req.loaders.User.byCollectiveId.load(account.id);
+    assert(
+      user,
+      'Account passed to paidByAccount, approvedByAccount, rejectedByAccount or invitedByAccount does not belongs to a user',
+    );
+
+    const hostCondition = host
+      ? sequelize.literal(
+          `EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE "act"."ExpenseId" = "Expense"."id" AND "act"."type" = ${sequelize.escape(activityType)} AND "act"."UserId" = ${sequelize.escape(user.id)} AND "act"."HostCollectiveId" = ${sequelize.escape(host.id)})`,
+        )
+      : sequelize.literal(
+          `EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE "act"."ExpenseId" = "Expense"."id" AND "act"."type" = ${sequelize.escape(activityType)} AND "act"."UserId" = ${sequelize.escape(user.id)})`,
+        );
+
+    where[Op.and].push(hostCondition);
+  };
+
+  if (paidByAccount) {
+    await buildActivitySubquery(paidByAccount, ActivityTypes.COLLECTIVE_EXPENSE_PAID);
+  }
+
+  if (approvedByAccount) {
+    await buildActivitySubquery(approvedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
+  }
+
+  if (rejectedByAccount) {
+    await buildActivitySubquery(rejectedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_REJECTED);
+  }
+
+  if (invitedByAccount) {
+    await buildActivitySubquery(invitedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED);
   }
 
   const isHostAdmin = host && req.remoteUser?.isAdminOfCollective(host);
@@ -650,7 +738,7 @@ export const ExpensesCollectionQueryResolver = async (
                   LIMIT 1),
                 1
               )
-            END * "Expense"."amount" 
+            END * "Expense"."amount"
           `,
             { currency },
             'postgres',

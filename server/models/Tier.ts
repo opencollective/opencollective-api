@@ -5,6 +5,7 @@ import pMap from 'p-map';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
+import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
@@ -182,19 +183,27 @@ class Tier extends ModelWithPublicId<EntityShortIdPrefix.Tier, InferAttributes<T
     });
   };
 
-  static getAllowedTierTypes = (account: Collective, host: Collective): readonly TierType[] => {
-    const disabledTypes = host?.settings?.disabledTierTypes;
-    if (!Array.isArray(disabledTypes) || !disabledTypes?.length) {
-      return AllTierTypes;
-    }
-
+  static getAllowedTierTypes = (account: Collective, host: Collective | null | undefined): readonly TierType[] => {
+    const disabledTypes = host?.settings?.disabledTierTypes || [];
     const overrideAllowedTierTypesSettings = get(account, 'data.allowedTierTypes');
     let overrideAllowedTierTypes: string[] = [];
     if (overrideAllowedTierTypesSettings && Array.isArray(overrideAllowedTierTypesSettings)) {
       overrideAllowedTierTypes = overrideAllowedTierTypesSettings;
     }
 
-    return AllTierTypes.filter(type => !disabledTypes.includes(type) || overrideAllowedTierTypes.includes(type));
+    const isTierTypeSupportedForAccountType = (tierType: TierType, accountType: Collective['type']) => {
+      if (tierType === 'TICKET') {
+        return accountType === CollectiveType.EVENT;
+      } else {
+        return true;
+      }
+    };
+
+    return AllTierTypes.filter(
+      tierType =>
+        isTierTypeSupportedForAccountType(tierType, account.type) &&
+        (!disabledTypes.includes(tierType) || overrideAllowedTierTypes.includes(tierType)),
+    );
   };
 
   /**

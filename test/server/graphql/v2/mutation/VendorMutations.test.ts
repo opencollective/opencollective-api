@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import MemberRoles from '../../../../../server/constants/roles';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
@@ -11,6 +12,8 @@ import {
   fakeCollective,
   fakeExpense,
   fakeHost,
+  fakeMemberInvitation,
+  fakeOrganization,
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
@@ -308,6 +311,61 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
     });
 
+    it('prevents selecting a payout method owned by another account', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { vendorInfo: vendorData.vendorInfo },
+      });
+      const otherAccount = await fakeCollective();
+      const otherAccountPayoutMethod = await fakePayoutMethod({
+        CollectiveId: otherAccount.id,
+        type: PayoutMethodTypes.PAYPAL,
+        isSaved: true,
+        data: { email: 'other@example.com', currency: 'USD' },
+      });
+      const existingPayoutMethod = await fakePayoutMethod({ CollectiveId: vendor.id, isSaved: true });
+      const pendingExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'PENDING',
+      });
+      const paidExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'PAID',
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            payoutMethod: {
+              id: otherAccountPayoutMethod.publicId,
+            },
+          },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Payout method does not belong to this vendor/);
+
+      // The pending expense should now use the other account's payout method
+      await pendingExpense.reload();
+      expect(pendingExpense.PayoutMethodId).to.equal(existingPayoutMethod.id);
+
+      // Paid expenses should not be updated
+      await paidExpense.reload();
+      expect(paidExpense.PayoutMethodId).to.equal(existingPayoutMethod.id);
+
+      await models.Expense.destroy({ where: { id: [pendingExpense.id, paidExpense.id] }, force: true });
+      await models.PayoutMethod.destroy({
+        where: { id: [existingPayoutMethod.id, otherAccountPayoutMethod.id] },
+        force: true,
+      });
+    });
+
     it('rejects selecting a payout method that belongs to another vendor on a different host', async () => {
       const hostAAdmin = await fakeUser();
       const hostA = await fakeActiveHost({ admin: hostAAdmin });
@@ -497,6 +555,261 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data?.deleteVendor).to.be.true;
       expect(await models.Collective.findByPk(vendor.id)).to.not.exist;
+    });
+  });
+
+  describe('convertOrganizationToVendor', () => {
+    const convertOrganizationToVendorMutation = gql`
+      mutation ConvertOrganizationToVendorTest($organization: AccountReferenceInput!, $host: AccountReferenceInput!) {
+        convertOrganizationToVendor(organization: $organization, host: $host) {
+          id
+          legacyId
+          type
+          slug
+          name
+          isActive
+        }
+      }
+    `;
+
+    it('must be authenticated', async () => {
+      const organization = await fakeOrganization();
+      const result = await graphqlQueryV2(convertOrganizationToVendorMutation, {
+        organization: { legacyId: organization.id },
+        host: { legacyId: host.id },
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You need to be logged in to manage hosted accounts/);
+    });
+
+    it('must be an admin of the host', async () => {
+      const randomUser = await fakeUser();
+      const organization = await fakeOrganization({ admin: randomUser });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You're not authorized to convert this organization/);
+    });
+
+    it('must be an organization', async () => {
+      const collective = await fakeCollective({ type: CollectiveType.COLLECTIVE });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: collective.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Account is not an Organization/);
+    });
+
+    it('must not be hosted by another collective', async () => {
+      const otherHost = await fakeHost({ admin: hostAdminUser });
+      const hostedOrg = await fakeOrganization({ HostCollectiveId: otherHost.id });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: hostedOrg.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Organization is hosted by another collective/);
+    });
+
+    it('must not have transactions to a different fiscal host', async () => {
+      const otherHost = await fakeHost({ admin: hostAdminUser });
+      const organization = await fakeOrganization();
+      await fakeTransaction({ FromCollectiveId: organization.id, HostCollectiveId: otherHost.id });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(
+        /Cannot convert an organization with transactions to another fiscal-host/,
+      );
+    });
+
+    it('must not have admins that are not admins of the new host', async () => {
+      const alienAdmin = await fakeUser();
+      const organization = await fakeOrganization({ admin: alienAdmin });
+      await models.Member.create({
+        CollectiveId: organization.id,
+        MemberCollectiveId: hostAdminUser.CollectiveId,
+        role: MemberRoles.ADMIN,
+        CreatedByUserId: hostAdminUser.id,
+      });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(
+        /Cannot convert an organization with admins that are not admins of the new host/,
+      );
+    });
+
+    it('ensures admins of the organization are also admins of the host', async () => {
+      // hostAdminUser is admin of the host; add them as admin of the org too
+      const organization = await fakeOrganization({ admin: hostAdminUser });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      // Should succeed because the only org admin is also a host admin
+      expect(result.errors).to.not.exist;
+      expect(result.data?.convertOrganizationToVendor).to.exist;
+      expect(result.data.convertOrganizationToVendor.type).to.equal('VENDOR');
+    });
+
+    it('fails when organization has an admin who is not a host admin', async () => {
+      const orgOnlyAdmin = await fakeUser();
+      // orgOnlyAdmin is admin of the org but NOT of the host
+      const organization = await fakeOrganization({ admin: orgOnlyAdmin });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(
+        /Cannot convert an organization with admins that are not admins of the new host/,
+      );
+    });
+
+    it('converts an organization to a vendor', async () => {
+      const organization = await fakeOrganization({ admin: hostAdminUser, name: 'Acme Corp' });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.not.exist;
+      const vendor = result.data?.convertOrganizationToVendor;
+      expect(vendor).to.exist;
+      expect(vendor.type).to.equal('VENDOR');
+      expect(vendor.isActive).to.be.false;
+      expect(vendor.legacyId).to.equal(organization.id);
+
+      // Confirm DB state
+      const reloaded = await models.Collective.findByPk(organization.id);
+      expect(reloaded.type).to.equal(CollectiveType.VENDOR);
+      expect(reloaded.ParentCollectiveId).to.equal(host.id);
+      expect(reloaded.isActive).to.be.false;
+      // Original props stored in data
+      expect((reloaded.data?.originalOrganizationProps as Record<string, unknown>)?.type).to.equal(
+        CollectiveType.ORGANIZATION,
+      );
+    });
+
+    it('removes all members and member invitations after conversion', async () => {
+      const orgMember = await fakeUser();
+      const invitedUser = await fakeUser();
+      const organization = await fakeOrganization({ admin: hostAdminUser });
+      // Add orgMember as a MEMBER (not admin) so we don't fail the alien-admins check
+      await models.Member.create({
+        CollectiveId: organization.id,
+        MemberCollectiveId: orgMember.CollectiveId,
+        role: MemberRoles.MEMBER,
+        CreatedByUserId: hostAdminUser.id,
+      });
+      // Create a pending member invitation for the organization
+      await fakeMemberInvitation({
+        CollectiveId: organization.id,
+        MemberCollectiveId: invitedUser.CollectiveId,
+        role: MemberRoles.MEMBER,
+      });
+
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.not.exist;
+
+      const remainingMembers = await models.Member.findAll({ where: { CollectiveId: organization.id } });
+      expect(remainingMembers).to.have.length(0);
+
+      const remainingInvitations = await models.MemberInvitation.findAll({ where: { CollectiveId: organization.id } });
+      expect(remainingInvitations).to.have.length(0);
+    });
+
+    it('allows conversion when all organization admins are also host admins', async () => {
+      const sharedAdmin = await fakeUser();
+      // Make sharedAdmin an admin of the host
+      await host.addUserWithRole(sharedAdmin, 'ADMIN');
+      const organization = await fakeOrganization({ admin: sharedAdmin });
+
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data?.convertOrganizationToVendor.type).to.equal('VENDOR');
+    });
+
+    it('allows conversion when the organization has no transactions', async () => {
+      const organization = await fakeOrganization({ admin: hostAdminUser });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data?.convertOrganizationToVendor.type).to.equal('VENDOR');
+    });
+
+    it('allows conversion when the organization has transactions only to the target host', async () => {
+      const organization = await fakeOrganization({ admin: hostAdminUser });
+      await fakeTransaction({ FromCollectiveId: organization.id, HostCollectiveId: host.id });
+      const result = await graphqlQueryV2(
+        convertOrganizationToVendorMutation,
+        {
+          organization: { legacyId: organization.id },
+          host: { legacyId: host.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data?.convertOrganizationToVendor.type).to.equal('VENDOR');
     });
   });
 });
