@@ -938,6 +938,7 @@ class Collective extends ModelWithPublicId<
           isIncognito: true,
           settings: null,
           CreatedByUserId: user.id,
+          data: { UserCollectiveId: user.CollectiveId, UserId: user.id },
         },
         { transaction },
       );

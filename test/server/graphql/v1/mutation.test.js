@@ -111,6 +111,88 @@ describe('server/graphql/v1/mutation', () => {
       }
     `;
 
+    describe('creates an incognito profile', () => {
+      const createIncognitoMutation = gqlV1 /* GraphQL */ `
+        mutation CreateCollective($collective: CollectiveInputType!) {
+          createCollective(collective: $collective) {
+            id
+            name
+            slug
+            type
+            isIncognito
+          }
+        }
+      `;
+
+      it('fails if not authenticated', async () => {
+        const result = await utils.graphqlQuery(createIncognitoMutation, {
+          collective: { name: 'Incognito', type: 'USER', isIncognito: true },
+        });
+        expect(result.errors).to.have.length(1);
+        expect(result.errors[0].message).to.equal('You need to be logged in to create a collective');
+      });
+
+      it('creates an incognito collective with isIncognito=true and a random slug', async () => {
+        const result = await utils.graphqlQuery(
+          createIncognitoMutation,
+          { collective: { name: 'Incognito', type: 'USER', isIncognito: true } },
+          user1,
+        );
+        result.errors && console.error(result.errors[0]);
+        expect(result.errors).to.not.exist;
+
+        const created = result.data.createCollective;
+        expect(created.name).to.equal('Incognito');
+        expect(created.type).to.equal('USER');
+        expect(created.isIncognito).to.be.true;
+        expect(created.slug).to.match(/^incognito-[a-f0-9]+$/);
+      });
+
+      it('adds the creator as ADMIN of the incognito collective', async () => {
+        const result = await utils.graphqlQuery(
+          createIncognitoMutation,
+          { collective: { name: 'Incognito', type: 'USER', isIncognito: true } },
+          user1,
+        );
+        result.errors && console.error(result.errors[0]);
+        expect(result.errors).to.not.exist;
+
+        const created = result.data.createCollective;
+        const members = await models.Member.findAll({
+          where: { CollectiveId: created.id },
+        });
+
+        expect(members).to.have.length(1);
+        expect(members[0].role).to.equal(roles.ADMIN);
+        expect(members[0].MemberCollectiveId).to.equal(user1.CollectiveId);
+      });
+
+      it('creates distinct incognito profiles on repeated calls (idempotency via getOrCreateIncognitoProfile is on the model, not mutation)', async () => {
+        const result1 = await utils.graphqlQuery(
+          createIncognitoMutation,
+          { collective: { name: 'Incognito', type: 'USER', isIncognito: true } },
+          user1,
+        );
+        const result2 = await utils.graphqlQuery(
+          createIncognitoMutation,
+          { collective: { name: 'Incognito', type: 'USER', isIncognito: true } },
+          user1,
+        );
+
+        expect(result1.errors).to.not.exist;
+        expect(result2.errors).to.not.exist;
+
+        const created1 = result1.data.createCollective;
+        const created2 = result2.data.createCollective;
+
+        // The mutation itself does not deduplicate — each call creates a new collective
+        expect(created1.id).to.not.equal(created2.id);
+        expect(created1.slug).to.not.equal(created2.slug);
+        expect(created1.isIncognito).to.be.true;
+        expect(created2.isIncognito).to.be.true;
+      });
+    });
+
     describe('creates an event collective', () => {
       const getEventData = collective => {
         return {
