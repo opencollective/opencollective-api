@@ -262,11 +262,11 @@ export const getOrganizationFields = () => ({
         .with('Vendors', db =>
           db
             .selectFrom('Collectives')
-            .leftJoin('CommunityHostTransactionSummary', join =>
+            .leftJoin('AdminCommunityHostTransactionSummary', join =>
               join
-                .onRef('CommunityHostTransactionSummary.FromCollectiveId', '=', 'Collectives.id')
-                .on('CommunityHostTransactionSummary.HostCollectiveId', '=', host.id)
-                .on('CommunityHostTransactionSummary.kind', 'is', null),
+                .onRef('AdminCommunityHostTransactionSummary.FromCollectiveId', '=', 'Collectives.id')
+                .on('AdminCommunityHostTransactionSummary.HostCollectiveId', '=', host.id)
+                .on('AdminCommunityHostTransactionSummary.kind', 'is', null),
             )
             .where('ParentCollectiveId', '=', host.id)
             .where('type', '=', CollectiveType.VENDOR)
@@ -274,8 +274,10 @@ export const getOrganizationFields = () => ({
             .where('deletedAt', 'is', null)
             .selectAll('Collectives')
             .select(({ ref }) => [
-              sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionSummary.debitTotal')}, 0))`.as('totalExpended'),
-              sql<number>`ABS(COALESCE(${ref('CommunityHostTransactionSummary.creditTotal')}, 0))`.as(
+              sql<number>`ABS(COALESCE(${ref('AdminCommunityHostTransactionSummary.debitTotal')}, 0))`.as(
+                'totalExpended',
+              ),
+              sql<number>`ABS(COALESCE(${ref('AdminCommunityHostTransactionSummary.creditTotal')}, 0))`.as(
                 'totalContributed',
               ),
             ]),
