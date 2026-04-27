@@ -28,6 +28,9 @@ async function createEvent(_, args, req) {
   if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Unauthorized(`You must be logged in as a member of the ${parent.slug} collective to create an Event`);
   }
+  if (parent.isFrozen()) {
+    throw new Unauthorized('This account is frozen and cannot create new events at this time.');
+  }
 
   const eventData = {
     type: 'EVENT',
