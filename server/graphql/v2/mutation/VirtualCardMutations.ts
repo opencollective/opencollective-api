@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
+import FEATURE_STATUS from '../../../constants/feature-status';
 import POLICIES from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import logger from '../../../lib/logger';
@@ -13,6 +14,7 @@ import models from '../../../models';
 import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard';
 import VirtualCardRequest, { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
+import { checkCanRequestVirtualCards } from '../../common/features';
 import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
@@ -389,6 +391,11 @@ const virtualCardMutations = {
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to request a virtual card for this collective");
+      }
+
+      const requestVirtualCardsStatus = await checkCanRequestVirtualCards(req, collective);
+      if (requestVirtualCardsStatus !== FEATURE_STATUS.AVAILABLE) {
+        throw new BadRequest('Virtual card requests are not available for this account');
       }
 
       // Check 2FA
