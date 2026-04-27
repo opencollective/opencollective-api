@@ -35,14 +35,15 @@ describe('server/middleware/authentication', () => {
       expect(response.body.authenticated).to.be.true;
     });
 
-    it('should authenticate user with JWT in query parameter', async () => {
+    it('should NOT authenticate user with JWT in access_token query parameter (security regression)', async () => {
       const user = await fakeUser();
       const token = user.jwt({ scope: 'session' });
 
+      // access_token in query string is no longer accepted to prevent JWT leakage in URLs and OAuth redirect_uri
       const response = await request(expressApp).get(`/status?access_token=${token}`).expect(200);
 
       expect(response.body.status).to.equal('ok');
-      expect(response.body.authenticated).to.be.true;
+      expect(response.body.authenticated).to.be.false;
     });
 
     it('should authenticate user with JWT in body', async () => {
@@ -473,6 +474,104 @@ describe('server/middleware/authentication', () => {
 
       expect(response.body.error).to.exist;
       expect(response.body.error.message).to.include('Please provide a single CollectiveId');
+    });
+  });
+
+  describe('authenticateService - GitHub OAuth', () => {
+    it('returns 401 without authentication', async () => {
+      const response = await request(expressApp).get('/connected-accounts/github/oauthUrl').expect(401);
+
+      expect(response.body.error.message).to.include('logged in');
+    });
+
+    it('returns 401 when access_token is in query (no longer accepted)', async () => {
+      const user = await fakeUser();
+      const token = user.jwt({ scope: 'session' });
+
+      // access_token in the query string is stripped by parseJwt and must not grant access
+      const response = await request(expressApp)
+        .get(`/connected-accounts/github/oauthUrl?access_token=${token}`)
+        .expect(401);
+
+      expect(response.body.error.message).to.include('logged in');
+    });
+
+    it('returns JSON redirectUrl with correct GitHub URL for authenticated user', async () => {
+      const user = await fakeUser();
+      const token = user.jwt({ scope: 'session' });
+
+      const response = await request(expressApp)
+        .get('/connected-accounts/github/oauthUrl')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body.redirectUrl).to.be.a('string');
+      const url = new URL(response.body.redirectUrl);
+      expect(url.hostname).to.equal('github.com');
+      expect(url.pathname).to.equal('/login/oauth/authorize');
+      expect(url.searchParams.get('state')).to.be.a('string').with.length.greaterThan(0);
+    });
+
+    it('does not include access_token in the GitHub redirect_uri (security regression)', async () => {
+      const user = await fakeUser();
+      const token = user.jwt({ scope: 'session' });
+
+      const response = await request(expressApp)
+        .get('/connected-accounts/github/oauthUrl')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const url = new URL(response.body.redirectUrl);
+      const redirectUri = url.searchParams.get('redirect_uri');
+      expect(redirectUri).to.not.include('access_token');
+    });
+
+    it('uses createCollective scope when context=createCollective', async () => {
+      const user = await fakeUser();
+      const token = user.jwt({ scope: 'session' });
+
+      const response = await request(expressApp)
+        .get('/connected-accounts/github/oauthUrl?context=createCollective')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const url = new URL(response.body.redirectUrl);
+      const scope = url.searchParams.get('scope');
+      expect(scope).to.include('read:org');
+      expect(scope).to.include('public_repo');
+      expect(scope).to.not.include('user:email');
+    });
+
+    it('uses full scope for other contexts', async () => {
+      const user = await fakeUser();
+      const token = user.jwt({ scope: 'session' });
+
+      const response = await request(expressApp)
+        .get('/connected-accounts/github/oauthUrl')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      const url = new URL(response.body.redirectUrl);
+      const scope = url.searchParams.get('scope');
+      expect(scope).to.include('user:email');
+      expect(scope).to.include('public_repo');
+      expect(scope).to.include('read:org');
+    });
+  });
+
+  describe('authenticateServiceCallback - GitHub OAuth', () => {
+    it('returns 401 when state param is missing', async () => {
+      const response = await request(expressApp).get('/connected-accounts/github/callback?code=some-code').expect(401);
+
+      expect(response.body.error.message).to.include('state');
+    });
+
+    it('returns 401 when state does not match a cached entry', async () => {
+      const response = await request(expressApp)
+        .get('/connected-accounts/github/callback?code=some-code&state=nonexistent-uuid')
+        .expect(401);
+
+      expect(response.body.error.message).to.include('expired or invalid');
     });
   });
 
