@@ -6,7 +6,7 @@ import { frequencies } from '../../../../../server/constants';
 import ActivityTypes from '../../../../../server/constants/activities';
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards';
-import models from '../../../../../server/models';
+import models, { sequelize } from '../../../../../server/models';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import * as stripeVirtualCards from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import {
@@ -51,7 +51,12 @@ const EDIT_VIRTUAL_CARD_MUTATION = gql`
 
 const REQUEST_VIRTUAL_CARD_MUTATION = gql`
   mutation RequestVirtualCard($account: AccountReferenceInput!) {
-    requestVirtualCard(account: $account, purpose: "Test purpose")
+    requestVirtualCard(
+      account: $account
+      purpose: "Test purpose"
+      notes: "Test notes"
+      spendingLimitAmount: { valueInCents: 50000 }
+    )
   }
 `;
 
@@ -637,7 +642,14 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
     });
 
     it('creates a pending request when the feature is available', async () => {
-      await fakeTransaction({ CollectiveId: collective.id, amount: 5000 });
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        amount: 5000,
+      });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
 
       const result = await graphqlQueryV2(
         REQUEST_VIRTUAL_CARD_MUTATION,

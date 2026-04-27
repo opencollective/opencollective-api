@@ -529,7 +529,7 @@ const virtualCardMutations = {
         throw new BadRequest('This Virtual Card cannot be paused');
       }
 
-      const card = await virtualCard.pause();
+      const card = await virtualCard.pause({ pauseReason: 'MANUAL' });
       const data = {
         virtualCard,
         host: virtualCard.host.info,
