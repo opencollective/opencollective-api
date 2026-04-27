@@ -15,6 +15,7 @@ import {
   US_TAX_FORM_THRESHOLD_PRE_2026,
 } from '../../../../../server/constants/tax-form';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { getFxRate } from '../../../../../server/lib/currency';
@@ -31,7 +32,9 @@ import models, { Expense, UploadedFile } from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
+import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import paymentProviders from '../../../../../server/paymentProviders';
+import * as stripeVirtualCards from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeAccountingCategory,
@@ -3022,6 +3025,121 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       // Ensure activity is created
       const activities = await expense.getActivities({ where: { type: 'collective.expense.updated' } });
       expect(activities).to.have.length(1);
+    });
+
+    describe('virtual card auto-resume when fixing paid card charge details', () => {
+      let sandbox;
+
+      beforeEach(() => {
+        sandbox = createSandbox();
+        sandbox.stub(stripeVirtualCards, 'resumeCard').callsFake(async virtualCard => {
+          const data = { ...virtualCard.data, status: VirtualCardStatus.ACTIVE };
+          delete data.pauseReason;
+          await virtualCard.update({ data });
+        });
+      });
+
+      afterEach(() => {
+        sandbox.restore();
+      });
+
+      it('auto-resumes virtual card paused for missing receipts when charge details are fixed', async () => {
+        const host = await fakeActiveHost({
+          settings: { virtualcards: { autopause: true } },
+        });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const virtualCard = await fakeVirtualCard({
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          provider: VirtualCardProviders.STRIPE,
+          data: { status: VirtualCardStatus.INACTIVE, pauseReason: 'MISSING_RECEIPTS' },
+        });
+        const expense = await fakeExpense({
+          data: { missingDetails: true },
+          status: expenseStatus.PAID,
+          type: expenseTypes.CHARGE,
+          VirtualCardId: virtualCard.id,
+          amount: 2000,
+          CollectiveId: collective.id,
+          UserId: collectiveAdmin.id,
+          FromCollectiveId: collectiveAdmin.CollectiveId,
+        });
+        const item = await fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }).then(convertExpenseItemId);
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+              description: 'Credit Card charge',
+              items: [
+                {
+                  ...pick(item, ['id', 'url', 'amount']),
+                  description: 'totally valid beer',
+                  url: 'http://opencollective.com/cool/story/bro',
+                },
+              ],
+            },
+          },
+          collectiveAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await virtualCard.reload();
+        expect(virtualCard.data.status).to.equal(VirtualCardStatus.ACTIVE);
+        expect(stripeVirtualCards.resumeCard.called).to.equal(true);
+      });
+
+      it('does not auto-resume virtual card paused manually by host when charge details are fixed', async () => {
+        const host = await fakeActiveHost({
+          settings: { virtualcards: { autopause: true } },
+        });
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+        const virtualCard = await fakeVirtualCard({
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          provider: VirtualCardProviders.STRIPE,
+          data: { status: VirtualCardStatus.INACTIVE, pauseReason: 'MANUAL' },
+        });
+        const expense = await fakeExpense({
+          data: { missingDetails: true },
+          status: expenseStatus.PAID,
+          type: expenseTypes.CHARGE,
+          VirtualCardId: virtualCard.id,
+          amount: 2000,
+          CollectiveId: collective.id,
+          UserId: collectiveAdmin.id,
+          FromCollectiveId: collectiveAdmin.CollectiveId,
+        });
+        const item = await fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }).then(convertExpenseItemId);
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+              description: 'Credit Card charge',
+              items: [
+                {
+                  ...pick(item, ['id', 'url', 'amount']),
+                  description: 'totally valid beer',
+                  url: 'http://opencollective.com/cool/story/bro',
+                },
+              ],
+            },
+          },
+          collectiveAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        await virtualCard.reload();
+        expect(virtualCard.data.status).to.equal(VirtualCardStatus.INACTIVE);
+        expect(stripeVirtualCards.resumeCard.called).to.equal(false);
+      });
     });
 
     it('fails if custom data exceeds a certain size', async () => {

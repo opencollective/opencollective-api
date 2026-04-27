@@ -145,7 +145,7 @@ export const checkCanUsePaymentMethods = async collective => {
   }
 };
 
-const checkCanRequestVirtualCards = async (req: Express.Request, collective) => {
+export const checkCanRequestVirtualCards = async (req: Express.Request, collective) => {
   if (!collective.HostCollectiveId || !collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   }
