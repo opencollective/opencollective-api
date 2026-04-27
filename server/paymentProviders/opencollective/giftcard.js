@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities } from '../../constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { TransactionKind } from '../../constants/transaction-kind';
 import { ValidationFailed } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import * as currency from '../../lib/currency';
@@ -35,6 +36,7 @@ async function getBalance(paymentMethod) {
   }
   let query = {
     PaymentMethodId: paymentMethod.id,
+    kind: { [Op.ne]: TransactionKind.PAYMENT_PROCESSOR_COVER },
     type: 'DEBIT',
     RefundTransactionId: null,
   };
