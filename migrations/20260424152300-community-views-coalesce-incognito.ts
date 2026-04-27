@@ -9,7 +9,7 @@ module.exports = {
     await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CommunityActivitySummary";`);
 
     await queryInterface.sequelize.query(`
-      CREATE MATERIALIZED VIEW "CommunityActivitySummary" AS
+      CREATE MATERIALIZED VIEW "AdminCommunityActivitySummary" AS
         WITH
           relevant_activities AS (
             (
@@ -60,14 +60,14 @@ module.exports = {
           ra."HostCollectiveId", ra."CollectiveId", (COALESCE(ra."FromCollectiveId", u."CollectiveId"));
     `);
     await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX community_activity_summary__all_collective_ids ON "CommunityActivitySummary" ("HostCollectiveId", "FromCollectiveId", "CollectiveId");
-      CREATE INDEX community_activity_summary__collective_id ON "CommunityActivitySummary" ("CollectiveId");
-      CREATE INDEX community_activity_summary__host_collective_id ON "CommunityActivitySummary" ("HostCollectiveId");
-      CREATE INDEX community_activity_summary__from_collective_id ON "CommunityActivitySummary" ("FromCollectiveId");
+      CREATE UNIQUE INDEX "admin_community_activity_summary__all_collective_ids" ON "AdminCommunityActivitySummary" ("HostCollectiveId", "FromCollectiveId", "CollectiveId");
+      CREATE INDEX "admin_community_activity_summary__collective_id" ON "AdminCommunityActivitySummary" ("CollectiveId");
+      CREATE INDEX "admin_community_activity_summary__host_collective_id" ON "AdminCommunityActivitySummary" ("HostCollectiveId");
+      CREATE INDEX "admin_community_activity_summary__from_collective_id" ON "AdminCommunityActivitySummary" ("FromCollectiveId");
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE MATERIALIZED VIEW "CommunityTransactionSummary" as (
+      CREATE MATERIALIZED VIEW "AdminCommunityTransactionSummary" as (
         WITH
           anual AS (
             SELECT
@@ -100,15 +100,15 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "community_transaction_summary__unique_index" ON "CommunityTransactionSummary"("HostCollectiveId", "FromCollectiveId", "CollectiveId", "year", "kind");
-      CREATE INDEX IF NOT EXISTS "community_transaction_summary__combined_collective_ids" ON "CommunityTransactionSummary"("HostCollectiveId", "FromCollectiveId", "CollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
-      CREATE INDEX IF NOT EXISTS "community_transaction_summary__host_collective_id" ON "CommunityTransactionSummary" ("HostCollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
-      CREATE INDEX IF NOT EXISTS "community_transaction_summary__from_collective_id" ON "CommunityTransactionSummary" ("FromCollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
-      CREATE INDEX IF NOT EXISTS "community_transaction_summary__collective_id" ON "CommunityTransactionSummary" ("CollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
+      CREATE UNIQUE INDEX IF NOT EXISTS "admin_community_transaction_summary__unique_index" ON "AdminCommunityTransactionSummary"("HostCollectiveId", "FromCollectiveId", "CollectiveId", "year", "kind");
+      CREATE INDEX IF NOT EXISTS "admin_community_transaction_summary__combined_collective_ids" ON "AdminCommunityTransactionSummary"("HostCollectiveId", "FromCollectiveId", "CollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
+      CREATE INDEX IF NOT EXISTS "admin_community_transaction_summary__host_collective_id" ON "AdminCommunityTransactionSummary" ("HostCollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
+      CREATE INDEX IF NOT EXISTS "admin_community_transaction_summary__from_collective_id" ON "AdminCommunityTransactionSummary" ("FromCollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
+      CREATE INDEX IF NOT EXISTS "admin_community_transaction_summary__collective_id" ON "AdminCommunityTransactionSummary" ("CollectiveId") INCLUDE ("kind", "year", "creditTotalAcc", "debitTotalAcc");
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE MATERIALIZED VIEW "CommunityHostYearlyTransactionSummary"
+      CREATE MATERIALIZED VIEW "AdminCommunityHostYearlyTransactionSummary"
         ("FromCollectiveId", "HostCollectiveId", "hostCurrency", "year", "kind", "debitTotal", "debitCount", "creditTotal", "creditCount", "refundDebitTotal", "refundDebitCount") AS
       WITH summary AS (
         SELECT
@@ -116,7 +116,7 @@ module.exports = {
           SUM("debitTotal") AS "debitTotal", SUM("debitCount") AS "debitCount",
           SUM("creditTotal") AS "creditTotal", SUM("creditCount") AS "creditCount",
           SUM("refundDebitTotal") AS "refundDebitTotal", SUM("refundDebitCount") AS "refundDebitCount"
-        FROM "CommunityTransactionSummary"
+        FROM "AdminCommunityTransactionSummary"
         GROUP BY "FromCollectiveId", "HostCollectiveId", "hostCurrency", "year", "kind"
       )
       SELECT "FromCollectiveId", "HostCollectiveId", "hostCurrency", "year", "kind", "debitTotal", "debitCount", "creditTotal", "creditCount", "refundDebitTotal", "refundDebitCount"
@@ -132,14 +132,14 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "community_host_yearly_transaction_summary__unique_index" ON "CommunityHostYearlyTransactionSummary"("HostCollectiveId", "FromCollectiveId", "hostCurrency", "year", "kind");
-      CREATE INDEX IF NOT EXISTS "community_host_yearly_transaction_summary__combined_collective_ids" ON "CommunityHostYearlyTransactionSummary"("HostCollectiveId", "FromCollectiveId") INCLUDE ("kind", "year", "creditTotal", "debitTotal");
-      CREATE INDEX IF NOT EXISTS "community_host_yearly_transaction_summary__host_collective_id" ON "CommunityHostYearlyTransactionSummary" ("HostCollectiveId") INCLUDE ("kind", "year", "creditTotal", "debitTotal");
-      CREATE INDEX IF NOT EXISTS "community_host_yearly_transaction_summary__from_collective_id" ON "CommunityHostYearlyTransactionSummary" ("FromCollectiveId") INCLUDE ("kind", "year", "creditTotal", "debitTotal");
+      CREATE UNIQUE INDEX IF NOT EXISTS "admin_community_host_yearly_transaction_summary__unique_index" ON "AdminCommunityHostYearlyTransactionSummary"("HostCollectiveId", "FromCollectiveId", "hostCurrency", "year", "kind");
+      CREATE INDEX IF NOT EXISTS "admin_community_host_yearly_transaction_summary__combined_collective_ids" ON "AdminCommunityHostYearlyTransactionSummary"("HostCollectiveId", "FromCollectiveId") INCLUDE ("kind", "year", "creditTotal", "debitTotal");
+      CREATE INDEX IF NOT EXISTS "admin_community_host_yearly_transaction_summary__host_collective_id" ON "AdminCommunityHostYearlyTransactionSummary" ("HostCollectiveId") INCLUDE ("kind", "year", "creditTotal", "debitTotal");
+      CREATE INDEX IF NOT EXISTS "admin_community_host_yearly_transaction_summary__from_collective_id" ON "AdminCommunityHostYearlyTransactionSummary" ("FromCollectiveId") INCLUDE ("kind", "year", "creditTotal", "debitTotal");
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE MATERIALIZED VIEW "CommunityHostTransactionSummary"
+      CREATE MATERIALIZED VIEW "AdminCommunityHostTransactionSummary"
         ("FromCollectiveId", "HostCollectiveId", "hostCurrency", "kind", "debitTotal", "debitCount", "creditTotal", "creditCount", "refundDebitTotal", "refundDebitCount") AS
       WITH summary AS (
         SELECT
@@ -147,7 +147,7 @@ module.exports = {
           SUM("debitTotal") AS "debitTotal", SUM("debitCount") AS "debitCount",
           SUM("creditTotal") AS "creditTotal", SUM("creditCount") AS "creditCount",
           SUM("refundDebitTotal") AS "refundDebitTotal", SUM("refundDebitCount") AS "refundDebitCount"
-        FROM "CommunityTransactionSummary"
+        FROM "AdminCommunityTransactionSummary"
         GROUP BY "FromCollectiveId", "HostCollectiveId", "hostCurrency", "kind"
       )
       SELECT "FromCollectiveId", "HostCollectiveId", "hostCurrency", "kind", "debitTotal", "debitCount", "creditTotal", "creditCount", "refundDebitTotal", "refundDebitCount"
@@ -163,21 +163,20 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "community_host_transaction_summary__unique_index" ON "CommunityHostTransactionSummary"("HostCollectiveId", "FromCollectiveId", "hostCurrency", "kind");
-      CREATE INDEX IF NOT EXISTS "community_host_transaction_summary__combined_collective_ids" ON "CommunityHostTransactionSummary"("HostCollectiveId", "FromCollectiveId") INCLUDE ("kind", "creditTotal", "debitTotal");
-      CREATE INDEX IF NOT EXISTS "community_host_transaction_summary__host_collective_id" ON "CommunityHostTransactionSummary" ("HostCollectiveId") INCLUDE ("kind", "creditTotal", "debitTotal");
-      CREATE INDEX IF NOT EXISTS "community_host_transaction_summary__from_collective_id" ON "CommunityHostTransactionSummary" ("FromCollectiveId") INCLUDE ("kind", "creditTotal", "debitTotal");
+      CREATE UNIQUE INDEX IF NOT EXISTS "admin_community_host_transaction_summary__unique_index" ON "AdminCommunityHostTransactionSummary"("HostCollectiveId", "FromCollectiveId", "hostCurrency", "kind");
+      CREATE INDEX IF NOT EXISTS "admin_community_host_transaction_summary__combined_collective_ids" ON "AdminCommunityHostTransactionSummary"("HostCollectiveId", "FromCollectiveId") INCLUDE ("kind", "creditTotal", "debitTotal");
+      CREATE INDEX IF NOT EXISTS "admin_community_host_transaction_summary__host_collective_id" ON "AdminCommunityHostTransactionSummary" ("HostCollectiveId") INCLUDE ("kind", "creditTotal", "debitTotal");
+      CREATE INDEX IF NOT EXISTS "admin_community_host_transaction_summary__from_collective_id" ON "AdminCommunityHostTransactionSummary" ("FromCollectiveId") INCLUDE ("kind", "creditTotal", "debitTotal");
     `);
   },
 
   down: async queryInterface => {
-    await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CommunityHostTransactionsAggregated";`);
-    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CommunityHostTransactionSummary";`);
-    await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CommunityHostTransactionSummary";`);
-    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CommunityHostYearlyTransactionSummary";`);
-    await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CommunityHostYearlyTransactionSummary";`);
-    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CommunityTransactionSummary";`);
-    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CommunityActivitySummary";`);
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "AdminCommunityHostTransactionSummary";`);
+    await queryInterface.sequelize.query(
+      `DROP MATERIALIZED VIEW IF EXISTS "AdminCommunityHostYearlyTransactionSummary";`,
+    );
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "AdminCommunityTransactionSummary";`);
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "AdminCommunityActivitySummary";`);
 
     await queryInterface.sequelize.query(`
       CREATE MATERIALIZED VIEW "CommunityActivitySummary" AS
@@ -237,7 +236,7 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-        CREATE MATERIALIZED VIEW "CommunityTransactionSummary" as (
+        CREATE MATERIALIZED VIEW "CommunityTransactionSummary" AS (
           WITH
             anual AS (
               SELECT

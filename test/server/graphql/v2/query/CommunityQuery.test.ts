@@ -56,11 +56,10 @@ const communityQuery = gql`
 `;
 
 const refreshCommunityMaterializedViews = async () => {
-  // CommunityHostTransactionSummary depends on CommunityTransactionSummary which depends on CommunityHostYearlyTransactionSummary
-  await sequelize.query('REFRESH MATERIALIZED VIEW "CommunityActivitySummary"');
-  await sequelize.query('REFRESH MATERIALIZED VIEW "CommunityTransactionSummary"');
-  await sequelize.query('REFRESH MATERIALIZED VIEW "CommunityHostYearlyTransactionSummary"');
-  await sequelize.query('REFRESH MATERIALIZED VIEW "CommunityHostTransactionSummary"');
+  await sequelize.query('REFRESH MATERIALIZED VIEW "AdminCommunityActivitySummary"');
+  await sequelize.query('REFRESH MATERIALIZED VIEW "AdminCommunityTransactionSummary"');
+  await sequelize.query('REFRESH MATERIALIZED VIEW "AdminCommunityHostYearlyTransactionSummary"');
+  await sequelize.query('REFRESH MATERIALIZED VIEW "AdminCommunityHostTransactionSummary"');
 };
 
 describe('server/graphql/v2/query/CommunityQuery', () => {

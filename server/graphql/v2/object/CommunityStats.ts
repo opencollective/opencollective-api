@@ -8,8 +8,8 @@ import { QueryTypes } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { Activity, Op, sequelize } from '../../../models';
 import {
-  CommunityHostTransactionSummaryRow,
-  CommunityHostYearlyTransactionSummaryRow,
+  AdminCommunityHostTransactionSummaryRow,
+  AdminCommunityHostYearlyTransactionSummaryRow,
 } from '../../../types/kysely-views';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
 import { GraphQLCommunityRelationType } from '../enum/CommunityRelationType';
@@ -85,9 +85,9 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
         async resolve(account, _, req) {
           const FromCollectiveId = account.id;
           const HostCollectiveId = account.dataValues.contextualHostCollectiveId;
-          const rows = await (sequelize as Sequelize).query<CommunityHostTransactionSummaryRow>(
+          const rows = await (sequelize as Sequelize).query<AdminCommunityHostTransactionSummaryRow>(
             `
-            SELECT * FROM "CommunityHostTransactionSummary"
+            SELECT * FROM "AdminCommunityHostTransactionSummary"
             WHERE "FromCollectiveId" = :FromCollectiveId
               AND "HostCollectiveId" = :HostCollectiveId;
             `,
@@ -131,9 +131,9 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
         async resolve(account, args, req) {
           const FromCollectiveId = account.id;
           const HostCollectiveId = account.dataValues.contextualHostCollectiveId;
-          const results = await (sequelize as Sequelize).query<CommunityHostYearlyTransactionSummaryRow>(
+          const results = await (sequelize as Sequelize).query<AdminCommunityHostYearlyTransactionSummaryRow>(
             `
-            SELECT * FROM "CommunityHostYearlyTransactionSummary"
+            SELECT * FROM "AdminCommunityHostYearlyTransactionSummary"
             WHERE "FromCollectiveId" = :FromCollectiveId
               AND "HostCollectiveId" = :HostCollectiveId
               AND "kind" IS NULL
@@ -151,7 +151,7 @@ export const GraphQLCommunityStats = new GraphQLObjectType({
           }
 
           const getAmountAndCount = (
-            row: CommunityHostYearlyTransactionSummaryRow,
+            row: AdminCommunityHostYearlyTransactionSummaryRow,
             type: string,
           ): { value: number; count: number } => {
             switch (type) {

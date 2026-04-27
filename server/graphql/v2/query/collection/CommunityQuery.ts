@@ -59,7 +59,7 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
 
   const buildBaseQuery = () => {
     let query = db
-      .selectFrom('CommunityActivitySummary as cas')
+      .selectFrom('AdminCommunityActivitySummary as cas')
       .innerJoin('Collectives as fc', join =>
         join.onRef('fc.id', '=', 'cas.FromCollectiveId').on('fc.deletedAt', 'is', null),
       );
@@ -93,7 +93,7 @@ const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: Co
 
     // CommunityHostTransactionSummary join
     if (needsTransactionsAggregated) {
-      query = query.leftJoin('CommunityHostTransactionSummary as chts', join =>
+      query = query.leftJoin('AdminCommunityHostTransactionSummary as chts', join =>
         join
           .onRef('chts.FromCollectiveId', '=', 'cas.FromCollectiveId')
           .onRef('chts.HostCollectiveId', '=', 'cas.HostCollectiveId')
