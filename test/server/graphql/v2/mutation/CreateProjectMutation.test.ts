@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
-import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 const createProjectMutation = gql`
@@ -118,6 +118,21 @@ describe('server/graphql/v2/mutation/CreateProjectMutation', () => {
     expect(result.errors).to.not.exist;
     const project = result.data.createProject;
     expect(project.features.RECEIVE_FINANCIAL_CONTRIBUTIONS).to.equal('DISABLED');
+  });
+
+  it('rejects project creation when the parent is frozen', async () => {
+    const hostAdmin = await fakeUser();
+    const host = await fakeActiveHost({ admin: hostAdmin });
+    const collAdmin = await fakeUser();
+    const parentCollective = await fakeCollective({ admin: collAdmin, HostCollectiveId: host.id, isActive: true });
+    await parentCollective.freeze('Frozen for audit', false, undefined, hostAdmin);
+
+    const parent = { legacyId: parentCollective.id };
+    const mutationArgs = { parent, project: { ...VALID_PROJECT_ATTRIBUTES, slug: randStr() } };
+    const result = await utils.graphqlQueryV2(createProjectMutation, mutationArgs, collAdmin);
+    expect(result.errors).to.exist;
+    expect(result.errors[0].message).to.equal('This account is frozen and cannot create new projects at this time.');
+    expect(result.errors[0].extensions.code).to.equal('Forbidden');
   });
 
   describe('images', async () => {
