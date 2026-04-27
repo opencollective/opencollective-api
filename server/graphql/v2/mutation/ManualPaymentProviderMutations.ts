@@ -240,6 +240,11 @@ const manualPaymentProviderMutations = {
         ),
       );
 
+      // Ensure all providers belong to the same host
+      if (providers.some(provider => provider.CollectiveId !== host.id)) {
+        throw new ValidationFailed('Some providers do not belong to the host');
+      }
+
       // Update order for each provider
       return sequelize.transaction(async (transaction: Transaction) => {
         return Promise.all(
