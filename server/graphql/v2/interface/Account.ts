@@ -218,6 +218,29 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Defines if the contributors wants to be incognito (name not displayed)',
   },
+  mainProfile: {
+    type: GraphQLAccount,
+    description:
+      'For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!account.isIncognito) {
+        return null;
+      }
+      if (!checkScope(req, 'account')) {
+        return null;
+      }
+      if (
+        !canSeeLegalName(req.remoteUser, account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return null;
+      }
+      if (!checkScope(req, 'incognito')) {
+        return null;
+      }
+      return req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+    },
+  },
   imageUrl: {
     type: GraphQLString,
     args: {
