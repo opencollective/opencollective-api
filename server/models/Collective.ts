@@ -533,6 +533,7 @@ class Collective extends ModelWithPublicId<
       description: this.description,
       settings: this.settings,
       currency: this.currency,
+      hasHosting: this.hasHosting,
     };
   }
 
@@ -565,6 +566,7 @@ class Collective extends ModelWithPublicId<
       githubHandle: this.githubHandle,
       repositoryUrl: this.repositoryUrl,
       publicUrl: this.publicUrl,
+      hasHosting: this.hasHosting,
     };
   }
 
@@ -585,6 +587,7 @@ class Collective extends ModelWithPublicId<
       repositoryUrl: this.repositoryUrl,
       description: this.description,
       previewImage: this.previewImage,
+      hasHosting: this.hasHosting,
     };
   }
 
