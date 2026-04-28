@@ -98,9 +98,22 @@ export const getHostPaypalAccount = async (host): Promise<ConnectedAccount> => {
   }
 };
 
-export const getHostsWithPayPalConnected = async (): Promise<Collective[]> => {
+export const getHostsWithPayPalConnected = async ({
+  onlyPaymentsEnabled = false,
+}: {
+  onlyPaymentsEnabled?: boolean;
+} = {}): Promise<Collective[]> => {
   return Collective.findAll({
-    where: { hasMoneyManagement: true },
+    where: {
+      hasMoneyManagement: true,
+      ...(onlyPaymentsEnabled
+        ? {
+            settings: {
+              disablePaypalDonations: { [Op.not]: true },
+            },
+          }
+        : {}),
+    },
     group: [sequelize.col('Collective.id')],
     order: [[sequelize.col('Collective.slug'), 'ASC']],
     include: [

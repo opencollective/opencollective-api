@@ -160,6 +160,8 @@ type Settings = {
   };
   budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
   disablePublicExpenseSubmission?: boolean;
+  disablePaypalDonations?: boolean;
+  disablePaypalPayouts?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   // @deprecated Use `data.features` instead
   features?: {
