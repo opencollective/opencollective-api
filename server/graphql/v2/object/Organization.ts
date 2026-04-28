@@ -995,7 +995,9 @@ export const getOrganizationFields = () => ({
         }
       }
 
-      if (find(connectedAccounts, ['service', 'paypal']) && !collective.settings?.disablePaypalDonations) {
+      const isPaypalAccountUsableForPayments = (account: ConnectedAccount) =>
+        Boolean(account.service === 'paypal' && account.clientId && account.token);
+      if (connectedAccounts.some(isPaypalAccountUsableForPayments) && !collective.settings?.disablePaypalDonations) {
         supportedPaymentMethods.push('PAYPAL');
       }
 
@@ -1064,8 +1066,10 @@ export const getOrganizationFields = () => ({
       ];
 
       // Check for PayPal (Payouts via ConnectedAccount)
+      const isPaypalAccountUsableForPayouts = (account: ConnectedAccount) =>
+        Boolean(account.service === 'paypal' && account.clientId && account.token);
       if (
-        (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) ||
+        (connectedAccounts.some(isPaypalAccountUsableForPayouts) && !host.settings?.disablePaypalPayouts) ||
         host.settings?.payouts?.enableManualPayPalPayments
       ) {
         supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
