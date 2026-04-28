@@ -39,6 +39,20 @@ const makeRedisProvider = async (instanceType = RedisInstanceType.DEFAULT) => {
       const keys = await redisClient?.keys(pattern);
       return keys || [];
     },
+    consume: async (key: string | string[], { unserialize = JSON.parse } = {}) => {
+      if (Array.isArray(key)) {
+        throw new Error('consume does not accept key arrays');
+      }
+      const value = await redisClient?.sendCommand(['GETDEL', key]);
+      if (!value || typeof value !== 'string') {
+        return undefined;
+      }
+      try {
+        return unserialize(value);
+      } catch (err) {
+        debugCache(`Invalid JSON (${value}): ${err}`);
+      }
+    },
   };
 };
 

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import moment from 'moment';
 import request from 'supertest';
 
+import { sessionCache } from '../../../server/lib/cache';
 import { fakePersonalToken, fakeUser, fakeUserToken } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
@@ -572,6 +573,32 @@ describe('server/middleware/authentication', () => {
         .expect(401);
 
       expect(response.body.error.message).to.include('expired or invalid');
+    });
+
+    it('consumes OAuth state at most once when the callback is hit concurrently', async () => {
+      const user = await fakeUser();
+      const stateKey = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const cacheKey = `oauth-github-state:${stateKey}`;
+      await sessionCache.set(cacheKey, { userId: user.id, context: undefined, CollectiveId: undefined }, 600);
+
+      const parallel = 25;
+      const responses = await Promise.all(
+        Array.from({ length: parallel }, () =>
+          request(expressApp).get(
+            `/connected-accounts/github/callback?code=invalid-placeholder&state=${encodeURIComponent(stateKey)}`,
+          ),
+        ),
+      );
+
+      const staleStateResponses = responses.filter(response =>
+        response.body?.error?.message?.includes?.('expired or invalid'),
+      );
+
+      expect(staleStateResponses).to.have.length(parallel - 1);
+
+      expect(
+        responses.filter(response => !response.body?.error?.message?.includes?.('expired or invalid')),
+      ).to.have.length(1);
     });
   });
 

@@ -32,6 +32,16 @@ const makeMemoryProvider = opts => {
       }
       return k;
     },
+    /** Atomically return the value if present and remove the key (no await between checks - safe vs concurrent callers). */
+    consume: async (key: string, options?: unknown) => {
+      void options;
+      if (!cache.has(key)) {
+        return undefined;
+      }
+      const value = cache.get(key);
+      cache.delete(key);
+      return value;
+    },
   };
 };
 
