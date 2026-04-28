@@ -295,13 +295,11 @@ export const TransactionsCollectionResolver = async (
       fromAccountCondition.push(...childIds);
     }
 
-    // When users are admins, also fetch their incognito contributions
-    if (
-      args.includeIncognitoTransactions &&
-      req.remoteUser?.isAdminOfCollective(fromAccount) &&
-      req.remoteUser.CollectiveId === fromAccount.id &&
-      checkScope(req, 'incognito')
-    ) {
+    // When users are admins, also fetch their incognito contributionos
+    const isAdminOfFromAccount =
+      req.remoteUser?.isAdminOfCollective(fromAccount) && req.remoteUser.CollectiveId === fromAccount.id;
+    const isAdminOfHost = host && req.remoteUser?.isAdminOfCollective(host);
+    if (args.includeIncognitoTransactions && (isAdminOfFromAccount || isAdminOfHost) && checkScope(req, 'incognito')) {
       const incognitoProfile = await fromAccount.getIncognitoProfile();
       if (incognitoProfile) {
         fromAccountCondition.push(incognitoProfile.id);
