@@ -312,7 +312,7 @@ export const authenticateService = async (req: Request, res: Response, next: Nex
     const authUrl = new URL('https://github.com/login/oauth/authorize');
     authUrl.searchParams.set('client_id', config.github.clientID);
     authUrl.searchParams.set('redirect_uri', callbackUrl);
-    authUrl.searchParams.set('scope', scope.join(','));
+    authUrl.searchParams.set('scope', scope.join(' '));
     authUrl.searchParams.set('state', stateKey);
 
     return res.json({ redirectUrl: authUrl.toString() });
