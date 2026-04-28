@@ -33,7 +33,7 @@ const getHostsSlugsFromOptions = async (options: Record<string, unknown>): Promi
   if (options['hosts']?.['length']) {
     return <string[]>options['hosts'];
   } else {
-    const hosts = await getHostsWithPayPalConnected();
+    const hosts = await getHostsWithPayPalConnected({ onlyPaymentsEnabled: true });
     return hosts.map(h => h.slug);
   }
 };

@@ -127,6 +127,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'applyMessage',
   'disablePublicExpenseSubmission',
   'disablePaypalPayouts',
+  'disablePaypalDonations',
   'bitcoin',
   'budget',
   'categories',
