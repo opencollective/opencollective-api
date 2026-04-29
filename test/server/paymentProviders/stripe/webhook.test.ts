@@ -518,6 +518,8 @@ describe('webhook', () => {
         data: {
           object: {
             id: order.data.paymentIntent.id,
+            amount: 100e2,
+            currency: 'usd',
             charges: {
               data: [
                 {
@@ -562,6 +564,26 @@ describe('webhook', () => {
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PAID);
         expect(order.processedAt).to.not.be.null;
+      });
+
+      it('does not process the order when PaymentIntent amount does not match', async () => {
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        set(event, 'data.object.amount', 50e2);
+        await webhook.paymentIntentSucceeded(event);
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        assert.notCalled(common.createChargeTransactions);
+      });
+
+      it('does not process the order when PaymentIntent currency does not match', async () => {
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        set(event, 'data.object.currency', 'eur');
+        await webhook.paymentIntentSucceeded(event);
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        assert.notCalled(common.createChargeTransactions);
       });
 
       it('calls applyContributionAccountingCategoryRules after processing stripe order', async () => {

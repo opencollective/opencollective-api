@@ -46,6 +46,13 @@ const createChargeAndTransactions = async (
   /* eslint-disable camelcase */
 
   let paymentIntent: Stripe.PaymentIntent | undefined = order.data.paymentIntent;
+  if (
+    paymentIntent &&
+    (paymentIntent.amount !== convertToStripeAmount(order.currency, order.totalAmount) ||
+      paymentIntent.currency !== order.currency.toLowerCase())
+  ) {
+    paymentIntent = undefined;
+  }
   let shouldConfirmOnCreate = false;
   if (!paymentIntent || paymentIntent.status === 'succeeded') {
     shouldConfirmOnCreate = Boolean(order.processedAt && order.interval);

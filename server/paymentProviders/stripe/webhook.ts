@@ -222,6 +222,14 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
+  const expectedAmount = convertToStripeAmount(order.currency, order.totalAmount);
+  if (paymentIntent.amount !== expectedAmount || paymentIntent.currency !== order.currency.toLowerCase()) {
+    const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${order.currency.toLowerCase()})`;
+    logger.error(message);
+    reportMessageToSentry(message, { extra: { paymentIntent, orderId: order.id } });
+    return;
+  }
+
   // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
   const existingChargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: charge.id } } },
