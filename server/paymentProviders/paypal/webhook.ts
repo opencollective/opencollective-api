@@ -337,11 +337,6 @@ async function handleSaleReversed(req: Request): Promise<void> {
 }
 
 async function handleCaptureRefunded(req: Request): Promise<void> {
-  if (!req.params.hostId) {
-    // Received on legacy webhook
-    logger.warn('Please update PayPal webhooks to latest version using scripts/paypal/update-hosts-webhooks.ts');
-  }
-
   // Validate webhook event
   const host = await models.Collective.findByPk(req.params.hostId);
   if (!host) {
@@ -531,11 +526,17 @@ const getEventHandler = (eventType: string | WatchedPaypalWebhookEvent): ((req: 
 
 /**
  * Webhook entrypoint. When adding a new event type here, you should also add it to
- * `server/lib/paypal.ts` > `WATCHED_EVENT_TYPES` and run `scripts/update-hosts-paypal-webhooks.ts`
+ * `server/lib/paypal.ts` > `WATCHED_EVENT_TYPES` and run `scripts/paypal/webhooks.ts`
  * to update all existing webhooks.
  */
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
+  if (!req.params.hostId) {
+    // Received on legacy webhook
+    // 2026-04-29: This has normally been the default for a white, adding a global log to get a final confirmation.
+    logger.warn('Please update PayPal webhooks to latest version using scripts/paypal/update-hosts-webhooks.ts');
+  }
+
   try {
     const eventType = get(req, 'body.event_type') as string | WatchedPaypalWebhookEvent;
     const handler = getEventHandler(eventType);

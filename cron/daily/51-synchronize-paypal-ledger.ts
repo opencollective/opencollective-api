@@ -248,9 +248,7 @@ const handleCheckoutTransaction = async (
 };
 
 /**
- * From a list of PayPal transactions, find the ones that are recorded in the database (matched by
- * paypalCaptureId) but whose capture is now marked as REFUNDED by PayPal without a corresponding
- * RefundTransactionId in our database.
+ * From a list of PayPal transactions, find the ones that are refunded on PayPal but not in the database.
  *
  * Returns pairs of [paypalRefundDetails, dbTransaction] for each match found.
  */
@@ -269,13 +267,16 @@ const getMissingRefundTransactions = async (
   const candidates = await sequelize.query<{ id: number; paypalCaptureId: string }>(
     `SELECT t.id, t.data #>> '{paypalCaptureId}' AS "paypalCaptureId"
      FROM "Transactions" t
-     WHERE t.data #>> '{paypalCaptureId}' IN (SELECT UNNEST(ARRAY[:paypalIds]))
+     WHERE
+       "data"#>>'{paypalCaptureId}' IS NOT NULL
+       AND t.data #>> '{paypalCaptureId}' IN (:paypalIds)
        AND t.type = 'CREDIT'
        AND t.kind = 'CONTRIBUTION'
        AND t."isRefund" = FALSE
        AND t."RefundTransactionId" IS NULL
-       AND t."deletedAt" IS NULL`,
-    { type: QueryTypes.SELECT, replacements: { paypalIds } },
+       AND t."deletedAt" IS NULL
+    `,
+    { type: QueryTypes.SELECT, replacements: { paypalIds, hostId: host.id } },
   );
 
   if (!candidates.length) {
