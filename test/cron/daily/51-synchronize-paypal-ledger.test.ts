@@ -43,21 +43,39 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
     return host;
   };
 
-  /** Build a minimal stub for listPayPalTransactions returning a single capture */
-  const stubListTransactions = (captureId: string, eventCode = 'T0006') => {
-    sandbox.stub(PaypalLib, 'listPayPalTransactions').resolves({
-      transactions: [
-        {
-          transaction_info: {
-            transaction_id: captureId,
-            transaction_event_code: eventCode,
-            transaction_amount: { value: '10.00', currency_code: 'USD' },
-          },
+  /**
+   * Build a minimal stub for listPayPalTransactions.
+   * Pass `refundId` to also include a T1107 refund event referencing `captureId`; omit it to
+   * simulate a period with no refund transactions (the new getMissingRefundTransactions path).
+   */
+  const stubListTransactions = (captureId: string, eventCode = 'T0006', refundId?: string) => {
+    const transactions: object[] = [
+      {
+        transaction_info: {
+          transaction_id: captureId,
+          transaction_event_code: eventCode,
+          transaction_amount: { value: '10.00', currency_code: 'USD' },
         },
-      ],
+      },
+    ];
+
+    if (refundId) {
+      transactions.push({
+        transaction_info: {
+          transaction_id: refundId,
+          transaction_event_code: 'T1107',
+          paypal_reference_id: captureId,
+          paypal_reference_id_type: 'TXN',
+          transaction_amount: { value: '-10.00', currency_code: 'USD' },
+        },
+      });
+    }
+
+    sandbox.stub(PaypalLib, 'listPayPalTransactions').resolves({
+      transactions,
       currentPage: 1,
       totalPages: 1,
-      fullResponse: { total_items: 1 },
+      fullResponse: { total_items: transactions.length },
     });
   };
 
@@ -89,23 +107,10 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
         { createDoubleEntry: true },
       );
 
-      stubListTransactions(captureId);
+      // T1107 event in the list tells us directly that REFUND-001 is the refund ID
+      stubListTransactions(captureId, 'T0006', 'REFUND-001');
 
-      // Capture is REFUNDED; refund link points to REFUND-001
       sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
-        if (url === `payments/captures/${captureId}`) {
-          return {
-            id: captureId,
-            status: 'REFUNDED',
-            links: [
-              {
-                rel: 'refund',
-                href: 'https://api.sandbox.paypal.com/v2/payments/refunds/REFUND-001',
-                method: 'GET',
-              },
-            ],
-          };
-        }
         if (url === 'payments/refunds/REFUND-001') {
           return {
             id: 'REFUND-001',
@@ -134,7 +139,7 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
       expect(originalTransaction.RefundTransactionId).to.not.be.null;
     });
 
-    it('skips captures whose PayPal status is still COMPLETED (not refunded)', async () => {
+    it('makes no API calls and skips when no T1107 refund event is in the PayPal transaction list', async () => {
       const host = await setupHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const paymentMethod = await fakePaymentMethod({ service: PAYMENT_METHOD_SERVICE.PAYPAL });
@@ -154,18 +159,13 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
         data: { paypalCaptureId: captureId },
       });
 
+      // No T1107 in the list — the function should return early without calling PayPal
       stubListTransactions(captureId);
-
-      // PayPal still shows the capture as COMPLETED
-      sandbox.stub(PaypalApi, 'paypalRequestV2').resolves({
-        id: captureId,
-        status: 'COMPLETED',
-        links: [],
-      });
+      const paypalStub = sandbox.stub(PaypalApi, 'paypalRequestV2');
 
       await run();
 
-      // No refund should have been created
+      expect(paypalStub.called, 'no PayPal API call should be made').to.be.false;
       await originalTransaction.reload();
       expect(originalTransaction.RefundTransactionId).to.be.null;
     });
@@ -199,8 +199,8 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
 
       await run();
 
-      // The DB query for candidates filters RefundTransactionId IS NULL, so the PayPal
-      // captures endpoint should never have been called for this transaction.
+      // No T1107 in the list AND the DB query filters RefundTransactionId IS NULL,
+      // so no PayPal API call should be made.
       expect(paypalStub.called).to.be.false;
       expect(originalTransaction.RefundTransactionId).to.equal(existingRefund.id);
     });
@@ -226,22 +226,10 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
         data: { paypalCaptureId: captureId },
       });
 
-      stubListTransactions(captureId);
+      // T1107 event points directly to the refund ID
+      stubListTransactions(captureId, 'T0006', 'REFUND-PARTIAL-001');
 
       sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
-        if (url === `payments/captures/${captureId}`) {
-          return {
-            id: captureId,
-            status: 'REFUNDED',
-            links: [
-              {
-                rel: 'refund',
-                href: 'https://api.sandbox.paypal.com/v2/payments/refunds/REFUND-PARTIAL-001',
-                method: 'GET',
-              },
-            ],
-          };
-        }
         if (url === 'payments/refunds/REFUND-PARTIAL-001') {
           return {
             id: 'REFUND-PARTIAL-001',
