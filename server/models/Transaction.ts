@@ -93,9 +93,11 @@ export type TransactionData = {
   isManual?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   isRefundedFromOurSystem?: boolean;
+  isRefundedFromPayPal?: boolean;
   oppositeTransactionFeesCurrencyFxRate?: number;
   oppositeTransactionHostCurrencyFxRate?: number;
   paymentProcessorFeeMigration?: string;
+  paypalCaptureId?: string;
   paypalResponse?: Record<string, unknown>;
   paypalSale?: Partial<PaypalSale>;
   paypalTransaction?: Partial<PaypalTransaction>;

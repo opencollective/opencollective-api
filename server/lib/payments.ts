@@ -305,7 +305,7 @@ const makeRefundDescription = (refundKind: RefundKind, referencedTransaction: Tr
 
 export const buildRefundForTransaction = (
   t: Transaction,
-  user?: User,
+  user?: User | null,
   data?: TransactionData,
   amounts?: {
     /** If the payment processor fee is not recorded as a separate transaction, use this field to refund it as part of the main transaction */
@@ -468,7 +468,7 @@ export const refundPaymentProcessorFeeToCollective = async (
 
 async function refundPaymentProcessorFee(
   transaction: Transaction,
-  user: User,
+  user: User | null,
   refundedPaymentProcessorFeeInHostCurrency: number,
   transactionGroup: string,
   clearedAt?: Date,
@@ -559,7 +559,7 @@ async function refundPaymentProcessorFee(
 
 export async function refundHostFee(
   transaction: Transaction,
-  user: User,
+  user: User | null,
   refundedPaymentProcessorFeeInHostCurrency: number,
   transactionGroup: string,
   clearedAt?: Date,
@@ -622,7 +622,7 @@ export async function refundHostFee(
 
 async function refundTax(
   transaction: Transaction,
-  user: User,
+  user: User | null,
   transactionGroup: string,
   clearedAt?: Date,
   refundKind?: RefundKind,
@@ -667,7 +667,7 @@ export async function createRefundTransaction(
   transaction: Transaction,
   refundedPaymentProcessorFeeInHostCurrency: number,
   data: TransactionData,
-  user: User,
+  user: User | null,
   transactionGroupId?: string,
   clearedAt?: Date,
   refundKind: RefundKind = RefundKind.REFUND,
