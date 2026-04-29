@@ -172,7 +172,7 @@
     "eslint-plugin-mocha": "11.2.0",
     "eslint-plugin-n": "^17.11.1",
     "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
     "exif-reader": "^2.0.3",
     "fake-tag": "^3.0.0",
     "geoip-lite": "^2.0.0",
