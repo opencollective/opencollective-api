@@ -223,8 +223,9 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   }
 
   const expectedAmount = convertToStripeAmount(order.currency, order.totalAmount);
-  if (paymentIntent.amount !== expectedAmount || paymentIntent.currency !== order.currency.toLowerCase()) {
-    const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${order.currency.toLowerCase()})`;
+  const expectedCurrency = order.currency.toLowerCase();
+  if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
+    const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${expectedCurrency})`;
     logger.error(message);
     reportMessageToSentry(message, { extra: { paymentIntent, orderId: order.id } });
     return;
@@ -316,8 +317,9 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     }
 
     const expectedAmount = convertToStripeAmount(expense.currency, expense.amount);
-    if (paymentIntent.amount !== expectedAmount || paymentIntent.currency !== expense.currency.toLowerCase()) {
-      const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expense.currency.toLowerCase()})`;
+    const expectedCurrency = expense.currency.toLowerCase();
+    if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
+      const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expectedCurrency})`;
       logger.error(message);
       reportMessageToSentry(message, { extra: { paymentIntent, expenseId: expense.id } });
       return [expense, false];

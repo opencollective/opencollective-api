@@ -49,7 +49,7 @@ const createChargeAndTransactions = async (
   if (
     paymentIntent &&
     (paymentIntent.amount !== convertToStripeAmount(order.currency, order.totalAmount) ||
-      paymentIntent.currency !== order.currency.toLowerCase())
+      paymentIntent.currency?.toLowerCase() !== order.currency.toLowerCase())
   ) {
     paymentIntent = undefined;
   }

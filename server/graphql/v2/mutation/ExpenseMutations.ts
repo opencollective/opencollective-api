@@ -831,7 +831,7 @@ const expenseMutations = {
 
         const matchesExpense =
           paymentIntent.amount === convertToStripeAmount(expense.currency, expense.amount) &&
-          paymentIntent.currency === expense.currency.toLowerCase() &&
+          paymentIntent.currency?.toLowerCase() === expense.currency.toLowerCase() &&
           !['canceled', 'succeeded'].includes(paymentIntent.status);
 
         if (matchesExpense) {
