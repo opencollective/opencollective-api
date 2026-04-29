@@ -205,14 +205,14 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
       expect(originalTransaction.RefundTransactionId).to.equal(existingRefund.id);
     });
 
-    it('throws when PayPal indicates a partial refund', async () => {
+    it('skips and does not record a refund when PayPal indicates a partial refund', async () => {
       const host = await setupHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const paymentMethod = await fakePaymentMethod({ service: PAYMENT_METHOD_SERVICE.PAYPAL });
       const order = await fakeOrder({ CollectiveId: collective.id, PaymentMethodId: paymentMethod.id });
       const captureId = 'CAPTURE-PARTIAL-001';
 
-      await fakeTransaction({
+      const originalTransaction = await fakeTransaction({
         type: TransactionTypes.CREDIT,
         kind: TransactionKind.CONTRIBUTION,
         isRefund: false,
@@ -256,7 +256,12 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
         throw new Error(`Unexpected PayPal API call: ${url}`);
       });
 
-      await expect(run()).to.be.rejectedWith(/partial refund/i);
+      // The cron job reports to Sentry and skips partial refunds rather than throwing
+      await expect(run()).to.be.fulfilled;
+
+      // No refund transaction should have been created
+      await originalTransaction.reload();
+      expect(originalTransaction.RefundTransactionId).to.be.null;
     });
   });
 });
