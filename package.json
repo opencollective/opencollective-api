@@ -63,7 +63,7 @@
     "bayes": "1.0.0",
     "bcrypt": "6.0.0",
     "blurhash": "2.0.5",
-    "cloudflare": "4.5.0",
+    "cloudflare": "5.2.0",
     "cloudflare-ip": "0.0.7",
     "commander": "14.0.3",
     "config": "4.3.0",
