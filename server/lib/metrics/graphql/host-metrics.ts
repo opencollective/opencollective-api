@@ -1,4 +1,4 @@
-import { type GraphQLFieldConfig, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { type GraphQLFieldConfig, GraphQLObjectType } from 'graphql';
 
 import { Collective } from '../../../models';
 import { FEATURE, hasFeature } from '../../allowed-features';
