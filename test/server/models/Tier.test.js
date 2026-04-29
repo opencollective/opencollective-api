@@ -3,8 +3,9 @@ import { random, times } from 'lodash';
 import { SequelizeValidationError } from 'sequelize';
 
 import models from '../../../server/models';
+import { AllTierTypes } from '../../../server/models/Tier';
 import { newCollectiveWithHost, randEmail } from '../../stores';
-import { fakeTier } from '../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakeEvent, fakeTier } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Collective, User } = models;
@@ -160,6 +161,72 @@ describe('server/models/Tier', () => {
       await shouldNotHavePayment({ amountType: 'FIXED', amount: 0 });
       await shouldNotHavePayment({ amountType: 'FLEXIBLE', amount: 50, minimumAmount: 0 });
       await shouldNotHavePayment({ amountType: 'FLEXIBLE', amount: 50, presets: [0, 50, 100] });
+    });
+  });
+
+  describe('getAllowedTierTypes', () => {
+    it('excludes TICKET unless the account is an EVENT', async () => {
+      const account = await fakeCollective();
+      const event = await fakeEvent();
+
+      expect(models.Tier.getAllowedTierTypes(account, null)).to.not.include('TICKET');
+      expect(models.Tier.getAllowedTierTypes(event, null)).to.include('TICKET');
+    });
+
+    it('returns all tier types for EVENT except those unsupported (none beyond TICKET gating)', async () => {
+      const event = await fakeEvent();
+      expect(models.Tier.getAllowedTierTypes(event, null)).to.have.members([...AllTierTypes]);
+    });
+
+    it('omits types listed in host.settings.disabledTierTypes', async () => {
+      const host = await fakeActiveHost();
+      const account = await fakeCollective({ HostCollectiveId: host.id });
+      await host.update({
+        settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE'] },
+      });
+
+      const allowed = models.Tier.getAllowedTierTypes(account, host);
+      expect(allowed).to.not.include('PRODUCT');
+      expect(allowed).to.not.include('SERVICE');
+      expect(allowed).to.include('TIER');
+    });
+
+    it('still allows a disabled type when account.data.allowedTierTypes lists it', async () => {
+      const host = await fakeActiveHost();
+      const account = await fakeCollective({
+        HostCollectiveId: host.id,
+        data: { allowedTierTypes: ['PRODUCT'] },
+      });
+      await host.update({
+        settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE', 'TICKET'] },
+      });
+
+      const allowed = models.Tier.getAllowedTierTypes(account, host);
+      expect(allowed).to.include('PRODUCT');
+      expect(allowed).to.not.include('SERVICE');
+    });
+
+    it('ignores non-array account.data.allowedTierTypes', async () => {
+      const host = await fakeActiveHost();
+      const account = await fakeCollective({
+        HostCollectiveId: host.id,
+        data: { allowedTierTypes: 'PRODUCT' },
+      });
+      await host.update({
+        settings: { ...host.settings, disabledTierTypes: ['PRODUCT'] },
+      });
+
+      expect(models.Tier.getAllowedTierTypes(account, host)).to.not.include('PRODUCT');
+    });
+
+    it('applies no host restrictions when host is null or undefined', async () => {
+      const account = await fakeCollective();
+      const withoutHost = models.Tier.getAllowedTierTypes(account, null);
+      const withoutHostUndefined = models.Tier.getAllowedTierTypes(account, undefined);
+
+      expect(withoutHost).to.eql(withoutHostUndefined);
+      expect(withoutHost).to.not.include('TICKET');
+      expect(withoutHost).to.include('PRODUCT');
     });
   });
 });

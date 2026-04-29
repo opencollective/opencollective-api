@@ -41,6 +41,9 @@ async function createProject(_, args, req) {
   if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Forbidden(`You must be logged in as a member of the ${parent.slug} collective to create a Project`);
   }
+  if (parent.isFrozen()) {
+    throw new Forbidden('This account is frozen and cannot create new projects at this time.');
+  }
 
   const projectData = {
     type: 'PROJECT',
@@ -51,7 +54,9 @@ async function createProject(_, args, req) {
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...args.project.settings },
-    data: {},
+    data: {
+      ...pick(parent.data, 'allowedTierTypes'),
+    },
   };
 
   if (args.disableContributions) {

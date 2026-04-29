@@ -112,10 +112,12 @@
         <th>Expenses Processed</th>
         <td>{{bill.utilization.expensesPaid}}</td>
       </tr>
+      {{#if collective.hasHosting}}
       <tr>
         <th>Active Collectives</th>
         <td>{{bill.utilization.activeCollectives}}</td>
       </tr>
+      {{/if}}
     {{/unless}}
     <tr class="total-row">
       <th>Total Amount {{#if showDue}}Due{{else}}Charged{{/if}}</th>

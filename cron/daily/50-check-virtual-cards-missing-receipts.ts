@@ -52,7 +52,7 @@ const processVirtualCard = async (expenses: Array<Expense>) => {
     virtualCard.isActive()
   ) {
     logger.info(`Virtual Card ${virtualCard.id} is being suspended due to pending expenses without receipts...`);
-    await virtualCard.pause();
+    await virtualCard.pause({ pauseReason: 'MISSING_RECEIPTS' });
     await models.Activity.create({
       type: activityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
       CollectiveId: collective.id,

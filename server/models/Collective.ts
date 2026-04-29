@@ -160,6 +160,8 @@ type Settings = {
   };
   budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
   disablePublicExpenseSubmission?: boolean;
+  disablePaypalDonations?: boolean;
+  disablePaypalPayouts?: boolean;
   isPlatformRevenueDirectlyCollected?: boolean;
   // @deprecated Use `data.features` instead
   features?: {
@@ -193,6 +195,7 @@ type Settings = {
   applyMessage?: string;
   tos?: string;
   expenseTypes?: Partial<Record<ExpenseType, boolean>>;
+  disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
   automaticBillingMigration?: Date | string;
 } & TaxSettings;
@@ -530,6 +533,7 @@ class Collective extends ModelWithPublicId<
       description: this.description,
       settings: this.settings,
       currency: this.currency,
+      hasHosting: this.hasHosting,
     };
   }
 
@@ -562,6 +566,7 @@ class Collective extends ModelWithPublicId<
       githubHandle: this.githubHandle,
       repositoryUrl: this.repositoryUrl,
       publicUrl: this.publicUrl,
+      hasHosting: this.hasHosting,
     };
   }
 
@@ -582,6 +587,7 @@ class Collective extends ModelWithPublicId<
       repositoryUrl: this.repositoryUrl,
       description: this.description,
       previewImage: this.previewImage,
+      hasHosting: this.hasHosting,
     };
   }
 

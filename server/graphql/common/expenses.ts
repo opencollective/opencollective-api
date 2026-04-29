@@ -3240,11 +3240,15 @@ export async function editExpense(
       );
     }
 
-    // Auto Resume Virtual Card
+    // Auto Resume Virtual Card (only when pause was automatic, e.g. missing receipts - not host manual pause)
     if (host?.settings?.virtualcards?.autopause) {
       const virtualCard = await expense.getVirtualCard();
       const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
-      if (virtualCard.isPaused() && expensesMissingReceipts.length === 0) {
+      if (
+        virtualCard.isPaused() &&
+        virtualCard.data?.pauseReason !== 'MANUAL' &&
+        expensesMissingReceipts.length === 0
+      ) {
         await virtualCard.resume();
       }
     }

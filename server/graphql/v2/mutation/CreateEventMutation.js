@@ -28,6 +28,9 @@ async function createEvent(_, args, req) {
   if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Unauthorized(`You must be logged in as a member of the ${parent.slug} collective to create an Event`);
   }
+  if (parent.isFrozen()) {
+    throw new Unauthorized('This account is frozen and cannot create new events at this time.');
+  }
 
   const eventData = {
     type: 'EVENT',
@@ -41,6 +44,9 @@ async function createEvent(_, args, req) {
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
+    data: {
+      ...pick(parent.data, 'allowedTierTypes'),
+    },
   };
 
   if (!canUseSlug(eventData.slug, req.remoteUser)) {
@@ -52,9 +58,7 @@ async function createEvent(_, args, req) {
   }
 
   if (args.event.privateInstructions) {
-    eventData.data = {
-      privateInstructions: args.event.privateInstructions,
-    };
+    eventData.data.privateInstructions = args.event.privateInstructions;
   }
 
   // Validate now to avoid uploading images if the collective is invalid

@@ -447,6 +447,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     HostCollectiveId: transaction.HostCollectiveId,
     OrderId: transaction.OrderId,
     ExpenseId: transaction.ExpenseId,
+    PaymentMethodId: transaction.PaymentMethodId,
     description: 'Cover of payment processor fee for refund',
     isRefund: true,
     TransactionGroup: refundTransactionGroup,

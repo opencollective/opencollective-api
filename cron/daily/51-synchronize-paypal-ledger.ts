@@ -493,7 +493,7 @@ export const run = async () => {
     return;
   }
 
-  const hostsWithPayPal = await getHostsWithPayPalConnected();
+  const hostsWithPayPal = await getHostsWithPayPalConnected({ onlyPaymentsEnabled: true });
   const fromDate = START_DATE.startOf('day');
   const toDate = END_DATE.endOf('day');
   const hostsToIgnore = [...IGNORED_HOSTS, ...(EXCLUDED_HOST_SLUGS || [])];
