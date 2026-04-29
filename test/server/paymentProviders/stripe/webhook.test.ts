@@ -1079,6 +1079,8 @@ describe('webhook', () => {
         data: {
           object: {
             id: expense.data.paymentIntent.id,
+            amount: 100e2,
+            currency: 'usd',
             payment_method: randStr('pm_fake'),
             latest_charge: {
               amount: 100e2,
@@ -1098,6 +1100,24 @@ describe('webhook', () => {
 
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.PAID);
+      });
+
+      it('does not mark expense as PAID when PaymentIntent amount does not match the expense', async () => {
+        event.data.object.amount = 50e2;
+        await webhook.paymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
+      });
+
+      it('does not mark expense as PAID when PaymentIntent currency does not match the expense', async () => {
+        event.data.object.currency = 'eur';
+        await webhook.paymentIntentSucceeded(event);
+
+        await expense.reload();
+        expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
+        expect(transactions.createTransactionsFromPaidStripeExpense).to.not.have.been.called;
       });
     });
 

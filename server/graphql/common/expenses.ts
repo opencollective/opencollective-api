@@ -3162,6 +3162,11 @@ export async function editExpense(
     oldPayoutMethodId = expense.PayoutMethodId;
     const shouldUpdateStatus = changesRequireStatusUpdate(expense, expenseData, hasItemChanges, hasPayoutMethodChanges);
 
+    const isChangingPayee = expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id;
+    if (cleanExpenseData.data?.paymentIntent && (shouldUpdateStatus || isChangingCurrency || isChangingPayee)) {
+      cleanExpenseData.data = omit(cleanExpenseData.data, ['paymentIntent']);
+    }
+
     // Update attached files
     if (expenseData.attachedFiles) {
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);

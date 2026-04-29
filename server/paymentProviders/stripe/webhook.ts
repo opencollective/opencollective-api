@@ -27,7 +27,7 @@ import {
   sendOrderFailedEmail,
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -304,6 +304,14 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
     if (!expense) {
       logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`);
+      return [expense, false];
+    }
+
+    const expectedAmount = convertToStripeAmount(expense.currency, expense.amount);
+    if (paymentIntent.amount !== expectedAmount || paymentIntent.currency !== expense.currency.toLowerCase()) {
+      const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expense.currency.toLowerCase()})`;
+      logger.error(message);
+      reportMessageToSentry(message, { extra: { paymentIntent, expenseId: expense.id } });
       return [expense, false];
     }
 
