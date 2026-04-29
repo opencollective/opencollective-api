@@ -302,12 +302,30 @@ const getMissingRefundTransactions = async (
       continue;
     }
 
-    // For fully-REFUNDED captures, PayPal includes a navigational HATEOAS link to the existing
-    // refund resource (rel: "refund", method: "GET"). This works for both checkout-order captures
-    // and subscription captures, unlike the supplementary_data.related_ids.order_id approach which
-    // is only populated for checkout-order captures.
+    // Primary: look for a navigational HATEOAS link to the existing refund resource on the capture.
+    // This link (rel: "refund", method: "GET") is empirically present on fully-REFUNDED captures
+    // but is not officially documented by PayPal, so we also keep a fallback below.
     const refundHref = captureDetails.links?.find(l => l.rel === 'refund')?.href;
-    const refundId = refundHref?.split('/').pop();
+    let refundId = refundHref?.split('/').pop();
+
+    // Fallback: for checkout captures, supplementary_data.related_ids.order_id is populated,
+    // so we can fetch the order and read the refund ID from its payments.refunds array.
+    if (!refundId) {
+      const orderId = captureDetails.supplementary_data?.related_ids?.order_id;
+      if (orderId) {
+        try {
+          const orderDetails = (await paypalRequestV2(`checkout/orders/${orderId}`, host, 'GET')) as {
+            purchase_units?: Array<{ payments?: { refunds?: Array<{ id: string }> } }>;
+          };
+          refundId = orderDetails?.purchase_units?.[0]?.payments?.refunds?.[0]?.id;
+        } catch (e) {
+          logger.error(`Error fetching PayPal order ${orderId} for capture ${captureId}: ${e.message}`);
+          reportErrorToSentry(e, {
+            extra: { captureId, orderId, transactionId: dbTransaction.id, hostSlug: host.slug },
+          });
+        }
+      }
+    }
 
     if (!refundId) {
       logger.warn(`PayPal capture ${captureId} is REFUNDED but has no refund link, skipping`);
@@ -402,7 +420,7 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
             severity: 'warning',
           });
         }
-        return;
+        break;
       }
 
       const filteredTransactions = transactions.filter(t =>
@@ -463,11 +481,23 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         const totalRefundedCents = floatAmountToCents(
           parseFloat(get(paypalTransaction, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string),
         );
-        const expectedMinRefund = transaction.amount - Math.abs(transaction.paymentProcessorFeeInHostCurrency || 0);
+        const originalProcessorFee = Math.abs(
+          transaction.paymentProcessorFeeInHostCurrency ||
+            (await transaction.getPaymentProcessorFeeTransaction())?.amountInHostCurrency ||
+            0,
+        );
+        const expectedMinRefund = transaction.amountInHostCurrency - Math.abs(originalProcessorFee);
         if (totalRefundedCents < expectedMinRefund) {
-          throw new Error(
-            `PayPal partial refund detected for transaction #${transaction.id} (capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId}): expected at least ${expectedMinRefund} cents refunded but got ${totalRefundedCents}`,
-          );
+          reportMessageToSentry('PayPal partial refund detected', {
+            extra: {
+              transactionId: transaction.id,
+              expectedMinRefund,
+              totalRefundedCents,
+            },
+            feature: FEATURE.PAYPAL_DONATIONS,
+            severity: 'error',
+          });
+          continue;
         }
 
         const msg = `Record missing refund for PayPal capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId} (transaction #${transaction.id})`;

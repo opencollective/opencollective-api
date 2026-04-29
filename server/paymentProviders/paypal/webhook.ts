@@ -11,7 +11,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import { floatAmountToCents } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { createRefundTransaction, pauseOrderInDb } from '../../lib/payments';
-import { validateWebhookEvent } from '../../lib/paypal';
+import { validateWebhookEvent, WatchedPaypalWebhookEvent } from '../../lib/paypal';
 import { recordOrderProcessed } from '../../lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
@@ -32,6 +32,8 @@ const getPaypalAccount = async host => {
   return host.getAccountForPaymentProvider('paypal');
 };
 
+// Keeping this one for https://github.com/opencollective/opencollective/issues/8789
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
   const event = req.body as PayoutWebhookRequest;
   const expense = await models.Expense.findOne({
@@ -460,7 +462,7 @@ async function handleSubscriptionSuspended(req: Request): Promise<void> {
   if (!result) {
     // It's fine to ignore this event: if we can't find the subscription, it's probably because it was
     // already updated with a new plan or payment method. We still log it for debugging purposes.
-    reportMessageToSentry(`No order found while cancelling PayPal subscription`, {
+    reportMessageToSentry(`No order found while suspending PayPal subscription`, {
       feature: FEATURE.PAYPAL_DONATIONS,
       severity: 'warning',
       extra: { body: req.body },
@@ -486,6 +488,48 @@ async function handleSubscriptionActivated(req: Request): Promise<void> {
 }
 
 /**
+ * We are currenttly reviewing some PayPal webhooks that are watched but not handled.
+ */
+const ignoreWebhookEvent = (req: Request): Promise<void> => {
+  logger.debug(`PayPal: Unhandled event ${req.body.event_type}, ignoring`);
+  return Promise.resolve();
+};
+
+const EventHandlers: Record<WatchedPaypalWebhookEvent, (req: Request) => Promise<void>> = {
+  // These payout events are all ignored, especially since https://github.com/opencollective/opencollective-api/commit/641ce51e57e818530571e86d23d54b292bee52a8#diff-439d2ae7fe1dcbd7d538ed0df2359e38309366f6a9785f9e7ebc297e5e0a7068
+  // opencollective-api/cron/hourly/11-check-pending-paypal-expenses.js is handling the sync, so data should still be up-to-date
+  // Handling them would allow for faster sync: https://github.com/opencollective/opencollective/issues/8789
+  [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_DENIED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_PROCESSING]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_BATCH_SUCCESS]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_BLOCKED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_CANCELED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_DENIED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_FAILED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_HELD]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_REFUNDED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_RETURNED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_SUCCEEDED]: ignoreWebhookEvent,
+  [WatchedPaypalWebhookEvent.PAYOUTS_ITEM_UNCLAIMED]: ignoreWebhookEvent,
+  // Captures
+  [WatchedPaypalWebhookEvent.CAPTURE_COMPLETED]: handleCaptureCompleted,
+  [WatchedPaypalWebhookEvent.CAPTURE_REFUNDED]: handleCaptureRefunded,
+  [WatchedPaypalWebhookEvent.CAPTURE_REVERSED]: handleCaptureRefunded,
+  // Subscriptions
+  [WatchedPaypalWebhookEvent.SUBSCRIPTION_CANCELLED]: handleSubscriptionCancelled,
+  [WatchedPaypalWebhookEvent.SUBSCRIPTION_SUSPENDED]: handleSubscriptionSuspended,
+  [WatchedPaypalWebhookEvent.SUBSCRIPTION_ACTIVATED]: handleSubscriptionActivated,
+  // Sales
+  [WatchedPaypalWebhookEvent.SALE_COMPLETED]: handleSaleCompleted,
+  [WatchedPaypalWebhookEvent.SALE_REFUNDED]: handleSaleRefunded,
+  [WatchedPaypalWebhookEvent.SALE_REVERSED]: handleSaleReversed,
+};
+
+const getEventHandler = (eventType: string | WatchedPaypalWebhookEvent): ((req: Request) => Promise<void>) => {
+  return eventType in EventHandlers ? EventHandlers[eventType as WatchedPaypalWebhookEvent] : ignoreWebhookEvent;
+};
+
+/**
  * Webhook entrypoint. When adding a new event type here, you should also add it to
  * `server/lib/paypal.ts` > `WATCHED_EVENT_TYPES` and run `scripts/update-hosts-paypal-webhooks.ts`
  * to update all existing webhooks.
@@ -493,31 +537,9 @@ async function handleSubscriptionActivated(req: Request): Promise<void> {
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
   try {
-    const eventType = get(req, 'body.event_type');
-    switch (eventType) {
-      case 'PAYMENT.PAYOUTS-ITEM':
-        return handlePayoutTransactionUpdate(req);
-      case 'PAYMENT.SALE.COMPLETED':
-        return handleSaleCompleted(req);
-      case 'PAYMENT.SALE.REFUNDED':
-        return handleSaleRefunded(req);
-      case 'PAYMENT.SALE.REVERSED':
-        return handleSaleReversed(req);
-      case 'PAYMENT.CAPTURE.COMPLETED':
-        return handleCaptureCompleted(req);
-      case 'PAYMENT.CAPTURE.REFUNDED':
-      case 'PAYMENT.CAPTURE.REVERSED':
-        return handleCaptureRefunded(req);
-      case 'BILLING.SUBSCRIPTION.CANCELLED':
-        return handleSubscriptionCancelled(req);
-      case 'BILLING.SUBSCRIPTION.SUSPENDED':
-        return handleSubscriptionSuspended(req);
-      case 'BILLING.SUBSCRIPTION.ACTIVATED':
-        return handleSubscriptionActivated(req);
-      default:
-        logger.info(`Received unhandled PayPal event (${eventType}), ignoring it.`);
-        break;
-    }
+    const eventType = get(req, 'body.event_type') as string | WatchedPaypalWebhookEvent;
+    const handler = getEventHandler(eventType);
+    await handler(req);
   } catch (e) {
     reportErrorToSentry(e, {
       req,
