@@ -17,7 +17,7 @@ import { QueryTypes } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { FEATURE } from '../../../lib/allowed-features';
+import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { listMatchingDimensionValues } from '../../../lib/metrics';
 import { GraphQLMetricsDateRangeInput, hostMetricsField } from '../../../lib/metrics/graphql';
 import {
@@ -1140,7 +1140,7 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLMetricsDateRangeInput,
           },
         },
-        async resolve(host, args) {
+        async resolve(host, args, req) {
           const where: Parameters<typeof models.Collective.findAndCountAll>[0]['where'] = {
             HostCollectiveId: host.id,
             id: { [Op.not]: host.id },
@@ -1222,7 +1222,10 @@ export const GraphQLHost = new GraphQLObjectType({
           };
           const toIdNumbers = (values: Array<string | number>): number[] =>
             values.map(v => Number(v)).filter(n => Number.isFinite(n) && n > 0);
-          if (args.joinedBetween) {
+
+          const hasMetricsFeature = await hasFeature(host, FEATURE.HOST_METRICS, { loaders: req.loaders });
+
+          if (hasMetricsFeature && args.joinedBetween) {
             intersectMetricIds(
               toIdNumbers(
                 await listMatchingDimensionValues({
@@ -1235,7 +1238,7 @@ export const GraphQLHost = new GraphQLObjectType({
               ),
             );
           }
-          if (args.unhostedBetween) {
+          if (hasMetricsFeature && args.unhostedBetween) {
             intersectMetricIds(
               toIdNumbers(
                 await listMatchingDimensionValues({
@@ -1248,7 +1251,7 @@ export const GraphQLHost = new GraphQLObjectType({
               ),
             );
           }
-          if (args.hadActivityBetween) {
+          if (hasMetricsFeature && args.hadActivityBetween) {
             intersectMetricIds(
               toIdNumbers(
                 await listMatchingDimensionValues({
@@ -1262,7 +1265,7 @@ export const GraphQLHost = new GraphQLObjectType({
               ),
             );
           }
-          if (args.noActivityBetween) {
+          if (hasMetricsFeature && args.noActivityBetween) {
             const [hostedIds, activeIds] = await Promise.all([
               listMatchingDimensionValues({
                 source: HostedCollectivesHostingPeriods,
