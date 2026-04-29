@@ -32,9 +32,9 @@ const getPaypalAccount = async host => {
   return host.getAccountForPaymentProvider('paypal');
 };
 
-// Keeping this one for https://github.com/opencollective/opencollective/issues/8789
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
+// Kept exported for https://github.com/opencollective/opencollective/issues/8789 - wire into EventHandlers when enabling webhook-driven payout sync (cron currently handles this).
+// ts-unused-exports:disable-next-line
+export async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
   const event = req.body as PayoutWebhookRequest;
   const expense = await models.Expense.findOne({
     where: { id: toNumber(event.resource.payout_item.sender_item_id) },
