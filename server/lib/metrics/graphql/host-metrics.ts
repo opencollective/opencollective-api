@@ -1,5 +1,7 @@
 import { type GraphQLFieldConfig, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
+import { Collective } from '../../../models';
+import { FEATURE, hasFeature } from '../../allowed-features';
 import {
   HostedCollectivesFinancialActivity,
   HostedCollectivesHostingPeriods,
@@ -37,7 +39,16 @@ const HostMetricsNamespaceType = new GraphQLObjectType({
 });
 
 export const hostMetricsField: GraphQLFieldConfig<HostInstance, unknown> = {
-  type: new GraphQLNonNull(HostMetricsNamespaceType),
+  type: HostMetricsNamespaceType,
   description: 'Aggregated metrics for this host.',
-  resolve: host => ({ host }),
+  resolve: async (host: Collective, args: unknown, req: Express.Request) => {
+    if (!req.remoteUser?.isAdmin(host.id)) {
+      return null;
+    }
+
+    if (!(await hasFeature(host, FEATURE.HOST_METRICS, { loaders: req.loaders }))) {
+      return null;
+    }
+    return { host };
+  },
 };
