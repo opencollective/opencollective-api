@@ -17,7 +17,14 @@ import { QueryTypes } from 'sequelize';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import { FEATURE } from '../../../lib/allowed-features';
+import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { listMatchingDimensionValues } from '../../../lib/metrics';
+import { GraphQLMetricsDateRangeInput, hostMetricsField } from '../../../lib/metrics/graphql';
+import {
+  HostedCollectivesFinancialActivity,
+  HostedCollectivesHostingPeriods,
+  HostedCollectivesMembership,
+} from '../../../lib/metrics/sources';
 import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import SQLQueries from '../../../lib/queries';
 import sequelize from '../../../lib/sequelize';
@@ -435,6 +442,7 @@ export const GraphQLHost = new GraphQLObjectType({
           return { host, collectiveIds, timeUnit, dateFrom, dateTo };
         },
       },
+      metrics: hostMetricsField,
       hostExpensesReport: {
         type: GraphQLHostExpensesReports,
         description: 'EXPERIMENTAL (this may change or be removed)',
@@ -1119,8 +1127,20 @@ export const GraphQLHost = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Filter for accounts (Events) that started at a specific date range',
           },
+          joinedBetween: {
+            type: GraphQLMetricsDateRangeInput,
+          },
+          unhostedBetween: {
+            type: GraphQLMetricsDateRangeInput,
+          },
+          hadActivityBetween: {
+            type: GraphQLMetricsDateRangeInput,
+          },
+          noActivityBetween: {
+            type: GraphQLMetricsDateRangeInput,
+          },
         },
-        async resolve(host, args) {
+        async resolve(host, args, req) {
           const where: Parameters<typeof models.Collective.findAndCountAll>[0]['where'] = {
             HostCollectiveId: host.id,
             id: { [Op.not]: host.id },
@@ -1191,7 +1211,85 @@ export const GraphQLHost = new GraphQLObjectType({
             where[Op.and].push(sequelize.where(ACCOUNT_CONSOLIDATED_BALANCE_QUERY, operator, value));
           }
 
-          if (args.isUnhosted) {
+          let metricCollectiveIds: number[] | null = null;
+          const intersectMetricIds = (ids: number[]) => {
+            if (metricCollectiveIds === null) {
+              metricCollectiveIds = ids;
+            } else {
+              const set = new Set(ids);
+              metricCollectiveIds = metricCollectiveIds.filter(id => set.has(id));
+            }
+          };
+          const toIdNumbers = (values: Array<string | number>): number[] =>
+            values.map(v => Number(v)).filter(n => Number.isFinite(n) && n > 0);
+
+          const hasMetricsFeature = await hasFeature(host, FEATURE.HOST_METRICS, { loaders: req.loaders });
+
+          if (hasMetricsFeature && args.joinedBetween) {
+            intersectMetricIds(
+              toIdNumbers(
+                await listMatchingDimensionValues({
+                  source: HostedCollectivesMembership,
+                  dateFrom: args.joinedBetween.from,
+                  dateTo: args.joinedBetween.to,
+                  filters: { host: host.id, event: 'JOINED' },
+                  dimension: 'account',
+                }),
+              ),
+            );
+          }
+          if (hasMetricsFeature && args.unhostedBetween) {
+            intersectMetricIds(
+              toIdNumbers(
+                await listMatchingDimensionValues({
+                  source: HostedCollectivesMembership,
+                  dateFrom: args.unhostedBetween.from,
+                  dateTo: args.unhostedBetween.to,
+                  filters: { host: host.id, event: 'CHURNED' },
+                  dimension: 'account',
+                }),
+              ),
+            );
+          }
+          if (hasMetricsFeature && args.hadActivityBetween) {
+            intersectMetricIds(
+              toIdNumbers(
+                await listMatchingDimensionValues({
+                  source: HostedCollectivesFinancialActivity,
+                  dateFrom: args.hadActivityBetween.from,
+                  dateTo: args.hadActivityBetween.to,
+                  filters: { host: host.id },
+                  // Roll children (events, projects) up to their parent
+                  dimension: 'mainAccount',
+                }),
+              ),
+            );
+          }
+          if (hasMetricsFeature && args.noActivityBetween) {
+            const [hostedIds, activeIds] = await Promise.all([
+              listMatchingDimensionValues({
+                source: HostedCollectivesHostingPeriods,
+                dateFrom: args.noActivityBetween.from,
+                dateTo: args.noActivityBetween.to,
+                filters: { host: host.id },
+                dimension: 'account',
+              }),
+              listMatchingDimensionValues({
+                source: HostedCollectivesFinancialActivity,
+                dateFrom: args.noActivityBetween.from,
+                dateTo: args.noActivityBetween.to,
+                filters: { host: host.id },
+                dimension: 'mainAccount',
+              }),
+            ]);
+            const activeSet = new Set(toIdNumbers(activeIds));
+            intersectMetricIds(toIdNumbers(hostedIds).filter(id => !activeSet.has(id)));
+          }
+          const isMetricScoped = metricCollectiveIds !== null;
+          if (isMetricScoped) {
+            // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
+            where[Op.and].push({ id: { [Op.in]: metricCollectiveIds } });
+          } else if (args.isUnhosted) {
             const collectiveIds = await models.HostApplication.findAll({
               attributes: ['CollectiveId'],
               where: { HostCollectiveId: host.id, status: 'APPROVED' },

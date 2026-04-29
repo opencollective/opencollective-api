@@ -789,6 +789,26 @@ interface Account {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -3633,6 +3653,26 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -4188,6 +4228,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): HostMetricsTimeSeries!
 
   """
+  Aggregated metrics for this host.
+  """
+  metrics: HostMetricsNamespace
+
+  """
   EXPERIMENTAL (this may change or be removed)
   """
   hostExpensesReport(timeUnit: TimeUnit = MONTH, dateFrom: DateTime, dateTo: DateTime): HostExpensesReports
@@ -4397,6 +4442,10 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter for accounts (Events) that started at a specific date range
     """
     startsAtTo: DateTime
+    joinedBetween: MetricsDateRangeInput
+    unhostedBetween: MetricsDateRangeInput
+    hadActivityBetween: MetricsDateRangeInput
+    noActivityBetween: MetricsDateRangeInput
   ): HostedAccountCollection!
 
   """
@@ -4448,6 +4497,123 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     requestedAtTo: DateTime
   ): LegalDocumentCollection!
+
+  """
+  List of accounting categories for this host
+  """
+  accountingCategories(
+    """
+    Filter accounting categories by kind
+    """
+    kind: [AccountingCategoryKind!]
+
+    """
+    Filter by accounting category applicable to this account
+    """
+    account: AccountReferenceInput
+  ): AccountingCategoryCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  contributionAccountingCategoryRules: [ContributionAccountingCategoryRule!]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  The list of payout methods this Host accepts for its expenses
+  """
+  supportedPayoutMethods: [PayoutMethodType]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Manual payment providers configured for this host
+  """
+  manualPaymentProviders(
+    """
+    Filter by provider type
+    """
+    type: ManualPaymentProviderType
+
+    """
+    Whether to include archived providers
+    """
+    includeArchived: Boolean! = false
+  ): [ManualPaymentProvider!]! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  If the host supports PayPal, this will contain the client ID to use in the frontend
+  """
+  paypalClientId: String @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
+  """
+  supportedPaymentMethods: [PaymentMethodLegacyType]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Stripe connected account
+  """
+  stripe: StripeConnectedAccount @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  contributionStats(
+    """
+    A collection of accounts for which the contribution stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate contribution statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate contribution statistics until this date.
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series
+    """
+    timeUnit: TimeUnit
+  ): ContributionStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  expenseStats(
+    """
+    A collection of accounts for which the expense stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate expense statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate expense statistics until this date.
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+  ): ExpenseStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host allows adding funds from all accounts
+  """
+  allowAddFundsFromAllAccounts: Boolean!
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host has any Stripe disputed orders
+  """
+  hasDisputedOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host has any Stripe in review orders
+  """
+  hasInReviewOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
 
   """
   Returns a list of vendors that works with this host
@@ -4513,6 +4679,12 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     offset: Int! = 0
   ): AccountCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns the legal documents required by this host
+  """
+  requiredLegalDocuments: [LegalDocumentType!]!
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
 
   """
   Returns a list of transactions imports for this host
@@ -4599,129 +4771,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Returns stats for off platform transactions
   """
   offPlatformTransactionsStats: TransactionsImportStats!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns the legal documents required by this host
-  """
-  requiredLegalDocuments: [LegalDocumentType!]!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host has any Stripe disputed orders
-  """
-  hasDisputedOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host has any Stripe in review orders
-  """
-  hasInReviewOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host allows adding funds from all accounts
-  """
-  allowAddFundsFromAllAccounts: Boolean!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  contributionStats(
-    """
-    A collection of accounts for which the contribution stats should be returned.
-    """
-    account: [AccountReferenceInput!]
-
-    """
-    Calculate contribution statistics beginning from this date.
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate contribution statistics until this date.
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series
-    """
-    timeUnit: TimeUnit
-  ): ContributionStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  expenseStats(
-    """
-    A collection of accounts for which the expense stats should be returned.
-    """
-    account: [AccountReferenceInput!]
-
-    """
-    Calculate expense statistics beginning from this date.
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate expense statistics until this date.
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
-    """
-    timeUnit: TimeUnit
-  ): ExpenseStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
-  """
-  supportedPaymentMethods: [PaymentMethodLegacyType]
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Manual payment providers configured for this host
-  """
-  manualPaymentProviders(
-    """
-    Filter by provider type
-    """
-    type: ManualPaymentProviderType
-
-    """
-    Whether to include archived providers
-    """
-    includeArchived: Boolean! = false
-  ): [ManualPaymentProvider!]! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  If the host supports PayPal, this will contain the client ID to use in the frontend
-  """
-  paypalClientId: String @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  The list of payout methods this Host accepts for its expenses
-  """
-  supportedPayoutMethods: [PayoutMethodType]
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Stripe connected account
-  """
-  stripe: StripeConnectedAccount @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the account has money management activated.
-  """
-  hasMoneyManagement: Boolean! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  List of accounting categories for this host
-  """
-  accountingCategories(
-    """
-    Filter accounting categories by kind
-    """
-    kind: [AccountingCategoryKind!]
-
-    """
-    Filter by accounting category applicable to this account
-    """
-    account: AccountReferenceInput
-  ): AccountingCategoryCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  contributionAccountingCategoryRules: [ContributionAccountingCategoryRule!]
     @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
 }
 
@@ -7405,6 +7454,7 @@ type CollectiveFeatures {
   PAYPAL_CONNECT: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
   ACCOUNTING_CATEGORIZATION_RULES: CollectiveFeatureStatus
+  HOST_METRICS: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
@@ -7799,8 +7849,6 @@ type TransactionsAmountGroup {
 
 type CommunityStats {
   id: String!
-  associatedCollectives: [CommunityAssociatedAccount]
-  associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
   transactionSummary: [CommunityTransactionSummary!]!
   transactionSummaryTimeSeries(
@@ -7822,14 +7870,6 @@ type CommunityStats {
     """
     offset: Int! = 0
   ): ActivityCollection
-}
-
-type CommunityAssociatedAccount {
-  account: Account
-  relations: [CommunityRelationType]
-  lastInteractionAt: DateTime
-  firstInteractionAt: DateTime
-  transactionSummary: CommunityTransactionSummary!
 }
 
 enum CommunityRelationType {
@@ -8247,6 +8287,368 @@ type TimeSeriesAmountWithKindNode {
 }
 
 """
+Aggregated metrics for a host
+"""
+type HostMetricsNamespace {
+  """
+  Daily per-collective income and spending under the host.
+  """
+  hostedCollectivesFinancialActivity(
+    input: HostedCollectivesFinancialActivityMetricsInput!
+  ): HostedCollectivesFinancialActivityMetricsResult!
+
+  """
+  Daily join/churn events for hosted collectives.
+  """
+  hostedCollectivesMembership(
+    input: HostedCollectivesMembershipMetricsInput!
+  ): HostedCollectivesMembershipMetricsResult!
+
+  """
+  Distinct collectives hosted by this host in a period.
+  """
+  hostedCollectivesHosting(input: HostedCollectivesHostingMetricsInput!): HostedCollectivesHostingMetricsResult!
+}
+
+type HostedCollectivesFinancialActivityMetricsResult implements MetricsResult {
+  dateFrom: DateTime!
+  dateTo: DateTime!
+  bucket: TimeUnit
+  groupBy: [String!]
+  rows: [HostedCollectivesFinancialActivityMetricsRow!]!
+}
+
+interface MetricsResult {
+  dateFrom: DateTime!
+  dateTo: DateTime!
+  bucket: TimeUnit
+  groupBy: [String!]
+}
+
+type HostedCollectivesFinancialActivityMetricsRow {
+  bucket: String
+  group: HostedCollectivesFinancialActivityMetricsGroup
+  values: HostedCollectivesFinancialActivityMetricsValues!
+}
+
+type HostedCollectivesFinancialActivityMetricsGroup {
+  account: Account
+  parent: Account
+  mainAccount: Account
+  isMainAccount: Boolean
+  accountType: String
+  mainAccountType: String
+  hostCurrency: String
+}
+
+type HostedCollectivesFinancialActivityMetricsValues {
+  """
+  Net contributions and added funds, in host currency
+  """
+  incomeAmount: Amount
+
+  """
+  Net expenses paid out, in host currency
+  """
+  spendingAmount: Amount
+  transactionCount: Int
+  activeCollectives: Int
+  daysSinceLastActivity: Float
+}
+
+input HostedCollectivesFinancialActivityMetricsInput {
+  dateRange: MetricsDateRangeInput!
+  measures: [HostedCollectivesFinancialActivityMetricsMeasure!]!
+  filters: HostedCollectivesFinancialActivityMetricsFiltersAllOf
+
+  """
+  Time grain. Omit for a single aggregate over the whole range.
+  """
+  bucket: TimeUnit
+  groupBy: [HostedCollectivesFinancialActivityMetricsDimension!]
+  having: [HostedCollectivesFinancialActivityMetricsHavingInput!]
+  orderBy: [HostedCollectivesFinancialActivityMetricsOrderByInput!]
+  limit: Int
+
+  """
+  IANA timezone applied to `DATE_TRUNC` when bucketing — determines where each month/week/day boundary falls. Independent of `dateRange` (which already carries the absolute window via ISO offsets): two queries with the same dateRange but different timezones can produce different bucket boundaries.
+  """
+  timezone: String = "UTC"
+}
+
+"""
+Date range `[from, to)`.
+"""
+input MetricsDateRangeInput {
+  from: DateTime!
+  to: DateTime!
+}
+
+enum HostedCollectivesFinancialActivityMetricsMeasure {
+  """
+  Net contributions and added funds, in host currency
+  """
+  incomeAmount
+
+  """
+  Net expenses paid out, in host currency
+  """
+  spendingAmount
+  transactionCount
+  activeCollectives
+  daysSinceLastActivity
+}
+
+input HostedCollectivesFinancialActivityMetricsFiltersAllOf {
+  account: MetricsAccountReferenceFilter
+  parent: MetricsAccountReferenceFilter
+  mainAccount: MetricsAccountReferenceFilter
+  isMainAccount: Boolean
+  accountType: MetricsStringFilter
+  mainAccountType: MetricsStringFilter
+  hostCurrency: MetricsStringFilter
+}
+
+"""
+Filter a metric dimension that references an Account.
+"""
+input MetricsAccountReferenceFilter {
+  eq: AccountReferenceInput
+  in: [AccountReferenceInput!]
+  isNull: Boolean
+}
+
+input MetricsStringFilter {
+  eq: String
+  in: [String!]
+  isNull: Boolean
+}
+
+enum HostedCollectivesFinancialActivityMetricsDimension {
+  account
+  parent
+  mainAccount
+  isMainAccount
+  accountType
+  mainAccountType
+  hostCurrency
+}
+
+input HostedCollectivesFinancialActivityMetricsHavingInput {
+  measure: HostedCollectivesFinancialActivityMetricsMeasure!
+  op: MetricsHavingOp!
+  value: Float!
+}
+
+"""
+Comparison operator for HAVING clauses on a measure.
+"""
+enum MetricsHavingOp {
+  """
+  Greater than
+  """
+  gt
+
+  """
+  Greater than or equal
+  """
+  gte
+
+  """
+  Less than
+  """
+  lt
+
+  """
+  Less than or equal
+  """
+  lte
+
+  """
+  Equal
+  """
+  eq
+
+  """
+  Not equal
+  """
+  ne
+}
+
+input HostedCollectivesFinancialActivityMetricsOrderByInput {
+  measure: HostedCollectivesFinancialActivityMetricsMeasure!
+  direction: MetricsOrderByDirection!
+}
+
+enum MetricsOrderByDirection {
+  """
+  Ascending
+  """
+  asc
+
+  """
+  Descending
+  """
+  desc
+}
+
+type HostedCollectivesMembershipMetricsResult implements MetricsResult {
+  dateFrom: DateTime!
+  dateTo: DateTime!
+  bucket: TimeUnit
+  groupBy: [String!]
+  rows: [HostedCollectivesMembershipMetricsRow!]!
+}
+
+type HostedCollectivesMembershipMetricsRow {
+  bucket: String
+  group: HostedCollectivesMembershipMetricsGroup
+  values: HostedCollectivesMembershipMetricsValues!
+}
+
+type HostedCollectivesMembershipMetricsGroup {
+  account: Account
+  accountType: String
+  event: String
+}
+
+type HostedCollectivesMembershipMetricsValues {
+  joinedCount: Int
+  churnedCount: Int
+  joinedDistinctCollectives: Int
+  churnedDistinctCollectives: Int
+}
+
+input HostedCollectivesMembershipMetricsInput {
+  dateRange: MetricsDateRangeInput!
+  measures: [HostedCollectivesMembershipMetricsMeasure!]!
+  filters: HostedCollectivesMembershipMetricsFiltersAllOf
+
+  """
+  Time grain. Omit for a single aggregate over the whole range.
+  """
+  bucket: TimeUnit
+  groupBy: [HostedCollectivesMembershipMetricsDimension!]
+  having: [HostedCollectivesMembershipMetricsHavingInput!]
+  orderBy: [HostedCollectivesMembershipMetricsOrderByInput!]
+  limit: Int
+
+  """
+  IANA timezone applied to `DATE_TRUNC` when bucketing — determines where each month/week/day boundary falls. Independent of `dateRange` (which already carries the absolute window via ISO offsets): two queries with the same dateRange but different timezones can produce different bucket boundaries.
+  """
+  timezone: String = "UTC"
+}
+
+enum HostedCollectivesMembershipMetricsMeasure {
+  joinedCount
+  churnedCount
+  joinedDistinctCollectives
+  churnedDistinctCollectives
+}
+
+input HostedCollectivesMembershipMetricsFiltersAllOf {
+  account: MetricsAccountReferenceFilter
+  accountType: MetricsStringFilter
+  event: MetricsStringFilter
+}
+
+enum HostedCollectivesMembershipMetricsDimension {
+  account
+  accountType
+  event
+}
+
+input HostedCollectivesMembershipMetricsHavingInput {
+  measure: HostedCollectivesMembershipMetricsMeasure!
+  op: MetricsHavingOp!
+  value: Float!
+}
+
+input HostedCollectivesMembershipMetricsOrderByInput {
+  measure: HostedCollectivesMembershipMetricsMeasure!
+  direction: MetricsOrderByDirection!
+}
+
+type HostedCollectivesHostingMetricsResult implements MetricsResult {
+  dateFrom: DateTime!
+  dateTo: DateTime!
+  bucket: TimeUnit
+  groupBy: [String!]
+  rows: [HostedCollectivesHostingMetricsRow!]!
+}
+
+type HostedCollectivesHostingMetricsRow {
+  bucket: String
+  group: HostedCollectivesHostingMetricsGroup
+  values: HostedCollectivesHostingMetricsValues!
+}
+
+type HostedCollectivesHostingMetricsGroup {
+  account: Account
+  parent: Account
+  accountType: String
+  mainAccountType: String
+  endDate: String
+}
+
+type HostedCollectivesHostingMetricsValues {
+  hostedCollectives: Int
+  daysHostedToDate: Float
+}
+
+input HostedCollectivesHostingMetricsInput {
+  dateRange: MetricsDateRangeInput!
+  measures: [HostedCollectivesHostingMetricsMeasure!]!
+  filters: HostedCollectivesHostingMetricsFiltersAllOf
+
+  """
+  Time grain. Omit for a single aggregate over the whole range.
+  """
+  bucket: TimeUnit
+  groupBy: [HostedCollectivesHostingMetricsDimension!]
+  having: [HostedCollectivesHostingMetricsHavingInput!]
+  orderBy: [HostedCollectivesHostingMetricsOrderByInput!]
+  limit: Int
+
+  """
+  IANA timezone applied to `DATE_TRUNC` when bucketing — determines where each month/week/day boundary falls. Independent of `dateRange` (which already carries the absolute window via ISO offsets): two queries with the same dateRange but different timezones can produce different bucket boundaries.
+  """
+  timezone: String = "UTC"
+}
+
+enum HostedCollectivesHostingMetricsMeasure {
+  hostedCollectives
+  daysHostedToDate
+}
+
+input HostedCollectivesHostingMetricsFiltersAllOf {
+  account: MetricsAccountReferenceFilter
+  parent: MetricsAccountReferenceFilter
+  accountType: MetricsStringFilter
+  mainAccountType: MetricsStringFilter
+  endDate: MetricsStringFilter
+}
+
+enum HostedCollectivesHostingMetricsDimension {
+  account
+  parent
+  accountType
+  mainAccountType
+  endDate
+}
+
+input HostedCollectivesHostingMetricsHavingInput {
+  measure: HostedCollectivesHostingMetricsMeasure!
+  op: MetricsHavingOp!
+  value: Float!
+}
+
+input HostedCollectivesHostingMetricsOrderByInput {
+  measure: HostedCollectivesHostingMetricsMeasure!
+  direction: MetricsOrderByDirection!
+}
+
+"""
 EXPERIMENTAL (this may change or be deleted): Host expenses report
 """
 type HostExpensesReports {
@@ -8332,6 +8734,175 @@ type LegalDocumentCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [LegalDocument]
+}
+
+"""
+A collection of "Accounting Categories"
+"""
+type AccountingCategoryCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+
+  """
+  The Accounting Categories
+  """
+  nodes: [AccountingCategory!]!
+}
+
+enum AccountingCategoryKind {
+  ADDED_FUNDS
+  CONTRIBUTION
+  EXPENSE
+}
+
+"""
+A rule for categorizing contributions
+"""
+type ContributionAccountingCategoryRule {
+  id: NonEmptyString!
+  name: NonEmptyString!
+  enabled: Boolean!
+  predicates: [JSONObject!]!
+  accountingCategory: AccountingCategory!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject
+
+"""
+A manual payment provider configured by a host for contributors to use
+"""
+type ManualPaymentProvider {
+  """
+  Unique identifier for this provider
+  """
+  id: String!
+
+  """
+  The resource public id (ie: mpp_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
+  The type of manual payment provider
+  """
+  type: ManualPaymentProviderType!
+
+  """
+  Display name for this payment provider
+  """
+  name: NonEmptyString!
+
+  """
+  Payment instructions to show contributors (HTML)
+  """
+  instructions: String
+
+  """
+  Icon name for this payment provider
+  """
+  icon: String
+
+  """
+  Bank account details for BANK_TRANSFER type providers
+  """
+  accountDetails: JSON
+
+  """
+  Whether this provider has been archived
+  """
+  isArchived: Boolean!
+
+  """
+  When this provider was created
+  """
+  createdAt: DateTime!
+
+  """
+  When this provider was last updated
+  """
+  updatedAt: DateTime!
+}
+
+"""
+The type of manual payment provider
+"""
+enum ManualPaymentProviderType {
+  BANK_TRANSFER
+  OTHER
+}
+
+"""
+Stripe connected account properties
+"""
+type StripeConnectedAccount {
+  username: String
+  issuingBalance: Amount
+}
+
+"""
+Contribution statistics related to the given accounts
+"""
+type ContributionStats {
+  """
+  The total number of contributions
+  """
+  contributionsCount: Int!
+
+  """
+  Number of one time contributions
+  """
+  oneTimeContributionsCount: Int!
+
+  """
+  Number of recurring contributions
+  """
+  recurringContributionsCount: Int!
+
+  """
+  The daily average income
+  """
+  dailyAverageIncomeAmount: Amount!
+}
+
+"""
+Expense statistics related to the given accounts
+"""
+type ExpenseStats {
+  """
+  The total number of expenses
+  """
+  expensesCount: Int!
+
+  """
+  The daily average paid in expenses
+  """
+  dailyAverageAmount: Amount!
+
+  """
+  Number of invoices
+  """
+  invoicesCount: Int!
+
+  """
+  Number of reimbursements
+  """
+  reimbursementsCount: Int!
+
+  """
+  Number of grants
+  """
+  grantsCount: Int!
 }
 
 """
@@ -8476,11 +9047,6 @@ type TransactionsImport {
   ): TransactionsImportRowCollection!
   stats: TransactionsImportStats!
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Type of the import
@@ -8688,11 +9254,6 @@ enum TransactionsImportRowStatus {
   ON_HOLD
 }
 
-"""
-The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSONObject
-
 type TransactionsImportStats {
   """
   Total number of rows in the import
@@ -8772,165 +9333,6 @@ input TransactionsImportRowOrderInput {
 
 enum TransactionsImportRowOrderInputField {
   DATE
-}
-
-"""
-Contribution statistics related to the given accounts
-"""
-type ContributionStats {
-  """
-  The total number of contributions
-  """
-  contributionsCount: Int!
-
-  """
-  Number of one time contributions
-  """
-  oneTimeContributionsCount: Int!
-
-  """
-  Number of recurring contributions
-  """
-  recurringContributionsCount: Int!
-
-  """
-  The daily average income
-  """
-  dailyAverageIncomeAmount: Amount!
-}
-
-"""
-Expense statistics related to the given accounts
-"""
-type ExpenseStats {
-  """
-  The total number of expenses
-  """
-  expensesCount: Int!
-
-  """
-  The daily average paid in expenses
-  """
-  dailyAverageAmount: Amount!
-
-  """
-  Number of invoices
-  """
-  invoicesCount: Int!
-
-  """
-  Number of reimbursements
-  """
-  reimbursementsCount: Int!
-
-  """
-  Number of grants
-  """
-  grantsCount: Int!
-}
-
-"""
-A manual payment provider configured by a host for contributors to use
-"""
-type ManualPaymentProvider {
-  """
-  Unique identifier for this provider
-  """
-  id: String!
-
-  """
-  The resource public id (ie: mpp_xxxxxxxx)
-  """
-  publicId: String!
-
-  """
-  The type of manual payment provider
-  """
-  type: ManualPaymentProviderType!
-
-  """
-  Display name for this payment provider
-  """
-  name: NonEmptyString!
-
-  """
-  Payment instructions to show contributors (HTML)
-  """
-  instructions: String
-
-  """
-  Icon name for this payment provider
-  """
-  icon: String
-
-  """
-  Bank account details for BANK_TRANSFER type providers
-  """
-  accountDetails: JSON
-
-  """
-  Whether this provider has been archived
-  """
-  isArchived: Boolean!
-
-  """
-  When this provider was created
-  """
-  createdAt: DateTime!
-
-  """
-  When this provider was last updated
-  """
-  updatedAt: DateTime!
-}
-
-"""
-The type of manual payment provider
-"""
-enum ManualPaymentProviderType {
-  BANK_TRANSFER
-  OTHER
-}
-
-"""
-Stripe connected account properties
-"""
-type StripeConnectedAccount {
-  username: String
-  issuingBalance: Amount
-}
-
-"""
-A collection of "Accounting Categories"
-"""
-type AccountingCategoryCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-
-  """
-  The Accounting Categories
-  """
-  nodes: [AccountingCategory!]!
-}
-
-enum AccountingCategoryKind {
-  ADDED_FUNDS
-  CONTRIBUTION
-  EXPENSE
-}
-
-"""
-A rule for categorizing contributions
-"""
-type ContributionAccountingCategoryRule {
-  id: NonEmptyString!
-  name: NonEmptyString!
-  enabled: Boolean!
-  predicates: [JSONObject!]!
-  accountingCategory: AccountingCategory!
-  createdAt: DateTime!
-  updatedAt: DateTime!
 }
 
 enum AccountingCategoryAppliesTo {
@@ -10283,6 +10685,26 @@ type Bot implements Account {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -11336,6 +11758,26 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -12973,6 +13415,26 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -14325,6 +14787,26 @@ type Individual implements Account {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -15705,6 +16187,26 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -17181,6 +17683,26 @@ type Vendor implements Account & AccountWithContributions {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -18221,6 +18743,26 @@ type Query {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -21469,6 +22011,26 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -22679,6 +23241,26 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses

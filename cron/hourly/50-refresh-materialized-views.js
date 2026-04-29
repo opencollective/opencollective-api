@@ -12,6 +12,7 @@ const VIEWS = [
   // We need to refresh these two views after 'CommunityTransactionSummary' because they depend on it.
   'CommunityHostYearlyTransactionSummary',
   'CommunityHostTransactionSummary',
+  'HostedCollectivesDailyFinancialActivity',
 ];
 
 const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions', 'CollectiveTagStats'];
