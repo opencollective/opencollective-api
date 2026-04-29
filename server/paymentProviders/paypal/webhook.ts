@@ -531,10 +531,11 @@ const getEventHandler = (eventType: string | WatchedPaypalWebhookEvent): ((req: 
  */
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
-  if (!req.params.hostId) {
+
+  if (!req.params?.hostId) {
     // Received on legacy webhook
     // 2026-04-29: This has normally been the default for a white, adding a global log to get a final confirmation.
-    logger.warn('Please update PayPal webhooks to latest version using scripts/paypal/update-hosts-webhooks.ts');
+    logger.warn('Please update PayPal webhooks to latest version using scripts/paypal/webhooks.ts');
   }
 
   try {

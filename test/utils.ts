@@ -8,6 +8,7 @@ import { Readable } from 'stream';
 import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
+import { Request } from 'express';
 import { graphql } from 'graphql';
 import Upload from 'graphql-upload/Upload.js';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
@@ -154,6 +155,49 @@ export const makeRequest = (
       cookie: () => {},
     },
   };
+};
+
+export const makeGenericRequest = ({
+  remoteUser = null,
+  personalToken = null,
+  userToken = null,
+  jwtPayload = null,
+  headers = {},
+  body = {},
+  method = 'GET',
+  baseUrl = '/',
+  ip = '127.0.0.1',
+  params = {},
+}: {
+  remoteUser?: object | null;
+  personalToken?: object | null;
+  userToken?: object | null;
+  jwtPayload?: object | null;
+  headers?: Record<string, string>;
+  body?: Record<string, unknown>;
+  method?: string;
+  baseUrl?: string;
+  ip?: string;
+  params?: Record<string, string>;
+} = {}): Request => {
+  return {
+    method,
+    baseUrl,
+    ip,
+    params,
+    remoteUser,
+    jwtPayload,
+    body,
+    loaders: generateLoaders({ remoteUser }),
+    headers,
+    header: () => null,
+    get: (a: string) => headers[a],
+    userToken,
+    personalToken,
+    res: {
+      cookie: () => {},
+    },
+  } as unknown as Request;
 };
 
 export const inspectSpy = (spy, argsCount) => {
