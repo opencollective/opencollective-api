@@ -8,7 +8,9 @@ import { generateSecret } from 'otplib';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
-import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import roles from '../../../../../server/constants/roles';
+import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import models from '../../../../../server/models';
 import {
   fakeApplication,
   fakePersonalToken,
@@ -347,6 +349,72 @@ describe('server/graphql/v2/mutation/IndividualMutations', () => {
           sub: user.id.toString(),
         },
       });
+    });
+  });
+
+  describe('createIncognitoProfile', () => {
+    const createIncognitoProfileMutation = gql`
+      mutation CreateIncognitoProfile {
+        createIncognitoProfile {
+          id
+          name
+          slug
+          type
+          isIncognito
+        }
+      }
+    `;
+
+    before(async () => {
+      await startTestServer();
+    });
+
+    after(async () => {
+      await stopTestServer();
+    });
+
+    it('fails if not authenticated', async () => {
+      const result = await graphqlQueryV2(createIncognitoProfileMutation, {});
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('creates an incognito profile with the correct fields', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(createIncognitoProfileMutation, {}, user);
+      expect(result.errors).to.not.exist;
+
+      const profile = result.data.createIncognitoProfile;
+      expect(profile.name).to.equal('Incognito');
+      expect(profile.isIncognito).to.be.true;
+      expect(profile.slug).to.match(/^incognito-[a-f0-9]+$/);
+    });
+
+    it('is idempotent — returns the same profile on repeated calls', async () => {
+      const user = await fakeUser();
+
+      const result1 = await graphqlQueryV2(createIncognitoProfileMutation, {}, user);
+      expect(result1.errors).to.not.exist;
+
+      const result2 = await graphqlQueryV2(createIncognitoProfileMutation, {}, user);
+      expect(result2.errors).to.not.exist;
+
+      expect(result1.data.createIncognitoProfile.id).to.equal(result2.data.createIncognitoProfile.id);
+      expect(result1.data.createIncognitoProfile.slug).to.equal(result2.data.createIncognitoProfile.slug);
+    });
+
+    it('adds the creator as ADMIN of the incognito collective', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(createIncognitoProfileMutation, {}, user);
+      expect(result.errors).to.not.exist;
+
+      const profile = result.data.createIncognitoProfile;
+      const incognitoCollectiveId = idDecode(profile.id, IDENTIFIER_TYPES.ACCOUNT);
+
+      const members = await models.Member.findAll({ where: { CollectiveId: incognitoCollectiveId } });
+      expect(members).to.have.length(1);
+      expect(members[0].role).to.equal(roles.ADMIN);
+      expect(members[0].MemberCollectiveId).to.equal(user.CollectiveId);
     });
   });
 });

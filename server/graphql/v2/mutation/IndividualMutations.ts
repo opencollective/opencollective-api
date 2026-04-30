@@ -44,6 +44,16 @@ const individualMutations = {
       return user.getCollective({ loaders: req.loaders });
     },
   },
+  createIncognitoProfile: {
+    type: new GraphQLNonNull(GraphQLIndividual),
+    description: 'Create an incognito profile for the logged-in user, or return the existing one. Scope: "account".',
+    resolve: async (_, __, req: express.Request) => {
+      checkRemoteUserCanUseAccount(req);
+
+      const collective = req.remoteUser.collective ?? (await req.remoteUser.getCollective({ loaders: req.loaders }));
+      return collective.getOrCreateIncognitoProfile();
+    },
+  },
   setPassword: {
     type: new GraphQLNonNull(GraphQLSetPasswordResponse),
     description: 'Set password to Individual. Scope: "account". 2FA.',
