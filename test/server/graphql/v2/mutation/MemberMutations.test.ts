@@ -3,11 +3,18 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import ActivityTypes from '../../../../../server/constants/activities';
+import { Service } from '../../../../../server/constants/connected-account';
 import roles from '../../../../../server/constants/roles';
 import MemberRoles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models, { Member } from '../../../../../server/models';
-import { fakeCollective, fakeMember, fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeMember,
+  fakePersonalToken,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 let collectiveAdminUser, collectiveMemberUser, collective;
@@ -141,6 +148,7 @@ describe('memberMutations', () => {
         removeMember(memberAccount: $memberAccount, account: $account, role: $role, isInvitation: $isInvitation)
       }
     `;
+
     it('should remove a member from the collective and document the change in an activity', async () => {
       const randomUser = await fakeUser();
       await collective.addUserWithRole(randomUser, roles.MEMBER);
@@ -174,6 +182,80 @@ describe('memberMutations', () => {
       await personalToken.reload({ paranoid: false });
       expect(personalToken.deletedAt).to.not.be.null;
     });
+
+    it('should remove the member TransferWise and PayPal connected accounts from the collective', async () => {
+      const randomUser = await fakeUser();
+      await collective.addUserWithRole(randomUser, roles.MEMBER);
+
+      // Create connected accounts for TransferWise and PayPal (should be removed)
+      const transferwiseAccount = await fakeConnectedAccount({
+        CreatedByUserId: randomUser.id,
+        CollectiveId: collective.id,
+        service: Service.TRANSFERWISE,
+      });
+      const paypalAccount = await fakeConnectedAccount({
+        CreatedByUserId: randomUser.id,
+        CollectiveId: collective.id,
+        service: Service.PAYPAL,
+      });
+
+      // Create a connected account for another service (should NOT be removed)
+      const stripeAccount = await fakeConnectedAccount({
+        CreatedByUserId: randomUser.id,
+        CollectiveId: collective.id,
+        service: Service.STRIPE,
+      });
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        {
+          memberAccount: { id: idEncode(randomUser.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeMember).to.equal(true);
+
+      await transferwiseAccount.reload({ paranoid: false });
+      expect(transferwiseAccount.deletedAt, 'TransferWise connected account should be deleted').to.not.be.null;
+
+      await paypalAccount.reload({ paranoid: false });
+      expect(paypalAccount.deletedAt, 'PayPal connected account should be deleted').to.not.be.null;
+
+      await stripeAccount.reload({ paranoid: false });
+      expect(stripeAccount.deletedAt, 'Stripe connected account should NOT be deleted').to.be.null;
+    });
+
+    it('should not remove connected accounts for services other than TransferWise and PayPal', async () => {
+      const randomUser = await fakeUser();
+      await collective.addUserWithRole(randomUser, roles.MEMBER);
+
+      const githubAccount = await fakeConnectedAccount({
+        CreatedByUserId: randomUser.id,
+        CollectiveId: collective.id,
+        service: Service.GITHUB,
+      });
+
+      const result = await utils.graphqlQueryV2(
+        removeMemberMutation,
+        {
+          memberAccount: { id: idEncode(randomUser.CollectiveId, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeMember).to.equal(true);
+
+      await githubAccount.reload({ paranoid: false });
+      expect(githubAccount.deletedAt, 'GitHub connected account should NOT be deleted').to.be.null;
+    });
+
     it('should remove the invitation (if not accepted yet)', async () => {
       const randomInvitedUser = await fakeUser();
       const invitation = await models.MemberInvitation.invite(collective, {
@@ -199,6 +281,7 @@ describe('memberMutations', () => {
       await invitation.reload({ paranoid: false });
       expect(invitation.deletedAt).to.not.be.null;
     });
+
     it('must be authenticated as an admin of the collective', async () => {
       const randomUser = await fakeUser();
       const result = await utils.graphqlQueryV2(
@@ -214,6 +297,7 @@ describe('memberMutations', () => {
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('Only admins can remove a member.');
     });
+
     it('can only remove members with role accountant, admin, community manager or member', async () => {
       const randomAdminUser = await fakeUser();
       const randomMemberUser = await fakeUser();

@@ -4,6 +4,7 @@ import { compact, pick } from 'lodash';
 import { Op } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
+import { Service } from '../../../constants/connected-account';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
@@ -399,6 +400,15 @@ const memberMutations = {
             if (users.length > 0) {
               await models.PersonalToken.destroy({
                 where: { UserId: users.map(user => user.id), CollectiveId: account.id },
+                transaction,
+              });
+              // Delete connected accounts for the user on this collective (ex: Wise accounts)
+              await models.ConnectedAccount.destroy({
+                where: {
+                  CreatedByUserId: users.map(user => user.id),
+                  CollectiveId: account.id,
+                  service: [Service.TRANSFERWISE, Service.PAYPAL],
+                },
                 transaction,
               });
             }
