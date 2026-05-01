@@ -1,6 +1,8 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { GraphQLUseVendorPolicy } from '../enum/UseVendorPolicy';
+
 import { AccountImagesInputFields } from './AccountCreateInputImageFields';
 import { AccountReferenceInputFields, GraphQLAccountReferenceInput } from './AccountReferenceInput';
 import { GraphQLLocationInput } from './LocationInput';
@@ -41,6 +43,10 @@ const VendorInputFields = {
   vendorInfo: { type: GraphQLVendorInfoInput },
   payoutMethod: { type: GraphQLPayoutMethodInput },
   visibleToAccounts: { type: new GraphQLList(GraphQLAccountReferenceInput) },
+  useVendorPolicy: {
+    type: GraphQLUseVendorPolicy,
+    description: 'Per-vendor override for who can attribute financial activities. Null means inherit from host.',
+  },
   ...AccountImagesInputFields,
 };
 

@@ -1962,13 +1962,13 @@ export const VendorCollectiveType = new GraphQLObjectType({
       description:
         'The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host',
       async resolve(vendor, _, req) {
-        const visibleToAccountIds = vendor.data?.visibleToAccountIds || [];
+        const canBeUsedWithAccountIds = vendor.data?.canBeUsedWithAccountIds || [];
 
-        if (visibleToAccountIds.length === 0) {
+        if (canBeUsedWithAccountIds.length === 0) {
           return [];
         }
 
-        return req.loaders.Collective.byId.loadMany(visibleToAccountIds);
+        return req.loaders.Collective.byId.loadMany(canBeUsedWithAccountIds);
       },
     },
   }),

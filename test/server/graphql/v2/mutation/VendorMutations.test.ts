@@ -168,6 +168,73 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(vendor.image).to.match(/\/account-avatar\/.+\/camera.png/);
       expect(vendor.backgroundImage).to.match(/\/account-banner\/.+\/camera.png/);
     });
+
+    it('persists useVendorPolicy when provided', async () => {
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, useVendorPolicy: 'ALL_SUBMITTERS' },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.useVendorPolicy).to.equal('ALL_SUBMITTERS');
+    });
+
+    it('defaults useVendorPolicy to null (inherit from host) when not provided', async () => {
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        { host: { legacyId: host.id }, vendor: vendorData },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.useVendorPolicy).to.be.null;
+    });
+
+    it('persists canBeUsedWithAccountIds for "host-only" state ([host])', async () => {
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, visibleToAccounts: [{ legacyId: host.id }] },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([host.id]);
+    });
+
+    it('persists canBeUsedWithAccountIds for specific collectives', async () => {
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+      const collectiveB = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: {
+            ...vendorData,
+            visibleToAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }],
+          },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.canBeUsedWithAccountIds).to.have.members([collectiveA.id, collectiveB.id]);
+    });
   });
 
   describe('editVendor', () => {
@@ -483,6 +550,89 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(victimPm.isSaved).to.be.true;
 
       await models.PayoutMethod.destroy({ where: { id: victimPm.id }, force: true });
+    });
+
+    it('updates useVendorPolicy when provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { useVendorPolicy: 'HOST_ADMINS' },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: vendor.name, useVendorPolicy: 'ALL_SUBMITTERS' } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.useVendorPolicy).to.equal('ALL_SUBMITTERS');
+    });
+
+    it('preserves existing useVendorPolicy when arg is not provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { useVendorPolicy: 'HOST_ADMINS' },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: 'Renamed' } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.useVendorPolicy).to.equal('HOST_ADMINS');
+    });
+
+    it('clears useVendorPolicy when explicitly set to null', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { useVendorPolicy: 'HOST_ADMINS' },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: vendor.name, useVendorPolicy: null } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.useVendorPolicy).to.be.null;
+    });
+
+    it('updates canBeUsedWithAccountIds when visibleToAccounts is provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [host.id] },
+      });
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            name: vendor.name,
+            visibleToAccounts: [{ legacyId: collectiveA.id }],
+          },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
     });
   });
 

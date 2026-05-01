@@ -5,7 +5,7 @@ import type express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 import { sql } from 'kysely';
-import { compact, find, get, uniq } from 'lodash';
+import { find, get, uniq } from 'lodash';
 import moment from 'moment';
 import { QueryTypes } from 'sequelize';
 
@@ -13,7 +13,7 @@ import { roles } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense-type';
 import OrderStatuses from '../../../constants/order-status';
-import POLICIES from '../../../constants/policies';
+import POLICIES, { UseVendorPolicyValue } from '../../../constants/policies';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
@@ -23,6 +23,7 @@ import { getPolicy } from '../../../lib/policies';
 import sequelize from '../../../lib/sequelize';
 import { buildKyselySearchConditions, buildSearchConditions } from '../../../lib/sql-search';
 import { parseToBoolean } from '../../../lib/utils';
+import { expandAccountIdsWithParents } from '../../../lib/vendor-visibility';
 import models, { Collective, ConnectedAccount, Op, TransactionsImportRow } from '../../../models';
 import { AccountingCategoryAppliesTo } from '../../../models/AccountingCategory';
 import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
@@ -251,9 +252,9 @@ export const getOrganizationFields = () => ({
     },
     async resolve(host: Collective, args, req: express.Request) {
       // Check if user is admin of the Host
-      const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
+      const useVendorPolicy = await getPolicy(host, POLICIES.USE_VENDOR_POLICY);
       const isAdmin = req.remoteUser?.isAdminOfCollective(host);
-      if (!publicVendorPolicy && !isAdmin) {
+      if (useVendorPolicy !== UseVendorPolicyValue.ALL_SUBMITTERS && !isAdmin) {
         return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
       }
 
@@ -368,28 +369,19 @@ export const getOrganizationFields = () => ({
         const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
           throwIfMissing: true,
         });
-        const parentAccounts = await Collective.findAll({
-          where: {
-            id: visibleToAccountIds,
-            ParentCollectiveId: { [Op.ne]: null },
-          },
-          attributes: ['ParentCollectiveId'],
-        });
-        const accountIds = uniq(
-          compact([...visibleToAccountIds, ...parentAccounts.map(acc => acc.ParentCollectiveId)]),
-        );
+        const accountIds = await expandAccountIdsWithParents(visibleToAccountIds);
 
         query = query.where(
           () => sql`
-              data#>'{visibleToAccountIds}' IS NULL
-              OR data#>'{visibleToAccountIds}' = '[]'::jsonb
-              OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+              data#>'{canBeUsedWithAccountIds}' IS NULL
+              OR data#>'{canBeUsedWithAccountIds}' = '[]'::jsonb
+              OR data#>'{canBeUsedWithAccountIds}' = 'null'::jsonb
               OR (
-                jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+                jsonb_typeof(data#>'{canBeUsedWithAccountIds}')='array'
                 AND
                 EXISTS (
                   SELECT v FROM (
-                    SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                    SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{canBeUsedWithAccountIds}') as v)
                   ) WHERE v = ANY(ARRAY[${sql.join(accountIds)}]::int[])
                 )
               )

@@ -486,7 +486,7 @@ describe('server/graphql/v2/object/Host', () => {
         name: 'Vendor Dafoe',
         legalName: 'William James',
         data: {
-          visibleToAccountIds: null,
+          canBeUsedWithAccountIds: null,
         },
       });
       knownVendor = await fakeCollective({
@@ -495,7 +495,7 @@ describe('server/graphql/v2/object/Host', () => {
         name: 'Vendor 2',
         legalName: 'Bob Builder',
         data: {
-          visibleToAccountIds: [],
+          canBeUsedWithAccountIds: [],
         },
       });
 
@@ -504,7 +504,7 @@ describe('server/graphql/v2/object/Host', () => {
         type: CollectiveType.VENDOR,
         name: 'vendorVisibleToCollectiveA',
         data: {
-          visibleToAccountIds: [collectiveA.id],
+          canBeUsedWithAccountIds: [collectiveA.id],
         },
       });
 
@@ -513,7 +513,7 @@ describe('server/graphql/v2/object/Host', () => {
         type: CollectiveType.VENDOR,
         name: 'vendorVisibleToCollectiveAAndB',
         data: {
-          visibleToAccountIds: [collectiveA.id, collectiveB.id],
+          canBeUsedWithAccountIds: [collectiveA.id, collectiveB.id],
         },
       });
 
@@ -526,12 +526,12 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
     });
 
-    it('should publicly return vendors if host EXPENSE_PUBLIC_VENDORS policy is true', async () => {
+    it('should publicly return vendors if host USE_VENDOR_POLICY is ALL_SUBMITTERS', async () => {
       const user = await fakeUser();
       let result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
       expect(result.data.host.vendors.nodes).to.be.empty;
 
-      await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+      await host.update({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
       result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
       expect(result.data.host.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
     });
@@ -633,7 +633,7 @@ describe('server/graphql/v2/object/Host', () => {
 
     it('should not return vendor by legal name if not admin of Account', async () => {
       const user = await fakeUser();
-      await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+      await host.update({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'Bob' }, user);
 
       expect(result.data.host.vendors.nodes).to.be.empty;
