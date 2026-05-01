@@ -183,7 +183,6 @@ describe('server/lib/vendor-visibility', () => {
       const hostAdmin = await fakeUser();
       const host = await fakeActiveHost({
         admin: hostAdmin,
-        data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_ADMINS } },
       });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
       const vendor = await fakeVendor({ ParentCollectiveId: host.id });
@@ -195,7 +194,9 @@ describe('server/lib/vendor-visibility', () => {
 
     it('HOST_AND_COLLECTIVE_ADMINS: allows collective admin on an "all hosted" vendor (empty canBeUsedWith)', async () => {
       const collectiveAdmin = await fakeUser();
-      const host = await fakeActiveHost();
+      const host = await fakeActiveHost({
+        data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+      });
       const collective = await fakeCollective({ admin: collectiveAdmin, HostCollectiveId: host.id });
       await collectiveAdmin.populateRoles();
       const vendor = await fakeVendor({ ParentCollectiveId: host.id });
@@ -206,7 +207,9 @@ describe('server/lib/vendor-visibility', () => {
 
     it('HOST_AND_COLLECTIVE_ADMINS: blocks collective admin on a vendor scoped to a different collective', async () => {
       const collectiveAdmin = await fakeUser();
-      const host = await fakeActiveHost();
+      const host = await fakeActiveHost({
+        data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+      });
       const collective = await fakeCollective({ admin: collectiveAdmin, HostCollectiveId: host.id });
       const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
       await collectiveAdmin.populateRoles();
@@ -221,7 +224,9 @@ describe('server/lib/vendor-visibility', () => {
 
     it('HOST_AND_COLLECTIVE_ADMINS: allows collective admin on a scoped vendor (incl. parent inheritance)', async () => {
       const collectiveAdmin = await fakeUser();
-      const host = await fakeActiveHost();
+      const host = await fakeActiveHost({
+        data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+      });
       const collective = await fakeCollective({ admin: collectiveAdmin, HostCollectiveId: host.id });
       await collectiveAdmin.populateRoles();
       const project = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collective.id });
