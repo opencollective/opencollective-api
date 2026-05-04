@@ -327,6 +327,7 @@ export function editCollective(_, args, req) {
       'image',
       'backgroundImage',
       'HostCollectiveId',
+      'contributionPolicy',
     ]),
     LastEditedByUserId: req.remoteUser.id,
   };
