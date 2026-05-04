@@ -284,27 +284,39 @@ const getMissingRefundTransactions = async (
 
   // Find DB contributions whose paypalCaptureId is one of those original capture IDs
   // and that have no refund recorded yet.
-  const candidates = await sequelize.query<{ id: number; paypalCaptureId: string }>(
-    `SELECT t.id, t.data #>> '{paypalCaptureId}' AS "paypalCaptureId"
-     FROM "Transactions" t
-     WHERE
-       t.data #>> '{paypalCaptureId}' IS NOT NULL
-       AND t.data #>> '{paypalCaptureId}' IN (:captureIds)
-       AND t.type = 'CREDIT'
-       AND t.kind = 'CONTRIBUTION'
-       AND t."isRefund" = FALSE
-       AND t."RefundTransactionId" IS NULL
-       AND t."deletedAt" IS NULL
+  //
+  // We intentionally split this into two separate queries. Combining the paypalCaptureId
+  // lookup with the type/kind/isRefund filters in a single query causes the planner to
+  // perform a BitmapAnd with the CollectiveId-type index (~6M rows, ~700ms), because the
+  // statistics on the transactions__data_paypal_capture_id partial index over-estimate its
+  // row count by ~30,000x and make the extra bitmap look worthwhile. Isolating the
+  // paypalCaptureId conditions in step 1 lets the planner use that index alone.
+
+  // Step 1: use the paypalCaptureId partial index in isolation to get matching TransactionGroups.
+  const transactionGroupRows = await sequelize.query<{ TransactionGroup: string }>(
+    `SELECT DISTINCT "TransactionGroup"
+     FROM "Transactions"
+     WHERE data #>> '{paypalCaptureId}' IS NOT NULL
+       AND data #>> '{paypalCaptureId}' IN (:captureIds)
+       AND "deletedAt" IS NULL
     `,
     { type: QueryTypes.SELECT, replacements: { captureIds } },
   );
 
-  if (!candidates.length) {
+  if (!transactionGroupRows.length) {
     return [];
   }
 
+  // Step 2: retrieve the CREDIT/CONTRIBUTION rows for those groups.
+  const transactionGroups = transactionGroupRows.map(r => r.TransactionGroup);
   const dbTransactions = await models.Transaction.findAll({
-    where: { id: candidates.map(r => r.id) },
+    where: {
+      TransactionGroup: transactionGroups,
+      type: 'CREDIT',
+      kind: 'CONTRIBUTION',
+      isRefund: false,
+      RefundTransactionId: null,
+    },
   });
 
   const result: Array<[Record<string, unknown>, Transaction]> = [];
