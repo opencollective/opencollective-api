@@ -50,16 +50,14 @@ const REFUND_EVENT_TYPES = [
 ];
 
 // Ignore some hosts, usually because they haven't enabled transactions search API yet
-// Checked again on 2026-04-15
 const IGNORED_HOSTS = [
+  // Checked again on 2026-04-15
   'dxura',
-  'lucyparsonsinstitute',
   'naarprdfw',
   'taon',
   'tts-miniature-wargames-collective',
-  'lucy-parsons-labs',
-  'osgeo-foundation',
   'secdsm',
+  'deeptimewalk-cic',
 ];
 
 /**
