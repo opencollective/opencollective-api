@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { CollectiveType } from '../../../../../server/constants/collectives';
+import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
@@ -556,7 +557,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,
         ParentCollectiveId: host.id,
-        data: { useVendorPolicy: 'HOST_ADMINS' },
+        data: { useVendorPolicy: UseVendorPolicyValue.HOST_ADMINS },
       });
 
       const result = await graphqlQueryV2(
@@ -575,7 +576,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,
         ParentCollectiveId: host.id,
-        data: { useVendorPolicy: 'HOST_ADMINS' },
+        data: { useVendorPolicy: UseVendorPolicyValue.HOST_ADMINS },
       });
 
       const result = await graphqlQueryV2(
@@ -594,7 +595,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,
         ParentCollectiveId: host.id,
-        data: { useVendorPolicy: 'HOST_ADMINS' },
+        data: { useVendorPolicy: UseVendorPolicyValue.HOST_ADMINS },
       });
 
       const result = await graphqlQueryV2(

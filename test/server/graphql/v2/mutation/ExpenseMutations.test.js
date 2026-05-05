@@ -10,6 +10,7 @@ import { createSandbox } from 'sinon';
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import FEATURE from '../../../../../server/constants/feature';
+import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
   US_TAX_FORM_THRESHOLD_PRE_2026,
@@ -2128,7 +2129,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       it('collective admin can use a vendor scoped to the parent collective on a child project', async () => {
         const collectiveAdminUser = await fakeUser();
-        const host = await fakeHost();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+        });
         const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
         const project = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collective.id });
         const vendor = await fakeVendor({
@@ -2150,7 +2153,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       it('collective admin cannot use a vendor scoped to a different collective on a child project', async () => {
         const collectiveAdminUser = await fakeUser();
-        const host = await fakeHost();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+        });
         const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
         const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
         const project = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collective.id });

@@ -272,5 +272,39 @@ describe('server/lib/vendor-visibility', () => {
 
       expect(await canUserUseVendor({ remoteUser: collectiveAdmin, vendor, collective, host })).to.be.false;
     });
+
+    it('per-vendor useVendorPolicy=HOST_ADMINS overrides ALL_SUBMITTERS for a random user', async () => {
+      const randomUser = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.ALL_SUBMITTERS } },
+      });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeVendor({
+        ParentCollectiveId: host.id,
+        data: { useVendorPolicy: UseVendorPolicyValue.HOST_ADMINS },
+      });
+
+      expect(await canUserUseVendor({ remoteUser: randomUser, vendor, collective, host })).to.be.false;
+    });
+
+    it('per-vendor useVendorPolicy=HOST_AND_COLLECTIVE_ADMINS narrows ALL_SUBMITTERS to collective admins of in-scope accounts', async () => {
+      const collectiveAdmin = await fakeUser();
+      const randomUser = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.ALL_SUBMITTERS } },
+      });
+      const collective = await fakeCollective({ admin: collectiveAdmin, HostCollectiveId: host.id });
+      await collectiveAdmin.populateRoles();
+      const vendor = await fakeVendor({
+        ParentCollectiveId: host.id,
+        data: {
+          useVendorPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          canBeUsedWithAccountIds: [collective.id],
+        },
+      });
+
+      expect(await canUserUseVendor({ remoteUser: collectiveAdmin, vendor, collective, host })).to.be.true;
+      expect(await canUserUseVendor({ remoteUser: randomUser, vendor, collective, host })).to.be.false;
+    });
   });
 });
