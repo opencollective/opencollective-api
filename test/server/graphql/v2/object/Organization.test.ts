@@ -300,6 +300,7 @@ describe('server/graphql/v2/object/Organization', () => {
 
     describe('visibility policies', () => {
       let hostAdmin, host, collectiveAdmin, collective, collectiveProject, hostProject;
+      let projectOnlyAdmin, foreignHostAdmin;
 
       before(async () => {
         hostAdmin = await fakeUser();
@@ -315,9 +316,26 @@ describe('server/graphql/v2/object/Organization', () => {
         collectiveProject = await fakeProject({ ParentCollectiveId: collective.id, HostCollectiveId: host.id });
 
         hostProject = await fakeProject({ ParentCollectiveId: host.id });
+
+        projectOnlyAdmin = await fakeUser();
+        await models.Member.create({
+          CollectiveId: collectiveProject.id,
+          MemberCollectiveId: projectOnlyAdmin.collective.id,
+          role: roles.ADMIN,
+          CreatedByUserId: projectOnlyAdmin.id,
+        });
+
+        foreignHostAdmin = await fakeUser();
+        await fakeActiveHost({ admin: foreignHostAdmin });
       });
 
-      type QuerierRole = 'host-admin' | 'collective-admin' | 'random-user' | 'anonymous';
+      type QuerierRole =
+        | 'host-admin'
+        | 'collective-admin'
+        | 'project-only-admin'
+        | 'foreign-host-admin'
+        | 'random-user'
+        | 'anonymous';
       type VendorScope = 'host' | 'host-child' | 'hosted-collective' | 'hosted-collective-child';
 
       const MATRIX: Array<{
@@ -444,17 +462,51 @@ describe('server/graphql/v2/object/Organization', () => {
           queryScope: ['hosted-collective-child'],
           visible: true,
         },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'project-only-admin',
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'host-admin',
+          vendorScope: ['host-child'],
+          queryScope: ['host-child'],
+          visible: true,
+        },
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'random-user',
+          vendorScope: ['host-child'],
+          queryScope: ['host-child'],
+          visible: false,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'random-user',
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective'],
+          visible: false,
+        },
+
+        { hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS, querier: 'foreign-host-admin', visible: true },
+        { hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS, querier: 'foreign-host-admin', visible: false },
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'foreign-host-admin',
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective'],
+          visible: false,
+        },
       ];
 
       for (const { hostPolicy, querier, visible, vendorScope, vendorPolicy, queryScope } of MATRIX) {
         it(`[hostPolicy=${hostPolicy}] [querier=${querier}] [vendor=${vendorPolicy ?? '-'}] [vendorScope=${vendorScope?.join(',') ?? '-'}] [queryScope=${queryScope?.join(',') ?? '-'}] → ${visible ? 'VISIBLE' : 'hidden'}`, async () => {
-          // const host = await fakeActiveHost({
-          //   admin: hostAdmin,
-          //   data: {
-          //     policies: { USE_VENDOR_POLICY: hostPolicy },
-          //   },
-          // });
-
           await host.update({ data: { policies: { USE_VENDOR_POLICY: hostPolicy } } });
 
           const vendorScopes: Record<VendorScope, Collective> = {
@@ -483,6 +535,8 @@ describe('server/graphql/v2/object/Organization', () => {
             anonymous: null,
             'collective-admin': collectiveAdmin,
             'host-admin': hostAdmin,
+            'project-only-admin': projectOnlyAdmin,
+            'foreign-host-admin': foreignHostAdmin,
             'random-user': await fakeUser(),
           };
 
