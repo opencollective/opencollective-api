@@ -105,6 +105,25 @@ const buildCache = (instanceType = RedisInstanceType.DEFAULT) => ({
       logger.warn(`Error while writing to cache: ${err.message}`);
     }
   },
+  consume: async (key: string, options?) => {
+    try {
+      debugCache(`consume ${key}`);
+      const provider = await getDefaultProvider(instanceType);
+      const consuming = provider as {
+        consume?: (k: string, o?: unknown) => Promise<unknown>;
+      };
+      if (consuming.consume) {
+        return consuming.consume(key, options);
+      }
+      const value = await provider.get(key, options);
+      if (value !== undefined) {
+        await provider.delete(key);
+      }
+      return value;
+    } catch (err) {
+      logger.warn(`Error while consuming from cache: ${err.message}`);
+    }
+  },
 });
 
 export async function fetchCollectiveId(collectiveSlug) {
