@@ -3,6 +3,7 @@ import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.confi
 import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
 
+import graphqlMutationScopeCheck from './eslint-rules/graphql-mutation-scope-check.js';
 import noMathRoundAmountNames from './eslint-rules/no-math-round-amount-names.js';
 import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
 import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
@@ -253,6 +254,20 @@ export default [
           ],
         },
       ],
+    },
+  },
+  // GraphQL mutation scope-check enforcement
+  {
+    files: ['server/graphql/v2/mutation/**/*.+(js|ts)'],
+    plugins: {
+      'graphql-mutations': {
+        rules: {
+          'require-scope-check': graphqlMutationScopeCheck,
+        },
+      },
+    },
+    rules: {
+      'graphql-mutations/require-scope-check': 'error',
     },
   },
 ];

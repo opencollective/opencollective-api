@@ -130,6 +130,7 @@ const createProjectMutation = {
       defaultValue: false,
     },
   },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createProject
   resolve: (_, args, req) => {
     return createProject(_, args, req);
   },

@@ -38,6 +38,7 @@ const guestMutations = {
         description: 'The key that you want to edit in settings',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- public mutation for guest account confirmation, no token scope required
     async resolve(
       _: void,
       args: Record<string, unknown>,

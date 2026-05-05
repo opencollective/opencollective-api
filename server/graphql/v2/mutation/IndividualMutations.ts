@@ -140,6 +140,7 @@ const individualMutations = {
         description: 'The token to confirm the email.',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- this mutation explicitly rejects OAuth and personal token auth; no scope check can be applied
     resolve: async (_, { token: confirmEmailToken }, req) => {
       // Forbid this route for OAuth and Personal Tokens. Remember to check the scope if you want to allow it.
       // Also make sure to prevent exchanging OAuth/Personal tokens for session tokens.
