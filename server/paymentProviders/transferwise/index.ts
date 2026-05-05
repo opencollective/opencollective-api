@@ -781,13 +781,15 @@ const oauth = {
       const hash = hashObject({ profileId: profile.id, service: PROVIDER_NAME, userId: personalProfile.userId });
 
       const collective = await Collective.findByPk(CollectiveId);
-      assert(collective, `Could not find Collective #${CollectiveId}`);
+      assert(collective, `Could not find Organization #${CollectiveId}`);
+      // Check if the current organization is already connected to a different Wise Organization.
+      // We can only allow multiple users to connect the same Wise organization.
       const existingConflicts = await ConnectedAccount.findOne({
         where: { service: PROVIDER_NAME, data: { id: { [Op.ne]: profile.id } }, CollectiveId },
       });
       assert(
         !existingConflicts,
-        `This Collective is already connected to a different Wise account. Please disconnect it first.`,
+        `This Organization is already connected to a different Wise account. Please disconnect it first.`,
       );
 
       // Check if this account was already connected to another collective, if so, we'll mirror it to that Account so we avoid invalidating tokens.
