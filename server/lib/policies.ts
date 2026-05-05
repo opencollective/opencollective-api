@@ -4,17 +4,13 @@ import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 import { Collective, User } from '../models';
 
 export const getPolicy = async <T extends POLICIES>(
-  collective,
+  collective: Collective,
   policy: T,
-  { loaders = undefined } = {},
+  { loaders = undefined, transaction = undefined } = {},
 ): Promise<Policies[T]> => {
   let account = collective;
   if (collective?.ParentCollectiveId) {
-    if (loaders) {
-      account = await loaders.Collective.byId.load(collective.ParentCollectiveId);
-    } else {
-      account = await collective.getParentCollective();
-    }
+    account = await collective.getParentCollective({ transaction, loaders });
   }
   return get(account, ['data', 'policies', policy], DEFAULT_POLICIES[policy]);
 };

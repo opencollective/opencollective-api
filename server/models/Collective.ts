@@ -771,18 +771,18 @@ class Collective extends ModelWithPublicId<
     return dbTransaction ? runInTransaction(dbTransaction) : sequelize.transaction(runInTransaction);
   };
 
-  getParentCollective = async function ({ attributes = null, loaders = null } = {}) {
+  getParentCollective = async function ({ attributes = null, loaders = null, transaction = undefined } = {}) {
     if (!this.ParentCollectiveId) {
       return null;
     } else if (attributes) {
-      return Collective.findByPk(this.ParentCollectiveId, { attributes });
+      return Collective.findByPk(this.ParentCollectiveId, { attributes, transaction });
     } else if (this.parentCollective) {
       return this.parentCollective;
-    } else if (loaders) {
+    } else if (loaders && !transaction) {
       this.parentCollective = await loaders.Collective.byId.load(this.ParentCollectiveId);
       return this.parentCollective;
     } else {
-      this.parentCollective = await Collective.findByPk(this.ParentCollectiveId);
+      this.parentCollective = await Collective.findByPk(this.ParentCollectiveId, { transaction });
       return this.parentCollective;
     }
   };
