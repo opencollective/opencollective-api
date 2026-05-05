@@ -258,7 +258,11 @@ export default [
   },
   // GraphQL mutation scope-check enforcement
   {
-    files: ['server/graphql/v2/mutation/**/*.+(js|ts)'],
+    files: [
+      'server/graphql/v2/mutation/**/*.+(js|ts)',
+      'server/graphql/v1/mutations.js',
+      'server/graphql/v1/mutations/**/*.+(js|ts)',
+    ],
     plugins: {
       'graphql-mutations': {
         rules: {
