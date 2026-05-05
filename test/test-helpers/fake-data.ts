@@ -1443,6 +1443,7 @@ export const fakeManualPaymentProvider = async (
     instructions: string;
     icon: string;
     data: Record<string, unknown>;
+    referenceTemplate: string | null;
     order: number;
     archivedAt: Date;
   }> = {},
