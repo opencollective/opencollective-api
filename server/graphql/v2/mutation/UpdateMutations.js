@@ -15,6 +15,7 @@ const updateMutations = {
         type: new GraphQLNonNull(GraphQLUpdateCreateInput),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createUpdate (common/update.ts)
     resolve(_, args, req) {
       return createUpdate(_, args, req);
     },
@@ -27,6 +28,7 @@ const updateMutations = {
         type: new GraphQLNonNull(GraphQLUpdateUpdateInput),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside editUpdate (common/update.ts)
     resolve(_, args, req) {
       return editUpdate(_, args, req);
     },
@@ -42,6 +44,7 @@ const updateMutations = {
         type: GraphQLUpdateAudienceType,
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside publishUpdate (common/update.ts)
     resolve(_, args, req) {
       return publishUpdate(_, args, req);
     },
@@ -54,6 +57,7 @@ const updateMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside unpublishUpdate (common/update.ts)
     resolve(_, args, req) {
       return unpublishUpdate(_, args, req);
     },
@@ -66,6 +70,7 @@ const updateMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside deleteUpdate (common/update.ts)
     resolve(_, args, req) {
       return deleteUpdate(_, args, req);
     },

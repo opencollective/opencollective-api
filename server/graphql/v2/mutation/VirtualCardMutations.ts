@@ -451,6 +451,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardRequest> {
+      checkRemoteUserCanUseVirtualCards(req);
       const virtualCardRequest = await fetchVirtualCardRequestWithReference(args.virtualCardRequest, {
         include: ['host', 'collective', 'user'],
       });

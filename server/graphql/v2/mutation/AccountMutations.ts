@@ -128,6 +128,7 @@ const accountMutations = {
         description: 'The value to set for this key',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- The scope is checked inside the transaction block
     async resolve(_: void, args, req: express.Request): Promise<Collective> {
       if (!req.remoteUser) {
         throw new Unauthorized();
@@ -899,6 +900,7 @@ const accountMutations = {
       },
       subject: { type: GraphQLString },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside sendMessage (common/collective.js)
     async resolve(_, args, req) {
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 

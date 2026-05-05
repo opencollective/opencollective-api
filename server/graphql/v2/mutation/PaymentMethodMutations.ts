@@ -297,9 +297,7 @@ const paymentMethodMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseOrders(req);
 
       const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
       if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {

@@ -262,6 +262,7 @@ const createCollectiveMutation = {
       defaultValue: false,
     },
   },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createCollective
   resolve: (_, args, req) => {
     return createCollective(_, args, req);
   },

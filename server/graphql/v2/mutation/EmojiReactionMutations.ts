@@ -48,6 +48,7 @@ const emojiReactionMutations = {
         description: 'A unique identifier for the update id associated with this reaction',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside addReactionToCommentOrUpdate
     resolve: async (entity, args, req) => {
       if (!req.remoteUser) {
         throw new Unauthorized();
