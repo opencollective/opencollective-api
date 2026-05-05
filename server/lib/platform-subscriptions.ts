@@ -1,7 +1,9 @@
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
-import { Collective, ConnectedAccount, Expense, PaymentMethod, PayoutMethod } from '../models';
-import { ExpenseStatus, ExpenseType } from '../models/Expense';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
+import Collective from '../models/Collective';
+import ConnectedAccount from '../models/ConnectedAccount';
+import Expense, { ExpenseStatus, ExpenseType } from '../models/Expense';
+import PaymentMethod from '../models/PaymentMethod';
+import PayoutMethod, { PayoutMethodTypes } from '../models/PayoutMethod';
 import { chargePlatformBillingExpenseWithStripe } from '../paymentProviders/stripe/platform-billing';
 
 export async function getPreferredPlatformPayout(
