@@ -1488,6 +1488,56 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('clears stored Stripe paymentIntent when payment-relevant fields change', () => {
+      it('drops data.paymentIntent when items (and therefore amount) change', async () => {
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+        });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: { url: randUrl(), amount: 5000, description: randStr() },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.be.undefined;
+      });
+
+      it('drops data.paymentIntent when payout method changes', async () => {
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          legacyPayoutMethod: 'other',
+          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+        });
+        const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense.User.CollectiveId });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.be.undefined;
+      });
+
+      it('keeps data.paymentIntent when only the description changes', async () => {
+        const paymentIntent = { id: 'pi_old', amount: 1000, currency: 'usd' };
+        const expense = await fakeExpense({ status: 'APPROVED', data: { paymentIntent } });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('APPROVED');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.deep.equal(paymentIntent);
+      });
+    });
+
     describe('INCOMPLETE side effects', () => {
       it('goes back to APPROVED if only Payout changes', async () => {
         const expense2 = await fakeExpense({ status: 'INCOMPLETE', legacyPayoutMethod: 'other' });
