@@ -8,14 +8,12 @@ export async function getPreferredPlatformPayout(
   organization: Collective,
   platformPayoutMethods: Record<PayoutMethodTypes, PayoutMethod[]>,
   bankAccountPayoutMethod: PayoutMethod,
-): Promise<PayoutMethod> {
+): Promise<PayoutMethod | null> {
   const lastUsedPayoutMethod = await getLastUsedPayoutMethod(organization);
 
   const host = await organization.getHostCollective();
 
-  const hostConnectedAccounts = await host.getConnectedAccounts({
-    where: { deletedAt: null },
-  });
+  const hostConnectedAccounts = (await host?.getConnectedAccounts()) ?? [];
 
   const payoutMethod = [
     lastUsedPayoutMethod?.type,
@@ -99,13 +97,13 @@ async function getLastUsedPayoutMethod(organization: Collective): Promise<Payout
 }
 
 function isValidHostPayoutMethodType(
-  host: Collective,
+  host: Collective | null,
   hostConnectedAccounts: ConnectedAccount[],
   payoutMethodType: PayoutMethodTypes,
 ): boolean {
   switch (payoutMethodType) {
     case PayoutMethodTypes.PAYPAL: {
-      if (hostConnectedAccounts?.find(c => c.service === 'paypal') && !host.settings?.['disablePaypalPayouts']) {
+      if (hostConnectedAccounts?.find(c => c.service === 'paypal') && !host?.settings?.['disablePaypalPayouts']) {
         return true;
       }
       break;
