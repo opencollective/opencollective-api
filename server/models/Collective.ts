@@ -337,6 +337,7 @@ class Collective extends ModelWithPublicId<
   declare public timezone: string;
   declare public isActive: boolean;
   declare public isIncognito: boolean;
+  declare public isPrivate: boolean;
   declare public approvedAt: Date;
   declare public twitterHandle: string;
   declare public githubHandle: string;
@@ -4141,6 +4142,12 @@ Collective.init(
       defaultValue: false,
     },
 
+    isPrivate: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
+
     approvedAt: {
       type: DataTypes.DATE,
     },
@@ -4311,6 +4318,20 @@ Collective.init(
         const user = instance.CreatedByUserId && (await User.findByPk(instance.CreatedByUserId));
         if (user && !canUseFeature(user, FEATURE.CREATE_COLLECTIVE)) {
           throw new Error("You're not authorized to create new collectives at the moment.");
+        }
+
+        // Inherit isPrivate from parent host: if the host is private, all hosted accounts must be private too
+        if (!instance.isPrivate && instance.HostCollectiveId) {
+          const host = await Collective.findByPk(instance.HostCollectiveId, { attributes: ['isPrivate'] });
+          if (host?.isPrivate) {
+            instance.isPrivate = true;
+          }
+        }
+        if (!instance.isPrivate && instance.ParentCollectiveId) {
+          const parent = await Collective.findByPk(instance.ParentCollectiveId, { attributes: ['isPrivate'] });
+          if (parent?.isPrivate) {
+            instance.isPrivate = true;
+          }
         }
 
         // Check if collective is spam

@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import ExportRequest from '../../../models/ExportRequest';
 import { checkRemoteUserCanUseExportRequests } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
@@ -37,6 +38,7 @@ const ExportRequestQuery = {
 
     // Fetch the account to check permissions
     const account = await req.loaders.Collective.byId.load(exportRequest.CollectiveId);
+    await assertCanSeeAccount(req, account);
     if (!req.remoteUser.isAdminOfCollective(account)) {
       throw new Forbidden('You do not have permission to view this export request');
     }

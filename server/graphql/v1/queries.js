@@ -8,6 +8,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/pay
 import { fetchCollectiveId } from '../../lib/cache';
 import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
+import { assertCanSeeAccount } from '../../lib/private-accounts';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
 import models, { Op, sequelize } from '../../models';
@@ -36,17 +37,20 @@ const queries = {
         description: 'If false, will return null instead of an error if collective is not found',
       },
     },
-    resolve(_, args, req) {
+    async resolve(_, args, req) {
       let collective;
       if (args.slug) {
-        collective = models.Collective.findBySlug(args.slug.toLowerCase(), null, args.throwIfMissing);
+        collective = await models.Collective.findBySlug(args.slug.toLowerCase(), null, args.throwIfMissing);
       } else if (args.id) {
-        collective = req.loaders.Collective.byId.load(args.id);
+        collective = await req.loaders.Collective.byId.load(args.id);
       } else {
         return new Error('Please provide a slug or an id');
       }
       if (!collective && args.throwIfMissing) {
         throw new NotFound('Collective not found');
+      }
+      if (collective) {
+        await assertCanSeeAccount(req, collective);
       }
       return collective;
     },
@@ -87,6 +91,7 @@ const queries = {
       if (!fromCollective) {
         throw new NotFound('User or organization not found');
       }
+      await assertCanSeeAccount(req, fromCollective);
       if (
         !req.remoteUser ||
         (!req.remoteUser.isAdminOfCollective(fromCollective) &&
@@ -133,7 +138,7 @@ const queries = {
       } /** flag to determine
         whether we should include the transactions of the collectives of that host(if it's a host collective) */,
     },
-    async resolve(_, args) {
+    async resolve(_, args, req) {
       // Load collective
       const { CollectiveId, collectiveSlug } = args;
       if (!CollectiveId && !collectiveSlug) {
@@ -144,6 +149,8 @@ const queries = {
       if (!collective) {
         throw new Error('This collective does not exist');
       }
+
+      await assertCanSeeAccount(req, collective);
 
       return collective.getTransactions({
         order: [['createdAt', 'DESC'], ['kind'], ['type']],

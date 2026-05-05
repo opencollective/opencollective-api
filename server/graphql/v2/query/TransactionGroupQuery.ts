@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { roundCentsAmount } from '../../../lib/currency';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import { sequelize, Transaction } from '../../../models';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLTransactionGroup } from '../object/TransactionGroup';
@@ -28,6 +29,7 @@ const TransactionGroupQuery = {
       throw new Error('You need to provide the groupId');
     }
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+    await assertCanSeeAccount(req, account);
     const CollectiveId = account.id;
 
     const transactions = await Transaction.findAll({

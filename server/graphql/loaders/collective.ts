@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import express from 'express';
 import { first, groupBy, uniq, uniqBy } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
@@ -186,6 +187,93 @@ export default {
           req.remoteUser.isAdmin(collectiveId) ||
           administratedMemberCollectiveIds.has(collectiveId)
         );
+      });
+    });
+  },
+  /**
+   * Returns true if the remote user is allowed to see a private account.
+   * An account is considered visible if:
+   * - it is not private (isPrivate = false)
+   * - the remote user is a root admin of the platform
+   * - the remote user has ADMIN or ACCOUNTANT role on the account itself
+   * - the remote user has ADMIN or ACCOUNTANT role on the account's fiscal host
+   * - the account is a fiscal host and the remote user has ADMIN or ACCOUNTANT role on any of its hosted accounts
+   */
+  canSeePrivateAccount: (req: express.Request): DataLoader<number, boolean> => {
+    return new DataLoader(async (collectiveIds: number[]) => {
+      const remoteUser = req.remoteUser;
+
+      // Load the accounts to check if they are private
+      const accounts = await req.loaders.Collective.byId.loadMany(collectiveIds);
+      const accountMap = new Map(accounts.filter(a => a instanceof Collective).map(a => [a.id, a]));
+      const privateAccountIds = collectiveIds.filter(id => accountMap.get(id)?.isPrivate);
+
+      if (privateAccountIds.length === 0) {
+        // For non-private accounts, always return true
+        return collectiveIds.map(() => true);
+      } else if (!remoteUser) {
+        // Unauthenticated users can never see non-private accounts
+        return collectiveIds.map(id => !accountMap.get(id)?.isPrivate);
+      }
+
+      if (remoteUser.isRoot()) {
+        return collectiveIds.map(() => true);
+      }
+
+      // Build a set of collective IDs where remoteUser has ADMIN or ACCOUNTANT role
+      const privilegedCollectiveIds = remoteUser.getCollectiveIdsForRoles(
+        new Set([MemberRoles.ADMIN, MemberRoles.ACCOUNTANT]),
+      );
+
+      // No admin/accountant roles => can only see non-private accounts
+      if (privilegedCollectiveIds.size === 0) {
+        return collectiveIds.map(id => !accountMap.get(id)?.isPrivate);
+      }
+
+      // For each private account, check if the user has ADMIN or ACCOUNTANT on the account itself,
+      // its fiscal host, or its parent collective (for events/projects)
+      const canSeeByDirectOrHostRole = new Set<number>(
+        privateAccountIds.filter(id => {
+          const account = accountMap.get(id);
+          return (
+            privilegedCollectiveIds.has(id) ||
+            (account?.HostCollectiveId && privilegedCollectiveIds.has(account.HostCollectiveId)) ||
+            (account?.ParentCollectiveId && privilegedCollectiveIds.has(account.ParentCollectiveId))
+          );
+        }),
+      );
+
+      // User can still see the parent organization if it has a privileged role on one of its hosted collectives.
+      // This does not gives user the right to see other accounts hosted by the same parent organization.
+      const isHostOrg = account => account && account.type === CollectiveType.ORGANIZATION && account.hasHosting;
+      const remainingPrivateHostIds = privateAccountIds.filter(
+        id => !canSeeByDirectOrHostRole.has(id) && isHostOrg(accountMap.get(id)),
+      );
+
+      const canSeeAsHostedCollectiveAdmin = new Set<number>();
+      if (remainingPrivateHostIds.length > 0 && privilegedCollectiveIds.size > 0) {
+        const hostedCollectives = await models.Collective.findAll({
+          attributes: ['HostCollectiveId'],
+          where: {
+            HostCollectiveId: remainingPrivateHostIds,
+            approvedAt: { [Op.ne]: null },
+            id: { [Op.in]: [...privilegedCollectiveIds] },
+          },
+          raw: true,
+          group: ['HostCollectiveId'],
+        });
+
+        for (const row of hostedCollectives) {
+          canSeeAsHostedCollectiveAdmin.add(row.HostCollectiveId);
+        }
+      }
+
+      return collectiveIds.map(id => {
+        if (!accountMap.get(id)?.isPrivate) {
+          return true;
+        } else {
+          return canSeeByDirectOrHostRole.has(id) || canSeeAsHostedCollectiveAdmin.has(id);
+        }
       });
     });
   },

@@ -13,6 +13,7 @@ import { RefundKind } from '../../../../constants/refund-kind';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
@@ -279,6 +280,9 @@ export const TransactionsCollectionResolver = async (
     ),
   );
 
+  // Block access when explicitly filtering by a private account the viewer cannot see
+  await assertCanSeeAllAccounts(req, [fromAccount, host].filter(Boolean));
+
   const accountIdsWithGiftCardTransactions = args.includeGiftCardTransactions
     ? await getCollectiveIdsWithGiftCardTransactions()
     : [];
@@ -321,7 +325,7 @@ export const TransactionsCollectionResolver = async (
 
   if (args.account) {
     const accountCondition = [];
-    const attributes = ['id', 'HostCollectiveId']; // We only need IDs
+    const attributes = ['id', 'HostCollectiveId', 'isPrivate']; // Include isPrivate for privacy checks
     const fetchAccountsParams = { throwIfMissing: true, attributes };
     if (args.includeChildrenTransactions) {
       fetchAccountsParams['include'] = [
@@ -331,6 +335,9 @@ export const TransactionsCollectionResolver = async (
 
     // Fetch accounts (and optionally their children)
     const accounts = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+
+    // Block access when explicitly filtering by a private account the viewer cannot see
+    await assertCanSeeAllAccounts(req, accounts);
     const accountsIds = uniq(
       flatten(
         accounts.map(account => {

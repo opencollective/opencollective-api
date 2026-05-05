@@ -539,6 +539,61 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
     });
 
+    it('private organization cannot submit cross-host expenses', async () => {
+      const user = await fakeUser();
+      const hostA = await fakeActiveHost({ currency: 'USD' });
+      const hostB = await fakeActiveHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: hostA.id, currency: 'USD' });
+      const payeeOrg = await fakeCollective({
+        type: 'ORGANIZATION',
+        isPrivate: true,
+        HostCollectiveId: hostB.id,
+        currency: 'USD',
+        admin: user.collective,
+      });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payeeOrg.id } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq(
+        'Private organizations cannot submit expenses to accounts hosted by a different fiscal host.',
+      );
+    });
+
+    it('private organization can submit expenses to collectives under the same fiscal host', async () => {
+      const user = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      const host = await fakeActiveHost({ currency: 'USD' });
+      const collective = await fakeCollective({
+        HostCollectiveId: host.id,
+        currency: 'USD',
+        admin: collectiveAdmin.collective,
+      });
+      const payeeOrg = await fakeCollective({
+        type: 'ORGANIZATION',
+        isPrivate: true,
+        HostCollectiveId: host.id,
+        currency: 'USD',
+        admin: user.collective,
+      });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payeeOrg.id } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpense.payee.legacyId).to.eq(payeeOrg.id);
+    });
+
     it('does not automatically approves if host admin submits as VENDOR to a collective', async () => {
       const hostAdmin = await fakeUser();
       const collective = await fakeCollective();

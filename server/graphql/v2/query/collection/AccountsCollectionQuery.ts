@@ -1,12 +1,15 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { searchCollectivesInDB } from '../../../../lib/sql-search';
+import type { Collective } from '../../../../models';
 import { GraphQLAccountCollection } from '../../collection/AccountCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
 import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
 import {
   fetchAccountsIdsWithReference,
+  fetchAccountsWithReferences,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
@@ -123,6 +126,23 @@ const AccountsCollectionQuery = {
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
     const cleanTerm = args.searchTerm?.trim();
+
+    const accountsToGate: Collective[] = [];
+    if (args.host) {
+      accountsToGate.push(...(await fetchAccountsWithReferences(args.host, { throwIfMissing: true })));
+    }
+    if (args.parent) {
+      accountsToGate.push(...(await fetchAccountsWithReferences(args.parent, { throwIfMissing: true })));
+    }
+    if (args.includeVendorsForHost) {
+      accountsToGate.push(
+        await fetchAccountWithReference(args.includeVendorsForHost, { throwIfMissing: true, loaders: req.loaders }),
+      );
+    }
+
+    if (accountsToGate.length > 0) {
+      await assertCanSeeAllAccounts(req, accountsToGate);
+    }
 
     const hostCollectiveIds = args.host && (await fetchAccountsIdsWithReference(args.host));
     const parentCollectiveIds = args.parent && (await fetchAccountsIdsWithReference(args.parent));

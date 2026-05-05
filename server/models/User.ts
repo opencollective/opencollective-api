@@ -272,6 +272,24 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
   };
 
+  getCollectiveIdsForRoles(roles: Set<MemberRoles>): Set<number> {
+    const collectiveIds = new Set<number>();
+
+    if (!this.rolesByCollectiveId) {
+      logger.info("User.rolesByCollectiveId hasn't been populated.");
+      logger.debug(new Error().stack);
+      return collectiveIds;
+    }
+
+    Object.keys(this.rolesByCollectiveId).forEach(CollectiveId => {
+      if (this.rolesByCollectiveId[CollectiveId].some(r => roles.has(r))) {
+        collectiveIds.add(Number(CollectiveId));
+      }
+    });
+
+    return collectiveIds;
+  }
+
   // Adding some sugars
   isAdmin = function (CollectiveId: number | string) {
     const result =

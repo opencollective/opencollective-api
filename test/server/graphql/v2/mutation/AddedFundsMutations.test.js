@@ -19,6 +19,7 @@ import {
   fakeOrder,
   fakeOrganization,
   fakePaymentMethod,
+  fakePrivateHost,
   fakeProject,
   fakeTier,
   fakeUser,
@@ -272,6 +273,31 @@ describe('server/graphql/v2/mutation/AddedFundsMutations', () => {
           ...validMutationVariables,
           account: { legacyId: collective.id },
           fromAccount: { legacyId: randomUser.CollectiveId },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You don't have the permission to add funds from accounts you don't own or host. Please contact support@opencollective.com if you want to enable this.",
+      );
+    });
+
+    it('private host cannot add funds from an external organization even with allowAddFundsFromAllAccounts', async () => {
+      const hostAdmin = await fakeUser();
+      const externalOrg = await fakeOrganization();
+      const privateHost = await fakePrivateHost({
+        currency: 'USD',
+        admin: hostAdmin,
+        data: { allowAddFundsFromAllAccounts: true },
+      });
+      const collective = await fakeCollective({ HostCollectiveId: privateHost.id, currency: 'USD' });
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          ...validMutationVariables,
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: externalOrg.id },
         },
         hostAdmin,
       );

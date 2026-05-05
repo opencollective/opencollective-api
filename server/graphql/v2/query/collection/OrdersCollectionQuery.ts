@@ -16,6 +16,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constan
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
@@ -367,6 +368,11 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     hostedAccounts: Collective[],
     hostContext: OrdersCollectionArgsType['hostContext'];
 
+  // Block access when explicitly filtering by a private account the viewer cannot see
+  if (host) {
+    await assertCanSeeAccount(req, host);
+  }
+
   // Use deprecated includeHostedAccounts argument
   if (args.includeHostedAccounts === true && isNil(args.hostContext)) {
     hostContext = 'ALL';
@@ -376,6 +382,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
 
   if (args.account) {
     account = await fetchAccountWithReference(args.account, fetchAccountParams);
+    await assertCanSeeAccount(req, account);
   }
 
   // Load opposite account
