@@ -149,10 +149,8 @@ export const GraphQLPolicies = new GraphQLObjectType({
     [POLICIES.USE_VENDOR_POLICY]: {
       type: GraphQLUseVendorPolicy,
       description: 'Default rule for who can attribute financial activities to vendors under this host.',
-      async resolve(account, _, req) {
-        if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
-          return await getPolicy(account, POLICIES.USE_VENDOR_POLICY);
-        }
+      async resolve(account) {
+        return getPolicy(account, POLICIES.USE_VENDOR_POLICY);
       },
     },
     [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: {

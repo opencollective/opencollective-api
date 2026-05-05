@@ -14,6 +14,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense-type';
 import OrderStatuses from '../../../constants/order-status';
 import POLICIES, { UseVendorPolicyValue } from '../../../constants/policies';
+import MemberRoles from '../../../constants/roles';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
@@ -47,7 +48,6 @@ import { GraphQLTransactionsImportStatus } from '../enum/TransactionsImportStatu
 import { GraphQLTransactionsImportType } from '../enum/TransactionsImportType';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
-  fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
   GraphQLAccountReferenceInput,
@@ -251,15 +251,17 @@ export const getOrganizationFields = () => ({
       },
     },
     async resolve(host: Collective, args, req: express.Request) {
-      // Check if user is admin of the Host
-      const useVendorPolicy = await getPolicy(host, POLICIES.USE_VENDOR_POLICY);
       const isAdmin = req.remoteUser?.isAdminOfCollective(host);
-      if (useVendorPolicy !== UseVendorPolicyValue.ALL_SUBMITTERS && !isAdmin) {
-        return { nodes: [], totalCount: 0, limit: args.limit, offset: args.offset };
-      }
+      const visibleToAccounts =
+        args.visibleToAccounts?.length > 0
+          ? await fetchAccountsWithReferences(args.visibleToAccounts, { throwIfMissing: true })
+          : [];
+
+      const hostPolicy = await getPolicy(host, POLICIES.USE_VENDOR_POLICY);
 
       const db = getKysely();
-      let query = db
+
+      const queryCreator = db
         .with('Vendors', db =>
           db
             .selectFrom('Collectives')
@@ -281,9 +283,96 @@ export const getOrganizationFields = () => ({
               ),
             ]),
         )
-        .selectFrom('Vendors');
+        .with('UserAdminCollectives', db =>
+          db
+            .selectFrom('Members as m')
+            .innerJoin('Collectives as ac', 'ac.id', 'm.CollectiveId')
+            .$if(!!req.remoteUser, qb => qb.where('m.MemberCollectiveId', '=', req.remoteUser.CollectiveId))
+            .$if(!req.remoteUser, qb => qb.where(sql<boolean>`false`))
+            .where('m.role', '=', MemberRoles.ADMIN)
+            .where('m.deletedAt', 'is', null)
+            .where('ac.deletedAt', 'is', null)
+            .where(({ or, eb }) => or([eb('ac.HostCollectiveId', '=', host.id), eb('ac.id', '=', host.id)]))
+            .select('m.CollectiveId as id')
+            .union(
+              db
+                .selectFrom('Collectives as c')
+                .innerJoin('Members as m', 'm.CollectiveId', 'c.ParentCollectiveId')
+                .innerJoin('Collectives as parent', 'parent.id', 'c.ParentCollectiveId')
+                .where('c.ParentCollectiveId', 'is not', null)
+                .where('c.deletedAt', 'is', null)
+                .$if(!!req.remoteUser, qb => qb.where('m.MemberCollectiveId', '=', req.remoteUser.CollectiveId))
+                .$if(!req.remoteUser, qb => qb.where(sql<boolean>`false`))
+                .where('m.role', '=', MemberRoles.ADMIN)
+                .where('m.deletedAt', 'is', null)
+                .where('parent.deletedAt', 'is', null)
+                .where(({ or, eb }) => or([eb('parent.HostCollectiveId', '=', host.id), eb('parent.id', '=', host.id)]))
+                .select('c.id'),
+            ),
+        );
 
-      query = query.where('ParentCollectiveId', '=', host.id).where('type', '=', CollectiveType.VENDOR);
+      let query = queryCreator
+        .selectFrom('Vendors')
+        .where('ParentCollectiveId', '=', host.id)
+        .where('type', '=', CollectiveType.VENDOR)
+        .$if(!isAdmin && !req.remoteUser, qb =>
+          qb.where(
+            () => sql`COALESCE(data#>>'{useVendorPolicy}', ${hostPolicy}) = ${UseVendorPolicyValue.ALL_SUBMITTERS}`,
+          ),
+        )
+        .$if(!isAdmin && !!req.remoteUser, qb =>
+          qb.where(
+            () => sql`(
+              CASE COALESCE(data#>>'{useVendorPolicy}', ${hostPolicy})
+                WHEN ${UseVendorPolicyValue.ALL_SUBMITTERS} THEN TRUE
+                WHEN ${UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS} THEN
+                  CASE
+                    WHEN data#>'{canBeUsedWithAccountIds}' IS NULL
+                      OR data#>'{canBeUsedWithAccountIds}' = '[]'::jsonb
+                      OR data#>'{canBeUsedWithAccountIds}' = 'null'::jsonb
+                    THEN EXISTS (SELECT 1 FROM "UserAdminCollectives")
+                    ELSE EXISTS (
+                      SELECT 1
+                        FROM jsonb_array_elements(data#>'{canBeUsedWithAccountIds}') AS v
+                       WHERE v::text::int IN (SELECT id FROM "UserAdminCollectives")
+                          OR v::text::int IN (
+                            SELECT pc."ParentCollectiveId"
+                              FROM "Collectives" pc
+                              WHERE pc.id IN (SELECT id FROM "UserAdminCollectives")
+                                AND pc."ParentCollectiveId" IS NOT NULL
+                          )
+                    )
+                  END
+                ELSE FALSE
+              END
+            )`,
+          ),
+        );
+
+      // where can be used
+      if (visibleToAccounts.length > 0) {
+        const accountIds = await expandAccountIdsWithParents(visibleToAccounts.map(acc => acc.id));
+
+        query = query.where(({ or }) => {
+          const ors = [];
+          ors.push(sql`data#>'{canBeUsedWithAccountIds}' IS NULL`);
+          ors.push(sql`data#>'{canBeUsedWithAccountIds}' = '[]'::jsonb`);
+          ors.push(sql`data#>'{canBeUsedWithAccountIds}' = 'null'::jsonb`);
+          ors.push(sql`
+            (
+                jsonb_typeof(data#>'{canBeUsedWithAccountIds}')='array'
+                AND
+                EXISTS (
+                  SELECT v FROM (
+                    SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{canBeUsedWithAccountIds}') as v)
+                  ) WHERE v = ANY(ARRAY[${sql.join(accountIds)}]::int[])
+                )
+              )
+          `);
+
+          return or(ors);
+        });
+      }
 
       // Total Expended Filtering
       query = query
@@ -362,31 +451,6 @@ export const getOrganizationFields = () => ({
           );
           order.push([eb => eb.ref('expenseCount'), 'desc']);
         }
-      }
-
-      // It is fine to fork execution using conditionals because we're just changing WHERE conditionals
-      if (args.visibleToAccounts?.length > 0) {
-        const visibleToAccountIds = await fetchAccountsIdsWithReference(args.visibleToAccounts, {
-          throwIfMissing: true,
-        });
-        const accountIds = await expandAccountIdsWithParents(visibleToAccountIds);
-
-        query = query.where(
-          () => sql`
-              data#>'{canBeUsedWithAccountIds}' IS NULL
-              OR data#>'{canBeUsedWithAccountIds}' = '[]'::jsonb
-              OR data#>'{canBeUsedWithAccountIds}' = 'null'::jsonb
-              OR (
-                jsonb_typeof(data#>'{canBeUsedWithAccountIds}')='array'
-                AND
-                EXISTS (
-                  SELECT v FROM (
-                    SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{canBeUsedWithAccountIds}') as v)
-                  ) WHERE v = ANY(ARRAY[${sql.join(accountIds)}]::int[])
-                )
-              )
-          `,
-        );
       }
 
       // Forking NodeQuery and CountQuery because they're only subjected to the same WHERE conditions
