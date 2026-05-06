@@ -10,14 +10,14 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
+import { isEmpty, isNil, sum, uniq } from 'lodash';
 import { OrderItem, QueryTypes, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
-import { expenseStatus } from '../../../../constants';
+import { expenseStatus, roles } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
-import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
+import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
@@ -194,6 +194,55 @@ const getHostContextConditions = (
   return undefined;
 };
 
+const buildExpenseCanCommentRoleSqlLiteral = (req: express.Request): ReturnType<typeof sequelize.literal> | null => {
+  if (!req.remoteUser) {
+    return sequelize.literal('FALSE'); // This will return an empty result set for all expenses
+  } else if (req.remoteUser.isRoot()) {
+    return null; // No restrictions for root users
+  }
+
+  const userCollectiveId = req.remoteUser.CollectiveId;
+  const privilegedCollectiveIds = req.remoteUser.getCollectiveIdsForRoles([roles.ADMIN, roles.HOST, roles.ACCOUNTANT]);
+  privilegedCollectiveIds.add(userCollectiveId);
+
+  const replacements: Record<string, number | number[]> = {
+    userId: req.remoteUser.id,
+    privilegedCollectiveIds: Array.from(privilegedCollectiveIds),
+  };
+
+  const buildIsAdminOfCollectiveSql = (alias: string): string => {
+    const idExpr = `"${alias}"."id"`;
+    const parentExpr = `"${alias}"."ParentCollectiveId"`;
+    return `(
+      ${idExpr} IN (:privilegedCollectiveIds)
+      OR (${parentExpr} IS NOT NULL AND ${parentExpr} IN (:privilegedCollectiveIds))
+    )`;
+  };
+
+  const buildHostAdminRoleSql = (): string => {
+    return `(
+      CASE
+        WHEN "Expense"."HostCollectiveId" IS NOT NULL THEN "Expense"."HostCollectiveId" IN (:privilegedCollectiveIds)
+        WHEN "collective"."HostCollectiveId" IS NOT NULL THEN "collective"."HostCollectiveId" IN (:privilegedCollectiveIds)
+        ELSE FALSE
+      END
+    )`;
+  };
+
+  const sql = `(
+    ${buildIsAdminOfCollectiveSql('collective')}
+    OR ${buildHostAdminRoleSql()}
+    OR (
+      ("Expense"."UserId" = :userId AND "fromCollective"."type" != 'VENDOR')
+      OR ${buildIsAdminOfCollectiveSql('fromCollective')}
+    )
+  )`;
+
+  return sequelize.literal(
+    SequelizeUtils.formatNamedParameters(sql, replacements as { [key: string]: string | number | boolean }, 'postgres'),
+  );
+};
+
 export const ExpensesCollectionQueryArgs = {
   ...CollectionArgs,
   fromAccount: {
@@ -321,7 +370,8 @@ export const ExpensesCollectionQueryArgs = {
   },
   lastCommentBy: {
     type: new GraphQLList(GraphQLLastCommentBy),
-    description: 'Filter expenses by the last user-role who replied to them',
+    description:
+      'Filter expenses by the last user-role who replied to them. Requires some admin permissions on expenses.',
   },
   accountingCategory: {
     type: new GraphQLList(GraphQLString),
@@ -437,7 +487,17 @@ export const ExpensesCollectionQueryResolver = async (
 ): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
-  let hasCollectiveInclude = false;
+
+  const ensureInclude = (association: string, options: { required?: boolean } = {}) => {
+    const existing = include.find(item => item.association === association);
+    if (existing) {
+      if (options.required) {
+        existing.required = true;
+      }
+    } else {
+      include.push({ association, attributes: [], ...options });
+    }
+  };
 
   // Check arguments
   if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
@@ -489,8 +549,7 @@ export const ExpensesCollectionQueryResolver = async (
 
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
-    include.push({ association: 'collective', attributes: [], required: true });
-    hasCollectiveInclude = true; // Tracking this as a separate flag to make sure we update dependant paths if changing the include structure.
+    ensureInclude('collective', { required: true });
 
     // Base condition: the expense belongs to an account hosted by this host
     where[Op.and].push({
@@ -515,7 +574,7 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (fromHost) {
-    include.push({ association: 'fromCollective', attributes: [], required: true });
+    ensureInclude('fromCollective', { required: true });
     where[Op.and].push({
       '$fromCollective.HostCollectiveId$': fromHost.id,
       '$fromCollective.approvedAt$': { [Op.not]: null },
@@ -532,9 +591,7 @@ export const ExpensesCollectionQueryResolver = async (
   // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
   // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
   if (!req.remoteUser?.isRoot() && accounts.length === 0 && !host) {
-    if (!hasCollectiveInclude) {
-      include.push({ association: 'collective', attributes: [], required: true });
-    }
+    ensureInclude('collective', { required: true });
 
     const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
 
@@ -634,11 +691,9 @@ export const ExpensesCollectionQueryResolver = async (
 
   if (searchTermConditions.length) {
     where[Op.or] = searchTermConditions;
-    include.push(
-      { association: 'fromCollective', attributes: [] },
-      { association: 'collective', attributes: [] },
-      { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
-    );
+    ensureInclude('fromCollective');
+    ensureInclude('collective');
+    include.push({ association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] });
   }
 
   if (!isEmpty(args.virtualCards)) {
@@ -796,49 +851,36 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.lastCommentBy?.length) {
-    assert(
-      host && req.remoteUser.hasRole([MemberRoles.HOST, MemberRoles.ADMIN, MemberRoles.ACCOUNTANT], host.id),
-      'You need to be an admin of the host to filter by lastCommentBy',
-    );
+    // Unauthenticated users cannot filter by lastCommentBy
+    if (!req.remoteUser) {
+      return { nodes: [], offset: 0, limit: 0, totalCount: 0 };
+    }
+
+    // We don't want users to be able to filter by lastCommentBy if they don't have the `canComment` permission on the expenses
+    ensureInclude('fromCollective', { required: true });
+    ensureInclude('collective', { required: true });
+
+    const canCommentRoleSql = buildExpenseCanCommentRoleSqlLiteral(req);
+    if (canCommentRoleSql) {
+      where[Op.and].push(canCommentRoleSql);
+    }
+
+    // Subquery to retrieve the stored role of the last commenter on this expense
+    const lastCommentRoleSubquery = `(SELECT "mainCommenterRole" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "createdAt" DESC, "id" DESC LIMIT 1)`;
     const conditions = [];
-    const CollectiveIds = compact([
-      args.lastCommentBy.includes('COLLECTIVE_ADMIN') && '"Expense"."CollectiveId"',
-      args.lastCommentBy.includes('HOST_ADMIN') && `"collective"."HostCollectiveId"`,
-    ]);
+    const roleConditions = {
+      HOST_ADMIN: "= 'HOST_ADMIN'",
+      COLLECTIVE_ADMIN: "= 'COLLECTIVE_ADMIN'",
+      USER: "= 'SUBMITTER'",
+      NON_HOST_ADMIN: "!= 'HOST_ADMIN'",
+      NON_FROM_ACCOUNT_ADMIN: "!= 'FROM_COLLECTIVE_ADMIN'",
+    } as const;
 
-    // Collective Conditions
-    if (CollectiveIds.length) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
-            IN (
-              SELECT "MemberCollectiveId" FROM "Members" WHERE
-              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
-              "CollectiveId" IN (${CollectiveIds.join(',')})
-          )`,
-        ),
-      );
-    }
-    // User Condition
-    if (args.lastCommentBy.includes('USER')) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "CreatedByUserId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1) = "Expense"."UserId"`,
-        ),
-      );
-    }
-
-    if (args.lastCommentBy.includes('NON_HOST_ADMIN')) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
-            NOT IN (
-              SELECT "MemberCollectiveId" FROM "Members" WHERE
-              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
-              "CollectiveId" = "collective"."HostCollectiveId"
-          )`,
-        ),
-      );
+    for (const filter of args.lastCommentBy) {
+      const condition = roleConditions[filter];
+      if (condition) {
+        conditions.push(sequelize.literal(`${lastCommentRoleSubquery} ${condition}`));
+      }
     }
 
     where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);
