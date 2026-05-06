@@ -2,9 +2,10 @@ import { lowerCase, pick } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import ExpenseStatuses from '../../constants/expense-status';
+import MemberRoles from '../../constants/roles';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import models, { HostApplication, User } from '../../models';
-import Comment, { CommentType } from '../../models/Comment';
+import Comment, { CommentMainRole, CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense from '../../models/Expense';
 import Order from '../../models/Order';
@@ -68,6 +69,7 @@ const loadCommentedEntity = async (
     entity = (await loaders.Order.byId.load(commentValues.OrderId)) as Order;
     if (entity) {
       entity.collective = await loaders.Collective.byId.load(entity.CollectiveId);
+      entity.fromCollective = await loaders.Collective.byId.load(entity.FromCollectiveId);
       if (!entity.collective) {
         return [null, activityType, activityData];
       }
@@ -230,6 +232,73 @@ async function deleteComment(id: number, req): Promise<void> {
   return comment.destroy();
 }
 
+type CommentEntityContext = {
+  hostCollectiveId: number | null;
+  collectiveId: number;
+  fromCollectiveId?: number | null;
+  submitterUserId?: number | null;
+};
+
+function getEntityContext(commentedEntity: CommentableEntity): CommentEntityContext {
+  if (commentedEntity instanceof Expense) {
+    return {
+      hostCollectiveId: commentedEntity.HostCollectiveId ?? commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      fromCollectiveId: commentedEntity.FromCollectiveId,
+      submitterUserId: commentedEntity.UserId,
+    };
+  } else if (commentedEntity instanceof Order) {
+    return {
+      hostCollectiveId: commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      fromCollectiveId: commentedEntity.FromCollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  } else if (commentedEntity instanceof Conversation) {
+    return {
+      hostCollectiveId: commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  } else if (commentedEntity instanceof Update) {
+    return {
+      hostCollectiveId: commentedEntity.collective?.HostCollectiveId ?? null,
+      collectiveId: commentedEntity.CollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  } else if (commentedEntity instanceof HostApplication) {
+    return {
+      hostCollectiveId: commentedEntity.HostCollectiveId,
+      collectiveId: commentedEntity.CollectiveId,
+      submitterUserId: commentedEntity.CreatedByUserId,
+    };
+  }
+
+  return { hostCollectiveId: null, collectiveId: null };
+}
+
+function computeMainCommenterRole(remoteUser: User, commentedEntity: CommentableEntity): CommentMainRole {
+  const { hostCollectiveId, submitterUserId } = getEntityContext(commentedEntity);
+
+  if (hostCollectiveId && remoteUser.isAdmin(hostCollectiveId)) {
+    return CommentMainRole.HOST_ADMIN;
+  } else if (commentedEntity.collective && remoteUser.isAdminOfCollective(commentedEntity.collective)) {
+    return CommentMainRole.COLLECTIVE_ADMIN;
+  } else if (
+    (commentedEntity instanceof Expense || commentedEntity instanceof Order) &&
+    commentedEntity.fromCollective &&
+    remoteUser.isAdminOfCollective(commentedEntity.fromCollective)
+  ) {
+    return CommentMainRole.FROM_COLLECTIVE_ADMIN;
+  } else if (submitterUserId && remoteUser.id === submitterUserId) {
+    return CommentMainRole.SUBMITTER;
+  } else if (commentedEntity.collective && remoteUser.hasRole([MemberRoles.BACKER], commentedEntity.collective.id)) {
+    return CommentMainRole.BACKER;
+  } else {
+    return CommentMainRole.PUBLIC;
+  }
+}
+
 async function createComment(commentData, req): Promise<Comment> {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
@@ -268,8 +337,10 @@ async function createComment(commentData, req): Promise<Comment> {
     UpdateId,
     ConversationId,
     HostApplicationId,
+    OrderId,
     html, // HTML is sanitized at the model level, no need to do it here
     type,
+    mainCommenterRole: computeMainCommenterRole(remoteUser, commentedEntity),
   });
 
   // Create activity
