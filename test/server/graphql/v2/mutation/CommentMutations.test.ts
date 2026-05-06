@@ -10,15 +10,19 @@ import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers
 import emailLib from '../../../../../server/lib/email';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
-import { CommentType } from '../../../../../server/models/Comment';
+import { CommentMainRole, CommentType } from '../../../../../server/models/Comment';
+import { UPDATE_NOTIFICATION_AUDIENCE } from '../../../../../server/models/Update';
 import {
   fakeActiveHost,
   fakeCollective,
   fakeComment,
+  fakeConversation,
   fakeExpense,
   fakeHostApplication,
   fakeMember,
+  fakeOrder,
   fakeProject,
+  fakeUpdate,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
@@ -271,6 +275,468 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
           call => call.args[0] === collectiveAdmin.email && call.args[1].includes('New message about your application'),
         );
       expect(isCollectiveAdminEmailSent).to.be.true;
+    });
+  });
+
+  describe('mainCommenterRole on createComment (snapshot at creation)', () => {
+    const createCommentMutation = gql`
+      mutation CreateCommentForRoleTest($comment: CommentCreateInput!) {
+        createComment(comment: $comment) {
+          id
+        }
+      }
+    `;
+
+    const html = '<p>role test</p>';
+
+    const expectCommentRole = async (commentId: string, expected: CommentMainRole) => {
+      const row = await models.Comment.findByPk(idDecode(commentId, 'comment'));
+      expect(row).to.exist;
+      expect(row.mainCommenterRole).to.equal(expected);
+    };
+
+    describe('expense', () => {
+      it('sets HOST_ADMIN when a fiscal host admin comments', async () => {
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, expense: { legacyId: expense.id } } },
+          hostAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.HOST_ADMIN);
+      });
+
+      it('sets COLLECTIVE_ADMIN when an admin of the expense collective comments', async () => {
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, expense: { legacyId: expense.id } } },
+          admin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.COLLECTIVE_ADMIN);
+      });
+
+      it('prefers HOST_ADMIN over COLLECTIVE_ADMIN when the user is admin of both the host and the collective', async () => {
+        const dualHost = await fakeActiveHost();
+        const dualHostAdmin = await fakeUser();
+        await fakeMember({
+          CollectiveId: dualHost.id,
+          MemberCollectiveId: dualHostAdmin.CollectiveId,
+          role: roles.ADMIN,
+        });
+        const dualCollective = await fakeCollective({ HostCollectiveId: dualHost.id });
+        await fakeMember({
+          CollectiveId: dualCollective.id,
+          MemberCollectiveId: dualHostAdmin.CollectiveId,
+          role: roles.ADMIN,
+        });
+        const otherUser = await fakeUser();
+        const dualExpense = await fakeExpense({
+          CollectiveId: dualCollective.id,
+          FromCollectiveId: otherUser.CollectiveId,
+          UserId: otherUser.id,
+          HostCollectiveId: dualHost.id,
+          items: [],
+          status: ExpenseStatuses.PENDING,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, expense: { legacyId: dualExpense.id } } },
+          dualHostAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.HOST_ADMIN);
+      });
+
+      it('sets FROM_COLLECTIVE_ADMIN when an admin of the payee (FromCollectiveId) comments', async () => {
+        const payeeAdmin = await fakeUser();
+        const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+        const payeeExpense = await fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: payeeCollective.id,
+          UserId: expenseSubmitter.id,
+          description: 'Payee admin comment role',
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, expense: { legacyId: payeeExpense.id } } },
+          payeeAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.FROM_COLLECTIVE_ADMIN);
+      });
+
+      it('sets SUBMITTER when the expense submitter comments and is not admin of the payee collective', async () => {
+        const orgAdmin = await fakeUser();
+        const payeeOrg = await fakeCollective({ admin: orgAdmin });
+        const submitterOnly = await fakeUser();
+        const submitterExpense = await fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: payeeOrg.id,
+          UserId: submitterOnly.id,
+          description: 'Submitter-only role test',
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, expense: { legacyId: submitterExpense.id } } },
+          submitterOnly,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.SUBMITTER);
+      });
+
+      it('prefers FROM_COLLECTIVE_ADMIN over SUBMITTER when the submitter is also payee admin', async () => {
+        const payeeAdmin = await fakeUser();
+        const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+        const dualExpense = await fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: payeeCollective.id,
+          UserId: payeeAdmin.id,
+          description: 'Payee admin is submitter',
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, expense: { legacyId: dualExpense.id } } },
+          payeeAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.FROM_COLLECTIVE_ADMIN);
+      });
+
+      it('sets PUBLIC when a collective accountant comments (no higher-priority role)', async () => {
+        const accountant = await fakeUser();
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: accountant.CollectiveId,
+          role: roles.ACCOUNTANT,
+        });
+        const accountantExpense = await fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: admin.CollectiveId,
+          UserId: expenseSubmitter.id,
+          description: 'Accountant comment role',
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, expense: { legacyId: accountantExpense.id } } },
+          accountant,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.PUBLIC);
+      });
+    });
+
+    describe('order (private notes only; API only allows fiscal host admins to comment)', () => {
+      let orderHost;
+      let orderCollective;
+      let order;
+      let orderHostAdmin;
+
+      before(async () => {
+        orderHost = await fakeActiveHost();
+        orderHostAdmin = await fakeUser();
+        await fakeMember({
+          CollectiveId: orderHost.id,
+          MemberCollectiveId: orderHostAdmin.CollectiveId,
+          role: roles.ADMIN,
+        });
+        orderCollective = await fakeCollective({ HostCollectiveId: orderHost.id });
+        const contributor = await fakeUser();
+        order = await fakeOrder({
+          CollectiveId: orderCollective.id,
+          CreatedByUserId: contributor.id,
+          FromCollectiveId: contributor.CollectiveId,
+        });
+      });
+
+      it('sets HOST_ADMIN when a fiscal host admin posts a private note', async () => {
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          {
+            comment: {
+              html,
+              type: CommentType.PRIVATE_NOTE,
+              order: { legacyId: order.id },
+            },
+          },
+          orderHostAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.HOST_ADMIN);
+      });
+    });
+
+    describe('hostApplication', () => {
+      it('sets COLLECTIVE_ADMIN when the applying collective admin comments', async () => {
+        const appHost = await fakeActiveHost();
+        const appHostAdmin = await fakeUser();
+        await fakeMember({
+          CollectiveId: appHost.id,
+          MemberCollectiveId: appHostAdmin.CollectiveId,
+          role: roles.ADMIN,
+        });
+
+        const applicantAdmin = await fakeUser();
+        const applyingCollective = await fakeCollective({
+          HostCollectiveId: appHost.id,
+          admin: applicantAdmin,
+          isActive: false,
+          approvedAt: null,
+        });
+        const hostApplication = await fakeHostApplication({
+          CollectiveId: applyingCollective.id,
+          HostCollectiveId: appHost.id,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          {
+            comment: {
+              html,
+              hostApplication: { id: idEncode(hostApplication.id, 'host-application') },
+            },
+          },
+          applicantAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.COLLECTIVE_ADMIN);
+      });
+
+      it('sets HOST_ADMIN when the fiscal host admin comments', async () => {
+        const appHost = await fakeActiveHost();
+        const appHostAdmin = await fakeUser();
+        await fakeMember({
+          CollectiveId: appHost.id,
+          MemberCollectiveId: appHostAdmin.CollectiveId,
+          role: roles.ADMIN,
+        });
+
+        const applicantAdmin = await fakeUser();
+        const applyingCollective = await fakeCollective({
+          HostCollectiveId: appHost.id,
+          admin: applicantAdmin,
+          isActive: false,
+          approvedAt: null,
+        });
+        const hostApplication = await fakeHostApplication({
+          CollectiveId: applyingCollective.id,
+          HostCollectiveId: appHost.id,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          {
+            comment: {
+              html,
+              hostApplication: { id: idEncode(hostApplication.id, 'host-application') },
+            },
+          },
+          appHostAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.HOST_ADMIN);
+      });
+    });
+
+    describe('update', () => {
+      let updHost;
+      let updCollective;
+      let updHostAdmin;
+      let updCollectiveAdmin;
+
+      before(async () => {
+        updHost = await fakeActiveHost();
+        updHostAdmin = await fakeUser();
+        await fakeMember({
+          CollectiveId: updHost.id,
+          MemberCollectiveId: updHostAdmin.CollectiveId,
+          role: roles.ADMIN,
+        });
+        updCollectiveAdmin = await fakeUser();
+        updCollective = await fakeCollective({
+          HostCollectiveId: updHost.id,
+          admin: updCollectiveAdmin,
+        });
+      });
+
+      it('sets HOST_ADMIN when a fiscal host admin comments on a published update', async () => {
+        const update = await fakeUpdate({
+          CollectiveId: updCollective.id,
+          FromCollectiveId: updCollectiveAdmin.CollectiveId,
+          CreatedByUserId: updCollectiveAdmin.id,
+          publishedAt: new Date(),
+          isPrivate: false,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, update: { id: idEncode(update.id, 'update') } } },
+          updHostAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.HOST_ADMIN);
+      });
+
+      it('sets COLLECTIVE_ADMIN when a collective admin comments', async () => {
+        const update = await fakeUpdate({
+          CollectiveId: updCollective.id,
+          FromCollectiveId: updCollectiveAdmin.CollectiveId,
+          CreatedByUserId: updCollectiveAdmin.id,
+          publishedAt: new Date(),
+          isPrivate: false,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, update: { id: idEncode(update.id, 'update') } } },
+          updCollectiveAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.COLLECTIVE_ADMIN);
+      });
+
+      it('sets SUBMITTER when the update author comments and is not a collective admin', async () => {
+        const author = await fakeUser();
+        const update = await fakeUpdate({
+          CollectiveId: updCollective.id,
+          FromCollectiveId: author.CollectiveId,
+          CreatedByUserId: author.id,
+          publishedAt: new Date(),
+          isPrivate: false,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, update: { id: idEncode(update.id, 'update') } } },
+          author,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.SUBMITTER);
+      });
+
+      it('sets BACKER when a financial backer comments on a private update for contributors', async () => {
+        const backer = await fakeUser();
+        await fakeMember({
+          CollectiveId: updCollective.id,
+          MemberCollectiveId: backer.CollectiveId,
+          role: roles.BACKER,
+        });
+        const update = await fakeUpdate({
+          CollectiveId: updCollective.id,
+          FromCollectiveId: updCollectiveAdmin.CollectiveId,
+          CreatedByUserId: updCollectiveAdmin.id,
+          publishedAt: new Date(),
+          isPrivate: true,
+          notificationAudience: UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, update: { id: idEncode(update.id, 'update') } } },
+          backer,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.BACKER);
+      });
+
+      it('sets PUBLIC when a logged-in user with no role on the collective comments on a public published update', async () => {
+        const outsider = await fakeUser();
+        const update = await fakeUpdate({
+          CollectiveId: updCollective.id,
+          FromCollectiveId: updCollectiveAdmin.CollectiveId,
+          CreatedByUserId: updCollectiveAdmin.id,
+          publishedAt: new Date(),
+          isPrivate: false,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, update: { id: idEncode(update.id, 'update') } } },
+          outsider,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.PUBLIC);
+      });
+    });
+
+    describe('conversation', () => {
+      let convHost;
+      let convCollective;
+      let convCollectiveAdmin;
+      let convHostAdmin;
+      let convStarter;
+      let conversation;
+
+      before(async () => {
+        convHost = await fakeActiveHost();
+        convHostAdmin = await fakeUser();
+        await fakeMember({
+          CollectiveId: convHost.id,
+          MemberCollectiveId: convHostAdmin.CollectiveId,
+          role: roles.ADMIN,
+        });
+        convCollectiveAdmin = await fakeUser();
+        convCollective = await fakeCollective({
+          HostCollectiveId: convHost.id,
+          admin: convCollectiveAdmin,
+        });
+        convStarter = await fakeUser();
+        conversation = await fakeConversation({
+          CollectiveId: convCollective.id,
+          CreatedByUserId: convStarter.id,
+          FromCollectiveId: convStarter.CollectiveId,
+        });
+      });
+
+      it('sets HOST_ADMIN when a fiscal host admin comments', async () => {
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, conversation: { legacyId: conversation.id } } },
+          convHostAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.HOST_ADMIN);
+      });
+
+      it('sets COLLECTIVE_ADMIN when an admin of the conversation collective comments', async () => {
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, conversation: { legacyId: conversation.id } } },
+          convCollectiveAdmin,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.COLLECTIVE_ADMIN);
+      });
+
+      it('sets SUBMITTER when the conversation author comments', async () => {
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, conversation: { legacyId: conversation.id } } },
+          convStarter,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.SUBMITTER);
+      });
+
+      it('sets BACKER when a financial backer of the collective comments', async () => {
+        const backer = await fakeUser();
+        await fakeMember({
+          CollectiveId: convCollective.id,
+          MemberCollectiveId: backer.CollectiveId,
+          role: roles.BACKER,
+        });
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, conversation: { legacyId: conversation.id } } },
+          backer,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.BACKER);
+      });
+
+      it('sets PUBLIC when a logged-in user with no relationship to the collective comments', async () => {
+        const outsider = await fakeUser();
+        const result = await utils.graphqlQueryV2(
+          createCommentMutation,
+          { comment: { html, conversation: { legacyId: conversation.id } } },
+          outsider,
+        );
+        utils.expectNoErrorsFromResult(result);
+        await expectCommentRole(result.data.createComment.id, CommentMainRole.PUBLIC);
+      });
     });
   });
 

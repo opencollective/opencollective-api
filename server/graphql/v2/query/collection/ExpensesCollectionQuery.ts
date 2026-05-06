@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { compact, isEmpty, isNil, sum, uniq } from 'lodash';
+import { isEmpty, isNil, sum, uniq } from 'lodash';
 import { OrderItem, QueryTypes, Sequelize, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
@@ -757,49 +757,49 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   if (args.lastCommentBy?.length) {
-    assert(
-      host && req.remoteUser.hasRole([MemberRoles.HOST, MemberRoles.ADMIN, MemberRoles.ACCOUNTANT], host.id),
-      'You need to be an admin of the host to filter by lastCommentBy',
+    const hasHostLevelFilter = args.lastCommentBy.some(v =>
+      ['HOST_ADMIN', 'COLLECTIVE_ADMIN', 'NON_HOST_ADMIN', 'USER'].includes(v),
     );
+    const hasFromAccountFilter = args.lastCommentBy.includes('NON_FROM_ACCOUNT_ADMIN');
+
+    if (hasHostLevelFilter) {
+      assert(
+        host && req.remoteUser.hasRole([MemberRoles.HOST, MemberRoles.ADMIN, MemberRoles.ACCOUNTANT], host.id),
+        'You need to be an admin of the host to filter by lastCommentBy',
+      );
+    }
+    if (hasFromAccountFilter) {
+      // TODO: review this permission: as a payee or collective admin, I should be able to get
+      // all my expenses where the last commenter is the host
+      assert(
+        fromAccounts.length > 0 && fromAccounts.every(account => req.remoteUser?.isAdminOfCollective(account)),
+        'You need to be a collective admin of each fromAccount to filter by lastCommentBy with NON_FROM_ACCOUNT_ADMIN',
+      );
+    }
+
+    // Subquery to retrieve the stored role of the last commenter on this expense
+    const lastCommentRoleSubquery = `(SELECT "mainCommenterRole" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)`;
+
+    // TODO: there's likely a cleaner way to write this
     const conditions = [];
-    const CollectiveIds = compact([
-      args.lastCommentBy.includes('COLLECTIVE_ADMIN') && '"Expense"."CollectiveId"',
-      args.lastCommentBy.includes('HOST_ADMIN') && `"collective"."HostCollectiveId"`,
-    ]);
-
-    // Collective Conditions
-    if (CollectiveIds.length) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
-            IN (
-              SELECT "MemberCollectiveId" FROM "Members" WHERE
-              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
-              "CollectiveId" IN (${CollectiveIds.join(',')})
-          )`,
-        ),
-      );
-    }
-    // User Condition
-    if (args.lastCommentBy.includes('USER')) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "CreatedByUserId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1) = "Expense"."UserId"`,
-        ),
-      );
-    }
-
-    if (args.lastCommentBy.includes('NON_HOST_ADMIN')) {
-      conditions.push(
-        sequelize.literal(
-          `(SELECT "FromCollectiveId" FROM "Comments" WHERE "Comments"."deletedAt" IS NULL AND "Comments"."ExpenseId" = "Expense"."id" ORDER BY "id" DESC LIMIT 1)
-            NOT IN (
-              SELECT "MemberCollectiveId" FROM "Members" WHERE
-              "role" = 'ADMIN' AND "deletedAt" IS NULL AND
-              "CollectiveId" = "collective"."HostCollectiveId"
-          )`,
-        ),
-      );
+    for (const filter of args.lastCommentBy) {
+      switch (filter) {
+        case 'HOST_ADMIN':
+          conditions.push(sequelize.literal(`${lastCommentRoleSubquery} = 'HOST_ADMIN'`));
+          break;
+        case 'COLLECTIVE_ADMIN':
+          conditions.push(sequelize.literal(`${lastCommentRoleSubquery} = 'COLLECTIVE_ADMIN'`));
+          break;
+        case 'USER':
+          conditions.push(sequelize.literal(`${lastCommentRoleSubquery} = 'SUBMITTER'`));
+          break;
+        case 'NON_HOST_ADMIN':
+          conditions.push(sequelize.literal(`${lastCommentRoleSubquery} != 'HOST_ADMIN'`));
+          break;
+        case 'NON_FROM_ACCOUNT_ADMIN':
+          conditions.push(sequelize.literal(`${lastCommentRoleSubquery} != 'FROM_COLLECTIVE_ADMIN'`));
+          break;
+      }
     }
 
     where[Op.and].push(conditions.length > 1 ? { [Op.or]: conditions } : conditions[0]);

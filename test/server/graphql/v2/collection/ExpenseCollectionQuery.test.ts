@@ -14,6 +14,7 @@ import {
 import * as libcurrency from '../../../../../server/lib/currency';
 import { KYCProviderName } from '../../../../../server/lib/kyc/providers';
 import models from '../../../../../server/models';
+import { CommentMainRole } from '../../../../../server/models/Comment';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
@@ -21,6 +22,7 @@ import {
   fakeActiveHost,
   fakeActivity,
   fakeCollective,
+  fakeComment,
   fakeEvent,
   fakeExpense,
   fakeHost,
@@ -273,6 +275,160 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
           expect(result.data.expenses.totalCount).to.eq(1);
         });
       });
+    });
+  });
+
+  describe('lastCommentBy filters', () => {
+    const expensesLastCommentQuery = gql`
+      query ExpensesLastComment(
+        $host: AccountReferenceInput
+        $fromAccount: AccountReferenceInput
+        $lastCommentBy: [LastCommentBy]
+      ) {
+        expenses(host: $host, fromAccount: $fromAccount, lastCommentBy: $lastCommentBy) {
+          totalCount
+          nodes {
+            legacyId
+          }
+        }
+      }
+    `;
+
+    it('NON_FROM_ACCOUNT_ADMIN: returns expenses whose last comment is not authored by an admin of the expense payee', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const submitterUser = await fakeUser();
+      const outsider = await fakeUser();
+      const payerCollective = await fakeCollective();
+      await fakeExpense({ items: [] }); // Noise: unrelated expense
+
+      const expenseWithOutsiderReply = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithOutsiderReply.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const expenseWithPayeeAdminReply = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+      await fakeComment({
+        ExpenseId: expenseWithPayeeAdminReply.id,
+        CollectiveId: payerCollective.id,
+        CreatedByUserId: payeeAdmin.id,
+        FromCollectiveId: payeeAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.FROM_COLLECTIVE_ADMIN,
+      });
+
+      // Expense with no comments - should not appear in the filter
+      await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        CollectiveId: payerCollective.id,
+        UserId: submitterUser.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        payeeAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes.map(n => n.legacyId)).to.deep.eq([expenseWithOutsiderReply.id]);
+    });
+
+    it('NON_FROM_ACCOUNT_ADMIN: requires callers to be collective admins of each fromAccount', async () => {
+      const payeeAdmin = await fakeUser();
+      const payeeCollective = await fakeCollective({ admin: payeeAdmin });
+      const outsider = await fakeUser();
+      const expense = await fakeExpense({
+        FromCollectiveId: payeeCollective.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: expense.CollectiveId,
+        CreatedByUserId: outsider.id,
+        FromCollectiveId: outsider.CollectiveId,
+        mainCommenterRole: CommentMainRole.PUBLIC,
+      });
+
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        {
+          fromAccount: { legacyId: payeeCollective.id },
+          lastCommentBy: ['NON_FROM_ACCOUNT_ADMIN'],
+        },
+        outsider,
+      );
+
+      expect(result.errors?.[0].message).to.match(/You need to be a collective admin of each fromAccount/i);
+    });
+
+    it('HOST_ADMIN: remains stable after admin membership is removed (regression for #8801)', async () => {
+      // formerAdmin comments on the expense, then gets removed as host admin
+      const formerAdmin = await fakeUser();
+      // activeAdmin stays as admin and will run the query
+      const activeAdmin = await fakeUser();
+      const host = await fakeHost({ admin: activeAdmin });
+      await fakeMember({ MemberCollectiveId: formerAdmin.CollectiveId, CollectiveId: host.id, role: roles.ADMIN });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const submitter = await fakeUser();
+
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: submitter.CollectiveId,
+        UserId: submitter.id,
+        HostCollectiveId: host.id,
+        items: [],
+        status: ExpenseStatuses.PENDING,
+      });
+
+      // formerAdmin comments - role is captured at creation time
+      await fakeComment({
+        ExpenseId: expense.id,
+        CollectiveId: collective.id,
+        CreatedByUserId: formerAdmin.id,
+        FromCollectiveId: formerAdmin.CollectiveId,
+        mainCommenterRole: CommentMainRole.HOST_ADMIN,
+      });
+
+      // Remove formerAdmin from the host - simulates the bug scenario
+      await models.Member.destroy({
+        where: { MemberCollectiveId: formerAdmin.CollectiveId, CollectiveId: host.id },
+      });
+
+      // activeAdmin queries using the HOST_ADMIN filter
+      const result = await graphqlQueryV2(
+        expensesLastCommentQuery,
+        { host: { legacyId: host.id }, lastCommentBy: ['HOST_ADMIN'] },
+        activeAdmin,
+      );
+
+      // Even after formerAdmin's membership removal, the stored role keeps the expense in the queue
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
     });
   });
 
