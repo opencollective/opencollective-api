@@ -5,7 +5,7 @@ import { cloneDeep, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
-import { roles } from '../../../../../server/constants';
+import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
@@ -295,6 +295,23 @@ const orderPublicIdQuery = gql`
 const cancelRecurringContributionMutation = gql`
   mutation CancelRecurringContribution($order: OrderReferenceInput!) {
     cancelOrder(order: $order) {
+      id
+      status
+    }
+  }
+`;
+
+const cancelRecurringContributionAsHostMutation = gql`
+  mutation CancelRecurringContributionAsHost(
+    $order: OrderReferenceInput!
+    $removeAsContributor: Boolean
+    $messageForContributor: String
+  ) {
+    cancelOrder(
+      order: $order
+      removeAsContributor: $removeAsContributor
+      messageForContributor: $messageForContributor
+    ) {
       id
       status
     }
@@ -2870,6 +2887,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
       await collective.addUserWithRole(adminUser, roles.ADMIN);
       await host.addUserWithRole(hostAdminUser, roles.ADMIN);
+      await hostAdminUser.populateRoles();
     });
 
     describe('cancelOrder', () => {
@@ -2892,6 +2910,74 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.match(/You don't have permission to cancel this recurring contribution/);
+      });
+
+      it('rejects host-only options for non-host admins', async () => {
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(order.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor: 'A note from the host',
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Only host admins can use these options/);
+      });
+
+      it('allows host admins to cancel and remove the contributor', async () => {
+        const hostOrder = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          { withSubscription: true },
+        );
+        await models.Member.create({
+          CollectiveId: collective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+          CreatedByUserId: user.id,
+        });
+
+        const messageForContributor = 'We are ending this recurring contribution.';
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(hostOrder.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor,
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.cancelOrder.status).to.eq('CANCELLED');
+
+        const membership = await models.Member.findOne({
+          where: {
+            CollectiveId: collective.id,
+            MemberCollectiveId: user.CollectiveId,
+            role: MemberRoles.BACKER,
+          },
+        });
+        expect(membership).to.not.exist;
+
+        const cancelActivity = await models.Activity.findOne({
+          where: { type: activities.SUBSCRIPTION_CANCELED, OrderId: hostOrder.id },
+        });
+        expect(cancelActivity.data.messageSource).to.equal('HOST');
+        expect(cancelActivity.data.messageForContributor).to.equal(messageForContributor);
+
+        const removeActivity = await models.Activity.findOne({
+          where: { type: activities.CONTRIBUTOR_REMOVED_BY_HOST, OrderId: hostOrder.id },
+        });
+        expect(removeActivity).to.exist;
       });
 
       it('cancels the order', async () => {

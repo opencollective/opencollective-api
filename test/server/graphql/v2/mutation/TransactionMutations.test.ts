@@ -5,7 +5,9 @@ import nock from 'nock';
 import { createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
+import { activities } from '../../../../../server/constants';
 import { SupportedCurrency } from '../../../../../server/constants/currencies';
+import OrderStatuses from '../../../../../server/constants/order-status';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
@@ -24,6 +26,27 @@ const STRIPE_TOKEN = 'tok_123456781234567812345678';
 const refundTransactionMutation = gql`
   mutation RefundTransaction($transaction: TransactionReferenceInput!, $ignoreBalanceCheck: Boolean) {
     refundTransaction(transaction: $transaction, ignoreBalanceCheck: $ignoreBalanceCheck) {
+      id
+      legacyId
+    }
+  }
+`;
+
+const refundTransactionAsHostMutation = gql`
+  mutation RefundTransactionAsHost(
+    $transaction: TransactionReferenceInput!
+    $ignoreBalanceCheck: Boolean
+    $cancelRecurringContribution: Boolean
+    $removeAsContributor: Boolean
+    $messageForContributor: String
+  ) {
+    refundTransaction(
+      transaction: $transaction
+      ignoreBalanceCheck: $ignoreBalanceCheck
+      cancelRecurringContribution: $cancelRecurringContribution
+      removeAsContributor: $removeAsContributor
+      messageForContributor: $messageForContributor
+    ) {
       id
       legacyId
     }
@@ -199,6 +222,136 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
 
       const balance = await collective.getBalance();
       expect(balance).to.not.be.above(0);
+    });
+
+    it('rejects host-only options for non-host admins', async () => {
+      const result = await graphqlQueryV2(
+        refundTransactionAsHostMutation,
+        {
+          transaction: { legacyId: transaction2.id },
+          removeAsContributor: true,
+          messageForContributor: 'A note from the host',
+        },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Only host admins can use these options on refundTransaction/);
+    });
+
+    it('allows host admins to refund, cancel the recurring contribution, and remove the contributor', async () => {
+      let hostOrder = await fakeOrder(
+        {
+          CreatedByUserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+          CollectiveId: collective.id,
+          totalAmount: stripeMocks.balance.amount,
+        },
+        { withSubscription: true },
+      );
+      hostOrder = await hostOrder.setPaymentMethod({ token: STRIPE_TOKEN });
+      await executeOrder(randomUser, hostOrder);
+      const hostTransaction = await models.Transaction.findOne({
+        where: {
+          OrderId: hostOrder.id,
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+        },
+      });
+      await models.Member.create({
+        CollectiveId: collective.id,
+        MemberCollectiveId: randomUser.CollectiveId,
+        role: MemberRoles.BACKER,
+        CreatedByUserId: randomUser.id,
+      });
+
+      const messageForContributor = 'We are refunding and cancelling this recurring contribution.';
+      const result = await graphqlQueryV2(
+        refundTransactionAsHostMutation,
+        {
+          transaction: { legacyId: hostTransaction.id },
+          ignoreBalanceCheck: true,
+          cancelRecurringContribution: true,
+          removeAsContributor: true,
+          messageForContributor,
+        },
+        hostAdminUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.refundTransaction.legacyId).to.exist;
+
+      await hostOrder.reload();
+      expect(hostOrder.status).to.equal(OrderStatuses.CANCELLED);
+
+      const membership = await models.Member.findOne({
+        where: {
+          CollectiveId: collective.id,
+          MemberCollectiveId: randomUser.CollectiveId,
+          role: MemberRoles.BACKER,
+        },
+      });
+      expect(membership).to.not.exist;
+
+      const refundActivity = await models.Activity.findOne({
+        where: { type: activities.CONTRIBUTION_REFUNDED_BY_HOST, OrderId: hostOrder.id },
+      });
+      expect(refundActivity.data.messageForContributor).to.equal(messageForContributor);
+
+      const cancelActivity = await models.Activity.findOne({
+        where: { type: activities.SUBSCRIPTION_CANCELED, OrderId: hostOrder.id },
+      });
+      expect(cancelActivity.data.messageSource).to.equal('HOST');
+
+      const removeActivity = await models.Activity.findOne({
+        where: { type: activities.CONTRIBUTOR_REMOVED_BY_HOST, OrderId: hostOrder.id },
+      });
+      expect(removeActivity).to.exist;
+    });
+
+    it('rejects cancelling a non-recurring contribution while refunding', async () => {
+      let oneTimeOrder = await fakeOrder({
+        CreatedByUserId: randomUser.id,
+        FromCollectiveId: randomUser.CollectiveId,
+        CollectiveId: collective.id,
+        totalAmount: stripeMocks.balance.amount,
+      });
+      oneTimeOrder = await oneTimeOrder.setPaymentMethod({ token: STRIPE_TOKEN });
+      await executeOrder(randomUser, oneTimeOrder);
+      const oneTimeTransaction = await models.Transaction.findOne({
+        where: {
+          OrderId: oneTimeOrder.id,
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+        },
+      });
+
+      const result = await graphqlQueryV2(
+        refundTransactionAsHostMutation,
+        {
+          transaction: { legacyId: oneTimeTransaction.id },
+          cancelRecurringContribution: true,
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/Only recurring contributions can be cancelled/);
+    });
+
+    it('rejects long host messages while refunding', async () => {
+      const result = await graphqlQueryV2(
+        refundTransactionAsHostMutation,
+        {
+          transaction: { legacyId: transaction2.id },
+          messageForContributor: 'a'.repeat(2001),
+        },
+        hostAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/messageForContributor must be at most 2000 characters/);
     });
   });
 

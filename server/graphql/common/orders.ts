@@ -9,6 +9,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
+import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../lib/sanitize-html';
 import models, { AccountingCategory, Collective, sequelize, Tier, TransactionsImportRow, User } from '../../models';
 import { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Order from '../../models/Order';
@@ -33,6 +34,23 @@ type AddFundsInput = {
   tax: TaxInput;
   accountingCategory?: AccountingCategory;
   transactionsImportRow?: TransactionsImportRow;
+};
+
+const MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH = 2000;
+
+export const sanitizeMessageForContributor = (messageForContributor?: string | null): string | null => {
+  if (!messageForContributor) {
+    return null;
+  }
+
+  const sanitized = sanitizeHTML(messageForContributor, optsSanitizeHtmlForSimplified).trim();
+  if (sanitized.length > MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH) {
+    throw new ValidationFailed(
+      `messageForContributor must be at most ${MESSAGE_FOR_CONTRIBUTOR_MAX_LENGTH} characters`,
+    );
+  }
+
+  return sanitized.length ? sanitized : null;
 };
 
 /*

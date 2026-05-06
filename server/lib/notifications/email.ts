@@ -259,13 +259,11 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.SUBSCRIPTION_CANCELED:
-      await notify.user(activity);
-      break;
-
-    case ActivityTypes.SUBSCRIPTION_CANCELED_BY_HOST:
-      await notify.collective(activity, {
-        collectiveId: activity.data.fromCollective.id,
-      });
+      if (activity.data?.messageSource === 'HOST' && activity.data?.fromCollective?.id) {
+        await notify.collective(activity, { collectiveId: activity.data.fromCollective.id });
+      } else {
+        await notify.user(activity);
+      }
       break;
 
     case ActivityTypes.CONTRIBUTION_REFUNDED_BY_HOST:

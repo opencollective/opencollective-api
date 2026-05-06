@@ -4,20 +4,22 @@ import type Express from 'express';
 import { isNull } from 'lodash';
 import moment from 'moment';
 
-import { roles } from '../../constants';
+import { activities, roles } from '../../constants';
 import orderStatus from '../../constants/order-status';
 import POLICIES from '../../constants/policies';
 import { RefundKind } from '../../constants/refund-kind';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { purgeCacheForCollective } from '../../lib/cache';
 import { refundTransaction as refundTransactionPayment } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
+import models, { sequelize } from '../../models';
 import Transaction from '../../models/Transaction';
-import { Forbidden, NotFound } from '../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../errors';
 
 import { isHostAdmin } from './expenses';
+import { sanitizeMessageForContributor } from './orders';
 
 const getPayee = async (req, transaction) => {
   if (
@@ -298,4 +300,166 @@ export async function refundTransaction(
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.
   return result;
+}
+
+type RefundTransactionAsHostArgs = {
+  ignoreBalanceCheck?: boolean;
+  cancelRecurringContribution?: boolean;
+  removeAsContributor?: boolean;
+  messageForContributor?: string | null;
+};
+
+export async function refundTransactionAsHost(
+  passedTransaction: Transaction,
+  req: Express.Request,
+  args: RefundTransactionAsHostArgs = {},
+) {
+  const transaction = await models.Transaction.findByPk(passedTransaction.id, {
+    include: [
+      models.PaymentMethod,
+      { association: 'collective', required: false },
+      { association: 'fromCollective', required: false },
+    ],
+  });
+
+  if (!transaction) {
+    throw new NotFound('Transaction not found');
+  } else if (!req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+    throw new Forbidden('Only host admins can use these options on refundTransaction');
+  }
+
+  const order = await models.Order.findByPk(transaction.OrderId, {
+    include: [
+      { model: models.Subscription },
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+    ],
+  });
+
+  if (!order) {
+    throw new NotFound('Order not found');
+  }
+
+  if (args.cancelRecurringContribution && !order.SubscriptionId) {
+    throw new ValidationFailed('Only recurring contributions can be cancelled');
+  } else if (
+    args.cancelRecurringContribution &&
+    order.status === orderStatus.CANCELLED &&
+    !order.Subscription?.isActive
+  ) {
+    throw new ValidationFailed('Recurring contribution already canceled');
+  }
+
+  const messageForContributor = sanitizeMessageForContributor(args.messageForContributor);
+  const host = transaction.HostCollectiveId
+    ? await req.loaders.Collective.byId.load(transaction.HostCollectiveId)
+    : null;
+  if (host) {
+    await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
+  }
+
+  const previousStatus = order.status;
+  await sequelize.transaction(async dbTransaction => {
+    if (args.cancelRecurringContribution) {
+      await order.update(
+        { status: orderStatus.CANCELLED, data: { ...order.data, previousStatus } },
+        { transaction: dbTransaction },
+      );
+      if (order.Subscription?.isActive) {
+        await order.Subscription.deactivate('Cancelled by host admin', host);
+      }
+    }
+
+    if (args.removeAsContributor) {
+      await models.Member.destroy({
+        where: {
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: 'BACKER',
+        },
+        transaction: dbTransaction,
+      });
+    }
+  });
+
+  const refundedTransaction = await refundTransaction(transaction, req, RefundKind.REFUND, {
+    ignoreBalanceCheck: args.ignoreBalanceCheck,
+    message: messageForContributor ?? undefined,
+  });
+
+  await models.Activity.create({
+    type: activities.CONTRIBUTION_REFUNDED_BY_HOST,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: order.collective.HostCollectiveId,
+    OrderId: order.id,
+    UserId: req.remoteUser.id,
+    UserTokenId: req.userToken?.id,
+    data: {
+      collective: order.collective.minimal,
+      host: host?.minimal,
+      user: req.remoteUser.minimal,
+      fromCollective: order.fromCollective.minimal,
+      order: order.info,
+      refundCount: 1,
+      refundedTransactionIds: [refundedTransaction.id],
+      messageForContributor,
+      messageSource: 'HOST',
+      hostAction: {
+        cancel: Boolean(args.cancelRecurringContribution),
+        refund: true,
+        removeAsContributor: Boolean(args.removeAsContributor),
+      },
+    },
+  });
+
+  if (args.cancelRecurringContribution) {
+    await models.Activity.create({
+      type: activities.SUBSCRIPTION_CANCELED,
+      CollectiveId: order.CollectiveId,
+      FromCollectiveId: order.FromCollectiveId,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      OrderId: order.id,
+      UserId: req.remoteUser.id,
+      UserTokenId: req.userToken?.id,
+      data: {
+        subscription: order.Subscription,
+        collective: order.collective.minimal,
+        host: host?.minimal,
+        user: req.remoteUser.minimal,
+        fromCollective: order.fromCollective.minimal,
+        order: order.info,
+        previousStatus,
+        messageForContributor,
+        messageForContributors: messageForContributor,
+        messageSource: 'HOST',
+      },
+    });
+  }
+
+  if (args.removeAsContributor) {
+    await models.Activity.create({
+      type: activities.CONTRIBUTOR_REMOVED_BY_HOST,
+      CollectiveId: order.CollectiveId,
+      FromCollectiveId: order.FromCollectiveId,
+      HostCollectiveId: order.collective.HostCollectiveId,
+      OrderId: order.id,
+      UserId: req.remoteUser.id,
+      UserTokenId: req.userToken?.id,
+      data: {
+        collective: order.collective.minimal,
+        host: host?.minimal,
+        user: req.remoteUser.minimal,
+        fromCollective: order.fromCollective.minimal,
+        order: order.info,
+        messageForContributor,
+        messageSource: 'HOST',
+      },
+    });
+  }
+
+  purgeCacheForCollective(order.fromCollective.slug);
+  purgeCacheForCollective(order.collective.slug);
+
+  return refundedTransaction;
 }
