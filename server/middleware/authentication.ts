@@ -8,9 +8,11 @@ import gqlmin from 'gqlmin';
 import { get, isNil, omitBy, pick } from 'lodash';
 import moment from 'moment';
 import passport from 'passport';
+import { v4 as uuid } from 'uuid';
 
 import * as connectedAccounts from '../controllers/connectedAccounts';
 import { verifyJwt } from '../lib/auth';
+import { sessionCache } from '../lib/cache';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit from '../lib/rate-limit';
@@ -19,6 +21,9 @@ import { dbUserToSentryUser, reportMessageToSentry } from '../lib/sentry';
 import { getBearerTokenFromCookie, getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
+
+const GITHUB_OAUTH_STATE_CACHE_PREFIX = 'oauth-github-state:';
+const GITHUB_OAUTH_STATE_TTL_SECONDS = 10 * 60; // 10 minutes
 
 const { User, UserToken } = models;
 
@@ -47,9 +52,8 @@ const debug = debugLib('auth');
  */
 const parseJwt = (req: Request) => {
   const params = req.params || {};
-  const query = req.query || {};
   const body = req.body || {};
-  let token: string = params.access_token || query.access_token || body.access_token;
+  let token: string = params.access_token || body.access_token;
   if (!token) {
     token = getBearerTokenFromRequestHeaders(req) || getBearerTokenFromCookie(req);
   }
@@ -277,12 +281,23 @@ export const authenticateService = async (req: Request, res: Response, next: Nex
   }
 
   const { service } = req.params;
-  const { context } = req.query || {};
-  const opts: passport.AuthenticateOptions = { callbackURL: getOAuthCallbackUrl(req) };
+  const { context, CollectiveId } = req.query || {};
 
   if (service === 'github') {
+    if (!req.remoteUser) {
+      return next(new errors.Unauthorized('You must be logged in to connect a GitHub account'));
+    }
+
+    const stateKey = uuid();
+    await sessionCache.set(
+      `${GITHUB_OAUTH_STATE_CACHE_PREFIX}${stateKey}`,
+      { userId: req.remoteUser.id, context, CollectiveId },
+      GITHUB_OAUTH_STATE_TTL_SECONDS,
+    );
+
+    let scope;
     if (context === 'createCollective') {
-      opts.scope = [
+      scope = [
         // We need this to call github.getOrgMemberships and check if the user is an admin of a given Organization
         'read:org',
         // We need this for the `github.getValidatorInfo` query
@@ -290,11 +305,20 @@ export const authenticateService = async (req: Request, res: Response, next: Nex
       ];
     } else {
       // We try to deprecate this scope by progressively forcing a context
-      opts.scope = ['user:email', 'public_repo', 'read:org'];
+      scope = ['user:email', 'public_repo', 'read:org'];
     }
 
-    return passport.authenticate(service, opts)(req, res, next);
+    const callbackUrl = buildGitHubCallbackUrl(context as string, CollectiveId as string);
+    const authUrl = new URL('https://github.com/login/oauth/authorize');
+    authUrl.searchParams.set('client_id', config.github.clientID);
+    authUrl.searchParams.set('redirect_uri', callbackUrl);
+    authUrl.searchParams.set('scope', scope.join(' '));
+    authUrl.searchParams.set('state', stateKey);
+
+    return res.json({ redirectUrl: authUrl.toString() });
   }
+
+  const opts: passport.AuthenticateOptions = { callbackURL: getOAuthCallbackUrl(req) };
 
   if (!req.query.CollectiveId) {
     return next(new errors.ValidationFailed(undefined, 'CollectiveId', 'Please provide a CollectiveId'));
@@ -328,6 +352,42 @@ export const authenticateServiceCallback = async (req: Request, res: Response, n
     return paymentProviders[service].oauth.callback(req, res, next);
   }
 
+  if (service === 'github') {
+    const stateKey = req.query.state as string;
+    if (!stateKey) {
+      return next(new errors.Unauthorized('Missing OAuth state parameter'));
+    }
+
+    const cacheKey = `${GITHUB_OAUTH_STATE_CACHE_PREFIX}${stateKey}`;
+    const storedState = (await sessionCache.consume(cacheKey)) as
+      | { userId: number; context?: string; CollectiveId?: string }
+      | undefined;
+
+    if (!storedState) {
+      return next(new errors.Unauthorized('OAuth state expired or invalid. Please restart the GitHub connect flow.'));
+    }
+
+    const user = await models.User.findByPk(storedState.userId, {
+      include: [{ association: 'collective', required: false }],
+    });
+    if (!user) {
+      return next(new errors.Unauthorized('User not found'));
+    }
+    await user.populateRoles();
+    req.remoteUser = user;
+
+    // Rebuild the exact callback URL used during initiation so GitHub accepts the code exchange
+    const callbackURL = buildGitHubCallbackUrl(storedState.context, storedState.CollectiveId);
+    return passport.authenticate(service, { callbackURL }, async (err, accessToken, data) => {
+      if (err) {
+        return next(err);
+      } else if (!accessToken) {
+        return next(new errors.Unauthorized('No access token returned from OAuth provider'));
+      }
+      return connectedAccounts.createOrUpdate(req, res, next, accessToken, data).catch(next);
+    })(req, res, next);
+  }
+
   const opts = { callbackURL: getOAuthCallbackUrl(req) };
   return passport.authenticate(service, opts, async (err, accessToken, data) => {
     if (err) {
@@ -354,15 +414,19 @@ export const authenticateServiceDisconnect = async (req: Request, res: Response,
 
 function getOAuthCallbackUrl(req: Request) {
   const { service } = req.params;
-
-  // TODO We should not pass `access_token` to 3rd party services. Github likely still relies on this
-  const params = new URLSearchParams(omitBy(pick(req.query, ['access_token', 'context', 'CollectiveId']), isNil));
+  const params = new URLSearchParams(omitBy(pick(req.query, ['context', 'CollectiveId']), isNil));
 
   if (params.toString().length > 0) {
     return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
   } else {
     return `${config.host.website}/api/connected-accounts/${service}/callback`;
   }
+}
+
+function buildGitHubCallbackUrl(context?: string, CollectiveId?: string): string {
+  const params = new URLSearchParams(omitBy({ context, CollectiveId }, isNil) as Record<string, string>);
+  const base = `${config.host.website}/api/connected-accounts/github/callback`;
+  return params.toString() ? `${base}?${params.toString()}` : base;
 }
 
 /**

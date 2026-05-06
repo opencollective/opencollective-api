@@ -94,6 +94,7 @@ const createEventMutation = {
       type: new GraphQLNonNull(GraphQLAccountReferenceInput),
     },
   },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createEvent
   resolve: (_, args, req) => {
     return createEvent(_, args, req);
   },

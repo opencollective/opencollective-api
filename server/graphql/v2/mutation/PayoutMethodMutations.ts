@@ -16,7 +16,7 @@ import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput';
-import { fetchPayoutMethodWithReference, GraphQLPayoutMethodReferenceInput } from '../input/PayoutMethodReferenceInput';
+import { fetchPayoutMethodWithReference } from '../input/PayoutMethodReferenceInput';
 import GraphQLPayoutMethod from '../object/PayoutMethod';
 
 const payoutMethodMutations = {
@@ -105,20 +105,6 @@ const payoutMethodMutations = {
 
         return payoutMethod;
       });
-    },
-  },
-  restorePayoutMethod: {
-    description: 'Restore the given payout method. Scope: "expenses".',
-    deprecationReason: '2025-02-10: Payout methods cannot be restored.',
-    type: new GraphQLNonNull(GraphQLPayoutMethod),
-    args: {
-      payoutMethod: {
-        type: new GraphQLNonNull(GraphQLPayoutMethodReferenceInput),
-        description: 'Payout Method reference',
-      },
-    },
-    async resolve() {
-      throw new Forbidden('Payout methods cannot be restored.');
     },
   },
   editPayoutMethod: {

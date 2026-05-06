@@ -267,6 +267,50 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         }
       });
 
+      it('cannot process application for already approved collective via hostApplication reference', async () => {
+        const isolatedHostAdmin = await fakeUser();
+        const isolatedCollectiveAdmin = await fakeUser();
+        const isolatedHost = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          admin: isolatedHostAdmin,
+          currency: 'USD',
+          hasHosting: true,
+          settings: { apply: true },
+        });
+        const isolatedCollective = await fakeCollective({
+          HostCollectiveId: isolatedHost.id,
+          admin: isolatedCollectiveAdmin,
+          isActive: true,
+          approvedAt: new Date(),
+        });
+        const inconsistentPendingApplication = await fakeHostApplication({
+          CollectiveId: isolatedCollective.id,
+          HostCollectiveId: isolatedHost.id,
+          status: HostApplicationStatus.PENDING,
+        });
+
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
+        for (const actionDetails of actionsDetails) {
+          const action = actionDetails.value;
+          const result = await graphqlQueryV2(
+            PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+            {
+              hostApplication: {
+                id: idEncode(inconsistentPendingApplication.id, IDENTIFIER_TYPES.HOST_APPLICATION),
+              },
+              action,
+              message:
+                action === 'REJECT' || action === 'SEND_PRIVATE_MESSAGE' || action === 'SEND_PUBLIC_MESSAGE'
+                  ? 'test message required for reject / messaging actions'
+                  : undefined,
+            },
+            isolatedHostAdmin,
+          );
+          expect(result.errors, `expected rejection for action ${action}`).to.exist;
+          expect(result.errors[0].message).to.eq('This collective application has already been approved');
+        }
+      });
+
       it('application must not be already approved', async () => {
         // Initialize the collective as "APPROVED"
         await collective.update({ isActive: true, approvedAt: new Date(), HostCollectiveId: host.id });
@@ -566,44 +610,118 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       await collective.reload();
       expect(collective.HostCollectiveId).to.eq(host2.id);
 
-      // 2) Withdraw from host1 (host1 rejects the application) — sets HostCollectiveId to null.
-      const appToHost1 = await models.HostApplication.findOne({
-        where: { CollectiveId: collective.id, HostCollectiveId: host1.id, status: HostApplicationStatus.PENDING },
-      });
-      expect(appToHost1).to.exist;
-      await graphqlQueryV2(
-        PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
-        {
-          hostApplication: { id: idEncode(appToHost1.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
-          action: 'REJECT',
-          message: 'Withdrawn',
-        },
-        host1Admin,
-      );
-
-      // There again, not sure that updating HostCollectiveId is the right thing to do.
-      await collective.reload();
-      expect(collective.HostCollectiveId).to.be.null;
-
-      // 3) Approving the remaining (host2) application should still work and set HostCollectiveId to host2.
+      // 2) Host2 rejects the application - HostCollectiveId set to null
       const appToHost2 = await models.HostApplication.findOne({
         where: { CollectiveId: collective.id, HostCollectiveId: host2.id, status: HostApplicationStatus.PENDING },
       });
       expect(appToHost2).to.exist;
+      await graphqlQueryV2(
+        PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+        {
+          hostApplication: { id: idEncode(appToHost2.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
+          action: 'REJECT',
+          message: 'Withdrawn',
+        },
+        host2Admin,
+      );
+
+      await collective.reload();
+      expect(collective.HostCollectiveId).to.be.null;
+
+      // 3) Approving the remaining (host1) application should still work and set HostCollectiveId to host1.
+      const appToHost1 = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: host1.id, status: HostApplicationStatus.PENDING },
+      });
+      expect(appToHost1).to.exist;
 
       const result = await graphqlQueryV2(
         PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
         {
-          hostApplication: { id: idEncode(appToHost2.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
+          hostApplication: { id: idEncode(appToHost1.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
           action: 'APPROVE',
         },
-        host2Admin,
+        host1Admin,
       );
+
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.processHostApplication.account.host.id).to.eq(idEncode(host2.id, 'account'));
+      expect(result.data.processHostApplication.account.host.id).to.eq(idEncode(host1.id, 'account'));
       await collective.reload();
-      expect(collective.HostCollectiveId).to.eq(host2.id);
+      expect(collective.HostCollectiveId).to.eq(host1.id);
       expect(collective.approvedAt).to.not.be.null;
+    });
+
+    it('marks other hosts pending HostApplications EXPIRED when approving', async () => {
+      const host1Admin = await fakeUser();
+      const host2Admin = await fakeUser();
+      const host1 = await fakeActiveHost({
+        plan: 'start-plan-2021',
+        currency: 'USD',
+        hasHosting: true,
+        settings: { apply: true },
+        admin: host1Admin,
+      });
+      const host2 = await fakeActiveHost({
+        plan: 'start-plan-2021',
+        currency: 'USD',
+        hasHosting: true,
+        settings: { apply: true },
+        admin: host2Admin,
+      });
+      const collectiveAdminForMultiApply = await fakeUser();
+      const collectiveForMultiApply = await fakeCollective({
+        HostCollectiveId: null,
+        admin: collectiveAdminForMultiApply,
+      });
+
+      await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host1.slug }, collective: { slug: collectiveForMultiApply.slug } },
+        collectiveAdminForMultiApply,
+      );
+      await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host2.slug }, collective: { slug: collectiveForMultiApply.slug } },
+        collectiveAdminForMultiApply,
+      );
+
+      const appHost1 = await models.HostApplication.findOne({
+        where: {
+          CollectiveId: collectiveForMultiApply.id,
+          HostCollectiveId: host1.id,
+          status: HostApplicationStatus.PENDING,
+        },
+      });
+      const appHost2 = await models.HostApplication.findOne({
+        where: {
+          CollectiveId: collectiveForMultiApply.id,
+          HostCollectiveId: host2.id,
+          status: HostApplicationStatus.PENDING,
+        },
+      });
+      expect(appHost1).to.exist;
+      expect(appHost2).to.exist;
+
+      const approveOnHost1 = await graphqlQueryV2(
+        PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+        {
+          hostApplication: {
+            id: idEncode(appHost1.id, IDENTIFIER_TYPES.HOST_APPLICATION),
+          },
+          action: 'APPROVE',
+        },
+        host1Admin,
+      );
+      expect(approveOnHost1.errors).to.not.exist;
+
+      await appHost1.reload();
+      await appHost2.reload();
+      expect(appHost1.status).to.eq(HostApplicationStatus.APPROVED);
+      expect(appHost2.status).to.eq(HostApplicationStatus.EXPIRED);
+
+      await collectiveForMultiApply.reload();
+      expect(collectiveForMultiApply.HostCollectiveId).to.eq(host1.id);
+      expect(collectiveForMultiApply.approvedAt).to.not.be.null;
     });
   });
 

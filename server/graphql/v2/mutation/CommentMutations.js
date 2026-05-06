@@ -22,6 +22,7 @@ const commentMutations = {
         type: new GraphQLNonNull(GraphQLCommentUpdateInput),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside editComment (common/comment.ts)
     async resolve(_, { comment }, req) {
       let id;
       if (isEntityPublicId(comment.id, EntityShortIdPrefix.Comment)) {
@@ -41,6 +42,7 @@ const commentMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside deleteComment (common/comment.ts)
     async resolve(_, { id }, req) {
       let decodedId;
       if (isEntityPublicId(id, EntityShortIdPrefix.Comment)) {
@@ -60,6 +62,7 @@ const commentMutations = {
         type: new GraphQLNonNull(GraphQLCommentCreateInput),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createComment (common/comment.ts)
     resolve: async (_, { comment }, req) => {
       mustBeLoggedInTo(req.remoteUser, 'create a comment');
 

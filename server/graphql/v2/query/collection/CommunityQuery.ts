@@ -2,12 +2,12 @@ import assert from 'assert';
 
 import type Express from 'express';
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { sql } from 'kysely';
 import { isNil } from 'lodash';
-import { QueryTypes, Sequelize } from 'sequelize';
 
+import { getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
-import { ifStr } from '../../../../lib/utils';
-import { Collective, sequelize } from '../../../../models';
+import { Collective } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
 import { enforceScope } from '../../../common/scope-check';
 import { BadRequest } from '../../../errors';
@@ -19,54 +19,6 @@ import { getAmountRangeQuery, GraphQLAmountRangeInput } from '../../input/Amount
 import { GraphQLOrderByInput } from '../../input/OrderByInput';
 
 const DEFAULT_LIMIT = 100;
-
-const buildSearchConditions = (
-  searchTerm: string,
-): { joinClause: string; whereClause: string; replacements: Record<string, string | number> } => {
-  const emptySearchConditions = { joinClause: '', whereClause: '', replacements: {} };
-  if (!searchTerm) {
-    return emptySearchConditions;
-  }
-
-  const parsed = parseSearchTerm(searchTerm);
-  if (!parsed.term) {
-    return emptySearchConditions;
-  }
-
-  if (parsed.type === 'email') {
-    return {
-      joinClause: `INNER JOIN "Users" u ON u."CollectiveId" = fc.id AND u."deletedAt" IS NULL AND u."email" = LOWER(:searchTerm)`,
-      whereClause: '',
-      replacements: { searchTerm: parsed.term },
-    };
-  } else if (parsed.type === 'slug') {
-    const sanitizedSlug = sanitizeSearchTermForILike(parsed.term);
-    return {
-      joinClause: '',
-      whereClause: `AND fc."slug" ILIKE :searchTermPattern`,
-      replacements: { searchTermPattern: `%${sanitizedSlug}%` },
-    };
-  } else if (parsed.type === 'id' || parsed.type === 'number') {
-    return {
-      joinClause: '',
-      whereClause: `AND (cas."CollectiveId" = :searchTerm OR cas."FromCollectiveId" = :searchTerm)`,
-      replacements: { searchTerm: parsed.term },
-    };
-  } else if (parsed.type === 'publicId') {
-    return {
-      joinClause: '',
-      whereClause: `AND (fc."publicId" = :searchTerm)`,
-      replacements: { searchTerm: parsed.term },
-    };
-  } else {
-    const sanitizedTerm = sanitizeSearchTermForILike(parsed.term);
-    return {
-      joinClause: `LEFT JOIN "Users" u ON u."CollectiveId" = fc.id AND u."deletedAt" IS NULL`,
-      whereClause: `AND (fc."name" ILIKE :searchTermPattern OR fc.slug ILIKE :searchTermPattern OR u."email" ILIKE :searchTermPattern)`,
-      replacements: { searchTermPattern: `%${sanitizedTerm}%` },
-    };
-  }
-};
 
 type CommunitySummaryArgs = {
   limit: number;
@@ -88,97 +40,185 @@ type CommunitySummaryOptions = {
 };
 
 const getHostCommunity = async (replacements: CommunitySummaryArgs, options?: CommunitySummaryOptions) => {
-  const isAdmin = 'relation' in replacements && replacements.relation.includes('ADMIN');
-  const searchConditions = buildSearchConditions(replacements.searchTerm);
+  const db = getKysely();
+  const isAdmin = 'relation' in replacements && replacements.relation?.includes('ADMIN');
+  const searchTerm = replacements.searchTerm;
+  const parsed = searchTerm ? parseSearchTerm(searchTerm) : null;
 
-  // Determine if we need to join CommunityHostTransactionsAggregated table
   const needsTransactionsAggregated =
     replacements.totalContributedExpression ||
     replacements.totalExpendedExpression ||
     options?.orderBy?.field === 'TOTAL_CONTRIBUTED' ||
     options?.orderBy?.field === 'TOTAL_EXPENDED';
-  const includeCommunityHostTransactionsAggregated = needsTransactionsAggregated;
 
-  const baseQuery = `
-    FROM "CommunityActivitySummary" cas
-    INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
-    ${searchConditions.joinClause}
-    ${ifStr(isAdmin, `INNER JOIN "Members" m ON m."CollectiveId" = cas."CollectiveId" AND m."MemberCollectiveId" = "FromCollectiveId" AND m.role = 'ADMIN' AND m."deletedAt" IS NULL`)}
-    ${ifStr(
-      includeCommunityHostTransactionsAggregated,
-      `LEFT JOIN "CommunityHostTransactionSummary" chts ON chts."FromCollectiveId" = cas."FromCollectiveId" AND chts."HostCollectiveId" = cas."HostCollectiveId" AND chts."kind" IS NULL`,
-    )}
-    WHERE
-      fc."deletedAt" IS NULL
-      ${ifStr('HostCollectiveId' in replacements, `AND cas."HostCollectiveId" = :HostCollectiveId`)}
-      ${ifStr('CollectiveId' in replacements, `AND cas."CollectiveId" = :CollectiveId`)}
-      ${ifStr('type' in replacements, `AND fc.type IN (:type)`)}
-      ${ifStr('relation' in replacements && replacements.relation.length > 0, `AND cas."relations" @> :relation`)}
-      ${ifStr(replacements.totalExpendedExpression, () => `AND chts."debitTotal" ${replacements.totalExpendedExpression}`)}
-      ${ifStr(replacements.totalContributedExpression, () => `AND chts."creditTotal" ${replacements.totalContributedExpression}`)}
-      ${searchConditions.whereClause}
-    `;
+  // Determine if we need Users join for search
+  const needsUsersJoin =
+    parsed?.term &&
+    (parsed.type === 'email' ||
+      (parsed.type !== 'slug' && parsed.type !== 'id' && parsed.type !== 'number' && parsed.type !== 'publicId'));
 
-  // Build ORDER BY clause based on options
-  const orderBy = [];
-  const groupBy = ['cas."FromCollectiveId"', 'fc.id'];
+  const buildBaseQuery = () => {
+    let query = db
+      .selectFrom('AdminCommunityActivitySummary as cas')
+      .innerJoin('Collectives as fc', join =>
+        join.onRef('fc.id', '=', 'cas.FromCollectiveId').on('fc.deletedAt', 'is', null),
+      );
 
-  if (options?.orderBy?.field && options?.orderBy?.direction) {
-    let direction = options.orderBy.direction.toUpperCase();
-    if (direction === 'DESC') {
-      direction = 'DESC NULLS LAST';
+    // Users join for search
+    if (parsed?.term) {
+      if (parsed.type === 'email') {
+        query = query.innerJoin('Users as u', join =>
+          join
+            .onRef('u.CollectiveId', '=', 'fc.id')
+            .on('u.deletedAt', 'is', null)
+            .on('u.email', '=', parsed.term.toString().toLowerCase()),
+        ) as any;
+      } else if (needsUsersJoin) {
+        query = query.leftJoin('Users as u', join =>
+          join.onRef('u.CollectiveId', '=', 'fc.id').on('u.deletedAt', 'is', null),
+        ) as any;
+      }
     }
-    switch (options.orderBy.field) {
-      case 'NAME':
-        orderBy.push(`fc.name ${direction}`);
-        break;
-      case 'TOTAL_CONTRIBUTED':
-        orderBy.push(`chts."creditTotal" ${direction}`);
-        groupBy.push('chts."creditTotal"');
-        break;
-      case 'TOTAL_EXPENDED':
-        orderBy.push(`chts."debitTotal" ${direction}`);
-        groupBy.push('chts."debitTotal"');
-        break;
-      case 'CREATED_AT':
-        orderBy.push(`fc."createdAt" ${direction}`);
-        break;
-      default:
-        orderBy.push('fc.name ASC');
+
+    // Admin members join
+    if (isAdmin) {
+      query = query.innerJoin('Members as m', join =>
+        join
+          .onRef('m.CollectiveId', '=', 'cas.CollectiveId')
+          .onRef('m.MemberCollectiveId', '=', 'cas.FromCollectiveId' as any)
+          .on('m.role' as any, '=', 'ADMIN')
+          .on('m.deletedAt', 'is', null),
+      ) as any;
     }
-  } else {
-    // Default ordering when filters are applied
+
+    // CommunityHostTransactionSummary join
+    if (needsTransactionsAggregated) {
+      query = query.leftJoin('AdminCommunityHostTransactionSummary as chts', join =>
+        join
+          .onRef('chts.FromCollectiveId', '=', 'cas.FromCollectiveId')
+          .onRef('chts.HostCollectiveId', '=', 'cas.HostCollectiveId')
+          .on('chts.kind', 'is', null),
+      ) as any;
+    }
+
+    // WHERE conditions
+    if ('HostCollectiveId' in replacements && replacements.HostCollectiveId !== undefined) {
+      query = query.where('cas.HostCollectiveId', '=', replacements.HostCollectiveId) as any;
+    }
+    if ('CollectiveId' in replacements && replacements.CollectiveId !== undefined) {
+      query = query.where('cas.CollectiveId', '=', replacements.CollectiveId) as any;
+    }
+    if ('type' in replacements && replacements.type && replacements.type.length > 0) {
+      query = query.where('fc.type' as any, 'in', replacements.type as any) as any;
+    }
+    if ('relation' in replacements && replacements.relation && replacements.relation.length > 0) {
+      query = query.where(({ eb }) => eb(sql`cas."relations"`, '@>', sql`${replacements.relation}::jsonb`)) as any;
+    }
     if (replacements.totalExpendedExpression) {
-      orderBy.push(`chts."debitTotal" DESC NULLS LAST`);
-      groupBy.push('chts."debitTotal"');
+      query = query.where(sql<boolean>`chts."debitTotal" ${sql.raw(replacements.totalExpendedExpression)}`) as any;
     }
     if (replacements.totalContributedExpression) {
-      orderBy.push(`chts."creditTotal" DESC NULLS LAST`);
-      groupBy.push('chts."creditTotal"');
+      query = query.where(sql<boolean>`chts."creditTotal" ${sql.raw(replacements.totalContributedExpression)}`) as any;
     }
-    orderBy.push('fc.name ASC');
-  }
 
-  const allReplacements = { ...replacements, ...searchConditions.replacements };
-  const nodes = () =>
-    sequelize.query<Collective>(
-      `SELECT fc.* ${baseQuery} GROUP BY ${groupBy.join(', ')} ORDER BY ${orderBy.join(', ')} LIMIT :limit OFFSET :offset`,
-      {
-        model: Collective,
-        mapToModel: true,
-        replacements: allReplacements,
-      },
-    );
+    // Search WHERE conditions
+    if (parsed?.term) {
+      if (parsed.type === 'slug') {
+        const sanitizedSlug = sanitizeSearchTermForILike(parsed.term.toString());
+        query = query.where('fc.slug', 'ilike', `%${sanitizedSlug}%`) as any;
+      } else if (parsed.type === 'id' || parsed.type === 'number') {
+        query = query.where(({ eb, or }) =>
+          or([
+            eb('cas.CollectiveId' as any, '=', Number(parsed.term)),
+            eb('cas.FromCollectiveId' as any, '=', Number(parsed.term)),
+          ]),
+        ) as any;
+      } else if (parsed.type === 'publicId') {
+        query = query.where('fc.publicId' as any, '=', parsed.term) as any;
+      } else if (parsed.type !== 'email') {
+        // Generic text search (email case is handled by the INNER JOIN above)
+        const sanitizedTerm = sanitizeSearchTermForILike(parsed.term.toString());
+        const pattern = `%${sanitizedTerm}%`;
+        query = query.where(({ eb, or }) =>
+          or([
+            eb('fc.name' as any, 'ilike', pattern),
+            eb('fc.slug' as any, 'ilike', pattern),
+            eb('u.email' as any, 'ilike', pattern),
+          ]),
+        ) as any;
+      }
+    }
 
-  const totalCount = async () =>
-    (sequelize as Sequelize)
-      .query<{ totalCount: number }>(`SELECT COUNT(DISTINCT fc.id) AS "totalCount" ${baseQuery}`, {
-        replacements: allReplacements,
-        raw: true,
-        type: QueryTypes.SELECT,
-        plain: true,
-      })
-      .then(res => res.totalCount || 0);
+    return query;
+  };
+
+  // Build ORDER BY / GROUP BY
+  const buildOrderBy = () => {
+    const orderBy: Array<{ field: string; direction: 'asc' | 'desc' }> = [];
+    const extraGroupBy: string[] = [];
+
+    if (options?.orderBy?.field && options?.orderBy?.direction) {
+      const dir = options.orderBy.direction.toLowerCase() as 'asc' | 'desc';
+      switch (options.orderBy.field) {
+        case 'NAME':
+          orderBy.push({ field: 'fc.name', direction: dir });
+          break;
+        case 'TOTAL_CONTRIBUTED':
+          orderBy.push({ field: 'chts."creditTotal"', direction: dir });
+          extraGroupBy.push('chts."creditTotal"');
+          break;
+        case 'TOTAL_EXPENDED':
+          orderBy.push({ field: 'chts."debitTotal"', direction: dir });
+          extraGroupBy.push('chts."debitTotal"');
+          break;
+        case 'CREATED_AT':
+          orderBy.push({ field: 'fc."createdAt"', direction: dir });
+          break;
+        default:
+          orderBy.push({ field: 'fc.name', direction: 'asc' });
+      }
+    } else {
+      if (replacements.totalExpendedExpression) {
+        orderBy.push({ field: 'chts."debitTotal"', direction: 'desc' });
+        extraGroupBy.push('chts."debitTotal"');
+      }
+      if (replacements.totalContributedExpression) {
+        orderBy.push({ field: 'chts."creditTotal"', direction: 'desc' });
+        extraGroupBy.push('chts."creditTotal"');
+      }
+      orderBy.push({ field: 'fc.name', direction: 'asc' });
+    }
+
+    return { orderBy, extraGroupBy };
+  };
+
+  const { orderBy, extraGroupBy } = buildOrderBy();
+
+  const nodes = async () => {
+    let query = buildBaseQuery()
+      .select(sql`fc.*` as any)
+      .groupBy(['cas.FromCollectiveId', 'fc.id', ...extraGroupBy.map(f => sql.raw(f))]);
+
+    for (const ob of orderBy) {
+      if (ob.direction === 'desc') {
+        query = query.orderBy(sql.raw(`${ob.field} DESC NULLS LAST`)) as any;
+      } else {
+        query = query.orderBy(sql.raw(`${ob.field} ASC`)) as any;
+      }
+    }
+
+    query = query.limit(replacements.limit).offset(replacements.offset);
+
+    const result = await query.execute();
+    return kyselyToSequelizeModels(Collective)(result as any[]);
+  };
+
+  const totalCount = async () => {
+    const result = await buildBaseQuery()
+      .select(sql<number>`COUNT(DISTINCT fc.id)`.as('totalCount'))
+      .executeTakeFirst();
+    return Number(result?.totalCount) || 0;
+  };
 
   return { nodes, totalCount };
 };
@@ -192,7 +232,7 @@ const CommunityQuery = {
       description: 'Account filter',
     },
     host: {
-      type: GraphQLAccountReferenceInput,
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'Host context filter',
     },
     type: { type: new GraphQLList(GraphQLAccountType) },
@@ -229,38 +269,25 @@ const CommunityQuery = {
       throw new Error(`Cannot fetch more than ${DEFAULT_LIMIT} members at the same time, please adjust the limit`);
     }
 
+    const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
     assert(
-      Boolean(args.account) || Boolean(args.host),
-      'You must provide either an account or a host to fetch its community',
+      req.remoteUser?.isAdminOfCollective(host),
+      new BadRequest('Only admins of the host can access the community endpoint'),
     );
 
     const replacements: CommunitySummaryArgs = {
       limit: args.limit,
       offset: args.offset,
+      HostCollectiveId: host.id,
     };
 
     const account = args.account && (await fetchAccountWithReference(args.account, { throwIfMissing: false }));
-    const host = args.host && (await fetchAccountWithReference(args.host, { throwIfMissing: false }));
-    if (host && account) {
-      // TODO: Add exception for accounts that were previously hosted by the host
+    if (account) {
       assert(
         host.id === account.HostCollectiveId,
         new BadRequest('The account provided is not hosted by the host provided'),
       );
-    }
-    if (account) {
-      assert(
-        req.remoteUser?.isAdminOfCollective(host) || req.remoteUser?.isAdminOfCollective(account),
-        new BadRequest('Only admins can lookup for members using the "account" argument'),
-      );
       replacements.CollectiveId = account.id;
-    }
-    if (host) {
-      assert(
-        req.remoteUser?.isAdminOfCollective(host),
-        new BadRequest('Only admins can lookup for members using the "host" argument'),
-      );
-      replacements.HostCollectiveId = host.id;
     }
 
     const hasCommunityHostTransactionsArgs = args.totalContributed || args.totalExpended;
@@ -280,12 +307,7 @@ const CommunityQuery = {
       replacements.relation = JSON.stringify(args.relation);
     }
     if (args.searchTerm) {
-      if (req.remoteUser?.isAdminOfCollective(account) || req.remoteUser?.isAdminOfCollective(host)) {
-        replacements.searchTerm = args.searchTerm;
-      } else {
-        throw new BadRequest('Only admins can lookup for members using the "searchTerm" argument');
-      }
-      // TODO: Before returning the result, double check if the remoteUser has access to see the result email
+      replacements.searchTerm = args.searchTerm;
     }
 
     const { nodes, totalCount } = await getHostCommunity(replacements, { orderBy: args.orderBy });

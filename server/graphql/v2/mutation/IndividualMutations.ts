@@ -44,6 +44,16 @@ const individualMutations = {
       return user.getCollective({ loaders: req.loaders });
     },
   },
+  createIncognitoProfile: {
+    type: new GraphQLNonNull(GraphQLIndividual),
+    description: 'Create an incognito profile for the logged-in user, or return the existing one. Scope: "account".',
+    resolve: async (_, __, req: express.Request) => {
+      checkRemoteUserCanUseAccount(req);
+
+      const collective = req.remoteUser.collective ?? (await req.remoteUser.getCollective({ loaders: req.loaders }));
+      return collective.getOrCreateIncognitoProfile();
+    },
+  },
   setPassword: {
     type: new GraphQLNonNull(GraphQLSetPasswordResponse),
     description: 'Set password to Individual. Scope: "account". 2FA.',
@@ -130,6 +140,7 @@ const individualMutations = {
         description: 'The token to confirm the email.',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- this mutation explicitly rejects OAuth and personal token auth; no scope check can be applied
     resolve: async (_, { token: confirmEmailToken }, req) => {
       // Forbid this route for OAuth and Personal Tokens. Remember to check the scope if you want to allow it.
       // Also make sure to prevent exchanging OAuth/Personal tokens for session tokens.

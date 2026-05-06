@@ -225,6 +225,7 @@ export const fakeIncognitoProfile = async user => {
     HostCollectiveId: null,
     CreatedByUserId: user.id,
     isIncognito: true,
+    data: { UserCollectiveId: user.CollectiveId, UserId: user.id },
   });
   await fakeMember({ CollectiveId: incognitoCollective.id, MemberCollectiveId: user.CollectiveId, role: roles.ADMIN });
   return incognitoCollective;

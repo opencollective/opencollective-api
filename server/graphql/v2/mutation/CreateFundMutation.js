@@ -124,6 +124,7 @@ const createFundMutation = {
       type: GraphQLAccountReferenceInput,
     },
   },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createFund
   resolve: (_, args, req) => {
     return createFund(_, args, req);
   },

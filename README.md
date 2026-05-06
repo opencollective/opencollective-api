@@ -1,7 +1,5 @@
 # Open Collective API
 
-![CI](https://github.com/opencollective/opencollective-api/workflows/CI/badge.svg)
-![E2E](https://github.com/opencollective/opencollective-api/workflows/E2E/badge.svg)
 [![Discord](https://discordapp.com/api/guilds/1241017531318276158/widget.png)](https://discord.opencollective.com)
 
 ## Foreword

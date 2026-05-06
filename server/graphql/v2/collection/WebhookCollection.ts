@@ -1,6 +1,9 @@
+import express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import models from '../../../models';
+import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
+import { Forbidden } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
 import { GraphQLWebhook } from '../object/Webhook';
@@ -25,7 +28,9 @@ export const WebhookCollectionArgs = {
   account: { type: new GraphQLNonNull(GraphQLAccountReferenceInput) },
 };
 
-export const WebhookCollectionResolver = async (args, req) => {
+export const WebhookCollectionResolver = async (args, req: express.Request) => {
+  checkRemoteUserCanUseWebhooks(req);
+
   // Check Pagination arguments
   if (args.limit <= 0) {
     args.limit = CollectionArgs.limit.defaultValue;
@@ -36,6 +41,9 @@ export const WebhookCollectionResolver = async (args, req) => {
 
   // Check and Fetch account
   const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+  if (!req.remoteUser.isAdminOfCollective(account)) {
+    throw new Forbidden();
+  }
 
   const where = { CollectiveId: account.id };
 

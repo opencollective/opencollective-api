@@ -152,6 +152,7 @@ const memberMutations = {
         description: 'New public message',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside editPublicMessage (common/members.ts)
     async resolve(_, args, req) {
       let { fromAccount, toAccount } = args;
       const { message } = args;

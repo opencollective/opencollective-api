@@ -1013,6 +1013,9 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      if (!checkScope(req, 'orders')) {
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
+      }
       if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.ORDER)) {
         throw new FeatureNotAllowedForUser();
       }

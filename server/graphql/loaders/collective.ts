@@ -9,7 +9,7 @@ import models, { Collective, Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
 
-type CommunityActivitySummaryRow = {
+type AdminCommunityActivitySummaryRow = {
   HostCollectiveId: number;
   CollectiveId: number;
   FromCollectiveId: number;
@@ -216,7 +216,7 @@ export default {
               JSONB_OBJECT_AGG(cas."CollectiveId", cas."relations") FILTER (WHERE c."type" = 'ORGANIZATION') AS "associatedOrganizations",
               cas."HostCollectiveId" AS "contextualHostCollectiveId", MAX(cas."lastInteractionAt") as "lastInteractionAt", MIN(cas."firstInteractionAt") as "firstInteractionAt"
             FROM
-              "CommunityActivitySummary" cas
+              "AdminCommunityActivitySummary" cas
               INNER JOIN "Collectives" fc ON fc.id = cas."FromCollectiveId"
               LEFT JOIN "Collectives" c ON c.id = cas."CollectiveId"
             WHERE
@@ -240,7 +240,7 @@ export default {
       ),
     forSpecificHostedCollective: (): DataLoader<
       { CollectiveId: number; HostCollectiveId: number; FromCollectiveId: number },
-      CommunityActivitySummaryRow
+      AdminCommunityActivitySummaryRow
     > => {
       const makeKey = pair => `${pair.HostCollectiveId}-${pair.CollectiveId}-${pair.FromCollectiveId}`;
       return new DataLoader(
@@ -255,12 +255,12 @@ export default {
             )
             .join(' OR ');
 
-          const results: CommunityActivitySummaryRow[] = await sequelize.query(
+          const results: AdminCommunityActivitySummaryRow[] = await sequelize.query(
             `
             SELECT
               *
             FROM
-              "CommunityActivitySummary"
+              "AdminCommunityActivitySummary"
             WHERE
               (${conditionals})
             `,

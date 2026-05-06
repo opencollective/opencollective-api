@@ -3,13 +3,14 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
+import { ViewsDatabase } from '../../server/types/kysely-views';
 import { runCronJob } from '../utils';
 
-const VIEWS = [
+const VIEWS: (keyof ViewsDatabase)[] = [
   'CollectiveTransactionStats',
   'TransactionBalances',
   'CollectiveBalanceCheckpoint',
-  'CommunityActivitySummary',
+  'AdminCommunityActivitySummary',
 ];
 
 /**

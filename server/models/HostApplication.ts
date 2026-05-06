@@ -6,11 +6,12 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
+  Transaction,
 } from 'sequelize';
 
 import { activities } from '../constants';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
-import sequelize, { DataTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
@@ -102,6 +103,7 @@ class HostApplication extends ModelWithPublicId<
     host: Collective,
     collective: Collective,
     status: HostApplicationStatus,
+    options?: { transaction?: Transaction },
   ): Promise<void> {
     await this.update(
       { status },
@@ -111,8 +113,23 @@ class HostApplication extends ModelWithPublicId<
           CollectiveId: collective.id,
           status: HostApplicationStatus.PENDING,
         },
+        transaction: options?.transaction,
       },
     );
+
+    if (status === HostApplicationStatus.APPROVED) {
+      await this.update(
+        { status: HostApplicationStatus.EXPIRED },
+        {
+          where: {
+            CollectiveId: collective.id,
+            HostCollectiveId: { [Op.ne]: host.id },
+            status: HostApplicationStatus.PENDING,
+          },
+          transaction: options?.transaction,
+        },
+      );
+    }
   }
 }
 

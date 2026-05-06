@@ -38,7 +38,7 @@
     "@babel/core": "7.29.0",
     "@babel/node": "7.29.0",
     "@babel/plugin-transform-typescript": "7.28.6",
-    "@babel/preset-env": "7.29.2",
+    "@babel/preset-env": "7.29.3",
     "@escape.tech/graphql-armor": "3.2.0",
     "@hyperwatch/hyperwatch": "4.2.0",
     "@json2csv/plainjs": "^7.0.6",
