@@ -48,6 +48,10 @@ export async function canUserUseVendor({
   host: Collective;
   loaders?: Express.Request['loaders'];
 }): Promise<boolean> {
+  if (!isVendorScopedToCollective(vendor, collective)) {
+    return false;
+  }
+
   const hostPolicy = await getPolicy(host, POLICIES.USE_VENDOR_POLICY, { loaders });
   const policy = getEffectiveUseVendorPolicy(vendor, hostPolicy);
 
@@ -60,7 +64,7 @@ export async function canUserUseVendor({
     return isHostAdmin;
   }
 
-  return isHostAdmin || (isVendorScopedToCollective(vendor, collective) && remoteUser.isAdminOfCollective(collective));
+  return isHostAdmin || remoteUser.isAdminOfCollective(collective);
 }
 
 /**

@@ -2197,6 +2197,75 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
       });
+
+      it('ALL_SUBMITTERS host: random user cannot set a vendor scoped to a different collective', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.ALL_SUBMITTERS } },
+        });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('host admin cannot set a vendor scoped to a different collective', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('host-only vendor cannot be set as payee on a hosted collective expense', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [host.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
     });
 
     describe('vendor payout method handling', () => {

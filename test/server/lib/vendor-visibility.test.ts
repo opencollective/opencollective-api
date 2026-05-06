@@ -306,5 +306,42 @@ describe('server/lib/vendor-visibility', () => {
       expect(await canUserUseVendor({ remoteUser: collectiveAdmin, vendor, collective, host })).to.be.true;
       expect(await canUserUseVendor({ remoteUser: randomUser, vendor, collective, host })).to.be.false;
     });
+
+    it('ALL_SUBMITTERS vendor can only be used on scoped accounts', async () => {
+      const user = await fakeUser();
+      const host = await fakeActiveHost({
+        data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.ALL_SUBMITTERS } },
+      });
+      const inScopeCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeVendor({
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [inScopeCollective.id] },
+      });
+
+      expect(
+        await canUserUseVendor({ remoteUser: user, vendor, collective: otherCollective, host }),
+        'must not be usable on a collective not in the vendor scope',
+      ).to.be.false;
+      expect(await canUserUseVendor({ remoteUser: user, vendor, collective: inScopeCollective, host })).to.be.true;
+    });
+
+    it('host admin cannot use a vendor on account outside scope', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const inScopeCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+      await hostAdmin.populateRoles();
+      const vendor = await fakeVendor({
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [inScopeCollective.id] },
+      });
+
+      expect(
+        await canUserUseVendor({ remoteUser: hostAdmin, vendor, collective: otherCollective, host }),
+        'host admin status must not bypass vendor scope',
+      ).to.be.false;
+      expect(await canUserUseVendor({ remoteUser: hostAdmin, vendor, collective: inScopeCollective, host })).to.be.true;
+    });
   });
 });
