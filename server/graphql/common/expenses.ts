@@ -59,7 +59,7 @@ import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
-import { canSeePrivateAccount } from '../../lib/private-accounts';
+import { canSeeAllPrivateAccounts } from '../../lib/private-accounts';
 import { reportErrorToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { deepJSONBSet } from '../../lib/sql';
@@ -383,10 +383,11 @@ export async function assertExpenseAccessibleForPrivateCollective(
   expense: Expense,
   options: { draftKey?: string } = {},
 ): Promise<void> {
-  const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-  if (!collective?.isPrivate) {
+  const loaderResults = await req.loaders.Collective.byId.loadMany([expense.CollectiveId, expense.FromCollectiveId]);
+  const collectives = loaderResults.filter((result): result is Collective => result instanceof Collective);
+  if (!collectives.some(collective => collective.isPrivate)) {
     return;
-  } else if (await canSeePrivateAccount(req, collective)) {
+  } else if (await canSeeAllPrivateAccounts(req, collectives)) {
     return;
   } else if (
     expense.status === expenseStatus.DRAFT &&
