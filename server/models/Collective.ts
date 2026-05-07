@@ -120,7 +120,7 @@ import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
-import MemberInvitation from './MemberInvitation';
+import MemberInvitation, { PRIVATE_ACCOUNTS_SUPPORTED_ROLES } from './MemberInvitation';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
@@ -2855,7 +2855,9 @@ class Collective extends ModelWithPublicId<
       throw new Error('There must be at least one admin for the account');
     }
 
-    const allowedRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
+    const allowedRoles = this.isPrivate
+      ? PRIVATE_ACCOUNTS_SUPPORTED_ROLES
+      : [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
 
     // Ensure only ADMIN and MEMBER roles are used here
     members.forEach(member => {
