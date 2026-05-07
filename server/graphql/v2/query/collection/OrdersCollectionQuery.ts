@@ -404,6 +404,8 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     });
   }
 
+  // No need to check `hostedAccounts`, becauser we already check host and there's a check above to make sure all `hostedAccounts`
+  // do belong to the host.
   const allAccounts = [host, account, oppositeAccount].filter(Boolean);
   if (allAccounts.length > 0) {
     await assertCanSeeAllAccounts(req, allAccounts);

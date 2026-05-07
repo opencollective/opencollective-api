@@ -411,6 +411,8 @@ export function editCollective(_, args, req) {
             throw new ValidationFailed(
               `Cannot unhost projects/events with a parent. Please unhost the parent instead.`,
             );
+          } else if (collective.isPrivate && newCollectiveData.HostCollectiveId) {
+            throw new ValidationFailed('Private accounts cannot change hosts');
           }
 
           const newHost =

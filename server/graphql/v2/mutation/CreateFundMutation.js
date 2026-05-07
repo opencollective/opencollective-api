@@ -66,10 +66,10 @@ async function createFund(_, args, req) {
     host = await fetchAccountWithReference(args.host, { loaders: req.loaders });
     if (!host) {
       throw new ValidationFailed('Host Not Found');
-    } else if (!host.hasMoneyManagement) {
-      throw new ValidationFailed('Host account is not activated as Host.');
     } else if (!(await canSeePrivateAccount(req, host))) {
       throw new Unauthorized('You are not authorized to create a fund under this host');
+    } else if (!host.hasMoneyManagement) {
+      throw new ValidationFailed('Host account is not activated as Host.');
     }
 
     if (host.isPrivate) {

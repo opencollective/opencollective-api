@@ -4316,22 +4316,30 @@ Collective.init(
         const newSlug = `${instance.slug}-${Date.now()}`;
         await instance.update({ slug: newSlug });
       },
-      beforeCreate: async instance => {
+      beforeCreate: async (instance, options) => {
         // Make sure user is not prevented from creating collectives
-        const user = instance.CreatedByUserId && (await User.findByPk(instance.CreatedByUserId));
+        const user =
+          instance.CreatedByUserId &&
+          (await User.findByPk(instance.CreatedByUserId, { transaction: options.transaction }));
         if (user && !canUseFeature(user, FEATURE.CREATE_COLLECTIVE)) {
           throw new Error("You're not authorized to create new collectives at the moment.");
         }
 
         // Inherit isPrivate from parent host: if the host is private, all hosted accounts must be private too
         if (!instance.isPrivate && instance.HostCollectiveId) {
-          const host = await Collective.findByPk(instance.HostCollectiveId, { attributes: ['isPrivate'] });
+          const host = await Collective.findByPk(instance.HostCollectiveId, {
+            attributes: ['isPrivate'],
+            transaction: options.transaction,
+          });
           if (host?.isPrivate) {
             instance.isPrivate = true;
           }
         }
         if (!instance.isPrivate && instance.ParentCollectiveId) {
-          const parent = await Collective.findByPk(instance.ParentCollectiveId, { attributes: ['isPrivate'] });
+          const parent = await Collective.findByPk(instance.ParentCollectiveId, {
+            attributes: ['isPrivate'],
+            transaction: options.transaction,
+          });
           if (parent?.isPrivate) {
             instance.isPrivate = true;
           }

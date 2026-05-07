@@ -23,9 +23,9 @@ export async function canSeeAllPrivateAccounts(req: Request, accounts: Collectiv
   if (privateAccounts.length === 0) {
     return true;
   }
-  const result = await req.loaders.Collective.canSeePrivateAccount.loadMany(privateAccounts.map(account => account.id));
 
-  return result.every(canSee => canSee);
+  const result = await req.loaders.Collective.canSeePrivateAccount.loadMany(privateAccounts.map(account => account.id));
+  return result.every(canSee => canSee === true);
 }
 
 /**

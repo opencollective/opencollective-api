@@ -38,14 +38,14 @@ async function createProject(_, args, req) {
   const parent = await fetchAccountWithReference(args.parent);
   if (!parent) {
     throw new NotFound('Parent not found');
+  } else if (!(await canSeePrivateAccount(req, parent))) {
+    throw new Unauthorized('You are not authorized to create a project under this parent account');
   } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Forbidden(`You must be logged in as a member of the ${parent.slug} collective to create a Project`);
   } else if (!['COLLECTIVE', 'ORGANIZATION'].includes(parent.type)) {
     throw new BadRequest('Parent account must be a collective or organization');
   } else if (parent.isFrozen()) {
     throw new Forbidden('This account is frozen and cannot create new projects at this time.');
-  } else if (!(await canSeePrivateAccount(req, parent))) {
-    throw new Unauthorized('You are not authorized to create a project under this parent account');
   }
 
   const projectData = {

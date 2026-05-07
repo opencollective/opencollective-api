@@ -72,6 +72,7 @@ export const canAddFundsFromAccount = (fromCollective: Collective, host: Collect
   } else if (!remoteUser.isAdmin(host.id)) {
     return false;
   } else if (host.isPrivate && fromCollective.HostCollectiveId !== host.id) {
+    // For private accounts, funds can only be added from host-owned vendors and other hosted collectives
     return false;
   } else {
     return (
@@ -207,7 +208,7 @@ export async function assertOrderAccessibleForPrivateCollective(req: express.Req
   }
 
   const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
-  if (canSeePrivateAccount(req, fromCollective)) {
+  if (await canSeePrivateAccount(req, fromCollective)) {
     return;
   }
 

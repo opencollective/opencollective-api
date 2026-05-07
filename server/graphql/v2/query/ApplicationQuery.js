@@ -1,6 +1,7 @@
 import { pick } from 'lodash';
 
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
+import { NotFound } from '../../errors';
 import { ApplicationReferenceFields, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
 import { GraphQLApplication } from '../object/Application';
 
@@ -13,8 +14,13 @@ const ApplicationQuery = {
     // Read https://github.com/opencollective/opencollective/issues/4656
     const applicationReference = pick(args, ['id', 'legacyId', 'clientId']);
     const application = await fetchApplicationWithReference(applicationReference);
+    if (!application) {
+      throw new NotFound('Application not found');
+    }
+
     const collective = await req.loaders.Collective.byId.load(application.CollectiveId);
     await assertCanSeeAccount(req, collective);
+
     return application;
   },
 };

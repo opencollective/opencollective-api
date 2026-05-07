@@ -22,14 +22,14 @@ async function createEvent(_, args, req) {
   const parent = await fetchAccountWithReference(args.account);
   if (!parent) {
     throw new NotFound('Parent account not found');
+  } else if (!(await canSeePrivateAccount(req, parent))) {
+    throw new Unauthorized('You are not authorized to create an event under this parent account');
   } else if (!['COLLECTIVE', 'ORGANIZATION'].includes(parent.type)) {
     throw new BadRequest('Parent account must be a collective or organization');
   } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Unauthorized(`You must be logged in as a member of the ${parent.slug} collective to create an Event`);
   } else if (parent.isFrozen()) {
     throw new Unauthorized('This account is frozen and cannot create new events at this time.');
-  } else if (!(await canSeePrivateAccount(req, parent))) {
-    throw new Unauthorized('You are not authorized to create an event under this parent account');
   }
 
   const eventData = {
