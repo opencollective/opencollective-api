@@ -1483,7 +1483,7 @@ class Collective extends ModelWithPublicId<
    * Returns true if Collective is a host account open to applications.
    */
   canApply = async function () {
-    return Boolean(this.hasMoneyManagement && this.settings?.apply);
+    return Boolean(this.hasHosting && !this.isPrivate && this.settings?.apply);
   };
 
   /**
