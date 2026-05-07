@@ -67,4 +67,15 @@ describe('server/graphql/v2/query/VirtualCardQuery', () => {
     expect(result.errors).to.exist;
     expect(result.errors[0].message).to.include('Virtual Card Not Found');
   });
+
+  it('returns null when the card is missing and throwIfMissing is false', async () => {
+    const result = await graphqlQueryV2(
+      virtualCardQuery,
+      { virtualCard: { id: `${EntityShortIdPrefix.VirtualCard}_missing` }, throwIfMissing: false },
+      hostAdminUser,
+    );
+
+    expect(result.errors).to.not.exist;
+    expect(result.data.virtualCard).to.be.null;
+  });
 });

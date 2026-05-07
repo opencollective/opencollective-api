@@ -33,6 +33,8 @@ const VirtualCardQuery = {
 
     if (!virtualCard && args.throwIfMissing) {
       throw new NotFound('Virtual Card Not Found');
+    } else if (!virtualCard) {
+      return null;
     }
 
     if (
