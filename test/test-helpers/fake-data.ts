@@ -239,6 +239,7 @@ export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = 
     slug: randStr('host-'),
     HostCollectiveId: null,
     hasMoneyManagement: true,
+    hasHosting: true,
     ...hostData,
   });
 };
@@ -253,6 +254,7 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     hasMoneyManagement: true,
     isActive: true,
     approvedAt: new Date(),
+    hasHosting: true,
     ...hostData,
   });
 
@@ -359,6 +361,15 @@ export const fakeCollective = async (
             },
             sequelizeParams,
           );
+        }),
+      );
+
+      // Re-populate roles for affected users
+      await Promise.all(
+        admins.map(admin => {
+          if (admin instanceof models.User) {
+            admin.populateRoles({ force: true });
+          }
         }),
       );
     } catch {

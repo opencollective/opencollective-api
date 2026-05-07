@@ -519,6 +519,7 @@ class Collective extends ModelWithPublicId<
       platformFeePercent: this.platformFeePercent,
       tags: this.tags,
       HostCollectiveId: this.HostCollectiveId,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -589,6 +590,7 @@ class Collective extends ModelWithPublicId<
       description: this.description,
       previewImage: this.previewImage,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -1482,8 +1484,8 @@ class Collective extends ModelWithPublicId<
   /**
    * Returns true if Collective is a host account open to applications.
    */
-  canApply = async function () {
-    return Boolean(this.hasMoneyManagement && this.settings?.apply);
+  canApply = function () {
+    return Boolean(this.hasHosting && !this.isPrivate && this.settings?.apply);
   };
 
   /**
@@ -2479,7 +2481,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
    * @param {object} [options] (optional, to peform specific actions)
    */
-  addHost = async function (hostCollective, creatorUser, options = undefined) {
+  addHost = async function (hostCollective: Collective, creatorUser: User, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
     } else if (this.hasMoneyManagement) {
@@ -2514,7 +2516,12 @@ class Collective extends ModelWithPublicId<
     }
 
     // If we can't automatically approve the collective and it is not open to new applications, reject it
-    if (!shouldAutomaticallyApprove && !hostCollective.canApply()) {
+    if (
+      !shouldAutomaticallyApprove &&
+      !hostCollective.canApply() &&
+      // Exception to the canApply rule: hosting is enabled, and remote user is an admin of the host
+      !(hostCollective.hasHosting && creatorUser.isAdmin(hostCollective.id))
+    ) {
       throw new Error('This host is not open to applications');
     }
 

@@ -455,6 +455,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
     it('allows application when invite members satisfy host minimum admin policy', async () => {
       const host = await fakeHost({
+        settings: { apply: true },
         data: {
           policies: {
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 3 },
@@ -502,7 +503,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
     });
 
     it('applies to host and invite other admins', async () => {
-      const host = await fakeHost();
+      const host = await fakeHost({ settings: { apply: true } });
       const adminUser = await fakeUser();
       const existingUserToInvite = await fakeUser();
       const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });

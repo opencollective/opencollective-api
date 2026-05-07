@@ -413,6 +413,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isFirstPartyHost: { type: new GraphQLNonNull(GraphQLBoolean) },
       isVerified: { type: new GraphQLNonNull(GraphQLBoolean) },
       isIncognito: { type: GraphQLBoolean },
+      isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isSuspended: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is suspended' },
       isGuest: { type: GraphQLBoolean },
@@ -1020,6 +1021,10 @@ const CollectiveFields = () => {
       resolve(collective) {
         return collective.isIncognito;
       },
+    },
+    isPrivate: {
+      description: 'Returns whether this collective is private',
+      type: new GraphQLNonNull(GraphQLBoolean),
     },
     isGuest: {
       description: 'Returns whether this collective is a guest profile',
