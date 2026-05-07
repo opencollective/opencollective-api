@@ -295,7 +295,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
       expect(membership).to.not.exist;
 
       const refundActivity = await models.Activity.findOne({
-        where: { type: activities.CONTRIBUTION_REFUNDED_BY_HOST, OrderId: hostOrder.id },
+        where: { type: activities.CONTRIBUTION_PAYMENT_REFUNDED_BY_HOST, OrderId: hostOrder.id },
       });
       expect(refundActivity.data.messageForContributor).to.equal(messageForContributor);
 

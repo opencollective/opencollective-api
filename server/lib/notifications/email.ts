@@ -266,7 +266,7 @@ export const notifyByEmail = async (activity: Activity) => {
       }
       break;
 
-    case ActivityTypes.CONTRIBUTION_REFUNDED_BY_HOST:
+    case ActivityTypes.CONTRIBUTION_PAYMENT_REFUNDED_BY_HOST:
       await notify.collective(activity, {
         collectiveId: activity.data.fromCollective.id,
       });

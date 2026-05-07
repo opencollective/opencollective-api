@@ -388,7 +388,7 @@ export async function refundTransactionAsHost(
   });
 
   await models.Activity.create({
-    type: activities.CONTRIBUTION_REFUNDED_BY_HOST,
+    type: activities.CONTRIBUTION_PAYMENT_REFUNDED_BY_HOST,
     CollectiveId: order.CollectiveId,
     FromCollectiveId: order.FromCollectiveId,
     HostCollectiveId: order.collective.HostCollectiveId,

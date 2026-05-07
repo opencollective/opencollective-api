@@ -1,4 +1,4 @@
-Subject: Contribution to {{{collective.name}}} refunded by the Fiscal Host
+Subject: Payment for your contribution to {{{collective.name}}} refunded by the Fiscal Host
 
 {{> header}}
 
@@ -10,11 +10,7 @@ Subject: Contribution to {{{collective.name}}} refunded by the Fiscal Host
 <p>Hello,</p>
 {{/if}}
 
-{{#if (gt refundCount 1)}}
-<p>{{refundCount}} contributions to {{>linkCollective collective=collective}} have been refunded by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
-{{else}}
-<p>Your contribution to {{>linkCollective collective=collective}} has been refunded by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
-{{/if}}
+<p>A payment for your contribution to {{>linkCollective collective=collective}} has been refunded by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
 
 {{#if messageForContributor}}
 <p>Here is the message from the Fiscal Host:</p>
