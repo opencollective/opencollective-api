@@ -412,7 +412,7 @@ function collectAccountFields(schema: GraphQLSchema): Array<{ owner: string; fie
 // Test
 // ---------------------------------------------------------------------------
 
-describe('server/graphql/v2/privacy-audit', () => {
+describe('server/graphql/v2/graphql-private-orgs-privacy', () => {
   it('all Account-returning fields are registered in the privacy allow-list', () => {
     const accountFields = collectAccountFields(schemaV2 as unknown as GraphQLSchema);
     const unregistered: string[] = [];
@@ -428,7 +428,7 @@ describe('server/graphql/v2/privacy-audit', () => {
       throw new Error(
         `The following Account-returning fields are not registered in the privacy allow-list:\n${unregistered
           .map(k => `  - ${k}`)
-          .join('\n')}\n\nPlease add them to the PRIVACY_STRATEGY map in privacy-audit.test.ts ` +
+          .join('\n')}\n\nPlease add them to the PRIVACY_STRATEGY map in graphql-private-orgs-privacy.test.ts ` +
           `with the appropriate privacy strategy ('entry-gate', 'parent-gate', 'no-private', 'admin-only', or 'skipped').`,
       );
     }

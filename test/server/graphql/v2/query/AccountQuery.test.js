@@ -1007,14 +1007,22 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     });
 
     describe('account nested collections (defense-in-depth)', () => {
+      it('members: returns empty for unauthenticated viewers', async () => {
+        const result = await graphqlQueryV2(privateAccountVisibilityQuery, { slug: ctx.privateCollective.slug }, null);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('Forbidden');
+        expect(result.data.account).to.be.null;
+      });
+
       it('members: returns empty for unauthorized viewers', async () => {
         const result = await graphqlQueryV2(
           privateAccountVisibilityQuery,
           { slug: ctx.privateCollective.slug },
-          ctx.privateHostAdmin,
+          ctx.randomUser,
         );
-        expect(result.errors).to.be.undefined;
-        expect(result.data.account.members.totalCount).to.be.gte(1);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('Forbidden');
+        expect(result.data.account).to.be.null;
       });
 
       it('updates: returns empty for unauthorized viewers via collective admin', async () => {
