@@ -259,6 +259,7 @@ export const searchCollectivesInDB = async (
   offset = 0,
   limit = 100,
   {
+    accountIds,
     countries,
     hasCustomContributionsEnabled,
     hostCollectiveIds,
@@ -277,6 +278,7 @@ export const searchCollectivesInDB = async (
     types,
     ...args
   }: {
+    accountIds?: number[];
     countries?: string[];
     currency?: string;
     hasCustomContributionsEnabled?: boolean;
@@ -320,6 +322,10 @@ export const searchCollectivesInDB = async (
   let searchedTags = [''];
   if (countries) {
     countryCodes = `${countries.join(',')}`;
+  }
+
+  if (accountIds && accountIds.length > 0) {
+    dynamicConditions += 'AND c."id" IN (:accountIds) ';
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
@@ -479,6 +485,7 @@ export const searchCollectivesInDB = async (
       model: models.Collective,
       mapToModel: true,
       replacements: {
+        accountIds,
         types,
         term: term,
         slugifiedTerm: term ? slugify(term) : '',
