@@ -34,329 +34,336 @@ import {
   fakeUpdate,
   fakeUser,
   fakeUserToken,
+  randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/query/SearchQuery', () => {
-  const searchQuery = gql`
-    query Search(
-      $searchTerm: String!
-      $includeAccounts: Boolean!
-      $includeComments: Boolean!
-      $includeExpenses: Boolean!
-      $includeHostApplications: Boolean!
-      $includeOrders: Boolean!
-      $includeTiers: Boolean!
-      $includeTransactions: Boolean!
-      $includeUpdates: Boolean!
-      $useTopHits: Boolean!
-      $defaultLimit: Int!
-      $accountsOffset: Int!
-      $accountsLimit: Int!
-      $commentsOffset: Int!
-      $commentsLimit: Int!
-      $expensesOffset: Int!
-      $expensesLimit: Int!
-      $hostApplicationsOffset: Int!
-      $hostApplicationsLimit: Int!
-      $ordersOffset: Int!
-      $ordersLimit: Int!
-      $tiersOffset: Int!
-      $tiersLimit: Int!
-      $transactionsOffset: Int!
-      $transactionsLimit: Int!
-      $updatesOffset: Int!
-      $updatesLimit: Int!
-    ) {
-      search(searchTerm: $searchTerm, useTopHits: $useTopHits, defaultLimit: $defaultLimit) {
-        results {
-          accounts(offset: $accountsOffset, limit: $accountsLimit) @include(if: $includeAccounts) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
-                slug
-                name
+  [false, true].forEach(TEST_USE_TOP_HITS => {
+    const searchQuery = gql`
+      query Search(
+        $searchTerm: String!
+        $includeAccounts: Boolean!
+        $includeComments: Boolean!
+        $includeExpenses: Boolean!
+        $includeHostApplications: Boolean!
+        $includeOrders: Boolean!
+        $includeTiers: Boolean!
+        $includeTransactions: Boolean!
+        $includeUpdates: Boolean!
+        $useTopHits: Boolean!
+        $defaultLimit: Int!
+        $accountsOffset: Int!
+        $accountsLimit: Int!
+        $commentsOffset: Int!
+        $commentsLimit: Int!
+        $expensesOffset: Int!
+        $expensesLimit: Int!
+        $hostApplicationsOffset: Int!
+        $hostApplicationsLimit: Int!
+        $ordersOffset: Int!
+        $ordersLimit: Int!
+        $tiersOffset: Int!
+        $tiersLimit: Int!
+        $transactionsOffset: Int!
+        $transactionsLimit: Int!
+        $updatesOffset: Int!
+        $updatesLimit: Int!
+        $usePersonalization: Boolean!
+      ) {
+        search(
+          searchTerm: $searchTerm
+          useTopHits: $useTopHits
+          defaultLimit: $defaultLimit
+          usePersonalization: $usePersonalization
+        ) {
+          results {
+            accounts(offset: $accountsOffset, limit: $accountsLimit) @include(if: $includeAccounts) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                  slug
+                  name
+                }
               }
             }
-          }
-          comments(offset: $commentsOffset, limit: $commentsLimit) @include(if: $includeComments) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
+            comments(offset: $commentsOffset, limit: $commentsLimit) @include(if: $includeComments) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                }
               }
             }
-          }
-          expenses(offset: $expensesOffset, limit: $expensesLimit) @include(if: $includeExpenses) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
+            expenses(offset: $expensesOffset, limit: $expensesLimit) @include(if: $includeExpenses) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                }
               }
             }
-          }
-          hostApplications(offset: $hostApplicationsOffset, limit: $hostApplicationsLimit)
-            @include(if: $includeHostApplications) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
+            hostApplications(offset: $hostApplicationsOffset, limit: $hostApplicationsLimit)
+              @include(if: $includeHostApplications) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                }
               }
             }
-          }
-          orders(offset: $ordersOffset, limit: $ordersLimit) @include(if: $includeOrders) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
+            orders(offset: $ordersOffset, limit: $ordersLimit) @include(if: $includeOrders) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                }
               }
             }
-          }
-          tiers(offset: $tiersOffset, limit: $tiersLimit) @include(if: $includeTiers) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
+            tiers(offset: $tiersOffset, limit: $tiersLimit) @include(if: $includeTiers) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                }
               }
             }
-          }
-          transactions(offset: $transactionsOffset, limit: $transactionsLimit) @include(if: $includeTransactions) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
+            transactions(offset: $transactionsOffset, limit: $transactionsLimit) @include(if: $includeTransactions) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                }
               }
             }
-          }
-          updates(offset: $updatesOffset, limit: $updatesLimit) @include(if: $includeUpdates) {
-            highlights
-            maxScore
-            collection {
-              totalCount
-              nodes {
-                id
+            updates(offset: $updatesOffset, limit: $updatesLimit) @include(if: $includeUpdates) {
+              highlights
+              maxScore
+              collection {
+                totalCount
+                nodes {
+                  id
+                }
               }
             }
           }
         }
       }
-    }
-  `;
+    `;
 
-  let sandbox: sinon.SinonSandbox,
-    openSearchClient: Client,
-    host: Collective,
-    collective: Collective,
-    project: Collective,
-    testUsers: {
-      hostAdmin: User;
-      collectiveAdmin: User;
-      projectAdmin: User;
-      randomUser: User;
-      fromUser: User;
-      rootUser: User;
-    };
+    let sandbox: sinon.SinonSandbox,
+      openSearchClient: Client,
+      host: Collective,
+      collective: Collective,
+      project: Collective,
+      testUsers: {
+        hostAdmin: User;
+        collectiveAdmin: User;
+        projectAdmin: User;
+        randomUser: User;
+        fromUser: User;
+        rootUser: User;
+      };
 
-  before(async () => {
-    await resetTestDB();
+    before(async () => {
+      await resetTestDB();
 
-    // Seed data
-    testUsers = {
-      hostAdmin: await fakeUser(),
-      collectiveAdmin: await fakeUser(),
-      projectAdmin: await fakeUser(),
-      randomUser: await fakeUser(),
-      fromUser: await fakeUser(),
-      rootUser: await fakeUser({ data: { isRoot: true } }),
-    };
+      // Seed data
+      testUsers = {
+        hostAdmin: await fakeUser(),
+        collectiveAdmin: await fakeUser(),
+        projectAdmin: await fakeUser(),
+        randomUser: await fakeUser(),
+        fromUser: await fakeUser(),
+        rootUser: await fakeUser({ data: { isRoot: true } }),
+      };
 
-    const platform = await fakeOrganization({ name: 'Open Collective', id: PlatformConstants.PlatformCollectiveId });
-    await platform.addUserWithRole(testUsers.rootUser, 'ADMIN');
+      const platform = await fakeOrganization({ name: 'Open Collective', id: PlatformConstants.PlatformCollectiveId });
+      await platform.addUserWithRole(testUsers.rootUser, 'ADMIN');
 
-    // Some accounts
-    host = await fakeActiveHost({
-      name: 'Incredible Host',
-      slug: 'incredible-host',
-      admin: testUsers.hostAdmin,
-    });
+      // Some accounts
+      host = await fakeActiveHost({
+        name: 'Incredible Host',
+        slug: 'incredible-host',
+        admin: testUsers.hostAdmin,
+      });
 
-    collective = await fakeCollective({
-      name: 'Incredible Collective with AUniqueCollectiveName',
-      HostCollectiveId: host.id,
-      slug: 'incredible',
-      admin: testUsers.collectiveAdmin,
-    });
+      collective = await fakeCollective({
+        name: 'Incredible Collective with AUniqueCollectiveName',
+        HostCollectiveId: host.id,
+        slug: 'incredible',
+        admin: testUsers.collectiveAdmin,
+      });
 
-    project = await fakeProject({
-      name: 'Incredible Project',
-      legalName: 'SecretProjectLegalName',
-      slug: 'incredible-project',
-      ParentCollectiveId: collective.id,
-      admin: testUsers.projectAdmin,
-    });
+      project = await fakeProject({
+        name: 'Incredible Project',
+        legalName: 'SecretProjectLegalName',
+        slug: 'incredible-project',
+        ParentCollectiveId: collective.id,
+        admin: testUsers.projectAdmin,
+      });
 
-    // Hidden account
-    await fakeCollective({ name: 'HideMePlease', slug: 'hide-me-please', data: { hideFromSearch: true } });
+      // Hidden account
+      await fakeCollective({ name: 'HideMePlease', slug: 'hide-me-please', data: { hideFromSearch: true } });
 
-    // To test slug prioritization over name
-    await fakeCollective({ name: 'a-prioritized-unique-name-or-slug', slug: 'whatever' });
-    await fakeCollective({ name: 'whatever', slug: 'a-prioritized-unique-name-or-slug' });
+      // To test slug prioritization over name
+      await fakeCollective({ name: 'a-prioritized-unique-name-or-slug', slug: 'whatever' });
+      await fakeCollective({ name: 'whatever', slug: 'a-prioritized-unique-name-or-slug' });
 
-    // To test name prioritization over description
-    await fakeCollective({ name: 'frank zappa', description: 'whatever' });
-    await fakeCollective({ name: 'whatever', description: 'the legendary artist frank zappa' });
+      // To test name prioritization over description
+      await fakeCollective({ name: 'frank zappa', description: 'whatever' });
+      await fakeCollective({ name: 'whatever', description: 'the legendary artist frank zappa' });
 
-    // An expense
-    const expense = await fakeExpense({
-      CollectiveId: project.id,
-      FromCollectiveId: testUsers.fromUser.CollectiveId,
-      UserId: testUsers.fromUser.id,
-      description: 'FullyPublicExpenseDescription',
-      privateMessage: '<div>AVerySecretExpensePrivateMessage</div>',
-      invoiceInfo: 'AVerySecretExpenseInvoiceInfo',
-      reference: 'AVerySecretExpenseReference',
-    });
-
-    // A regular expense comment
-    await fakeComment({
-      CollectiveId: project.id,
-      FromCollectiveId: testUsers.fromUser.CollectiveId,
-      CreatedByUserId: testUsers.fromUser.id,
-      ExpenseId: expense.id,
-      html: '<div>AVerySecretComment</div>',
-    });
-
-    // A private note from the host admin
-    await fakeComment({
-      CollectiveId: project.id,
-      FromCollectiveId: testUsers.hostAdmin.CollectiveId,
-      CreatedByUserId: testUsers.hostAdmin.id,
-      ExpenseId: expense.id,
-      html: '<div>AVerySecretPrivateNoteForHostAdmins</div>',
-      type: CommentType.PRIVATE_NOTE,
-    });
-
-    await fakeHostApplication({
-      CollectiveId: collective.id,
-      HostCollectiveId: host.id,
-      CreatedByUserId: testUsers.rootUser.id,
-      message: 'AVerySecretHostApplicationMessage',
-    });
-
-    await fakeTier({
-      CollectiveId: project.id,
-      name: 'Incredible Tier',
-      description: 'AVeryUniqueTierDescription',
-      longDescription: 'AVeryUniqueTierLongDescription',
-      slug: 'a-very-unique-incredible-tier',
-    });
-
-    const order = await fakeOrder({
-      CollectiveId: project.id,
-      FromCollectiveId: testUsers.fromUser.CollectiveId,
-      CreatedByUserId: testUsers.fromUser.id,
-      description: 'AVeryUniqueOrderDescription',
-    });
-
-    await fakeTransaction(
-      {
-        kind: TransactionKind.CONTRIBUTION,
-        OrderId: order.id,
+      // An expense
+      const expense = await fakeExpense({
         CollectiveId: project.id,
         FromCollectiveId: testUsers.fromUser.CollectiveId,
-        amount: 1000,
+        UserId: testUsers.fromUser.id,
+        description: 'FullyPublicExpenseDescription',
+        privateMessage: '<div>AVerySecretExpensePrivateMessage</div>',
+        invoiceInfo: 'AVerySecretExpenseInvoiceInfo',
+        reference: 'AVerySecretExpenseReference',
+      });
+
+      // A regular expense comment
+      await fakeComment({
+        CollectiveId: project.id,
+        FromCollectiveId: testUsers.fromUser.CollectiveId,
+        CreatedByUserId: testUsers.fromUser.id,
+        ExpenseId: expense.id,
+        html: '<div>AVerySecretComment</div>',
+      });
+
+      // A private note from the host admin
+      await fakeComment({
+        CollectiveId: project.id,
+        FromCollectiveId: testUsers.hostAdmin.CollectiveId,
+        CreatedByUserId: testUsers.hostAdmin.id,
+        ExpenseId: expense.id,
+        html: '<div>AVerySecretPrivateNoteForHostAdmins</div>',
+        type: CommentType.PRIVATE_NOTE,
+      });
+
+      await fakeHostApplication({
+        CollectiveId: collective.id,
         HostCollectiveId: host.id,
-        description: 'AVeryUniqueTransactionDescription',
-        data: { capture: { id: 'AVeryUniqueTransactionCaptureId' } },
-      },
-      {
-        createDoubleEntry: true,
-      },
-    );
+        CreatedByUserId: testUsers.rootUser.id,
+        message: 'AVerySecretHostApplicationMessage',
+      });
 
-    // A public update
-    const publicUpdate = await fakeUpdate({
-      FromCollectiveId: testUsers.fromUser.CollectiveId,
-      CollectiveId: project.id,
-      CreatedByUserId: testUsers.fromUser.id,
-      html: '<div>AVeryUniqueUpdateHtml</div>',
-      title: 'AVeryUniqueUpdateTitle',
-      isPrivate: false,
-      publishedAt: new Date(),
+      await fakeTier({
+        CollectiveId: project.id,
+        name: 'Incredible Tier',
+        description: 'AVeryUniqueTierDescription',
+        longDescription: 'AVeryUniqueTierLongDescription',
+        slug: 'a-very-unique-incredible-tier',
+      });
+
+      const order = await fakeOrder({
+        CollectiveId: project.id,
+        FromCollectiveId: testUsers.fromUser.CollectiveId,
+        CreatedByUserId: testUsers.fromUser.id,
+        description: 'AVeryUniqueOrderDescription',
+      });
+
+      await fakeTransaction(
+        {
+          kind: TransactionKind.CONTRIBUTION,
+          OrderId: order.id,
+          CollectiveId: project.id,
+          FromCollectiveId: testUsers.fromUser.CollectiveId,
+          amount: 1000,
+          HostCollectiveId: host.id,
+          description: 'AVeryUniqueTransactionDescription',
+          data: { capture: { id: 'AVeryUniqueTransactionCaptureId' } },
+        },
+        {
+          createDoubleEntry: true,
+        },
+      );
+
+      // A public update
+      const publicUpdate = await fakeUpdate({
+        FromCollectiveId: testUsers.fromUser.CollectiveId,
+        CollectiveId: project.id,
+        CreatedByUserId: testUsers.fromUser.id,
+        html: '<div>AVeryUniqueUpdateHtml</div>',
+        title: 'AVeryUniqueUpdateTitle',
+        isPrivate: false,
+        publishedAt: new Date(),
+      });
+
+      // A private update
+      await fakeUpdate({
+        FromCollectiveId: testUsers.fromUser.CollectiveId,
+        CollectiveId: project.id,
+        CreatedByUserId: testUsers.fromUser.id,
+        html: '<div>AVeryUniquePrivateUpdateHtml</div>',
+        title: 'AVeryUniquePrivateUpdateTitle',
+        isPrivate: true,
+        publishedAt: new Date(),
+      });
+
+      // A public, unpublished update
+      await fakeUpdate({
+        FromCollectiveId: testUsers.fromUser.CollectiveId,
+        CollectiveId: project.id,
+        CreatedByUserId: testUsers.fromUser.id,
+        html: '<div>AVeryUniqueUnpublishedUpdateHtml</div>',
+        title: 'AVeryUniqueUnpublishedUpdateTitle',
+        isPrivate: false,
+        publishedAt: null,
+      });
+
+      // A comment on a public update
+      await fakeComment({
+        CollectiveId: project.id,
+        FromCollectiveId: testUsers.fromUser.CollectiveId,
+        CreatedByUserId: testUsers.fromUser.id,
+        html: '<div>A comment on a public update</div>',
+        UpdateId: publicUpdate.id,
+      });
+
+      // Populate roles for all test users
+      await Promise.all(Object.values(testUsers).map(user => user.populateRoles()));
+
+      // Reset OpenSearch
+      for (const indexName of Object.values(OpenSearchIndexName)) {
+        await removeOpenSearchIndex(indexName, { throwIfMissing: false });
+        await createOpenSearchIndex(indexName);
+        await syncOpenSearchIndex(indexName);
+      }
+
+      await waitForAllIndexesRefresh();
+
+      // Stub OpenSearch client
+      openSearchClient = new Client({ node: config.opensearch.url });
     });
 
-    // A private update
-    await fakeUpdate({
-      FromCollectiveId: testUsers.fromUser.CollectiveId,
-      CollectiveId: project.id,
-      CreatedByUserId: testUsers.fromUser.id,
-      html: '<div>AVeryUniquePrivateUpdateHtml</div>',
-      title: 'AVeryUniquePrivateUpdateTitle',
-      isPrivate: true,
-      publishedAt: new Date(),
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+      sandbox.stub(OpenSearchClientSingletonLib, 'getOpenSearchClient').returns(openSearchClient);
     });
 
-    // A public, unpublished update
-    await fakeUpdate({
-      FromCollectiveId: testUsers.fromUser.CollectiveId,
-      CollectiveId: project.id,
-      CreatedByUserId: testUsers.fromUser.id,
-      html: '<div>AVeryUniqueUnpublishedUpdateHtml</div>',
-      title: 'AVeryUniqueUnpublishedUpdateTitle',
-      isPrivate: false,
-      publishedAt: null,
+    afterEach(() => {
+      sandbox.restore();
     });
 
-    // A comment on a public update
-    await fakeComment({
-      CollectiveId: project.id,
-      FromCollectiveId: testUsers.fromUser.CollectiveId,
-      CreatedByUserId: testUsers.fromUser.id,
-      html: '<div>A comment on a public update</div>',
-      UpdateId: publicUpdate.id,
-    });
-
-    // Populate roles for all test users
-    await Promise.all(Object.values(testUsers).map(user => user.populateRoles()));
-
-    // Reset OpenSearch
-    for (const indexName of Object.values(OpenSearchIndexName)) {
-      await removeOpenSearchIndex(indexName, { throwIfMissing: false });
-      await createOpenSearchIndex(indexName);
-      await syncOpenSearchIndex(indexName);
-    }
-
-    await waitForAllIndexesRefresh();
-
-    // Stub OpenSearch client
-    openSearchClient = new Client({ node: config.opensearch.url });
-  });
-
-  beforeEach(() => {
-    sandbox = sinon.createSandbox();
-    sandbox.stub(OpenSearchClientSingletonLib, 'getOpenSearchClient').returns(openSearchClient);
-  });
-
-  afterEach(() => {
-    sandbox.restore();
-  });
-
-  [false, true].forEach(TEST_USE_TOP_HITS => {
     const callSearchQuery = async (
       searchTerm: string,
       {
@@ -385,6 +392,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         transactionsLimit = 10,
         updatesOffset = 0,
         updatesLimit = 10,
+        usePersonalization = false,
       } = {},
       remoteUser?: User,
       params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
@@ -417,6 +425,7 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         transactionsLimit,
         updatesOffset,
         updatesLimit,
+        usePersonalization,
       };
 
       if (params.useOAuth) {
@@ -577,7 +586,12 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           for (const [userKey, permission] of Object.entries(permissions)) {
             if (!isNil(permission)) {
               it(`can ${permission ? '' : 'not '}be used by ${userKey}`, async () => {
-                const queryResult = await callSearchQuery(uniqueValue, getIncludes(index), testUsers[userKey], params);
+                const queryResult = await callSearchQuery(
+                  uniqueValue,
+                  { ...getIncludes(index), usePersonalization: false },
+                  testUsers[userKey],
+                  params,
+                );
                 queryResult.errors && console.error(queryResult.errors);
                 expect(queryResult.errors).to.be.undefined;
                 expect(queryResult.data.search.results[index].collection.totalCount).to.eq(permission);
@@ -881,6 +895,215 @@ describe('server/graphql/v2/query/SearchQuery', () => {
               unauthenticated: 1,
             });
           });
+        });
+      });
+
+      describe('personalization', () => {
+        it('should filter expenses by user context when usePersonalization is true', async () => {
+          // Create an expense for a different collective that the user doesn't administer
+          const otherCollective = await fakeCollective({
+            name: 'Other Collective',
+          });
+          await fakeExpense({
+            CollectiveId: otherCollective.id,
+            FromCollectiveId: testUsers.randomUser.CollectiveId,
+            UserId: testUsers.randomUser.id,
+            description: 'FullyPublicExpenseDescription',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.EXPENSES);
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see expenses related to the user
+          const personalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: true },
+            testUsers.fromUser,
+          );
+
+          personalizedResult.errors && console.error(personalizedResult.errors);
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.expenses.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all expenses
+          const nonPersonalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: false },
+            testUsers.fromUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.expenses.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter accounts by user context when usePersonalization is true', async () => {
+          // Create an account that the user doesn't administer
+          const otherCollective = await fakeCollective({
+            name: 'Other Collective',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see accounts the user admins
+          const personalizedResult = await callSearchQuery(
+            'Incredible',
+            { includeAccounts: true, usePersonalization: true },
+            testUsers.collectiveAdmin,
+          );
+
+          personalizedResult.errors && console.error(personalizedResult.errors);
+          expect(personalizedResult.errors).to.be.undefined;
+          const personalizedAccounts = personalizedResult.data.search.results.accounts.collection.nodes;
+          expect(personalizedAccounts.some(acc => acc.id === idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT))).to.be
+            .true;
+          expect(personalizedAccounts.some(acc => acc.id === idEncode(otherCollective.id, IDENTIFIER_TYPES.ACCOUNT))).to
+            .be.false;
+
+          // Search with personalization disabled - should see all accounts
+          const nonPersonalizedResult = await callSearchQuery(
+            'Incredible',
+            { includeAccounts: true, usePersonalization: false },
+            testUsers.collectiveAdmin,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.accounts.collection.totalCount).to.be.gte(
+            personalizedResult.data.search.results.accounts.collection.totalCount,
+          );
+        });
+
+        it('should filter orders by user context when usePersonalization is true', async () => {
+          // Create an order from a different user
+          await fakeOrder({
+            CollectiveId: collective.id,
+            FromCollectiveId: testUsers.randomUser.CollectiveId,
+            CreatedByUserId: testUsers.randomUser.id,
+            description: 'AVeryUniqueOrderDescription',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.ORDERS);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see orders related to the user
+          const personalizedResult = await callSearchQuery(
+            'AVeryUniqueOrderDescription',
+            { includeOrders: true, usePersonalization: true },
+            testUsers.fromUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.orders.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all orders
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVeryUniqueOrderDescription',
+            { includeOrders: true, usePersonalization: false },
+            testUsers.fromUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.orders.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter updates by user context when usePersonalization is true', async () => {
+          // Create an update from a different user
+          await fakeUpdate({
+            FromCollectiveId: testUsers.randomUser.CollectiveId,
+            CollectiveId: collective.id,
+            CreatedByUserId: testUsers.randomUser.id,
+            html: '<div>AVeryUniqueUpdateHtml</div>',
+            title: 'AVeryUniqueUpdateTitle',
+            isPrivate: false,
+            publishedAt: new Date(),
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.UPDATES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled - should only see updates related to the user
+          const personalizedResult = await callSearchQuery(
+            'AVeryUniqueUpdateHtml',
+            { includeUpdates: true, usePersonalization: true },
+            testUsers.fromUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.updates.collection.totalCount).to.eq(1);
+
+          // Search with personalization disabled - should see all updates
+          const nonPersonalizedResult = await callSearchQuery(
+            'AVeryUniqueUpdateHtml',
+            { includeUpdates: true, usePersonalization: false },
+            testUsers.fromUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.updates.collection.totalCount).to.be.gte(2);
+        });
+
+        it('should filter transactions by user context when usePersonalization is true', async () => {
+          const uniqueStr = randStr('TransactionUniqueStr');
+          await fakeTransaction({ kind: TransactionKind.CONTRIBUTION, description: uniqueStr });
+          await syncOpenSearchIndex(OpenSearchIndexName.TRANSACTIONS);
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          const personalizedResult = await callSearchQuery(
+            uniqueStr,
+            { includeTransactions: true, usePersonalization: true },
+            testUsers.collectiveAdmin,
+          );
+
+          personalizedResult.errors && console.error(personalizedResult.errors);
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.transactions.collection.totalCount).to.be.eq(0);
+
+          // Search with personalization disabled - should see all transactions
+          const nonPersonalizedResult = await callSearchQuery(
+            uniqueStr,
+            { includeTransactions: true, usePersonalization: false },
+            testUsers.collectiveAdmin,
+          );
+          nonPersonalizedResult.errors && console.error(nonPersonalizedResult.errors);
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.transactions.collection.totalCount).to.be.eq(1);
+        });
+
+        it('should filter tiers by user context when usePersonalization is true', async () => {
+          const uniqueStr = randStr('TierUniqueStr');
+          await fakeTier({ name: uniqueStr, description: uniqueStr });
+          await syncOpenSearchIndex(OpenSearchIndexName.TIERS);
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          // Search with personalization enabled
+          const personalizedResult = await callSearchQuery(
+            uniqueStr,
+            { includeTiers: true, usePersonalization: true },
+            testUsers.projectAdmin,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          expect(personalizedResult.data.search.results.tiers.collection.totalCount).to.eq(0);
+
+          // Search with personalization disabled
+          const nonPersonalizedResult = await callSearchQuery(
+            uniqueStr,
+            { includeTiers: true, usePersonalization: false },
+            testUsers.projectAdmin,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          expect(nonPersonalizedResult.data.search.results.tiers.collection.totalCount).to.be.eq(1);
+        });
+
+        it('should show all results for root users regardless of personalization', async () => {
+          const personalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: true },
+            testUsers.rootUser,
+          );
+          expect(personalizedResult.errors).to.be.undefined;
+          const personalizedCount = personalizedResult.data.search.results.expenses.collection.totalCount;
+
+          const nonPersonalizedResult = await callSearchQuery(
+            'FullyPublicExpenseDescription',
+            { includeExpenses: true, usePersonalization: false },
+            testUsers.rootUser,
+          );
+          expect(nonPersonalizedResult.errors).to.be.undefined;
+          // Root users should see all results regardless of personalization
+          expect(nonPersonalizedResult.data.search.results.expenses.collection.totalCount).to.eq(personalizedCount);
         });
       });
     });
