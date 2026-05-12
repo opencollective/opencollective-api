@@ -150,42 +150,42 @@ class PayoutMethod extends ModelWithPublicId<
 
   /**
    * Create a payout method from user-submitted data.
-   * @param payoutMethodData: The (potentially unsafe) user data. Fields will be whitelisted.
+   * @param userInput: The (potentially unsafe) user data. Fields will be whitelisted.
    * @param user: User creating this payout method
    */
   static async createFromData(
-    payoutMethodData: Record<string, unknown>,
+    userInput: Record<string, unknown>,
     user: User,
     collective: Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
-    const cleanData = PayoutMethod.cleanData(payoutMethodData);
-    const type = payoutMethodData['type'] as string;
+    const cleanInput = PayoutMethod.filterUserInput(userInput);
+    const type = userInput['type'] as string;
     if (!(type in PayoutMethodTypes)) {
       throw new Error(`Invalid payout method type: ${type}`);
     }
 
     return PayoutMethod.create(
-      { ...cleanData, type: type as PayoutMethodTypes, CreatedByUserId: user.id, CollectiveId: collective.id },
+      { ...cleanInput, type: type as PayoutMethodTypes, CreatedByUserId: user.id, CollectiveId: collective.id },
       { transaction: dbTransaction },
     );
   }
 
   /**
    * Get or create a payout method from data.
-   * @param payoutMethodData: The (potentially unsafe) user data. Fields will be whitelisted.
+   * @param userInput: The (potentially unsafe) user data. Fields will be whitelisted.
    * @param user: User creating this
    */
   static async getOrCreateFromData(
-    payoutMethodData: Record<string, unknown>,
+    userInput: Record<string, unknown>,
     user: User,
     collective: Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     // We try to load the existing payment method if it exists for this collective
     let existingPm = null;
-    if (payoutMethodData['type'] === PayoutMethodTypes.PAYPAL) {
-      const email = get(payoutMethodData, 'data.email');
+    if (userInput['type'] === PayoutMethodTypes.PAYPAL) {
+      const email = get(userInput, 'data.email');
       if (email && typeof email === 'string' && isEmail(email)) {
         existingPm = await PayoutMethod.scope('paypal').findOne({
           where: {
@@ -194,10 +194,10 @@ class PayoutMethod extends ModelWithPublicId<
           },
         });
       }
-    } else if (payoutMethodData['type'] === PayoutMethodTypes.ACCOUNT_BALANCE) {
+    } else if (userInput['type'] === PayoutMethodTypes.ACCOUNT_BALANCE) {
       // Just in case as the model doesn't accept empty data
-      if (!payoutMethodData.data) {
-        payoutMethodData.data = {};
+      if (!userInput.data) {
+        userInput.data = {};
       }
       existingPm = await PayoutMethod.findOne({
         order: [['isSaved', 'DESC']], // Prefer saved payout methods
@@ -209,7 +209,7 @@ class PayoutMethod extends ModelWithPublicId<
     }
 
     // Otherwise we just call createFromData
-    return existingPm || this.createFromData(payoutMethodData, user, collective, dbTransaction);
+    return existingPm || this.createFromData(userInput, user, collective, dbTransaction);
   }
 
   static getLabel(payoutMethod: PayoutMethod): string {
@@ -232,8 +232,22 @@ class PayoutMethod extends ModelWithPublicId<
   };
 
   /** Filters out all the fields that cannot be edited by user */
-  private static cleanData(data: Record<string, unknown>): Record<string, unknown> {
-    return pick(data, PayoutMethod.editableFields);
+  private static filterUserInput(input: Record<string, unknown>): Record<string, unknown> {
+    return {
+      ...pick(input, PayoutMethod.editableFields),
+      data: PayoutMethod.filterUserSubmittedData(input?.['data']),
+    };
+  }
+
+  /**
+   * We don't allow users to set the connectedAccountId or stripeAccountId fields in the payout method data.
+   */
+  static filterUserSubmittedData(data: unknown): Record<string, unknown> {
+    if (!data || typeof data !== 'object') {
+      return {};
+    } else {
+      return omit(data as Record<string, unknown>, ['connectedAccountId', 'stripeAccountId']);
+    }
   }
 
   async findSimilar({ include, where }: Partial<Pick<FindOptions, 'include' | 'where'>> = {}) {
