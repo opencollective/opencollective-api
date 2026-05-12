@@ -1,5 +1,3 @@
-import { sql } from 'kysely';
-
 import { defineRelationMetricSource } from '..';
 
 export const HostedCollectivesFinancialActivity = defineRelationMetricSource(
@@ -67,10 +65,11 @@ export const HostedCollectivesFinancialActivity = defineRelationMetricSource(
         aggregation: eb => eb.fn.count(eb.fn.coalesce('ParentCollectiveId', 'CollectiveId')).distinct(),
         kind: 'count',
       },
-      daysSinceLastActivity: {
-        name: 'daysSinceLastActivity',
-        aggregation: eb => sql`(CURRENT_DATE - ${eb.fn.max('day')})`,
-        kind: 'number',
+      lastActiveDate: {
+        name: 'lastActiveDate',
+        aggregation: eb => eb.fn.max('day'),
+        kind: 'date',
+        description: 'Most recent date with ledger activity in the queried scope, as `YYYY-MM-DD`.',
       },
     },
   },

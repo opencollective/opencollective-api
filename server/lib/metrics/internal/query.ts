@@ -14,7 +14,7 @@ export async function queryMetrics<S extends MetricSource, const M extends Measu
   return parseRows(query, result.rows) as MetricResult<M>;
 }
 
-const LIST_MATCHING_DIMENSION_VALUES_CAP = 100_000;
+const LIST_MATCHING_DIMENSION_VALUES_CAP = 5_000;
 
 type ListMatchingDimensionValuesOptions<S extends MetricSource> = {
   source: S;
@@ -47,9 +47,10 @@ export async function listMatchingDimensionValues<S extends MetricSource>(
     limit: LIST_MATCHING_DIMENSION_VALUES_CAP,
   });
 
+  const dimensionName = opts.source.dimensions[opts.dimension].name;
   const out: Array<string | number> = [];
   for (const row of result.rows) {
-    const value = row.group?.[opts.dimension];
+    const value = row.group?.[dimensionName];
     if (value !== null && value !== undefined) {
       out.push(value as string | number);
     }

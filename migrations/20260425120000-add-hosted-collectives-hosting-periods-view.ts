@@ -13,7 +13,7 @@ module.exports = {
         c."HostCollectiveId",
         c."ParentCollectiveId",
         c.type AS "collectiveType",
-        c."approvedAt"::date AS "startDate",
+        (c."approvedAt" AT TIME ZONE 'UTC')::date AS "startDate",
         NULL::date AS "endDate"
       FROM "Collectives" c
       WHERE c."HostCollectiveId" IS NOT NULL
@@ -31,15 +31,15 @@ module.exports = {
         c."ParentCollectiveId",
         c.type AS "collectiveType",
         COALESCE(
-          (SELECT MIN(ha."createdAt")::date
+          (SELECT (MIN(ha."createdAt") AT TIME ZONE 'UTC')::date
            FROM "HostApplications" ha
            WHERE ha."CollectiveId" = a."CollectiveId"
              AND ha."HostCollectiveId" = a."HostCollectiveId"
              AND ha.status = 'APPROVED'
              AND ha."createdAt" < a."createdAt"),
-          a."createdAt"::date
+          (a."createdAt" AT TIME ZONE 'UTC')::date
         ) AS "startDate",
-        a."createdAt"::date AS "endDate"
+        (a."createdAt" AT TIME ZONE 'UTC')::date AS "endDate"
       FROM "Activities" a
       INNER JOIN "Collectives" c ON c.id = a."CollectiveId"
       WHERE a.type = 'collective.unhosted'

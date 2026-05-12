@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInputType, GraphQLInt, GraphQLOutputType, GraphQLString } from 'graphql';
+import { GraphQLDate } from 'graphql-scalars';
 
 import {
   AccountReferenceInput,
@@ -23,6 +24,8 @@ export function measureGraphQLType(m: Measure): GraphQLOutputType {
       return GraphQLInt;
     case 'number':
       return GraphQLFloat;
+    case 'date':
+      return GraphQLDate;
     default:
       throw new Error(`Unknown measure kind: ${m['kind']}`);
   }
@@ -41,6 +44,7 @@ export function measureGraphQLResolver(
       };
     case 'count':
     case 'number':
+    case 'date':
       return (ctx, value) => value ?? null;
     default:
       throw new Error(`Unknown measure kind: ${m['kind']}`);
@@ -107,7 +111,7 @@ export function dimensionGraphQLInputType(d: Dimension): GraphQLInputType {
 
 export function dimensionGraphQLInputResolver(
   d: Dimension,
-): (value: unknown, req: Express.Request) => Promise<FilterValue> | FilterValue {
+): (value: unknown, req: Express.Request) => Promise<FilterValue | undefined> | FilterValue | undefined {
   switch (d.kind) {
     case 'account': {
       return accountDimensionGraphQLInputResolver;
@@ -128,21 +132,23 @@ function scalarDimensionGraphQLInputResolver(value: {
   eq?: string | number;
   in?: Array<string | number>;
   isNull?: boolean;
-}): FilterValue {
+}): FilterValue | undefined {
   if (value.eq !== undefined) {
     return value.eq as FilterValue;
   } else if (value.in?.length) {
     return value.in as FilterValue;
   } else if (value.isNull === true) {
     return null;
+  } else if (value.isNull === false) {
+    return undefined;
   }
-  throw new Error('Invalid scalar dimension value');
+  return undefined;
 }
 
 async function accountDimensionGraphQLInputResolver(
   value: { eq?: AccountReferenceInput; in?: AccountReferenceInput[]; isNull?: boolean },
   req: Express.Request,
-): Promise<FilterValue> {
+): Promise<FilterValue | undefined> {
   if (value.eq) {
     const account = await fetchAccountWithReference(value.eq, { loaders: req.loaders, throwIfMissing: true });
     return account?.id ?? null;
@@ -151,6 +157,8 @@ async function accountDimensionGraphQLInputResolver(
     return ids;
   } else if (value.isNull === true) {
     return null;
+  } else if (value.isNull === false) {
+    return undefined;
   }
-  throw new Error('Invalid account dimension value');
+  return undefined;
 }

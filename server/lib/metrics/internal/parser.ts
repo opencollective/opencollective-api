@@ -53,7 +53,13 @@ export function parseRows<S extends MetricSource, const M extends MeasureKey<S>>
     }
 
     for (const m of q.measures) {
-      row.values[m] = toNumber(r[m]);
+      const measure = q.source.measures[m];
+      const raw = r[m];
+      if (measure.kind === 'date') {
+        row.values[m] = isNil(raw) ? null : toIsoDate(raw);
+      } else {
+        row.values[m] = toNumber(raw);
+      }
     }
 
     return row;

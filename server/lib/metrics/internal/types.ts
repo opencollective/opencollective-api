@@ -30,7 +30,7 @@ type RelationMeasure<R extends keyof DatabaseWithViews, Row = DatabaseWithViews[
   | {
       name: string;
       aggregation: SqlExpressionFn<R>;
-      kind: 'count' | 'number';
+      kind: 'count' | 'number' | 'date';
       description?: string;
     }
   | {
@@ -147,7 +147,7 @@ export type MetricRow<M extends string = string> = {
   /** Group dimension values. Present iff the query has `groupBy`. */
   group?: Record<string, string | number | boolean | null>;
   /** All requested measures, keyed by name. */
-  values: Record<M, number>;
+  values: Record<M, number | string | null>;
   /** Currency code when at least one queried measure is `kind: 'amount'`. */
   currency?: string;
 };

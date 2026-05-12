@@ -39,7 +39,7 @@ export const HostedCollectivesHostingPeriods = defineRelationMetricSource('Hoste
     },
     daysHostedToDate: {
       name: 'daysHostedToDate',
-      aggregation: eb => sql`MAX(CURRENT_DATE - ${eb.ref('startDate')})`,
+      aggregation: eb => sql`MAX(COALESCE(${eb.ref('endDate')}, CURRENT_DATE) - ${eb.ref('startDate')})`,
       kind: 'number',
     },
   },

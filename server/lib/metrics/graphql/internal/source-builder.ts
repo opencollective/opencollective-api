@@ -10,6 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { isNil } from 'lodash';
 
 import { queryMetrics } from '../..';
 import type {
@@ -93,7 +94,7 @@ export function buildSourceField<P>(options: SourceFieldOptions<P>): GraphQLFiel
         filters[dimName] = getter(parent) as FilterValue;
       }
       const groupBy = (input.groupBy ?? []).map(g => graphqlNameToDimName(source, g));
-      const limit = input.limit !== null ? Math.min(input.limit, METRICS_LIMIT_CAP) : undefined;
+      const limit = !isNil(input.limit) ? Math.min(input.limit, METRICS_LIMIT_CAP) : undefined;
       const bucket = input.bucket ? (input.bucket.toLowerCase() as TimeUnit) : undefined;
 
       const query: MetricQuery = {
@@ -312,7 +313,11 @@ async function resolveInputFilters(
     }
 
     const resolver = dimensionGraphQLInputResolver(dim);
-    out[dim.name] = await resolver(value, req);
+    const resolved = await resolver(value, req);
+    if (resolved === undefined) {
+      continue;
+    }
+    out[dim.name] = resolved;
   }
   return out;
 }

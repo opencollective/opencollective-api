@@ -1287,6 +1287,8 @@ export const GraphQLHost = new GraphQLObjectType({
           }
           const isMetricScoped = metricCollectiveIds !== null;
           if (isMetricScoped) {
+            where.isActive = true;
+            where.approvedAt = args.isApproved ? { [Op.not]: null } : null;
             // @ts-expect-error Type 'unique symbol' cannot be used as an index type. Not sure why TS is not happy here.
             where[Op.and].push({ id: { [Op.in]: metricCollectiveIds } });
           } else if (args.isUnhosted) {

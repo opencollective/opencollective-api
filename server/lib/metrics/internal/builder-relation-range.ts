@@ -13,6 +13,7 @@ import {
   renderDimension,
   renderDirection,
   toIsoStringIfDate,
+  topNRestrictExists,
 } from './builder-shared';
 import type { MetricQuery, RangeRelationMetricSource, TimeUnit } from './types';
 
@@ -68,8 +69,8 @@ function rangeBucketJoinOn<S extends RangeRelationMetricSource<any>>(
   s: S,
   unit: TimeUnit,
 ): RawBuilder<unknown> {
-  const bucketStart = sql`${sql.id('b')}.${sql.id(BUCKET_KEY)}::timestamptz`;
-  const bucketEnd = sql`${sql.id('b')}.${sql.id(BUCKET_KEY)}::timestamptz + ${bucketIntervalSql(unit)}`;
+  const bucketStart = sql`${sql.id('b')}.${sql.id(BUCKET_KEY)}`;
+  const bucketEnd = sql`(${sql.id('b')}.${sql.id(BUCKET_KEY)} + ${bucketIntervalSql(unit)})::date`;
   return joinAnd([rangeOverlapPredicate(s, bucketStart, bucketEnd), ...filterPredicates(q)]);
 }
 
@@ -190,16 +191,16 @@ function buildRangeTopNQuery(
     LIMIT ${q.limit}
   `;
 
-  const dimTuple = sql`(${joinComma(groupExprs)})`;
+  const cteName = sql.id('_top_groups');
 
   return sql<Record<string, unknown>>`
-    WITH ${sql.id('_top_groups')} AS (${cte}),
+    WITH ${cteName} AS (${cte}),
          ${sql.id('_buckets')} AS (${bucketSeriesSubquery(q, q.bucket)})
     SELECT ${rangeSelectColumns(q, shape)}
     FROM ${sql.id('_buckets')} AS ${sql.id('b')}
     LEFT JOIN ${sql.id(s.relation)}
       ON ${rangeBucketJoinOn(q, s, q.bucket)}
-      AND ${dimTuple} IN (SELECT ${joinComma(groupKeys)} FROM ${sql.id('_top_groups')})
+      AND ${topNRestrictExists(cteName, groupExprs, groupKeys)}
     GROUP BY ${rangeGroupByColumns(q, shape)}
     ORDER BY ${sql.id(BUCKET_KEY)} ASC
   `;

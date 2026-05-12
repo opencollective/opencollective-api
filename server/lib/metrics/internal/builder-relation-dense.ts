@@ -14,6 +14,7 @@ import {
   renderDimension,
   renderDirection,
   toIsoStringIfDate,
+  topNRestrictExists,
 } from './builder-shared';
 import type { DenseRelationMetricSource, MetricQuery, TimeUnit } from './types';
 
@@ -136,7 +137,6 @@ function buildDenseTopNQuery<S extends DenseRelationMetricSource<any>>(
     LIMIT ${q.limit}
   `;
 
-  const dimTuple = sql`(${joinComma(groupExprs)})`;
   const cteName = sql.id('_top_groups');
 
   return sql<Record<string, unknown>>`
@@ -144,7 +144,7 @@ function buildDenseTopNQuery<S extends DenseRelationMetricSource<any>>(
     SELECT ${denseSelectColumns(q, s, shape)}
     FROM ${sql.id(s.relation)}
     WHERE ${denseWhereBody(q, s)}
-      AND ${dimTuple} IN (SELECT ${joinComma(groupKeys)} FROM ${cteName})
+      AND ${topNRestrictExists(cteName, groupExprs, groupKeys)}
     GROUP BY ${denseGroupByColumns(q, shape)}
     ORDER BY ${sql.id(BUCKET_KEY)} ASC
   `;

@@ -139,3 +139,15 @@ export function orderByClause<S extends MetricSource>(
   });
   return sql`ORDER BY ${joinComma(parts)}`;
 }
+
+export function topNRestrictExists(
+  cteName: RawBuilder<unknown>,
+  groupExprs: Array<Expression<unknown>>,
+  groupKeys: Array<RawBuilder<unknown>>,
+): RawBuilder<unknown> {
+  const alias = sql.id('_tg');
+  const conditions: RawBuilder<unknown>[] = groupExprs.map(
+    (expr, i) => sql`${expr} IS NOT DISTINCT FROM ${alias}.${groupKeys[i]}`,
+  );
+  return sql`EXISTS (SELECT 1 FROM ${cteName} AS ${alias} WHERE ${joinAnd(conditions)})`;
+}

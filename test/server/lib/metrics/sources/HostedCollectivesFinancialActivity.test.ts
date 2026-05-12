@@ -207,22 +207,20 @@ describe('server/lib/metrics/sources/HostedCollectivesFinancialActivity', () => 
       expect(result.rows[0].values.activeCollectives).to.equal(2);
     });
 
-    it('computes daysSinceLastActivity per collective', async () => {
+    it('returns lastActiveDate (most recent activity) per collective', async () => {
       const result = await queryMetrics({
         source: HostedCollectivesFinancialActivity,
-        measures: ['daysSinceLastActivity'],
+        measures: ['lastActiveDate'],
         dateFrom: '2025-01-01',
         dateTo: '2026-01-01',
         filters: { host: host.id },
         groupBy: ['account'],
         limit: 100,
       });
-      const byCollectiveId = new Map(
-        result.rows.map(r => [r.group?.account as number, r.values.daysSinceLastActivity]),
-      );
-      // Most recent fund transaction was 2025-09-12; collective's was 2025-07-20; event's was 2025-08-05.
-      // Fund's days-since should be smaller (more recent) than the collective's.
-      expect(byCollectiveId.get(fund.id)).to.be.lessThan(byCollectiveId.get(collective.id) as number);
+      const byCollectiveId = new Map(result.rows.map(r => [r.group?.account as number, r.values.lastActiveDate]));
+      // Most recent fund transaction was 2025-09-12; collective's was 2025-07-20.
+      expect(byCollectiveId.get(fund.id)).to.equal('2025-09-12');
+      expect(byCollectiveId.get(collective.id)).to.equal('2025-07-20');
     });
   });
 
