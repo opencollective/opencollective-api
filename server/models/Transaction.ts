@@ -715,8 +715,8 @@ class Transaction extends ModelWithPublicId<
     }
 
     // amount of the CREDIT should be in the same currency as the original transaction
-    const amount = platformTip;
     const currency = transaction.currency;
+    const amount = roundCentsAmount(platformTip, currency);
 
     // amountInHostCurrency of the CREDIT should be in platform currency
     const hostCurrency = PlatformConstants.PlatformCurrency;
@@ -780,16 +780,17 @@ class Transaction extends ModelWithPublicId<
     }
 
     // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
-    const platformTipInHostCurrency =
-      <number>transaction.data?.platformTipInHostCurrency ||
-      roundCentsAmount(platformTip * transaction.hostCurrencyFxRate, transaction.hostCurrency);
+    const platformTipInHostCurrency = roundCentsAmount(
+      transaction.data?.platformTipInHostCurrency || amount * transaction.hostCurrencyFxRate,
+      transaction.hostCurrency,
+    );
 
     // Recalculate amount
     transaction.amountInHostCurrency = roundCentsAmount(
       transaction.amountInHostCurrency - platformTipInHostCurrency,
       transaction.hostCurrency,
     );
-    transaction.amount = roundCentsAmount(transaction.amount - platformTip, transaction.currency);
+    transaction.amount = roundCentsAmount(transaction.amount - amount, transaction.currency);
 
     // Reset the platformFee because we're accounting for this value in a separate set of transactions
     // This way of passing tips is deprecated but still used in some older tests
