@@ -140,7 +140,7 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
         if (await canSeeVirtualCardPrivateInfo(req, virtualCard)) {
           const { spendingLimitInterval } = virtualCard;
 
-          const { renewsOn } = getSpendingLimitIntervalDates(spendingLimitInterval);
+          const { renewsOn } = getSpendingLimitIntervalDates(spendingLimitInterval as VirtualCardLimitIntervals);
 
           return renewsOn;
         }
@@ -156,7 +156,7 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
             return spendingLimitAmount;
           }
 
-          const { renewedOn } = getSpendingLimitIntervalDates(spendingLimitInterval);
+          const { renewedOn } = getSpendingLimitIntervalDates(spendingLimitInterval as VirtualCardLimitIntervals);
 
           const sumExpensesInPeriod = await models.Expense.sum('amount', {
             where: {
