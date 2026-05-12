@@ -55,6 +55,7 @@ async function createCollective(_, args, req) {
         isActive: false,
         CreatedByUserId: remoteUser.id,
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
+        isPrivate: host?.isPrivate ?? false,
       };
 
       if (!isProd && args.testPayload) {

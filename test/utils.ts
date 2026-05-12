@@ -117,25 +117,10 @@ export const makeRequest = (
   headers = {},
   userToken = undefined,
   personalToken = undefined,
-): {
-  remoteUser: typeof remoteUser;
-  jwtPayload: typeof jwtPayload;
-  body: { query: string };
-  loaders: Loaders;
-  headers: typeof headers;
-  header: (key: string) => string;
-  get: (key: string) => string;
-  userToken: typeof userToken;
-  personalToken: typeof personalToken;
-  res: { cookie: () => void };
-  query?: string;
-  variables?: Record<string, unknown>;
-  method: string;
-  baseUrl: string;
-  ip: string;
-  params: Record<string, string>;
-} => {
-  return {
+) => {
+  // Build `req` first so `generateLoaders(req)` can close over the same object; loaders such as
+  // `canSeePrivateAccount` call `req.loaders.Collective.byId` when they run.
+  const req = {
     method: 'GET',
     baseUrl: '/',
     ip: '127.0.0.1',
@@ -143,7 +128,6 @@ export const makeRequest = (
     remoteUser,
     jwtPayload,
     body: { query },
-    loaders: generateLoaders({ remoteUser }),
     headers,
     header: () => null,
     get: a => {
@@ -154,7 +138,10 @@ export const makeRequest = (
     res: {
       cookie: () => {},
     },
+    loaders: undefined as unknown as Loaders,
   };
+  req.loaders = generateLoaders(req);
+  return req as unknown as Request;
 };
 
 export const makeGenericRequest = ({

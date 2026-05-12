@@ -379,6 +379,16 @@ export const fakeOrganization = (organizationData: Record<string, unknown> = {})
   });
 };
 
+/** Creates a fake private organization (not a host). */
+export const fakePrivateOrganization = (organizationData: Record<string, unknown> = {}) => {
+  return fakeOrganization({ isPrivate: true, ...organizationData });
+};
+
+/** Creates a fake private host (organization with money management, isPrivate=true). */
+export const fakePrivateHost = async (hostData: Parameters<typeof fakeActiveHost>[0] = {}) => {
+  return fakeActiveHost({ isPrivate: true, ...hostData });
+};
+
 /**
  * Creates a fake event. All params are optionals.
  */

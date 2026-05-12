@@ -553,6 +553,7 @@ export const generateLoaders = req => {
 
       canSeePrivateProfileInfo: collectiveLoaders.canSeePrivateProfileInfo(req),
       canSeePrivateLocation: collectiveLoaders.canSeePrivateLocation(req),
+      canSeePrivateAccount: collectiveLoaders.canSeePrivateAccount(req),
 
       childrenIds: new DataLoader<number, number[]>(ids =>
         Collective.findAll({
