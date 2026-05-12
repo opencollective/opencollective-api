@@ -19,17 +19,14 @@ const START_DATE = '2025-01-01';
  * (the last two digits must be zero). This check detects Orders whose totalAmount or platformTipAmount
  * violates that invariant.
  */
-async function checkOrderAmountsForZeroDecimalCurrencies() {
+async function checkOrderAmountsForZeroDecimalCurrencies({ fix = false } = {}) {
   const message = 'Orders with fractional amounts in zero-decimal currencies (last two digits should be zero)';
 
   const results = await sequelize.query<{
     id: number;
-    currency: string;
-    totalAmount: number;
-    platformTipAmount: number;
   }>(
     `
-    SELECT id, currency, "totalAmount", "platformTipAmount"
+    SELECT id
     FROM "Orders"
     WHERE "deletedAt" IS NULL
       AND currency IN (:zeroDecimalCurrencies)
@@ -38,8 +35,7 @@ async function checkOrderAmountsForZeroDecimalCurrencies() {
         "totalAmount" % 100 != 0
         OR ("platformTipAmount" IS NOT NULL AND "platformTipAmount" % 100 != 0)
       )
-    ORDER BY "createdAt" DESC
-    `,
+    ORDER BY "createdAt" DESC`,
     {
       type: QueryTypes.SELECT,
       raw: true,
@@ -49,14 +45,34 @@ async function checkOrderAmountsForZeroDecimalCurrencies() {
 
   if (results.length > 0) {
     logger.warn(`Offending rows:\n${JSON.stringify(results, null, 2)}`);
-    throw new Error(`${message} (found ${results.length})`);
+
+    if (fix) {
+      logger.warn(`Fixing: ${message} (rounding amounts on ${results.length} orders)`);
+      await sequelize.query(
+        `
+        UPDATE "Orders"
+        SET
+          "totalAmount"       = ROUND("totalAmount"::numeric / 100) * 100,
+          "platformTipAmount" = CASE
+            WHEN "platformTipAmount" IS NOT NULL
+            THEN ROUND("platformTipAmount"::numeric / 100) * 100
+            ELSE NULL
+          END
+        WHERE "deletedAt" IS NULL
+          AND id IN (:orderIds)
+        `,
+        { replacements: { orderIds: results.map(result => result.id) } },
+      );
+    } else {
+      throw new Error(`${message} (found ${results.length})`);
+    }
   }
 }
 
 /**
  * For zero-decimal currencies, the Expense.amount must be a multiple of 100.
  */
-async function checkExpenseAmountsForZeroDecimalCurrencies() {
+async function checkExpenseAmountsForZeroDecimalCurrencies({ fix = false } = {}) {
   const message = 'Expenses with fractional amounts in zero-decimal currencies (last two digits should be zero)';
 
   const results = await sequelize.query<{ id: number; currency: string; amount: number }>(
@@ -78,14 +94,28 @@ async function checkExpenseAmountsForZeroDecimalCurrencies() {
 
   if (results.length > 0) {
     logger.warn(`Offending rows:\n${JSON.stringify(results, null, 2)}`);
-    throw new Error(`${message} (found ${results.length})`);
+
+    if (fix) {
+      logger.warn(`Fixing: ${message} (rounding amounts on ${results.length} expenses)`);
+      await sequelize.query(
+        `
+        UPDATE "Expenses"
+        SET amount = ROUND(amount::numeric / 100) * 100
+        WHERE "deletedAt" IS NULL
+          AND id IN (:expenseIds)
+        `,
+        { replacements: { expenseIds: results.map(result => result.id) } },
+      );
+    } else {
+      throw new Error(`${message} (found ${results.length})`);
+    }
   }
 }
 
 /**
  * For zero-decimal currencies, each ExpenseItem.amount must be a multiple of 100.
  */
-async function checkExpenseItemAmountsForZeroDecimalCurrencies() {
+async function checkExpenseItemAmountsForZeroDecimalCurrencies({ fix = false } = {}) {
   const message = 'ExpenseItems with fractional amounts in zero-decimal currencies (last two digits should be zero)';
 
   const results = await sequelize.query<{ id: number; currency: string; amount: number }>(
@@ -107,7 +137,21 @@ async function checkExpenseItemAmountsForZeroDecimalCurrencies() {
 
   if (results.length > 0) {
     logger.warn(`Offending rows:\n${JSON.stringify(results, null, 2)}`);
-    throw new Error(`${message} (found ${results.length})`);
+
+    if (fix) {
+      logger.warn(`Fixing: ${message} (rounding amounts on ${results.length} expense items)`);
+      await sequelize.query(
+        `
+        UPDATE "ExpenseItems"
+        SET amount = ROUND(amount::numeric / 100) * 100
+        WHERE "deletedAt" IS NULL
+          AND id IN (:expenseItemIds)
+        `,
+        { replacements: { expenseItemIds: results.map(result => result.id) } },
+      );
+    } else {
+      throw new Error(`${message} (found ${results.length})`);
+    }
   }
 }
 
