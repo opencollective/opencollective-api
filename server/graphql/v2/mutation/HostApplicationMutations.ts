@@ -83,11 +83,11 @@ const HostApplicationMutations = {
       const collective = await fetchAccountWithReference(args.collective);
       if (!collective) {
         throw new NotFound('Collective not found');
-      }
-      if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(collective.type)) {
+      } else if (collective.isPrivate) {
+        throw new Forbidden('Private accounts cannot apply to hosts');
+      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(collective.type)) {
         throw new Error('Account must be a collective or a fund');
-      }
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
+      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Forbidden('You need to be an Admin of the account');
       }
 

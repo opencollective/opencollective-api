@@ -6,6 +6,7 @@ import { sql } from 'kysely';
 import { isNil } from 'lodash';
 
 import { getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
+import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { parseSearchTerm, sanitizeSearchTermForILike } from '../../../../lib/sql-search';
 import { Collective } from '../../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../../common/context-permissions';
@@ -283,6 +284,7 @@ const CommunityQuery = {
 
     const account = args.account && (await fetchAccountWithReference(args.account, { throwIfMissing: false }));
     if (account) {
+      await assertCanSeeAccount(req, account);
       assert(
         host.id === account.HostCollectiveId,
         new BadRequest('The account provided is not hosted by the host provided'),

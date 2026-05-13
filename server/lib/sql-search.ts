@@ -314,8 +314,9 @@ export const searchCollectivesInDB = async (
     }
   }
 
+  // TODO(#8734): Add isPrivate filter once private-org search exclusion is implemented
   // Build dynamic conditions based on arguments
-  let dynamicConditions = '';
+  let dynamicConditions = 'AND c."isPrivate" IS NOT TRUE ';
   let countryCodes = null;
   let searchedTags = [''];
   if (countries) {
@@ -812,7 +813,7 @@ export const getExpenseTagFrequencies = async args => {
 
   const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-  return sequelize.query(
+  return sequelize.query<{ id: string; tag: string; count: number }>(
     `SELECT tag AS id, tag, count
      FROM "ExpenseTagStats"
      ${whereClause}

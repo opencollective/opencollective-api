@@ -10,12 +10,14 @@ import { Op, type Order as SequelizeOrder, Utils as SequelizeUtils, WhereOptions
 import { CollectiveType } from '../../../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
 import { RefundKind } from '../../../../constants/refund-kind';
+import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
-import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
+import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
@@ -40,7 +42,7 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
-import { getDatabaseIdFromExpenseReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
 import {
   fetchManualPaymentProvidersWithReferences,
   GraphQLManualPaymentProviderReferenceInput,
@@ -259,6 +261,9 @@ export const TransactionsCollectionResolver = async (
 ): Promise<GraphQLTransactionsCollectionReturnType> => {
   const where: WhereOptions<Transaction> = [];
   const include = [];
+  let hasCollectiveInclude = false;
+  let hasFromCollectiveInclude = false;
+  const hasHostInclude = false;
 
   // Check Pagination arguments
   if (isNil(args.limit) || args.limit < 0) {
@@ -282,6 +287,8 @@ export const TransactionsCollectionResolver = async (
   const accountIdsWithGiftCardTransactions = args.includeGiftCardTransactions
     ? await getCollectiveIdsWithGiftCardTransactions()
     : [];
+
+  let accountsToCheckForPrivateVisibility = [fromAccount, host].filter(Boolean);
 
   if (fromAccount) {
     const fromAccountCondition = [];
@@ -319,9 +326,10 @@ export const TransactionsCollectionResolver = async (
     }
   }
 
+  let accountsFromAccountParam: Collective[];
   if (args.account) {
     const accountCondition = [];
-    const attributes = ['id', 'HostCollectiveId']; // We only need IDs
+    const attributes = ['id', 'HostCollectiveId', 'isPrivate']; // Include isPrivate for privacy checks
     const fetchAccountsParams = { throwIfMissing: true, attributes };
     if (args.includeChildrenTransactions) {
       fetchAccountsParams['include'] = [
@@ -330,10 +338,14 @@ export const TransactionsCollectionResolver = async (
     }
 
     // Fetch accounts (and optionally their children)
-    const accounts = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+    accountsFromAccountParam = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+    accountsToCheckForPrivateVisibility.push(...accountsFromAccountParam);
+
+    // Block access when explicitly filtering by a private account the viewer cannot see
+    await assertCanSeeAllAccounts(req, accountsFromAccountParam);
     const accountsIds = uniq(
       flatten(
-        accounts.map(account => {
+        accountsFromAccountParam.map(account => {
           const accountIds = args.includeRegularTransactions ? [account.id] : [];
           const childrenIds = account.children?.map(child => child.id) || [];
           return [...accountIds, ...childrenIds];
@@ -374,7 +386,9 @@ export const TransactionsCollectionResolver = async (
       accountsIds.length > 1 &&
       intersection(config.performance.collectivesWithManyTransactions, accountsIds).length > 0
     ) {
-      const hostCollectiveIds = uniq(accounts.map(account => account.HostCollectiveId).filter(el => !!el));
+      const hostCollectiveIds = uniq(
+        accountsFromAccountParam.map(account => account.HostCollectiveId).filter(el => !!el),
+      );
       if (hostCollectiveIds.length === 1) {
         where.push({ HostCollectiveId: hostCollectiveIds[0] });
       }
@@ -431,7 +445,82 @@ export const TransactionsCollectionResolver = async (
 
   if (searchTermConditions.length) {
     where.push({ [Op.or]: searchTermConditions });
-    include.push({ association: 'fromCollective', attributes: [] }, { association: 'collective', attributes: [] }); // Must include associations to search their fields
+
+    // Must include associations to search their fields
+    include.push(
+      { association: 'fromCollective', attributes: [], required: true },
+      { association: 'collective', attributes: [], required: true },
+    );
+
+    hasCollectiveInclude = true;
+    hasFromCollectiveInclude = true;
+  }
+
+  if (args.expense) {
+    const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+    where.push({ ExpenseId: expense.id });
+    const collectives = await req.loaders.Collective.byId.loadMany([expense.CollectiveId, expense.FromCollectiveId]);
+    for (const collective of collectives) {
+      if (collective instanceof Collective) {
+        accountsToCheckForPrivateVisibility.push(collective);
+      }
+    }
+  }
+
+  // Block access when explicitly filtering by a private account the viewer cannot see
+  accountsToCheckForPrivateVisibility = accountsToCheckForPrivateVisibility.filter(Boolean);
+  if (accountsToCheckForPrivateVisibility.length > 0) {
+    await assertCanSeeAllAccounts(req, accountsToCheckForPrivateVisibility);
+  }
+
+  // For performance reasons, we don't want to enforce the below checks in all cases as they would impact regulard
+  // queries - like the host's dashboard > ledger view.
+  if (
+    !req.remoteUser ||
+    !(
+      req.remoteUser.isRoot() || // Root users can see all transactions
+      args.expense || // We already checked above that remote user could see all parties (fromCollective/collective)
+      (host && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, host.id)) || // Host admins can see external transactions from/to private accounts
+      (fromAccount && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, fromAccount.id)) ||
+      (accountsFromAccountParam?.length &&
+        accountsFromAccountParam.every(account => req.remoteUser.hasRole(MemberRolesForPrivateAccounts, account.id)))
+    )
+  ) {
+    if (!hasCollectiveInclude) {
+      include.push({ association: 'collective', attributes: [] });
+    }
+    if (!hasFromCollectiveInclude) {
+      include.push({ association: 'fromCollective', attributes: [] });
+    }
+    if (!hasHostInclude) {
+      include.push({ association: 'host', attributes: [] });
+    }
+
+    // Either all components of the transactions are public
+    const orConditions: WhereOptions[] = [
+      {
+        [Op.and]: [
+          { [Op.or]: [{ '$collective.isPrivate$': false }, { '$collective.isPrivate$': null }] },
+          { [Op.or]: [{ '$fromCollective.isPrivate$': false }, { '$fromCollective.isPrivate$': null }] },
+          { [Op.or]: [{ '$host.isPrivate$': false }, { '$host.isPrivate$': null }] },
+        ],
+      },
+    ];
+
+    // Or remote user must have direct access to at least one of the components
+    if (req.remoteUser) {
+      const directAccess = [
+        req.remoteUser.CollectiveId,
+        ...req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts),
+      ];
+      orConditions.push(
+        { CollectiveId: directAccess },
+        { HostCollectiveId: directAccess },
+        { FromCollectiveId: directAccess },
+      );
+    }
+
+    where.push({ [Op.or]: orConditions });
   }
 
   if (args.type) {
@@ -517,10 +606,6 @@ export const TransactionsCollectionResolver = async (
   }
   if (args.clearedTo) {
     where.push({ clearedAt: { [Op.lte]: args.clearedTo } });
-  }
-  if (args.expense) {
-    const expenseId = await getDatabaseIdFromExpenseReference(args.expense, { loaders: req.loaders });
-    where.push({ ExpenseId: expenseId });
   }
   if (args.hasExpense !== undefined) {
     where.push({ ExpenseId: { [args.hasExpense ? Op.ne : Op.eq]: null } });

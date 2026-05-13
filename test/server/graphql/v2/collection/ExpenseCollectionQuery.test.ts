@@ -29,6 +29,7 @@ import {
   fakeMember,
   fakeOrganization,
   fakePayoutMethod,
+  fakePrivateHost,
   fakeProject,
   fakeTransaction,
   fakeUser,
@@ -272,6 +273,179 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
           });
           expect(result.data.expenses.totalCount).to.eq(1);
         });
+      });
+    });
+  });
+
+  describe('Expense collection visibility for private organizations', () => {
+    let privateHost;
+    let privateCollective;
+    let privateCollective2;
+    let publicCollective;
+    let submitterUser;
+    let privateHostAdminUser;
+    let privateCollectiveAdminUser;
+    let privateCollective2AdminUser;
+    let randomUser;
+
+    before(async () => {
+      privateHostAdminUser = await fakeUser();
+      privateHost = await fakePrivateHost({ admin: privateHostAdminUser.collective });
+      privateCollectiveAdminUser = await fakeUser();
+      privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+        admin: privateCollectiveAdminUser.collective,
+      });
+      privateCollective2AdminUser = await fakeUser();
+      privateCollective2 = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+        admin: privateCollective2AdminUser.collective,
+      });
+      const publicHost = await fakeActiveHost();
+      publicCollective = await fakeCollective({ HostCollectiveId: publicHost.id, approvedAt: new Date() });
+      submitterUser = await fakeUser();
+      randomUser = await fakeUser();
+
+      await fakeExpense({
+        CollectiveId: privateCollective.id,
+        FromCollectiveId: submitterUser.CollectiveId,
+        UserId: submitterUser.id,
+        description: 'Expense to private collective 1',
+      });
+      await fakeExpense({
+        CollectiveId: privateCollective2.id,
+        FromCollectiveId: submitterUser.CollectiveId,
+        UserId: submitterUser.id,
+        description: 'Expense to private collective 2',
+      });
+      await fakeExpense({
+        CollectiveId: publicCollective.id,
+        FromCollectiveId: submitterUser.CollectiveId,
+        UserId: submitterUser.id,
+        description: 'Expense to public collective',
+      });
+    });
+
+    describe('when listing expenses from an individual', () => {
+      const queryFromSubmitterProfile = () => ({
+        fromAccount: { legacyId: submitterUser.CollectiveId },
+      });
+
+      it('user can see own submitted expenses to private organization', async () => {
+        const result = await graphqlQueryV2(expensesQuery, queryFromSubmitterProfile(), submitterUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.expenses.nodes.map(n => n.description);
+        expect(descriptions).to.include.members([
+          'Expense to private collective 1',
+          'Expense to private collective 2',
+          'Expense to public collective',
+        ]);
+      });
+
+      it('host admins can see expenses to private organizations', async () => {
+        const result = await graphqlQueryV2(expensesQuery, queryFromSubmitterProfile(), privateHostAdminUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.expenses.nodes.map(n => n.description);
+        expect(descriptions).to.include.members([
+          'Expense to private collective 1',
+          'Expense to private collective 2',
+          'Expense to public collective',
+        ]);
+      });
+
+      it('collective admins can see expenses to private collective', async () => {
+        const result = await graphqlQueryV2(expensesQuery, queryFromSubmitterProfile(), privateCollectiveAdminUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.expenses.nodes.map(n => n.description);
+        expect(descriptions).to.include.members(['Expense to private collective 1', 'Expense to public collective']);
+        expect(descriptions).to.not.include('Expense to private collective 2');
+      });
+
+      it("random user can't see expenses to private organizations", async () => {
+        const result = await graphqlQueryV2(expensesQuery, queryFromSubmitterProfile(), randomUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.expenses.nodes.map(n => n.description);
+        expect(descriptions).to.eql(['Expense to public collective']);
+      });
+
+      it("admin of other collective under same host can't see expenses to private collective", async () => {
+        const result = await graphqlQueryV2(expensesQuery, queryFromSubmitterProfile(), privateCollectiveAdminUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.expenses.nodes.map(n => n.description);
+        expect(descriptions).to.not.include('Expense to private collective 2');
+      });
+
+      it("unauthenticated can't see expenses to private organizations", async () => {
+        const result = await graphqlQueryV2(expensesQuery, queryFromSubmitterProfile(), null);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.expenses.nodes.map(n => n.description);
+        expect(descriptions).to.eql(['Expense to public collective']);
+      });
+    });
+
+    describe('private organizations', () => {
+      const privateExpenseForbiddenMessage =
+        'One or more of the accounts are private. You must be a member to view them.';
+
+      it("can't be queried by random user (account, host, fromAccount)", async () => {
+        for (const variables of [
+          { account: { legacyId: privateCollective.id } },
+          { host: { legacyId: privateHost.id } },
+          { fromAccount: { legacyId: privateCollective.id } },
+        ]) {
+          const result = await graphqlQueryV2(expensesQuery, variables, randomUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(privateExpenseForbiddenMessage);
+        }
+      });
+
+      it("can't be queried by unauthenticated (account, host, fromAccount)", async () => {
+        for (const variables of [
+          { account: { legacyId: privateCollective.id } },
+          { host: { legacyId: privateHost.id } },
+          { fromAccount: { legacyId: privateCollective.id } },
+        ]) {
+          const result = await graphqlQueryV2(expensesQuery, variables, null);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(privateExpenseForbiddenMessage);
+        }
+      });
+
+      it("can't be queried by other collective admin under same host", async () => {
+        const result = await graphqlQueryV2(
+          expensesQuery,
+          { account: { legacyId: privateCollective2.id } },
+          privateCollectiveAdminUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(privateExpenseForbiddenMessage);
+      });
+
+      it('can be queried by collective admin', async () => {
+        const result = await graphqlQueryV2(
+          expensesQuery,
+          { account: { legacyId: privateCollective.id } },
+          privateCollectiveAdminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.expenses.nodes.map(n => n.description)).to.include('Expense to private collective 1');
+      });
+
+      it('can be queried by host admin', async () => {
+        const result = await graphqlQueryV2(
+          expensesQuery,
+          { host: { legacyId: privateHost.id } },
+          privateHostAdminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.expenses.nodes.map(n => n.description)).to.include.members([
+          'Expense to private collective 1',
+          'Expense to private collective 2',
+        ]);
       });
     });
   });

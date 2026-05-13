@@ -221,7 +221,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     return this;
   };
 
-  hasRole = function (roles, CollectiveId) {
+  hasRole = function (roles: MemberRoles | ReadonlySet<MemberRoles> | readonly MemberRoles[], CollectiveId: number) {
     if (!CollectiveId) {
       return false;
     }
@@ -233,11 +233,20 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       logger.debug(new Error().stack);
       return false;
     }
+
+    let rolesArray: MemberRoles[] = [];
     if (typeof roles === 'string') {
-      roles = [roles];
+      rolesArray = [roles];
+    } else if (roles instanceof Set) {
+      rolesArray = Array.from(roles);
+    } else if (Array.isArray(roles)) {
+      rolesArray = roles;
+    } else {
+      rolesArray = [];
     }
-    const result = intersection(this.rolesByCollectiveId[Number(CollectiveId)], roles).length > 0;
-    debug('hasRole', 'userid:', this.id, 'has role', roles, ' in CollectiveId', CollectiveId, '?', result);
+
+    const result = intersection(this.rolesByCollectiveId[Number(CollectiveId)], rolesArray).length > 0;
+    debug('hasRole', 'userid:', this.id, 'has role', rolesArray, ' in CollectiveId', CollectiveId, '?', result);
     return result;
   };
 
@@ -271,6 +280,25 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       ]);
     }
   };
+
+  getCollectiveIdsForRoles(roles: ReadonlySet<MemberRoles> | readonly MemberRoles[]): Set<number> {
+    const collectiveIds = new Set<number>();
+    const rolesSet = roles instanceof Array ? new Set(roles) : roles;
+
+    if (!this.rolesByCollectiveId) {
+      logger.info("User.rolesByCollectiveId hasn't been populated.");
+      logger.debug(new Error().stack);
+      return collectiveIds;
+    }
+
+    Object.keys(this.rolesByCollectiveId).forEach(CollectiveId => {
+      if (this.rolesByCollectiveId[CollectiveId].some(r => rolesSet.has(r))) {
+        collectiveIds.add(Number(CollectiveId));
+      }
+    });
+
+    return collectiveIds;
+  }
 
   // Adding some sugars
   isAdmin = function (CollectiveId: number | string) {

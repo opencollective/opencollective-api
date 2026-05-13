@@ -17,10 +17,11 @@ import { expenseStatus } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
-import MemberRoles from '../../../../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
@@ -431,6 +432,7 @@ export const ExpensesCollectionQueryResolver = async (
 ): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
+  let hasCollectiveInclude = false;
 
   // Check arguments
   if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
@@ -449,6 +451,9 @@ export const ExpensesCollectionQueryResolver = async (
     rejectedByAccount,
     invitedByAccount,
   } = await loadAllAccountsFromArgs(args, req);
+
+  // Block access when explicitly filtering by a private account the viewer cannot see
+  await assertCanSeeAllAccounts(req, [...accounts, ...fromAccounts, host, fromHost].filter(Boolean));
 
   if (fromAccounts.length > 0) {
     if (fromHost) {
@@ -480,6 +485,7 @@ export const ExpensesCollectionQueryResolver = async (
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
     include.push({ association: 'collective', attributes: [], required: true });
+    hasCollectiveInclude = true; // Tracking this as a separate flag to make sure we update dependant paths if changing the include structure.
 
     // Base condition: the expense belongs to an account hosted by this host
     where[Op.and].push({
@@ -516,6 +522,34 @@ export const ExpensesCollectionQueryResolver = async (
         where[Op.and].push(hostContextWhere);
       }
     }
+  }
+
+  // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
+  // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
+  if (!req.remoteUser?.isRoot() && accounts.length === 0 && !host) {
+    if (!hasCollectiveInclude) {
+      include.push({ association: 'collective', attributes: [], required: true });
+    }
+
+    const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
+
+    if (req.remoteUser) {
+      const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+
+      // Allow user to see all expenses they have submitted through their administrated accounts or own profile
+      orConditions.push({ FromCollectiveId: [req.remoteUser.CollectiveId, ...directAccess] });
+
+      // Allow users to see expenses on private profiles they have access to
+      if (directAccess.length > 0) {
+        orConditions.push(
+          { CollectiveId: directAccess },
+          { '$collective.ParentCollectiveId$': directAccess },
+          { '$collective.HostCollectiveId$': directAccess },
+        );
+      }
+    }
+
+    where[Op.and].push({ [Op.or]: orConditions });
   }
 
   if (createdByAccount) {
