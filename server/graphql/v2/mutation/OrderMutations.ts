@@ -304,13 +304,8 @@ const orderMutations = {
         include: [
           { association: 'paymentMethod' },
           { model: models.Subscription },
-          // `paranoid: false` so we still load soft-deleted collectives. The
-          // safeguards in `deleteCollective` normally prevent orphan orders,
-          // but root scripts / manual ops can leave recurring orders pointing
-          // at a soft-deleted collective; without this we crash later when
-          // reading `order.collective.HostCollectiveId`.
-          { model: models.Collective, as: 'collective', paranoid: false },
-          { model: models.Collective, as: 'fromCollective', paranoid: false },
+          { model: models.Collective, as: 'collective' },
+          { model: models.Collective, as: 'fromCollective' },
           { model: models.Tier, as: 'Tier', required: false },
         ],
       });
