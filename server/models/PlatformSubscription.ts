@@ -212,7 +212,7 @@ class PlatformSubscription extends Model<
     return [subBillingStart, subBillingEnd];
   }
 
-  terminate({
+  async terminate({
     date = moment.utc().toDate(),
     transaction = undefined,
     inclusive = false,
@@ -220,8 +220,16 @@ class PlatformSubscription extends Model<
     date?: Date;
     inclusive?: boolean;
     transaction?: SequelizeTransaction;
-  }): Promise<PlatformSubscription> {
-    return this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+  }): Promise<void> {
+    const dayStart = moment.utc(date).startOf('day');
+    const subStart = moment.utc(this.startDate);
+
+    // When terminating a subscription on the same day (or in the future), we destroy it directly
+    if (subStart.isSameOrAfter(dayStart)) {
+      await this.destroy({ transaction });
+    } else {
+      await this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+    }
   }
 
   get info(): NonAttribute<
@@ -560,7 +568,12 @@ class PlatformSubscription extends Model<
     when: Date,
     plan: Partial<PlatformSubscriptionPlan>,
     user: User | null,
-    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number; isAutomaticMigration?: boolean },
+    opts?: {
+      transaction?: SequelizeTransaction;
+      UserTokenId?: number;
+      isAutomaticMigration?: boolean;
+      notify?: boolean;
+    },
   ): Promise<PlatformSubscription> {
     const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id);
     const newSubscriptionStart = moment.utc(when).startOf('day');
