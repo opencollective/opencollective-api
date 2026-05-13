@@ -132,9 +132,13 @@ export interface HostedCollectivesDailyFinancialActivityRow {
   ParentCollectiveId?: number;
   collectiveType?: string;
   mainAccountType?: string;
+  isArchived?: boolean;
+  mainAccountIsArchived?: boolean;
   hostCurrency?: string;
-  incomeAmount?: number;
-  spendingAmount?: number;
+  amountReceived?: number;
+  amountReceivedNet?: number;
+  amountSpent?: number;
+  amountSpentNet?: number;
   transactionCount?: number;
 }
 
@@ -143,6 +147,7 @@ export interface HostedCollectivesDailyMembershipRow {
   HostCollectiveId?: number;
   CollectiveId?: number;
   collectiveType?: string;
+  isArchived?: boolean;
   event?: string;
   activityId?: number;
 }
@@ -152,6 +157,7 @@ export interface HostedCollectivesHostingPeriodsRow {
   HostCollectiveId?: number;
   ParentCollectiveId?: number;
   collectiveType?: string;
+  isArchived?: boolean;
   startDate?: string;
   endDate?: string;
 }
