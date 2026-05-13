@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
+import { getSumCollectivesAmountReceived, getSumCollectivesAmountSpent } from '../../../../../server/lib/budget';
 import { queryMetrics } from '../../../../../server/lib/metrics';
 import { HostedCollectivesFinancialActivity } from '../../../../../server/lib/metrics/sources';
 import { sequelize } from '../../../../../server/models';
@@ -560,6 +561,109 @@ describe('server/lib/metrics/sources/HostedCollectivesFinancialActivity', () => 
       expect(result.rows[0].values.amountSpent).to.equal(150_00);
       expect(result.rows[0].values.transactionCount).to.equal(3);
       expect(result.rows[0].values.activeCollectives).to.equal(2);
+    });
+  });
+
+  describe('hostStats parity', () => {
+    const dateFrom = new Date('2025-01-01');
+    const dateTo = new Date('2026-01-01');
+
+    type AmountMeasure = 'amountReceived' | 'amountReceivedNet' | 'amountSpent' | 'amountSpentNet';
+
+    type HostStatsFn = typeof getSumCollectivesAmountReceived;
+    type HostStatsSums = Record<string, { value: number }>;
+
+    const queryMetric = async (measure: AmountMeasure, extraFilters: Record<string, number> = {}) => {
+      const result = await queryMetrics({
+        source: HostedCollectivesFinancialActivity,
+        measures: [measure],
+        dateFrom,
+        dateTo,
+        filters: { host: host.id, ...extraFilters },
+      });
+      const value = result.rows[0]?.values[measure];
+      return typeof value === 'number' ? value : 0;
+    };
+
+    const sumHostStatsTotal = (sums: HostStatsSums) => Object.values(sums).reduce((acc, v) => acc + (v.value ?? 0), 0);
+
+    const sumHostStatsForHostedCollectives = async (fn: HostStatsFn, net: boolean) => {
+      const hosted = await host.getHostedCollectives({ attributes: ['id'] });
+      const ids = hosted.map(c => c.id).filter(id => id !== host.id);
+      const sums = (await fn(ids, {
+        net,
+        startDate: dateFrom,
+        endDate: dateTo,
+        // bypass the cached fast-path so date filters apply
+        useMaterializedView: false,
+      })) as HostStatsSums;
+      return sumHostStatsTotal(sums);
+    };
+
+    const sumHostStatsForCollective = async (fn: HostStatsFn, collectiveId: number, net: boolean) => {
+      const sums = (await fn([collectiveId], {
+        net,
+        startDate: dateFrom,
+        endDate: dateTo,
+        useMaterializedView: false,
+      })) as HostStatsSums;
+      return sumHostStatsTotal(sums);
+    };
+
+    describe('host-wide (sum over all hosted collectives)', () => {
+      it('amountReceived matches getSumCollectivesAmountReceived(net: false)', async () => {
+        const metric = await queryMetric('amountReceived');
+        const hostStatsTotal = await sumHostStatsForHostedCollectives(getSumCollectivesAmountReceived, false);
+        expect(metric).to.be.greaterThan(0);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
+
+      it('amountReceivedNet matches getSumCollectivesAmountReceived(net: true)', async () => {
+        const metric = await queryMetric('amountReceivedNet');
+        const hostStatsTotal = await sumHostStatsForHostedCollectives(getSumCollectivesAmountReceived, true);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
+
+      it('amountSpent matches getSumCollectivesAmountSpent(net: false)', async () => {
+        const metric = await queryMetric('amountSpent');
+        const hostStatsTotal = await sumHostStatsForHostedCollectives(getSumCollectivesAmountSpent, false);
+        expect(metric).to.be.greaterThan(0);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
+
+      it('amountSpentNet matches getSumCollectivesAmountSpent(net: true)', async () => {
+        const metric = await queryMetric('amountSpentNet');
+        const hostStatsTotal = await sumHostStatsForHostedCollectives(getSumCollectivesAmountSpent, true);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
+    });
+
+    describe('single collective', () => {
+      it('amountReceived matches hostStats for the single collective', async () => {
+        const metric = await queryMetric('amountReceived', { account: collective.id });
+        const hostStatsTotal = await sumHostStatsForCollective(getSumCollectivesAmountReceived, collective.id, false);
+        expect(metric).to.equal(300_00);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
+
+      it('amountReceivedNet matches hostStats(net: true) for the single collective', async () => {
+        const metric = await queryMetric('amountReceivedNet', { account: collective.id });
+        const hostStatsTotal = await sumHostStatsForCollective(getSumCollectivesAmountReceived, collective.id, true);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
+
+      it('amountSpent matches hostStats for the single collective', async () => {
+        const metric = await queryMetric('amountSpent', { account: collective.id });
+        const hostStatsTotal = await sumHostStatsForCollective(getSumCollectivesAmountSpent, collective.id, false);
+        expect(metric).to.equal(50_00);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
+
+      it('amountSpentNet matches hostStats(net: true) for the single collective', async () => {
+        const metric = await queryMetric('amountSpentNet', { account: collective.id });
+        const hostStatsTotal = await sumHostStatsForCollective(getSumCollectivesAmountSpent, collective.id, true);
+        expect(Math.abs(metric)).to.equal(Math.abs(hostStatsTotal));
+      });
     });
   });
 });
