@@ -113,28 +113,18 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
         return req.remoteUser.isAdmin(order.FromCollectiveId);
       },
     },
-    canHostCancel: {
+    canCancel: {
       type: new GraphQLNonNull(GraphQLBoolean),
-      description:
-        'Whether the current user can cancel this recurring contribution as a host admin through the host dashboard',
+      description: 'Whether the current user can cancel this recurring contribution',
       async resolve(order, _, req: express.Request): Promise<boolean> {
-        return OrdersLib.canHostCancelOrder(req, order);
+        return OrdersLib.canCancelOrder(req, order);
       },
     },
-    canHostRefund: {
+    canRemoveAsContributor: {
       type: new GraphQLNonNull(GraphQLBoolean),
-      description:
-        'Whether the current user can refund at least one transaction of this order as a host admin through the host dashboard',
+      description: 'Whether the current user can remove the contributor from the collective public profile',
       async resolve(order, _, req: express.Request): Promise<boolean> {
-        return OrdersLib.canHostRefundOrder(req, order);
-      },
-    },
-    canHostRemoveAsContributor: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      description:
-        'Whether the current user can remove the contributor from the collective public profile as a host admin',
-      async resolve(order, _, req: express.Request): Promise<boolean> {
-        return OrdersLib.canHostRemoveContributorFromOrder(req, order);
+        return OrdersLib.canRemoveContributorFromOrder(req, order);
       },
     },
   }),

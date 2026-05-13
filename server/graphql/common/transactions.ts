@@ -19,7 +19,7 @@ import Transaction from '../../models/Transaction';
 import { Forbidden, NotFound, ValidationFailed } from '../errors';
 
 import { isHostAdmin } from './expenses';
-import { canHostCancelOrder, canHostRemoveContributorFromOrder, sanitizeMessageForContributor } from './orders';
+import { canCancelOrder, canRemoveContributorFromOrder, sanitizeMessageForContributor } from './orders';
 
 const getPayee = async (req, transaction) => {
   if (
@@ -366,14 +366,14 @@ export async function refundTransactionAsHost(
     throw new ValidationFailed('Recurring contribution already canceled');
   }
 
-  // Enforce the same permission booleans that the host dashboard relies on for
-  // the optional sub-actions. The refund itself is permission-checked per
-  // transaction by `canRefund` above.
-  if (args.cancelRecurringContribution && !(await canHostCancelOrder(req, order))) {
+  // Enforce the same permission booleans exposed on the order for the optional
+  // sub-actions. The refund itself is permission-checked per transaction by
+  // `canRefund` above.
+  if (args.cancelRecurringContribution && !(await canCancelOrder(req, order))) {
     throw new Forbidden('Cannot cancel this recurring contribution as a host admin');
   }
-  if (args.removeAsContributor && !(await canHostRemoveContributorFromOrder(req, order))) {
-    throw new Forbidden('Cannot remove this contributor from the collective');
+  if (args.removeAsContributor && !(await canRemoveContributorFromOrder(req, order))) {
+    throw new Forbidden("You don't have permission to remove this contributor from the collective");
   }
 
   const messageForContributor = sanitizeMessageForContributor(args.messageForContributor);
