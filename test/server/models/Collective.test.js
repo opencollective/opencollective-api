@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import { repeat } from 'lodash';
+import { repeat, uniq } from 'lodash';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
@@ -22,6 +22,7 @@ import {
   fakeEvent,
   fakeExpense,
   fakeHost,
+  fakeIncognitoProfile,
   fakeMember,
   fakeOrder,
   fakeOrganization,
@@ -35,7 +36,7 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-const { Transaction, Collective, User } = models;
+const { Transaction, Collective, User, Member } = models;
 
 describe('server/models/Collective', () => {
   let collective = {},
@@ -252,6 +253,93 @@ describe('server/models/Collective', () => {
     const collective = await Collective.create({ name: 'incognito', isIncognito: true });
     expect(collective.slug).to.contain('incognito-');
     expect(collective.slug.length).to.equal(18);
+  });
+
+  describe('getOrCreateIncognitoProfile', () => {
+    it('creates an incognito USER collective and ADMIN member from the main profile', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const profile = await main.getOrCreateIncognitoProfile();
+
+      expect(profile.isIncognito).to.be.true;
+      expect(profile.type).to.equal('USER');
+
+      const member = await Member.findOne({
+        where: { MemberCollectiveId: main.id, CollectiveId: profile.id, role: roles.ADMIN },
+      });
+      expect(member).to.exist;
+    });
+
+    it('returns the same profile on subsequent calls', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const first = await main.getOrCreateIncognitoProfile();
+      const second = await main.getOrCreateIncognitoProfile();
+      expect(second.id).to.equal(first.id);
+    });
+
+    it('reuses an existing incognito profile already linked with ADMIN', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const existing = await fakeIncognitoProfile(user);
+      const profile = await main.getOrCreateIncognitoProfile();
+      expect(profile.id).to.equal(existing.id);
+    });
+
+    it('throws when called on a non-USER collective', async () => {
+      const collective = await fakeCollective({ type: 'COLLECTIVE' });
+      await expect(collective.getOrCreateIncognitoProfile()).to.be.rejectedWith(
+        /Incognito profiles can only be created for users/,
+      );
+    });
+
+    it('creates a new incognito profile if the ADMIN membership was soft-deleted (main no longer "sees" a profile)', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const firstProfile = await main.getOrCreateIncognitoProfile();
+      const adminMember = await Member.findOne({
+        where: { MemberCollectiveId: main.id, CollectiveId: firstProfile.id, role: roles.ADMIN },
+      });
+      await adminMember.destroy();
+
+      expect(await main.getIncognitoProfile()).to.be.null;
+
+      const secondProfile = await main.getOrCreateIncognitoProfile();
+      expect(secondProfile.id).to.not.equal(firstProfile.id);
+    });
+
+    it('runs fully inside a caller-provided transaction', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+
+      await sequelize.transaction(async transaction => {
+        const profile = await main.getOrCreateIncognitoProfile({ transaction });
+        const member = await Member.findOne({
+          where: { MemberCollectiveId: main.id, CollectiveId: profile.id, role: roles.ADMIN },
+          transaction,
+        });
+        expect(member).to.exist;
+      });
+
+      const profile = await main.getIncognitoProfile();
+      expect(profile).to.exist;
+    });
+
+    it('parallel calls can create duplicate incognito profiles (no row-level lock in getOrCreate)', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+
+      await Promise.all([main.getOrCreateIncognitoProfile(), main.getOrCreateIncognitoProfile()]);
+
+      const links = await Member.findAll({
+        where: { MemberCollectiveId: main.id, role: roles.ADMIN },
+        include: [{ association: 'collective', required: true, where: { isIncognito: true, type: 'USER' } }],
+      });
+      const distinctIncognitoIds = uniq(links.map(l => l.CollectiveId));
+
+      // Documents current behavior: two concurrent transactions can both pass getIncognitoProfile() before either commits.
+      expect(distinctIncognitoIds.length).to.equal(2);
+    });
   });
 
   it('frees up current slug when deleted', async () => {
