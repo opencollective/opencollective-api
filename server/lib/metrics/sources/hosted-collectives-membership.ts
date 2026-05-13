@@ -15,6 +15,7 @@ export const HostedCollectivesMembership = defineRelationMetricSource('HostedCol
       kind: 'account',
     },
     accountType: { name: 'accountType', column: 'collectiveType', kind: 'enum' },
+    isArchived: { name: 'isArchived', column: 'isArchived', kind: 'boolean' },
     event: { name: 'event', column: 'event', kind: 'enum' },
   },
   measures: {

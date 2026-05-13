@@ -11,6 +11,8 @@ module.exports = {
           a."HostCollectiveId",
           a."CollectiveId",
           c.type AS "collectiveType",
+          (c."deactivatedAt" IS NOT NULL
+            AND (a."createdAt" AT TIME ZONE 'UTC')::date >= (c."deactivatedAt" AT TIME ZONE 'UTC')::date) AS "isArchived",
           CASE
             WHEN a.type = 'collective.approved' THEN 'JOINED'
             WHEN a.type = 'collective.unhosted' THEN 'CHURNED'

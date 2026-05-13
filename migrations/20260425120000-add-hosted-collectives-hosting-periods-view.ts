@@ -7,7 +7,7 @@ module.exports = {
     await queryInterface.sequelize.query(`
       CREATE VIEW "HostedCollectivesHostingPeriods" AS
 
-      -- Currently hosted: open-ended interval from approvedAt onward (NULL endDate)
+      -- Currently hosted: open-ended interval from approvedAt onward (NULL endDate).
       SELECT
         c.id AS "CollectiveId",
         c."HostCollectiveId",

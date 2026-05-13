@@ -180,8 +180,8 @@ describe('server/lib/metrics — queryMetrics', () => {
           ...baseRange,
           orderBy: [
             { measure: 'transactionCount', direction: 'asc' },
-            { measure: 'incomeAmount', direction: 'desc' },
-            { measure: 'spendingAmount', direction: 'asc' },
+            { measure: 'amountReceived', direction: 'desc' },
+            { measure: 'amountSpent', direction: 'asc' },
           ],
           groupBy: ['account'],
           limit: 10,
@@ -305,7 +305,7 @@ describe('server/lib/metrics — queryMetrics', () => {
     it('runs a single-aggregate dense query', async () => {
       const result = await queryMetrics({
         source: HostedCollectivesFinancialActivity,
-        measures: ['transactionCount', 'incomeAmount'],
+        measures: ['transactionCount', 'amountReceived'],
         dateFrom: '2025-06-01',
         dateTo: '2025-08-01',
         filters: { host: host.id },
@@ -313,7 +313,7 @@ describe('server/lib/metrics — queryMetrics', () => {
       expect(result.rows).to.have.length(1);
       // collective: 2 txns / 30000; collectiveB: 1 / 5000; collectiveC: 1 / 7000.
       expect(result.rows[0].values.transactionCount).to.equal(4);
-      expect(result.rows[0].values.incomeAmount).to.equal(42000);
+      expect(result.rows[0].values.amountReceived).to.equal(42000);
     });
 
     it('runs a bucketed dense query', async () => {
@@ -334,12 +334,12 @@ describe('server/lib/metrics — queryMetrics', () => {
     it('runs a groupBy + top-N dense query', async () => {
       const result = await queryMetrics({
         source: HostedCollectivesFinancialActivity,
-        measures: ['incomeAmount'],
+        measures: ['amountReceived'],
         dateFrom: '2025-06-01',
         dateTo: '2025-08-01',
         filters: { host: host.id },
         groupBy: ['account'],
-        orderBy: [{ measure: 'incomeAmount', direction: 'desc' }],
+        orderBy: [{ measure: 'amountReceived', direction: 'desc' }],
         limit: 5,
       });
       expect(result.rows).to.have.length(3);
@@ -395,14 +395,14 @@ describe('server/lib/metrics — queryMetrics', () => {
       // collectiveB / collectiveC: count=1 — fail count > 1.
       const result = await queryMetrics({
         source: HostedCollectivesFinancialActivity,
-        measures: ['transactionCount', 'incomeAmount'],
+        measures: ['transactionCount', 'amountReceived'],
         dateFrom: '2025-06-01',
         dateTo: '2025-08-01',
         filters: { host: host.id },
         groupBy: ['account'],
         having: [
           { measure: 'transactionCount', op: 'gt', value: 1 },
-          { measure: 'incomeAmount', op: 'gte', value: 25000 },
+          { measure: 'amountReceived', op: 'gte', value: 25000 },
         ],
         limit: 100,
       });
@@ -413,17 +413,17 @@ describe('server/lib/metrics — queryMetrics', () => {
     it('orders by primary measure with secondary tiebreaker', async () => {
       // collectiveB and collectiveC both have transactionCount=1.
       // Primary key: transactionCount ASC → both 1's come before collective's 2.
-      // Secondary key: incomeAmount ASC → collectiveB (5000) comes before collectiveC (7000).
+      // Secondary key: amountReceived ASC → collectiveB (5000) comes before collectiveC (7000).
       const result = await queryMetrics({
         source: HostedCollectivesFinancialActivity,
-        measures: ['transactionCount', 'incomeAmount'],
+        measures: ['transactionCount', 'amountReceived'],
         dateFrom: '2025-06-01',
         dateTo: '2025-08-01',
         filters: { host: host.id },
         groupBy: ['account'],
         orderBy: [
           { measure: 'transactionCount', direction: 'asc' },
-          { measure: 'incomeAmount', direction: 'asc' },
+          { measure: 'amountReceived', direction: 'asc' },
         ],
         limit: 100,
       });

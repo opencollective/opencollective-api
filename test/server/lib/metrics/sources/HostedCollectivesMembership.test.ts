@@ -9,15 +9,18 @@ import { resetTestDB } from '../../../../utils';
 describe('server/lib/metrics/sources/HostedCollectivesMembership', () => {
   let host: Awaited<ReturnType<typeof fakeActiveHost>>;
   let otherHost: Awaited<ReturnType<typeof fakeActiveHost>>;
+  let archivedHost: Awaited<ReturnType<typeof fakeActiveHost>>;
   let collectiveA: Awaited<ReturnType<typeof fakeCollective>>;
   let collectiveB: Awaited<ReturnType<typeof fakeCollective>>;
   let fund: Awaited<ReturnType<typeof fakeCollective>>;
   let event: Awaited<ReturnType<typeof fakeEvent>>;
+  let archivedJoined: Awaited<ReturnType<typeof fakeCollective>>;
 
   before(async () => {
     await resetTestDB();
     host = await fakeActiveHost({ slug: 'metrics-mb-host' });
     otherHost = await fakeActiveHost({ slug: 'metrics-mb-other-host' });
+    archivedHost = await fakeActiveHost({ slug: 'metrics-mb-archived-host' });
 
     collectiveA = await fakeCollective({ HostCollectiveId: host.id, type: CollectiveType.COLLECTIVE });
     collectiveB = await fakeCollective({ HostCollectiveId: host.id, type: CollectiveType.COLLECTIVE });
@@ -93,6 +96,24 @@ describe('server/lib/metrics/sources/HostedCollectivesMembership', () => {
       CollectiveId: otherCollectiveB.id,
       HostCollectiveId: otherHost.id,
       createdAt: new Date('2025-08-20'),
+    });
+
+    archivedJoined = await fakeCollective({
+      HostCollectiveId: archivedHost.id,
+      type: CollectiveType.COLLECTIVE,
+      deactivatedAt: new Date('2025-06-01'),
+    });
+    await fakeActivity({
+      type: 'collective.approved',
+      CollectiveId: archivedJoined.id,
+      HostCollectiveId: archivedHost.id,
+      createdAt: new Date('2025-03-15'),
+    });
+    await fakeActivity({
+      type: 'collective.unhosted',
+      CollectiveId: archivedJoined.id,
+      HostCollectiveId: archivedHost.id,
+      createdAt: new Date('2025-08-15'),
     });
   });
 
@@ -171,6 +192,42 @@ describe('server/lib/metrics/sources/HostedCollectivesMembership', () => {
       expect(byBucket.get('2025-03-01')).to.equal(1);
       expect(byBucket.get('2025-04-01')).to.equal(2);
       expect(byBucket.get('2025-07-01')).to.equal(1);
+    });
+  });
+
+  describe('archived', () => {
+    it('isArchived=false keeps pre-archival joins', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesMembership,
+        measures: ['joinedCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: archivedHost.id, isArchived: false },
+      });
+      expect(result.rows[0].values.joinedCount).to.equal(1);
+    });
+
+    it('isArchived=true catches post-archival activity (unhost after archival)', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesMembership,
+        measures: ['churnedCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: archivedHost.id, isArchived: true },
+      });
+      expect(result.rows[0].values.churnedCount).to.equal(1);
+    });
+
+    it('isArchived=false on a fully pre-archival window keeps churns within that window', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesMembership,
+        measures: ['joinedCount', 'churnedCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2025-06-01',
+        filters: { host: archivedHost.id, isArchived: false },
+      });
+      expect(result.rows[0].values.joinedCount).to.equal(1);
+      expect(result.rows[0]?.values.churnedCount ?? 0).to.equal(0);
     });
   });
 

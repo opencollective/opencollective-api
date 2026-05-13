@@ -113,7 +113,7 @@ export type MetricQuery<S extends MetricSource = MetricSource> = {
   /** Additional non-time grouping. Each entry is a key from `source.dimensions`. */
   groupBy?: ReadonlyArray<DimensionKey<S>>;
   /**
-   * HAVING-style post-aggregate predicates on measures (e.g. spendingAmount > 0).
+   * HAVING-style post-aggregate predicates on measures (e.g. amountSpent > 0).
    * Multiple entries are AND-combined.
    */
   having?: ReadonlyArray<Having<S>>;
