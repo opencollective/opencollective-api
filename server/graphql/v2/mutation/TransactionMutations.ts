@@ -17,8 +17,7 @@ import { GraphQLTransaction } from '../interface/Transaction';
 const transactionMutations = {
   refundTransaction: {
     type: GraphQLTransaction,
-    description:
-      'Refunds a transaction. When performed by a Fiscal Host admin, a CONTRIBUTION_REFUNDED activity is emitted and the contributor is notified by email. Scope: "transactions".',
+    description: 'Refunds a transaction. Scope: "transactions".',
     args: {
       transaction: {
         type: new GraphQLNonNull(GraphQLTransactionReferenceInput),

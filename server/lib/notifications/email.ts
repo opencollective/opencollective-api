@@ -266,19 +266,11 @@ export const notifyByEmail = async (activity: Activity) => {
       if (activity.data?.hostAction?.refund) {
         break;
       }
-      if (activity.data?.messageSource === 'HOST' && activity.data?.fromCollective?.id) {
-        await notify.collective(activity, { collectiveId: activity.data.fromCollective.id });
-      } else {
-        await notify.user(activity);
-      }
+      await notify.collective(activity, { collectiveId: activity.FromCollectiveId });
       break;
 
     case ActivityTypes.CONTRIBUTION_REFUNDED:
-      if (activity.data?.fromCollective?.id) {
-        await notify.collective(activity, {
-          collectiveId: activity.data.fromCollective.id,
-        });
-      }
+      await notify.collective(activity, { collectiveId: activity.FromCollectiveId });
       break;
 
     case ActivityTypes.SUBSCRIPTION_PAUSED:
