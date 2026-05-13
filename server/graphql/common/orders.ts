@@ -336,9 +336,6 @@ export const canHostRefundOrder = async (req: express.Request, order: Order): Pr
     return false;
   }
   // If the order was fully refunded there's nothing left to refund
-  if (order.status === status.REFUNDED) {
-    return false;
-  }
 
   // Check that at least one CREDIT contribution transaction exists and is not already refunded
   const refundableCount = await models.Transaction.count({
