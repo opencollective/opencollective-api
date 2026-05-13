@@ -17,6 +17,7 @@ import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/pe
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as OrdersLib from '../../common/orders';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
@@ -27,16 +28,16 @@ import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 import { GraphQLTransaction } from '../interface/Transaction';
-import { GraphQLAmount } from '../object/Amount';
-import { GraphQLPaymentMethod } from '../object/PaymentMethod';
-import { GraphQLTier } from '../object/Tier';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
+import { GraphQLAmount } from './Amount';
 import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
+import { GraphQLPaymentMethod } from './PaymentMethod';
 import { GraphQLTaxInfo } from './TaxInfo';
+import { GraphQLTier } from './Tier';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 
 const GraphQLPendingOrderFromAccountInfo = new GraphQLObjectType({
@@ -179,7 +180,12 @@ export const GraphQLOrder = new GraphQLObjectType({
       },
       fromAccount: {
         type: GraphQLAccount,
-        resolve(order, _, req) {
+        async resolve(order, _, req) {
+          const collective = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+          const hostCollectiveId = collective?.HostCollectiveId;
+          if (req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, order.FromCollectiveId);
+          }
           return req.loaders.Collective.byId.load(order.FromCollectiveId);
         },
       },

@@ -5,6 +5,7 @@ import { v4 as uuid } from 'uuid';
 
 import roles from '../../../constants/roles';
 import { canUseSlug } from '../../../lib/collectivelib';
+import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
@@ -21,14 +22,13 @@ async function createEvent(_, args, req) {
   const parent = await fetchAccountWithReference(args.account);
   if (!parent) {
     throw new NotFound('Parent account not found');
-  }
-  if (parent.type === 'USER') {
-    throw new BadRequest('Parent account should not be an Individual account');
-  }
-  if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
+  } else if (!(await canSeePrivateAccount(req, parent))) {
+    throw new Unauthorized('You are not authorized to create an event under this parent account');
+  } else if (!['COLLECTIVE', 'ORGANIZATION'].includes(parent.type)) {
+    throw new BadRequest('Parent account must be a collective or organization');
+  } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Unauthorized(`You must be logged in as a member of the ${parent.slug} collective to create an Event`);
-  }
-  if (parent.isFrozen()) {
+  } else if (parent.isFrozen()) {
     throw new Unauthorized('This account is frozen and cannot create new events at this time.');
   }
 
@@ -43,6 +43,7 @@ async function createEvent(_, args, req) {
     timezone: args.event.timezone,
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
+    isPrivate: parent.isPrivate,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
     data: {
       ...pick(parent.data, 'allowedTierTypes'),
@@ -94,6 +95,7 @@ const createEventMutation = {
       type: new GraphQLNonNull(GraphQLAccountReferenceInput),
     },
   },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createEvent
   resolve: (_, args, req) => {
     return createEvent(_, args, req);
   },

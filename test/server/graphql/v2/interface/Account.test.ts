@@ -1,8 +1,17 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import MemberRoles from '../../../../../server/constants/roles';
 import { KYCVerificationStatus } from '../../../../../server/models/KYCVerification';
-import { fakeKYCVerification, fakeOrganization, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeIncognitoProfile,
+  fakeKYCVerification,
+  fakeMember,
+  fakeOrganization,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 describe('server/graphql/v2/interface/Account', () => {
@@ -150,6 +159,94 @@ describe('server/graphql/v2/interface/Account', () => {
       result = await graphqlQueryV2(query, { slug: otherOrg.slug }, otherOrgAdmin);
       expect(result.errors).to.not.exist;
       expect(result.data.account.kycVerificationRequests.totalCount).to.eql(0);
+    });
+  });
+
+  describe('mainProfile', () => {
+    const query = gql`
+      query MainProfileTest($slug: String!) {
+        account(slug: $slug) {
+          slug
+          isIncognito
+          mainProfile {
+            slug
+          }
+        }
+      }
+    `;
+
+    it('returns null for non-incognito accounts', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: user.collective.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isIncognito).to.be.false;
+      expect(result.data.account.mainProfile).to.be.null;
+    });
+
+    it('returns null when not authenticated', async () => {
+      const user = await fakeUser();
+      const incognito = await fakeIncognitoProfile(user);
+      const result = await graphqlQueryV2(query, { slug: incognito.slug });
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.mainProfile).to.be.null;
+    });
+
+    it('returns null for an unrelated user', async () => {
+      const user = await fakeUser();
+      const incognito = await fakeIncognitoProfile(user);
+      const otherUser = await fakeUser();
+      const result = await graphqlQueryV2(query, { slug: incognito.slug }, otherUser);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.mainProfile).to.be.null;
+    });
+
+    it('returns the main profile for the account owner', async () => {
+      const user = await fakeUser();
+      const incognito = await fakeIncognitoProfile(user);
+      const result = await graphqlQueryV2(query, { slug: incognito.slug }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isIncognito).to.be.true;
+      expect(result.data.account.mainProfile).to.exist;
+      expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
+    });
+
+    it('returns null for an admin of a fiscal host the user never contributed to', async () => {
+      const user = await fakeUser();
+      const incognito = await fakeIncognitoProfile(user);
+      const hostAdmin = await fakeUser();
+      await fakeActiveHost({ admin: hostAdmin });
+      const result = await graphqlQueryV2(query, { slug: incognito.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.mainProfile).to.be.null;
+    });
+
+    it('returns the main profile for an admin of a collective who received an incognito contribution', async () => {
+      const user = await fakeUser();
+      const incognito = await fakeIncognitoProfile(user);
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin });
+      // Simulate a contribution from the incognito profile to the collective
+      await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: incognito.id, role: MemberRoles.BACKER });
+      const result = await graphqlQueryV2(query, { slug: incognito.slug }, collectiveAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isIncognito).to.be.true;
+      expect(result.data.account.mainProfile).to.exist;
+      expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
+    });
+
+    it('returns the main profile for an admin of a fiscal host the user contributed to', async () => {
+      const user = await fakeUser();
+      const incognito = await fakeIncognitoProfile(user);
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      // Simulate a contribution from the incognito profile to the hosted collective
+      await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: incognito.id, role: MemberRoles.BACKER });
+      const result = await graphqlQueryV2(query, { slug: incognito.slug }, hostAdmin);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.isIncognito).to.be.true;
+      expect(result.data.account.mainProfile).to.exist;
+      expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
     });
   });
 });

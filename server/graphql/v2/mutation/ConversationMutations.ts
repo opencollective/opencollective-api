@@ -35,6 +35,7 @@ const conversationMutations = {
         description: 'A list of tags for this conversation',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createConversation (common/conversations.ts)
     async resolve(_, args, req) {
       let CollectiveId;
       if (args.account) {
@@ -66,6 +67,7 @@ const conversationMutations = {
         description: 'A list of tags for this conversation',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside editConversation (common/conversations.ts)
     async resolve(_, args, req) {
       let id;
       if (isEntityPublicId(args.id, EntityShortIdPrefix.Conversation)) {

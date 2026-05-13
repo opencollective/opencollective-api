@@ -120,7 +120,7 @@ import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
-import MemberInvitation from './MemberInvitation';
+import MemberInvitation, { PRIVATE_ACCOUNTS_SUPPORTED_ROLES } from './MemberInvitation';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
@@ -337,6 +337,7 @@ class Collective extends ModelWithPublicId<
   declare public timezone: string;
   declare public isActive: boolean;
   declare public isIncognito: boolean;
+  declare public isPrivate: boolean;
   declare public approvedAt: Date;
   declare public twitterHandle: string;
   declare public githubHandle: string;
@@ -771,18 +772,18 @@ class Collective extends ModelWithPublicId<
     return dbTransaction ? runInTransaction(dbTransaction) : sequelize.transaction(runInTransaction);
   };
 
-  getParentCollective = async function ({ attributes = null, loaders = null } = {}) {
+  getParentCollective = async function ({ attributes = null, loaders = null, transaction = undefined } = {}) {
     if (!this.ParentCollectiveId) {
       return null;
     } else if (attributes) {
-      return Collective.findByPk(this.ParentCollectiveId, { attributes });
+      return Collective.findByPk(this.ParentCollectiveId, { attributes, transaction });
     } else if (this.parentCollective) {
       return this.parentCollective;
-    } else if (loaders) {
+    } else if (loaders && !transaction) {
       this.parentCollective = await loaders.Collective.byId.load(this.ParentCollectiveId);
       return this.parentCollective;
     } else {
-      this.parentCollective = await Collective.findByPk(this.ParentCollectiveId);
+      this.parentCollective = await Collective.findByPk(this.ParentCollectiveId, { transaction });
       return this.parentCollective;
     }
   };
@@ -943,6 +944,7 @@ class Collective extends ModelWithPublicId<
           isIncognito: true,
           settings: null,
           CreatedByUserId: user.id,
+          data: { UserCollectiveId: user.CollectiveId, UserId: user.id },
         },
         { transaction },
       );
@@ -2841,7 +2843,10 @@ class Collective extends ModelWithPublicId<
 
   // edit the list of members and admins of this collective (create/update/remove)
   // creates a User and a UserCollective if needed
-  editMembers = async function (members, defaultAttributes: { remoteUserCollectiveId?: any } = {}) {
+  editMembers = async function (
+    members,
+    defaultAttributes: { remoteUserCollectiveId?: number; CreatedByUserId?: number } = {},
+  ) {
     if (!members || members.length === 0) {
       return null;
     }
@@ -2850,7 +2855,9 @@ class Collective extends ModelWithPublicId<
       throw new Error('There must be at least one admin for the account');
     }
 
-    const allowedRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
+    const allowedRoles = this.isPrivate
+      ? PRIVATE_ACCOUNTS_SUPPORTED_ROLES
+      : [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
 
     // Ensure only ADMIN and MEMBER roles are used here
     members.forEach(member => {
@@ -4140,6 +4147,12 @@ Collective.init(
       defaultValue: false,
     },
 
+    isPrivate: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
+
     approvedAt: {
       type: DataTypes.DATE,
     },
@@ -4305,11 +4318,33 @@ Collective.init(
         const newSlug = `${instance.slug}-${Date.now()}`;
         await instance.update({ slug: newSlug });
       },
-      beforeCreate: async instance => {
+      beforeCreate: async (instance, options) => {
         // Make sure user is not prevented from creating collectives
-        const user = instance.CreatedByUserId && (await User.findByPk(instance.CreatedByUserId));
+        const user =
+          instance.CreatedByUserId &&
+          (await User.findByPk(instance.CreatedByUserId, { transaction: options.transaction }));
         if (user && !canUseFeature(user, FEATURE.CREATE_COLLECTIVE)) {
           throw new Error("You're not authorized to create new collectives at the moment.");
+        }
+
+        // Inherit isPrivate from parent host: if the host is private, all hosted accounts must be private too
+        if (!instance.isPrivate && instance.HostCollectiveId) {
+          const host = await Collective.findByPk(instance.HostCollectiveId, {
+            attributes: ['isPrivate'],
+            transaction: options.transaction,
+          });
+          if (host?.isPrivate) {
+            instance.isPrivate = true;
+          }
+        }
+        if (!instance.isPrivate && instance.ParentCollectiveId) {
+          const parent = await Collective.findByPk(instance.ParentCollectiveId, {
+            attributes: ['isPrivate'],
+            transaction: options.transaction,
+          });
+          if (parent?.isPrivate) {
+            instance.isPrivate = true;
+          }
         }
 
         // Check if collective is spam

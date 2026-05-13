@@ -24,7 +24,7 @@ import { resetTestDB, waitForCondition } from '../../utils';
 
 describe('submit-platform-subscription-bills', () => {
   const date = moment.utc('2023-10-09T10:00:00Z');
-  let organizations, sandbox, emailSendMessageSpy;
+  let organizations, shortTrialGraceOrg, sandbox, emailSendMessageSpy;
 
   before(async () => {
     sandbox = sinon.createSandbox();
@@ -85,6 +85,18 @@ describe('submit-platform-subscription-bills', () => {
     organizations.forEach((org, i) => {
       calculateUtilizationStub.withArgs(org.id).resolves(utilizations[i]);
     });
+
+    // Short trial: starts late Sept, ends before the billing run; whole subscription < 15 days; pro-rated bill under $10 — grace skip.
+    shortTrialGraceOrg = await fakeCollective({ type: CollectiveType.ORGANIZATION, isActive: true });
+    await shortTrialGraceOrg.addUserWithRole(orgAdmin, roles.ADMIN);
+    const shortTrialSubscription = await PlatformSubscription.createSubscription(
+      shortTrialGraceOrg,
+      moment.utc('2023-09-28T12:00:00Z').toDate(),
+      PlatformSubscriptionTiers[1],
+      user,
+    );
+    await shortTrialSubscription.terminate({ date: moment.utc('2023-10-05T12:00:00Z').toDate(), inclusive: true });
+    calculateUtilizationStub.withArgs(shortTrialGraceOrg.id).resolves({ activeCollectives: 0, expensesPaid: 0 });
   });
 
   after(() => {
@@ -98,6 +110,14 @@ describe('submit-platform-subscription-bills', () => {
   it('should omit bills for $0', async () => {
     const expenses = await models.Expense.findAll({
       where: { CollectiveId: organizations[0].id, type: expenseTypes.PLATFORM_BILLING },
+    });
+
+    expect(expenses).to.have.length(0);
+  });
+
+  it('skips first-month short trials under $10', async () => {
+    const expenses = await models.Expense.findAll({
+      where: { CollectiveId: shortTrialGraceOrg.id, type: expenseTypes.PLATFORM_BILLING },
     });
 
     expect(expenses).to.have.length(0);

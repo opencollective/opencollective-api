@@ -1,7 +1,6 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
-import { Request } from 'express';
 import { createSandbox } from 'sinon';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
@@ -20,7 +19,7 @@ import {
   fakePaymentMethod,
   fakeTransaction,
 } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+import { makeGenericRequest, resetTestDB } from '../../../utils';
 
 const createOrderWithSubscription = async (params = {}): Promise<Order> => {
   const paymentMethod = await fakePaymentMethod({
@@ -56,7 +55,12 @@ const PAYPAL_SUBSCRIPTION_SALE_WEBHOOK_CASES: Array<{
 const callPayPalSubscriptionSaleWebhook = (
   eventType: PayPalSubscriptionSaleRefundEventType,
   body: Record<string, unknown>,
-) => paypalWebhook(<Request>{ body: { event_type: eventType, ...body } });
+) =>
+  paypalWebhook(
+    makeGenericRequest({
+      body: { event_type: eventType, ...body },
+    }),
+  );
 
 async function setupPayPalSubscriptionContributionCredit(params: {
   saleId: string;
@@ -99,9 +103,11 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
   describe('PAYMENT.SALE.COMPLETED', () => {
     const callPaymentSaleCompleted = body =>
-      paypalWebhook(<Request>{
-        body: { event_type: 'PAYMENT.SALE.COMPLETED', ...body },
-      });
+      paypalWebhook(
+        makeGenericRequest({
+          body: { event_type: 'PAYMENT.SALE.COMPLETED', ...body },
+        }),
+      );
 
     it('ignores if sale is not related to a subscription', async () => {
       await expect(callPaymentSaleCompleted({ resource: {} })).to.be.fulfilled;
@@ -173,9 +179,11 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
   describe('BILLING.SUBSCRIPTION.CANCELLED', () => {
     const callSubscriptionCancelled = body =>
-      paypalWebhook(<Request>{
-        body: { event_type: 'BILLING.SUBSCRIPTION.CANCELLED', ...body },
-      });
+      paypalWebhook(
+        makeGenericRequest({
+          body: { event_type: 'BILLING.SUBSCRIPTION.CANCELLED', ...body },
+        }),
+      );
 
     it('succeed if order does not exists, but logs an error to sentry', async () => {
       const stub = sandbox.stub(Sentry, 'reportMessageToSentry');
@@ -250,9 +258,11 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
   describe('PAYMENT.SALE.REFUNDED', () => {
     const callPaymentSaleRefunded = body =>
-      paypalWebhook(<Request>{
-        body: { event_type: 'PAYMENT.SALE.REFUNDED', ...body },
-      });
+      paypalWebhook(
+        makeGenericRequest({
+          body: { event_type: 'PAYMENT.SALE.REFUNDED', ...body },
+        }),
+      );
 
     it('ignores if resource has no sale_id', async () => {
       await expect(callPaymentSaleRefunded({ resource: {} })).to.be.fulfilled;
@@ -372,9 +382,11 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
   describe('PAYMENT.SALE.REVERSED', () => {
     const callPaymentSaleReversed = body =>
-      paypalWebhook(<Request>{
-        body: { event_type: 'PAYMENT.SALE.REVERSED', ...body },
-      });
+      paypalWebhook(
+        makeGenericRequest({
+          body: { event_type: 'PAYMENT.SALE.REVERSED', ...body },
+        }),
+      );
 
     it('ignores if no transaction matches the sale id', async () => {
       await expect(callPaymentSaleReversed({ resource: { id: 'unknown-sale-id' } })).to.be.fulfilled;

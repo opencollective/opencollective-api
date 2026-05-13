@@ -44,17 +44,20 @@ const WATCHED_EVENT_TYPES = [
   'T0006',
 ];
 
+// Refund event types to detect missing refunds directly from the transaction list
+const REFUND_EVENT_TYPES = [
+  'T1107', // Refund Payment
+];
+
 // Ignore some hosts, usually because they haven't enabled transactions search API yet
-// Checked again on 2026-04-15
 const IGNORED_HOSTS = [
+  // Checked again on 2026-04-15
   'dxura',
-  'lucyparsonsinstitute',
   'naarprdfw',
   'taon',
   'tts-miniature-wargames-collective',
-  'lucy-parsons-labs',
-  'osgeo-foundation',
   'secdsm',
+  'deeptimewalk-cic',
 ];
 
 /**
@@ -248,9 +251,12 @@ const handleCheckoutTransaction = async (
 };
 
 /**
- * From a list of PayPal transactions, find the ones that are recorded in the database (matched by
- * paypalCaptureId) but whose capture is now marked as REFUNDED by PayPal without a corresponding
- * RefundTransactionId in our database.
+ * From a full list of PayPal transactions for the period, find refund events (T1107) whose
+ * corresponding contribution is recorded in the database but has no refund entry yet.
+ *
+ * Each T1107 transaction carries the original capture ID in `paypal_reference_id` (type TXN) and
+ * its own `transaction_id` is the refund ID — so we never need to call `payments/captures/` to
+ * discover whether a capture was refunded or to look up the refund ID.
  *
  * Returns pairs of [paypalRefundDetails, dbTransaction] for each match found.
  */
@@ -258,84 +264,65 @@ const getMissingRefundTransactions = async (
   transactions: PaypalTransactionSearchResult['transaction_details'],
   host: Collective,
 ): Promise<Array<[Record<string, unknown>, Transaction]>> => {
-  if (transactions.length === 0) {
-    return [];
-  }
-
-  const paypalIds = transactions.map(t => t.transaction_info.transaction_id);
-
-  // Find DB transactions whose paypalCaptureId matches one of the PayPal transaction IDs and that
-  // have no refund recorded yet.
-  const candidates = await sequelize.query<{ id: number; paypalCaptureId: string }>(
-    `SELECT t.id, t.data #>> '{paypalCaptureId}' AS "paypalCaptureId"
-     FROM "Transactions" t
-     WHERE t.data #>> '{paypalCaptureId}' IN (SELECT UNNEST(ARRAY[:paypalIds]))
-       AND t.type = 'CREDIT'
-       AND t.kind = 'CONTRIBUTION'
-       AND t."isRefund" = FALSE
-       AND t."RefundTransactionId" IS NULL
-       AND t."deletedAt" IS NULL`,
-    { type: QueryTypes.SELECT, replacements: { paypalIds } },
+  // Keep only refund events that reference an original capture via a TXN reference
+  const refundTransactions = transactions.filter(
+    t =>
+      REFUND_EVENT_TYPES.includes(t.transaction_info.transaction_event_code) &&
+      t.transaction_info.paypal_reference_id_type === 'TXN' &&
+      t.transaction_info.paypal_reference_id,
   );
 
-  if (!candidates.length) {
+  if (!refundTransactions.length) {
     return [];
   }
 
+  // Map original capture ID -> refund transaction (transaction_id = the refund ID)
+  const refundByOriginalCaptureId = Object.fromEntries(
+    refundTransactions.map(t => [t.transaction_info.paypal_reference_id, t]),
+  );
+  const captureIds = Object.keys(refundByOriginalCaptureId);
+
+  // Find DB contributions whose paypalCaptureId is one of those original capture IDs
+  // and that have no refund recorded yet.
+  //
+  // We intentionally split this into two separate queries. Combining the paypalCaptureId
+  // lookup with the type/kind/isRefund filters in a single query causes the planner to
+  // perform a BitmapAnd with the CollectiveId-type index (~6M rows, ~700ms), because the
+  // statistics on the transactions__data_paypal_capture_id partial index over-estimate its
+  // row count by ~30,000x and make the extra bitmap look worthwhile. Isolating the
+  // paypalCaptureId conditions in step 1 lets the planner use that index alone.
+
+  // Step 1: use the paypalCaptureId partial index in isolation to get matching TransactionGroups.
+  const transactionGroupRows = await sequelize.query<{ TransactionGroup: string }>(
+    `SELECT DISTINCT "TransactionGroup"
+     FROM "Transactions"
+     WHERE data #>> '{paypalCaptureId}' IS NOT NULL
+       AND data #>> '{paypalCaptureId}' IN (:captureIds)
+       AND "deletedAt" IS NULL
+    `,
+    { type: QueryTypes.SELECT, replacements: { captureIds } },
+  );
+
+  if (!transactionGroupRows.length) {
+    return [];
+  }
+
+  // Step 2: retrieve the CREDIT/CONTRIBUTION rows for those groups.
+  const transactionGroups = transactionGroupRows.map(r => r.TransactionGroup);
   const dbTransactions = await models.Transaction.findAll({
-    where: { id: candidates.map(r => r.id) },
+    where: {
+      TransactionGroup: transactionGroups,
+      type: 'CREDIT',
+      kind: 'CONTRIBUTION',
+      isRefund: false,
+      RefundTransactionId: null,
+    },
   });
 
   const result: Array<[Record<string, unknown>, Transaction]> = [];
   for (const dbTransaction of dbTransactions) {
     const captureId = (dbTransaction.data as { paypalCaptureId?: string }).paypalCaptureId;
-    let captureDetails: PaypalCapture;
-    try {
-      captureDetails = (await paypalRequestV2(`payments/captures/${captureId}`, host, 'GET')) as PaypalCapture;
-    } catch (e) {
-      logger.error(`Error fetching PayPal capture ${captureId}: ${e.message}`);
-      reportErrorToSentry(e, { extra: { transactionId: dbTransaction.id, captureId, hostSlug: host.slug } });
-      continue;
-    }
-
-    if (captureDetails.status !== 'REFUNDED') {
-      continue;
-    }
-
-    // Primary: look for a navigational HATEOAS link to the existing refund resource on the capture.
-    // This link (rel: "refund", method: "GET") is empirically present on fully-REFUNDED captures
-    // but is not officially documented by PayPal, so we also keep a fallback below.
-    const refundHref = captureDetails.links?.find(l => l.rel === 'refund')?.href;
-    let refundId = refundHref?.split('/').pop();
-
-    // Fallback: for checkout captures, supplementary_data.related_ids.order_id is populated,
-    // so we can fetch the order and read the refund ID from its payments.refunds array.
-    if (!refundId) {
-      const orderId = captureDetails.supplementary_data?.related_ids?.order_id;
-      if (orderId) {
-        try {
-          const orderDetails = (await paypalRequestV2(`checkout/orders/${orderId}`, host, 'GET')) as {
-            purchase_units?: Array<{ payments?: { refunds?: Array<{ id: string }> } }>;
-          };
-          refundId = orderDetails?.purchase_units?.[0]?.payments?.refunds?.[0]?.id;
-        } catch (e) {
-          logger.error(`Error fetching PayPal order ${orderId} for capture ${captureId}: ${e.message}`);
-          reportErrorToSentry(e, {
-            extra: { captureId, orderId, transactionId: dbTransaction.id, hostSlug: host.slug },
-          });
-        }
-      }
-    }
-
-    if (!refundId) {
-      logger.warn(`PayPal capture ${captureId} is REFUNDED but has no refund link, skipping`);
-      reportMessageToSentry(`PayPal capture is REFUNDED but missing refund link in HATEOAS links`, {
-        extra: { captureId, transactionId: dbTransaction.id, hostSlug: host.slug },
-        feature: FEATURE.PAYPAL_DONATIONS,
-        severity: 'warning',
-      });
-      continue;
-    }
+    const refundId = refundByOriginalCaptureId[captureId].transaction_info.transaction_id;
 
     let refundDetails: Record<string, unknown>;
     try {
@@ -470,8 +457,10 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         }
       }
 
-      // Find out which transactions are refunded on PayPal but still marked as paid in the database
-      const paypalRefundedTransactions = await getMissingRefundTransactions(filteredTransactions, host);
+      // Find out which transactions are refunded on PayPal but still marked as paid in the database.
+      // We pass the full unfiltered list so that T1107 refund events (excluded from filteredTransactions)
+      // are visible to the function.
+      const paypalRefundedTransactions = await getMissingRefundTransactions(transactions, host);
       for (const [paypalTransaction, transaction] of paypalRefundedTransactions) {
         const refundedPaypalFee = floatAmountToCents(
           parseFloat(get(paypalTransaction, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string),

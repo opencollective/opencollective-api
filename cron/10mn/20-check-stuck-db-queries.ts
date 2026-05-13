@@ -74,13 +74,14 @@ async function run() {
       max(now() - query_start)::varchar AS longest_run
     FROM pg_stat_activity
     WHERE state = 'active'
-    AND application_name != 'Heroku Postgres Backups'
     AND (now() - query_start) > (:threshold * interval '1 second')
-    AND query NOT IN (
-      'SHOW TRANSACTION ISOLATION LEVEL',
-      E'SHOW extwlist.extensions\n;',
-      'SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED'
-    )
+    -- Filter out system/ignored queries
+    AND application_name != 'Heroku Postgres Backups'
+    AND query != 'SHOW TRANSACTION ISOLATION LEVEL'
+    AND query != E'SHOW extwlist.extensions\n;'
+    AND query != 'SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED'
+    AND query NOT LIKE 'START_REPLICATION %'
+    --
     GROUP BY usename, application_name, query
     ORDER BY max(now() - query_start) DESC
     `,

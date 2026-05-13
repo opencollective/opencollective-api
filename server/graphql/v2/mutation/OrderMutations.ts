@@ -1013,6 +1013,9 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      if (!checkScope(req, 'orders')) {
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
+      }
       if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.ORDER)) {
         throw new FeatureNotAllowedForUser();
       }
@@ -1175,8 +1178,7 @@ const orderMutations = {
         fromAccount.HostCollectiveId !== host.id &&
         !req.remoteUser.isRoot() &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
-        !host.data?.allowAddFundsFromAllAccounts &&
-        !host.data?.isTrustedHost
+        !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
         throw new Error(
           "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
@@ -1357,8 +1359,7 @@ const orderMutations = {
         fromAccount.HostCollectiveId !== host.id &&
         !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
         !req.remoteUser.isRoot() &&
-        !host.data?.allowAddFundsFromAllAccounts &&
-        !host.data?.isTrustedHost
+        !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
         throw new Error(
           "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",

@@ -167,7 +167,7 @@ export const paypalAmountToCents = (amountStr: string): number => {
 
 /**
  * This enum defines all the event types that we're watching in `server/paymentProviders/paypal/webhook.ts`.
- * After adding something here, you'll need to run `scripts/update-hosts-paypal-webhooks.ts` to update
+ * After adding something here, you'll need to run `scripts/paypal/webhooks.ts` to update
  * all the existing webhooks.
  */
 export enum WatchedPaypalWebhookEvent {

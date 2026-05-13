@@ -2,7 +2,8 @@ import config from 'config';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import { RateLimitExceeded, Unauthorized, UnexpectedError } from '../../errors';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { RateLimitExceeded, UnexpectedError } from '../../errors';
 
 export const sendSurveyResponseMutation = {
   type: GraphQLBoolean,
@@ -25,9 +26,7 @@ export const sendSurveyResponseMutation = {
     },
   },
   resolve: async (_, args, req) => {
-    if (!req.remoteUser) {
-      throw new Unauthorized();
-    }
+    checkRemoteUserCanUseAccount(req);
     const CODA_TOKEN = process.env.CODA_IN_APP_SURVEY_TOKEN;
 
     if (!CODA_TOKEN) {

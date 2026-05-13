@@ -444,6 +444,63 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.data.createExpense.legacyId).to.be.a('number');
     });
 
+    describe('payoutMethod payload sanitization for ConnectedAccount linkage', () => {
+      beforeEach(resetTestDB);
+
+      it('createExpense: strips client-supplied connectedAccountId from payout method', async () => {
+        const user = await fakeUser();
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const accountingCategory = await fakeAccountingCategory({
+          CollectiveId: collective.HostCollectiveId,
+          kind: 'EXPENSE',
+        });
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: user.collective,
+          location: { address: null },
+        });
+        const otherCollective = await fakeCollective();
+        const otherConnectedAccount = await fakeConnectedAccount({
+          service: 'paypal',
+          CollectiveId: otherCollective.id,
+          token: 'other-token',
+          refreshToken: 'other-refresh',
+        });
+        const encodedAccountingCategoryId = idEncode(accountingCategory.id, 'accounting-category');
+        const expenseData = {
+          ...getValidExpenseData(),
+          payee: { legacyId: payee.id },
+          accountingCategory: { id: encodedAccountingCategoryId },
+          payoutMethod: {
+            type: 'PAYPAL',
+            data: {
+              email: randEmail(),
+              currency: 'USD',
+              isPayPalOAuth: true,
+              connectedAccountId: otherConnectedAccount.id,
+            },
+          },
+        };
+
+        const result = await graphqlQueryV2(
+          createExpenseMutation,
+          { expense: expenseData, account: { legacyId: collective.id } },
+          user,
+        );
+
+        expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+
+        const expenseRow = await Expense.findByPk(result.data.createExpense.legacyId);
+        const pm = await models.PayoutMethod.findByPk(expenseRow.PayoutMethodId);
+        expect(pm.type).to.equal(PayoutMethodTypes.PAYPAL);
+        expect(pm.data.connectedAccountId).to.be.undefined;
+
+        await otherConnectedAccount.reload({ paranoid: false });
+        expect(otherConnectedAccount.deletedAt).to.be.null;
+      });
+    });
+
     it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
@@ -537,6 +594,59 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
+    });
+
+    it('private organization cannot submit cross-host expenses', async () => {
+      const user = await fakeUser();
+      const hostA = await fakeActiveHost({ currency: 'USD' });
+      const hostB = await fakeActiveHost({ currency: 'USD' });
+      const collective = await fakeCollective({ HostCollectiveId: hostA.id, currency: 'USD' });
+      const payeeOrg = await fakeCollective({
+        type: 'ORGANIZATION',
+        isPrivate: true,
+        HostCollectiveId: hostB.id,
+        currency: 'USD',
+        admin: user.collective,
+      });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payeeOrg.id } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Cross-host expenses are not allowed for private accounts.');
+    });
+
+    it('private organization can submit expenses to collectives under the same fiscal host', async () => {
+      const user = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      const host = await fakeActiveHost({ currency: 'USD' });
+      const collective = await fakeCollective({
+        HostCollectiveId: host.id,
+        currency: 'USD',
+        admin: collectiveAdmin.collective,
+      });
+      const payeeOrg = await fakeCollective({
+        type: 'ORGANIZATION',
+        isPrivate: true,
+        HostCollectiveId: host.id,
+        currency: 'USD',
+        admin: user.collective,
+      });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payeeOrg.id } };
+
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpense.payee.legacyId).to.eq(payeeOrg.id);
     });
 
     it('does not automatically approves if host admin submits as VENDOR to a collective', async () => {
@@ -1451,6 +1561,61 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(updatedExpense.id).to.equal(expense.id);
         expect(oldPayoutMethod.id).to.equal(oldPayoutMethodId);
         expect(newPayoutMethodArg.id).to.equal(newPayoutMethod.id);
+      });
+
+      it('strips client-supplied connectedAccountId from an inline PayPal payout method edit', async () => {
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+        const submitter = await fakeUser();
+        const payee = await fakeCollective({
+          type: 'ORGANIZATION',
+          admin: submitter.collective,
+          location: { address: null },
+        });
+        const originalPm = await fakePayoutMethod({
+          CollectiveId: payee.id,
+          type: PayoutMethodTypes.PAYPAL,
+          data: { email: randEmail(), currency: 'USD' },
+        });
+        const expense = await fakeExpense({
+          UserId: submitter.id,
+          FromCollectiveId: payee.id,
+          CollectiveId: collective.id,
+          status: 'PENDING',
+          PayoutMethodId: originalPm.id,
+        });
+        const otherCollective = await fakeCollective();
+        const otherConnectedAccount = await fakeConnectedAccount({
+          service: 'paypal',
+          CollectiveId: otherCollective.id,
+          token: 'other-token',
+          refreshToken: 'other-ref',
+        });
+        const newEmail = randEmail();
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          payoutMethod: {
+            type: 'PAYPAL',
+            data: {
+              email: newEmail,
+              currency: 'USD',
+              isPayPalOAuth: true,
+              connectedAccountId: otherConnectedAccount.id,
+            },
+          },
+        };
+
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, submitter);
+
+        expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+
+        const expenseReloaded = await Expense.findByPk(expense.id);
+        const linkedPm = await models.PayoutMethod.findByPk(expenseReloaded.PayoutMethodId);
+        expect(linkedPm.data.email).to.equal(newEmail);
+        expect(linkedPm.data.connectedAccountId).to.be.undefined;
+
+        await otherConnectedAccount.reload({ paranoid: false });
+        expect(otherConnectedAccount.deletedAt).to.be.null;
       });
     });
 
