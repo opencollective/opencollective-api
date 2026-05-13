@@ -325,25 +325,10 @@ const orderMutations = {
         throw new Forbidden('Only host admins can use these options');
       }
 
-      // Host admins go through the host-cancel flow whose eligibility is
-      // expressed by `canHostCancelOrder` (also surfaced as
-      // `OrderPermissions.canHostCancel`). Contributor self-cancel and root
-      // paths keep their original validation.
-      if (isHostAdmin) {
-        if (!(await OrdersLib.canHostCancelOrder(req, order))) {
-          throw new Forbidden('Cannot cancel this recurring contribution as a host admin');
-        }
-        if (args.removeAsContributor && !(await OrdersLib.canHostRemoveContributorFromOrder(req, order))) {
-          throw new Forbidden('Cannot remove this contributor from the collective');
-        }
-      } else if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
-        throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      } else if (!order.SubscriptionId) {
-        throw new ValidationFailed('Only recurring contributions can be cancelled');
-      } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
-        throw new Error('Recurring contribution already canceled');
-      } else if (order.status === OrderStatuses.PAID) {
-        throw new Error('Cannot cancel a paid order');
+      await OrdersLib.canCancelOrder(req, order, { throw: true });
+
+      if (args.removeAsContributor && !(await OrdersLib.canRemoveContributorFromOrder(req, order))) {
+        throw new Forbidden("You don't have permission to remove contributor from the collective");
       }
 
       const host = order.collective.HostCollectiveId
