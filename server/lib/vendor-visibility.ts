@@ -63,8 +63,11 @@ export async function canUserUseVendor({
   if (policy === UseVendorPolicyValue.HOST_ADMINS) {
     return isHostAdmin;
   }
+  if (policy === UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS) {
+    return isHostAdmin || remoteUser.isAdminOfCollective(collective);
+  }
 
-  return isHostAdmin || remoteUser.isAdminOfCollective(collective);
+  return false;
 }
 
 /**

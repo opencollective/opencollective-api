@@ -656,6 +656,26 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       await vendor.reload();
       expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
     });
+
+    it('preserves existing canBeUsedWithAccountIds when visibleToAccounts is not provided', async () => {
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [collectiveA.id] },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: 'Renamed' } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
+    });
   });
 
   describe('deleteVendor', () => {

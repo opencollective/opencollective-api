@@ -179,7 +179,9 @@ const vendorMutations = {
         settings: vendor.settings,
         data: {
           ...vendor.data,
-          canBeUsedWithAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
+          canBeUsedWithAccountIds: isUndefined(visibleToAccountsArg)
+            ? (vendor.data?.canBeUsedWithAccountIds ?? [])
+            : uniq(visibleToAccounts.map(acc => acc.id)),
           useVendorPolicy: isUndefined(useVendorPolicy) ? (vendor.data?.useVendorPolicy ?? null) : useVendorPolicy,
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
         },

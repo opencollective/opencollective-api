@@ -2267,6 +2267,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
       });
 
       it('per-vendor useVendorPolicy=HOST_ADMINS overrides a permissive host policy', async () => {
