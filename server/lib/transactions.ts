@@ -647,6 +647,15 @@ export const getTaxVendor = memoize(async (taxId): Promise<Collective> => {
 });
 
 /**
+ * Returns the Vendor account that holds platform tips on the host's ledger under the
+ * NEW_PLATFORM_TIPS_LEDGER feature. The vendor is global (shared across all hosts);
+ * per-host scoping is achieved by `HostCollectiveId` on the transactions themselves.
+ */
+export const getOcPlatformVendor = memoize(async (): Promise<Collective> => {
+  return Collective.findBySlug('oc-platform');
+});
+
+/**
  * Returns the Vendor account associated with a payment processor service. This function is memoized as
  * the processor fee vendor will not change during the lifetime of the server.
  */

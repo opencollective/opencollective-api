@@ -154,6 +154,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'HostId',
   'invoice',
   'isHostCollective',
+  'isPlatformRevenueDirectlyCollected',
   'lang',
   'matchingFund',
   'moderation',

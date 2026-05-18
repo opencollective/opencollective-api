@@ -53,7 +53,7 @@ import { Service } from '../constants/connected-account';
 import { SupportedCurrency } from '../constants/currencies';
 import expenseStatus from '../constants/expense-status';
 import expenseTypes from '../constants/expense-type';
-import FEATURE from '../constants/feature';
+import FEATURE, { NEW_PLATFORM_TIPS_LEDGER_FLAG } from '../constants/feature';
 import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
@@ -1376,6 +1376,15 @@ class Collective extends ModelWithPublicId<
 
   hasPublicLocation = function (): boolean {
     return [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.ORGANIZATION].includes(this.type);
+  };
+
+  /**
+   * Whether this host opted in to the new platform-tips ledger (PLATFORM_TIP credits routed to
+   * the OC Platform vendor, APPLICATION_FEE pair on the Stripe app-fee path, settlement-time
+   * PLATFORM_TIP_DEBT transfer from OC Platform to host).
+   */
+  hasNewPlatformTipsLedger = function (): boolean {
+    return Boolean(this.data?.features?.[NEW_PLATFORM_TIPS_LEDGER_FLAG]);
   };
 
   /**

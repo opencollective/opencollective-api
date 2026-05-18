@@ -103,6 +103,17 @@ enum FEATURE {
   KYC = 'KYC',
 }
 
+/**
+ * Internal opt-in flag stored at `Collective.data.features.NEW_PLATFORM_TIPS_LEDGER`. When set
+ * on a host: route PLATFORM_TIP credits to the OC Platform vendor (host-scoped), skip
+ * PLATFORM_TIP_DEBT generation per-tip, emit APPLICATION_FEE on the Stripe app-fee path, and
+ * have host-settlement write the OC Platform -> host transfer at settlement time.
+ *
+ * Not a member of the FEATURE enum because it is an internal ledger flag, not a user-facing
+ * feature, and shouldn't appear in `getFeaturesAccessMap`.
+ */
+export const NEW_PLATFORM_TIPS_LEDGER_FLAG = 'NEW_PLATFORM_TIPS_LEDGER';
+
 // features that can conditionally enabled/disabled based on subscription
 export const CommercialFeatures = [
   FEATURE.TRANSFERWISE,
