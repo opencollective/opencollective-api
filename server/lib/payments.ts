@@ -1346,6 +1346,15 @@ export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
     return false;
   }
 
+  if (!order.collective) {
+    order.collective = await order.getCollective();
+  }
+
+  // Per-collective override (mirrors the platformContributionAvailable resolver)
+  if (!isNil(order.collective.data?.platformTips)) {
+    return order.collective.data.platformTips;
+  }
+
   const host = await order.collective.getHostCollective();
   if (host) {
     // New pricing
