@@ -2,7 +2,6 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
 import {
@@ -41,6 +40,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
+  OrderItem,
   WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
@@ -1857,26 +1857,32 @@ class Collective extends ModelWithPublicId<
     });
   };
 
-  getIncomingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { CollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
-    return Order.findAll(query);
+  getIncomingOrders = function ({
+    where = undefined,
+    order = [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ] as OrderItem[],
+  } = {}) {
+    return Order.findAll({
+      where: { ...where, CollectiveId: this.id },
+      order,
+    });
   };
 
-  getOutgoingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { FromCollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
-    return Order.findAll(query);
+  getOutgoingOrders = function ({
+    where = undefined,
+    include = undefined,
+    order = [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ] as OrderItem[],
+  } = {}) {
+    return Order.findAll({
+      where: { ...where, FromCollectiveId: this.id },
+      order,
+      include,
+    });
   };
 
   getRoleForMemberCollective = function (MemberCollectiveId) {

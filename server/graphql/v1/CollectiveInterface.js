@@ -1425,7 +1425,10 @@ const CollectiveFields = () => {
 
         return collective.getIncomingOrders({
           where,
-          order: [['createdAt', 'DESC']],
+          order: [
+            ['createdAt', 'DESC'],
+            ['id', 'DESC'],
+          ],
         });
       },
     },
@@ -1437,7 +1440,10 @@ const CollectiveFields = () => {
       resolve(collective, args) {
         const query = {
           where: {}, // TODO: might need a filter of 'processedAt'
-          order: [['createdAt', 'DESC']],
+          order: [
+            ['createdAt', 'DESC'],
+            ['id', 'DESC'],
+          ],
         };
 
         if (args.subscriptionsOnly) {

@@ -7,8 +7,7 @@
 // to use in loops and repeated tests.
 
 import config from 'config';
-import deepmerge from 'deepmerge';
-import { get, kebabCase, padStart, sample } from 'lodash';
+import { get, kebabCase, merge, padStart, sample } from 'lodash';
 import moment from 'moment';
 import { generateSecret } from 'otplib';
 import type { CreateOptions, InferCreationAttributes } from 'sequelize';
@@ -1316,8 +1315,11 @@ export const fakeSuspendedAsset = async (
 export const fakePlatformBill = (data: Partial<Billing> = {}): Billing => {
   const dueDateMoment = moment(data.dueDate || '2025-08-01');
   const totalAmount = data.totalAmount || randAmount(100, 100000);
-  return deepmerge(
+  return merge(
     {
+      base: {
+        amount: totalAmount,
+      },
       dueDate: dueDateMoment.toISOString(),
       additional: {
         total: 0,

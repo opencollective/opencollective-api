@@ -2,6 +2,7 @@ import './env';
 import './lib/sentry/init';
 import './open-telemetry';
 
+import cluster from 'cluster';
 import { AddressInfo } from 'net';
 import os from 'os';
 
@@ -9,7 +10,6 @@ import * as Sentry from '@sentry/node';
 import config from 'config';
 import express from 'express';
 import { toInteger } from 'lodash';
-import throng from 'throng';
 
 import setupExpress from './lib/express';
 import logger from './lib/logger';
@@ -23,6 +23,7 @@ import { sequelize } from './models';
 import routes from './routes';
 
 const workers = toInteger(process.env.WEB_CONCURRENCY) || 1;
+const useCluster = ['production', 'staging'].includes(config.env) && workers > 1;
 
 async function startExpressServer(workerId) {
   const expressApp = express();
@@ -62,14 +63,40 @@ async function startExpressServer(workerId) {
   return expressApp;
 }
 
-// Start the express server
-let appPromise: Promise<express.Express> | undefined;
-if (parseToBoolean(config.services.server)) {
-  if (['production', 'staging'].includes(config.env) && workers > 1) {
-    throng({ worker: startExpressServer, count: workers }); // TODO: Thong is not compatible with the shutdown logic below
-  } else {
-    appPromise = startExpressServer(1);
+// In cluster primary: fork workers and forward shutdown signals to them
+if (useCluster && cluster.isPrimary) {
+  logger.info(`Starting ${workers} cluster workers...`);
+  for (let i = 0; i < workers; i++) {
+    cluster.fork();
   }
+
+  let isPrimaryShuttingDown = false;
+  cluster.on('exit', (worker, code, signal) => {
+    if (!isPrimaryShuttingDown) {
+      logger.warn(`Cluster worker #${worker.id} died (${signal || code}), restarting...`);
+      cluster.fork();
+    }
+  });
+
+  const shutdownPrimary = signal => {
+    if (!isPrimaryShuttingDown) {
+      logger.info(`Primary received ${signal}. Forwarding to cluster workers.`);
+      isPrimaryShuttingDown = true;
+      for (const worker of Object.values(cluster.workers ?? {})) {
+        worker?.process.kill(signal);
+      }
+    }
+  };
+
+  process.on('SIGINT', () => shutdownPrimary('SIGINT'));
+  process.on('SIGTERM', () => shutdownPrimary('SIGTERM'));
+}
+
+// Start the express server (in cluster worker or non-clustered mode)
+let appPromise: Promise<express.Express> | undefined;
+if (parseToBoolean(config.services.server) && (!useCluster || cluster.isWorker)) {
+  const workerId = useCluster && cluster.worker ? cluster.worker.id : 1;
+  appPromise = startExpressServer(workerId);
 }
 
 // Start the search sync job
@@ -105,9 +132,12 @@ const gracefullyShutdown = async signal => {
   }
 };
 
-process.on('exit', () => gracefullyShutdown('exit'));
-process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
+// Shutdown handlers for worker/non-clustered processes; primary registers its own above
+if (!useCluster || cluster.isWorker) {
+  process.on('exit', () => gracefullyShutdown('exit'));
+  process.on('SIGINT', () => gracefullyShutdown('SIGINT'));
+  process.on('SIGTERM', () => gracefullyShutdown('SIGTERM'));
+}
 
 // This is used by tests
 export default async function startServerForTest() {

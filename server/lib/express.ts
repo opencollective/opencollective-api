@@ -3,7 +3,6 @@ import config from 'config';
 import { RedisStore } from 'connect-redis';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import errorHandler from 'errorhandler';
 import express from 'express';
 import session from 'express-session';
 import helmet from 'helmet';
@@ -58,9 +57,17 @@ export default function setupExpress(app: express.Application, redisClient?: Red
   // Hyperwatch
   hyperwatch(app);
 
-  // Error handling.
+  // Error handling (development/test only).
+  // Must be a named function with exactly 4 parameters so Express identifies it as an error handler.
   if (config.env !== 'production' && config.env !== 'staging') {
-    app.use(errorHandler());
+    app.use(
+      (err: Error & { status?: number }, req: express.Request, res: express.Response, next: express.NextFunction) => {
+        if (res.headersSent) {
+          return next(err);
+        }
+        res.status(err.status ?? 500).json({ error: err.message, stack: err.stack });
+      },
+    );
   }
 
   // Cors.
