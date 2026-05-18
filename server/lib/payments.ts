@@ -827,7 +827,11 @@ export async function associateTransactionRefundId(
  *
  */
 
-export const sendEmailNotifications = (order: Order, transaction?: Transaction | void): void => {
+export const sendEmailNotifications = (
+  order: Order,
+  transaction?: Transaction | void,
+  { firstPayment }: { firstPayment?: boolean } = { firstPayment: true },
+): void => {
   debug('sendEmailNotifications');
   if (
     transaction &&
@@ -847,7 +851,7 @@ export const sendEmailNotifications = (order: Order, transaction?: Transaction |
     // choosing the source as itself. In this case do not send an email.
     order.fromCollective?.id !== order.collective?.id
   ) {
-    recordOrderConfirmation(order, transaction); // async
+    recordOrderConfirmation(order, transaction, { firstPayment }); // async
   } else if (order.status === OrderStatuses.PENDING) {
     sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
@@ -967,7 +971,9 @@ export const executeOrder = async (
     order.paymentMethod.save();
   }
 
-  sendEmailNotifications(order, transaction);
+  sendEmailNotifications(order, transaction, {
+    firstPayment: true,
+  });
 
   // Register gift card emitter as collective backer too
   if (transaction && transaction.UsingGiftCardFromCollectiveId) {
@@ -990,7 +996,11 @@ const validatePayment = (payment): void => {
   }
 };
 
-const recordOrderConfirmation = async (order: Order, transaction: Transaction): Promise<void> => {
+const recordOrderConfirmation = async (
+  order: Order,
+  transaction: Transaction,
+  { firstPayment }: { firstPayment?: boolean } = {},
+): Promise<void> => {
   const attachments = [];
   const { collective, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();
@@ -1031,7 +1041,7 @@ const recordOrderConfirmation = async (order: Order, transaction: Transaction): 
       fromCollective: fromCollective.minimal,
       interval,
       monthlyInterval: interval === 'month',
-      firstPayment: true,
+      firstPayment,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
       customMessage,
       transactionPdf: false,
