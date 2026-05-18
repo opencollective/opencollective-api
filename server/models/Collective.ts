@@ -3653,6 +3653,45 @@ class Collective extends ModelWithPublicId<
     return plan;
   };
 
+  hasPlatformTips = async function ({ loaders = null } = {}): Promise<boolean> {
+    if (!isNil(this.data?.platformTips)) {
+      return Boolean(this.data.platformTips);
+    }
+    if (this.ParentCollectiveId) {
+      const parent = loaders
+        ? await loaders.Collective.byId.load(this.ParentCollectiveId)
+        : await this.getParentCollective();
+      if (parent && !isNil(parent.data?.platformTips)) {
+        return Boolean(parent.data.platformTips);
+      }
+    }
+    if (PlatformConstants.CurrentPlatformCollectiveIds.includes(this.id)) {
+      return false;
+    }
+
+    const host = loaders ? await loaders.Collective.host.load(this) : await this.getHostCollective();
+    if (!host) {
+      return false;
+    }
+    if (PlatformConstants.CurrentPlatformCollectiveIds.includes(host.id)) {
+      return false;
+    }
+
+    if (loaders) {
+      const hasPlatformTips = await loaders.PlatformSubscription.hasPlatformTips.load(host.id);
+      if (typeof hasPlatformTips === 'boolean') {
+        return hasPlatformTips;
+      }
+    } else {
+      const subscription = await PlatformSubscription.getCurrentSubscription(host.id);
+      if (subscription) {
+        return Boolean(subscription.plan.pricing.platformTips);
+      }
+    }
+
+    return Boolean(host.getLegacyPlan()?.platformTips);
+  };
+
   /**
    * Returns financial metrics from the Host collective.
    * @param {Date} from The start date from which the metrics should be calculated.
