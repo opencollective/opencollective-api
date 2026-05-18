@@ -1,4 +1,4 @@
-import { ArgumentParser } from 'argparse';
+import { Command } from 'commander';
 import config from 'config';
 import cryptojs from 'crypto-js';
 
@@ -72,41 +72,27 @@ async function main(args) {
 }
 
 /** Return the options passed by the user to run the script */
-
 function parseCommandLineArguments() {
-  const parser = new ArgumentParser({
-    addHelp: true,
-    description: 'Change DB Encryption keys by reencrypting the DB fields',
-  });
-  parser.add_argument('--fromCipher', {
-    help: 'The current cipher being used',
-    default: CIPHER,
-  });
-  parser.add_argument('--toCipher', {
-    help: 'The new cipher you wantt o reencrypt data with',
-    default: CIPHER,
-  });
-  parser.add_argument('-f', '--force', {
-    help: 'Ignore existing key check',
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-  parser.add_argument('oldKey', {
-    help: 'The current key being used',
-    action: 'store',
-  });
-  parser.add_argument('newKey', {
-    help: 'The new key you want to reencrypt data with',
-    action: 'store',
-  });
-  parser.add_argument('--ignore-env', {
-    help: 'Ignore the environment check',
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-  return parser.parse_args();
+  const program = new Command()
+    .description('Change DB Encryption keys by reencrypting the DB fields')
+    .argument('<oldKey>', 'The current key being used')
+    .argument('<newKey>', 'The new key you want to reencrypt data with')
+    .option('--fromCipher <cipher>', 'The current cipher being used', CIPHER)
+    .option('--toCipher <cipher>', 'The new cipher you want to reencrypt data with', CIPHER)
+    .option('-f, --force', 'Ignore existing key check', false)
+    .option('--ignore-env', 'Ignore the environment check', false)
+    .parse(process.argv);
+
+  const opts = program.opts();
+  const [oldKey, newKey] = program.args;
+  return {
+    oldKey,
+    newKey,
+    fromCipher: opts.fromCipher,
+    toCipher: opts.toCipher,
+    force: opts.force,
+    ignoreEnv: opts.ignoreEnv,
+  };
 }
 
 if (!module.parent) {

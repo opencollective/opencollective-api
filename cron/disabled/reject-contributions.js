@@ -1,6 +1,6 @@
 import '../../server/env';
 
-import { ArgumentParser } from 'argparse';
+import { Command } from 'commander';
 import { get, intersection } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
@@ -202,36 +202,21 @@ async function run({ dryRun, limit, force } = {}) {
   }
 }
 
-/* eslint-disable camelcase */
 function parseCommandLineArguments() {
-  const parser = new ArgumentParser({
-    add_help: true,
-    description: 'Reject Contributions based on Categories',
-  });
-  parser.add_argument('--dryrun', {
-    help: "Don't perform any change, just log.",
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-  parser.add_argument('-l', '--limit', {
-    help: 'Total matching orders to process',
-  });
-  parser.add_argument('--force', {
-    help: "Force refunds even if payment provider doesn't support it.",
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-  const args = parser.parse_args();
+  const program = new Command()
+    .description('Reject Contributions based on Categories')
+    .option('--dryrun', "Don't perform any change, just log.", false)
+    .option('-l, --limit <n>', 'Total matching orders to process', Number)
+    .option('--force', "Force refunds even if payment provider doesn't support it.", false)
+    .parse(process.argv);
+
+  const opts = program.opts();
   return {
-    dryRun: args.dryrun,
-    limit: args.limit,
-    force: args.force,
+    dryRun: opts.dryrun,
+    limit: opts.limit,
+    force: opts.force,
   };
 }
-
-/* eslint-enable camelcase */
 
 if (require.main === module) {
   runCronJob('reject-contributions', () => run(parseCommandLineArguments()), 24 * 60 * 60);
