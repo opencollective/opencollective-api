@@ -347,6 +347,14 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Account.parentAccount': 'parent-gate',
   'Account.duplicatedFromAccount': 'parent-gate',
   'Account.mainProfile': 'parent-gate',
+
+  // ---- Host Metrics ----
+  'HostedCollectivesFinancialActivityMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesFinancialActivityMetricsGroup.parent': 'parent-gate',
+  'HostedCollectivesFinancialActivityMetricsGroup.mainAccount': 'parent-gate',
+  'HostedCollectivesMembershipMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesHostingMetricsGroup.account': 'parent-gate',
+  'HostedCollectivesHostingMetricsGroup.parent': 'parent-gate',
 };
 
 // ---------------------------------------------------------------------------
