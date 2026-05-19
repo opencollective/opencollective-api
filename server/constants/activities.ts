@@ -99,6 +99,8 @@ enum ActivityTypes {
   HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
+  CONTRIBUTION_REFUNDED = 'contribution.refunded',
+  CONTRIBUTOR_REMOVED_BY_HOST = 'contributor.removed.by.host',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   SUBSCRIPTION_PAUSED = 'subscription.paused',
@@ -205,6 +207,7 @@ export const TransactionalActivities = [
   ActivityTypes.ORDER_PENDING,
   ActivityTypes.ORDER_PENDING_CRYPTO,
   ActivityTypes.ORDER_PROCESSED,
+  ActivityTypes.CONTRIBUTION_REFUNDED,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
   ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
   ActivityTypes.PAYMENT_FAILED,
@@ -290,6 +293,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.CONTRIBUTION_REJECTED,
+    ActivityTypes.CONTRIBUTION_REFUNDED,
+    ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST,
     ActivityTypes.ORDER_PAYMENT_FAILED,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,

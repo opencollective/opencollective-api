@@ -1,4 +1,4 @@
-Subject: Contribution cancelled to {{{collective.name}}}
+Subject: Contribution to {{escapeForSubject collective.name}} cancelled{{#if (isEqual messageSource "HOST")}} by the Fiscal Host{{/if}}
 
 {{> header}}
 
@@ -10,7 +10,15 @@ Subject: Contribution cancelled to {{{collective.name}}}
 <p>Hello</p>
 {{/if}}
 
+{{#if (isEqual messageSource "HOST")}}
+<p>Your recurring contribution to {{>linkCollective collective=collective}} for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been cancelled by {{host.name}}, the Fiscal Host of {{collective.name}}.</p>
+<p>No further charges will be made for this contribution.</p>
+{{#if hostAction.removeAsContributor}}
+<p>You have also been removed as a contributor and will no longer appear on the Collective's public profile.</p>
+{{/if}}
+{{else}}
 <p>Your recurring contribution to {{>linkCollective collective=collective}} (cced) for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been cancelled.</p>
+{{/if}}
 
 {{#if messageForContributors}}
   {{#if (isEqual messageSource "COLLECTIVE")}}
@@ -20,7 +28,7 @@ Subject: Contribution cancelled to {{{collective.name}}}
   {{else if (isEqual messageSource "PLATFORM")}}
     <p>Here is the message from the Open Collective platform:</p>
   {{/if}}
-  <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;">{{{messageForContributors}}}</blockquote>
+  <blockquote style="color: #6a737d;font-size: 14px; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{{messageForContributors}}}</blockquote>
 {{else if reason}}
   <p>You provided the following reason for cancelling:</p>
   <blockquote style="color: #6a737d;font-size: 12px; font-style: italic; text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{reason}}</blockquote>
@@ -29,17 +37,15 @@ Subject: Contribution cancelled to {{{collective.name}}}
 <p>
   Warmly,
   <br>
-  {{#if (isEqual messageSource "COLLECTIVE")}}
+{{#if (isEqual messageSource "COLLECTIVE")}}
     – {{collective.name}}
   {{else if (isEqual messageSource "HOST")}}
     – {{host.name}}
   {{else if (isEqual messageSource "PLATFORM")}}
     - Open Collective
+  {{else}}
+    – {{collective.name}}
   {{/if}}
-</p>
-
-<p>
-  – {{collective.name}}
 </p>
 
 {{> footer}}
