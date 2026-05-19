@@ -6,7 +6,6 @@ import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
 import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import { Expense, UploadedFile } from '../models';
-import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
 /**
  * GET /api/files/:uploadedFileId
@@ -70,10 +69,10 @@ export async function getFile(req: Request, res: Response) {
   let redirectUrl: string;
 
   if (isThumbnail) {
-    if (SUPPORTED_FILE_TYPES_IMAGES.includes(uploadedFile.fileType as (typeof SUPPORTED_FILE_TYPES_IMAGES)[number])) {
-      redirectUrl = `${config.host.website}/static/images/file-text.svg`;
-    } else {
+    if (uploadedFile.fileType === 'application/pdf') {
       redirectUrl = `${config.host.website}/static/images/mime-pdf.png`;
+    } else {
+      redirectUrl = `${config.host.website}/static/images/file-text.svg`;
     }
   } else {
     if (!UploadedFile.isOpenCollectiveS3BucketURL(actualUrl)) {

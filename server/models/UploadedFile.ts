@@ -483,10 +483,16 @@ UploadedFile.init(
       get() {
         const url = this.getDataValue('url');
         const kind = this.getDataValue('kind');
-        if (
-          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE', 'TRANSACTIONS_CSV_EXPORT'].includes(kind) &&
-          UploadedFile.isOpenCollectiveS3BucketURL(url)
-        ) {
+        const protectedKinds: FileKind[] = [
+          'EXPENSE_ITEM',
+          'EXPENSE_ATTACHED_FILE',
+          'EXPENSE_INVOICE',
+          'TRANSACTIONS_CSV_EXPORT',
+          'TRANSACTIONS_IMPORT',
+          'AGREEMENT_ATTACHMENT',
+        ];
+
+        if (protectedKinds.includes(kind) && UploadedFile.isOpenCollectiveS3BucketURL(url)) {
           return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(this);
         } else {
           return url;
