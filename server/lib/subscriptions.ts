@@ -1,5 +1,5 @@
 import config from 'config';
-import { isEmpty, keys, pick } from 'lodash';
+import { isEmpty, keys, omit, pick } from 'lodash';
 import moment from 'moment';
 
 import INTERVALS from '../constants/intervals';
@@ -269,6 +269,10 @@ export const updateSubscriptionDetails = async (
   if (newTierId !== order.TierId) {
     newOrderData['TierId'] = newTierId;
     newMemberData['TierId'] = newTierId;
+  }
+
+  if (!isEmpty(newOrderData) && (order.data?.paymentIntent || order.data?.needsConfirmation)) {
+    newOrderData['data'] = omit(order.data, ['paymentIntent', 'needsConfirmation']);
   }
 
   // Backup previous values

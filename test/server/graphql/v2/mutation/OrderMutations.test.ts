@@ -3146,6 +3146,68 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
       });
 
+      describe('clears stored Stripe paymentIntent when subscription details change', () => {
+        const buildOrderWithStalePaymentIntent = (overrides = {}) =>
+          fakeOrder(
+            {
+              CreatedByUserId: user.id,
+              FromCollectiveId: user.CollectiveId,
+              CollectiveId: collective.id,
+              status: OrderStatuses.ACTIVE,
+              totalAmount: 1000,
+              currency: 'USD',
+              data: {
+                paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
+                needsConfirmation: true,
+              },
+              ...overrides,
+            },
+            { withSubscription: true },
+          );
+
+        it('drops data.paymentIntent and data.needsConfirmation when amount changes', async () => {
+          const staleOrder = await buildOrderWithStalePaymentIntent();
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(staleOrder.id, 'order') },
+              amount: { valueInCents: 5000, currency: 'USD' },
+            },
+            user,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          await staleOrder.reload();
+          expect(staleOrder.totalAmount).to.eq(5000);
+          expect(staleOrder.data?.paymentIntent).to.be.undefined;
+          expect(staleOrder.data?.needsConfirmation).to.be.undefined;
+        });
+
+        it('keeps data.paymentIntent when the amount is not changing', async () => {
+          const staleOrder = await buildOrderWithStalePaymentIntent();
+          const originalPaymentIntent = { ...staleOrder.data.paymentIntent };
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(staleOrder.id, 'order') },
+              amount: { valueInCents: 1000, currency: 'USD' },
+            },
+            user,
+          );
+
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          await staleOrder.reload();
+          expect(staleOrder.data?.paymentIntent).to.deep.equal(originalPaymentIntent);
+          expect(staleOrder.data?.needsConfirmation).to.eq(true);
+        });
+      });
+
       it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {
         const paypalPm = await fakePaymentMethod({
           service: PAYMENT_METHOD_SERVICE.PAYPAL,
