@@ -2,7 +2,6 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
 import {
@@ -16,6 +15,7 @@ import {
   isNil,
   isNull,
   isUndefined,
+  merge,
   omit,
   omitBy,
   pick,
@@ -1858,24 +1858,12 @@ class Collective extends ModelWithPublicId<
   };
 
   getIncomingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { CollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
+    const query = merge({ where: { CollectiveId: this.id } }, options);
     return Order.findAll(query);
   };
 
   getOutgoingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { FromCollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
+    const query = merge({ where: { FromCollectiveId: this.id } }, options);
     return Order.findAll(query);
   };
 
