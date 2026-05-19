@@ -58,7 +58,7 @@ import OrderStatuses from '../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans, { HostPlan, PlatformSubscriptionTiers } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
-import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
+import POLICIES, { DEFAULT_POLICIES, Policies, UseVendorPolicyValue } from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import {
   getBalanceAmount,
@@ -228,7 +228,8 @@ type Data = Partial<{
     taxId: string;
     notes: string;
   }>;
-  visibleToAccountIds: number[];
+  canBeUsedWithAccountIds?: number[];
+  useVendorPolicy?: UseVendorPolicyValue;
   requiresProfileCompletion: boolean;
 }> &
   Record<string, unknown>;

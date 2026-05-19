@@ -375,16 +375,16 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `
       AND (
         c."type" != \'VENDOR\'
-        OR data#>'{visibleToAccountIds}' IS NULL
-        OR data#>'{visibleToAccountIds}' = '[]'::jsonb
-        OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+        OR data#>'{canBeUsedWithAccountIds}' IS NULL
+        OR data#>'{canBeUsedWithAccountIds}' = '[]'::jsonb
+        OR data#>'{canBeUsedWithAccountIds}' = 'null'::jsonb
         OR
           (
-            jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+            jsonb_typeof(data#>'{canBeUsedWithAccountIds}')='array'
             AND
             EXISTS (
               SELECT v FROM (
-                SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{canBeUsedWithAccountIds}') as v)
               ) WHERE v IN (:vendorVisibleToAccountIds)
             )
           )

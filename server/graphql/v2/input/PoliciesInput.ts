@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } fro
 
 import POLICIES from '../../../constants/policies';
 import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
+import { GraphQLUseVendorPolicy } from '../enum/UseVendorPolicy';
 
 export const GraphQLPoliciesInput = new GraphQLInputObjectType({
   name: 'PoliciesInput',
@@ -55,6 +56,10 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
     },
     [POLICIES.EXPENSE_PUBLIC_VENDORS]: {
       type: GraphQLBoolean,
+      deprecationReason: 'Use USE_VENDOR_POLICY instead.',
+    },
+    [POLICIES.USE_VENDOR_POLICY]: {
+      type: GraphQLUseVendorPolicy,
     },
     [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: {
       type: GraphQLBoolean,
