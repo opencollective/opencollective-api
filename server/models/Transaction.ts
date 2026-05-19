@@ -132,6 +132,8 @@ export type TransactionData = {
     date: string;
     previousValues: Record<string, unknown>;
   };
+  /** Set by scripts/ledger/reprocess-transactions-data to back up original values before reprocessing. */
+  preReprocessData?: Array<Record<string, unknown>>;
 };
 
 class Transaction extends ModelWithPublicId<
@@ -236,12 +238,12 @@ class Transaction extends ModelWithPublicId<
   ) => Promise<Transaction | null>;
 
   declare getPaymentProcessorFeeTransaction: (
-    options?: null,
+    options?: Pick<Transaction, 'type'>,
     params?: { sqlTransaction?: SequelizeTransaction },
   ) => Promise<Transaction | null>;
 
   declare getTaxTransaction: (
-    options?: null,
+    options?: Pick<Transaction, 'type'>,
     params?: { sqlTransaction?: SequelizeTransaction },
   ) => Promise<Transaction | null>;
 
@@ -251,7 +253,7 @@ class Transaction extends ModelWithPublicId<
   ) => Promise<Transaction | null>;
 
   declare getPlatformTipDebtTransaction: (
-    options?: null,
+    options?: Pick<Transaction, 'type'>,
     params?: { sqlTransaction?: SequelizeTransaction },
   ) => Promise<Transaction | null>;
 
@@ -261,12 +263,12 @@ class Transaction extends ModelWithPublicId<
   ) => Promise<Transaction | null>;
 
   declare getHostFeeShareTransaction: (
-    options?: null,
+    options?: Pick<Transaction, 'type'>,
     params?: { sqlTransaction?: SequelizeTransaction },
   ) => Promise<Transaction | null>;
 
   declare getHostFeeShareDebtTransaction: (
-    options?: null,
+    options?: Pick<Transaction, 'type'>,
     params?: { sqlTransaction?: SequelizeTransaction },
   ) => Promise<Transaction | null>;
 
