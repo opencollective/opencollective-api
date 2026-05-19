@@ -34,6 +34,11 @@ const GraphQLOrderContextInput = new GraphQLInputObjectType({
       type: GraphQLBoolean,
       description: 'Whether this order was created using the new platform tip flow',
     },
+    platformTipOffered: {
+      type: GraphQLBoolean,
+      description:
+        'Whether the platform tip was offered to the user in the contribution flow. When explicitly false, the order is persisted as not eligible for platform tips (used by the OSC platform tip A/B).',
+    },
   }),
 });
 
