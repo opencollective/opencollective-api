@@ -1031,7 +1031,7 @@ class Collective extends ModelWithPublicId<
 
       if (hasNewPricing) {
         const defaultPlan = PlatformSubscriptionTiers[0]; // Discover plan
-        await PlatformSubscription.createSubscription(this, new Date(), defaultPlan, remoteUser, {
+        await PlatformSubscription.replaceCurrentSubscription(this, new Date(), defaultPlan, remoteUser, {
           notify: !silent,
           transaction,
         });
