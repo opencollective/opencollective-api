@@ -230,6 +230,7 @@ export async function createTransactionsFromPaidStripeExpense(
     feesPayer: 'PAYEE' as const,
   };
 
+  const stripeEffectiveAtUnix = charge.created;
   const transaction = {
     netAmountInCollectiveCurrency:
       (balanceTransaction.amount - balanceTransaction.fee) * balanceTransactionToPayeeCurrencyRate,
@@ -253,7 +254,7 @@ export async function createTransactionsFromPaidStripeExpense(
     PaymentMethod: paymentMethod,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: 0,
-    clearedAt: moment.unix(balanceTransaction.available_on).toDate(),
+    clearedAt: stripeEffectiveAtUnix ? moment.unix(stripeEffectiveAtUnix).toDate() : null,
     data,
   };
 
