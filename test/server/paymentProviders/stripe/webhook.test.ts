@@ -666,6 +666,64 @@ describe('webhook', () => {
         expect(order.processedAt).to.not.be.null;
         expect(applyContributionAccountingCategoryRulesSpy).to.not.have.been.called;
       });
+
+      describe('when the order was cancelled while the async charge was in-flight', () => {
+        it('records the transaction but keeps the order CANCELLED', async () => {
+          sandbox
+            .stub(common, 'createChargeTransactions')
+            .resolves(
+              fakeTransaction(
+                { OrderId: order.id, amount: 100e2, currency: order.currency, type: 'CREDIT' },
+                { createDoubleEntry: true },
+              ),
+            );
+          sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+          const getOrCreateMembersSpy = sandbox.spy(order, 'getOrCreateMembers');
+
+          // User cancelled while the async charge was still being confirmed
+          await order.update({
+            status: OrderStatuses.CANCELLED,
+          });
+
+          await webhook.paymentIntentSucceeded(event);
+
+          assert.calledOnce(common.createChargeTransactions);
+          await order.reload();
+          expect(order.status).to.equal(OrderStatuses.CANCELLED);
+          expect(getOrCreateMembersSpy).to.not.have.been.called;
+        });
+
+        it('records the transaction but keeps a recurring order CANCELLED and does not touch the subscription', async () => {
+          sandbox
+            .stub(common, 'createChargeTransactions')
+            .resolves(
+              fakeTransaction(
+                { OrderId: order.id, amount: 100e2, currency: order.currency, type: 'CREDIT' },
+                { createDoubleEntry: true },
+              ),
+            );
+          sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+
+          const subscription = await fakeSubscription({
+            CollectiveId: order.collective.id,
+            interval: 'month',
+            isActive: false, // cancellation deactivated the subscription
+            lastChargedAt: null,
+          });
+          await order.update({
+            interval: 'month',
+            SubscriptionId: subscription.id,
+            status: OrderStatuses.CANCELLED,
+          });
+
+          await webhook.paymentIntentSucceeded(event);
+
+          await order.reload();
+          await subscription.reload();
+
+          expect(order.status).to.equal(OrderStatuses.CANCELLED);
+        });
+      });
     });
 
     describe('paymentIntentProcessing()', () => {
@@ -768,6 +826,22 @@ describe('webhook', () => {
           },
           'Something went wrong with the payment, please contact support@opencollective.com.',
         );
+      });
+
+      it('keeps the order CANCELLED when the user cancelled before the failure webhook arrived', async () => {
+        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+        set(event, 'data.object.last_payment_error', { message: 'card_declined' });
+
+        // User cancelled while the async charge was still being processed
+        await order.update({
+          status: OrderStatuses.CANCELLED,
+        });
+
+        await webhook.paymentIntentFailed(event);
+        await order.reload();
+
+        expect(order.status).to.equal(OrderStatuses.CANCELLED);
+        assert.calledOnceWithMatch(libPayments.sendOrderFailedEmail, { dataValues: { id: order.id } });
       });
     });
   });

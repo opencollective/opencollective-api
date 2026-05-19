@@ -235,11 +235,16 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
 
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
+  const wasCancelled = order.status === OrderStatuses.CANCELLED;
   const transaction = await createChargeTransactions(charge, { order });
   const sideEffects: (() => Promise<unknown>)[] = [
     () =>
       order.update({
-        status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
+        status: wasCancelled
+          ? OrderStatuses.CANCELLED
+          : !order.SubscriptionId
+            ? OrderStatuses.PAID
+            : OrderStatuses.ACTIVE,
         processedAt: new Date(),
         data: {
           ...omit(order.data, 'paymentIntent'),
@@ -252,9 +257,12 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   // after successful first payment of a recurring subscription where the payment confirmation is async
   // and the subscription is managed by us.
   if (order.interval && !order.SubscriptionId) {
-    sideEffects.push(() =>
-      createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }),
-    );
+    if (!wasCancelled) {
+      sideEffects.push(() =>
+        createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }),
+      );
+    }
+
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
@@ -582,8 +590,9 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
   const reason = paymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
+  const wasCancelled = order.status === OrderStatuses.CANCELLED;
   await order.update({
-    status: OrderStatuses.ERROR,
+    status: wasCancelled ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
     data: { ...order.data, paymentIntent },
   });
 
