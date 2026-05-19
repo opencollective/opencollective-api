@@ -30,7 +30,7 @@ import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { getPaymentProcessorFeeVendor, getTaxVendor } from '../lib/transactions';
+import { getOcPlatformVendor, getPaymentProcessorFeeVendor, getTaxVendor } from '../lib/transactions';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
 import type { PaypalCapture, PaypalSale, PaypalTransaction } from '../types/paypal';
 import type { Transfer } from '../types/transferwise';
@@ -708,11 +708,15 @@ class Transaction extends ModelWithPublicId<
     transaction: TransactionCreationAttributes;
     platformTipTransaction: Transaction;
     platformTipDebtTransaction: Transaction | null;
+    applicationFeeTransaction: Transaction | null;
   }> {
     const platformTip = transaction.data?.platformTip;
     if (!platformTip) {
       return;
     }
+
+    const host = await Transaction.fetchHost(transaction);
+    const useNewLedger = Boolean(host?.hasNewPlatformTipsLedger?.());
 
     // amount of the CREDIT should be in the same currency as the original transaction
     const currency = transaction.currency;
@@ -731,6 +735,18 @@ class Transaction extends ModelWithPublicId<
       transaction,
     );
 
+    let tipCollectiveId: number;
+    let tipHostCollectiveId: number;
+    if (useNewLedger) {
+      const ocPlatformVendor = await getOcPlatformVendor();
+      tipCollectiveId = ocPlatformVendor.id;
+      // Scope to the host so the row appears in the host's ledger and accounts tool.
+      tipHostCollectiveId = host.id;
+    } else {
+      tipCollectiveId = PlatformConstants.PlatformCollectiveId;
+      tipHostCollectiveId = PlatformConstants.PlatformCollectiveId;
+    }
+
     const platformTipTransactionData = {
       ...pick(transaction, [
         'TransactionGroup',
@@ -744,8 +760,8 @@ class Transaction extends ModelWithPublicId<
       type: CREDIT,
       kind: TransactionKind.PLATFORM_TIP,
       description: 'Financial contribution to the Open Collective Platform',
-      CollectiveId: PlatformConstants.PlatformCollectiveId,
-      HostCollectiveId: PlatformConstants.PlatformCollectiveId,
+      CollectiveId: tipCollectiveId,
+      HostCollectiveId: tipHostCollectiveId,
       // Compute Amounts
       amount,
       netAmountInCollectiveCurrency: amount,
@@ -768,8 +784,30 @@ class Transaction extends ModelWithPublicId<
       sequelizeTransaction,
     });
 
-    let platformTipDebtTransaction;
-    if (!transaction.data.isPlatformRevenueDirectlyCollected) {
+    let platformTipDebtTransaction = null;
+    let applicationFeeTransaction = null;
+    if (useNewLedger) {
+      // Under the new ledger: PLATFORM_TIP_DEBT is not written per-tip; settlement-cron writes
+      // a PLATFORM_TIP_DEBT transfer pair to release the held funds onto the host's books.
+      // The "owed" lifecycle lives on a TransactionSettlement row attached directly to the
+      // PLATFORM_TIP credit (kind=PLATFORM_TIP), so each tip is queryable as OWED/INVOICED/SETTLED.
+      if (transaction.data?.isPlatformRevenueDirectlyCollected) {
+        // Stripe app-fee tip: APPLICATION_FEE moves the money to OFiTech immediately,
+        // so the tip is auto-settled. No TransactionSettlement row needed.
+        applicationFeeTransaction = await Transaction.createApplicationFeeTransactions(
+          { platformTipTransaction },
+          { sequelizeTransaction },
+        );
+      } else {
+        // PayPal / non-app-fee tip: held on the host's OC Platform vendor balance until
+        // the next settlement cron. Track the obligation via TransactionSettlement(OWED).
+        await TransactionSettlement.createForTransaction(
+          platformTipTransaction,
+          TransactionSettlementStatus.OWED,
+          sequelizeTransaction,
+        );
+      }
+    } else if (!transaction.data?.isPlatformRevenueDirectlyCollected) {
       platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions(
         {
           platformTipTransaction,
@@ -797,7 +835,125 @@ class Transaction extends ModelWithPublicId<
     transaction.platformFeeInHostCurrency = 0;
     transaction.netAmountInCollectiveCurrency = Transaction.calculateNetAmountInCollectiveCurrency(transaction);
 
-    return { transaction, platformTipTransaction, platformTipDebtTransaction };
+    return { transaction, platformTipTransaction, platformTipDebtTransaction, applicationFeeTransaction };
+  }
+
+  /**
+   * Record an APPLICATION_FEE pair that offsets a PLATFORM_TIP collected via Stripe's
+   * application_fee mechanism. The DEBIT lands on the OC Platform vendor row (host-scoped),
+   * the CREDIT lands on the platform's own account (OFiTech). Net effect on the host's
+   * OC Platform balance per Stripe-app-fee tip is zero.
+   */
+  static async createApplicationFeeTransactions(
+    {
+      platformTipTransaction,
+    }: {
+      platformTipTransaction: Transaction;
+    },
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+  ): Promise<Transaction> {
+    if (platformTipTransaction.type === DEBIT) {
+      throw new Error('createApplicationFeeTransactions must be given a CREDIT PLATFORM_TIP transaction');
+    }
+
+    // Input is the DEBIT side on OC Platform vendor (host-scoped). createDoubleEntry uses the
+    // input's FromCollectiveId (the platform collective) to derive the opposite's
+    // HostCollectiveId via fromCollective.getHostCollective(); for OFiTech that is OFiTech itself.
+    const applicationFeeTransactionData = {
+      ...pick(platformTipTransaction.dataValues, [
+        'TransactionGroup',
+        'CollectiveId',
+        'HostCollectiveId',
+        'OrderId',
+        'createdAt',
+        'clearedAt',
+        'currency',
+        'hostCurrency',
+        'hostCurrencyFxRate',
+      ]),
+      type: DEBIT,
+      kind: TransactionKind.APPLICATION_FEE,
+      isDebt: false,
+      description: 'Platform tip transferred to the Open Collective platform via Stripe application fee',
+      FromCollectiveId: PlatformConstants.PlatformCollectiveId,
+      // Opposite amounts (DEBIT on OC Platform)
+      amount: -platformTipTransaction.amount,
+      netAmountInCollectiveCurrency: -platformTipTransaction.netAmountInCollectiveCurrency,
+      amountInHostCurrency: -platformTipTransaction.amountInHostCurrency,
+      // No fees
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+    };
+
+    return Transaction.createDoubleEntry(applicationFeeTransactionData, { sequelizeTransaction });
+  }
+
+  /**
+   * Settlement-time transfer that moves the accumulated OC Platform vendor balance to the host's
+   * collective so the host can pay the SETTLEMENT expense from its own books. Returns the CREDIT
+   * row (on the host) which is the canonical transaction for TransactionSettlement linkage.
+   *
+   * Written only for hosts on the NEW_PLATFORM_TIPS_LEDGER feature. `isDebt=false` so the host's
+   * collective balance actually increases (debt-flagged rows are excluded from balance math).
+   */
+  static async createPlatformTipSettlementTransfer(
+    {
+      host,
+      ocPlatformVendor,
+      amountInHostCurrency,
+      hostCurrency,
+    }: {
+      host: Collective;
+      ocPlatformVendor: Collective;
+      amountInHostCurrency: number;
+      hostCurrency: string;
+    },
+    { sequelizeTransaction }: { sequelizeTransaction?: SequelizeTransaction } = {},
+  ): Promise<Transaction> {
+    if (amountInHostCurrency <= 0) {
+      throw new Error('createPlatformTipSettlementTransfer requires a positive amount');
+    }
+
+    const TransactionGroup = uuid();
+    const now = new Date();
+
+    // DEBIT on OC Platform vendor (host-scoped). Opposite (CREDIT on host's collective) is
+    // computed by createDoubleEntry via fromCollective.getHostCollective() = host itself.
+    const transferData = {
+      TransactionGroup,
+      type: DEBIT,
+      kind: TransactionKind.PLATFORM_TIP_DEBT,
+      isDebt: false,
+      description: 'Platform tips released from OC Platform vendor to host for settlement',
+      FromCollectiveId: host.id,
+      CollectiveId: ocPlatformVendor.id,
+      HostCollectiveId: host.id,
+      amount: -amountInHostCurrency,
+      netAmountInCollectiveCurrency: -amountInHostCurrency,
+      amountInHostCurrency: -amountInHostCurrency,
+      currency: hostCurrency,
+      hostCurrency,
+      hostCurrencyFxRate: 1,
+      platformFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      paymentProcessorFeeInHostCurrency: 0,
+      createdAt: now,
+      clearedAt: now,
+    } as TransactionCreationAttributes;
+
+    await Transaction.createDoubleEntry(transferData, { sequelizeTransaction });
+
+    // Return the CREDIT row (on the host collective) — its (TransactionGroup, kind) is the
+    // pair used by TransactionSettlement and by the cron's markTransactionsAsInvoiced.
+    return Transaction.findOne({
+      where: {
+        TransactionGroup,
+        kind: TransactionKind.PLATFORM_TIP_DEBT,
+        type: CREDIT,
+      },
+      transaction: sequelizeTransaction,
+    });
   }
 
   static validateContributionPayload(payload: TransactionCreationAttributes): void {

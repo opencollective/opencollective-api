@@ -74,13 +74,14 @@ export const getTransactionKindPriorityCase = tableName => `
   CASE
     WHEN "${tableName}"."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER', 'PREPAID_PAYMENT_METHOD') THEN 1
     WHEN "${tableName}"."kind" IN ('PLATFORM_TIP') THEN 2
-    WHEN "${tableName}"."kind" IN ('PLATFORM_TIP_DEBT') THEN 3
-    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 4
-    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 5
-    WHEN "${tableName}"."kind" IN ('HOST_FEE') THEN 6
-    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE') THEN 7
-    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 8
-    ELSE 9
+    WHEN "${tableName}"."kind" IN ('APPLICATION_FEE') THEN 3
+    WHEN "${tableName}"."kind" IN ('PLATFORM_TIP_DEBT') THEN 4
+    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_FEE') THEN 5
+    WHEN "${tableName}"."kind" IN ('PAYMENT_PROCESSOR_COVER') THEN 6
+    WHEN "${tableName}"."kind" IN ('HOST_FEE') THEN 7
+    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE') THEN 8
+    WHEN "${tableName}"."kind" IN ('HOST_FEE_SHARE_DEBT') THEN 9
+    ELSE 10
   END`;
 
 export const TransactionsCollectionArgs = {

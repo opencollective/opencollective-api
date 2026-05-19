@@ -651,4 +651,112 @@ describe('cron/monthly/host-settlement', () => {
       }
     });
   });
+
+  describe('NEW_PLATFORM_TIPS_LEDGER host', () => {
+    let newLedgerHost, ocPlatformVendor, platformTipCredit, settlementExpense;
+
+    before(async () => {
+      await utils.resetTestDB();
+      await utils.seedDefaultVendors();
+
+      const platformUser = await fakeUser({ id: PlatformConstants.PlatformUserId }, { slug: 'ofitech-admin' });
+      const oc = await fakeHost({
+        id: PlatformConstants.PlatformCollectiveId,
+        slug: randStr('platform-'),
+        CreatedByUserId: platformUser.id,
+      });
+      await fakeConnectedAccount({ CollectiveId: oc.id, service: 'stripe' });
+      // The cron requires a USD BANK_ACCOUNT payout method on the platform org.
+      await fakePayoutMethod({
+        CollectiveId: oc.id,
+        type: 'BANK_ACCOUNT',
+        data: { details: {}, type: 'IBAN', accountHolderName: 'OpenCollective Inc.', currency: 'USD' },
+      });
+
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 2000`);
+      await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 50`);
+
+      ocPlatformVendor = await models.Collective.findBySlug('oc-platform');
+      expect(ocPlatformVendor, 'seedDefaultVendors should create oc-platform').to.exist;
+
+      const hostAdmin = await fakeUser();
+      newLedgerHost = await fakeHost({
+        name: 'new-ledger-host',
+        currency: 'USD',
+        plan: 'grow-plan-2021',
+        admin: hostAdmin,
+        data: { features: { NEW_PLATFORM_TIPS_LEDGER: true } },
+      });
+      await fakeConnectedAccount({ CollectiveId: newLedgerHost.id, service: 'transferwise' });
+
+      const collective = await fakeCollective({ HostCollectiveId: newLedgerHost.id, currency: 'USD' });
+
+      // Drive a contribution with a tip through markAsPaid so the full createPlatformTipTransactions
+      // path runs (writes PLATFORM_TIP on OC Platform vendor + TransactionSettlement OWED).
+      const clock = useFakeTimers({ now: lastMonth.toDate(), toFake: ['Date'] });
+      const order = await fakeOrder({
+        description: 'Contribution with $50 tip on new-ledger host',
+        CollectiveId: collective.id,
+        currency: 'USD',
+        status: 'PENDING',
+        platformTipAmount: 5000,
+        totalAmount: 15000,
+      });
+      await order.markAsPaid(hostAdmin);
+      clock.restore();
+
+      platformTipCredit = await models.Transaction.findOne({
+        where: {
+          HostCollectiveId: newLedgerHost.id,
+          CollectiveId: ocPlatformVendor.id,
+          kind: TransactionKind.PLATFORM_TIP,
+          type: 'CREDIT',
+        },
+      });
+      expect(platformTipCredit, 'PLATFORM_TIP credit should be written on OC Platform vendor').to.exist;
+      expect(platformTipCredit.amountInHostCurrency).to.equal(5000);
+
+      const initialTs = await models.TransactionSettlement.getByTransaction(platformTipCredit);
+      expect(initialTs).to.have.property('status', 'OWED');
+
+      await invoicePlatformFees();
+
+      settlementExpense = (await newLedgerHost.getExpenses())[0];
+      expect(settlementExpense, 'cron should have created a SETTLEMENT expense').to.exist;
+      settlementExpense.items = await settlementExpense.getItems();
+    });
+
+    after(async () => {
+      await utils.resetTestDB();
+    });
+
+    it('bills the platform tip exactly once (regression: prior code double-counted)', () => {
+      const platformTipsItem = settlementExpense.items.find(i => i.description === 'Platform Tips');
+      expect(platformTipsItem, 'expense should have a Platform Tips item').to.exist;
+      expect(platformTipsItem.amount).to.equal(5000);
+    });
+
+    it('writes a single PLATFORM_TIP_DEBT transfer pair releasing the funds to the host', async () => {
+      const transferTransactions = await models.Transaction.findAll({
+        where: { HostCollectiveId: newLedgerHost.id, kind: TransactionKind.PLATFORM_TIP_DEBT, isDebt: false },
+      });
+      expect(transferTransactions, 'one DEBIT/CREDIT pair').to.have.length(2);
+
+      const transferCredit = transferTransactions.find(t => t.type === 'CREDIT');
+      expect(transferCredit.CollectiveId).to.equal(newLedgerHost.id);
+      expect(transferCredit.FromCollectiveId).to.equal(ocPlatformVendor.id);
+      expect(transferCredit.amountInHostCurrency).to.equal(5000);
+
+      const transferDebit = transferTransactions.find(t => t.type === 'DEBIT');
+      expect(transferDebit.CollectiveId).to.equal(ocPlatformVendor.id);
+      expect(transferDebit.HostCollectiveId).to.equal(newLedgerHost.id);
+      expect(transferDebit.amountInHostCurrency).to.equal(-5000);
+    });
+
+    it('flips the PLATFORM_TIP TransactionSettlement from OWED to INVOICED', async () => {
+      const ts = await models.TransactionSettlement.getByTransaction(platformTipCredit);
+      expect(ts.status).to.equal('INVOICED');
+      expect(ts.ExpenseId).to.equal(settlementExpense.id);
+    });
+  });
 });

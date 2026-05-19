@@ -13,9 +13,10 @@ import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
-import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
+import { getPendingHostFeeShare } from '../../server/lib/host-metrics';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
+import { getOcPlatformVendor } from '../../server/lib/transactions';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
@@ -162,10 +163,10 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       continue;
     }
 
-    let pendingPlatformTips, pendingHostFeeShare;
-    if (!KIND || KIND === PLATFORM_TIP_DEBT) {
-      pendingPlatformTips = await getPendingPlatformTips(host, { status: ['OWED'], endDate });
-    }
+    // `pendingPlatformTips` is computed below from rows actually fetched (legacy PLATFORM_TIP_DEBT
+    // + new-ledger PLATFORM_TIP) rather than via a separate metrics query, to keep both code paths
+    // sourced from the same data and avoid double-counting.
+    let pendingHostFeeShare;
     if (!KIND || KIND === HOST_FEE_SHARE_DEBT) {
       pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
     }
@@ -194,6 +195,65 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         mapToModel: true, // pass true here if you have any mapped fields
       },
     );
+
+    // For hosts opted in to the new platform-tips ledger: each PLATFORM_TIP credit on the
+    // OC Platform vendor (host-scoped) carries its own TransactionSettlement row (kind=PLATFORM_TIP).
+    // The settlement cron picks up those in OWED status, writes a single PLATFORM_TIP_DEBT
+    // transfer pair to release the held funds onto the host's books, and lets the standard
+    // markTransactionsAsInvoiced flow flip the PLATFORM_TIP TS rows OWED -> INVOICED.
+    // The transfer itself is a pure balance-mover with no TS row of its own.
+    if (host.hasNewPlatformTipsLedger?.() && (!KIND || KIND === PLATFORM_TIP_DEBT)) {
+      const ocPlatformVendor = await getOcPlatformVendor();
+      const newTipTransactions = await sequelize.query(
+        `
+        SELECT t.*
+        FROM "Transactions" t
+        INNER JOIN "TransactionSettlements" ts
+          ON ts."TransactionGroup" = t."TransactionGroup" AND ts.kind = t.kind
+        WHERE t."CollectiveId" = :ocPlatformVendorId
+          AND t."HostCollectiveId" = :HostCollectiveId
+          AND t."kind" = 'PLATFORM_TIP'
+          AND t."type" = 'CREDIT'
+          AND t."deletedAt" IS NULL
+          AND ts."deletedAt" IS NULL
+          AND ts."status" = 'OWED'
+          AND t."createdAt" < :endDate
+        `,
+        {
+          replacements: { ocPlatformVendorId: ocPlatformVendor.id, HostCollectiveId: host.id, endDate },
+          model: models.Transaction,
+          mapToModel: true,
+        },
+      );
+      const uninvoicedAmount = newTipTransactions.reduce((sum, t) => sum + (t.amountInHostCurrency || 0), 0);
+      if (uninvoicedAmount > 0) {
+        if (DRY) {
+          console.info(
+            `${host.name} (#${host.id}): new-flag tips owed = ${uninvoicedAmount / 100} ${host.currency} across ${newTipTransactions.length} PLATFORM_TIP row(s) (DRY, no transfer written)`,
+          );
+        } else {
+          // 1) Move the money: release the held funds from OC Platform onto the host's books.
+          await models.Transaction.createPlatformTipSettlementTransfer({
+            host,
+            ocPlatformVendor,
+            amountInHostCurrency: uninvoicedAmount,
+            hostCurrency: host.currency,
+          });
+        }
+        // Queue the PLATFORM_TIP credits so they roll into the Platform Tips total below.
+        // In non-DRY mode, markTransactionsAsInvoiced flips their TS rows OWED -> INVOICED.
+        transactions.push(...newTipTransactions);
+      }
+    }
+
+    // Compute the Platform Tips total locally from rows we just fetched (legacy + new-ledger),
+    // rather than via a separate metrics query, so both code paths source from the same data.
+    const pendingPlatformTips =
+      !KIND || KIND === PLATFORM_TIP_DEBT
+        ? transactions
+            .filter(t => t.kind === PLATFORM_TIP_DEBT || t.kind === TransactionKind.PLATFORM_TIP)
+            .reduce((sum, t) => sum + (t.amountInHostCurrency || 0), 0)
+        : 0;
 
     if (pendingPlatformTips) {
       items.push({
@@ -359,13 +419,14 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       }));
       await models.ExpenseItem.bulkCreate(items);
 
-      // Attach CSV
+      // Attach CSV. Use the kinds actually present in `transactions` so that new-flag
+      // PLATFORM_TIP source rows are included alongside legacy *_DEBT rows.
       const csvUrl = getTransactionsCsvUrl('transactions', host, {
         startDate: moment(min(transactions.map(t => t.createdAt)))
           .startOf('month')
           .toDate(),
         endDate,
-        kind: transactionsKinds,
+        kind: uniq(transactions.map(t => t.kind)),
         add: ['orderLegacyId'],
       });
       if (csvUrl) {
