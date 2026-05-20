@@ -4,12 +4,11 @@ import { pick } from 'lodash';
 
 import { Service } from '../../../constants/connected-account';
 import FEATURE from '../../../constants/feature';
-import { checkFeatureAccess, getErrorMessageFromFeatureAccess, getFeatureAccess } from '../../../lib/allowed-features';
+import { getErrorMessageFromFeatureAccess, getFeatureAccess } from '../../../lib/allowed-features';
 import { crypto } from '../../../lib/encryption';
 import { disconnectGoCardlessAccount } from '../../../lib/gocardless/connect';
 import * as paypal from '../../../lib/paypal';
 import { disconnectPlaidAccount } from '../../../lib/plaid/connect';
-import * as transferwise from '../../../lib/transferwise';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import type { ConnectedAccount as ConnectedAccountModel } from '../../../models';
 import models from '../../../models';
@@ -47,10 +46,6 @@ const connectedAccountMutations = {
 
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
-      // Check feature access for TRANSFERWISE
-      if (args.connectedAccount.service === Service.TRANSFERWISE) {
-        await checkFeatureAccess(collective, FEATURE.TRANSFERWISE, { loaders: req.loaders });
-      }
       // Check feature access for PAYPAL_PAYOUTS
       if (args.connectedAccount.service === Service.PAYPAL) {
         const payoutsAccess = await getFeatureAccess(collective, FEATURE.PAYPAL_PAYOUTS, { loaders: req.loaders });
@@ -58,9 +53,6 @@ const connectedAccountMutations = {
         if (payoutsAccess.access !== 'AVAILABLE' && paymentsAccess.access !== 'AVAILABLE') {
           throw new Forbidden(getErrorMessageFromFeatureAccess(payoutsAccess.access, payoutsAccess.reason));
         }
-      }
-
-      if ([Service.TRANSFERWISE, Service.PAYPAL].includes(args.connectedAccount.service)) {
         if (!args.connectedAccount.token) {
           throw new ValidationFailed('A token is required');
         }
@@ -71,31 +63,19 @@ const connectedAccountMutations = {
           throw new ValidationFailed('This token is already being used');
         }
 
-        if (args.connectedAccount.service === Service.TRANSFERWISE) {
-          try {
-            await transferwise.getProfiles(args.connectedAccount.token);
-          } catch {
-            throw new ValidationFailed('The token is not a valid TransferWise token');
-          }
-        } else if (args.connectedAccount.service === Service.PAYPAL) {
+        if (args.connectedAccount.service === Service.PAYPAL) {
           try {
             await paypal.validateConnectedAccount(args.connectedAccount);
           } catch {
             throw new ValidationFailed('The Client ID and Token are not a valid combination');
           }
         }
+      } else {
+        throw new Unauthorized('Only PayPal is supported');
       }
 
       const connectedAccount = await models.ConnectedAccount.create({
-        ...pick(args.connectedAccount, [
-          'clientId',
-          'data',
-          'refreshToken',
-          'settings',
-          'token',
-          'service',
-          'username',
-        ]),
+        ...pick(args.connectedAccount, ['clientId', 'token', 'service']),
         CollectiveId: collective.id,
         CreatedByUserId: req.remoteUser.id,
         hash: crypto.hash(args.connectedAccount.service + args.connectedAccount.token),
