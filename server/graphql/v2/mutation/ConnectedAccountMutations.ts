@@ -127,8 +127,20 @@ const connectedAccountMutations = {
         }
       }
 
+      if (connectedAccount.service === Service.TRANSFERWISE) {
+        const mirroredAccounts = await models.ConnectedAccount.findOne({
+          where: {
+            data: { MirrorConnectedAccountId: connectedAccount.id },
+          },
+        });
+        if (mirroredAccounts) {
+          throw new Error(
+            'This connected account is being mirrored by other organization(s). Please disconnect mirrors before removing this account.',
+          );
+        }
+      }
+
       await connectedAccount.destroy();
-      await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: connectedAccount.id } } });
 
       return connectedAccount;
     },

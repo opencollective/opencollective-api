@@ -181,6 +181,34 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       expect(createdConnectedAccount.deletedAt).to.not.be.null;
     });
 
+    it('should fail if the connected account is being mirrored by another organization', async () => {
+      connectedAccount = await fakeConnectedAccount({ service: 'transferwise', CollectiveId: collective.id });
+      // Create a mirror connected account that references the original via data.MirrorConnectedAccountId
+      await fakeConnectedAccount({
+        data: { MirrorConnectedAccountId: connectedAccount.id },
+      });
+
+      const result = await graphqlQueryV2(
+        deleteConnectedAccountMutation,
+        {
+          connectedAccount: {
+            legacyId: connectedAccount.id,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include(
+        'This connected account is being mirrored by other organization(s). Please disconnect mirrors before removing this account.',
+      );
+
+      // Verify the account was NOT deleted
+      const stillExists = await models.ConnectedAccount.findByPk(connectedAccount.id);
+      expect(stillExists).to.not.be.null;
+      expect(stillExists.deletedAt).to.be.null;
+    });
+
     describe('should disconnect on 3rd party services', () => {
       it('with Plaid', async () => {
         sandbox.stub(PlaidConnect, 'disconnectPlaidAccount').resolves();
