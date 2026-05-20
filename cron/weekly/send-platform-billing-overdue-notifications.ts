@@ -12,7 +12,7 @@ import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Expense, Op } from '../../server/models';
 import { Billing } from '../../server/models/PlatformSubscription';
-import { onlyExecuteInProdOnMondays, runCronJob } from '../utils';
+import { runCronJob } from '../utils';
 
 /**
  * Find all organizations with overdue platform billing expenses
@@ -179,12 +179,9 @@ if (require.main === module) {
     console.log('Skipping because SKIP_OVERDUE_BILLING_NOTIFICATIONS is set.');
     process.exit();
   } else if (config.env === 'production' && new Date().getDate() % 8 !== 0) {
-    console.log('OC_ENV is production and today is not a Monday, script aborted!');
+    console.log('OC_ENV is production and today is not the 8th/16th/24th, script aborted!');
     process.exit();
   }
-
-  // Only run on Mondays in production (since Heroku scheduler only has daily/hourly options)
-  onlyExecuteInProdOnMondays();
 
   runCronJob('send-platform-billing-overdue-notifications', run, 60 * 10); // 10 minutes timeout
 }
