@@ -11,7 +11,7 @@ import { runAllChecksThenExit } from './_utils';
 /**
  * Older transactions may have some issues that we don't have the time to fix right now.
  */
-const START_DATE = '2025-01-01';
+const START_DATE = '2025-05-15';
 
 /**
  * For zero-decimal currencies (e.g. JPY), amounts in the DB are stored with the same ×100 multiplier
@@ -157,9 +157,16 @@ async function checkExpenseItemAmountsForZeroDecimalCurrencies({ fix = false } =
 
 async function checkTransactionAmountsForZeroDecimalCurrencies() {
   const message = 'Transactions with fractional amounts in zero-decimal currencies (last two digits should be zero)';
-  const results = await sequelize.query<{ id: number; currency: string; amount: number }>(
+  const results = await sequelize.query<{
+    id: number;
+    currency: string;
+    amount: number;
+    hostCurrency: string;
+    amountInHostCurrency: number;
+    hostCurrencyFxRate: number;
+  }>(
     `
-    select *
+    select id, currency, amount, "hostCurrency", "amountInHostCurrency", "hostCurrencyFxRate"
     from "Transactions"
     where "deletedAt" IS NULL
       AND "createdAt" >= :startDate
