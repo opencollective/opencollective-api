@@ -78,7 +78,6 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'payee.slug',
   'payee.id',
   'payee.organization',
-  'reference',
 ];
 const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'recipientNote',
@@ -88,6 +87,7 @@ const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'payeeLocation',
   'payee.email',
   'payee.legalName',
+  'reference',
 ];
 const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = [
   'id',

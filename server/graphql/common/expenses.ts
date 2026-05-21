@@ -107,7 +107,7 @@ import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
-import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
@@ -2629,6 +2629,8 @@ export async function submitExpenseDraft(
   const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser.id === existingExpense.UserId;
   if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
+  } else if (existingExpense.data?.draftKey && existingExpense.data.draftKey === args.draftKey) {
+    allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, existingExpense.id);
   }
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
