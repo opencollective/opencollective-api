@@ -3435,7 +3435,7 @@ class Collective extends ModelWithPublicId<
     }
 
     // If the account is connected to another account, we follow the chain
-    if (connectedAccount?.data?.MirrorConnectedAccountId) {
+    if (connectedAccount?.service === Service.TRANSFERWISE && connectedAccount?.data?.MirrorConnectedAccountId) {
       connectedAccount = await ConnectedAccount.findOne({
         where: { id: connectedAccount.data.MirrorConnectedAccountId },
       });

@@ -1721,7 +1721,7 @@ describe('server/models/Collective', () => {
       expect(account.id).to.equal(connectedAccount.id);
     });
 
-    it('returns the referenced connected account for specific service', async () => {
+    it('returns the mirrored Wise connected account', async () => {
       const collective = await fakeCollective();
       const connectedAccount = await fakeConnectedAccount({ service: 'transferwise' });
       await fakeConnectedAccount({
