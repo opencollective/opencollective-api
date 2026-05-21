@@ -57,19 +57,6 @@ export default function setupExpress(app: express.Application, redisClient?: Red
   // Hyperwatch
   hyperwatch(app);
 
-  // Error handling (development/test only).
-  // Must be a named function with exactly 4 parameters so Express identifies it as an error handler.
-  if (config.env !== 'production' && config.env !== 'staging') {
-    app.use(
-      (err: Error & { status?: number }, req: express.Request, res: express.Response, next: express.NextFunction) => {
-        if (res.headersSent) {
-          return next(err);
-        }
-        res.status(err.status ?? 500).json({ error: err.message, stack: err.stack });
-      },
-    );
-  }
-
   // Cors.
   app.use(cors());
 
