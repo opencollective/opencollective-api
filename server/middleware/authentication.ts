@@ -196,13 +196,18 @@ const _authenticateUserByJwt = async (req: Request, res: Response, next: NextFun
       logger.warn(`UserToken expired for ${userId}`);
       next();
       return;
+    } else if (user.isLimited()) {
+      next(new Unauthorized(`Your account has been limited. Please contact support to reactivate it.`));
+      return;
     }
+
     // Update lastUsedAt if lastUsedAt older than 1 minute ago
     if (!userToken.lastUsedAt || now.diff(moment(userToken.lastUsedAt), 'minutes') > 1) {
       if (!parseToBoolean(config.database.readOnly)) {
         await userToken.update({ lastUsedAt: new Date() });
       }
     }
+
     req.userToken = userToken;
   }
 
@@ -487,6 +492,9 @@ export async function checkPersonalToken(req: Request, res: Response, next: Next
 
       if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
         next(new Unauthorized(`Invalid personal token for collective: ${apiKey || token}`));
+        return;
+      } else if (req.remoteUser.isLimited()) {
+        next(new Unauthorized(`Your account has been limited. Please contact support to reactivate it.`));
         return;
       }
 
