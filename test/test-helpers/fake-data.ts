@@ -368,7 +368,7 @@ export const fakeCollective = async (
       await Promise.all(
         admins.map(admin => {
           if (admin instanceof models.User) {
-            admin.populateRoles({ force: true });
+            return admin.populateRoles({ force: true });
           }
         }),
       );
