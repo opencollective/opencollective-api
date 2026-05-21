@@ -1,6 +1,5 @@
 import '../../server/env';
 
-import config from 'config';
 import moment from 'moment';
 
 import ActivityTypes from '../../server/constants/activities';
@@ -178,13 +177,12 @@ if (require.main === module) {
   if (parseToBoolean(process.env.SKIP_OVERDUE_BILLING_NOTIFICATIONS)) {
     console.log('Skipping because SKIP_OVERDUE_BILLING_NOTIFICATIONS is set.');
     process.exit();
-  } else if (config.env === 'production' && new Date().getDate() % 8 !== 0) {
-    console.log('OC_ENV is production and today is not a Monday, script aborted!');
-    process.exit();
   }
 
   // Only run on Mondays in production (since Heroku scheduler only has daily/hourly options)
-  onlyExecuteInProdOnMondays();
+  if (!parseToBoolean(process.env.OFFCYCLE)) {
+    onlyExecuteInProdOnMondays();
+  }
 
   runCronJob('send-platform-billing-overdue-notifications', run, 60 * 10); // 10 minutes timeout
 }
