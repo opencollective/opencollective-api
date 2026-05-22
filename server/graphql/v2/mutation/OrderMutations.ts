@@ -324,6 +324,8 @@ const orderMutations = {
 
       if (args.removeAsContributor && !(await OrdersLib.canRemoveContributorFromOrder(req, order))) {
         throw new Forbidden("You don't have permission to remove contributor from the collective");
+      } else if (!order.Subscription) {
+        throw new Error('This contribution is not a recurring contribution');
       }
 
       const host = order.collective.HostCollectiveId
@@ -355,14 +357,12 @@ const orderMutations = {
             transaction,
           });
         }
-      });
 
-      // `Subscription.deactivate` doesn't accept a transaction and performs an external
-      // PayPal call, so it's run after the DB transaction commits to avoid stranding a
-      // deactivated subscription on a rolled-back order.
-      if (order.Subscription?.isActive) {
-        await order.Subscription.deactivate(isHostAdmin ? 'Cancelled by host admin' : undefined, host);
-      }
+        // `deactivate` can perform an external PayPal call. If it fails, the function will throw and the transaction will be rolled back.
+        if (order.Subscription.isActive) {
+          await order.Subscription.deactivate(isHostAdmin ? 'Cancelled by host admin' : undefined, host, transaction);
+        }
+      });
 
       // The SUBSCRIPTION_CANCELED activity sends the user-facing email for this
       // host-driven cancel flow. The follow-up CONTRIBUTOR_REMOVED_BY_HOST activity
