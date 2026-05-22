@@ -2530,6 +2530,7 @@ class Collective extends ModelWithPublicId<
       hostFeePercent: hostCollective.hostFeePercent,
       platformFeePercent: hostCollective.platformFeePercent,
       currency: undefined,
+      isPrivate: this.isPrivate,
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
