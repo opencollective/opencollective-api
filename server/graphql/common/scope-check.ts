@@ -142,6 +142,11 @@ export const checkRemoteUserCanRoot = (req: Express.Request): void => {
 type OAuthScope = keyof typeof OAuthScopes;
 
 export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => {
+  // For now, limited users don't have any scope regardless of the authentication method
+  if (req.remoteUser?.isLimited()) {
+    return false;
+  }
+
   if (req.userToken) {
     return req.userToken.hasScope(scope);
   } else if (req.personalToken) {
@@ -150,11 +155,6 @@ export const checkScope = (req: Express.Request, scope: OAuthScope): boolean => 
       return true;
     }
     return req.personalToken.hasScope(scope);
-  }
-
-  // Make sure the user is not limited
-  if (req.remoteUser?.data?.features?.ALL === false) {
-    return false;
   }
 
   // No userToken or personalToken, no checkScope

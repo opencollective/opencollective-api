@@ -3951,7 +3951,8 @@ export async function markExpenseAsUnpaid(
 
     await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
+    const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
+    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null, data });
     return { expense, transaction };
   });
 

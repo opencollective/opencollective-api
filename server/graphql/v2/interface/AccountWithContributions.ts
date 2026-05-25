@@ -13,7 +13,6 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil, omit } from 'lodash';
 import { OrderItem, QueryTypes, WhereOptions } from 'sequelize';
 
-import PlatformConstants from '../../../constants/platform';
 import { filterContributors } from '../../../lib/contributors';
 import models, { Collective, sequelize } from '../../../models';
 import Tier, { AllTierTypes, TierType } from '../../../models/Tier';
@@ -230,27 +229,7 @@ export const AccountWithContributionsFields = {
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
     async resolve(account: Collective, _, req: express.Request): Promise<boolean> {
-      if (!isNil(account.data?.platformTips)) {
-        return account.data.platformTips;
-      } else if (PlatformConstants.AllPlatformCollectiveIds.includes(account.id)) {
-        return false;
-      }
-
-      // Look at the host's plan
-      const host = await req.loaders.Collective.host.load(account);
-      if (host) {
-        // New pricing
-        const hasPlatformTips = await req.loaders.PlatformSubscription.hasPlatformTips.load(host.id);
-        if (typeof hasPlatformTips === 'boolean') {
-          return hasPlatformTips;
-        }
-
-        // hasPlatformTips undefined means we're on a legacy plan
-        const plan = host.getLegacyPlan();
-        return plan.platformTips;
-      }
-
-      return false;
+      return account.hasPlatformTips({ loaders: req.loaders });
     },
   },
   contributionPolicy: {

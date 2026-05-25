@@ -458,7 +458,11 @@ export async function createOrder(order, req) {
       orderPublicData = pick(order.data, []);
     }
 
-    const platformTipEligible = await isPlatformTipEligible({ ...order, collective });
+    // When the frontend explicitly indicates the tip was not offered (e.g. OSC platform tip A/B
+    // treatment arm), persist the order as not eligible so downstream tip logic respects it and
+    // analytics can group by this flag.
+    const platformTipEligible =
+      order.context?.platformTipOffered === false ? false : await isPlatformTipEligible({ ...order, collective });
 
     const orderData = {
       CreatedByUserId: remoteUser.id,

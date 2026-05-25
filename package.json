@@ -121,7 +121,7 @@
     "pg-listen": "1.7.0",
     "plaid": "31.1.0",
     "redis": "5.12.1",
-    "sanitize-html": "2.17.3",
+    "sanitize-html": "2.17.4",
     "sequelize": "6.37.8",
     "sequelize-cli": "6.6.5",
     "sequelize-temporal": "2.1.1",
@@ -134,7 +134,7 @@
     "uuid": "14.0.0",
     "validator": "13.15.35",
     "winston": "3.19.0",
-    "zod": "4.3.6"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@babel/cli": "^7.23.4",

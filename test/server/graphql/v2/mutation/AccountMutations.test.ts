@@ -2018,8 +2018,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         const subscription = await models.PlatformSubscription.findOne({ where: { CollectiveId: collective.id } });
         expect(subscription).to.exist;
         expect(subscription.plan.id).to.equal(PlatformSubscriptionTiers[0].id);
-        // The subscription starts as PENDING and is provisioned by the CRON job
-        expect(subscription.featureProvisioningStatus).to.equal('PENDING');
+        // Since the subscription starts today, it is immediately provisioned
+        expect(subscription.featureProvisioningStatus).to.equal('PROVISIONED');
       });
     });
   });
