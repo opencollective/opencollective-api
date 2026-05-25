@@ -1,8 +1,25 @@
 // This is a quick port of https://github.com/ded/express-limiter to async Redis
+import type express from 'express';
+import type { RedisClientType } from 'redis';
 
-export default function expressLimiter(redisClient) {
-  return function (opts) {
-    let middleware = async function (req, res, next) {
+type Limit = {
+  total: number;
+  remaining: number;
+  reset: number;
+};
+
+type ExpressLimiterOptions = {
+  lookup: any;
+  total?: number;
+  expire?: number;
+  onRateLimited?: (req: express.Request, res: express.Response, next: express.NextFunction) => void;
+  whitelist?: (req: express.Request) => boolean;
+  skipHeaders?: boolean;
+};
+
+export default function expressLimiter(redisClient: RedisClientType) {
+  return function (opts: ExpressLimiterOptions) {
+    let middleware = async function (req: express.Request, res: express.Response, next: express.NextFunction) {
       if (opts.whitelist && opts.whitelist(req)) {
         return next();
       }
@@ -36,7 +53,7 @@ export default function expressLimiter(redisClient) {
       }
       const now = Date.now();
       limit = limit
-        ? JSON.parse(limit)
+        ? (JSON.parse(limit) as Limit)
         : {
             total: total,
             remaining: total,
@@ -56,9 +73,9 @@ export default function expressLimiter(redisClient) {
         // Nothing
       }
       if (!opts.skipHeaders) {
-        res.set('X-RateLimit-Limit', limit.total);
-        res.set('X-RateLimit-Reset', Math.ceil(limit.reset / 1000)); // UTC epoch seconds
-        res.set('X-RateLimit-Remaining', Math.max(limit.remaining, 0));
+        res.set('X-RateLimit-Limit', String(limit.total));
+        res.set('X-RateLimit-Reset', String(Math.ceil(limit.reset / 1000))); // UTC epoch seconds
+        res.set('X-RateLimit-Remaining', String(Math.max(limit.remaining, 0)));
       }
 
       if (limit.remaining >= 0) {
@@ -68,7 +85,7 @@ export default function expressLimiter(redisClient) {
       const after = (limit.reset - Date.now()) / 1000;
 
       if (!opts.skipHeaders) {
-        res.set('Retry-After', after);
+        res.set('Retry-After', String(after));
       }
 
       opts.onRateLimited(req, res, next);
