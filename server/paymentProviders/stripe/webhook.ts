@@ -342,7 +342,7 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
       sequelizeTransaction: transaction,
     });
 
-    const paidAtField = balanceTransaction?.available_on || (charge as Stripe.Charge).created;
+    const paidAtField = (charge as Stripe.Charge).created;
     const paidAt = paidAtField ? moment.unix(paidAtField).toDate() : new Date();
     return [expense, true, paidAt];
   });

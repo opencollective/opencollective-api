@@ -1366,27 +1366,7 @@ const CollectiveFields = () => {
       description:
         'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
       async resolve(account, _, req) {
-        if (!isNil(account.data?.platformTips)) {
-          return Boolean(account.data.platformTips);
-        } else if (PlatformConstants.AllPlatformCollectiveIds.includes(account.id)) {
-          return false;
-        }
-
-        // Look at the host's plan
-        const host = await req.loaders.Collective.host.load(account);
-        if (host) {
-          // New pricing
-          const hasPlatformTips = await req.loaders.PlatformSubscription.hasPlatformTips.load(host.id);
-          if (typeof hasPlatformTips === 'boolean') {
-            return hasPlatformTips;
-          }
-
-          // hasPlatformTips undefined means we're on a legacy plan
-          const plan = host.getLegacyPlan();
-          return Boolean(plan.platformTips);
-        }
-
-        return false;
+        return account.hasPlatformTips({ loaders: req.loaders });
       },
     },
     tiers: {

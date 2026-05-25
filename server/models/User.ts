@@ -384,6 +384,10 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     }
   };
 
+  isLimited = function (): boolean {
+    return get(this.data, 'features')?.ALL === false;
+  };
+
   /**
    * Limit the user account, preventing most actions on the platform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.
