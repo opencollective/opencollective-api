@@ -39,9 +39,9 @@ module.exports = {
           ), 0) AS "amountSpentNet",
           COUNT(*) AS "transactionCount"
         FROM "Transactions" t
-          INNER JOIN "Collectives" h ON t."HostCollectiveId" = h.id
-          INNER JOIN "Collectives" c ON t."CollectiveId" = c.id
-          LEFT  JOIN "Collectives" p ON p.id = c."ParentCollectiveId"
+          INNER JOIN "Collectives" h ON t."HostCollectiveId" = h.id AND h."deletedAt" IS NULL
+          INNER JOIN "Collectives" c ON t."CollectiveId" = c.id AND c."deletedAt" IS NULL
+          LEFT  JOIN "Collectives" p ON p.id = c."ParentCollectiveId" AND p."deletedAt" IS NULL
         WHERE t."deletedAt" IS NULL
           AND t."HostCollectiveId" IS NOT NULL
           AND t."hostCurrency" = h.currency

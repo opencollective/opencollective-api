@@ -26,6 +26,7 @@ module.exports = {
           AND a."CollectiveId" IS NOT NULL
           AND a."CollectiveId" != a."HostCollectiveId"
           AND c."ParentCollectiveId" IS NULL
+          AND c."deletedAt" IS NULL
       );
     `);
   },
