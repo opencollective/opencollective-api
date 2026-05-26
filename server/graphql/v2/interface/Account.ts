@@ -223,17 +223,27 @@ const accountFieldsDefinition = () => ({
     type: GraphQLAccount,
     description:
       'For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".',
-    resolve: async (account: Collective, _, req) => {
-      if (!account.isIncognito || !checkScope(req, 'account') || !checkScope(req, 'incognito')) {
+    resolve: async (account: Collective, _, req: express.Request) => {
+      const isIncognito = account.isIncognito;
+      if (!isIncognito) {
+        return null;
+      }
+      if (!checkScope(req, 'account') || !checkScope(req, 'incognito')) {
         return null;
       }
 
+      const mainProfile = isIncognito && (await req.loaders.Collective.mainProfileFromIncognito.load(account.id));
+      const hasPermissionForMainProfile =
+        mainProfile && getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, mainProfile.id);
+
       if (
+        canSeeIncognitoProfile(req, account) ||
         getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id) ||
-        canSeeIncognitoProfile(req, account)
+        hasPermissionForMainProfile
       ) {
-        return req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        return mainProfile;
       }
+
       return null;
     },
   },
