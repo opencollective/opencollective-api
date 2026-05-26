@@ -1,3 +1,4 @@
+import type express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -442,15 +443,29 @@ export const GraphQLOrder = new GraphQLObjectType({
       createdByAccount: {
         type: GraphQLAccount,
         description: 'The account who created this order',
-        async resolve(order, _, req) {
+        async resolve(order, _, req: express.Request) {
           if (!order.CreatedByUserId) {
             return null;
           }
 
           const user = await req.loaders.User.byId.load(order.CreatedByUserId);
           if (user && user.CollectiveId) {
-            const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
-            if (collective && !collective.isIncognito) {
+            const [collective, fromCollective, toCollective] = await req.loaders.Collective.byId.loadMany([
+              user.CollectiveId,
+              order.FromCollectiveId,
+              order.CollectiveId,
+            ]);
+            const userIsAdminOfFromAccount = req.remoteUser && req.remoteUser.isAdminOfCollective(fromCollective);
+            const hostCollectiveId =
+              toCollective && 'HostCollectiveId' in toCollective && toCollective.HostCollectiveId;
+            const isHostAdminOrAccountant =
+              hostCollectiveId && req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId);
+            if (
+              collective &&
+              fromCollective &&
+              'isIncognito' in fromCollective &&
+              (!fromCollective.isIncognito || isHostAdminOrAccountant || userIsAdminOfFromAccount)
+            ) {
               return collective;
             }
           }
