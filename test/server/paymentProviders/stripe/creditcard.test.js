@@ -194,7 +194,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
       });
 
-      it('should collect the host revenue share', async () => {
+      it('does not collect a host revenue share (deprecated)', async () => {
         await order.update({ totalAmount: 1000 });
         await collective.update({ hostFeePercent: 10 });
         await host.update({ plan: 'grow-plan-2021' });
@@ -204,7 +204,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
         assert.calledWithMatch(stripe.paymentIntents.create, {
           amount: 1000,
-          application_fee_amount: 1000 * 0.1 * 0.15,
+          application_fee_amount: undefined,
         });
       });
 
@@ -224,7 +224,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
       });
 
-      it('should work with custom stripeHostFeeSharePercent', async () => {
+      it('ignores custom stripeHostFeeSharePercent (deprecated)', async () => {
         await order.update({ totalAmount: 1000 });
         await collective.update({ hostFeePercent: 10 });
         await host.update({ plan: 'grow-plan-2021', data: { plan: { stripeHostFeeSharePercent: 20 } } });
@@ -234,7 +234,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
         assert.calledWithMatch(stripe.paymentIntents.create, {
           amount: 1000,
-          application_fee_amount: 1000 * 0.1 * 0.2,
+          application_fee_amount: undefined,
         });
       });
 
@@ -252,7 +252,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
       });
 
-      it('should collect both', async () => {
+      it('collects only the platform tip in the application fee (host fee share deprecated)', async () => {
         await collective.update({ hostFeePercent: 10 });
         await host.update({ plan: 'grow-plan-2021' });
         await cache.clear();
@@ -266,7 +266,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
           fee_details: [
             {
               type: 'application_fee',
-              amount: 115,
+              amount: 100,
               currency: 'usd',
               application: 'ca_',
               description: 'OpenCollective application fee',
@@ -278,11 +278,11 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
         assert.calledWithMatch(stripe.paymentIntents.create, {
           amount: 1100,
-          application_fee_amount: 1000 * 0.1 * 0.15 + 100,
+          application_fee_amount: 100,
         });
       });
 
-      it('should create a debt for platform tip and share if currency does not support application_fee', async () => {
+      it('should create a debt for platform tip if currency does not support application_fee', async () => {
         await order.update({ currency: 'BRL', totalAmount: 1100, platformTipAmount: 100 });
         await collective.update({ hostFeePercent: 10 });
         await host.update({ currency: 'BRL', plan: 'grow-plan-2021' });
@@ -302,7 +302,8 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
 
         const transactions = await order.getTransactions();
-        expect(transactions.filter(t => t.kind === 'HOST_FEE_SHARE_DEBT')).to.have.lengthOf(2);
+        // Host fee share is deprecated, no HOST_FEE_SHARE_DEBT is generated
+        expect(transactions.filter(t => t.kind === 'HOST_FEE_SHARE_DEBT')).to.have.lengthOf(0);
         expect(transactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
       });
 
