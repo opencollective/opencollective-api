@@ -462,7 +462,7 @@ describe('server/models/Transaction', () => {
   });
 
   describe('createHostFeeShareTransactions', () => {
-    it('applies different host fees share based on the payment method / host plan', async () => {
+    it('does not generate host fee share regardless of host plan (deprecated)', async () => {
       await host.update({
         plan: 'default',
         hostFeePercent: 10,
@@ -477,7 +477,6 @@ describe('server/models/Transaction', () => {
 
       const amount = 1000;
 
-      // Helper to test with a given payment provider
       const testFeesWithPaymentMethod = async (service, type) => {
         const paymentMethod = await fakePaymentMethod({ service, type });
         const order = await fakeOrder({
@@ -490,18 +489,9 @@ describe('server/models/Transaction', () => {
         return Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction }, host);
       };
 
-      // Paypal payment
-      let result = await testFeesWithPaymentMethod('paypal', 'payment');
-      expect(result).to.be.undefined; // no host fee share
-
-      // Stripe
-      result = await testFeesWithPaymentMethod('stripe', 'creditcard');
-      expect(result).to.be.undefined; // no host fee share
-
-      // Manual
-      result = await testFeesWithPaymentMethod('opencollective', 'manual');
-      expect(result.hostFeeShareTransaction.amount).to.equal(Math.round(amount * 0.1 * 0.2));
-      expect(result.hostFeeShareDebtTransaction.amount).to.equal(-Math.round(amount * 0.1 * 0.2));
+      expect(await testFeesWithPaymentMethod('paypal', 'payment')).to.be.undefined;
+      expect(await testFeesWithPaymentMethod('stripe', 'creditcard')).to.be.undefined;
+      expect(await testFeesWithPaymentMethod('opencollective', 'manual')).to.be.undefined;
     });
   });
 

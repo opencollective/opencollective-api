@@ -93,7 +93,8 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
         const hostMetrics = queryResponse.data.host.hostMetrics;
         expect(hostMetrics.hostFees.valueInCents).to.equal(900);
-        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(135);
+        // Host fee share is deprecated, no new HOST_FEE_SHARE transactions are generated
+        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(0);
       });
 
       it('correctly calculates hostFees and hostFeeShare based on date filter passed', async () => {
@@ -103,7 +104,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
         const hostMetrics = queryResponse.data.host.hostMetrics;
         expect(hostMetrics.hostFees.valueInCents).to.equal(600);
-        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(90);
+        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(0);
       });
 
       it('correctly calculates hostFees and hostFeeShare based on collective filter passed', async () => {
@@ -113,7 +114,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
         const hostMetrics = queryResponse.data.host.hostMetrics;
         expect(hostMetrics.hostFees.valueInCents).to.equal(300);
-        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(45);
+        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(0);
       });
 
       it('correctly calculates totalMoneyManaged for the whole period', async () => {

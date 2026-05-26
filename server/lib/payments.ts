@@ -1496,47 +1496,20 @@ export const getHostFeePercent = async (
   return possibleValues.find(isNumber);
 };
 
+/**
+ * @deprecated Host fee share has been deprecated and is no longer generated.
+ *
+ * This always resolves to 0, so no new HOST_FEE_SHARE / HOST_FEE_SHARE_DEBT transactions
+ * are created (and no host fee share is folded into the Stripe application fee). Existing
+ * host fee share transactions remain in the ledger and can still be refunded via the
+ * refund path in `createRefundTransaction`.
+ *
+ * The signature is kept so the many payment providers calling it keep working unchanged.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const getHostFeeSharePercent = async (
-  order: Order,
-  { loaders = null }: { loaders?: loaders } = {},
+  order: Order, // eslint-disable-line @typescript-eslint/no-unused-vars
+  { loaders = null }: { loaders?: loaders } = {}, // eslint-disable-line @typescript-eslint/no-unused-vars
 ): Promise<number> => {
-  if (!order.collective) {
-    order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
-  }
-
-  const host = await order.collective.getHostCollective({ loaders });
-
-  const plan = host.getLegacyPlan();
-
-  const possibleValues = [];
-
-  // Platform Tip Eligible or Platform Fee? No Host Fee Share, that's it
-  if (order.platformTipEligible === true) {
-    return 0;
-  }
-
-  // Make sure payment method is available
-  if (!order.paymentMethod && order.PaymentMethodId) {
-    order.paymentMethod = await order.getPaymentMethod();
-  }
-
-  // Used by 1st party hosts to set Stripe and PayPal (aka "Crowfunding") share percent to zero
-  // Ideally, this will not be used in the future as we'll always rely on the platformTipEligible flag to do that
-  // We still have a lot of old orders were platformTipEligible is not set, so we'll keep that configuration for now
-
-  // Assign different fees based on the payment provider
-  if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-    possibleValues.push(host.data?.stripeHostFeeSharePercent);
-    possibleValues.push(plan?.stripeHostFeeSharePercent); // deprecated
-  } else if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.PAYPAL) {
-    possibleValues.push(host.data?.paypalHostFeeSharePercent);
-    possibleValues.push(plan?.paypalHostFeeSharePercent); // deprecated
-  }
-
-  // Default
-  possibleValues.push(host.data?.hostFeeSharePercent);
-  possibleValues.push(plan?.hostFeeSharePercent);
-
-  // Pick the first that is set as a Number
-  return possibleValues.find(isNumber);
+  return 0;
 };
