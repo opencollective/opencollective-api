@@ -198,6 +198,8 @@ type Settings = {
   disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
   automaticBillingMigration?: Date | string;
+  /** When true, publicly show "Administrative contribution" instead of "Host fee". */
+  useAlternativeHostFeeNaming?: boolean;
 } & TaxSettings;
 
 type Data = Partial<{
