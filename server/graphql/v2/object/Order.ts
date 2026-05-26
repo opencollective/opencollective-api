@@ -19,7 +19,7 @@ import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/pe
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as OrdersLib from '../../common/orders';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
@@ -457,12 +457,17 @@ export const GraphQLOrder = new GraphQLObjectType({
               order.CollectiveId,
             ]);
             const hostCollectiveId = toCollective instanceof Error ? null : toCollective?.HostCollectiveId;
+            const hasContextPermission =
+              !(fromCollective instanceof Error) &&
+              fromCollective?.data?.UserId === order.CreatedByUserId &&
+              getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, fromCollective.id);
+            const isHostAdminOrAccountant = req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId);
             if (
               userCollective &&
               !(userCollective instanceof Error) &&
               fromCollective &&
               !(fromCollective instanceof Error) &&
-              canSeeIncognitoProfile(req, fromCollective, hostCollectiveId || null)
+              (canSeeIncognitoProfile(req, fromCollective) || hasContextPermission || isHostAdminOrAccountant)
             ) {
               return userCollective;
             }
