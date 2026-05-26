@@ -13,6 +13,7 @@ import { get, pick, round } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
+import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { getHostFeePercent } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
@@ -450,23 +451,20 @@ export const GraphQLOrder = new GraphQLObjectType({
 
           const user = await req.loaders.User.byId.load(order.CreatedByUserId);
           if (user && user.CollectiveId) {
-            const [collective, fromCollective, toCollective] = await req.loaders.Collective.byId.loadMany([
+            const [userCollective, fromCollective, toCollective] = await req.loaders.Collective.byId.loadMany([
               user.CollectiveId,
               order.FromCollectiveId,
               order.CollectiveId,
             ]);
-            const userIsAdminOfFromAccount = req.remoteUser && req.remoteUser.isAdminOfCollective(fromCollective);
-            const hostCollectiveId =
-              toCollective && 'HostCollectiveId' in toCollective && toCollective.HostCollectiveId;
-            const isHostAdminOrAccountant =
-              hostCollectiveId && req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId);
+            const hostCollectiveId = toCollective instanceof Error ? null : toCollective?.HostCollectiveId;
             if (
-              collective &&
+              userCollective &&
+              !(userCollective instanceof Error) &&
               fromCollective &&
-              'isIncognito' in fromCollective &&
-              (!fromCollective.isIncognito || isHostAdminOrAccountant || userIsAdminOfFromAccount)
+              !(fromCollective instanceof Error) &&
+              canSeeIncognitoProfile(req, fromCollective, hostCollectiveId || null)
             ) {
-              return collective;
+              return userCollective;
             }
           }
         },
