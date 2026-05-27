@@ -219,6 +219,10 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Defines if the contributors wants to be incognito (name not displayed)',
   },
+  isPrivate: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether the account is private',
+  },
   mainProfile: {
     type: GraphQLAccount,
     description:

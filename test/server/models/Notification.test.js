@@ -29,9 +29,12 @@ describe('server/models/Notification', () => {
       type: 'ORGANIZATION',
       CreatedByUserId: hostAdmin.id,
       settings: { apply: true },
+      hasHosting: true,
+      hasMoneyManagement: true,
     });
     collective = await Collective.create({ name: 'webpack', type: 'COLLECTIVE' });
     await host.addUserWithRole(hostAdmin, 'ADMIN');
+    await hostAdmin.populateRoles({ force: true });
     await collective.addHost(host, hostAdmin);
   });
 
@@ -343,12 +346,6 @@ describe('server/models/Notification', () => {
         CollectiveId: collective.id,
         FromCollectiveId: user.collective.id,
       });
-
-      await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
-        tag: 'webpack would love to be hosted by host',
-      });
-
-      await collective.update({ isActive: true, approvedAt: new Date() });
 
       emailSendMessageSpy.resetHistory();
     });
