@@ -125,6 +125,43 @@ export interface ExpenseTagStatsRow {
   CollectiveId?: number;
 }
 
+export interface HostedCollectivesDailyFinancialActivityRow {
+  day?: string;
+  HostCollectiveId?: number;
+  CollectiveId?: number;
+  ParentCollectiveId?: number;
+  collectiveType?: string;
+  mainAccountType?: string;
+  isArchived?: boolean;
+  mainAccountIsArchived?: boolean;
+  hostCurrency?: string;
+  amountReceived?: number;
+  amountReceivedNet?: number;
+  amountSpent?: number;
+  amountSpentNet?: number;
+  transactionCount?: number;
+}
+
+export interface HostedCollectivesDailyMembershipRow {
+  day?: string;
+  HostCollectiveId?: number;
+  CollectiveId?: number;
+  collectiveType?: string;
+  isArchived?: boolean;
+  event?: string;
+  activityId?: number;
+}
+
+export interface HostedCollectivesHostingPeriodsRow {
+  CollectiveId?: number;
+  HostCollectiveId?: number;
+  ParentCollectiveId?: number;
+  collectiveType?: string;
+  isArchived?: boolean;
+  startDate?: string;
+  endDate?: string;
+}
+
 export interface HostMonthlyTransactionsRow {
   date?: string;
   HostCollectiveId?: number;
@@ -168,6 +205,9 @@ export type ViewsDatabase = {
   CurrentCollectiveBalance: CurrentCollectiveBalanceRow;
   CurrentCollectiveTransactionStats: CurrentCollectiveTransactionStatsRow;
   ExpenseTagStats: ExpenseTagStatsRow;
+  HostedCollectivesDailyFinancialActivity: HostedCollectivesDailyFinancialActivityRow;
+  HostedCollectivesDailyMembership: HostedCollectivesDailyMembershipRow;
+  HostedCollectivesHostingPeriods: HostedCollectivesHostingPeriodsRow;
   HostMonthlyTransactions: HostMonthlyTransactionsRow;
   TransactionBalances: TransactionBalancesRow;
 };
