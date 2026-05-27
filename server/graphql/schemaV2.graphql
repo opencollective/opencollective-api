@@ -25701,9 +25701,14 @@ type Mutation {
     tier: TierReferenceInput
 
     """
-    An Amount to update the order to
+    New amount to charge the contributor, excluding the platform tip. Includes taxes if any.
     """
     amount: AmountInput
+
+    """
+    Platform tip for this order. Omit or pass null to keep the current tip; provide a value (including zero) to update it.
+    """
+    platformTipAmount: AmountInput
   ): Order
 
   """
