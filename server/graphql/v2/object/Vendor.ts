@@ -59,7 +59,7 @@ export const GraphQLVendor = new GraphQLObjectType({
       },
       createdByAccount: {
         type: GraphQLAccount,
-        description: 'The account who created this order',
+        description: 'The account who created this vendor',
         async resolve(collective, _, req) {
           if (!collective.CreatedByUserId) {
             return null;
