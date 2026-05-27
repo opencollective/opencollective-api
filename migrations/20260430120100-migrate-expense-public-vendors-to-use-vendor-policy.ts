@@ -20,7 +20,7 @@ module.exports = {
           ELSE '"HOST_ADMINS"'::jsonb
         END
       )
-      WHERE id IN (SELECT DISTINCT "HostCollectiveId" FROM "Collectives" WHERE "HostCollectiveId" IS NOT NULL)
+      WHERE id IN (SELECT DISTINCT "HostCollectiveId" FROM "Collectives" WHERE "HostCollectiveId" IS NOT NULL AND "deletedAt" IS NULL)
         AND data #> '{policies,USE_VENDOR_POLICY}' IS NULL
     `);
   },
