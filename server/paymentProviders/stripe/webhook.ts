@@ -227,7 +227,17 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
     const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${expectedCurrency})`;
     logger.error(message);
-    reportMessageToSentry(message, { extra: { paymentIntent, orderId: order.id } });
+    reportMessageToSentry(message, {
+      extra: {
+        paymentIntentId: paymentIntent.id,
+        paymentIntentAmount: paymentIntent.amount,
+        paymentIntentCurrency: paymentIntent.currency,
+        paymentIntentStatus: paymentIntent.status,
+        orderId: order.id,
+        expectedAmount,
+        expectedCurrency,
+      },
+    });
     return;
   }
 
@@ -321,7 +331,17 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
     if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
       const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expectedCurrency})`;
       logger.error(message);
-      reportMessageToSentry(message, { extra: { paymentIntent, expenseId: expense.id } });
+      reportMessageToSentry(message, {
+        extra: {
+          paymentIntentId: paymentIntent.id,
+          paymentIntentAmount: paymentIntent.amount,
+          paymentIntentCurrency: paymentIntent.currency,
+          paymentIntentStatus: paymentIntent.status,
+          expenseId: expense.id,
+          expectedAmount,
+          expectedCurrency,
+        },
+      });
       return [expense, false];
     }
 
