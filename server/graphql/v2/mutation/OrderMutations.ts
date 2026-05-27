@@ -27,7 +27,7 @@ import OrderStatuses from '../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { applyContributionAccountingCategoryRules } from '../../../lib/accounting/categorization/contribution-rules';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
-import { purgeAllCachesForAccount } from '../../../lib/cache';
+import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
@@ -286,6 +286,15 @@ const orderMutations = {
         type: GraphQLString,
         description: 'Category for cancelling subscription',
       },
+      removeAsContributor: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Remove the contributor from the collective public profile. Host admins only.',
+      },
+      messageForContributor: {
+        type: GraphQLString,
+        description: 'Optional message to send to the contributor. Host admins only.',
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
@@ -305,22 +314,67 @@ const orderMutations = {
         throw new NotFound('Recurring contribution not found');
       }
 
-      if (!req.remoteUser.isAdminOfCollective(order.fromCollective) && !req.remoteUser.isRoot()) {
-        throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
-        throw new Error('Recurring contribution already canceled');
-      } else if (order.status === OrderStatuses.PAID) {
-        throw new Error('Cannot cancel a paid order');
+      const isHostAdmin = await OrdersLib.isOrderHostAdmin(req, order);
+      const hasHostOptions = Boolean(args.removeAsContributor || args.messageForContributor);
+      if (hasHostOptions && !isHostAdmin) {
+        throw new Forbidden('Only host admins can use these options');
       }
+
+      await OrdersLib.canCancelOrder(req, order, { throw: true });
+
+      if (args.removeAsContributor && !(await OrdersLib.canRemoveContributorFromOrder(req, order))) {
+        throw new Forbidden("You don't have permission to remove contributor from the collective");
+      }
+
+      const host = order.collective.HostCollectiveId
+        ? await req.loaders.Collective.byId.load(order.collective.HostCollectiveId)
+        : null;
+      const messageForContributor = isHostAdmin
+        ? OrdersLib.sanitizeMessageForContributor(args.messageForContributor)
+        : null;
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, isHostAdmin && host ? host : order.fromCollective, {
+        onlyAskOnLogin: true,
+      });
 
       const previousStatus = order.status;
-      await order.update({ status: OrderStatuses.CANCELLED, data: { ...order.data, previousStatus } });
+      await sequelize.transaction(async transaction => {
+        await order.update(
+          { status: OrderStatuses.CANCELLED, data: { ...order.data, previousStatus } },
+          { transaction },
+        );
+
+        if (isHostAdmin && args.removeAsContributor) {
+          await models.Member.destroy({
+            where: {
+              MemberCollectiveId: order.FromCollectiveId,
+              CollectiveId: order.CollectiveId,
+              role: roles.BACKER,
+            },
+            transaction,
+          });
+        }
+      });
+
+      // `Subscription.deactivate` doesn't accept a transaction and performs an external
+      // PayPal call, so it's run after the DB transaction commits to avoid stranding a
+      // deactivated subscription on a rolled-back order.
       if (order.Subscription?.isActive) {
-        await order.Subscription.deactivate();
+        await order.Subscription.deactivate(isHostAdmin ? 'Cancelled by host admin' : undefined, host);
       }
+
+      // The SUBSCRIPTION_CANCELED activity sends the user-facing email for this
+      // host-driven cancel flow. The follow-up CONTRIBUTOR_REMOVED_BY_HOST activity
+      // is recorded for the timeline / webhooks only — it has no email template,
+      // so the contributor doesn't receive duplicate notifications.
+      const cancelFlowHostAction = isHostAdmin
+        ? {
+            cancel: true,
+            refund: false,
+            removeAsContributor: Boolean(args.removeAsContributor),
+          }
+        : undefined;
 
       await models.Activity.create({
         type: activities.SUBSCRIPTION_CANCELED,
@@ -328,20 +382,51 @@ const orderMutations = {
         FromCollectiveId: order.FromCollectiveId,
         HostCollectiveId: order.collective.HostCollectiveId,
         OrderId: order.id,
-        UserId: order.CreatedByUserId,
+        UserId: req.remoteUser.id,
         UserTokenId: req.userToken?.id,
         data: {
           subscription: order.Subscription,
           collective: order.collective.minimal,
           user: req.remoteUser.minimal,
           fromCollective: order.fromCollective.minimal,
+          host: host?.minimal,
           reason: args.reason,
           reasonCode: args.reasonCode,
           order: order.info,
           tier: order.Tier?.info,
           previousStatus,
+          messageForContributors: messageForContributor,
+          messageSource: isHostAdmin ? 'HOST' : 'CONTRIBUTOR',
+          hostAction: cancelFlowHostAction,
         },
       });
+
+      if (isHostAdmin && args.removeAsContributor) {
+        await models.Activity.create({
+          type: activities.CONTRIBUTOR_REMOVED_BY_HOST,
+          CollectiveId: order.CollectiveId,
+          FromCollectiveId: order.FromCollectiveId,
+          HostCollectiveId: order.collective.HostCollectiveId,
+          OrderId: order.id,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          data: {
+            collective: order.collective.minimal,
+            host: host?.minimal,
+            user: req.remoteUser.minimal,
+            fromCollective: order.fromCollective.minimal,
+            order: order.info,
+            messageForContributors: messageForContributor,
+            messageSource: 'HOST',
+            hostAction: cancelFlowHostAction,
+          },
+        });
+      }
+
+      if (isHostAdmin) {
+        purgeCacheForCollective(order.fromCollective.slug);
+        purgeCacheForCollective(order.collective.slug);
+      }
 
       return order.reload();
     },
@@ -1013,6 +1098,9 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      if (!checkScope(req, 'orders')) {
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
+      }
       if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.ORDER)) {
         throw new FeatureNotAllowedForUser();
       }
@@ -1174,8 +1262,8 @@ const orderMutations = {
       } else if (
         fromAccount.HostCollectiveId !== host.id &&
         !req.remoteUser.isRoot() &&
-        !host.data?.allowAddFundsFromAllAccounts &&
-        !host.data?.isTrustedHost
+        !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
+        !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
       ) {
         throw new Error(
           "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
@@ -1344,10 +1432,24 @@ const orderMutations = {
       await checkFeatureAccess(host, FEATURE.EXPECTED_FUNDS, { loaders: req.loaders });
 
       // Load data
-      const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
+      const fromAccount = args.order.fromAccount
+        ? await fetchAccountWithReference(args.order.fromAccount)
+        : await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const tier = args.order.tier
         ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
         : order.tier;
+
+      if (
+        fromAccount &&
+        fromAccount.HostCollectiveId !== host.id &&
+        !(fromAccount.type === CollectiveType.VENDOR && fromAccount.ParentCollectiveId === host.id) &&
+        !req.remoteUser.isRoot() &&
+        !(!host.isPrivate && (host.data?.allowAddFundsFromAllAccounts || host.data?.isTrustedHost))
+      ) {
+        throw new Error(
+          "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+        );
+      }
 
       // Check accounting category
       let AccountingCategoryId = isUndefined(args.order.accountingCategory) ? order.AccountingCategoryId : null;

@@ -62,6 +62,7 @@ import * as expenseLoaders from './expenses';
 import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
 import locationLoaders from './location';
 import {
+  generateAdminMemberCollectiveIdsOfCollectiveLoader,
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
   generateMemberIsActiveLoader,
@@ -552,6 +553,7 @@ export const generateLoaders = req => {
 
       canSeePrivateProfileInfo: collectiveLoaders.canSeePrivateProfileInfo(req),
       canSeePrivateLocation: collectiveLoaders.canSeePrivateLocation(req),
+      canSeePrivateAccount: collectiveLoaders.canSeePrivateAccount(req),
 
       childrenIds: new DataLoader<number, number[]>(ids =>
         Collective.findAll({
@@ -1173,6 +1175,7 @@ export const generateLoaders = req => {
         }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', []) as Transaction[][]),
       ),
       adminUserEmailsForCollective: generateAdminUsersEmailsForCollectiveLoader(),
+      adminMemberCollectiveIdsOfCollective: generateAdminMemberCollectiveIdsOfCollectiveLoader(),
       isActive: generateMemberIsActiveLoader(req),
       remoteUserIdAdminOfHostedAccount: generateRemoteUserIsAdminOfHostedAccountLoader(req),
       countAdminMembersOfCollective: generateCountAdminMembersOfCollective(),

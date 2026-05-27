@@ -7,7 +7,7 @@ import expenseStatus from '../constants/expense-status';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
-import { getFxRate } from './currency';
+import { getFxRate, roundCentsAmount } from './currency';
 import { fillTimeSeriesWithNodes, parseToBoolean } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
@@ -24,7 +24,7 @@ export async function sumTransactionsInCurrency(results, currency) {
 
   for (const result of Object.values(results)) {
     const fxRate = await getFxRate(result.currency, currency);
-    total += Math.round(result.value * fxRate);
+    total += roundCentsAmount(result.value * fxRate, currency);
   }
 
   return total;
@@ -80,7 +80,7 @@ export async function getBalanceAmount(
   // There is no guarantee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -195,7 +195,7 @@ export async function getTotalAmountReceivedAmount(
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -233,7 +233,7 @@ export async function getTotalAmountSpentAmount(
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -400,7 +400,7 @@ export async function getTotalAmountReceivedTimeSeries(
   const nodes = result.groupBy?.date
     ? Object.values(result.groupBy.date).map(node => ({
         date: node.date,
-        amount: { value: Math.round(node.amount * fxRate), currency },
+        amount: { value: roundCentsAmount(node.amount * fxRate, currency), currency },
       }))
     : [];
 
@@ -457,7 +457,7 @@ export async function getBalanceTimeSeries(
     runningBalance += node.amount * fxRate;
     return {
       date: node.date,
-      amount: { value: Math.round(runningBalance), currency },
+      amount: { value: roundCentsAmount(runningBalance, currency), currency },
     };
   });
 
@@ -829,8 +829,9 @@ export async function sumCollectivesTransactions(
       totals[CollectiveId].currency = currency;
     }
 
-    const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
-    const amount = Math.round(value * fxRate);
+    const targetCurrency = totals[CollectiveId].currency;
+    const fxRate = await getFxRate(currency, targetCurrency);
+    const amount = roundCentsAmount(value * fxRate, targetCurrency);
     totals[CollectiveId].value += amount;
 
     // Add extra attributes if any
@@ -869,9 +870,9 @@ export async function sumCollectivesTransactions(
     for (const collectiveId of ids) {
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
-
-        const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
-        totals[CollectiveId].value -= Math.round(value * fxRate);
+        const targetCurrency = totals[CollectiveId].currency;
+        const fxRate = await getFxRate(currency, targetCurrency);
+        totals[CollectiveId].value -= roundCentsAmount(value * fxRate, targetCurrency);
       }
     }
   }
@@ -896,7 +897,7 @@ export async function getYearlyBudgetAmount(collective, { loaders, currency } = 
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -976,8 +977,9 @@ export async function getYearlyBudgets(collectiveIds) {
       totals[collectiveId] = { CollectiveId: collectiveId, currency: result['currency'], value: 0 };
     }
 
-    const fxRate = await getFxRate(result['currency'], totals[collectiveId].currency);
-    totals[collectiveId].value += Math.round(result['amount'] * fxRate);
+    const targetCurrency = totals[collectiveId].currency;
+    const fxRate = await getFxRate(result['currency'], targetCurrency);
+    totals[collectiveId].value += roundCentsAmount(result['amount'] * fxRate, targetCurrency);
   }
 
   for (const CollectiveId of collectiveIds) {
@@ -1022,8 +1024,9 @@ export async function getBlockedExpenseFunds(collectiveIds) {
       totals[collectiveId] = { CollectiveId: collectiveId, currency: result['currency'], value: 0 };
     }
 
-    const fxRate = await getFxRate(result['currency'], totals[collectiveId].currency);
-    totals[collectiveId].value += Math.round(result['amount'] * fxRate);
+    const targetCurrency = totals[collectiveId].currency;
+    const fxRate = await getFxRate(result['currency'], targetCurrency);
+    totals[collectiveId].value += roundCentsAmount(result['amount'] * fxRate, targetCurrency);
   }
 
   return totals;
@@ -1116,8 +1119,9 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
 
-        const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
-        totals[CollectiveId].value -= Math.round(value * fxRate);
+        const targetCurrency = totals[CollectiveId].currency;
+        const fxRate = await getFxRate(currency, targetCurrency);
+        totals[CollectiveId].value -= roundCentsAmount(value * fxRate, targetCurrency);
       }
     }
   }

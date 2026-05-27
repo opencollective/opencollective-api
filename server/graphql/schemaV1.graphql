@@ -49,6 +49,7 @@ interface CollectiveInterface {
   isFirstPartyHost: Boolean!
   isVerified: Boolean!
   isIncognito: Boolean
+  isPrivate: Boolean!
 
   """
   Whether this account is frozen
@@ -142,7 +143,16 @@ interface CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   stats: CollectiveStatsType
@@ -1115,6 +1125,7 @@ type CollectiveFeatures {
   PAYPAL_CONNECT: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
   ACCOUNTING_CATEGORIZATION_RULES: CollectiveFeatureStatus
+  HOST_METRICS: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
@@ -1124,6 +1135,7 @@ type CollectiveFeatures {
   VENDORS: CollectiveFeatureStatus
   ACCOUNT_MANAGEMENT: CollectiveFeatureStatus
   KYC: CollectiveFeatureStatus
+  PUBLIC_PROFILE: CollectiveFeatureStatus
 }
 
 enum CollectiveFeatureStatus {
@@ -2161,6 +2173,11 @@ type Collective implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is private
+  """
+  isPrivate: Boolean!
+
+  """
   Returns whether this collective is a guest profile
   """
   isGuest: Boolean
@@ -2258,8 +2275,16 @@ type Collective implements CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
-    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier] @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -2455,6 +2480,11 @@ type Event implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is private
+  """
+  isPrivate: Boolean!
+
+  """
   Returns whether this collective is a guest profile
   """
   isGuest: Boolean
@@ -2552,8 +2582,16 @@ type Event implements CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
-    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier] @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -2749,6 +2787,11 @@ type Fund implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is private
+  """
+  isPrivate: Boolean!
+
+  """
   Returns whether this collective is a guest profile
   """
   isGuest: Boolean
@@ -2846,8 +2889,16 @@ type Fund implements CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
-    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier] @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -3043,6 +3094,11 @@ type Organization implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is private
+  """
+  isPrivate: Boolean!
+
+  """
   Returns whether this collective is a guest profile
   """
   isGuest: Boolean
@@ -3140,8 +3196,16 @@ type Organization implements CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
-    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier] @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -3337,6 +3401,11 @@ type Project implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is private
+  """
+  isPrivate: Boolean!
+
+  """
   Returns whether this collective is a guest profile
   """
   isGuest: Boolean
@@ -3434,8 +3503,16 @@ type Project implements CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
-    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier] @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -3926,6 +4003,11 @@ type User implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is private
+  """
+  isPrivate: Boolean!
+
+  """
   Returns whether this collective is a guest profile
   """
   isGuest: Boolean
@@ -4023,8 +4105,16 @@ type User implements CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
-    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier] @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(
@@ -4222,6 +4312,11 @@ type Vendor implements CollectiveInterface {
   isIncognito: Boolean
 
   """
+  Returns whether this collective is private
+  """
+  isPrivate: Boolean!
+
+  """
   Returns whether this collective is a guest profile
   """
   isGuest: Boolean
@@ -4319,8 +4414,16 @@ type Vendor implements CollectiveInterface {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-  tiers(id: Int, slug: String, slugs: [String]): [Tier]
-    @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
+  tiers(
+    id: Int
+    slug: String
+    slugs: [String]
+
+    """
+    When true (default), exclude tiers with types that are no longer supported. Use false for edit pages to show all tiers.
+    """
+    onlyValid: Boolean = true
+  ): [Tier] @deprecated(reason: "2025-12-05: Will be deleted soon. Use GraphQL v2")
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
   transactions(

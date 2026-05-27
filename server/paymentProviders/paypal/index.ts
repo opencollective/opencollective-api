@@ -215,6 +215,8 @@ export default {
         const result = await sequelize.transaction(async transaction => {
           const connectedAccount = await models.ConnectedAccount.create(
             {
+              // Adding a `clientId` here would make the connected account usable for payments/payouts.
+              // Make sure to introduce a new flag if you ever touch this.
               service: 'paypal',
               CollectiveId: collective.id,
               CreatedByUserId: req.remoteUser.id,

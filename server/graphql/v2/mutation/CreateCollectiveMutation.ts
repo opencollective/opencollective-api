@@ -55,6 +55,7 @@ async function createCollective(_, args, req) {
         isActive: false,
         CreatedByUserId: remoteUser.id,
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
+        isPrivate: host?.isPrivate ?? false,
       };
 
       if (!isProd && args.testPayload) {
@@ -262,6 +263,7 @@ const createCollectiveMutation = {
       defaultValue: false,
     },
   },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createCollective
   resolve: (_, args, req) => {
     return createCollective(_, args, req);
   },

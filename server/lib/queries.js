@@ -6,7 +6,7 @@ import { TAX_FORM_IGNORED_EXPENSE_STATUSES, TAX_FORM_IGNORED_EXPENSE_TYPES } fro
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
-import { convertToCurrency } from './currency';
+import { getFxRates } from './currency';
 import sequelize from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
 import { ifStr } from './utils';
@@ -26,16 +26,10 @@ const generateFXConversionSQL = async aggregate => {
     amountColumn = 'SUM("t."netAmountInCollectiveCurrency"")';
   }
 
-  const currencies = ['AUD', 'CAD', 'EUR', 'GBP', 'INR', 'MXN', 'SEK', 'USD', 'UYU'];
-
-  const result = await Promise.all(
-    currencies.map(async currency => {
-      const amount = await convertToCurrency(1, 'USD', currency);
-      return `WHEN ${currencyColumn} = '${currency}' THEN ${amountColumn} / ${amount}`;
-    }),
-  );
-
-  return `CASE ${result.join('\n')}ELSE 0 END`;
+  const fxRates = await getFxRates('USD', ['AUD', 'CAD', 'EUR', 'GBP', 'INR', 'MXN', 'SEK', 'USD', 'UYU']);
+  return `CASE ${Object.entries(fxRates)
+    .map(([currency, fxRate]) => `WHEN ${currencyColumn} = '${currency}' THEN ${amountColumn} / ${fxRate}`)
+    .join('\n')}ELSE 0 END`;
 };
 
 const getHosts = async args => {

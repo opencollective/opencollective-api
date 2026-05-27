@@ -11,6 +11,7 @@ const GraphQLExpensePayeeKYC = new GraphQLObjectType({
   name: 'ExpensePayeeKYC',
   fields: () => ({
     status: {
+      description: 'Expense payee KYC status',
       type: new GraphQLEnumType({
         name: 'ExpensePayeeKYCStatus',
         values: {

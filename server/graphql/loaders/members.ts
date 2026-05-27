@@ -55,6 +55,20 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
   );
 };
 
+export const generateAdminMemberCollectiveIdsOfCollectiveLoader = () => {
+  return new DataLoader(async (collectiveIds: readonly number[]): Promise<number[][]> => {
+    const members = await models.Member.findAll({
+      attributes: ['CollectiveId', 'MemberCollectiveId'],
+      where: {
+        role: MemberRoles.ADMIN,
+        CollectiveId: collectiveIds as number[],
+      },
+    });
+    const grouped = groupBy(members, 'CollectiveId');
+    return collectiveIds.map(id => uniq((grouped[id] || []).map(m => m.MemberCollectiveId)));
+  });
+};
+
 export const generateCountAdminMembersOfCollective = () => {
   return new DataLoader(async (collectiveIds: number[]): Promise<number[]> => {
     const adminsByCollective = await models.Member.findAll({

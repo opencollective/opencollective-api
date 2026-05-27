@@ -20,7 +20,7 @@ import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order-status';
 import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import roles from '../../constants/roles';
+import roles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
 import { sanitizeStripeError } from '../../lib/stripe';
@@ -188,15 +188,35 @@ export const UserType = new GraphQLObjectType({
               'Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
           },
         },
-        resolve(user, args, req) {
+        async resolve(user, args, req) {
           const where = { MemberCollectiveId: user.CollectiveId };
           if (args.roles && args.roles.length > 0) {
             where.role = { [Op.in]: args.roles };
           }
 
-          const collectiveConditions = {};
+          const collectiveConditions = { isPrivate: false };
           if (!args.includeIncognito || !req.remoteUser?.isAdmin(user.CollectiveId)) {
             collectiveConditions.isIncognito = false;
+          }
+
+          // Handle private accounts
+          if (req.remoteUser) {
+            if (req.remoteUser.isRoot()) {
+              // Allow all private accounts to be seen by root admins
+              delete collectiveConditions.isPrivate;
+            } else {
+              const directAccess = req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
+              if (directAccess.size) {
+                const idsList = Array.from(directAccess);
+                delete collectiveConditions.isPrivate;
+                collectiveConditions[Op.or] = [
+                  { isPrivate: false },
+                  { id: idsList }, // User is an admin of accountant of the collective
+                  { ParentCollectiveId: idsList }, // User is an admin of accountant of the collective's parent collective (for events/projects)
+                  { HostCollectiveId: idsList, approvedAt: { [Op.ne]: null } }, // User is an admin of accountant of the collective's fiscal host
+                ];
+              }
+            }
           }
 
           return models.Member.findAll({

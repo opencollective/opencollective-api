@@ -230,6 +230,7 @@ export async function createTransactionsFromPaidStripeExpense(
     feesPayer: 'PAYEE' as const,
   };
 
+  const stripeEffectiveAtUnix = charge.created;
   const transaction = {
     netAmountInCollectiveCurrency:
       (balanceTransaction.amount - balanceTransaction.fee) * balanceTransactionToPayeeCurrencyRate,
@@ -253,7 +254,7 @@ export async function createTransactionsFromPaidStripeExpense(
     PaymentMethod: paymentMethod,
     PayoutMethodId: expense.PayoutMethodId,
     taxAmount: 0,
-    clearedAt: moment.unix(balanceTransaction.available_on).toDate(),
+    clearedAt: stripeEffectiveAtUnix ? moment.unix(stripeEffectiveAtUnix).toDate() : null,
     data,
   };
 
@@ -369,7 +370,7 @@ export async function createTransactionsForManuallyPaidExpense(
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';
   const taxRate = (get(expense.data, 'taxes.0.rate') as number | null) || 0;
   const grossPaidAmountWithTaxes = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
-  const grossPaidAmount = Math.round(grossPaidAmountWithTaxes / (1 + taxRate));
+  const grossPaidAmount = roundCentsAmount(grossPaidAmountWithTaxes / (1 + taxRate), host.currency);
   const taxAmountInHostCurrency = grossPaidAmountWithTaxes - grossPaidAmount;
   const netAmountInCollectiveCurrency = toNegative(totalAmountPaidInHostCurrency);
   const amounts = {
@@ -393,9 +394,12 @@ export async function createTransactionsForManuallyPaidExpense(
       'Expense currency must be the same as collective currency',
     );
     amounts.hostCurrencyFxRate = round(Math.abs(grossPaidAmountWithTaxes / expense.amount), 5);
-    amounts.amount = round(amounts.amount / amounts.hostCurrencyFxRate);
-    amounts.netAmountInCollectiveCurrency = round(amounts.netAmountInCollectiveCurrency / amounts.hostCurrencyFxRate);
-    amounts.taxAmount = round(amounts.taxAmount / amounts.hostCurrencyFxRate);
+    amounts.amount = roundCentsAmount(amounts.amount / amounts.hostCurrencyFxRate, expense.collective.currency);
+    amounts.netAmountInCollectiveCurrency = roundCentsAmount(
+      amounts.netAmountInCollectiveCurrency / amounts.hostCurrencyFxRate,
+      expense.collective.currency,
+    );
+    amounts.taxAmount = roundCentsAmount(amounts.taxAmount / amounts.hostCurrencyFxRate, expense.collective.currency);
   }
 
   const expenseDataForTransaction: Record<string, unknown> = {};

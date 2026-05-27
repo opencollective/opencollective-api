@@ -2,6 +2,7 @@ import { GraphQLFloat, GraphQLInt, GraphQLObjectType } from 'graphql';
 import { min, round } from 'lodash';
 import moment from 'moment';
 
+import { roundCentsAmount } from '../../../lib/currency';
 import { GraphQLAveragePeriod } from '../enum/AveragePeriod';
 
 import { GraphQLAmount } from './Amount';
@@ -60,7 +61,10 @@ export const HostedAccountSummary = new GraphQLObjectType({
       },
       resolve: ({ host, summary, periods }, args) => {
         const period = periods[args.period];
-        const value = period > 0 && summary?.expenseTotal ? Math.round(summary?.expenseTotal / period || 0) : 0;
+        const value =
+          period > 0 && summary?.expenseTotal
+            ? roundCentsAmount(summary?.expenseTotal / period || 0, host.currency)
+            : 0;
         return { value, currency: host.currency };
       },
     },
@@ -93,7 +97,9 @@ export const HostedAccountSummary = new GraphQLObjectType({
       resolve: ({ host, summary, periods }, args) => {
         const period = periods[args.period];
         const value =
-          period > 0 && summary?.contributionTotal ? Math.round(summary?.contributionTotal / period || 0) : 0;
+          period > 0 && summary?.contributionTotal
+            ? roundCentsAmount(summary?.contributionTotal / period || 0, host.currency)
+            : 0;
         return { value, currency: host.currency };
       },
     },
@@ -123,7 +129,8 @@ export const HostedAccountSummary = new GraphQLObjectType({
       },
       resolve: ({ host, summary, periods }, args) => {
         const period = periods[args.period];
-        const value = period > 0 && summary?.spentTotal ? Math.round(summary?.spentTotal / period || 0) : 0;
+        const value =
+          period > 0 && summary?.spentTotal ? roundCentsAmount(summary?.spentTotal / period || 0, host.currency) : 0;
         return { value, currency: host.currency };
       },
     },
@@ -137,7 +144,10 @@ export const HostedAccountSummary = new GraphQLObjectType({
       },
       resolve: ({ host, summary, periods }, args) => {
         const period = periods[args.period];
-        const value = period > 0 && summary?.receivedTotal ? Math.round(summary?.receivedTotal / period || 0) : 0;
+        const value =
+          period > 0 && summary?.receivedTotal
+            ? roundCentsAmount(summary?.receivedTotal / period || 0, host.currency)
+            : 0;
         return { value, currency: host.currency };
       },
     },

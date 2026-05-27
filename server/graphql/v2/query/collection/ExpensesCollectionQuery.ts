@@ -17,15 +17,15 @@ import { expenseStatus } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
-import MemberRoles from '../../../../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
 import Expense, { ExpenseType } from '../../../../models/Expense';
-import { KYCVerificationStatus } from '../../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
 import { Forbidden, NotFound, Unauthorized } from '../../../errors';
@@ -225,6 +225,22 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Return expenses only created by this INDIVIDUAL account',
   },
+  paidByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only paid by this INDIVIDUAL account',
+  },
+  approvedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only approved by this INDIVIDUAL account',
+  },
+  rejectedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only rejected by this INDIVIDUAL account',
+  },
+  invitedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only invited by this INDIVIDUAL account',
+  },
   status: {
     type: new GraphQLList(GraphQLExpenseStatusFilter),
     description: 'Use this field to filter expenses on their statuses',
@@ -338,9 +354,13 @@ const loadAllAccountsFromArgs = async (
 ): Promise<{
   fromAccounts: Collective[];
   accounts: Collective[];
-  host: Collective;
-  fromHost: Collective;
-  createdByAccount: Collective;
+  host?: Collective;
+  fromHost?: Collective;
+  createdByAccount?: Collective;
+  paidByAccount?: Collective;
+  approvedByAccount?: Collective;
+  rejectedByAccount?: Collective;
+  invitedByAccount?: Collective;
 }> => {
   if (args.accounts && args.account) {
     throw new Error('accounts and account cannot be used together');
@@ -370,15 +390,39 @@ const loadAllAccountsFromArgs = async (
     }
   };
 
-  const [accounts, fromAccounts, host, fromHost, createdByAccount] = await Promise.all([
+  const [
+    accounts,
+    fromAccounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  ] = await Promise.all([
     getAccountsPromise(),
     getFromAccountPromise(),
     args.host && fetchAccountWithReference(args.host, fetchAccountParams),
     args.fromHost && fetchAccountWithReference(args.fromHost, fetchAccountParams),
     args.createdByAccount && fetchAccountWithReference(args.createdByAccount, fetchAccountParams),
+    args.paidByAccount && fetchAccountWithReference(args.paidByAccount, fetchAccountParams),
+    args.approvedByAccount && fetchAccountWithReference(args.approvedByAccount, fetchAccountParams),
+    args.rejectedByAccount && fetchAccountWithReference(args.rejectedByAccount, fetchAccountParams),
+    args.invitedByAccount && fetchAccountWithReference(args.invitedByAccount, fetchAccountParams),
   ]);
 
-  return { fromAccounts, accounts, host, fromHost, createdByAccount };
+  return {
+    fromAccounts,
+    accounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  };
 };
 
 export const ExpensesCollectionQueryResolver = async (
@@ -388,6 +432,7 @@ export const ExpensesCollectionQueryResolver = async (
 ): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
+  let hasCollectiveInclude = false;
 
   // Check arguments
   if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
@@ -395,7 +440,20 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // Load accounts
-  const { fromAccounts, accounts, host, fromHost, createdByAccount } = await loadAllAccountsFromArgs(args, req);
+  const {
+    fromAccounts,
+    accounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  } = await loadAllAccountsFromArgs(args, req);
+
+  // Block access when explicitly filtering by a private account the viewer cannot see
+  await assertCanSeeAllAccounts(req, [...accounts, ...fromAccounts, host, fromHost].filter(Boolean));
 
   if (fromAccounts.length > 0) {
     if (fromHost) {
@@ -427,6 +485,7 @@ export const ExpensesCollectionQueryResolver = async (
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
     include.push({ association: 'collective', attributes: [], required: true });
+    hasCollectiveInclude = true; // Tracking this as a separate flag to make sure we update dependant paths if changing the include structure.
 
     // Base condition: the expense belongs to an account hosted by this host
     where[Op.and].push({
@@ -465,6 +524,34 @@ export const ExpensesCollectionQueryResolver = async (
     }
   }
 
+  // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
+  // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
+  if (!req.remoteUser?.isRoot() && accounts.length === 0 && !host) {
+    if (!hasCollectiveInclude) {
+      include.push({ association: 'collective', attributes: [], required: true });
+    }
+
+    const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
+
+    if (req.remoteUser) {
+      const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+
+      // Allow user to see all expenses they have submitted through their administrated accounts or own profile
+      orConditions.push({ FromCollectiveId: [req.remoteUser.CollectiveId, ...directAccess] });
+
+      // Allow users to see expenses on private profiles they have access to
+      if (directAccess.length > 0) {
+        orConditions.push(
+          { CollectiveId: directAccess },
+          { '$collective.ParentCollectiveId$': directAccess },
+          { '$collective.HostCollectiveId$': directAccess },
+        );
+      }
+    }
+
+    where[Op.and].push({ [Op.or]: orConditions });
+  }
+
   if (createdByAccount) {
     if (createdByAccount.type !== CollectiveType.USER) {
       throw new Error('createdByAccount only accepts individual accounts');
@@ -478,6 +565,40 @@ export const ExpensesCollectionQueryResolver = async (
     }
 
     where['UserId'] = user.id;
+  }
+
+  const buildActivitySubquery = async (account: Collective, activityType: ActivityTypes): Promise<void> => {
+    const user = await req.loaders.User.byCollectiveId.load(account.id);
+    assert(
+      user,
+      'Account passed to paidByAccount, approvedByAccount, rejectedByAccount or invitedByAccount does not belongs to a user',
+    );
+
+    const hostCondition = host
+      ? sequelize.literal(
+          `EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE "act"."ExpenseId" = "Expense"."id" AND "act"."type" = ${sequelize.escape(activityType)} AND "act"."UserId" = ${sequelize.escape(user.id)} AND "act"."HostCollectiveId" = ${sequelize.escape(host.id)})`,
+        )
+      : sequelize.literal(
+          `EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE "act"."ExpenseId" = "Expense"."id" AND "act"."type" = ${sequelize.escape(activityType)} AND "act"."UserId" = ${sequelize.escape(user.id)})`,
+        );
+
+    where[Op.and].push(hostCondition);
+  };
+
+  if (paidByAccount) {
+    await buildActivitySubquery(paidByAccount, ActivityTypes.COLLECTIVE_EXPENSE_PAID);
+  }
+
+  if (approvedByAccount) {
+    await buildActivitySubquery(approvedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
+  }
+
+  if (rejectedByAccount) {
+    await buildActivitySubquery(rejectedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_REJECTED);
+  }
+
+  if (invitedByAccount) {
+    await buildActivitySubquery(invitedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED);
   }
 
   const isHostAdmin = host && req.remoteUser?.isAdminOfCollective(host);
@@ -651,7 +772,7 @@ export const ExpensesCollectionQueryResolver = async (
                   LIMIT 1),
                 1
               )
-            END * "Expense"."amount" 
+            END * "Expense"."amount"
           `,
             { currency },
             'postgres',
@@ -797,79 +918,81 @@ export const ExpensesCollectionQueryResolver = async (
 
   const kycStatusFilter: 'VERIFIED' | 'PENDING' | undefined = args.kycStatus;
 
+  const escapedHostId = sequelize.escape(host?.id ?? 0);
+  // Non-correlated: computes the set of collective IDs with pending-only KYC from this host once,
+  // then Postgres hashes it and does O(1) probes per expense row. This avoids the correlated
+  // EXISTS that previously ran one index seek per expense (67K+ loops in production plans).
+  const individualPendingIn = `"Expense"."FromCollectiveId" IN (
+    SELECT pend."CollectiveId"
+    FROM "KYCVerifications" pend
+    WHERE pend."RequestedByCollectiveId" = ${escapedHostId}
+      AND pend."status" = 'PENDING'
+      AND pend."deletedAt" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "KYCVerifications" ver
+        WHERE ver."CollectiveId" = pend."CollectiveId"
+          AND ver."RequestedByCollectiveId" = ${escapedHostId}
+          AND ver."status" = 'VERIFIED'
+          AND ver."deletedAt" IS NULL
+      )
+  )`;
+  const individualVerifiedIn = `"Expense"."FromCollectiveId" IN (
+    SELECT kyc."CollectiveId"
+    FROM "KYCVerifications" kyc
+    WHERE kyc."RequestedByCollectiveId" = ${escapedHostId}
+      AND kyc."status" = 'VERIFIED'
+      AND kyc."deletedAt" IS NULL
+  )`;
+  const adminPendingExists = `EXISTS (
+    SELECT 1
+    FROM "Members" m
+    INNER JOIN "KYCVerifications" pend
+      ON pend."CollectiveId" = m."MemberCollectiveId"
+     AND pend."RequestedByCollectiveId" = ${escapedHostId}
+     AND pend."status" = 'PENDING'
+     AND pend."deletedAt" IS NULL
+    WHERE m."CollectiveId" = "Expense"."FromCollectiveId"
+      AND m."role" = 'ADMIN'
+      AND m."deletedAt" IS NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM "KYCVerifications" ver
+        WHERE ver."CollectiveId" = m."MemberCollectiveId"
+          AND ver."RequestedByCollectiveId" = ${escapedHostId}
+          AND ver."status" = 'VERIFIED'
+          AND ver."deletedAt" IS NULL
+      )
+  )`;
+  const adminVerifiedExists = `EXISTS (
+    SELECT 1
+    FROM "Members" m
+    INNER JOIN "KYCVerifications" kyc
+      ON kyc."CollectiveId" = m."MemberCollectiveId"
+     AND kyc."RequestedByCollectiveId" = ${escapedHostId}
+     AND kyc."status" = 'VERIFIED'
+     AND kyc."deletedAt" IS NULL
+    WHERE m."CollectiveId" = "Expense"."FromCollectiveId"
+      AND m."role" = 'ADMIN'
+      AND m."deletedAt" IS NULL
+  )`;
+
   if (isHostAdmin && args.status?.includes('READY_TO_PAY')) {
-    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
-    if (!fromCollectiveJoin) {
-      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
-      include.push(fromCollectiveJoin);
-    }
-    fromCollectiveJoin.include = [
-      ...(fromCollectiveJoin.include || []),
-      {
-        association: 'kycVerifications',
-        attributes: [],
-        required: false,
-        where: {
-          RequestedByCollectiveId: host.id,
-          status: { [Op.not]: KYCVerificationStatus.REVOKED },
-        },
-      },
-    ];
-    const ors = [
-      { '$fromCollective.type$': { [Op.notIn]: [CollectiveType.USER] } },
-      { '$fromCollective.kycVerifications.id$': { [Op.eq]: null } },
-      { '$fromCollective.kycVerifications.status$': { [Op.eq]: KYCVerificationStatus.VERIFIED } },
-    ];
-    where[Op.and].push({ [Op.or]: ors });
-  } else if (isHostAdmin && args.status?.includes('ON_HOLD')) {
-    // should ALSO return expenses that are not strictly on hold, but have a kyc verification that is pending
+    where[Op.and].push(sequelize.literal(`NOT (${individualPendingIn}) AND NOT ${adminPendingExists}`));
+  } else if (isHostAdmin && args.status?.includes('ON_HOLD') && args.status.length === 1) {
+    // ON_HOLD is a pseudo-filter (onHold flag and/or KYC pending), not a DB status. Only apply this
+    // when it is the sole status; if combined with real statuses (e.g. Unreplied list), ANDing this
+    // OR would hide every row that is not on hold / KYC pending.
     delete where['onHold'];
-    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
-    if (!fromCollectiveJoin) {
-      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
-      include.push(fromCollectiveJoin);
-    }
-    fromCollectiveJoin.include = [
-      ...(fromCollectiveJoin.include || []),
-      {
-        association: 'kycVerifications',
-        attributes: [],
-        required: false,
-        where: {
-          RequestedByCollectiveId: host.id,
-          status: KYCVerificationStatus.PENDING,
-        },
-      },
-    ];
-    const ors = [{ onHold: true }, { '$fromCollective.kycVerifications.status$': KYCVerificationStatus.PENDING }];
-    where[Op.and].push({ [Op.or]: ors });
+    where[Op.and].push({
+      [Op.or]: [{ onHold: true }, sequelize.literal(`(${individualPendingIn}) OR ${adminPendingExists}`)],
+    });
   }
 
   if (isHostAdmin && kycStatusFilter) {
-    let fromCollectiveJoin = include.find(i => i.association === 'fromCollective');
-    if (!fromCollectiveJoin) {
-      fromCollectiveJoin = { association: 'fromCollective', attributes: [] };
-      include.push(fromCollectiveJoin);
-    }
-    fromCollectiveJoin.attributes = ['id'];
-    fromCollectiveJoin.include = [
-      ...(fromCollectiveJoin.include || []),
-      {
-        association: 'kycVerifications',
-        attributes: ['id'],
-        required: false,
-        where: {
-          ...(kycStatusFilter === 'VERIFIED'
-            ? { status: KYCVerificationStatus.VERIFIED }
-            : kycStatusFilter === 'PENDING'
-              ? { status: KYCVerificationStatus.PENDING }
-              : {}),
-          RequestedByCollectiveId: host.id,
-        },
-      },
-    ];
-
-    where[Op.and].push({ '$fromCollective.kycVerifications.id$': { [Op.not]: null } });
+    const literal =
+      kycStatusFilter === 'PENDING'
+        ? `(${individualPendingIn}) OR ${adminPendingExists}`
+        : `(${individualVerifiedIn}) OR ${adminVerifiedExists}`;
+    where[Op.and].push(sequelize.literal(literal));
   }
 
   let order: OrderItem[];

@@ -9,6 +9,23 @@ import { fakeExpense, fakePayoutMethod, fakeUser } from '../../test-helpers/fake
 import { resetTestDB } from '../../utils';
 
 describe('server/models/PayoutMethod', () => {
+  describe('filterUserSubmittedData()', () => {
+    it('drops connectedAccountId and stripeAccountId from client payloads', () => {
+      const cleaned = models.PayoutMethod.filterUserSubmittedData({
+        email: 'user@example.com',
+        currency: 'USD',
+        connectedAccountId: 999,
+        stripeAccountId: 'acct_fake',
+      });
+      expect(cleaned).to.deep.equal({ email: 'user@example.com', currency: 'USD' });
+    });
+
+    it('returns empty object for non-object input', () => {
+      expect(models.PayoutMethod.filterUserSubmittedData(null)).to.deep.equal({});
+      expect(models.PayoutMethod.filterUserSubmittedData(undefined)).to.deep.equal({});
+    });
+  });
+
   describe('getFilteredData()', () => {
     it('filters PAYPAL data to safe fields only', () => {
       const pm = models.PayoutMethod.build({

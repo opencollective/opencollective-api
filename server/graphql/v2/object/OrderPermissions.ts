@@ -113,6 +113,20 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
         return req.remoteUser.isAdmin(order.FromCollectiveId);
       },
     },
+    canCancel: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can cancel this recurring contribution',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return OrdersLib.canCancelOrder(req, order);
+      },
+    },
+    canRemoveAsContributor: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can remove the contributor from the collective public profile',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return OrdersLib.canRemoveContributorFromOrder(req, order);
+      },
+    },
   }),
 });
 

@@ -1,5 +1,7 @@
 import { GraphQLString } from 'graphql';
+import { uniq } from 'lodash';
 
+import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
@@ -26,11 +28,18 @@ const TransactionQuery = {
     } else if (args.id) {
       transaction = await models.Transaction.findOne({ where: { uuid: args.id } });
     } else {
-      return new Error('Please provide an id');
+      throw new Error('Please provide an id');
     }
+
     if (!transaction) {
       throw new NotFound('Transaction Not Found');
     }
+
+    const collectiveIds = [transaction.FromCollectiveId, transaction.CollectiveId, transaction.HostCollectiveId];
+    const uniqIds = uniq(collectiveIds.filter(Boolean));
+    const collectives = await req.loaders.Collective.byId.loadMany(uniqIds);
+    await assertCanSeeAllAccounts(req, collectives.filter(Boolean));
+
     return transaction;
   },
 };

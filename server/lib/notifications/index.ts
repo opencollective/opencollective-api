@@ -31,8 +31,13 @@ const publishToWebhook = async (notification: Notification, activity: Activity):
   } else {
     const sanitizedActivity = sanitizeActivityForWebhookPayload(activity);
     const enrichedActivity = enrichActivityForWebhookPayload(sanitizedActivity);
-    const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0, timeout: 30000 });
-    return response.status >= 200 && response.status < 300;
+    try {
+      const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0, timeout: 30000 });
+      return response.status >= 200 && response.status < 300;
+    } catch {
+      // Silently fail, we ignore the fact that the webhook is not reachable
+      return false;
+    }
   }
 };
 

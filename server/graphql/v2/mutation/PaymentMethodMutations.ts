@@ -190,6 +190,8 @@ const paymentMethodMutations = {
         throw new Unauthorized();
       }
 
+      await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+
       const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 
       let stripeCustomerAccount = await account.getCustomerStripeAccount(hostStripeAccount.username);
@@ -257,6 +259,8 @@ const paymentMethodMutations = {
         throw new Forbidden('This collective cannot use payment methods');
       }
 
+      await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+
       const stripeCustomerAccount = await account.getCustomerStripeAccount(args.setupIntent.stripeAccount);
       if (!stripeCustomerAccount) {
         throw new NotFound('Stripe customer account not found');
@@ -297,9 +301,7 @@ const paymentMethodMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseOrders(req);
 
       const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
       if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {

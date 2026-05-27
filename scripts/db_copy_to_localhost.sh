@@ -13,29 +13,28 @@ if [[ ${ENV} != staging ]] && [[ ${ENV} != prod ]]; then
   exit 1;
 fi
 
-LOCALDBUSER="opencollective" 
+LOCALDBUSER="opencollective"
 LOCALDBNAME="opencollective_${ENV}_snapshot"
 DBDUMPS_DIR="dbdumps/"
 PG_HOST=${PG_HOST:-"localhost"}
 
-# FILENAME="`date +"%Y-%m-%d"`-${ENV}.pgsql"
-FILENAME="2025-08-13-staging.pgsql"
+FILENAME="`date +"%Y-%m-%d"`-${ENV}.pgsql"
 
-# if [[ ! -d ${DBDUMPS_DIR} ]]; then
-#   mkdir -p "${DBDUMPS_DIR}"
-# fi
+if [[ ! -d ${DBDUMPS_DIR} ]]; then
+  mkdir -p "${DBDUMPS_DIR}"
+fi
 
-# if [[ ! -s ${DBDUMPS_DIR}${FILENAME} ]]; then
-#   echo "Dumping ${ENV} database"
-#   if [ -x "$(command -v heroku)" ]; then
-#     heroku pg:backups:download -a "opencollective-${ENV}-api" -o "${DBDUMPS_DIR}${FILENAME}"
-#   else
-#     PG_URL_ENVIRONMENT_VARIABLE=`heroku config:get PG_URL_ENVIRONMENT_VARIABLE -a "opencollective-${ENV}-api"`
-#     PG_URL_ENVIRONMENT_VARIABLE="${PG_URL_ENVIRONMENT_VARIABLE:-DATABASE_URL}"
-#     PG_URL=`heroku config:get ${PG_URL_ENVIRONMENT_VARIABLE} -a "opencollective-${ENV}-api"`
-#     pg_dump -O -F t "${PG_URL}" > "${DBDUMPS_DIR}${FILENAME}"
-#   fi
-# fi
+if [[ ! -s ${DBDUMPS_DIR}${FILENAME} ]]; then
+  echo "Dumping ${ENV} database"
+  if [ -x "$(command -v heroku)" ]; then
+    heroku pg:backups:download -a "opencollective-${ENV}-api" -o "${DBDUMPS_DIR}${FILENAME}"
+  else
+    PG_URL_ENVIRONMENT_VARIABLE=`heroku config:get PG_URL_ENVIRONMENT_VARIABLE -a "opencollective-${ENV}-api"`
+    PG_URL_ENVIRONMENT_VARIABLE="${PG_URL_ENVIRONMENT_VARIABLE:-DATABASE_URL}"
+    PG_URL=`heroku config:get ${PG_URL_ENVIRONMENT_VARIABLE} -a "opencollective-${ENV}-api"`
+    pg_dump -O -F t "${PG_URL}" > "${DBDUMPS_DIR}${FILENAME}"
+  fi
+fi
 
 echo "DB dump saved in ${DBDUMPS_DIR}${FILENAME}"
 

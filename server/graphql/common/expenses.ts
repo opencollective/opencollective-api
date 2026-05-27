@@ -59,6 +59,7 @@ import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
+import { canSeeAllPrivateAccounts } from '../../lib/private-accounts';
 import { reportErrorToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { deepJSONBSet } from '../../lib/sql';
@@ -106,7 +107,7 @@ import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
-import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
@@ -373,6 +374,32 @@ export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, 
   ]);
 };
 
+/**
+ * Throws when the expense's account is private and the viewer cannot access it, unless they have an
+ * expense-level role (submitter, host, draft invitee, etc.).
+ */
+export async function assertExpenseAccessibleForPrivateCollective(
+  req: express.Request,
+  expense: Expense,
+  options: { draftKey?: string } = {},
+): Promise<void> {
+  const loaderResults = await req.loaders.Collective.byId.loadMany([expense.CollectiveId, expense.FromCollectiveId]);
+  const collectives = loaderResults.filter((result): result is Collective => result instanceof Collective);
+  if (!collectives.some(collective => collective.isPrivate)) {
+    return;
+  } else if (await canSeeAllPrivateAccounts(req, collectives)) {
+    return;
+  } else if (
+    expense.status === expenseStatus.DRAFT &&
+    options.draftKey &&
+    expense.data?.draftKey === options.draftKey
+  ) {
+    return;
+  }
+
+  throw new Forbidden('You are not allowed to see this expense.');
+}
+
 /** Checks if the user can see expense's payout method private details (account number, PayPal email, ...etc) */
 export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
   if (!validateExpenseScope(req)) {
@@ -410,6 +437,8 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
 ) => {
   if (!validateExpenseScope(req)) {
     return false;
+  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id)) {
+    return true;
   }
 
   return remoteUserMeetsOneCondition(
@@ -1965,6 +1994,16 @@ const checkCanUseAccountingCategory = (
   }
 };
 
+/** Private fiscal profiles cannot submit expenses where the payee's fiscal host differs from the collective's host. */
+const assertPrivateOrganizationNoCrossHostExpense = (fromCollective: Collective, collective: Collective): void => {
+  const collectiveHostId = collective.HostCollectiveId;
+  const payeeHostId = fromCollective.HostCollectiveId;
+  const hasPrivate = fromCollective.isPrivate || collective.isPrivate;
+  if (hasPrivate && collectiveHostId && payeeHostId && collectiveHostId !== payeeHostId) {
+    throw new ValidationFailed('Cross-host expenses are not allowed for private accounts.');
+  }
+};
+
 const checkFromCollective = async (
   fromCollective: Collective,
   remoteUser: User,
@@ -2324,6 +2363,7 @@ export async function createExpense(
 
   // Check payee
   await checkFromCollective(fromCollective, remoteUser, collective);
+  assertPrivateOrganizationNoCrossHostExpense(fromCollective, collective);
 
   // Update payee's location
   const existingLocation = await fromCollective.getLocation();
@@ -2589,6 +2629,8 @@ export async function submitExpenseDraft(
   const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser.id === existingExpense.UserId;
   if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
+  } else if (existingExpense.data?.draftKey && existingExpense.data.draftKey === args.draftKey) {
+    allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, existingExpense.id);
   }
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
@@ -3030,6 +3072,7 @@ export async function editExpense(
     await checkFromCollective(expenseData.fromCollective, remoteUser, collective, {
       skipPermissionCheck: options?.skipPermissionCheck,
     });
+    assertPrivateOrganizationNoCrossHostExpense(expenseData.fromCollective, collective);
   }
 
   await checkLockedFields(expense, {
@@ -3102,10 +3145,12 @@ export async function editExpense(
       (!expenseData.payoutMethod?.id || // This represents a new payout method without an id
         expenseData.payoutMethod?.id !== expense.PayoutMethodId)
     ) {
-      payoutMethod =
-        fromCollective.type === CollectiveType.VENDOR
-          ? await fromCollective.getPayoutMethods().then(first)
-          : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+      if (fromCollective.type === CollectiveType.VENDOR) {
+        payoutMethod = await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first);
+        assert(payoutMethod, 'The vendor payee must have a saved payout method');
+      } else {
+        payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+      }
 
       if (
         payoutMethod?.type === PayoutMethodTypes.STRIPE &&
@@ -3238,11 +3283,15 @@ export async function editExpense(
       );
     }
 
-    // Auto Resume Virtual Card
+    // Auto Resume Virtual Card (only when pause was automatic, e.g. missing receipts - not host manual pause)
     if (host?.settings?.virtualcards?.autopause) {
       const virtualCard = await expense.getVirtualCard();
       const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
-      if (virtualCard.isPaused() && expensesMissingReceipts.length === 0) {
+      if (
+        virtualCard.isPaused() &&
+        virtualCard.data?.pauseReason !== 'MANUAL' &&
+        expensesMissingReceipts.length === 0
+      ) {
         await virtualCard.resume();
       }
     }
@@ -3462,20 +3511,24 @@ export const getExpenseFees = async (
     }
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
     const paypalFeesInExpenseCurrency = await estimatePaypalPayoutFeeInExpenseCurrency(host, expense);
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = Math.round(
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = roundCentsAmount(
       paypalFeesInExpenseCurrency / collectiveToExpenseFxRate,
+      expense.collective.currency,
     );
   }
 
   // Build fees in host currency
-  feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
+  feesInHostCurrency.paymentProcessorFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['paymentProcessorFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
-  feesInHostCurrency.hostFeeInHostCurrency = Math.round(
+  feesInHostCurrency.hostFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['hostFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
-  feesInHostCurrency.platformFeeInHostCurrency = Math.round(
+  feesInHostCurrency.platformFeeInHostCurrency = roundCentsAmount(
     collectiveToHostFxRate * (<number>resultFees['platformFeeInCollectiveCurrency'] || 0),
+    host.currency,
   );
 
   if (!resultFees['paymentProcessorFeeInCollectiveCurrency']) {
@@ -3539,7 +3592,7 @@ export const checkHasBalanceToPayExpense = async (
   if (forceManual) {
     assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
     const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
-    const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
+    const balanceInHostCurrency = roundCentsAmount(balanceInCollectiveCurrency * collectiveToHostFxRate, host.currency);
     if (
       ![ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(expense.type) &&
       balanceInHostCurrency < totalAmountPaidInHostCurrency
@@ -3584,21 +3637,21 @@ export const checkHasBalanceToPayExpense = async (
       }
     } else if (isNumber(exchangeStats?.latestRate)) {
       const rate = exchangeStats.latestRate - exchangeStats.stddev * 2;
-      const safeAmount = Math.round(amountToPayInExpenseCurrency / rate);
+      const safeAmount = roundCentsAmount(amountToPayInExpenseCurrency / rate, expense.collective.currency);
       if (balanceInCollectiveCurrency < safeAmount) {
         throw new ValidationFailed(
           `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
-            Math.round(balanceInCollectiveCurrency * rate),
+            roundCentsAmount(balanceInCollectiveCurrency * rate, expense.currency),
             expense.currency,
           )}.`,
         );
       }
     } else {
-      const safeAmount = Math.round(amountToPayInExpenseCurrency * 1.2);
+      const safeAmount = roundCentsAmount(amountToPayInExpenseCurrency * 1.2, expense.collective.currency);
       if (balanceInCollectiveCurrency < safeAmount) {
         throw new ValidationFailed(
           `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
-            Math.round(balanceInCollectiveCurrency / 1.2),
+            roundCentsAmount(balanceInCollectiveCurrency / 1.2, expense.collective.currency),
             expense.collective.currency,
           )}.`,
         );
@@ -3902,7 +3955,8 @@ export async function markExpenseAsUnpaid(
 
     await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
+    const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
+    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null, data });
     return { expense, transaction };
   });
 
@@ -3966,7 +4020,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense: Expense, toCu
     isApproximate: boolean,
     date = expense.createdAt,
   ) => ({
-    value: Math.round(expense.amount * fxRatePercentage),
+    value: roundCentsAmount(expense.amount * fxRatePercentage, toCurrency),
     currency: toCurrency,
     exchangeRate: {
       value: fxRatePercentage,
