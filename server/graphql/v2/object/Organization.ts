@@ -285,18 +285,24 @@ export const getOrganizationFields = () => ({
               ),
             ]),
         )
+        // lists every account (and its children) hosted by this host that the remote user is admin of.
         .with('UserAdminCollectives', db =>
           db
+            // collectives the user is directly a admin of
             .selectFrom('Members as m')
             .innerJoin('Collectives as ac', 'ac.id', 'm.CollectiveId')
             .$if(!!req.remoteUser, qb => qb.where('m.MemberCollectiveId', '=', req.remoteUser.CollectiveId))
+            // short circuit if user is not logged in
             .$if(!req.remoteUser, qb => qb.where(sql<boolean>`false`))
             .where('m.role', '=', MemberRoles.ADMIN)
             .where('m.deletedAt', 'is', null)
             .where('ac.deletedAt', 'is', null)
+            // filter by host or collectives hosted by this host
             .where(({ or, eb }) => or([eb('ac.HostCollectiveId', '=', host.id), eb('ac.id', '=', host.id)]))
             .select('m.CollectiveId as id')
             .union(
+              // children accounts that the user can view vendors for given that vendors attached to parents
+              // also apply to children.
               db
                 .selectFrom('Collectives as c')
                 .innerJoin('Members as m', 'm.CollectiveId', 'c.ParentCollectiveId')
@@ -304,6 +310,7 @@ export const getOrganizationFields = () => ({
                 .where('c.ParentCollectiveId', 'is not', null)
                 .where('c.deletedAt', 'is', null)
                 .$if(!!req.remoteUser, qb => qb.where('m.MemberCollectiveId', '=', req.remoteUser.CollectiveId))
+                // short circuit if user is not logged in
                 .$if(!req.remoteUser, qb => qb.where(sql<boolean>`false`))
                 .where('m.role', '=', MemberRoles.ADMIN)
                 .where('m.deletedAt', 'is', null)
@@ -322,6 +329,11 @@ export const getOrganizationFields = () => ({
             () => sql`COALESCE(data#>>'{useVendorPolicy}', ${hostPolicy}) = ${UseVendorPolicyValue.ALL_SUBMITTERS}`,
           ),
         )
+        // WHO filter: non host admins, verifies if the remoteUser can use the vendor
+        // HOST_AND_COLLECTIVE_ADMINS -> we check is the vendor is scoped by a
+        //  collective returned on the UserAdminCollectives cte
+        // ALL_SUBMITTERS -> true (can be seen by any user)
+        // HOST_ADMINS -> false (user is not host admin)
         .$if(!isAdmin && !!req.remoteUser, qb =>
           qb.where(
             () => sql`(
@@ -351,7 +363,8 @@ export const getOrganizationFields = () => ({
           ),
         );
 
-      // where can be used
+      // WHERE filter: verifies if the vendor can be use on the given accounts args
+      // When given a account scope, check if the vendor can be used in that context.
       if (visibleToAccounts.length > 0) {
         const accountIds = await expandAccountIdsWithParents(visibleToAccounts.map(acc => acc.id));
 
