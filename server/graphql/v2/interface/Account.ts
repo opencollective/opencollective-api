@@ -10,6 +10,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
 import { getSupportedExpenseTypes } from '../../../lib/expenses';
+import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
@@ -218,27 +219,26 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Defines if the contributors wants to be incognito (name not displayed)',
   },
+  isPrivate: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether the account is private',
+  },
   mainProfile: {
     type: GraphQLAccount,
     description:
       'For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".',
     resolve: async (account: Collective, _, req) => {
-      if (!account.isIncognito) {
+      if (!account.isIncognito || !checkScope(req, 'account') || !checkScope(req, 'incognito')) {
         return null;
       }
-      if (!checkScope(req, 'account')) {
-        return null;
-      }
+
       if (
-        !canSeeLegalName(req.remoteUser, account) &&
-        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id) ||
+        canSeeIncognitoProfile(req, account)
       ) {
-        return null;
+        return req.loaders.Collective.mainProfileFromIncognito.load(account.id);
       }
-      if (!checkScope(req, 'incognito')) {
-        return null;
-      }
-      return req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+      return null;
     },
   },
   imageUrl: {

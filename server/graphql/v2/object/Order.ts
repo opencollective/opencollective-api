@@ -13,12 +13,13 @@ import { get, pick, round } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
+import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { getHostFeePercent } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as OrdersLib from '../../common/orders';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
@@ -450,23 +451,25 @@ export const GraphQLOrder = new GraphQLObjectType({
 
           const user = await req.loaders.User.byId.load(order.CreatedByUserId);
           if (user && user.CollectiveId) {
-            const [collective, fromCollective, toCollective] = await req.loaders.Collective.byId.loadMany([
+            const [userCollective, fromCollective, toCollective] = await req.loaders.Collective.byId.loadMany([
               user.CollectiveId,
               order.FromCollectiveId,
               order.CollectiveId,
             ]);
-            const userIsAdminOfFromAccount = req.remoteUser && req.remoteUser.isAdminOfCollective(fromCollective);
-            const hostCollectiveId =
-              toCollective && 'HostCollectiveId' in toCollective && toCollective.HostCollectiveId;
-            const isHostAdminOrAccountant =
-              hostCollectiveId && req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId);
+            const hostCollectiveId = toCollective instanceof Error ? null : toCollective?.HostCollectiveId;
+            const hasContextPermission =
+              !(fromCollective instanceof Error) &&
+              fromCollective?.data?.UserId === order.CreatedByUserId &&
+              getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, fromCollective.id);
+            const isHostAdminOrAccountant = req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId);
             if (
-              collective &&
+              userCollective &&
+              !(userCollective instanceof Error) &&
               fromCollective &&
-              'isIncognito' in fromCollective &&
-              (!fromCollective.isIncognito || isHostAdminOrAccountant || userIsAdminOfFromAccount)
+              !(fromCollective instanceof Error) &&
+              (canSeeIncognitoProfile(req, fromCollective) || hasContextPermission || isHostAdminOrAccountant)
             ) {
-              return collective;
+              return userCollective;
             }
           }
         },
