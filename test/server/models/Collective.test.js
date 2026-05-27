@@ -785,6 +785,73 @@ describe('server/models/Collective', () => {
       expect(applyArgs[3].from).to.equal('no-reply@opencollective.com');
     });
 
+    it('does not un-archive child projects/events when adding a host', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+
+      // Create a collective with an archived project, an archived event, and an active project
+      const collective = await fakeCollective({ HostCollectiveId: null });
+      await collective.addUserWithRole(hostAdmin, 'ADMIN');
+
+      const archivedProject = await fakeProject({
+        ParentCollectiveId: collective.id,
+        HostCollectiveId: null,
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      const archivedEvent = await fakeEvent({
+        ParentCollectiveId: collective.id,
+        HostCollectiveId: null,
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      const activeProject = await fakeProject({
+        ParentCollectiveId: collective.id,
+        HostCollectiveId: null,
+        isActive: false,
+        approvedAt: null,
+      });
+
+      // Verify archived children are archived and the active project is not
+      expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+      expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+      expect(activeProject.deactivatedAt).to.be.null;
+
+      // Populate roles so that isAdmin checks work correctly
+      await hostAdmin.populateRoles();
+
+      // Add the host — hostAdmin is an admin of the host, so it auto-approves
+      await collective.addHost(host, hostAdmin);
+      await Promise.all([
+        archivedProject.reload(),
+        archivedEvent.reload(),
+        activeProject.reload(),
+        collective.reload(),
+      ]);
+
+      // The parent collective itself should be active (auto-approved)
+      expect(collective.isActive).to.be.true;
+
+      // The active project should be approved and active
+      expect(activeProject.HostCollectiveId).to.equal(host.id);
+      expect(activeProject.isActive).to.be.true;
+      expect(activeProject.approvedAt).to.not.be.null;
+      expect(activeProject.deactivatedAt).to.be.null;
+
+      // The archived children should have their host updated but remain archived: deactivatedAt preserved and isActive still false
+      expect(archivedProject.HostCollectiveId).to.equal(host.id);
+      expect(archivedProject.deactivatedAt).to.not.be.null;
+      expect(archivedProject.isActive).to.be.false;
+      expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+      expect(activeProject.approvedAt).to.not.be.null;
+
+      expect(archivedEvent.HostCollectiveId).to.equal(host.id);
+      expect(archivedEvent.deactivatedAt).to.not.be.null;
+      expect(archivedEvent.isActive).to.be.false;
+      expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+      expect(activeProject.approvedAt).to.not.be.null;
+    });
+
     it('updates hostFeePercent for collective and events when adding or changing host', async () => {
       const collective = await fakeCollective({ hostFeePercent: 0, HostCollectiveId: null });
       const event = await fakeEvent({

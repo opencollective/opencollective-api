@@ -2537,6 +2537,10 @@ class Collective extends ModelWithPublicId<
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
+    if (this.ParentCollectiveId && !isNull(this.deactivatedAt)) {
+      updatedValues.isActive = false;
+    }
+
     // events should take the currency of their parent collective, not necessarily the one from their host.
     if ([CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(this.type)) {
       updatedValues.currency = hostCollective.currency;
