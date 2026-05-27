@@ -196,7 +196,7 @@ describe('server/models/User', () => {
         await asAccountantCollective.addUserWithRole(user, 'ACCOUNTANT');
         const backerOnly = await fakeCollective();
         await backerOnly.addUserWithRole(user, 'BACKER');
-        await user.populateRoles();
+        await user.populateRoles({ force: true });
 
         const adminOrAccountant = user.getCollectiveIdsForRoles(new Set([MemberRoles.ADMIN, MemberRoles.ACCOUNTANT]));
         expect(adminOrAccountant.has(asAdmin.id)).to.be.true;

@@ -294,6 +294,8 @@ const HostApplicationMutations = {
       const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
       if (!isHostAdmin && !isAccountAdmin && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
         throw new Forbidden('Only the host admin or the account admin can trigger this action');
+      } else if (host.isPrivate && !isHostAdmin) {
+        throw new Forbidden('Only the host admin can trigger this action');
       }
 
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, [account, host], { alwaysAskForToken: true });

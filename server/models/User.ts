@@ -196,8 +196,8 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
     return collective.getIncognitoProfile();
   };
 
-  populateRoles = async function () {
-    if (this.rolesByCollectiveId) {
+  populateRoles = async function ({ force = false } = {}) {
+    if (this.rolesByCollectiveId && !force) {
       debug('roles already populated');
       return Promise.resolve(this);
     }

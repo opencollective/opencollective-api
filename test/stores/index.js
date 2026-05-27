@@ -113,6 +113,7 @@ export async function newHost(name, currency, hostFee, userData = {}, hostData =
     CreatedByUserId: hostAdmin.id,
     isActive: true,
     settings: { apply: true },
+    hasHosting: true,
     ...hostData,
   });
   await hostCollective.addUserWithRole(hostAdmin, 'ADMIN');
