@@ -12,21 +12,23 @@ import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { checkBatchStatus } from '../../server/paymentProviders/paypal/payouts';
 import { runCronJob } from '../utils';
 
-async function run() {
+export async function run() {
   const expenses = await models.Expense.findAll({
     where: {
       [Op.or]: [
-        { status: status.PROCESSING },
         {
-          status: { [Op.notIn]: [status.PAID, status.ERROR, status.REJECTED, status.SPAM, status.INCOMPLETE] },
+          status: status.PROCESSING,
+          // Updated more than 30 minutes ago, to avoid interaction with webhook
+          updatedAt: { [Op.lte]: moment.utc().subtract(30, 'minutes').toDate() },
+        },
+        {
+          status: status.PAID,
           updatedAt: {
-            // 40 so we can cover the 30 day limit
-            [Op.gte]: moment().subtract(40, 'days').toDate(),
+            // Last updated within the past 10 days
+            [Op.gte]: moment.utc().subtract(10, 'days').toDate(),
           },
         },
       ],
-      // 30 minutes window to avoid race conditions with the webhook interface
-      updatedAt: { [Op.lte]: moment().subtract(30, 'minutes').toDate() },
       'data.payout_batch_id': { [Op.not]: null },
     },
     include: [
@@ -39,7 +41,6 @@ async function run() {
   for (const batch of batches) {
     logger.info(`Checking host ${batch[0]?.collective?.HostCollectiveId} batch with ${batch.length} expense(s)...`);
     await checkBatchStatus(batch).catch(e => {
-      console.error(e);
       reportErrorToSentry(e);
     });
   }

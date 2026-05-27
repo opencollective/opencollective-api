@@ -235,6 +235,16 @@ interface Account {
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -787,6 +797,26 @@ interface Account {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -3044,6 +3074,16 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -3633,6 +3673,26 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -4042,7 +4102,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -4450,6 +4509,123 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): LegalDocumentCollection!
 
   """
+  List of accounting categories for this host
+  """
+  accountingCategories(
+    """
+    Filter accounting categories by kind
+    """
+    kind: [AccountingCategoryKind!]
+
+    """
+    Filter by accounting category applicable to this account
+    """
+    account: AccountReferenceInput
+  ): AccountingCategoryCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  contributionAccountingCategoryRules: [ContributionAccountingCategoryRule!]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the account has money management activated.
+  """
+  hasMoneyManagement: Boolean! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  The list of payout methods this Host accepts for its expenses
+  """
+  supportedPayoutMethods: [PayoutMethodType]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Manual payment providers configured for this host
+  """
+  manualPaymentProviders(
+    """
+    Filter by provider type
+    """
+    type: ManualPaymentProviderType
+
+    """
+    Whether to include archived providers
+    """
+    includeArchived: Boolean! = false
+  ): [ManualPaymentProvider!]! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  If the host supports PayPal, this will contain the client ID to use in the frontend
+  """
+  paypalClientId: String @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
+  """
+  supportedPaymentMethods: [PaymentMethodLegacyType]
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Stripe connected account
+  """
+  stripe: StripeConnectedAccount @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  contributionStats(
+    """
+    A collection of accounts for which the contribution stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate contribution statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate contribution statistics until this date.
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series
+    """
+    timeUnit: TimeUnit
+  ): ContributionStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  expenseStats(
+    """
+    A collection of accounts for which the expense stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate expense statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate expense statistics until this date.
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+  ): ExpenseStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host allows adding funds from all accounts
+  """
+  allowAddFundsFromAllAccounts: Boolean!
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host has any Stripe disputed orders
+  """
+  hasDisputedOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns whether the host has any Stripe in review orders
+  """
+  hasInReviewOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
   Returns a list of vendors that works with this host
   """
   vendors(
@@ -4513,6 +4689,12 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     """
     offset: Int! = 0
   ): AccountCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+
+  """
+  Returns the legal documents required by this host
+  """
+  requiredLegalDocuments: [LegalDocumentType!]!
+    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
 
   """
   Returns a list of transactions imports for this host
@@ -4599,129 +4781,6 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Returns stats for off platform transactions
   """
   offPlatformTransactionsStats: TransactionsImportStats!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns the legal documents required by this host
-  """
-  requiredLegalDocuments: [LegalDocumentType!]!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host has any Stripe disputed orders
-  """
-  hasDisputedOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host has any Stripe in review orders
-  """
-  hasInReviewOrders: Boolean @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the host allows adding funds from all accounts
-  """
-  allowAddFundsFromAllAccounts: Boolean!
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  contributionStats(
-    """
-    A collection of accounts for which the contribution stats should be returned.
-    """
-    account: [AccountReferenceInput!]
-
-    """
-    Calculate contribution statistics beginning from this date.
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate contribution statistics until this date.
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series
-    """
-    timeUnit: TimeUnit
-  ): ContributionStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  expenseStats(
-    """
-    A collection of accounts for which the expense stats should be returned.
-    """
-    account: [AccountReferenceInput!]
-
-    """
-    Calculate expense statistics beginning from this date.
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate expense statistics until this date.
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
-    """
-    timeUnit: TimeUnit
-  ): ExpenseStats! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
-  """
-  supportedPaymentMethods: [PaymentMethodLegacyType]
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Manual payment providers configured for this host
-  """
-  manualPaymentProviders(
-    """
-    Filter by provider type
-    """
-    type: ManualPaymentProviderType
-
-    """
-    Whether to include archived providers
-    """
-    includeArchived: Boolean! = false
-  ): [ManualPaymentProvider!]! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  If the host supports PayPal, this will contain the client ID to use in the frontend
-  """
-  paypalClientId: String @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  The list of payout methods this Host accepts for its expenses
-  """
-  supportedPayoutMethods: [PayoutMethodType]
-    @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Stripe connected account
-  """
-  stripe: StripeConnectedAccount @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  Returns whether the account has money management activated.
-  """
-  hasMoneyManagement: Boolean! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-
-  """
-  List of accounting categories for this host
-  """
-  accountingCategories(
-    """
-    Filter accounting categories by kind
-    """
-    kind: [AccountingCategoryKind!]
-
-    """
-    Filter by accounting category applicable to this account
-    """
-    account: AccountReferenceInput
-  ): AccountingCategoryCollection! @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
-  contributionAccountingCategoryRules: [ContributionAccountingCategoryRule!]
     @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
 }
 
@@ -5928,6 +5987,8 @@ enum ActivityType {
   HOST_APPLICATION_CONTACT
   HOST_APPLICATION_COMMENT_CREATED
   CONTRIBUTION_REJECTED
+  CONTRIBUTION_REFUNDED
+  CONTRIBUTOR_REMOVED_BY_HOST
   SUBSCRIPTION_ACTIVATED
   SUBSCRIPTION_CANCELED
   SUBSCRIPTION_PAUSED
@@ -7414,6 +7475,7 @@ type CollectiveFeatures {
   VENDORS: CollectiveFeatureStatus
   ACCOUNT_MANAGEMENT: CollectiveFeatureStatus
   KYC: CollectiveFeatureStatus
+  PUBLIC_PROFILE: CollectiveFeatureStatus
 }
 
 enum CollectiveFeatureStatus {
@@ -7799,8 +7861,6 @@ type TransactionsAmountGroup {
 
 type CommunityStats {
   id: String!
-  associatedCollectives: [CommunityAssociatedAccount]
-  associatedOrganizations: [CommunityAssociatedAccount]
   relations: [CommunityRelationType]!
   transactionSummary: [CommunityTransactionSummary!]!
   transactionSummaryTimeSeries(
@@ -7822,14 +7882,6 @@ type CommunityStats {
     """
     offset: Int! = 0
   ): ActivityCollection
-}
-
-type CommunityAssociatedAccount {
-  account: Account
-  relations: [CommunityRelationType]
-  lastInteractionAt: DateTime
-  firstInteractionAt: DateTime
-  transactionSummary: CommunityTransactionSummary!
 }
 
 enum CommunityRelationType {
@@ -8335,6 +8387,175 @@ type LegalDocumentCollection implements Collection {
 }
 
 """
+A collection of "Accounting Categories"
+"""
+type AccountingCategoryCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+
+  """
+  The Accounting Categories
+  """
+  nodes: [AccountingCategory!]!
+}
+
+enum AccountingCategoryKind {
+  ADDED_FUNDS
+  CONTRIBUTION
+  EXPENSE
+}
+
+"""
+A rule for categorizing contributions
+"""
+type ContributionAccountingCategoryRule {
+  id: NonEmptyString!
+  name: NonEmptyString!
+  enabled: Boolean!
+  predicates: [JSONObject!]!
+  accountingCategory: AccountingCategory!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
+
+"""
+The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSONObject
+
+"""
+A manual payment provider configured by a host for contributors to use
+"""
+type ManualPaymentProvider {
+  """
+  Unique identifier for this provider
+  """
+  id: String!
+
+  """
+  The resource public id (ie: mpp_xxxxxxxx)
+  """
+  publicId: String!
+
+  """
+  The type of manual payment provider
+  """
+  type: ManualPaymentProviderType!
+
+  """
+  Display name for this payment provider
+  """
+  name: NonEmptyString!
+
+  """
+  Payment instructions to show contributors (HTML)
+  """
+  instructions: String
+
+  """
+  Icon name for this payment provider
+  """
+  icon: String
+
+  """
+  Bank account details for BANK_TRANSFER type providers
+  """
+  accountDetails: JSON
+
+  """
+  Whether this provider has been archived
+  """
+  isArchived: Boolean!
+
+  """
+  When this provider was created
+  """
+  createdAt: DateTime!
+
+  """
+  When this provider was last updated
+  """
+  updatedAt: DateTime!
+}
+
+"""
+The type of manual payment provider
+"""
+enum ManualPaymentProviderType {
+  BANK_TRANSFER
+  OTHER
+}
+
+"""
+Stripe connected account properties
+"""
+type StripeConnectedAccount {
+  username: String
+  issuingBalance: Amount
+}
+
+"""
+Contribution statistics related to the given accounts
+"""
+type ContributionStats {
+  """
+  The total number of contributions
+  """
+  contributionsCount: Int!
+
+  """
+  Number of one time contributions
+  """
+  oneTimeContributionsCount: Int!
+
+  """
+  Number of recurring contributions
+  """
+  recurringContributionsCount: Int!
+
+  """
+  The daily average income
+  """
+  dailyAverageIncomeAmount: Amount!
+}
+
+"""
+Expense statistics related to the given accounts
+"""
+type ExpenseStats {
+  """
+  The total number of expenses
+  """
+  expensesCount: Int!
+
+  """
+  The daily average paid in expenses
+  """
+  dailyAverageAmount: Amount!
+
+  """
+  Number of invoices
+  """
+  invoicesCount: Int!
+
+  """
+  Number of reimbursements
+  """
+  reimbursementsCount: Int!
+
+  """
+  Number of grants
+  """
+  grantsCount: Int!
+}
+
+"""
 A collection of Vendors
 """
 type VendorCollection implements Collection {
@@ -8476,11 +8697,6 @@ type TransactionsImport {
   ): TransactionsImportRowCollection!
   stats: TransactionsImportStats!
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Type of the import
@@ -8688,11 +8904,6 @@ enum TransactionsImportRowStatus {
   ON_HOLD
 }
 
-"""
-The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
-"""
-scalar JSONObject
-
 type TransactionsImportStats {
   """
   Total number of rows in the import
@@ -8772,165 +8983,6 @@ input TransactionsImportRowOrderInput {
 
 enum TransactionsImportRowOrderInputField {
   DATE
-}
-
-"""
-Contribution statistics related to the given accounts
-"""
-type ContributionStats {
-  """
-  The total number of contributions
-  """
-  contributionsCount: Int!
-
-  """
-  Number of one time contributions
-  """
-  oneTimeContributionsCount: Int!
-
-  """
-  Number of recurring contributions
-  """
-  recurringContributionsCount: Int!
-
-  """
-  The daily average income
-  """
-  dailyAverageIncomeAmount: Amount!
-}
-
-"""
-Expense statistics related to the given accounts
-"""
-type ExpenseStats {
-  """
-  The total number of expenses
-  """
-  expensesCount: Int!
-
-  """
-  The daily average paid in expenses
-  """
-  dailyAverageAmount: Amount!
-
-  """
-  Number of invoices
-  """
-  invoicesCount: Int!
-
-  """
-  Number of reimbursements
-  """
-  reimbursementsCount: Int!
-
-  """
-  Number of grants
-  """
-  grantsCount: Int!
-}
-
-"""
-A manual payment provider configured by a host for contributors to use
-"""
-type ManualPaymentProvider {
-  """
-  Unique identifier for this provider
-  """
-  id: String!
-
-  """
-  The resource public id (ie: mpp_xxxxxxxx)
-  """
-  publicId: String!
-
-  """
-  The type of manual payment provider
-  """
-  type: ManualPaymentProviderType!
-
-  """
-  Display name for this payment provider
-  """
-  name: NonEmptyString!
-
-  """
-  Payment instructions to show contributors (HTML)
-  """
-  instructions: String
-
-  """
-  Icon name for this payment provider
-  """
-  icon: String
-
-  """
-  Bank account details for BANK_TRANSFER type providers
-  """
-  accountDetails: JSON
-
-  """
-  Whether this provider has been archived
-  """
-  isArchived: Boolean!
-
-  """
-  When this provider was created
-  """
-  createdAt: DateTime!
-
-  """
-  When this provider was last updated
-  """
-  updatedAt: DateTime!
-}
-
-"""
-The type of manual payment provider
-"""
-enum ManualPaymentProviderType {
-  BANK_TRANSFER
-  OTHER
-}
-
-"""
-Stripe connected account properties
-"""
-type StripeConnectedAccount {
-  username: String
-  issuingBalance: Amount
-}
-
-"""
-A collection of "Accounting Categories"
-"""
-type AccountingCategoryCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-
-  """
-  The Accounting Categories
-  """
-  nodes: [AccountingCategory!]!
-}
-
-enum AccountingCategoryKind {
-  ADDED_FUNDS
-  CONTRIBUTION
-  EXPENSE
-}
-
-"""
-A rule for categorizing contributions
-"""
-type ContributionAccountingCategoryRule {
-  id: NonEmptyString!
-  name: NonEmptyString!
-  enabled: Boolean!
-  predicates: [JSONObject!]!
-  accountingCategory: AccountingCategory!
-  createdAt: DateTime!
-  updatedAt: DateTime!
 }
 
 enum AccountingCategoryAppliesTo {
@@ -9574,6 +9626,16 @@ type OrderPermissions {
   If paused, whether the current user can resume this order
   """
   canResume: Boolean!
+
+  """
+  Whether the current user can cancel this recurring contribution
+  """
+  canCancel: Boolean!
+
+  """
+  Whether the current user can remove the contributor from the collective public profile
+  """
+  canRemoveAsContributor: Boolean!
 }
 
 type PendingOrderData {
@@ -9694,6 +9756,16 @@ type Bot implements Account {
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -10283,6 +10355,26 @@ type Bot implements Account {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -10694,7 +10786,6 @@ type Bot implements Account {
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 }
 
@@ -10749,6 +10840,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -11338,6 +11439,26 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -11749,7 +11870,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -12384,6 +12504,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -12973,6 +13103,26 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -13384,7 +13534,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -13738,6 +13887,16 @@ type Individual implements Account {
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -14325,6 +14484,26 @@ type Individual implements Account {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -14736,7 +14915,6 @@ type Individual implements Account {
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -15118,6 +15296,16 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -15707,6 +15895,26 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -16116,7 +16324,6 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -16592,6 +16799,16 @@ type Vendor implements Account & AccountWithContributions {
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -17181,6 +17398,26 @@ type Vendor implements Account & AccountWithContributions {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -17592,7 +17829,6 @@ type Vendor implements Account & AccountWithContributions {
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -18102,7 +18338,7 @@ type Query {
     """
     Host context filter
     """
-    host: AccountReferenceInput
+    host: AccountReferenceInput!
     type: [AccountType]
 
     """
@@ -18221,6 +18457,26 @@ type Query {
     Return expenses only created by this INDIVIDUAL account
     """
     createdByAccount: AccountReferenceInput
+
+    """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
 
     """
     Use this field to filter expenses on their statuses
@@ -20578,6 +20834,8 @@ enum ActivityAndClassesType {
   HOST_APPLICATION_CONTACT
   HOST_APPLICATION_COMMENT_CREATED
   CONTRIBUTION_REJECTED
+  CONTRIBUTION_REFUNDED
+  CONTRIBUTOR_REMOVED_BY_HOST
   SUBSCRIPTION_ACTIVATED
   SUBSCRIPTION_CANCELED
   SUBSCRIPTION_PAUSED
@@ -20880,6 +21138,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -21469,6 +21737,26 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -21880,7 +22168,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -22092,6 +22379,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Defines if the contributors wants to be incognito (name not displayed)
   """
   isIncognito: Boolean!
+
+  """
+  Whether the account is private
+  """
+  isPrivate: Boolean!
+
+  """
+  For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".
+  """
+  mainProfile: Account
   imageUrl(height: Int, format: ImageFormat): String
   backgroundImageUrl(height: Int, format: ImageFormat): String
 
@@ -22681,6 +22978,26 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     createdByAccount: AccountReferenceInput
 
     """
+    Return expenses only paid by this INDIVIDUAL account
+    """
+    paidByAccount: AccountReferenceInput
+
+    """
+    Return expenses only approved by this INDIVIDUAL account
+    """
+    approvedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only rejected by this INDIVIDUAL account
+    """
+    rejectedByAccount: AccountReferenceInput
+
+    """
+    Return expenses only invited by this INDIVIDUAL account
+    """
+    invitedByAccount: AccountReferenceInput
+
+    """
     Use this field to filter expenses on their statuses
     """
     status: [ExpenseStatusFilter]
@@ -23092,7 +23409,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The offset to use to fetch
     """
     offset: Int! = 0
-    account: AccountReferenceInput!
   ): WebhookCollection!
 
   """
@@ -24495,6 +24811,11 @@ type Mutation {
   setNewsletterOptIn(newsletterOptIn: Boolean!): Individual!
 
   """
+  Create an incognito profile for the logged-in user, or return the existing one. Scope: "account".
+  """
+  createIncognitoProfile: Individual!
+
+  """
   Set password to Individual. Scope: "account". 2FA.
   """
   setPassword(
@@ -24841,6 +25162,16 @@ type Mutation {
     Category for cancelling subscription
     """
     reasonCode: String
+
+    """
+    Remove the contributor from the collective public profile. Host admins only.
+    """
+    removeAsContributor: Boolean = false
+
+    """
+    Optional message to send to the contributor. Host admins only.
+    """
+    messageForContributor: String
   ): Order
 
   """
@@ -25107,16 +25438,6 @@ type Mutation {
   Remove the given payout method. Scope: "expenses".
   """
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
-
-  """
-  Restore the given payout method. Scope: "expenses".
-  """
-  restorePayoutMethod(
-    """
-    Payout Method reference
-    """
-    payoutMethod: PayoutMethodReferenceInput!
-  ): PayoutMethod! @deprecated(reason: "2025-02-10: Payout methods cannot be restored.")
   editPayoutMethod(
     """
     Payout Method reference
@@ -25402,6 +25723,21 @@ type Mutation {
     If true, the refund will be processed even if it exceeds the balance of the Collective
     """
     ignoreBalanceCheck: Boolean
+
+    """
+    If true, cancel the associated recurring contribution. Host admins only.
+    """
+    cancelRecurringContribution: Boolean = false
+
+    """
+    If true, remove the contributor from the collective public profile. Host admins only.
+    """
+    removeAsContributor: Boolean = false
+
+    """
+    Optional message to include in the contributor notification email. Host admins only.
+    """
+    messageForContributor: String
   ): Transaction
 
   """
@@ -27730,6 +28066,11 @@ input OrderContextInput {
   Whether this order was created using the new platform tip flow
   """
   isNewPlatformTipFlow: Boolean
+
+  """
+  Whether the platform tip was offered to the user in the contribution flow. When explicitly false, the order is persisted as not eligible for platform tips (used by the OSC platform tip A/B).
+  """
+  platformTipOffered: Boolean
 }
 
 input OrderUpdateInput {

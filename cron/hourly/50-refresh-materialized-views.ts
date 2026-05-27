@@ -3,18 +3,19 @@ import '../../server/env';
 import logger from '../../server/lib/logger';
 import { HandlerType, reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
+import { ViewsDatabase } from '../../server/types/kysely-views';
 import { runCronJob } from '../utils';
 
-const VIEWS = [
+const VIEWS: (keyof ViewsDatabase)[] = [
   'CollectiveOrderStats',
   'ExpenseTagStats',
-  'CommunityTransactionSummary',
-  // We need to refresh these two views after 'CommunityTransactionSummary' because they depend on it.
-  'CommunityHostYearlyTransactionSummary',
-  'CommunityHostTransactionSummary',
+  'AdminCommunityTransactionSummary',
+  // We need to refresh these two views after 'AdminCommunityTransactionSummary' because they depend on it.
+  'AdminCommunityHostYearlyTransactionSummary',
+  'AdminCommunityHostTransactionSummary',
 ];
 
-const VIEWS_WITHOUT_UNIQUE_INDEX = ['HostMonthlyTransactions', 'CollectiveTagStats'];
+const VIEWS_WITHOUT_UNIQUE_INDEX: (keyof ViewsDatabase)[] = ['HostMonthlyTransactions', 'CollectiveTagStats'];
 
 /**
  * Refresh the materialized views.

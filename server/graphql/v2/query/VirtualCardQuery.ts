@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import VirtualCard from '../../../models/VirtualCard';
 import { checkScope } from '../../common/scope-check';
 import { NotFound } from '../../errors';
@@ -25,12 +26,15 @@ const VirtualCardQuery = {
       return null;
     }
 
-    const virtualCard = await VirtualCard.findByPk(args.virtualCard.id, {
-      include: ['collective', 'host'],
-    });
+    const where = isEntityPublicId(args.virtualCard.id, EntityShortIdPrefix.VirtualCard)
+      ? { publicId: args.virtualCard.id }
+      : { id: args.virtualCard.id };
+    const virtualCard = await VirtualCard.findOne({ where, include: ['collective', 'host'] });
 
     if (!virtualCard && args.throwIfMissing) {
       throw new NotFound('Virtual Card Not Found');
+    } else if (!virtualCard) {
+      return null;
     }
 
     if (

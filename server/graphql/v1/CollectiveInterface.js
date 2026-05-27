@@ -19,7 +19,7 @@ import { CollectiveType as CollectiveTypeEnum } from '../../constants/collective
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import PlatformConstants from '../../constants/platform';
-import roles from '../../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
 import { hasFeature } from '../../lib/allowed-features';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
@@ -413,6 +413,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isFirstPartyHost: { type: new GraphQLNonNull(GraphQLBoolean) },
       isVerified: { type: new GraphQLNonNull(GraphQLBoolean) },
       isIncognito: { type: GraphQLBoolean },
+      isPrivate: { type: new GraphQLNonNull(GraphQLBoolean) },
       isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isSuspended: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is suspended' },
       isGuest: { type: GraphQLBoolean },
@@ -934,7 +935,8 @@ const CollectiveFields = () => {
       resolve(collective, _, req) {
         if (
           collective.type === CollectiveTypeEnum.EVENT &&
-          (req.remoteUser?.isAdminOfCollective(collective) || req.remoteUser?.hasRole(roles.PARTICIPANT, collective))
+          (req.remoteUser?.isAdminOfCollective(collective) ||
+            req.remoteUser?.hasRole(MemberRoles.PARTICIPANT, collective))
         ) {
           return collective.data?.privateInstructions;
         }
@@ -1019,6 +1021,10 @@ const CollectiveFields = () => {
       resolve(collective) {
         return collective.isIncognito;
       },
+    },
+    isPrivate: {
+      description: 'Returns whether this collective is private',
+      type: new GraphQLNonNull(GraphQLBoolean),
     },
     isGuest: {
       description: 'Returns whether this collective is a guest profile',
@@ -1184,13 +1190,13 @@ const CollectiveFields = () => {
             'Whether incognito profiles should be included in the result. Only works if requesting user is an admin of the account.',
         },
       },
-      resolve(collective, args, req) {
+      async resolve(collective, args, req) {
         const where = { MemberCollectiveId: collective.id };
         const roles = args.roles || (args.role && [args.role]);
         if (roles && roles.length > 0) {
           where.role = { [Op.in]: roles };
         }
-        const collectiveConditions = {};
+        const collectiveConditions = { isPrivate: false };
         if (args.type) {
           collectiveConditions.type = args.type;
         }
@@ -1200,6 +1206,27 @@ const CollectiveFields = () => {
         if (!args.includeIncognito || !(req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot())) {
           collectiveConditions.isIncognito = false; // only admins can see incognito profiles
         }
+
+        // Handle private accounts
+        if (req.remoteUser) {
+          if (req.remoteUser.isRoot()) {
+            // Allow all private accounts to be seen by root admins
+            delete collectiveConditions.isPrivate;
+          } else {
+            const directAccess = req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
+            if (directAccess.size) {
+              const idsList = Array.from(directAccess);
+              delete collectiveConditions.isPrivate;
+              collectiveConditions[Op.or] = [
+                { isPrivate: false },
+                { id: idsList }, // User is an admin of accountant of the collective
+                { ParentCollectiveId: idsList }, // User is an admin of accountant of the collective's parent collective (for events/projects)
+                { HostCollectiveId: idsList, approvedAt: { [Op.ne]: null } }, // User is an admin of accountant of the collective's fiscal host
+              ];
+            }
+          }
+        }
+
         return models.Member.findAll({
           where,
           limit: args.limit,
@@ -1209,6 +1236,7 @@ const CollectiveFields = () => {
               model: models.Collective,
               as: 'collective',
               where: collectiveConditions,
+              required: true,
             },
           ],
         });
@@ -1295,7 +1323,7 @@ const CollectiveFields = () => {
       },
       resolve(collective, args) {
         return models.Member.findAll({
-          where: { CollectiveId: collective.id, role: roles.FOLLOWER },
+          where: { CollectiveId: collective.id, role: MemberRoles.FOLLOWER },
           include: [{ model: models.Collective, as: 'memberCollective' }],
           limit: args.limit,
           offset: args.offset,
@@ -1343,27 +1371,7 @@ const CollectiveFields = () => {
       description:
         'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
       async resolve(account, _, req) {
-        if (!isNil(account.data?.platformTips)) {
-          return Boolean(account.data.platformTips);
-        } else if (PlatformConstants.AllPlatformCollectiveIds.includes(account.id)) {
-          return false;
-        }
-
-        // Look at the host's plan
-        const host = await req.loaders.Collective.host.load(account);
-        if (host) {
-          // New pricing
-          const hasPlatformTips = await req.loaders.PlatformSubscription.hasPlatformTips.load(host.id);
-          if (typeof hasPlatformTips === 'boolean') {
-            return hasPlatformTips;
-          }
-
-          // hasPlatformTips undefined means we're on a legacy plan
-          const plan = host.getLegacyPlan();
-          return Boolean(plan.platformTips);
-        }
-
-        return false;
+        return account.hasPlatformTips({ loaders: req.loaders });
       },
     },
     tiers: {

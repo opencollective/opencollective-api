@@ -120,7 +120,7 @@ import HostApplication, { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
 import Location from './Location';
 import Member from './Member';
-import MemberInvitation from './MemberInvitation';
+import MemberInvitation, { PRIVATE_ACCOUNTS_SUPPORTED_ROLES } from './MemberInvitation';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
@@ -198,6 +198,8 @@ type Settings = {
   disabledTierTypes?: string[];
   /** Set when the account was automatically migrated to the new platform subscription pricing. */
   automaticBillingMigration?: Date | string;
+  /** When true, publicly show "Administrative contribution" instead of "Host fee". */
+  useAlternativeHostFeeNaming?: boolean;
 } & TaxSettings;
 
 type Data = Partial<{
@@ -337,6 +339,7 @@ class Collective extends ModelWithPublicId<
   declare public timezone: string;
   declare public isActive: boolean;
   declare public isIncognito: boolean;
+  declare public isPrivate: boolean;
   declare public approvedAt: Date;
   declare public twitterHandle: string;
   declare public githubHandle: string;
@@ -518,6 +521,7 @@ class Collective extends ModelWithPublicId<
       platformFeePercent: this.platformFeePercent,
       tags: this.tags,
       HostCollectiveId: this.HostCollectiveId,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -588,6 +592,7 @@ class Collective extends ModelWithPublicId<
       description: this.description,
       previewImage: this.previewImage,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -771,18 +776,18 @@ class Collective extends ModelWithPublicId<
     return dbTransaction ? runInTransaction(dbTransaction) : sequelize.transaction(runInTransaction);
   };
 
-  getParentCollective = async function ({ attributes = null, loaders = null } = {}) {
+  getParentCollective = async function ({ attributes = null, loaders = null, transaction = undefined } = {}) {
     if (!this.ParentCollectiveId) {
       return null;
     } else if (attributes) {
-      return Collective.findByPk(this.ParentCollectiveId, { attributes });
+      return Collective.findByPk(this.ParentCollectiveId, { attributes, transaction });
     } else if (this.parentCollective) {
       return this.parentCollective;
-    } else if (loaders) {
+    } else if (loaders && !transaction) {
       this.parentCollective = await loaders.Collective.byId.load(this.ParentCollectiveId);
       return this.parentCollective;
     } else {
-      this.parentCollective = await Collective.findByPk(this.ParentCollectiveId);
+      this.parentCollective = await Collective.findByPk(this.ParentCollectiveId, { transaction });
       return this.parentCollective;
     }
   };
@@ -943,6 +948,7 @@ class Collective extends ModelWithPublicId<
           isIncognito: true,
           settings: null,
           CreatedByUserId: user.id,
+          data: { UserCollectiveId: user.CollectiveId, UserId: user.id },
         },
         { transaction },
       );
@@ -1029,7 +1035,7 @@ class Collective extends ModelWithPublicId<
 
       if (hasNewPricing) {
         const defaultPlan = PlatformSubscriptionTiers[0]; // Discover plan
-        await PlatformSubscription.createSubscription(this, new Date(), defaultPlan, remoteUser, {
+        await PlatformSubscription.replaceCurrentSubscription(this, new Date(), defaultPlan, remoteUser, {
           notify: !silent,
           transaction,
         });
@@ -1480,8 +1486,8 @@ class Collective extends ModelWithPublicId<
   /**
    * Returns true if Collective is a host account open to applications.
    */
-  canApply = async function () {
-    return Boolean(this.hasMoneyManagement && this.settings?.apply);
+  canApply = function () {
+    return Boolean(this.hasHosting && !this.isPrivate && this.settings?.apply);
   };
 
   /**
@@ -2477,7 +2483,7 @@ class Collective extends ModelWithPublicId<
    * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
    * @param {object} [options] (optional, to peform specific actions)
    */
-  addHost = async function (hostCollective, creatorUser, options = undefined) {
+  addHost = async function (hostCollective: Collective, creatorUser: User, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
     } else if (this.hasMoneyManagement) {
@@ -2512,7 +2518,12 @@ class Collective extends ModelWithPublicId<
     }
 
     // If we can't automatically approve the collective and it is not open to new applications, reject it
-    if (!shouldAutomaticallyApprove && !hostCollective.canApply()) {
+    if (
+      !shouldAutomaticallyApprove &&
+      !hostCollective.canApply() &&
+      // Exception to the canApply rule: hosting is enabled, and remote user is an admin of the host
+      !(hostCollective.hasHosting && creatorUser.isAdmin(hostCollective.id))
+    ) {
       throw new Error('This host is not open to applications');
     }
 
@@ -2521,6 +2532,7 @@ class Collective extends ModelWithPublicId<
       hostFeePercent: hostCollective.hostFeePercent,
       platformFeePercent: hostCollective.platformFeePercent,
       currency: undefined,
+      isPrivate: this.isPrivate,
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
@@ -2841,7 +2853,10 @@ class Collective extends ModelWithPublicId<
 
   // edit the list of members and admins of this collective (create/update/remove)
   // creates a User and a UserCollective if needed
-  editMembers = async function (members, defaultAttributes: { remoteUserCollectiveId?: any } = {}) {
+  editMembers = async function (
+    members,
+    defaultAttributes: { remoteUserCollectiveId?: number; CreatedByUserId?: number } = {},
+  ) {
     if (!members || members.length === 0) {
       return null;
     }
@@ -2850,7 +2865,9 @@ class Collective extends ModelWithPublicId<
       throw new Error('There must be at least one admin for the account');
     }
 
-    const allowedRoles = [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
+    const allowedRoles = this.isPrivate
+      ? PRIVATE_ACCOUNTS_SUPPORTED_ROLES
+      : [roles.ADMIN, roles.MEMBER, roles.ACCOUNTANT];
 
     // Ensure only ADMIN and MEMBER roles are used here
     members.forEach(member => {
@@ -3428,7 +3445,7 @@ class Collective extends ModelWithPublicId<
     }
 
     // If the account is connected to another account, we follow the chain
-    if (connectedAccount?.data?.MirrorConnectedAccountId) {
+    if (connectedAccount?.service === Service.TRANSFERWISE && connectedAccount?.data?.MirrorConnectedAccountId) {
       connectedAccount = await ConnectedAccount.findOne({
         where: { id: connectedAccount.data.MirrorConnectedAccountId },
       });
@@ -3644,6 +3661,45 @@ class Collective extends ModelWithPublicId<
     };
 
     return plan;
+  };
+
+  hasPlatformTips = async function ({ loaders = null } = {}): Promise<boolean> {
+    if (!isNil(this.data?.platformTips)) {
+      return Boolean(this.data.platformTips);
+    }
+    if (this.ParentCollectiveId) {
+      const parent = loaders
+        ? await loaders.Collective.byId.load(this.ParentCollectiveId)
+        : await this.getParentCollective();
+      if (parent && !isNil(parent.data?.platformTips)) {
+        return Boolean(parent.data.platformTips);
+      }
+    }
+    if (PlatformConstants.CurrentPlatformCollectiveIds.includes(this.id)) {
+      return false;
+    }
+
+    const host = loaders ? await loaders.Collective.host.load(this) : await this.getHostCollective();
+    if (!host) {
+      return false;
+    }
+    if (PlatformConstants.CurrentPlatformCollectiveIds.includes(host.id)) {
+      return false;
+    }
+
+    if (loaders) {
+      const hasPlatformTips = await loaders.PlatformSubscription.hasPlatformTips.load(host.id);
+      if (typeof hasPlatformTips === 'boolean') {
+        return hasPlatformTips;
+      }
+    } else {
+      const subscription = await PlatformSubscription.getCurrentSubscription(host.id);
+      if (subscription) {
+        return Boolean(subscription.plan.pricing.platformTips);
+      }
+    }
+
+    return Boolean(host.getLegacyPlan()?.platformTips);
   };
 
   /**
@@ -4140,6 +4196,12 @@ Collective.init(
       defaultValue: false,
     },
 
+    isPrivate: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
+
     approvedAt: {
       type: DataTypes.DATE,
     },
@@ -4305,11 +4367,33 @@ Collective.init(
         const newSlug = `${instance.slug}-${Date.now()}`;
         await instance.update({ slug: newSlug });
       },
-      beforeCreate: async instance => {
+      beforeCreate: async (instance, options) => {
         // Make sure user is not prevented from creating collectives
-        const user = instance.CreatedByUserId && (await User.findByPk(instance.CreatedByUserId));
+        const user =
+          instance.CreatedByUserId &&
+          (await User.findByPk(instance.CreatedByUserId, { transaction: options.transaction }));
         if (user && !canUseFeature(user, FEATURE.CREATE_COLLECTIVE)) {
           throw new Error("You're not authorized to create new collectives at the moment.");
+        }
+
+        // Inherit isPrivate from parent host: if the host is private, all hosted accounts must be private too
+        if (!instance.isPrivate && instance.HostCollectiveId) {
+          const host = await Collective.findByPk(instance.HostCollectiveId, {
+            attributes: ['isPrivate'],
+            transaction: options.transaction,
+          });
+          if (host?.isPrivate) {
+            instance.isPrivate = true;
+          }
+        }
+        if (!instance.isPrivate && instance.ParentCollectiveId) {
+          const parent = await Collective.findByPk(instance.ParentCollectiveId, {
+            attributes: ['isPrivate'],
+            transaction: options.transaction,
+          });
+          if (parent?.isPrivate) {
+            instance.isPrivate = true;
+          }
         }
 
         // Check if collective is spam

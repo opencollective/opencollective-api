@@ -4,6 +4,64 @@
  * Do not edit by hand.
  */
 
+export interface AdminCommunityActivitySummaryRow {
+  HostCollectiveId?: number;
+  CollectiveId?: number;
+  FromCollectiveId?: number;
+  activities?: Record<string, unknown> | unknown[];
+  relations?: Record<string, unknown> | unknown[];
+  lastInteractionAt?: string;
+  firstInteractionAt?: string;
+}
+
+export interface AdminCommunityHostTransactionSummaryRow {
+  FromCollectiveId?: number;
+  HostCollectiveId?: number;
+  hostCurrency?: string;
+  kind?: string;
+  debitTotal?: number;
+  debitCount?: number;
+  creditTotal?: number;
+  creditCount?: number;
+  refundDebitTotal?: number;
+  refundDebitCount?: number;
+}
+
+export interface AdminCommunityHostYearlyTransactionSummaryRow {
+  FromCollectiveId?: number;
+  HostCollectiveId?: number;
+  hostCurrency?: string;
+  year?: number;
+  kind?: string;
+  debitTotal?: number;
+  debitCount?: number;
+  creditTotal?: number;
+  creditCount?: number;
+  refundDebitTotal?: number;
+  refundDebitCount?: number;
+}
+
+export interface AdminCommunityTransactionSummaryRow {
+  FromCollectiveId?: number;
+  CollectiveId?: number;
+  HostCollectiveId?: number;
+  year?: number;
+  kind?: string;
+  hostCurrency?: string;
+  debitTotal?: number;
+  debitCount?: number;
+  creditTotal?: number;
+  creditCount?: number;
+  refundDebitTotal?: number;
+  refundDebitCount?: number;
+  debitTotalAcc?: number;
+  debitCountAcc?: number;
+  creditTotalAcc?: number;
+  creditCountAcc?: number;
+  refundDebitTotalAcc?: number;
+  refundDebitCountAcc?: number;
+}
+
 export interface CollectiveBalanceCheckpointRow {
   id?: number;
   CollectiveId?: number;
@@ -42,64 +100,6 @@ export interface CollectiveTransactionStatsRow {
   totalAmountSpentInHostCurrency?: number;
   totalNetAmountSpentInHostCurrency?: number;
   hostCurrency?: string;
-}
-
-export interface CommunityActivitySummaryRow {
-  HostCollectiveId?: number;
-  CollectiveId?: number;
-  FromCollectiveId?: number;
-  activities?: Record<string, unknown> | unknown[];
-  relations?: Record<string, unknown> | unknown[];
-  lastInteractionAt?: string;
-  firstInteractionAt?: string;
-}
-
-export interface CommunityHostTransactionSummaryRow {
-  FromCollectiveId?: number;
-  HostCollectiveId?: number;
-  hostCurrency?: string;
-  kind?: string;
-  debitTotal?: number;
-  debitCount?: number;
-  creditTotal?: number;
-  creditCount?: number;
-  refundDebitTotal?: number;
-  refundDebitCount?: number;
-}
-
-export interface CommunityHostYearlyTransactionSummaryRow {
-  FromCollectiveId?: number;
-  HostCollectiveId?: number;
-  hostCurrency?: string;
-  year?: number;
-  kind?: string;
-  debitTotal?: number;
-  debitCount?: number;
-  creditTotal?: number;
-  creditCount?: number;
-  refundDebitTotal?: number;
-  refundDebitCount?: number;
-}
-
-export interface CommunityTransactionSummaryRow {
-  FromCollectiveId?: number;
-  CollectiveId?: number;
-  HostCollectiveId?: number;
-  year?: number;
-  kind?: string;
-  hostCurrency?: string;
-  debitTotal?: number;
-  debitCount?: number;
-  creditTotal?: number;
-  creditCount?: number;
-  refundDebitTotal?: number;
-  refundDebitCount?: number;
-  debitTotalAcc?: number;
-  debitCountAcc?: number;
-  creditTotalAcc?: number;
-  creditCountAcc?: number;
-  refundDebitTotalAcc?: number;
-  refundDebitCountAcc?: number;
 }
 
 export interface CurrentCollectiveBalanceRow {
@@ -157,14 +157,14 @@ export interface TransactionBalancesRow {
  * Use with Kysely when querying views, e.g. getKysely().selectFrom('ViewName').selectAll()
  */
 export type ViewsDatabase = {
+  AdminCommunityActivitySummary: AdminCommunityActivitySummaryRow;
+  AdminCommunityHostTransactionSummary: AdminCommunityHostTransactionSummaryRow;
+  AdminCommunityHostYearlyTransactionSummary: AdminCommunityHostYearlyTransactionSummaryRow;
+  AdminCommunityTransactionSummary: AdminCommunityTransactionSummaryRow;
   CollectiveBalanceCheckpoint: CollectiveBalanceCheckpointRow;
   CollectiveOrderStats: CollectiveOrderStatsRow;
   CollectiveTagStats: CollectiveTagStatsRow;
   CollectiveTransactionStats: CollectiveTransactionStatsRow;
-  CommunityActivitySummary: CommunityActivitySummaryRow;
-  CommunityHostTransactionSummary: CommunityHostTransactionSummaryRow;
-  CommunityHostYearlyTransactionSummary: CommunityHostYearlyTransactionSummaryRow;
-  CommunityTransactionSummary: CommunityTransactionSummaryRow;
   CurrentCollectiveBalance: CurrentCollectiveBalanceRow;
   CurrentCollectiveTransactionStats: CurrentCollectiveTransactionStatsRow;
   ExpenseTagStats: ExpenseTagStatsRow;

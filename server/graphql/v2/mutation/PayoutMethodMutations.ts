@@ -10,13 +10,13 @@ import {
 import { reportErrorToSentry } from '../../../lib/sentry';
 import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
+import models, { PayoutMethod } from '../../../models';
 import PayoutMethodModel, { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPayoutMethodInput } from '../input/PayoutMethodInput';
-import { fetchPayoutMethodWithReference, GraphQLPayoutMethodReferenceInput } from '../input/PayoutMethodReferenceInput';
+import { fetchPayoutMethodWithReference } from '../input/PayoutMethodReferenceInput';
 import GraphQLPayoutMethod from '../object/PayoutMethod';
 
 const payoutMethodMutations = {
@@ -51,9 +51,10 @@ const payoutMethodMutations = {
       }
 
       return await models.PayoutMethod.create({
-        ...pick(args.payoutMethod, ['name', 'data', 'type']),
+        ...pick(args.payoutMethod, ['name', 'type']),
         CollectiveId: collective.id,
         CreatedByUserId: req.remoteUser.id,
+        data: PayoutMethod.filterUserSubmittedData(args.payoutMethod.data),
       });
     },
   },
@@ -107,20 +108,6 @@ const payoutMethodMutations = {
       });
     },
   },
-  restorePayoutMethod: {
-    description: 'Restore the given payout method. Scope: "expenses".',
-    deprecationReason: '2025-02-10: Payout methods cannot be restored.',
-    type: new GraphQLNonNull(GraphQLPayoutMethod),
-    args: {
-      payoutMethod: {
-        type: new GraphQLNonNull(GraphQLPayoutMethodReferenceInput),
-        description: 'Payout Method reference',
-      },
-    },
-    async resolve() {
-      throw new Forbidden('Payout methods cannot be restored.');
-    },
-  },
   editPayoutMethod: {
     type: new GraphQLNonNull(GraphQLPayoutMethod),
     args: {
@@ -168,7 +155,7 @@ const payoutMethodMutations = {
           ...pick(args.payoutMethod, ['name', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
-          data: { ...payoutMethod.data, ...args.payoutMethod.data }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
+          data: { ...payoutMethod.data, ...PayoutMethod.filterUserSubmittedData(args.payoutMethod.data) }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
         try {
           await handleKycPayoutMethodEdited(oldPayoutMethodDataValues, updatedPayoutMethod);
@@ -184,7 +171,7 @@ const payoutMethodMutations = {
           ...pick(args.payoutMethod, ['name', 'isSaved']),
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
-          data: { ...payoutMethod.data, ...args.payoutMethod.data }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
+          data: { ...payoutMethod.data, ...PayoutMethod.filterUserSubmittedData(args.payoutMethod.data) }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
 
         // Update Pending expenses to use the new payout method

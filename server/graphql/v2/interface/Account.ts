@@ -10,6 +10,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
 import { getSupportedExpenseTypes } from '../../../lib/expenses';
+import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
@@ -217,6 +218,28 @@ const accountFieldsDefinition = () => ({
   isIncognito: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Defines if the contributors wants to be incognito (name not displayed)',
+  },
+  isPrivate: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether the account is private',
+  },
+  mainProfile: {
+    type: GraphQLAccount,
+    description:
+      'For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".',
+    resolve: async (account: Collective, _, req) => {
+      if (!account.isIncognito || !checkScope(req, 'account') || !checkScope(req, 'incognito')) {
+        return null;
+      }
+
+      if (
+        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id) ||
+        canSeeIncognitoProfile(req, account)
+      ) {
+        return req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+      }
+      return null;
+    },
   },
   imageUrl: {
     type: GraphQLString,
@@ -1192,10 +1215,10 @@ export const GraphQLAccount = new GraphQLInterfaceType({
 const accountTransactions = {
   type: new GraphQLNonNull(GraphQLTransactionCollection),
   args: {
-    ...TransactionsCollectionArgs,
+    ...omit(TransactionsCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return TransactionsCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
@@ -1203,30 +1226,30 @@ const accountTransactionGroups = {
   type: new GraphQLNonNull(GraphQLTransactionGroupCollection),
   description: '[!] Warning: this query is currently in beta and the API might change',
   args: {
-    ...TransactionGroupCollectionArgs,
+    ...omit(TransactionGroupCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return TransactionGroupCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return TransactionGroupCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
 const accountOrders = {
   type: new GraphQLNonNull(GraphQLOrderCollection),
   args: {
-    ...OrdersCollectionArgs,
+    ...omit(OrdersCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return OrdersCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return OrdersCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
 const accountWebhooks = {
   type: new GraphQLNonNull(GraphQLWebhookCollection),
   args: {
-    ...WebhookCollectionArgs,
+    ...omit(WebhookCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return WebhookCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return WebhookCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 

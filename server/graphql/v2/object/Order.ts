@@ -1,3 +1,4 @@
+import type express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -12,11 +13,13 @@ import { get, pick, round } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
+import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { getHostFeePercent } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as OrdersLib from '../../common/orders';
 import { PRIVATE_ORDER_ACTIVITIES } from '../../loaders/order';
 import { GraphQLActivityCollection } from '../collection/ActivityCollection';
@@ -27,16 +30,16 @@ import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput
 import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 import { GraphQLTransaction } from '../interface/Transaction';
-import { GraphQLAmount } from '../object/Amount';
-import { GraphQLPaymentMethod } from '../object/PaymentMethod';
-import { GraphQLTier } from '../object/Tier';
 
 import { GraphQLAccountingCategory } from './AccountingCategory';
+import { GraphQLAmount } from './Amount';
 import { GraphQLManualPaymentProvider } from './ManualPaymentProvider';
 import { GraphQLMemberOf } from './Member';
 import GraphQLOrderPermissions from './OrderPermissions';
 import { GraphQLOrderTax } from './OrderTax';
+import { GraphQLPaymentMethod } from './PaymentMethod';
 import { GraphQLTaxInfo } from './TaxInfo';
+import { GraphQLTier } from './Tier';
 import { GraphQLTransactionsImportRow } from './TransactionsImportRow';
 
 const GraphQLPendingOrderFromAccountInfo = new GraphQLObjectType({
@@ -179,7 +182,12 @@ export const GraphQLOrder = new GraphQLObjectType({
       },
       fromAccount: {
         type: GraphQLAccount,
-        resolve(order, _, req) {
+        async resolve(order, _, req) {
+          const collective = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+          const hostCollectiveId = collective?.HostCollectiveId;
+          if (req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
+            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, order.FromCollectiveId);
+          }
           return req.loaders.Collective.byId.load(order.FromCollectiveId);
         },
       },
@@ -436,16 +444,32 @@ export const GraphQLOrder = new GraphQLObjectType({
       createdByAccount: {
         type: GraphQLAccount,
         description: 'The account who created this order',
-        async resolve(order, _, req) {
+        async resolve(order, _, req: express.Request) {
           if (!order.CreatedByUserId) {
             return null;
           }
 
           const user = await req.loaders.User.byId.load(order.CreatedByUserId);
           if (user && user.CollectiveId) {
-            const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
-            if (collective && !collective.isIncognito) {
-              return collective;
+            const [userCollective, fromCollective, toCollective] = await req.loaders.Collective.byId.loadMany([
+              user.CollectiveId,
+              order.FromCollectiveId,
+              order.CollectiveId,
+            ]);
+            const hostCollectiveId = toCollective instanceof Error ? null : toCollective?.HostCollectiveId;
+            const hasContextPermission =
+              !(fromCollective instanceof Error) &&
+              fromCollective?.data?.UserId === order.CreatedByUserId &&
+              getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, fromCollective.id);
+            const isHostAdminOrAccountant = req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId);
+            if (
+              userCollective &&
+              !(userCollective instanceof Error) &&
+              fromCollective &&
+              !(fromCollective instanceof Error) &&
+              (canSeeIncognitoProfile(req, fromCollective) || hasContextPermission || isHostAdminOrAccountant)
+            ) {
+              return userCollective;
             }
           }
         },

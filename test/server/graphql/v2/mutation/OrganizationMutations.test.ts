@@ -14,7 +14,7 @@ import { crypto } from '../../../../../server/lib/encryption';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models, { PlatformSubscription } from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
-import { fakeCollective, fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakePlatformSubscription, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 const createOrgMutation = gql`
@@ -444,6 +444,54 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.false;
         expect(await PlatformSubscription.getCurrentSubscription(orgWithAdmin.id)).to.not.exist;
+      });
+
+      it('replaces an existing platform subscription when activating money management', async () => {
+        const previous = await fakePlatformSubscription({
+          CollectiveId: orgWithAdmin.id,
+          plan: PlatformSubscriptionTiers[0],
+          period: [{ value: new Date('2026-04-01'), inclusive: true }, null],
+        });
+
+        const result = await utils.graphqlQueryV2(
+          mutation,
+          { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: true },
+          adminUser,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.true;
+
+        const current = await PlatformSubscription.getCurrentSubscription(orgWithAdmin.id);
+        expect(current).to.exist;
+        expect(current.id).to.not.equal(previous.id);
+        expect(current.plan.id).to.equal(PlatformSubscriptionTiers[0].id);
+
+        await previous.reload();
+        expect(previous.endDate).to.not.be.null;
+      });
+
+      it('creates a platform subscription when re-activating after deactivation', async () => {
+        await utils.graphqlQueryV2(
+          mutation,
+          { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: true },
+          adminUser,
+        );
+        await utils.graphqlQueryV2(
+          mutation,
+          { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: false },
+          adminUser,
+        );
+        expect(await PlatformSubscription.getCurrentSubscription(orgWithAdmin.id)).to.not.exist;
+
+        const result = await utils.graphqlQueryV2(
+          mutation,
+          { organization: { legacyId: orgWithAdmin.id }, hasMoneyManagement: true },
+          adminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.editOrganizationMoneyManagementAndHosting.hasMoneyManagement).to.be.true;
+        expect(await PlatformSubscription.getCurrentSubscription(orgWithAdmin.id)).to.exist;
       });
     });
   });

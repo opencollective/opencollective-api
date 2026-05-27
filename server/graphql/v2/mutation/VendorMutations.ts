@@ -65,6 +65,7 @@ const vendorMutations = {
         image: args.vendor.imageUrl,
         isActive: false,
         ParentCollectiveId: host.id,
+        isPrivate: host.isPrivate,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),

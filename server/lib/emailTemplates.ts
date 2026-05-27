@@ -115,6 +115,7 @@ export const templateNames = [
   'activated.hosting',
   'deactivated.hosting',
   'contribution.rejected',
+  'contribution.refunded',
   'virtualcard.charge.declined',
   'virtualcard.requested',
   'conversation.comment.created',

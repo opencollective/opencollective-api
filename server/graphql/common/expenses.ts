@@ -59,6 +59,7 @@ import logger from '../../lib/logger';
 import { fetchExpenseCategoryPredictions } from '../../lib/ml-service';
 import { createRefundTransaction } from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
+import { canSeeAllPrivateAccounts } from '../../lib/private-accounts';
 import { reportErrorToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { deepJSONBSet } from '../../lib/sql';
@@ -106,7 +107,7 @@ import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 import { AmountInputType, getValueInCentsFromAmountInput } from '../v2/input/AmountInput';
 import { GraphQLCurrencyExchangeRateInputType } from '../v2/input/CurrencyExchangeRateInput';
 
-import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkScope } from './scope-check';
 import { hasProtectedUrlPermission } from './uploaded-file';
 
@@ -373,6 +374,32 @@ export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, 
   ]);
 };
 
+/**
+ * Throws when the expense's account is private and the viewer cannot access it, unless they have an
+ * expense-level role (submitter, host, draft invitee, etc.).
+ */
+export async function assertExpenseAccessibleForPrivateCollective(
+  req: express.Request,
+  expense: Expense,
+  options: { draftKey?: string } = {},
+): Promise<void> {
+  const loaderResults = await req.loaders.Collective.byId.loadMany([expense.CollectiveId, expense.FromCollectiveId]);
+  const collectives = loaderResults.filter((result): result is Collective => result instanceof Collective);
+  if (!collectives.some(collective => collective.isPrivate)) {
+    return;
+  } else if (await canSeeAllPrivateAccounts(req, collectives)) {
+    return;
+  } else if (
+    expense.status === expenseStatus.DRAFT &&
+    options.draftKey &&
+    expense.data?.draftKey === options.draftKey
+  ) {
+    return;
+  }
+
+  throw new Forbidden('You are not allowed to see this expense.');
+}
+
 /** Checks if the user can see expense's payout method private details (account number, PayPal email, ...etc) */
 export const canSeeExpensePayoutMethodPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
   if (!validateExpenseScope(req)) {
@@ -410,6 +437,8 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
 ) => {
   if (!validateExpenseScope(req)) {
     return false;
+  } else if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id)) {
+    return true;
   }
 
   return remoteUserMeetsOneCondition(
@@ -1965,6 +1994,16 @@ const checkCanUseAccountingCategory = (
   }
 };
 
+/** Private fiscal profiles cannot submit expenses where the payee's fiscal host differs from the collective's host. */
+const assertPrivateOrganizationNoCrossHostExpense = (fromCollective: Collective, collective: Collective): void => {
+  const collectiveHostId = collective.HostCollectiveId;
+  const payeeHostId = fromCollective.HostCollectiveId;
+  const hasPrivate = fromCollective.isPrivate || collective.isPrivate;
+  if (hasPrivate && collectiveHostId && payeeHostId && collectiveHostId !== payeeHostId) {
+    throw new ValidationFailed('Cross-host expenses are not allowed for private accounts.');
+  }
+};
+
 const checkFromCollective = async (
   fromCollective: Collective,
   remoteUser: User,
@@ -2324,6 +2363,7 @@ export async function createExpense(
 
   // Check payee
   await checkFromCollective(fromCollective, remoteUser, collective);
+  assertPrivateOrganizationNoCrossHostExpense(fromCollective, collective);
 
   // Update payee's location
   const existingLocation = await fromCollective.getLocation();
@@ -2589,6 +2629,8 @@ export async function submitExpenseDraft(
   const userIsAuthor = Boolean(req.remoteUser) && req.remoteUser.id === existingExpense.UserId;
   if (existingExpense.data?.draftKey !== args.draftKey && !userIsOriginalPayee && !userIsAuthor) {
     throw new Unauthorized('You need to submit the right draft key to edit this expense');
+  } else if (existingExpense.data?.draftKey && existingExpense.data.draftKey === args.draftKey) {
+    allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, existingExpense.id);
   }
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
@@ -3030,6 +3072,7 @@ export async function editExpense(
     await checkFromCollective(expenseData.fromCollective, remoteUser, collective, {
       skipPermissionCheck: options?.skipPermissionCheck,
     });
+    assertPrivateOrganizationNoCrossHostExpense(expenseData.fromCollective, collective);
   }
 
   await checkLockedFields(expense, {
@@ -3918,7 +3961,8 @@ export async function markExpenseAsUnpaid(
 
     await createRefundTransaction(transaction, refundedPaymentProcessorFeeAmount, null, expense.User);
 
-    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null });
+    const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
+    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id, PaymentMethodId: null, data });
     return { expense, transaction };
   });
 

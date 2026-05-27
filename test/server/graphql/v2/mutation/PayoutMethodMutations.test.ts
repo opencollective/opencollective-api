@@ -5,6 +5,7 @@ import { createSandbox } from 'sinon';
 import { idDecode, idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import models from '../../../../../server/models';
 import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
@@ -25,6 +26,14 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
           id
           name
           type
+        }
+      }
+    `;
+
+    const removeLinkedPayPalPayoutMutation = gql`
+      mutation RemovePayoutSanitizeCheck($id: String!) {
+        removePayoutMethod(payoutMethodId: $id) {
+          id
         }
       }
     `;
@@ -66,6 +75,98 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data).to.exist;
       expect(result.data.createPayoutMethod).to.deep.include(payoutMethod);
+    });
+
+    it('ignores client-supplied connectedAccountId (and does not link another collective PayPal OAuth row)', async () => {
+      const victimUser = await fakeUser();
+      const otherCollective = await fakeCollective({ admin: victimUser.collective });
+      const otherConnectedAccount = await fakeConnectedAccount({
+        service: 'paypal',
+        CollectiveId: otherCollective.id,
+        token: 'other-token',
+      });
+
+      const attackerUser = await fakeUser();
+      const attackerCollective = await fakeCollective({ admin: attackerUser.collective });
+
+      const result = await graphqlQueryV2(
+        createPayoutMethodMutation,
+        {
+          payoutMethod: {
+            type: PayoutMethodTypes.PAYPAL,
+            name: 'Inject attempt',
+            data: {
+              email: 'attacker@paypal.com',
+              currency: 'USD',
+              isPayPalOAuth: true,
+              connectedAccountId: otherConnectedAccount.id,
+            },
+          },
+          account: { legacyId: attackerCollective.id },
+        },
+        attackerUser,
+      );
+
+      expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+
+      const created = await models.PayoutMethod.findOne({
+        where: { CollectiveId: attackerCollective.id },
+        order: [['id', 'DESC']],
+      });
+      expect(created?.data?.['connectedAccountId']).to.be.undefined;
+
+      await otherConnectedAccount.reload({ paranoid: false });
+      expect(otherConnectedAccount.deletedAt).to.be.null;
+    });
+
+    it('does not revoke another collective PayPal ConnectedAccount when remove runs on a sanitized OAuth PayPal payout method', async () => {
+      const victimUser = await fakeUser();
+      const otherCollective = await fakeCollective({ admin: victimUser.collective });
+      const otherConnectedAccount = await fakeConnectedAccount({
+        service: 'paypal',
+        CollectiveId: otherCollective.id,
+        token: 'other-token',
+        refreshToken: 'other-refresh',
+      });
+
+      const attackerUser = await fakeUser();
+      const attackerCollective = await fakeCollective({ admin: attackerUser.collective });
+
+      const createResult = await graphqlQueryV2(
+        createPayoutMethodMutation,
+        {
+          payoutMethod: {
+            type: PayoutMethodTypes.PAYPAL,
+            name: 'Strip then remove',
+            data: {
+              email: 'attacker@paypal.com',
+              currency: 'USD',
+              isPayPalOAuth: true,
+              connectedAccountId: otherConnectedAccount.id,
+            },
+          },
+          account: { legacyId: attackerCollective.id },
+        },
+        attackerUser,
+      );
+      expect(createResult.errors).to.not.exist;
+
+      const created = await models.PayoutMethod.findOne({
+        where: { CollectiveId: attackerCollective.id },
+        order: [['id', 'DESC']],
+      });
+      expect(created?.type).to.equal(PayoutMethodTypes.PAYPAL);
+      expect(created?.data?.['connectedAccountId']).to.be.undefined;
+
+      const removeResult = await graphqlQueryV2(
+        removeLinkedPayPalPayoutMutation,
+        { id: idEncode(created!.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+        attackerUser,
+      );
+      expect(removeResult.errors).to.not.exist;
+
+      await otherConnectedAccount.reload({ paranoid: false });
+      expect(otherConnectedAccount.deletedAt).to.be.null;
     });
   });
 
@@ -564,6 +665,95 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
         await pm.reload();
         expect(pm.data.currency).to.equal('EUR');
         expect((pm.data as PaypalPayoutMethodData).connectedAccountId).to.equal(4242);
+      });
+    });
+
+    describe('client linked-account field sanitization', () => {
+      beforeEach(utils.resetTestDB);
+
+      it('preserves OAuth PayPal connectedAccountId when client submits a foreign id with an allowed currency change', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user.collective });
+        const otherCollective = await fakeCollective();
+        const otherConnectedAccount = await fakeConnectedAccount({
+          service: 'paypal',
+          CollectiveId: otherCollective.id,
+          token: 'other-token',
+          refreshToken: 'other-refresh',
+        });
+        const legitCa = await fakeConnectedAccount({
+          service: 'paypal',
+          CollectiveId: collective.id,
+          token: 'legit-token',
+          refreshToken: 'legit-refresh',
+        });
+        const paypalOAuthData = {
+          email: 'verified-oauth@paypal.com',
+          currency: 'USD',
+          isPayPalOAuth: true,
+        };
+        const pm = await fakePayoutMethod({
+          CollectiveId: collective.id,
+          type: PayoutMethodTypes.PAYPAL,
+          data: { ...paypalOAuthData, connectedAccountId: legitCa.id },
+          isSaved: true,
+        });
+
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              data: {
+                ...paypalOAuthData,
+                currency: 'EUR',
+                connectedAccountId: otherConnectedAccount.id,
+              },
+            },
+          },
+          user,
+        );
+
+        expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+        await pm.reload();
+        expect(pm.data?.['connectedAccountId']).to.equal(legitCa.id);
+      });
+
+      it('does not set connectedAccountId on manual PayPal when client submits a foreign connectedAccountId', async () => {
+        const user = await fakeUser();
+        const collective = await fakeCollective({ admin: user.collective });
+        const otherCollective = await fakeCollective();
+        const otherConnectedAccount = await fakeConnectedAccount({
+          service: 'paypal',
+          CollectiveId: otherCollective.id,
+          token: 'other-token',
+          refreshToken: 'other-refresh',
+        });
+        const pm = await fakePayoutMethod({
+          CollectiveId: collective.id,
+          type: PayoutMethodTypes.PAYPAL,
+          data: { email: 'manual@paypal.com', currency: 'USD' },
+          isSaved: true,
+        });
+
+        const result = await graphqlQueryV2(
+          editPayoutMethodMutation,
+          {
+            payoutMethod: {
+              id: idEncode(pm.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+              data: {
+                email: 'manual@paypal.com',
+                currency: 'EUR',
+                connectedAccountId: otherConnectedAccount.id,
+              },
+            },
+          },
+          user,
+        );
+
+        expect(result.errors, JSON.stringify(result.errors)).to.not.exist;
+        await pm.reload();
+        expect(pm.data?.['connectedAccountId']).to.be.undefined;
       });
     });
 

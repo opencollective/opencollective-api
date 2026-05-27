@@ -1,10 +1,13 @@
+import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { uniq } from 'lodash';
 import { Order } from 'sequelize';
 
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import models, { Op } from '../../../../models';
 import { GraphQLUpdateCollection } from '../../collection/UpdateCollection';
 import { AccountTypeToModelMapping, GraphQLAccountType } from '../../enum';
-import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import { fetchAccountsWithReferences, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
 import {
   GraphQLUpdateChronologicalOrderInput,
   UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
@@ -35,7 +38,7 @@ const UpdatesCollectionQuery = {
       defaultValue: UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
   },
-  async resolve(_: void, args): Promise<CollectionReturnType> {
+  async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const { offset, limit } = args;
     const where = {
       // Only return published updates
@@ -53,7 +56,9 @@ const UpdatesCollectionQuery = {
         where: {},
       };
       if (args.host) {
-        const hostCollectiveIds = await fetchAccountsIdsWithReference(args.host);
+        const hosts = await fetchAccountsWithReferences(args.host, { throwIfMissing: true });
+        await assertCanSeeAllAccounts(req, hosts);
+        const hostCollectiveIds = uniq(hosts.map(host => host.id));
         include.where = { ...include.where, HostCollectiveId: hostCollectiveIds, approvedAt: { [Op.ne]: null } };
       }
       if (args.accountTag) {
