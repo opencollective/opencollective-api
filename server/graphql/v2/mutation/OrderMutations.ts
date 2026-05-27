@@ -529,17 +529,22 @@ const orderMutations = {
             where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: order.CollectiveId, role: 'BACKER' },
           }));
         const expectedCurrency = order.currency;
-        let newTotalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
-        // We add the current Platform Tip to the totalAmount
-        if (order.platformTipAmount) {
-          newTotalAmount = newTotalAmount + order.platformTipAmount;
-        }
+        const newBaseAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
+        const tax = order.data?.tax;
+        const newTaxAmount = getTaxAmount(newBaseAmount, tax, expectedCurrency);
+        const newTotalAmount = getTotalAmountForOrderInput(
+          newBaseAmount,
+          order.platformTipAmount,
+          tax,
+          expectedCurrency,
+        );
         // interval, amount, tierId, paymentMethodId
         ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
           order,
           tier,
           membership,
           newTotalAmount,
+          newTaxAmount,
         ));
       }
 

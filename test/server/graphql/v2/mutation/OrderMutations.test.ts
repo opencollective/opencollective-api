@@ -3253,10 +3253,45 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         await orderWithTaxes.reload();
-        expect(orderWithTaxes.totalAmount).to.eq(2100);
+        // args.amount=2000 is the pre-tax base, matching createOrder semantics
+        expect(orderWithTaxes.totalAmount).to.eq(2500); // base 2000 + 20% VAT (400) + tip (100)
         expect(orderWithTaxes.platformTipAmount).to.eq(100);
-        expect(orderWithTaxes.taxAmount).to.eq(333); // 20% VAT on $2000 (tip is not included in the tax calculation)
-        expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
+        expect(orderWithTaxes.taxAmount).to.eq(400);
+        expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(2000); // Gross amount
+      });
+
+      it('idempotent updateOrder on a taxed order preserves stored values', async () => {
+        // 20% VAT, base $20 -> stored totalAmount $24, taxAmount $4
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 2400,
+            taxAmount: 400,
+            platformTipAmount: 0,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+          },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            amount: { valueInCents: 2000, currency: 'USD' }, // same pre-tax base
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload();
+        expect(orderWithTaxes.totalAmount).to.eq(2400);
+        expect(orderWithTaxes.taxAmount).to.eq(400);
+        expect(orderWithTaxes.platformTipAmount).to.eq(0);
       });
 
       it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {

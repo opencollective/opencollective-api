@@ -12,7 +12,6 @@ import PaymentMethod from '../models/PaymentMethod';
 import Tier from '../models/Tier';
 import User from '../models/User';
 
-import { roundCentsAmount } from './currency';
 import { findPaymentMethodProvider } from './payments';
 
 const getIsSubscriptionManagedExternally = pm => {
@@ -215,6 +214,7 @@ export const updateSubscriptionDetails = async (
   tier: Tier,
   member: Member,
   amountInCents: number,
+  taxAmount?: number,
 ): Promise<OrderSubscriptionUpdate> => {
   // Make sure the new details are ok values, that match tier's minimum amount if there's one
   checkSubscriptionDetails(order, tier, amountInCents);
@@ -227,12 +227,8 @@ export const updateSubscriptionDetails = async (
   if (amountInCents !== order.totalAmount) {
     newOrderData['totalAmount'] = amountInCents;
     newSubscriptionData['amount'] = amountInCents;
-    // If the order has taxes, we need to update the taxAmount
-    if (order.data?.tax?.percentage) {
-      const taxRate = order.data.tax.percentage / 100;
-      const amountWithoutTip = amountInCents - order.platformTipAmount;
-      const grossAmount = amountWithoutTip / (1 + taxRate);
-      newOrderData['taxAmount'] = roundCentsAmount(amountWithoutTip - grossAmount, order.currency);
+    if (order.data?.tax) {
+      newOrderData['taxAmount'] = taxAmount ?? 0;
     }
   }
 
