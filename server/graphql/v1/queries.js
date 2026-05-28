@@ -575,6 +575,7 @@ const queries = {
           includeVendorsForHostId,
           includeAllVendors,
           vendorVisibleToAccountIds,
+          req,
         });
         return generateResults(collectives, total);
       }

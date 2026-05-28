@@ -5,12 +5,15 @@
 import assert from 'assert';
 
 import config from 'config';
+import type { Request } from 'express';
 import { SelectQueryBuilder } from 'kysely';
 import slugify from 'limax';
 import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
+import { CollectiveType } from '../constants/collectives';
+import { MemberRolesForPrivateAccounts } from '../constants/roles';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import {
@@ -27,6 +30,7 @@ import {
   isEntityPublicId,
 } from './permalink/entity-map';
 import { floatAmountToCents } from './currency';
+import { canSeePrivateAccount } from './private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 import { removeDiacritics } from './string-utils';
 
@@ -34,6 +38,52 @@ import { removeDiacritics } from './string-utils';
 const EMPTY_SEARCH_RESULT = [[], 0];
 
 const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c');
+
+/**
+ * Returns SQL conditions to filter collectives based on private account visibility rules.
+ * Mirrors the logic in `canSeePrivateAccount` (server/graphql/loaders/collective.ts).
+ */
+const buildPrivateAccountSearchVisibilitySQL = async (
+  req?: Request,
+): Promise<{ sql: string; privilegedCollectiveIds?: number[] }> => {
+  const remoteUser = req?.remoteUser;
+  if (!remoteUser) {
+    return { sql: 'AND c."isPrivate" IS FALSE ' };
+  }
+
+  if (remoteUser.isRoot()) {
+    return { sql: '' };
+  }
+
+  await remoteUser.populateRoles();
+  const privilegedCollectiveIds = Array.from(remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+
+  if (privilegedCollectiveIds.length === 0) {
+    return { sql: 'AND c."isPrivate" IS FALSE ' };
+  }
+
+  return {
+    sql: `
+    AND (
+      c."isPrivate" IS FALSE
+      OR c.id IN (:privilegedCollectiveIds)
+      OR c."HostCollectiveId" IN (:privilegedCollectiveIds)
+      OR c."ParentCollectiveId" IN (:privilegedCollectiveIds)
+      OR (
+        c."type" = '${CollectiveType.ORGANIZATION}'
+        AND c."hasHosting" IS TRUE
+        AND EXISTS (
+          SELECT 1 FROM "Collectives" hosted
+          WHERE hosted."HostCollectiveId" = c.id
+          AND hosted."deletedAt" IS NULL
+          AND hosted."approvedAt" IS NOT NULL
+          AND hosted.id IN (:privilegedCollectiveIds)
+        )
+      )
+    ) `,
+    privilegedCollectiveIds,
+  };
+};
 
 /**
  * Search users by email address. `user` must be set because this endpoint is rate
@@ -297,6 +347,7 @@ export const searchCollectivesInDB = async (
     types?: string[];
     consolidatedBalance?: AmountRangeInputType;
     isRoot?: boolean;
+    req?: Request;
     isPlatformSubscriber?: boolean;
     plan?: string[];
     isVerified?: boolean;
@@ -309,14 +360,14 @@ export const searchCollectivesInDB = async (
     const collective = await models.Collective.findOne({
       where: { publicId: term },
     });
-    if (collective) {
+    if (collective && (!collective.isPrivate || (args.req && (await canSeePrivateAccount(args.req, collective))))) {
       return [[collective], 1];
     }
   }
 
-  // TODO(#8734): Add isPrivate filter once private-org search exclusion is implemented
   // Build dynamic conditions based on arguments
-  let dynamicConditions = 'AND c."isPrivate" IS NOT TRUE ';
+  const privateAccountVisibility = await buildPrivateAccountSearchVisibilitySQL(args.req);
+  let dynamicConditions = privateAccountVisibility.sql;
   let countryCodes = null;
   let searchedTags = [''];
   if (countries) {
@@ -499,6 +550,7 @@ export const searchCollectivesInDB = async (
         lastTransactionFrom: args.lastTransactionFrom,
         lastTransactionTo: args.lastTransactionTo,
         vendorVisibleToAccountIds,
+        privilegedCollectiveIds: privateAccountVisibility.privilegedCollectiveIds,
       },
     },
   );

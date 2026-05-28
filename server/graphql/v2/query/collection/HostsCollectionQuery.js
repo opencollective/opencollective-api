@@ -21,7 +21,7 @@ const HostsCollectionQuery = {
       deprecationReason: '2020-06-30: Please use tag (singular)',
     },
   },
-  async resolve(_, args) {
+  async resolve(_, args, req) {
     const searchParams = {
       orderBy: { field: ORDER_BY_PSEUDO_FIELDS.HOST_RANK, direction: 'DESC' },
       isHost: true,
@@ -36,7 +36,10 @@ const HostsCollectionQuery = {
     };
 
     const cleanTerm = args.searchTerm?.trim();
-    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, args.offset, args.limit, searchParams);
+    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, args.offset, args.limit, {
+      ...searchParams,
+      req,
+    });
 
     return { nodes: accounts, totalCount, limit: args.limit, offset: args.offset };
   },

@@ -14,7 +14,8 @@ import {
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { createPrivateAccountFixture } from '../../test-helpers/private-account-fixture';
+import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/search', () => {
   before(async () => {
@@ -222,6 +223,69 @@ describe('server/lib/search', () => {
 
         const searchPromise = searchCollectivesByEmail(searchedUser.email, user);
         await expect(searchPromise).to.be.eventually.rejectedWith('Rate limit exceeded');
+      });
+    });
+
+    describe('Private collectives', () => {
+      let fixture;
+
+      before(async () => {
+        fixture = await createPrivateAccountFixture();
+        await fixture.privateCollective.update({ name: 'AVeryUniquePrivateCollectiveSearchName' });
+        await fixture.privateHost.update({ name: 'AVeryUniquePrivateHostSearchName' });
+        await fixture.privateProject.update({ name: 'AVeryUniquePrivateProjectSearchName' });
+        await Promise.all(
+          [fixture.randomUser, fixture.privateHostAdmin, fixture.privateCollectiveAdmin, fixture.rootAdmin].map(user =>
+            user.populateRoles(),
+          ),
+        );
+      });
+
+      it('does not return private collectives to unauthenticated users', async () => {
+        const [results] = await searchCollectivesInDB('AVeryUniquePrivateCollectiveSearchName');
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.not.exist;
+      });
+
+      it('does not return private collectives to unrelated users', async () => {
+        const [results] = await searchCollectivesInDB('AVeryUniquePrivateCollectiveSearchName', 0, 100, {
+          req: makeRequest(fixture.randomUser),
+        });
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.not.exist;
+      });
+
+      it('returns private collectives to host admins', async () => {
+        const [results] = await searchCollectivesInDB('AVeryUniquePrivateCollectiveSearchName', 0, 100, {
+          req: makeRequest(fixture.privateHostAdmin),
+        });
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.exist;
+      });
+
+      it('returns private collectives to collective admins', async () => {
+        const [results] = await searchCollectivesInDB('AVeryUniquePrivateCollectiveSearchName', 0, 100, {
+          req: makeRequest(fixture.privateCollectiveAdmin),
+        });
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.exist;
+      });
+
+      it('returns private collectives to root admins', async () => {
+        const [results] = await searchCollectivesInDB('AVeryUniquePrivateCollectiveSearchName', 0, 100, {
+          req: makeRequest(fixture.rootAdmin),
+        });
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.exist;
+      });
+
+      it('returns private projects to parent collective admins', async () => {
+        const [results] = await searchCollectivesInDB('AVeryUniquePrivateProjectSearchName', 0, 100, {
+          req: makeRequest(fixture.privateCollectiveAdmin),
+        });
+        expect(results.find(c => c.id === fixture.privateProject.id)).to.exist;
+      });
+
+      it('returns private host organizations to admins of hosted collectives', async () => {
+        const [results] = await searchCollectivesInDB('AVeryUniquePrivateHostSearchName', 0, 100, {
+          req: makeRequest(fixture.privateCollectiveAdmin),
+        });
+        expect(results.find(c => c.id === fixture.privateHost.id)).to.exist;
       });
     });
 

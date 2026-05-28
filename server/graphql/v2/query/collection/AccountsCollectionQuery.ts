@@ -168,6 +168,7 @@ const AccountsCollectionQuery = {
       includeVendorsForHostId,
       consolidatedBalance: args.consolidatedBalance,
       isRoot: req.remoteUser?.isRoot() || false,
+      req,
       onlyOpenHosts: args.onlyOpenToApplications ? true : null,
       plan: args.plan,
       isPlatformSubscriber: args.isPlatformSubscriber,

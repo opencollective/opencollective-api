@@ -52,19 +52,29 @@ export class OpenSearchTransactionsAdapter implements OpenSearchModelAdapter {
       order: [['id', 'DESC']],
       limit: options.limit,
       offset: options.offset,
+      include: [
+        { association: 'collective', required: true, attributes: [], where: { isPrivate: false } },
+        { association: 'fromCollective', required: true, attributes: [], where: { isPrivate: false } },
+        { association: 'host', required: false, attributes: [] }, // HostCollectiveId is sometimes null, we treat it in the where clause
+      ],
       where: {
         ...(options.fromDate ? { updatedAt: options.fromDate } : null),
         ...(options.maxId ? { id: { [Op.lte]: options.maxId } } : null),
         ...(options.ids?.length ? { id: options.ids } : null),
-        ...(options.relatedToCollectiveIds?.length
-          ? {
-              [Op.or]: [
-                { CollectiveId: options.relatedToCollectiveIds },
-                { FromCollectiveId: options.relatedToCollectiveIds },
-                { HostCollectiveId: options.relatedToCollectiveIds },
-              ],
-            }
-          : null),
+        [Op.and]: [
+          { [Op.or]: [{ HostCollectiveId: null }, { '$host.isPrivate$': false }] }, // Exclude transactions whose host is a private account
+          ...(options.relatedToCollectiveIds?.length
+            ? [
+                {
+                  [Op.or]: [
+                    { CollectiveId: options.relatedToCollectiveIds },
+                    { FromCollectiveId: options.relatedToCollectiveIds },
+                    { HostCollectiveId: options.relatedToCollectiveIds },
+                  ],
+                },
+              ]
+            : []),
+        ],
       },
     });
   }
