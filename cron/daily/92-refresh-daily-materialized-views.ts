@@ -11,6 +11,7 @@ const VIEWS: (keyof ViewsDatabase)[] = [
   'TransactionBalances',
   'CollectiveBalanceCheckpoint',
   'AdminCommunityActivitySummary',
+  'HostedCollectivesDailyFinancialActivity',
 ];
 
 /**

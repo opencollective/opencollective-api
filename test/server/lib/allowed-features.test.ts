@@ -293,6 +293,31 @@ describe('server/lib/allowed-features', () => {
       });
     });
 
+    describe('HOST_METRICS', () => {
+      it('is AVAILABLE for first party hosts, UNSUPPORTED for others', async () => {
+        const host = await fakeActiveHost({
+          data: {
+            isFirstPartyHost: true,
+            features: { [FEATURE.HOST_METRICS]: true },
+          },
+        });
+        expect(await getFeatureAccess(host, FEATURE.HOST_METRICS)).to.deep.eq({
+          access: 'AVAILABLE',
+          reason: null,
+        });
+        const independentCollective = await fakeCollective({ hasMoneyManagement: true, isActive: false });
+        expect(await getFeatureAccess(independentCollective, FEATURE.HOST_METRICS)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+        const org = await fakeOrganization();
+        expect(await getFeatureAccess(org, FEATURE.HOST_METRICS)).to.deep.eq({
+          access: 'UNSUPPORTED',
+          reason: 'ACCOUNT_TYPE',
+        });
+      });
+    });
+
     describe('OFF_PLATFORM_TRANSACTIONS', () => {
       describe('with the legacy pricing', () => {
         it('is AVAILABLE for platform orgs by default', async () => {
@@ -820,6 +845,7 @@ describe('server/lib/allowed-features', () => {
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -894,6 +920,7 @@ describe('server/lib/allowed-features', () => {
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -969,6 +996,7 @@ describe('server/lib/allowed-features', () => {
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -1032,6 +1060,7 @@ describe('server/lib/allowed-features', () => {
           HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PAYPAL_DONATIONS: { access: 'DISABLED', reason: 'OPT_IN' },
           PAYPAL_PAYOUTS: { access: 'DISABLED', reason: 'OPT_IN' },
           RECEIVE_EXPENSES: { access: 'AVAILABLE', reason: null },
@@ -1059,6 +1088,7 @@ describe('server/lib/allowed-features', () => {
           EXPECTED_FUNDS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           EXPENSE_SECURITY_CHECKS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           FUNDS_GRANTS_MANAGEMENT: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+          HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           PROJECTS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           TAX_FORMS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
           VENDORS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
@@ -1082,6 +1112,7 @@ describe('server/lib/allowed-features', () => {
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -1140,6 +1171,7 @@ describe('server/lib/allowed-features', () => {
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
@@ -1198,6 +1230,7 @@ describe('server/lib/allowed-features', () => {
         HOST_DASHBOARD: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         KYC: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ACCOUNTING_CATEGORIZATION_RULES: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
+        HOST_METRICS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         MULTI_CURRENCY_EXPENSES: { access: 'AVAILABLE', reason: null },
         OFF_PLATFORM_TRANSACTIONS: { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' },
         ORDER: { access: 'AVAILABLE', reason: null },
