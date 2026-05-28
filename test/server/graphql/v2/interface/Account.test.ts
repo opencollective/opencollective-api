@@ -234,39 +234,6 @@ describe('server/graphql/v2/interface/Account', () => {
       expect(result.data.account.mainProfile.slug).to.equal(user.collective.slug);
     });
 
-    it('returns the main profile when SEE_ACCOUNT_PRIVATE_PROFILE_INFO is granted for the main profile via a sibling account query', async () => {
-      const user = await fakeUser();
-      const incognito = await fakeIncognitoProfile(user);
-      const hostAdmin = await fakeUser();
-      const host = await fakeActiveHost({ admin: hostAdmin });
-      // The host admin can see the main profile's private info (e.g. the user contributed directly to the host)
-      await fakeMember({ CollectiveId: host.id, MemberCollectiveId: user.collective.id, role: MemberRoles.BACKER });
-      // Query both accounts in the same request: querying the main profile sets SEE_ACCOUNT_PRIVATE_PROFILE_INFO
-      // for main profile's id, which should then allow resolving incognito.mainProfile
-      const aliasQuery = gql`
-        query MainProfileSiblingTest($mainSlug: String!, $incognitoSlug: String!) {
-          mainAccount: account(slug: $mainSlug) {
-            slug
-          }
-          incognitoAccount: account(slug: $incognitoSlug) {
-            isIncognito
-            mainProfile {
-              slug
-            }
-          }
-        }
-      `;
-      const result = await graphqlQueryV2(
-        aliasQuery,
-        { mainSlug: user.collective.slug, incognitoSlug: incognito.slug },
-        hostAdmin,
-      );
-      expect(result.errors).to.not.exist;
-      expect(result.data.incognitoAccount.isIncognito).to.be.true;
-      expect(result.data.incognitoAccount.mainProfile).to.exist;
-      expect(result.data.incognitoAccount.mainProfile.slug).to.equal(user.collective.slug);
-    });
-
     it('returns the main profile for an admin of a fiscal host the user contributed to', async () => {
       const user = await fakeUser();
       const incognito = await fakeIncognitoProfile(user);

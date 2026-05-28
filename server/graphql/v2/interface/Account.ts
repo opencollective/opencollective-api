@@ -237,13 +237,9 @@ const accountFieldsDefinition = () => ({
       }
 
       const mainProfile = isIncognito && (await req.loaders.Collective.mainProfileFromIncognito.load(account.id));
-      const hasPermissionForMainProfile =
-        mainProfile && getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, mainProfile.id);
-
       if (
         canSeeIncognitoProfile(req, account) ||
-        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id) ||
-        hasPermissionForMainProfile
+        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
       ) {
         return mainProfile;
       }
