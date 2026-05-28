@@ -16,7 +16,7 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { ManualPaymentProvider, Op, PlatformSubscription } from '../models';
+import { ManualPaymentProvider, Op } from '../models';
 import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
 import Order from '../models/Order';
@@ -305,7 +305,7 @@ const makeRefundDescription = (refundKind: RefundKind, referencedTransaction: Tr
 
 export const buildRefundForTransaction = (
   t: Transaction,
-  user?: User,
+  user?: User | null,
   data?: TransactionData,
   amounts?: {
     /** If the payment processor fee is not recorded as a separate transaction, use this field to refund it as part of the main transaction */
@@ -359,7 +359,7 @@ export const buildRefundForTransaction = (
     refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(t);
   } else {
     refund.amountInHostCurrency = toNegative(refundedAmountInHostCurrency);
-    refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+    refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
     refund.netAmountInCollectiveCurrency = -Transaction.calculateNetAmountInCollectiveCurrency(refund);
   }
 
@@ -374,12 +374,12 @@ export const buildRefundForTransaction = (
         // Otherwise, payment processor fees are deducted from the refunded amount which means
         // the collective will receive the original expense amount minus payment processor fees
         refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-        refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+        refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
         refund.paymentProcessorFeeInHostCurrency = 0;
       }
     } else if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
       refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-      refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+      refund.amount = roundCentsAmount(refund.amountInHostCurrency / refund.hostCurrencyFxRate, refund.currency);
       refund.paymentProcessorFeeInHostCurrency = 0;
     } else {
       throw new Error(`Refund not supported for feesPayer = '${feesPayer}'`);
@@ -438,7 +438,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     return;
   }
 
-  const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
+  const amount = roundCentsAmount(amountInHostCurrency / hostCurrencyFxRate, transactionCurrency);
   await Transaction.createDoubleEntry({
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
@@ -447,6 +447,7 @@ export const refundPaymentProcessorFeeToCollective = async (
     HostCollectiveId: transaction.HostCollectiveId,
     OrderId: transaction.OrderId,
     ExpenseId: transaction.ExpenseId,
+    PaymentMethodId: transaction.PaymentMethodId,
     description: 'Cover of payment processor fee for refund',
     isRefund: true,
     TransactionGroup: refundTransactionGroup,
@@ -467,7 +468,7 @@ export const refundPaymentProcessorFeeToCollective = async (
 
 async function refundPaymentProcessorFee(
   transaction: Transaction,
-  user: User,
+  user: User | null,
   refundedPaymentProcessorFeeInHostCurrency: number,
   transactionGroup: string,
   clearedAt?: Date,
@@ -558,7 +559,7 @@ async function refundPaymentProcessorFee(
 
 export async function refundHostFee(
   transaction: Transaction,
-  user: User,
+  user: User | null,
   refundedPaymentProcessorFeeInHostCurrency: number,
   transactionGroup: string,
   clearedAt?: Date,
@@ -621,7 +622,7 @@ export async function refundHostFee(
 
 async function refundTax(
   transaction: Transaction,
-  user: User,
+  user: User | null,
   transactionGroup: string,
   clearedAt?: Date,
   refundKind?: RefundKind,
@@ -666,7 +667,7 @@ export async function createRefundTransaction(
   transaction: Transaction,
   refundedPaymentProcessorFeeInHostCurrency: number,
   data: TransactionData,
-  user: User,
+  user: User | null,
   transactionGroupId?: string,
   clearedAt?: Date,
   refundKind: RefundKind = RefundKind.REFUND,
@@ -1345,21 +1346,11 @@ export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
     return false;
   }
 
-  const host = await order.collective.getHostCollective();
-  if (host) {
-    // New pricing
-    const subscription = await PlatformSubscription.getCurrentSubscription(host.id);
-    if (subscription) {
-      return subscription.plan.pricing.platformTips;
-    }
-
-    // Legacy plan
-    const plan = host.getLegacyPlan();
-    // At this stage, only OSC /opensourcce and Open Collective /opencollective will return false
-    return plan?.platformTips;
+  if (!order.collective) {
+    order.collective = await order.getCollective();
   }
 
-  return false;
+  return order.collective.hasPlatformTips();
 };
 
 export const getHostFeePercent = async (

@@ -1,10 +1,57 @@
 import config from 'config';
+import express from 'express';
 
 import { CollectiveType } from '../../../constants/collectives';
-import models from '../../../models';
+import models, { type Collective } from '../../../models';
+import { canSeeAllPrivateAccounts, canSeePrivateAccount } from '../../private-accounts';
 
 import { handleAccessDenied, handleNotFound, handleUnauthorized } from './common';
 import { getCollectivePageRoute, getDashboardRoute, type Handler, redirect } from './utils';
+
+/**
+ * When a permalink would expose or resolve against a private account, block viewers who are not
+ * allowed to see that account (same rules as GraphQL / handleCollective).
+ * @returns true when the response was already sent (caller should return).
+ */
+async function blockUnlessCanSeePrivateCollective(
+  req: express.Request,
+  res: express.Response,
+  collective: Collective | null | undefined,
+): Promise<boolean> {
+  if (!collective?.isPrivate) {
+    return false;
+  } else if (await canSeePrivateAccount(req, collective)) {
+    return false;
+  }
+  if (!req.remoteUser) {
+    await handleUnauthorized(req, res);
+  } else {
+    await handleAccessDenied(req, res);
+  }
+  return true;
+}
+
+/**
+ * Similar to `blockUnlessCanSeePrivateCollective`, but for multiple collectives.
+ */
+async function blockUnlessCanSeeAllPrivateCollectives(
+  req: express.Request,
+  res: express.Response,
+  collectives: Collective[] | null | undefined,
+): Promise<boolean> {
+  const privateCollectives = collectives?.filter(collective => collective?.isPrivate);
+  if (!privateCollectives?.length) {
+    return false;
+  } else if (await canSeeAllPrivateAccounts(req, privateCollectives)) {
+    return false;
+  }
+  if (!req.remoteUser) {
+    await handleUnauthorized(req, res);
+  } else {
+    await handleAccessDenied(req, res);
+  }
+  return true;
+}
 
 export const handleCollective: Handler = async (req, res) => {
   const collective = await models.Collective.findOne({
@@ -13,6 +60,8 @@ export const handleCollective: Handler = async (req, res) => {
   });
   if (!collective) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, collective)) {
+    return;
   }
 
   const isVendor = collective.type === CollectiveType.VENDOR;
@@ -53,6 +102,9 @@ export const handleUser: Handler = async (req, res) => {
   });
   if (!user) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, user.collective)) {
+    // Private user accounts are not supported yet, but it doesn't hurt to be defensive here.
+    return;
   }
 
   if (!req.remoteUser) {
@@ -67,6 +119,10 @@ export const handleUser: Handler = async (req, res) => {
 };
 
 export const handleMember: Handler = async (req, res) => {
+  if (!req.remoteUser) {
+    return handleUnauthorized(req, res);
+  }
+
   const member = await models.Member.findOne({
     where: { publicId: req.params.id },
     include: [
@@ -74,12 +130,11 @@ export const handleMember: Handler = async (req, res) => {
       { model: models.Collective, as: 'memberCollective', required: true },
     ],
   });
+
   if (!member) {
     return handleNotFound(req, res);
-  }
-
-  if (!req.remoteUser) {
-    return handleUnauthorized(req, res);
+  } else if (await blockUnlessCanSeeAllPrivateCollectives(req, res, [member.collective, member.memberCollective])) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(member.collective.id)) {
@@ -108,6 +163,9 @@ export const handleMemberInvitation: Handler = async (req, res) => {
   if (!invitation) {
     return handleNotFound(req, res);
   }
+  if (await blockUnlessCanSeeAllPrivateCollectives(req, res, [invitation.collective, invitation.memberCollective])) {
+    return;
+  }
 
   if (req.remoteUser.isAdmin(invitation.collective.id)) {
     return redirect(res, getDashboardRoute(invitation.collective, 'team'));
@@ -131,6 +189,9 @@ export const handlePersonalToken: Handler = async (req, res) => {
   });
   if (!token) {
     return handleNotFound(req, res);
+  }
+  if (await blockUnlessCanSeePrivateCollective(req, res, token.collective)) {
+    return;
   }
 
   if (!req.remoteUser.isAdmin(token.collective.id)) {
@@ -188,6 +249,8 @@ export const handleUpdate: Handler = async (req, res) => {
   });
   if (!update) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, update.collective)) {
+    return;
   }
 
   if (!req.remoteUser) {
@@ -208,6 +271,8 @@ export const handleConversation: Handler = async (req, res) => {
   });
   if (!conversation) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, conversation.collective)) {
+    return;
   }
 
   return redirect(
@@ -226,6 +291,8 @@ export const handleComment: Handler = async (req, res) => {
   });
   if (!comment) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, comment.collective)) {
+    return;
   }
 
   if (comment.ConversationId) {
@@ -262,8 +329,17 @@ export const handleActivity: Handler = async (req, res) => {
     return handleNotFound(req, res);
   }
 
-  const collective = activity.CollectiveId && (await models.Collective.findByPk(activity.CollectiveId));
-  const hostCollective = activity.HostCollectiveId && (await models.Collective.findByPk(activity.HostCollectiveId));
+  const [collective, fromCollective, hostCollective] = await Promise.all([
+    activity.CollectiveId && req.loaders.Collective.byId.load(activity.CollectiveId),
+    activity.FromCollectiveId && req.loaders.Collective.byId.load(activity.FromCollectiveId),
+    activity.HostCollectiveId && req.loaders.Collective.byId.load(activity.HostCollectiveId),
+  ]);
+
+  if (
+    await blockUnlessCanSeeAllPrivateCollectives(req, res, [collective, fromCollective, hostCollective].filter(Boolean))
+  ) {
+    return;
+  }
 
   if (collective && req.remoteUser.isAdmin(collective.id)) {
     return redirect(res, getDashboardRoute(collective, 'activity-log'));
@@ -283,6 +359,8 @@ export const handleTier: Handler = async (req, res) => {
   });
   if (!tier) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, tier.Collective)) {
+    return;
   }
 
   return redirect(res, `${await getCollectivePageRoute(tier.Collective)}/contribute/${tier.slug}-${tier.id}`);
@@ -299,6 +377,8 @@ export const handleApplication: Handler = async (req, res) => {
   });
   if (!application) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, application.collective)) {
+    return;
   }
 
   if (!req.remoteUser.isAdmin(application.collective.id)) {
@@ -331,6 +411,8 @@ export const handleHostApplication: Handler = async (req, res) => {
   });
   if (!application) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeeAllPrivateCollectives(req, res, [application.collective, application.host])) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(application.host.id)) {
@@ -358,6 +440,8 @@ export const handleExportRequest: Handler = async (req, res) => {
   });
   if (!exportRequest) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, exportRequest.collective)) {
+    return;
   }
 
   if (!req.remoteUser.isAdmin(exportRequest.collective.id)) {
@@ -378,6 +462,10 @@ export const handleExpense: Handler = async (req, res) => {
   });
   if (!expense) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, expense.collective)) {
+    // In the future, we may want to tweak that part to allow some form of public expense submissions.
+    // See scope 2 in https://github.com/oficonsortium/studies/blob/main/private-organizations/implementation-scope.md.
+    return;
   }
 
   if (!req.remoteUser) {
@@ -415,6 +503,8 @@ export const handleOrder: Handler = async (req, res) => {
   });
   if (!order) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, order.collective)) {
+    return;
   }
 
   if (!req.remoteUser) {
@@ -450,6 +540,8 @@ export const handleTransaction: Handler = async (req, res) => {
   });
   if (!transaction) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, transaction.collective)) {
+    return;
   }
 
   if (transaction.host && req.remoteUser && req.remoteUser.isAdmin(transaction.host.id)) {
@@ -481,6 +573,8 @@ export const handleAccountingCategory: Handler = async (req, res) => {
   });
   if (!category) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, category.collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(category.collective.id)) {
@@ -501,6 +595,8 @@ export const handleAccountingCategoryRule: Handler = async (req, res) => {
   });
   if (!rule) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, rule.collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(rule.collective.id)) {
@@ -521,6 +617,8 @@ export const handleConnectedAccount: Handler = async (req, res) => {
   });
   if (!connectedAccount) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, connectedAccount.collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(connectedAccount.collective.id)) {
@@ -541,6 +639,8 @@ export const handlePaymentMethod: Handler = async (req, res) => {
   });
   if (!paymentMethod) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, paymentMethod.Collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(paymentMethod.Collective.id)) {
@@ -561,6 +661,8 @@ export const handlePayoutMethod: Handler = async (req, res) => {
   });
   if (!payoutMethod) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, payoutMethod.Collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(payoutMethod.Collective.id)) {
@@ -581,6 +683,8 @@ export const handleLegalDocument: Handler = async (req, res) => {
   });
   if (!legalDocument) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, legalDocument.collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(legalDocument.collective.id)) {
@@ -604,6 +708,8 @@ export const handleVirtualCard: Handler = async (req, res) => {
   });
   if (!virtualCard) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeeAllPrivateCollectives(req, res, [virtualCard.collective, virtualCard.host])) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(virtualCard.host.id)) {
@@ -631,6 +737,10 @@ export const handleVirtualCardRequest: Handler = async (req, res) => {
   });
   if (!virtualCardRequest) {
     return handleNotFound(req, res);
+  } else if (
+    await blockUnlessCanSeeAllPrivateCollectives(req, res, [virtualCardRequest.collective, virtualCardRequest.host])
+  ) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(virtualCardRequest.host.id)) {
@@ -651,10 +761,17 @@ export const handleAgreement: Handler = async (req, res) => {
 
   const agreement = await models.Agreement.findOne({
     where: { publicId: req.params.id },
-    include: [{ model: models.Collective, as: 'Host', required: true }],
+    include: [
+      { model: models.Collective, as: 'Host', required: true },
+      { model: models.Collective, as: 'Collective', attributes: ['id', 'isPrivate'] },
+    ],
   });
   if (!agreement) {
     return handleNotFound(req, res);
+  } else if (
+    await blockUnlessCanSeeAllPrivateCollectives(req, res, [agreement.Host, agreement.Collective].filter(Boolean))
+  ) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(agreement.Host.id)) {
@@ -712,6 +829,13 @@ export const handleKYCVerification: Handler = async (req, res) => {
   });
   if (!kycVerification) {
     return handleNotFound(req, res);
+  } else if (
+    await blockUnlessCanSeeAllPrivateCollectives(req, res, [
+      kycVerification.collective,
+      kycVerification.requestedByCollective,
+    ])
+  ) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(kycVerification.RequestedByCollectiveId)) {
@@ -732,6 +856,8 @@ export const handleManualPaymentProvider: Handler = async (req, res) => {
   });
   if (!manualPaymentProvider) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, manualPaymentProvider.collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(manualPaymentProvider.collective.id)) {
@@ -752,6 +878,8 @@ export const handleTransactionsImport: Handler = async (req, res) => {
   });
   if (!transactionsImport) {
     return handleNotFound(req, res);
+  } else if (await blockUnlessCanSeePrivateCollective(req, res, transactionsImport.collective)) {
+    return;
   }
 
   if (req.remoteUser.isAdmin(transactionsImport.collective.id)) {

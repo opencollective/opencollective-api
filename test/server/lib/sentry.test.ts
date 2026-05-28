@@ -20,9 +20,8 @@ describe('server/lib/sentry', () => {
 
   describe('SentryGraphQLPlugin', () => {
     it('should report errors', async () => {
-      const req = makeRequest();
-      req.query = 'query { test }';
-      req.variables = { test: 'test' };
+      const req = makeRequest(null, 'query { test }');
+      req['variables'] = { test: 'test' };
 
       const captureExceptionSpy = sandbox.spy(SentryLib.Sentry, 'captureException');
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
@@ -40,9 +39,8 @@ describe('server/lib/sentry', () => {
     });
 
     it('should not report errors that are ignored', async () => {
-      const req = makeRequest();
-      req.query = 'query { test }';
-      req.variables = { test: 'test' };
+      const req = makeRequest(null, 'query { test }');
+      req['variables'] = { test: 'test' };
 
       const context = await SentryLib.SentryGraphQLPlugin.requestDidStart({
         request: req,

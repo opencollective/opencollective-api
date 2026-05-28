@@ -1,5 +1,5 @@
 /* eslint-disable camelcase */
-import { isNil, round, toNumber, truncate } from 'lodash';
+import { isNil, omit, round, toNumber, truncate } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
@@ -133,7 +133,10 @@ export const checkBatchItemStatus = async (
 
         if (item.payout_item_fee) {
           const paymentProcessorFeeInExpenseCurrency = floatAmountToCents(toNumber(item.payout_item_fee.value));
-          fees['paymentProcessorFeeInHostCurrency'] = Math.round(paymentProcessorFeeInExpenseCurrency * fxRate);
+          fees['paymentProcessorFeeInHostCurrency'] = roundCentsAmount(
+            paymentProcessorFeeInExpenseCurrency * fxRate,
+            host.currency,
+          );
           if (item.payout_item_fee.currency !== expense.currency) {
             // payout_item_fee is always supposed to be in currency_conversion.to_amount.currency. This is a sanity check just in case
             logger.error(`Payout item fee currency does not match expense #${expense.id} currency`);
@@ -160,6 +163,8 @@ export const checkBatchItemStatus = async (
     case 'REVERSED':
       if (expense.status !== status.ERROR) {
         await expense.setError(expense.lastEditedById);
+        const data = omit(expense.data, ['payout_batch_id', 'batch_status', 'sender_batch_header']);
+        await expense.update({ data });
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
@@ -183,10 +188,13 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
   const [firstExpense] = batch;
   const host = await firstExpense.collective.getHostCollective();
   if (!host) {
-    throw new Error(`Could not find the host reimbursing the expense.`);
+    throw new Error(`Could not find the host paying the expense.`);
   }
 
   const connectedAccount = await host.getAccountForPaymentProvider(PROVIDER_NAME);
+  if (!connectedAccount) {
+    throw new Error(`Could not find connected account for host ${host.id}`);
+  }
 
   const batchId = firstExpense.data.payout_batch_id as string;
   try {

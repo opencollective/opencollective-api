@@ -8,6 +8,7 @@ import { Readable } from 'stream';
 import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
+import { Request } from 'express';
 import { graphql } from 'graphql';
 import Upload from 'graphql-upload/Upload.js';
 import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
@@ -65,6 +66,7 @@ export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) 
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "ExpenseTagStats"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "HostedCollectivesDailyFinancialActivity"`);
   };
 
   let t = 1;
@@ -116,25 +118,10 @@ export const makeRequest = (
   headers = {},
   userToken = undefined,
   personalToken = undefined,
-): {
-  remoteUser: typeof remoteUser;
-  jwtPayload: typeof jwtPayload;
-  body: { query: string };
-  loaders: Loaders;
-  headers: typeof headers;
-  header: (key: string) => string;
-  get: (key: string) => string;
-  userToken: typeof userToken;
-  personalToken: typeof personalToken;
-  res: { cookie: () => void };
-  query?: string;
-  variables?: Record<string, unknown>;
-  method: string;
-  baseUrl: string;
-  ip: string;
-  params: Record<string, string>;
-} => {
-  return {
+) => {
+  // Build `req` first so `generateLoaders(req)` can close over the same object; loaders such as
+  // `canSeePrivateAccount` call `req.loaders.Collective.byId` when they run.
+  const req = {
     method: 'GET',
     baseUrl: '/',
     ip: '127.0.0.1',
@@ -142,7 +129,6 @@ export const makeRequest = (
     remoteUser,
     jwtPayload,
     body: { query },
-    loaders: generateLoaders({ remoteUser }),
     headers,
     header: () => null,
     get: a => {
@@ -153,7 +139,53 @@ export const makeRequest = (
     res: {
       cookie: () => {},
     },
+    loaders: undefined as unknown as Loaders,
   };
+  req.loaders = generateLoaders(req);
+  return req as unknown as Request;
+};
+
+export const makeGenericRequest = ({
+  remoteUser = null,
+  personalToken = null,
+  userToken = null,
+  jwtPayload = null,
+  headers = {},
+  body = {},
+  method = 'GET',
+  baseUrl = '/',
+  ip = '127.0.0.1',
+  params = {},
+}: {
+  remoteUser?: object | null;
+  personalToken?: object | null;
+  userToken?: object | null;
+  jwtPayload?: object | null;
+  headers?: Record<string, string>;
+  body?: Record<string, unknown>;
+  method?: string;
+  baseUrl?: string;
+  ip?: string;
+  params?: Record<string, string>;
+} = {}): Request => {
+  return {
+    method,
+    baseUrl,
+    ip,
+    params,
+    remoteUser,
+    jwtPayload,
+    body,
+    loaders: generateLoaders({ remoteUser }),
+    headers,
+    header: () => null,
+    get: (a: string) => headers[a],
+    userToken,
+    personalToken,
+    res: {
+      cookie: () => {},
+    },
+  } as unknown as Request;
 };
 
 export const inspectSpy = (spy, argsCount) => {
@@ -385,7 +417,11 @@ export const separator = length => {
  * @param {sinon.sandbox} sandbox is the sandbox that the test created
  *  and the one that *must* be reset after the test is done.
  */
-export function stubStripeCreate(sandbox, overloadDefaults = {}) {
+export function stubStripeCreate(
+  sandbox,
+  overloadDefaults = {},
+  { skipPaymentIntents = false }: { skipPaymentIntents?: boolean } = {},
+) {
   const paymentMethodId = randStr('pm_');
   const values = {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
@@ -403,8 +439,10 @@ export function stubStripeCreate(sandbox, overloadDefaults = {}) {
 
   sandbox.stub(stripe.customers, 'create').callsFake(factory('customer'));
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
-  sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
-  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
+  if (!skipPaymentIntents) {
+    sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
+    sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
+  }
   sandbox.stub(stripe.paymentMethods, 'create').callsFake(factory('paymentMethod'));
   sandbox.stub(stripe.paymentMethods, 'attach').callsFake(factory('paymentMethod'));
 }
@@ -431,6 +469,69 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0,
     type: 'charge',
   };
   sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(balanceTransaction));
+}
+
+/**
+ * Stubs paymentIntents create/confirm and balanceTransactions.retrieve so the balance
+ * transaction amount/currency match what createChargeTransactions reads from Stripe
+ * (must match the PaymentIntent amount from stripe.paymentIntents.create).
+ *
+ * @warning This function is not concurrent-safe! It uses global state to track the last stripe amount and currency. Do not use it in parallel tests.
+ */
+export function stubStripeBalanceSyncWithPaymentIntent(
+  sandbox,
+  {
+    applicationFee = 0,
+    stripeFee = 0,
+    defaultStripeAmount = 5000,
+    defaultCurrency = 'usd',
+  }: {
+    applicationFee?: number;
+    stripeFee?: number;
+    defaultStripeAmount?: number;
+    defaultCurrency?: string;
+  } = {},
+) {
+  let lastStripeAmount: number | undefined;
+  let lastCurrency: string | undefined;
+  const fee = applicationFee + stripeFee;
+  const feeDetails: Array<{ type: string; amount: number }> = [];
+  if (applicationFee > 0) {
+    feeDetails.push({ type: 'application_fee', amount: applicationFee });
+  }
+  if (stripeFee > 0) {
+    feeDetails.push({ type: 'stripe_fee', amount: stripeFee });
+  }
+
+  sandbox.stub(stripe.paymentIntents, 'create').callsFake((params: { amount: number; currency: string }) => {
+    lastStripeAmount = params.amount;
+    lastCurrency = params.currency;
+    return Promise.resolve({ id: 'pi_test', status: 'requires_confirmation' });
+  });
+  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(() =>
+    Promise.resolve({
+      id: 'pi_test',
+      status: 'succeeded',
+      charges: {
+        data: [{ id: 'ch_id', balance_transaction: 'txn_id' }],
+      },
+    }),
+  );
+  sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => {
+    const amount = lastStripeAmount ?? defaultStripeAmount;
+    const currency = (lastCurrency || defaultCurrency).toLowerCase();
+    return Promise.resolve({
+      id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
+      object: 'balance_transaction',
+      amount,
+      currency,
+      fee,
+      fee_details: feeDetails,
+      net: amount - fee,
+      status: 'pending',
+      type: 'charge',
+    });
+  });
 }
 
 export function expectNoErrorsFromResult(res) {

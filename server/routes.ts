@@ -99,7 +99,7 @@ export default async (app: express.Application) => {
   const redisClient = await createRedisClient(RedisInstanceType.DEFAULT);
   if (redisClient) {
     const expressLimiterOptions = {
-      lookup: function (req, res, opts, next) {
+      lookup: function (req: express.Request, res: express.Response, opts, next: express.NextFunction) {
         if (req.personalToken) {
           opts.lookup = 'personalToken.id';
           // 100 requests / minute for registered API Key
@@ -118,12 +118,12 @@ export default async (app: express.Application) => {
         }
         return next();
       },
-      whitelist: function (req) {
-        const apiKey = req.query.api_key || req.body.api_key;
+      whitelist: function (req: express.Request) {
+        const apiKey = req.query.api_key || req.body?.api_key;
         // No limit with internal API Key
         return apiKey === config.keys.opencollective.apiKey;
       },
-      onRateLimited: function (req, res) {
+      onRateLimited: function (req: express.Request, res: express.Response) {
         let message;
         if (req.personalToken) {
           message = 'Rate limit exceeded. Contact-us to get higher limits.';

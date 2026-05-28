@@ -17,10 +17,11 @@ import { expenseStatus } from '../../../../constants';
 import ActivityTypes from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
-import MemberRoles from '../../../../constants/roles';
+import MemberRoles, { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { getBalancesWithVersionPerCollective } from '../../../../lib/budget';
 import { loadFxRatesMap } from '../../../../lib/currency';
 import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions, getSearchTermSQLConditions } from '../../../../lib/sql-search';
 import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import { AccountingCategory, Activity, Collective, Op, sequelize } from '../../../../models';
@@ -224,6 +225,22 @@ export const ExpensesCollectionQueryArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Return expenses only created by this INDIVIDUAL account',
   },
+  paidByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only paid by this INDIVIDUAL account',
+  },
+  approvedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only approved by this INDIVIDUAL account',
+  },
+  rejectedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only rejected by this INDIVIDUAL account',
+  },
+  invitedByAccount: {
+    type: GraphQLAccountReferenceInput,
+    description: 'Return expenses only invited by this INDIVIDUAL account',
+  },
   status: {
     type: new GraphQLList(GraphQLExpenseStatusFilter),
     description: 'Use this field to filter expenses on their statuses',
@@ -337,9 +354,13 @@ const loadAllAccountsFromArgs = async (
 ): Promise<{
   fromAccounts: Collective[];
   accounts: Collective[];
-  host: Collective;
-  fromHost: Collective;
-  createdByAccount: Collective;
+  host?: Collective;
+  fromHost?: Collective;
+  createdByAccount?: Collective;
+  paidByAccount?: Collective;
+  approvedByAccount?: Collective;
+  rejectedByAccount?: Collective;
+  invitedByAccount?: Collective;
 }> => {
   if (args.accounts && args.account) {
     throw new Error('accounts and account cannot be used together');
@@ -369,15 +390,39 @@ const loadAllAccountsFromArgs = async (
     }
   };
 
-  const [accounts, fromAccounts, host, fromHost, createdByAccount] = await Promise.all([
+  const [
+    accounts,
+    fromAccounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  ] = await Promise.all([
     getAccountsPromise(),
     getFromAccountPromise(),
     args.host && fetchAccountWithReference(args.host, fetchAccountParams),
     args.fromHost && fetchAccountWithReference(args.fromHost, fetchAccountParams),
     args.createdByAccount && fetchAccountWithReference(args.createdByAccount, fetchAccountParams),
+    args.paidByAccount && fetchAccountWithReference(args.paidByAccount, fetchAccountParams),
+    args.approvedByAccount && fetchAccountWithReference(args.approvedByAccount, fetchAccountParams),
+    args.rejectedByAccount && fetchAccountWithReference(args.rejectedByAccount, fetchAccountParams),
+    args.invitedByAccount && fetchAccountWithReference(args.invitedByAccount, fetchAccountParams),
   ]);
 
-  return { fromAccounts, accounts, host, fromHost, createdByAccount };
+  return {
+    fromAccounts,
+    accounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  };
 };
 
 export const ExpensesCollectionQueryResolver = async (
@@ -387,6 +432,7 @@ export const ExpensesCollectionQueryResolver = async (
 ): Promise<CollectionReturnType & { totalAmount?: any; payees?: any }> => {
   const where = { [Op.and]: [] };
   const include = [];
+  let hasCollectiveInclude = false;
 
   // Check arguments
   if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
@@ -394,7 +440,20 @@ export const ExpensesCollectionQueryResolver = async (
   }
 
   // Load accounts
-  const { fromAccounts, accounts, host, fromHost, createdByAccount } = await loadAllAccountsFromArgs(args, req);
+  const {
+    fromAccounts,
+    accounts,
+    host,
+    fromHost,
+    createdByAccount,
+    paidByAccount,
+    approvedByAccount,
+    rejectedByAccount,
+    invitedByAccount,
+  } = await loadAllAccountsFromArgs(args, req);
+
+  // Block access when explicitly filtering by a private account the viewer cannot see
+  await assertCanSeeAllAccounts(req, [...accounts, ...fromAccounts, host, fromHost].filter(Boolean));
 
   if (fromAccounts.length > 0) {
     if (fromHost) {
@@ -426,6 +485,7 @@ export const ExpensesCollectionQueryResolver = async (
   if (host) {
     // Either the expense has its `HostCollectiveId` set to the host (when its paid) or the collective is hosted by the host
     include.push({ association: 'collective', attributes: [], required: true });
+    hasCollectiveInclude = true; // Tracking this as a separate flag to make sure we update dependant paths if changing the include structure.
 
     // Base condition: the expense belongs to an account hosted by this host
     where[Op.and].push({
@@ -464,6 +524,34 @@ export const ExpensesCollectionQueryResolver = async (
     }
   }
 
+  // Restrict expenses whose payer collective is private unless the viewer may see that account (or submitted the expense).
+  // When `accounts` / `account` / `host` is set, visibility was already enforced via assertCanSeeAllAccounts on those collectives.
+  if (!req.remoteUser?.isRoot() && accounts.length === 0 && !host) {
+    if (!hasCollectiveInclude) {
+      include.push({ association: 'collective', attributes: [], required: true });
+    }
+
+    const orConditions: WhereOptions[] = [{ '$collective.isPrivate$': false }];
+
+    if (req.remoteUser) {
+      const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+
+      // Allow user to see all expenses they have submitted through their administrated accounts or own profile
+      orConditions.push({ FromCollectiveId: [req.remoteUser.CollectiveId, ...directAccess] });
+
+      // Allow users to see expenses on private profiles they have access to
+      if (directAccess.length > 0) {
+        orConditions.push(
+          { CollectiveId: directAccess },
+          { '$collective.ParentCollectiveId$': directAccess },
+          { '$collective.HostCollectiveId$': directAccess },
+        );
+      }
+    }
+
+    where[Op.and].push({ [Op.or]: orConditions });
+  }
+
   if (createdByAccount) {
     if (createdByAccount.type !== CollectiveType.USER) {
       throw new Error('createdByAccount only accepts individual accounts');
@@ -477,6 +565,40 @@ export const ExpensesCollectionQueryResolver = async (
     }
 
     where['UserId'] = user.id;
+  }
+
+  const buildActivitySubquery = async (account: Collective, activityType: ActivityTypes): Promise<void> => {
+    const user = await req.loaders.User.byCollectiveId.load(account.id);
+    assert(
+      user,
+      'Account passed to paidByAccount, approvedByAccount, rejectedByAccount or invitedByAccount does not belongs to a user',
+    );
+
+    const hostCondition = host
+      ? sequelize.literal(
+          `EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE "act"."ExpenseId" = "Expense"."id" AND "act"."type" = ${sequelize.escape(activityType)} AND "act"."UserId" = ${sequelize.escape(user.id)} AND "act"."HostCollectiveId" = ${sequelize.escape(host.id)})`,
+        )
+      : sequelize.literal(
+          `EXISTS (SELECT 1 FROM "Activities" AS "act" WHERE "act"."ExpenseId" = "Expense"."id" AND "act"."type" = ${sequelize.escape(activityType)} AND "act"."UserId" = ${sequelize.escape(user.id)})`,
+        );
+
+    where[Op.and].push(hostCondition);
+  };
+
+  if (paidByAccount) {
+    await buildActivitySubquery(paidByAccount, ActivityTypes.COLLECTIVE_EXPENSE_PAID);
+  }
+
+  if (approvedByAccount) {
+    await buildActivitySubquery(approvedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
+  }
+
+  if (rejectedByAccount) {
+    await buildActivitySubquery(rejectedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_REJECTED);
+  }
+
+  if (invitedByAccount) {
+    await buildActivitySubquery(invitedByAccount, ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED);
   }
 
   const isHostAdmin = host && req.remoteUser?.isAdminOfCollective(host);
@@ -650,7 +772,7 @@ export const ExpensesCollectionQueryResolver = async (
                   LIMIT 1),
                 1
               )
-            END * "Expense"."amount" 
+            END * "Expense"."amount"
           `,
             { currency },
             'postgres',
@@ -855,7 +977,10 @@ export const ExpensesCollectionQueryResolver = async (
 
   if (isHostAdmin && args.status?.includes('READY_TO_PAY')) {
     where[Op.and].push(sequelize.literal(`NOT (${individualPendingIn}) AND NOT ${adminPendingExists}`));
-  } else if (isHostAdmin && args.status?.includes('ON_HOLD')) {
+  } else if (isHostAdmin && args.status?.includes('ON_HOLD') && args.status.length === 1) {
+    // ON_HOLD is a pseudo-filter (onHold flag and/or KYC pending), not a DB status. Only apply this
+    // when it is the sole status; if combined with real statuses (e.g. Unreplied list), ANDing this
+    // OR would hide every row that is not on hold / KYC pending.
     delete where['onHold'];
     where[Op.and].push({
       [Op.or]: [{ onHold: true }, sequelize.literal(`(${individualPendingIn}) OR ${adminPendingExists}`)],

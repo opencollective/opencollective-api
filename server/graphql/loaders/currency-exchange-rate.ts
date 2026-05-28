@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
 
 import { SupportedCurrency } from '../../constants/currencies';
-import { getDateKeyForFxRateMap, loadFxRatesMap } from '../../lib/currency';
+import { getDateKeyForFxRateMap, loadFxRatesMap, roundCentsAmount } from '../../lib/currency';
 
 interface CurrencyFxRateRequest {
   fromCurrency: SupportedCurrency;
@@ -37,7 +37,10 @@ export const generateConvertToCurrencyLoader = (): DataLoader<ConvertToCurrencyA
     async (requestedConversions: ConvertToCurrencyArgs[]) => {
       const fxRates = await loadFxRatesMap(requestedConversions);
       return requestedConversions.map(request => {
-        return Math.round(fxRates['latest'][request.fromCurrency][request.toCurrency] * request.amount);
+        return roundCentsAmount(
+          fxRates['latest'][request.fromCurrency][request.toCurrency] * request.amount,
+          request.toCurrency,
+        );
       });
     },
     {

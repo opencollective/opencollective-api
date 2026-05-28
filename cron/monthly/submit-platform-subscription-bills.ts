@@ -12,6 +12,7 @@ import expenseTypes from '../../server/constants/expense-type';
 import PlatformConstants from '../../server/constants/platform';
 import logger from '../../server/lib/logger';
 import { notify } from '../../server/lib/notifications/email';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Op, PlatformSubscription, sequelize } from '../../server/models';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -24,8 +25,32 @@ const today = moment.utc();
 
 const defaultDate = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc();
 
-const DRY = process.env.DRY;
+const DRY = parseToBoolean(process.env.DRY);
 const isProduction = config.env === 'production';
+const SKIP_BILLING_FOR_ORGANIZATIONS = process.env.SKIP_BILLING_FOR_ORGANIZATIONS?.split(',') ?? [];
+
+/** Skip billing when every platform subscription in the period was a short trial */
+function shouldSkipBillForShortEndedTrial(bill: Billing, asOf: moment.Moment): boolean {
+  if (bill.totalAmount >= 10e2 || bill.subscriptions.length === 0) {
+    return false;
+  }
+
+  for (const sub of bill.subscriptions) {
+    // Only if there is no more active subscriptions
+    const endDate = sub.endDate;
+    if (endDate === null || moment.utc(endDate).isAfter(asOf)) {
+      return false;
+    }
+
+    // Only if the subscription was active for less than 15 days
+    const durationDays = moment.utc(endDate).diff(moment.utc(sub.startDate), 'days');
+    if (durationDays >= 15) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 export async function run(baseDate: Date | moment.Moment = defaultDate): Promise<void> {
   const momentDate = moment(baseDate);
@@ -63,6 +88,13 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     const orgId = subscription.CollectiveId;
     try {
       const organization: Collective = await models.Collective.findByPk(orgId);
+      if (SKIP_BILLING_FOR_ORGANIZATIONS.includes(organization.slug)) {
+        logger.info(
+          `${logPrefix} Skipping billing for organization ${organization.name} #${organization.id} because it is in the SKIP_BILLING_FOR_ORGANIZATIONS list`,
+        );
+        continue;
+      }
+
       logger.info(`${logPrefix} Processing subscriptions for organization ${organization.name} #${organization.id}`);
       const bill = await PlatformSubscription.calculateBilling(organization.id, { year, month });
       // Ignore bills for $0
@@ -89,6 +121,13 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       if (existingExpense) {
         logger.info(
           `${logPrefix} Organization ${organization.name} #${organization.id} has already been billed for this period, skipping...`,
+        );
+        continue;
+      }
+
+      if (shouldSkipBillForShortEndedTrial(bill, momentDate)) {
+        logger.info(
+          `${logPrefix} Skipping bill under short-trial grace (ended subscription(s) under 15 days, total under $10) for organization ${organization.name} #${organization.id}`,
         );
         continue;
       }
@@ -130,7 +169,9 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       );
 
       if (!payoutMethod) {
-        throw new Error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
+        throw new Error(
+          `No Payout Method found, ${PlatformConstants.PlatformName} needs to have at least one payout method.`,
+        );
       }
 
       const totalAmountCharged = sumBy(items, 'amount');
@@ -183,16 +224,19 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
         }
       }
     } catch (e) {
-      logger.error(
-        `Error occurred while submitting organization  platform subscription bill to #${orgId}: ${e.message}`,
-      );
+      reportErrorToSentry(e, {
+        extra: {
+          organizationId: orgId,
+          subscription,
+        },
+      });
     }
   }
 }
 
 if (require.main === module) {
   // Only run on the 1th of the month
-  if (isProduction && new Date().getDate() !== 1 && !process.env.OFFCYCLE) {
+  if (isProduction && new Date().getDate() !== 1 && !parseToBoolean(process.env.OFFCYCLE)) {
     console.log('OC_ENV is production and today is not the 1st of month, script aborted!');
     process.exit();
   } else if (parseToBoolean(process.env.SKIP_PLATFORM_BILLING)) {

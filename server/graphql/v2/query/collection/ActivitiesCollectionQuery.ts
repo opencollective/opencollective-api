@@ -8,6 +8,7 @@ import { Order, WhereOptions } from 'sequelize';
 
 import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
 import { CollectiveType } from '../../../../constants/collectives';
+import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import models, { Activity, Collective, Op, User } from '../../../../models';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
 import { BadRequest, NotFound } from '../../../errors';
@@ -96,10 +97,12 @@ const ActivitiesCollectionQuery = {
     let accounts: Collective[], user: User, host: Collective;
     if (args.account?.length) {
       accounts = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
+      await assertCanSeeAllAccounts(req, accounts);
     }
     if (args.host) {
       // No checking if still a host, as we may want to check activities on hosts that are not hosts anymore
       host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      await assertCanSeeAccount(req, host);
       if (!req.remoteUser.isAdminOfCollectiveOrHost(host)) {
         throw new Error('You are not allowed to access activities for this host');
       }

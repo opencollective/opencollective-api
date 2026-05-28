@@ -10,6 +10,7 @@ import expenseStatus from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { roundCentsAmount } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
 import { createRefundTransaction } from '../../lib/payments';
@@ -109,7 +110,10 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
         feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
       } else {
         // This is simplified because we enforce sourceCurrency to be the same as hostCurrency
-        feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency = roundCentsAmount(
+          paymentOption.fee.total * 100,
+          expense.host.currency,
+        );
       }
 
       const hostAmount =
@@ -239,7 +243,7 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         const paymentProcessorFee = expense.data.paymentOption.fee.total;
         await createRefundTransaction(
           creditTransaction,
-          Math.round((paymentProcessorFee - difference) * 100),
+          roundCentsAmount((paymentProcessorFee - difference) * 100, host.currency),
           pick(creditTransaction.data, ['transfer']),
           expense.User,
         );

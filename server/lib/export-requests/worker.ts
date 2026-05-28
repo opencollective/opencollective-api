@@ -209,7 +209,7 @@ class ExportWorker {
    * Fallback tick to ensure no requests are missed and to perform periodic maintenance.
    */
   async tick(): Promise<void> {
-    logger.info(`Exports Worker Tick: running ${this.queue.pending} tasks, ${this.queue.size} more tasks in the queue`);
+    debug(`Exports Worker Tick: running ${this.queue.pending} tasks, ${this.queue.size} more tasks in the queue`);
 
     await this.checkStuckTasks();
     await this.checkErroredTasks();
@@ -224,7 +224,7 @@ class ExportWorker {
         limit: 10,
       });
       if (pendingRequests.length === 0) {
-        logger.info('Exports Worker Tick: no pending ENQUEUED requests found');
+        debug('Exports Worker Tick: no pending ENQUEUED requests found');
         return;
       }
       logger.info(`Exports Worker Tick: found ${pendingRequests.length} pending ENQUEUED requests`);

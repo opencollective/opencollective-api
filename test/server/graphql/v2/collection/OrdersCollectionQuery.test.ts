@@ -10,6 +10,7 @@ import {
   fakeEvent,
   fakeManualPaymentProvider,
   fakeOrder,
+  fakePrivateHost,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -96,6 +97,17 @@ const ordersWithPaymentFilterQuery = gql`
           id
           name
         }
+      }
+    }
+  }
+`;
+
+const ordersPrivateOrgQuery = gql`
+  query OrdersPrivateOrg($account: AccountReferenceInput, $host: AccountReferenceInput, $filter: AccountOrdersFilter) {
+    orders(account: $account, host: $host, filter: $filter) {
+      totalCount
+      nodes {
+        description
       }
     }
   }
@@ -1302,6 +1314,332 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
     });
   });
 
+  describe('oppositeAccountScope filter', () => {
+    const oppositeAccountScopeQuery = gql`
+      query OrdersWithOppositeAccountScope(
+        $account: AccountReferenceInput
+        $host: AccountReferenceInput
+        $hostContext: HostContext
+        $filter: AccountOrdersFilter
+        $oppositeAccountScope: OppositeAccountScope
+      ) {
+        orders(
+          account: $account
+          host: $host
+          hostContext: $hostContext
+          filter: $filter
+          oppositeAccountScope: $oppositeAccountScope
+        ) {
+          totalCount
+          nodes {
+            id
+            legacyId
+            toAccount {
+              id
+              legacyId
+              slug
+            }
+            fromAccount {
+              id
+              legacyId
+              slug
+            }
+          }
+        }
+      }
+    `;
+
+    describe('with a fiscal host as account + hostContext ALL', () => {
+      let host, hostedCollectiveA, hostedCollectiveB, externalCollective, externalUser;
+      let internalIncomingOrder, externalIncomingOrder, internalOutgoingOrder, externalOutgoingOrder;
+
+      before(async () => {
+        host = await fakeActiveHost();
+        hostedCollectiveA = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+        hostedCollectiveB = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+        externalCollective = await fakeCollective();
+        externalUser = await fakeUser();
+
+        // Internal incoming: from hostedCollectiveB → hostedCollectiveA (both under same host)
+        internalIncomingOrder = await fakeOrder({
+          FromCollectiveId: hostedCollectiveB.id,
+          CollectiveId: hostedCollectiveA.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // External incoming: from externalUser → hostedCollectiveA
+        externalIncomingOrder = await fakeOrder({
+          FromCollectiveId: externalUser.CollectiveId,
+          CollectiveId: hostedCollectiveA.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // Internal outgoing: from hostedCollectiveA → hostedCollectiveB (both under same host)
+        internalOutgoingOrder = await fakeOrder({
+          FromCollectiveId: hostedCollectiveA.id,
+          CollectiveId: hostedCollectiveB.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // External outgoing: from hostedCollectiveA → externalCollective
+        externalOutgoingOrder = await fakeOrder({
+          FromCollectiveId: hostedCollectiveA.id,
+          CollectiveId: externalCollective.id,
+          status: OrderStatuses.PAID,
+        });
+      });
+
+      it('INCOMING + INTERNAL: returns only incoming orders where the sender is within the same host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          filter: 'INCOMING',
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        // Both internal orders match: B→A is incoming to A (under host) with sender B (under host),
+        // and A→B is incoming to B (under host) with sender A (under host)
+        expect(result.data.orders.totalCount).to.eq(2);
+        const orderIds = result.data.orders.nodes.map(n => n.legacyId);
+        expect(orderIds).to.include(internalIncomingOrder.id);
+        expect(orderIds).to.include(internalOutgoingOrder.id);
+      });
+
+      it('INCOMING + EXTERNAL: returns only incoming orders where the sender is outside the host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          filter: 'INCOMING',
+          oppositeAccountScope: 'EXTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(externalIncomingOrder.id);
+      });
+
+      it('OUTGOING + INTERNAL: returns only outgoing orders where the recipient is within the same host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          filter: 'OUTGOING',
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        // Both internal orders match: A→B is outgoing from A (under host) to B (under host),
+        // and B→A is outgoing from B (under host) to A (under host)
+        expect(result.data.orders.totalCount).to.eq(2);
+        const orderIds = result.data.orders.nodes.map(n => n.legacyId);
+        expect(orderIds).to.include(internalIncomingOrder.id);
+        expect(orderIds).to.include(internalOutgoingOrder.id);
+      });
+
+      it('OUTGOING + EXTERNAL: returns only outgoing orders where the recipient is outside the host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          filter: 'OUTGOING',
+          oppositeAccountScope: 'EXTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(externalOutgoingOrder.id);
+      });
+
+      it('INTERNAL without direction: returns orders where both sides are within the same host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(2);
+        const orderIds = result.data.orders.nodes.map(n => n.legacyId);
+        expect(orderIds).to.include(internalIncomingOrder.id);
+        expect(orderIds).to.include(internalOutgoingOrder.id);
+      });
+
+      it('EXTERNAL without direction: returns orders where at least one side is outside the host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          oppositeAccountScope: 'EXTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(2);
+        const orderIds = result.data.orders.nodes.map(n => n.legacyId);
+        expect(orderIds).to.include(externalIncomingOrder.id);
+        expect(orderIds).to.include(externalOutgoingOrder.id);
+      });
+    });
+
+    describe('with a fiscal host as account (hasMoneyManagement)', () => {
+      let host, hostedCollective, externalUser;
+      let internalOrder, externalOrder;
+
+      before(async () => {
+        host = await fakeActiveHost();
+        hostedCollective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+        externalUser = await fakeUser();
+
+        // Internal: from hostedCollective → host
+        internalOrder = await fakeOrder({
+          FromCollectiveId: hostedCollective.id,
+          CollectiveId: host.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // External: from externalUser → host
+        externalOrder = await fakeOrder({
+          FromCollectiveId: externalUser.CollectiveId,
+          CollectiveId: host.id,
+          status: OrderStatuses.PAID,
+        });
+      });
+
+      it('INCOMING + INTERNAL: sender is within the same host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          filter: 'INCOMING',
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(internalOrder.id);
+      });
+
+      it('INCOMING + EXTERNAL: sender is outside the host', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: host.id },
+          hostContext: 'ALL',
+          filter: 'INCOMING',
+          oppositeAccountScope: 'EXTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(externalOrder.id);
+      });
+    });
+
+    describe('with a regular collective (account-level scoping)', () => {
+      let collective, childEvent, externalUser;
+      let internalIncomingOrder, externalIncomingOrder, internalOutgoingOrder, externalOutgoingOrder;
+
+      before(async () => {
+        collective = await fakeCollective();
+        childEvent = await fakeEvent({ ParentCollectiveId: collective.id, approvedAt: new Date() });
+        externalUser = await fakeUser();
+
+        // Internal incoming: from childEvent → collective
+        internalIncomingOrder = await fakeOrder({
+          FromCollectiveId: childEvent.id,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // External incoming: from externalUser → collective
+        externalIncomingOrder = await fakeOrder({
+          FromCollectiveId: externalUser.CollectiveId,
+          CollectiveId: collective.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // Internal outgoing: from collective → childEvent
+        internalOutgoingOrder = await fakeOrder({
+          FromCollectiveId: collective.id,
+          CollectiveId: childEvent.id,
+          status: OrderStatuses.PAID,
+        });
+
+        // External outgoing: from collective → some other collective
+        const otherCollective = await fakeCollective();
+        externalOutgoingOrder = await fakeOrder({
+          FromCollectiveId: collective.id,
+          CollectiveId: otherCollective.id,
+          status: OrderStatuses.PAID,
+        });
+      });
+
+      it('INCOMING + INTERNAL: returns orders from the account hierarchy (children)', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: collective.id },
+          filter: 'INCOMING',
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(internalIncomingOrder.id);
+      });
+
+      it('INCOMING + EXTERNAL: returns orders from outside the account hierarchy', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: collective.id },
+          filter: 'INCOMING',
+          oppositeAccountScope: 'EXTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(externalIncomingOrder.id);
+      });
+
+      it('OUTGOING + INTERNAL: returns orders to children of the account', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: collective.id },
+          filter: 'OUTGOING',
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(internalOutgoingOrder.id);
+      });
+
+      it('OUTGOING + EXTERNAL: returns orders to accounts outside the hierarchy', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          account: { legacyId: collective.id },
+          filter: 'OUTGOING',
+          oppositeAccountScope: 'EXTERNAL',
+        });
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.totalCount).to.eq(1);
+        expect(result.data.orders.nodes[0].legacyId).to.eq(externalOutgoingOrder.id);
+      });
+    });
+
+    describe('validation', () => {
+      it('throws an error when oppositeAccountScope is set without account', async () => {
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('oppositeAccountScope requires');
+      });
+
+      it('throws an error when oppositeAccountScope is used with the host argument', async () => {
+        const host = await fakeActiveHost();
+        const result = await graphqlQueryV2(oppositeAccountScopeQuery, {
+          host: { legacyId: host.id },
+          oppositeAccountScope: 'INTERNAL',
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.include('not supported with the `host` argument');
+      });
+    });
+  });
+
   describe('manualPaymentProvider and OPENCOLLECTIVE+MANUAL filter', () => {
     let hostForMpp, collectiveForMpp, providerMpp, orderWithMpp, hostAdminUser;
 
@@ -1374,6 +1712,191 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.orders.totalCount).to.eq(1);
       expect(result.data.orders.nodes[0].legacyId).to.eq(orderWithMpp.id);
+    });
+  });
+
+  describe('Order collection visibility for private organizations', () => {
+    let privateHost;
+    let privateCollective;
+    let privateCollective2;
+    let publicCollective;
+    let contributorUser;
+    let privateHostAdminUser;
+    let privateCollectiveAdminUser;
+    let privateCollective2AdminUser;
+    let randomUser;
+
+    before(async () => {
+      privateHostAdminUser = await fakeUser();
+      privateHost = await fakePrivateHost({ admin: privateHostAdminUser.collective });
+      privateCollectiveAdminUser = await fakeUser();
+      privateCollective = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+        admin: privateCollectiveAdminUser.collective,
+      });
+      privateCollective2AdminUser = await fakeUser();
+      privateCollective2 = await fakeCollective({
+        HostCollectiveId: privateHost.id,
+        isPrivate: true,
+        approvedAt: new Date(),
+        admin: privateCollective2AdminUser.collective,
+      });
+      const publicHost = await fakeActiveHost();
+      publicCollective = await fakeCollective({ HostCollectiveId: publicHost.id, approvedAt: new Date() });
+      contributorUser = await fakeUser();
+      randomUser = await fakeUser();
+
+      await fakeOrder({
+        FromCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: privateCollective.id,
+        CreatedByUserId: contributorUser.id,
+        status: OrderStatuses.PAID,
+        description: 'Order to private collective 1',
+      });
+      await fakeOrder({
+        FromCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: privateCollective2.id,
+        CreatedByUserId: contributorUser.id,
+        status: OrderStatuses.PAID,
+        description: 'Order to private collective 2',
+      });
+      await fakeOrder({
+        FromCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: publicCollective.id,
+        CreatedByUserId: contributorUser.id,
+        status: OrderStatuses.PAID,
+        description: 'Order to public collective',
+      });
+    });
+
+    describe('when listing outgoing orders from an individual', () => {
+      const queryFromContributorProfile = () => ({
+        account: { legacyId: contributorUser.CollectiveId },
+        filter: 'OUTGOING',
+      });
+
+      it('user can see own outgoing orders to private organizations', async () => {
+        const result = await graphqlQueryV2(ordersPrivateOrgQuery, queryFromContributorProfile(), contributorUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.orders.nodes.map(n => n.description);
+        expect(descriptions).to.include.members([
+          'Order to private collective 1',
+          'Order to private collective 2',
+          'Order to public collective',
+        ]);
+      });
+
+      it('host admins can see outgoing orders to private organizations', async () => {
+        const result = await graphqlQueryV2(ordersPrivateOrgQuery, queryFromContributorProfile(), privateHostAdminUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.orders.nodes.map(n => n.description);
+        expect(descriptions).to.include.members([
+          'Order to private collective 1',
+          'Order to private collective 2',
+          'Order to public collective',
+        ]);
+      });
+
+      it('collective admins can see outgoing orders to their private collective', async () => {
+        const result = await graphqlQueryV2(
+          ordersPrivateOrgQuery,
+          queryFromContributorProfile(),
+          privateCollectiveAdminUser,
+        );
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.orders.nodes.map(n => n.description);
+        expect(descriptions).to.include.members(['Order to private collective 1', 'Order to public collective']);
+        expect(descriptions).to.not.include('Order to private collective 2');
+      });
+
+      it("random user can't see outgoing orders to private organizations", async () => {
+        const result = await graphqlQueryV2(ordersPrivateOrgQuery, queryFromContributorProfile(), randomUser);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.orders.nodes.map(n => n.description);
+        expect(descriptions).to.eql(['Order to public collective']);
+      });
+
+      it("admin of other collective under same host can't see outgoing orders to private collective 2", async () => {
+        const result = await graphqlQueryV2(
+          ordersPrivateOrgQuery,
+          queryFromContributorProfile(),
+          privateCollectiveAdminUser,
+        );
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.orders.nodes.map(n => n.description);
+        expect(descriptions).to.not.include('Order to private collective 2');
+      });
+
+      it("unauthenticated can't see outgoing orders to private organizations", async () => {
+        const result = await graphqlQueryV2(ordersPrivateOrgQuery, queryFromContributorProfile(), null);
+        expect(result.errors).to.not.exist;
+        const descriptions = result.data.orders.nodes.map(n => n.description);
+        expect(descriptions).to.eql(['Order to public collective']);
+      });
+    });
+
+    describe('private organizations', () => {
+      const privateOrderForbiddenMessage =
+        'One or more of the accounts are private. You must be a member to view them.';
+
+      it("can't be queried by random user (account, host, outgoing from private profile)", async () => {
+        for (const variables of [
+          { account: { legacyId: privateCollective.id } },
+          { host: { legacyId: privateHost.id } },
+          { account: { legacyId: privateCollective.id }, filter: 'OUTGOING' },
+        ]) {
+          const result = await graphqlQueryV2(ordersPrivateOrgQuery, variables, randomUser);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(privateOrderForbiddenMessage);
+        }
+      });
+
+      it("can't be queried by unauthenticated (account, host, outgoing from private profile)", async () => {
+        for (const variables of [
+          { account: { legacyId: privateCollective.id } },
+          { host: { legacyId: privateHost.id } },
+          { account: { legacyId: privateCollective.id }, filter: 'OUTGOING' },
+        ]) {
+          const result = await graphqlQueryV2(ordersPrivateOrgQuery, variables, null);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(privateOrderForbiddenMessage);
+        }
+      });
+
+      it("can't be queried by other collective admin under same host", async () => {
+        const result = await graphqlQueryV2(
+          ordersPrivateOrgQuery,
+          { account: { legacyId: privateCollective2.id } },
+          privateCollectiveAdminUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(privateOrderForbiddenMessage);
+      });
+
+      it('can be queried by collective admin', async () => {
+        const result = await graphqlQueryV2(
+          ordersPrivateOrgQuery,
+          { account: { legacyId: privateCollective.id }, filter: 'INCOMING' },
+          privateCollectiveAdminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.nodes.map(n => n.description)).to.include('Order to private collective 1');
+      });
+
+      it('can be queried by host admin', async () => {
+        const result = await graphqlQueryV2(
+          ordersPrivateOrgQuery,
+          { host: { legacyId: privateHost.id } },
+          privateHostAdminUser,
+        );
+        expect(result.errors).to.not.exist;
+        expect(result.data.orders.nodes.map(n => n.description)).to.include.members([
+          'Order to private collective 1',
+          'Order to private collective 2',
+        ]);
+      });
     });
   });
 });

@@ -164,13 +164,18 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
     // And given that the endpoint for creating customers on Stripe
     // is patched
-    utils.stubStripeCreate(sandbox, {
-      charge: { currency: 'usd', status: 'succeeded' },
-    });
+    utils.stubStripeCreate(
+      sandbox,
+      {
+        charge: { currency: 'usd', status: 'succeeded' },
+      },
+      { skipPaymentIntents: true },
+    );
     // And given the stripe stuff that depends on values in the
     // order struct is patch. It's here and not on each test because
     // the `totalAmount' field doesn't change throught the tests.
-    utils.stubStripeBalance(sandbox, ORDER_TOTAL_AMOUNT, 'usd', 0, STRIPE_FEE_STUBBED_VALUE); // This is the payment processor fee.
+    // Balance tx amount must match PaymentIntent (see createChargeTransactions + stubStripeBalanceSyncWithPaymentIntent).
+    utils.stubStripeBalanceSyncWithPaymentIntent(sandbox, { stripeFee: STRIPE_FEE_STUBBED_VALUE });
   });
 
   afterEach(() => sandbox.restore());

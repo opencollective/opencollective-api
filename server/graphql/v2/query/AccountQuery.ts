@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLString } from 'graphql';
 
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { NotFound } from '../../errors';
@@ -68,11 +69,33 @@ export const buildAccountQuery = ({ objectType }) => ({
       }
     }
 
-    if (await req.loaders.Collective.canSeePrivateLocation.load(collective.id)) {
+    // Block access to private accounts for unauthorized viewers
+    await assertCanSeeAccount(req, collective);
+
+    const [canSeePrivateLocation, canSeePrivateProfileInfo, incognitoProfile] = await Promise.all([
+      req.loaders.Collective.canSeePrivateLocation.load(collective.id),
+      req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id),
+      collective.getIncognitoProfile(),
+    ]);
+    if (canSeePrivateLocation) {
       allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, collective.id);
     }
-    if (await req.loaders.Collective.canSeePrivateProfileInfo.load(collective.id)) {
+    if (canSeePrivateProfileInfo) {
       allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, collective.id);
+    }
+
+    // If the account has an incognito profile, check if the viewer has access to it and grant permissions accordingly
+    if (incognitoProfile) {
+      const [canSeePrivateLocationIncognito, canSeePrivateProfileInfoIncognito] = await Promise.all([
+        req.loaders.Collective.canSeePrivateLocation.load(incognitoProfile.id),
+        req.loaders.Collective.canSeePrivateProfileInfo.load(incognitoProfile.id),
+      ]);
+      if (canSeePrivateLocationIncognito) {
+        allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_LOCATION, incognitoProfile.id);
+      }
+      if (canSeePrivateProfileInfoIncognito) {
+        allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, incognitoProfile.id);
+      }
     }
 
     return collective;

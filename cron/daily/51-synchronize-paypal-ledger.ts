@@ -5,23 +5,27 @@
 
 import '../../server/env';
 
-import { groupBy } from 'lodash';
+import { get, groupBy } from 'lodash';
 import moment from 'moment';
 import { QueryTypes } from 'sequelize';
 
 import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order-status';
+import { floatAmountToCents } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
+import { createRefundTransaction } from '../../server/lib/payments';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
 import { recordOrderProcessed } from '../../server/lib/recurring-contributions';
 import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, Order, sequelize } from '../../server/models';
+import Transaction from '../../server/models/Transaction';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
 import { runCronJob } from '../utils';
 
+const DISABLE_PAYPAL_SYNC = process.env.DISABLE_PAYPAL_SYNC ? parseToBoolean(process.env.DISABLE_PAYPAL_SYNC) : false;
 const LIMITED_TO_HOST_SLUGS = process.env.HOST ? process.env.HOST.split(',') : null;
 const EXCLUDED_HOST_SLUGS = process.env.EXCLUDED_HOST ? process.env.EXCLUDED_HOST.split(',') : null;
 const START_DATE = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc().subtract(2, 'day');
@@ -40,17 +44,20 @@ const WATCHED_EVENT_TYPES = [
   'T0006',
 ];
 
+// Refund event types to detect missing refunds directly from the transaction list
+const REFUND_EVENT_TYPES = [
+  'T1107', // Refund Payment
+];
+
 // Ignore some hosts, usually because they haven't enabled transactions search API yet
-// Checked again on 2026-04-15
 const IGNORED_HOSTS = [
+  // Checked again on 2026-04-15
   'dxura',
-  'lucyparsonsinstitute',
   'naarprdfw',
   'taon',
   'tts-miniature-wargames-collective',
-  'lucy-parsons-labs',
-  'osgeo-foundation',
   'secdsm',
+  'deeptimewalk-cic',
 ];
 
 /**
@@ -244,6 +251,95 @@ const handleCheckoutTransaction = async (
 };
 
 /**
+ * From a full list of PayPal transactions for the period, find refund events (T1107) whose
+ * corresponding contribution is recorded in the database but has no refund entry yet.
+ *
+ * Each T1107 transaction carries the original capture ID in `paypal_reference_id` (type TXN) and
+ * its own `transaction_id` is the refund ID — so we never need to call `payments/captures/` to
+ * discover whether a capture was refunded or to look up the refund ID.
+ *
+ * Returns pairs of [paypalRefundDetails, dbTransaction] for each match found.
+ */
+const getMissingRefundTransactions = async (
+  transactions: PaypalTransactionSearchResult['transaction_details'],
+  host: Collective,
+): Promise<Array<[Record<string, unknown>, Transaction]>> => {
+  // Keep only refund events that reference an original capture via a TXN reference
+  const refundTransactions = transactions.filter(
+    t =>
+      REFUND_EVENT_TYPES.includes(t.transaction_info.transaction_event_code) &&
+      t.transaction_info.paypal_reference_id_type === 'TXN' &&
+      t.transaction_info.paypal_reference_id,
+  );
+
+  if (!refundTransactions.length) {
+    return [];
+  }
+
+  // Map original capture ID -> refund transaction (transaction_id = the refund ID)
+  const refundByOriginalCaptureId = Object.fromEntries(
+    refundTransactions.map(t => [t.transaction_info.paypal_reference_id, t]),
+  );
+  const captureIds = Object.keys(refundByOriginalCaptureId);
+
+  // Find DB contributions whose paypalCaptureId is one of those original capture IDs
+  // and that have no refund recorded yet.
+  //
+  // We intentionally split this into two separate queries. Combining the paypalCaptureId
+  // lookup with the type/kind/isRefund filters in a single query causes the planner to
+  // perform a BitmapAnd with the CollectiveId-type index (~6M rows, ~700ms), because the
+  // statistics on the transactions__data_paypal_capture_id partial index over-estimate its
+  // row count by ~30,000x and make the extra bitmap look worthwhile. Isolating the
+  // paypalCaptureId conditions in step 1 lets the planner use that index alone.
+
+  // Step 1: use the paypalCaptureId partial index in isolation to get matching TransactionGroups.
+  const transactionGroupRows = await sequelize.query<{ TransactionGroup: string }>(
+    `SELECT DISTINCT "TransactionGroup"
+     FROM "Transactions"
+     WHERE data #>> '{paypalCaptureId}' IS NOT NULL
+       AND data #>> '{paypalCaptureId}' IN (:captureIds)
+       AND "deletedAt" IS NULL
+    `,
+    { type: QueryTypes.SELECT, replacements: { captureIds } },
+  );
+
+  if (!transactionGroupRows.length) {
+    return [];
+  }
+
+  // Step 2: retrieve the CREDIT/CONTRIBUTION rows for those groups.
+  const transactionGroups = transactionGroupRows.map(r => r.TransactionGroup);
+  const dbTransactions = await models.Transaction.findAll({
+    where: {
+      TransactionGroup: transactionGroups,
+      type: 'CREDIT',
+      kind: 'CONTRIBUTION',
+      isRefund: false,
+      RefundTransactionId: null,
+    },
+  });
+
+  const result: Array<[Record<string, unknown>, Transaction]> = [];
+  for (const dbTransaction of dbTransactions) {
+    const captureId = (dbTransaction.data as { paypalCaptureId?: string }).paypalCaptureId;
+    const refundId = refundByOriginalCaptureId[captureId].transaction_info.transaction_id;
+
+    let refundDetails: Record<string, unknown>;
+    try {
+      refundDetails = await paypalRequestV2(`payments/refunds/${refundId}`, host, 'GET');
+    } catch (e) {
+      logger.error(`Error fetching refund ${refundId} for capture ${captureId}: ${e.message}`);
+      reportErrorToSentry(e, { extra: { transactionId: dbTransaction.id, captureId, refundId, hostSlug: host.slug } });
+      continue;
+    }
+
+    result.push([refundDetails, dbTransaction]);
+  }
+
+  return result;
+};
+
+/**
  * Split a given period in chunks of `nbOfDays` days
  */
 const getDateChunks = (fromDate: moment.Moment, toDate: moment.Moment, nbOfDays = 30) => {
@@ -311,7 +407,7 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
             severity: 'warning',
           });
         }
-        return;
+        break;
       }
 
       const filteredTransactions = transactions.filter(t =>
@@ -327,11 +423,11 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
       const missingTransactions = await getMissingTransactions(filteredTransactions);
       if (!missingTransactions.length) {
         logger.info(`✓ No missing transactions on page ${currentPage}/${totalPages}`);
-        continue;
+      } else {
+        // Fetch missing transactions details from PayPal
+        logger.info(`${missingTransactions.length} transactions seems missing from @${host.slug}'s ledger`);
       }
 
-      // Fetch missing transactions details from PayPal
-      logger.info(`${missingTransactions.length} transactions seems missing from @${host.slug}'s ledger`);
       for (const transaction of missingTransactions) {
         let captureDetails;
         const captureUrl = `payments/captures/${transaction.transaction_info.transaction_id}`;
@@ -346,7 +442,7 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         }
 
         if (captureDetails.status !== 'COMPLETED') {
-          // TODO: if status is REFUNDED, we should record the transaction + its refund
+          // If status is REFUNDED, we should ideally record the transaction + its refund (not scoped yet)
           logger.debug(
             `Capture ${transaction.transaction_info.transaction_id} is ${captureDetails.status}, skipping...`,
           );
@@ -360,14 +456,63 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
           await handleCheckoutTransaction(host, transaction, captureDetails);
         }
       }
+
+      // Find out which transactions are refunded on PayPal but still marked as paid in the database.
+      // We pass the full unfiltered list so that T1107 refund events (excluded from filteredTransactions)
+      // are visible to the function.
+      const paypalRefundedTransactions = await getMissingRefundTransactions(transactions, host);
+      for (const [paypalTransaction, transaction] of paypalRefundedTransactions) {
+        const refundedPaypalFee = floatAmountToCents(
+          parseFloat(get(paypalTransaction, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string),
+        );
+
+        // Throw on partial refunds so they are investigated manually
+        const totalRefundedCents = floatAmountToCents(
+          parseFloat(get(paypalTransaction, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string),
+        );
+        const originalProcessorFee = Math.abs(
+          transaction.paymentProcessorFeeInHostCurrency ||
+            (await transaction.getPaymentProcessorFeeTransaction())?.amountInHostCurrency ||
+            0,
+        );
+        const expectedMinRefund = transaction.amountInHostCurrency - Math.abs(originalProcessorFee);
+        if (totalRefundedCents < expectedMinRefund) {
+          reportMessageToSentry('PayPal partial refund detected', {
+            extra: {
+              transactionId: transaction.id,
+              expectedMinRefund,
+              totalRefundedCents,
+            },
+            feature: FEATURE.PAYPAL_DONATIONS,
+            severity: 'error',
+          });
+          continue;
+        }
+
+        const msg = `Record missing refund for PayPal capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId} (transaction #${transaction.id})`;
+        logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
+        if (!DRY_RUN) {
+          await createRefundTransaction(
+            transaction,
+            refundedPaypalFee,
+            { paypalResponse: paypalTransaction, isRefundedFromPayPal: true },
+            null,
+          );
+        }
+      }
     } while (currentPage++ < totalPages);
   }
 
   logger.info(`✓ All done with @${host.slug}`);
 };
 
-const run = async () => {
-  const hostsWithPayPal = await getHostsWithPayPalConnected();
+export const run = async () => {
+  if (DISABLE_PAYPAL_SYNC) {
+    logger.info('PayPal sync is disabled, skipping...');
+    return;
+  }
+
+  const hostsWithPayPal = await getHostsWithPayPalConnected({ onlyPaymentsEnabled: true });
   const fromDate = START_DATE.startOf('day');
   const toDate = END_DATE.endOf('day');
   const hostsToIgnore = [...IGNORED_HOSTS, ...(EXCLUDED_HOST_SLUGS || [])];

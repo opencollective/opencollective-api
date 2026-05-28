@@ -225,6 +225,7 @@ export const fakeIncognitoProfile = async user => {
     HostCollectiveId: null,
     CreatedByUserId: user.id,
     isIncognito: true,
+    data: { UserCollectiveId: user.CollectiveId, UserId: user.id },
   });
   await fakeMember({ CollectiveId: incognitoCollective.id, MemberCollectiveId: user.CollectiveId, role: roles.ADMIN });
   return incognitoCollective;
@@ -238,6 +239,7 @@ export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = 
     slug: randStr('host-'),
     HostCollectiveId: null,
     hasMoneyManagement: true,
+    hasHosting: true,
     ...hostData,
   });
 };
@@ -252,6 +254,7 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     hasMoneyManagement: true,
     isActive: true,
     approvedAt: new Date(),
+    hasHosting: true,
     ...hostData,
   });
 
@@ -360,6 +363,15 @@ export const fakeCollective = async (
           );
         }),
       );
+
+      // Re-populate roles for affected users
+      await Promise.all(
+        admins.map(admin => {
+          if (admin instanceof models.User) {
+            return admin.populateRoles({ force: true });
+          }
+        }),
+      );
     } catch {
       // Ignore if host is already linked
     }
@@ -376,6 +388,16 @@ export const fakeOrganization = (organizationData: Record<string, unknown> = {})
     ...organizationData,
     type: CollectiveType.ORGANIZATION,
   });
+};
+
+/** Creates a fake private organization (not a host). */
+export const fakePrivateOrganization = (organizationData: Record<string, unknown> = {}) => {
+  return fakeOrganization({ isPrivate: true, ...organizationData });
+};
+
+/** Creates a fake private host (organization with money management, isPrivate=true). */
+export const fakePrivateHost = async (hostData: Parameters<typeof fakeActiveHost>[0] = {}) => {
+  return fakeActiveHost({ isPrivate: true, ...hostData });
 };
 
 /**

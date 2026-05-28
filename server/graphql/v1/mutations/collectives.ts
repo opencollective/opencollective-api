@@ -1,7 +1,7 @@
 import config from 'config';
 import express from 'express';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate } from 'lodash';
+import { cloneDeep, get, isEqual, omit, pick, truncate } from 'lodash';
 import { Op, QueryTypes } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
@@ -12,11 +12,10 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { defaultHostCollective } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import { containsProtectedBrandName } from '../../../lib/string-utils';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Collective, sequelize } from '../../../models';
-import SocialLink, { SocialLinkType } from '../../../models/SocialLink';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { VENDOR_INFO_FIELDS } from '../../v2/mutation/VendorMutations';
 import { CollectiveInputType } from '../inputTypes';
@@ -25,7 +24,7 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },
 };
 
-export async function createCollective(_, args, req) {
+export async function createCollective(_, args, req: express.Request) {
   const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create a collective');
@@ -46,7 +45,7 @@ export async function createCollective(_, args, req) {
   //   throw new ValidationFailed('This mutation should not be used to create Collectives, use GraphQL v2.');
   // }
 
-  let hostCollective, parentCollective, collective;
+  let hostCollective: Collective, parentCollective: Collective, collective: Collective;
 
   const collectiveData = {
     ...args.collective,
@@ -86,8 +85,15 @@ export async function createCollective(_, args, req) {
   if (collectiveData.HostCollectiveId) {
     hostCollective = await req.loaders.Collective.byId.load(collectiveData.HostCollectiveId);
     if (!hostCollective) {
-      return Promise.reject(new Error(`Host collective with id ${args.collective.HostCollectiveId} not found`));
-    } else if (req.remoteUser.hasRole([roles.ADMIN], hostCollective.id)) {
+      throw new Error(`Host collective with id ${args.collective.HostCollectiveId} not found`);
+    } else if (!(await canSeePrivateAccount(req, hostCollective))) {
+      throw new Unauthorized('You are not authorized to create a collective under this host');
+    } else if (!hostCollective.hasHosting) {
+      throw new Unauthorized('This host does not accept hosting new collectives');
+    }
+
+    // Handle approval logic
+    if (req.remoteUser.hasRole([roles.ADMIN], hostCollective.id)) {
       collectiveData.isActive = true;
     } else if (parentCollective && parentCollective.HostCollectiveId === hostCollective.id) {
       // We can approve the collective directly if same host and parent collective is already approved
@@ -99,6 +105,11 @@ export async function createCollective(_, args, req) {
 
     collectiveData.currency = collectiveData.currency || hostCollective.currency;
     collectiveData.hostFeePercent = hostCollective.hostFeePercent;
+  }
+
+  // Enforce private on the collecive if the host is private
+  if (hostCollective?.isPrivate || parentCollective?.isPrivate) {
+    collectiveData.isPrivate = true;
   }
 
   // To ensure uniqueness of the slug, if the type of collective is EVENT
@@ -321,7 +332,16 @@ export function editCollective(_, args, req) {
   }
 
   const newCollectiveData: Partial<Collective> = {
-    ...omit(args.collective, ['location', 'type', 'ParentCollectiveId', 'data', 'privateInstructions']),
+    ...pick(args.collective, [
+      'id',
+      'tags',
+      'settings',
+      'longDescription',
+      'image',
+      'backgroundImage',
+      'HostCollectiveId',
+      'contributionPolicy',
+    ]),
     LastEditedByUserId: req.remoteUser.id,
   };
 
@@ -387,101 +407,31 @@ export function editCollective(_, args, req) {
           newCollectiveData.HostCollectiveId !== undefined &&
           newCollectiveData.HostCollectiveId !== collective.HostCollectiveId
         ) {
+          if (collective.ParentCollectiveId) {
+            throw new ValidationFailed(
+              `Cannot unhost projects/events with a parent. Please unhost the parent instead.`,
+            );
+          } else if (collective.isPrivate && newCollectiveData.HostCollectiveId) {
+            throw new ValidationFailed('Private accounts cannot change hosts');
+          }
+
+          const newHost =
+            newCollectiveData.HostCollectiveId &&
+            (await req.loaders.Collective.byId.load(newCollectiveData.HostCollectiveId));
+          await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, [collective, newHost].filter(Boolean), {
+            alwaysAskForToken: true,
+          });
+
           return collective.changeHost(newCollectiveData.HostCollectiveId, req.remoteUser);
         }
       })
       .then(() => {
-        // If we try to change the `hostFeePercent`
-        if (
-          newCollectiveData.hostFeePercent !== undefined &&
-          newCollectiveData.hostFeePercent !== collective.hostFeePercent
-        ) {
-          return collective.updateHostFeeAsUser(newCollectiveData.hostFeePercent, req.remoteUser);
-        }
-      })
-      .then(() => {
-        // if we try to change the `currency`
-        if (newCollectiveData.currency !== undefined && newCollectiveData.currency !== collective.currency) {
-          return collective.updateCurrency(newCollectiveData.currency, req.remoteUser);
-        }
-      })
-      .then(() => {
-        if (!isUndefined(args.collective.location)) {
-          return collective.setLocation(args.collective.location);
-        }
-      })
-      .then(() => {
-        // Set private instructions value
-        if (!isNil(args.collective.privateInstructions)) {
-          newCollectiveData.data = {
-            ...collective.data,
-            privateInstructions: args.collective.privateInstructions,
-          };
-        }
-
-        // Validate slug/name
-        if (newCollectiveData.slug && newCollectiveData.slug !== collective.slug) {
-          if (!collectivelib.canUseSlug(newCollectiveData.slug, req.remoteUser)) {
-            throw new Error(`The slug '${newCollectiveData.slug}' is not allowed.`);
-          }
-        }
-        if (
-          newCollectiveData.name &&
-          newCollectiveData.name !== collective.name &&
-          !req.remoteUser.isAdminOfAnyPlatformAccount() &&
-          containsProtectedBrandName(newCollectiveData.name)
-        ) {
-          throw new Error(`The name '${newCollectiveData.name}' is not allowed.`);
-        }
-
         // we omit those attributes that have already been updated above
-        return collective.update(omit(newCollectiveData, ['HostCollectiveId', 'hostFeePercent', 'currency']));
+        return collective.update(omit(newCollectiveData, ['HostCollectiveId']));
       })
       .then(async () => {
         if (args.collective.socialLinks) {
           return collective.updateSocialLinks(args.collective.socialLinks);
-        } else if (
-          args.collective.website ||
-          args.collective.repositoryUrl ||
-          args.collective.githubHandle ||
-          args.collective.twitterHandle
-        ) {
-          const socialLinks: Partial<SocialLink>[] = await models.SocialLink.findAll({
-            where: {
-              CollectiveId: collective.id,
-            },
-            order: [['order', 'ASC']],
-          });
-
-          if (args.collective.website) {
-            socialLinks.push({
-              type: SocialLinkType.WEBSITE,
-              url: args.collective.website,
-            });
-          }
-
-          if (args.collective.repositoryUrl) {
-            socialLinks.push({
-              type: SocialLinkType.GIT,
-              url: args.collective.repositoryUrl,
-            });
-          }
-
-          if (args.collective.githubHandle) {
-            socialLinks.push({
-              type: SocialLinkType.GITHUB,
-              url: `https://github.com/${args.collective.githubHandle}`,
-            });
-          }
-
-          if (args.collective.twitterHandle) {
-            socialLinks.push({
-              type: SocialLinkType.TWITTER,
-              url: `https://twitter.com/${args.collective.twitterHandle}`,
-            });
-          }
-
-          return collective.updateSocialLinks(socialLinks);
         }
       })
       .then(async () => {

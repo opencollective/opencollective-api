@@ -1,3 +1,4 @@
+import { omit } from 'lodash';
 import moment from 'moment';
 import type {
   BelongsToGetAssociationMixin,
@@ -68,7 +69,7 @@ class VirtualCard extends ModelWithPublicId<
     });
   }
 
-  async pause() {
+  async pause({ pauseReason }: { pauseReason?: 'MISSING_RECEIPTS' | 'INACTIVITY' | 'MANUAL' }) {
     switch (this.provider) {
       case VirtualCardProviders.STRIPE:
         await stripeVirtualCards.pauseCard(this);
@@ -81,6 +82,7 @@ class VirtualCard extends ModelWithPublicId<
       data: {
         ...this.data,
         status: VirtualCardStatus.INACTIVE,
+        pauseReason,
       },
     });
 
@@ -99,7 +101,7 @@ class VirtualCard extends ModelWithPublicId<
     await this.update({
       resumedAt: new Date(),
       data: {
-        ...this.data,
+        ...omit(this.data, ['pauseReason']),
         status: VirtualCardStatus.ACTIVE,
       },
     });

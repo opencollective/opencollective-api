@@ -21,6 +21,7 @@ import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
 import FEATURE from '../constants/feature';
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
+import { roundCentsAmount } from '../lib/currency';
 import { chargeExpense, getPreferredPlatformPayout } from '../lib/platform-subscriptions';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
@@ -211,7 +212,7 @@ class PlatformSubscription extends Model<
     return [subBillingStart, subBillingEnd];
   }
 
-  terminate({
+  async terminate({
     date = moment.utc().toDate(),
     transaction = undefined,
     inclusive = false,
@@ -219,8 +220,16 @@ class PlatformSubscription extends Model<
     date?: Date;
     inclusive?: boolean;
     transaction?: SequelizeTransaction;
-  }): Promise<PlatformSubscription> {
-    return this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+  }): Promise<void> {
+    const dayStart = moment.utc(date).startOf('day');
+    const subStart = moment.utc(this.startDate);
+
+    // When terminating a subscription on the same day (or in the future), we destroy it directly
+    if (subStart.isSameOrAfter(dayStart)) {
+      await this.destroy({ transaction });
+    } else {
+      await this.update({ period: [this.start, { value: date, inclusive }] }, { transaction });
+    }
   }
 
   get info(): NonAttribute<
@@ -372,7 +381,7 @@ class PlatformSubscription extends Model<
           title: sub.plan.title,
           startDate: effectiveStart,
           endDate: subBillingEnd,
-          amount: Math.round(basePrice * (subSeconds / totalBillingSeconds)),
+          amount: roundCentsAmount(basePrice * (subSeconds / totalBillingSeconds), 'USD'),
         };
       },
     );
@@ -559,7 +568,12 @@ class PlatformSubscription extends Model<
     when: Date,
     plan: Partial<PlatformSubscriptionPlan>,
     user: User | null,
-    opts?: { transaction?: SequelizeTransaction; UserTokenId?: number; isAutomaticMigration?: boolean },
+    opts?: {
+      transaction?: SequelizeTransaction;
+      UserTokenId?: number;
+      isAutomaticMigration?: boolean;
+      notify?: boolean;
+    },
   ): Promise<PlatformSubscription> {
     const currentSubscription = await PlatformSubscription.getCurrentSubscription(collective.id);
     const newSubscriptionStart = moment.utc(when).startOf('day');

@@ -1,5 +1,6 @@
 import { GraphQLList } from 'graphql';
 
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import models, { Collective, Op, User } from '../../../models';
 import { ValidationFailed } from '../../errors';
 import { GraphQLMemberRole } from '../enum/MemberRole';
@@ -44,7 +45,8 @@ const MemberInvitationsQuery = {
       description: 'An array of Member roles to filter for',
     },
   },
-  async resolve(collective, args, { remoteUser }) {
+  async resolve(collective, args, req) {
+    const { remoteUser } = req;
     if (!remoteUser) {
       return null;
     }
@@ -57,6 +59,13 @@ const MemberInvitationsQuery = {
       collective || (args.account && (await fetchAccountWithReference(args.account, { throwIfMissing: true })));
     const memberAccount =
       args.memberAccount && (await fetchAccountWithReference(args.memberAccount, { throwIfMissing: true }));
+
+    if (account) {
+      await assertCanSeeAccount(req, account);
+    }
+    if (memberAccount) {
+      await assertCanSeeAccount(req, memberAccount);
+    }
 
     // Must be an admin to see pending invitations
     const isAdminOfAccount = account && canViewMemberInvitationsForAccount(account, remoteUser);

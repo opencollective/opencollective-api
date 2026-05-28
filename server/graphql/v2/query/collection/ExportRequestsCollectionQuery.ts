@@ -1,3 +1,4 @@
+import type Express from 'express';
 import { GraphQLNonNull } from 'graphql';
 import { Order } from 'sequelize';
 

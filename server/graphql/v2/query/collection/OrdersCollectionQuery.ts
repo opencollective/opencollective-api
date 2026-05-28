@@ -13,17 +13,20 @@ import { CollectiveType } from '../../../../constants/collectives';
 import { SupportedCurrency } from '../../../../constants/currencies';
 import OrderStatuses from '../../../../constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
+import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import { DatabaseWithViews, getKysely, kyselyToSequelizeModels } from '../../../../lib/kysely';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import models, { Collective, ManualPaymentProvider, Op, PaymentMethod, Tier, User } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized } from '../../../errors';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../../errors';
 import { GraphQLOrderCollection } from '../../collection/OrderCollection';
-import { GraphQLAccountOrdersFilter } from '../../enum/AccountOrdersFilter';
+import { GraphQLAccountOrdersFilter, GraphQLAccountOrdersFilterValues } from '../../enum/AccountOrdersFilter';
 import { GraphQLContributionFrequency } from '../../enum/ContributionFrequency';
 import GraphQLHostContext from '../../enum/HostContext';
+import GraphQLOppositeAccountScope from '../../enum/OppositeAccountScope';
 import { GraphQLOrderPausedBy } from '../../enum/OrderPausedBy';
 import { GraphQLOrderStatus } from '../../enum/OrderStatus';
 import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
@@ -296,6 +299,11 @@ export const OrdersCollectionArgs = {
     type: GraphQLAccountReferenceInput,
     description: 'Return orders only for this host',
   },
+  oppositeAccountScope: {
+    type: GraphQLOppositeAccountScope,
+    description:
+      'Filter orders by whether the opposite account is INTERNAL or EXTERNAL. For fiscal hosts, internal means within the same host. For regular accounts, internal means within the account and its children. When combined with `filter` (INCOMING/OUTGOING), the opposite account is the other side of the order.',
+  },
   createdBy: {
     type: new GraphQLList(GraphQLAccountReferenceInput),
     description: 'Return only orders created by these users. Limited to 1000 users at a time.',
@@ -315,7 +323,7 @@ interface OrdersCollectionArgsType {
   paymentMethodType?: string[];
   manualPaymentProvider?: Array<{ id: string }>;
   includeIncognito?: boolean;
-  filter?: string;
+  filter?: GraphQLAccountOrdersFilterValues;
   frequency?: string[];
   status?: string[];
   orderBy: { field: string; direction: 'ASC' | 'DESC' };
@@ -340,6 +348,7 @@ interface OrdersCollectionArgsType {
   oppositeAccount?: AccountReferenceInput;
   hostedAccounts?: AccountReferenceInput[];
   host?: AccountReferenceInput;
+  oppositeAccountScope?: 'INTERNAL' | 'EXTERNAL';
   account?: AccountReferenceInput;
   createdBy?: AccountReferenceInput[];
 }
@@ -393,6 +402,32 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         }
       }
     });
+  }
+
+  // No need to check `hostedAccounts`, becauser we already check host and there's a check above to make sure all `hostedAccounts`
+  // do belong to the host.
+  const allAccounts = [host, account, oppositeAccount].filter(Boolean);
+  if (allAccounts.length > 0) {
+    await assertCanSeeAllAccounts(req, allAccounts);
+  }
+
+  // Resolve scope for oppositeAccountScope filtering.
+  // For fiscal host accounts: scope is all accounts under the host (HostCollectiveId check).
+  // For regular accounts: scope is the account + its children (parent/child check).
+  let oppositeAccountScopeHostId: number | null = null;
+  let oppositeAccountScopeAccountId: number | null = null;
+  if (args.oppositeAccountScope) {
+    if (host && !account) {
+      throw new ValidationFailed(
+        'oppositeAccountScope is not supported with the `host` argument. Use `account` with `hostContext` instead.',
+      );
+    } else if (account?.hasMoneyManagement) {
+      oppositeAccountScopeHostId = account.id;
+    } else if (account) {
+      oppositeAccountScopeAccountId = account.id;
+    } else {
+      throw new ValidationFailed('oppositeAccountScope requires an `account` argument to determine the scope.');
+    }
   }
 
   let incognitoProfile: Collective | null = null;
@@ -481,6 +516,7 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
     }
   }
 
+  const shouldApplyPrivateRecipientVisibilityFilter = !req.remoteUser?.isRoot() && !host;
   const kysely = getKysely();
   const query = kysely
     .with('filterByAccounts', db => {
@@ -570,6 +606,23 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
       join.onRef('fromCollective.id', '=', 'Orders.FromCollectiveId').on('fromCollective.deletedAt', 'is', null),
     )
     .where('Orders.deletedAt', 'is', null)
+    .$if(shouldApplyPrivateRecipientVisibilityFilter, qb => {
+      return qb.where(({ or, eb }) => {
+        const ors: Expression<SqlBool>[] = [eb('collective.isPrivate', '=', false)];
+
+        if (req.remoteUser) {
+          const directAccess = Array.from(req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+          ors.push(eb('Orders.FromCollectiveId', 'in', [req.remoteUser.CollectiveId, ...directAccess]));
+          if (directAccess.length > 0) {
+            ors.push(eb('Orders.CollectiveId', 'in', directAccess));
+            ors.push(eb('collective.ParentCollectiveId', 'in', directAccess));
+            ors.push(eb('collective.HostCollectiveId', 'in', directAccess));
+          }
+        }
+
+        return or(ors);
+      });
+    })
     .$if(account && !isEmpty(hostedAccounts), qb => {
       return qb.where(({ or, eb }) => {
         const ors: Expression<SqlBool>[] = [];
@@ -672,6 +725,49 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
         }
 
         return or(ors);
+      });
+    })
+    .$if(!!args.oppositeAccountScope, qb => {
+      const isInternalScope = args.oppositeAccountScope === 'INTERNAL';
+      return qb.where(({ eb, not, and, or }) => {
+        type JoinAlias = 'collective' | 'fromCollective';
+        const orderIdField = (join: JoinAlias) =>
+          join === 'collective' ? ('Orders.CollectiveId' as const) : ('Orders.FromCollectiveId' as const);
+
+        // Host-level scoping: "internal" means hosted by the same fiscal host.
+        // The HostCollectiveId IS NOT NULL guard ensures null-safe negation via not().
+        const isWithinHost = (join: JoinAlias) =>
+          eb(`${join}.HostCollectiveId`, 'is not', null)
+            .and(eb(`${join}.HostCollectiveId`, '=', oppositeAccountScopeHostId))
+            .and(eb(`${join}.approvedAt`, 'is not', null));
+        const isOutsideHost = (join: JoinAlias) => not(isWithinHost(join));
+
+        // Account-level scoping: "internal" means the account itself or a non-vendor child.
+        // The ParentCollectiveId IS NOT NULL guard ensures null-safe negation via not().
+        const isWithinHierarchy = (join: JoinAlias) =>
+          or([
+            eb(orderIdField(join), '=', oppositeAccountScopeAccountId),
+            eb(`${join}.ParentCollectiveId`, 'is not', null)
+              .and(eb(`${join}.ParentCollectiveId`, '=', oppositeAccountScopeAccountId))
+              .and(eb(`${join}.type`, '!=', CollectiveType.VENDOR)),
+          ]);
+        const isOutsideHierarchy = (join: JoinAlias) => not(isWithinHierarchy(join));
+
+        const isWithinScope = oppositeAccountScopeHostId ? isWithinHost : isWithinHierarchy;
+        const isOutsideScope = oppositeAccountScopeHostId ? isOutsideHost : isOutsideHierarchy;
+
+        const oppositeJoins: JoinAlias[] =
+          args.filter === 'INCOMING'
+            ? ['fromCollective']
+            : args.filter === 'OUTGOING'
+              ? ['collective']
+              : ['collective', 'fromCollective'];
+
+        if (isInternalScope) {
+          return and(oppositeJoins.map(join => isWithinScope(join)));
+        } else {
+          return or(oppositeJoins.map(join => isOutsideScope(join)));
+        }
       });
     })
     .$if(paymentMethods.length > 0, qb => qb.where('PaymentMethodId', 'in', uniq(paymentMethods.map(pm => pm.id))))

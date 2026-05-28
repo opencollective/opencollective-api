@@ -47,6 +47,44 @@ async function checkHostFeePercent({ fix = false } = {}) {
   }
 }
 
+/** Hosted accounts whose fiscal host is private must have isPrivate (see Collective.beforeCreate). */
+export async function checkHostedAccountsPrivateUnderPrivateHost({ fix = false } = {}) {
+  const message =
+    'Collectives hosted by a private fiscal host without isPrivate=true (hosted accounts must match host privacy)';
+
+  const results = await sequelize.query<{ count: number }>(
+    `
+     SELECT COUNT(*)::int AS count
+     FROM "Collectives" AS child
+     INNER JOIN "Collectives" AS host ON host."id" = child."HostCollectiveId"
+     WHERE child."deletedAt" IS NULL
+       AND host."deletedAt" IS NULL
+       AND host."id" <> child."id"
+       AND host."isPrivate" IS TRUE
+       AND child."isPrivate" IS NOT TRUE
+    `,
+    { type: QueryTypes.SELECT, raw: true },
+  );
+
+  if (results[0].count > 0) {
+    if (!fix) {
+      throw new Error(`${message}: ${results[0].count}`);
+    }
+    logger.warn(`Fixing: ${message}`);
+    await sequelize.query(`
+      UPDATE "Collectives" AS child
+      SET "isPrivate" = TRUE
+      FROM "Collectives" AS host
+      WHERE host."id" = child."HostCollectiveId"
+        AND child."deletedAt" IS NULL
+        AND host."deletedAt" IS NULL
+        AND host."id" <> child."id"
+        AND host."isPrivate" IS TRUE
+        AND child."isPrivate" IS NOT TRUE
+    `);
+  }
+}
+
 async function checkPendingHostApplications({ fix = false } = {}) {
   const message = 'Host Applications with status PENDING but Collective is approved to Host';
 
@@ -85,7 +123,7 @@ async function checkPendingHostApplications({ fix = false } = {}) {
   }
 }
 
-export const checks = [checkHostFeePercent, checkPendingHostApplications];
+export const checks = [checkHostFeePercent, checkHostedAccountsPrivateUnderPrivateHost, checkPendingHostApplications];
 
 if (!module.parent) {
   runAllChecksThenExit(checks);

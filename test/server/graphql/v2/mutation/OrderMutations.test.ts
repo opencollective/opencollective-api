@@ -5,7 +5,7 @@ import { cloneDeep, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
-import { roles } from '../../../../../server/constants';
+import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
@@ -33,13 +33,14 @@ import {
   fakePaymentMethod,
   fakeTier,
   fakeUser,
+  fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import {
   generateValid2FAHeader,
   graphqlQueryV2,
   resetTestDB,
-  stubStripeBalance,
+  stubStripeBalanceSyncWithPaymentIntent,
   stubStripeCreate,
   waitForCondition,
 } from '../../../../utils';
@@ -300,6 +301,23 @@ const cancelRecurringContributionMutation = gql`
   }
 `;
 
+const cancelRecurringContributionAsHostMutation = gql`
+  mutation CancelRecurringContributionAsHost(
+    $order: OrderReferenceInput!
+    $removeAsContributor: Boolean
+    $messageForContributor: String
+  ) {
+    cancelOrder(
+      order: $order
+      removeAsContributor: $removeAsContributor
+      messageForContributor: $messageForContributor
+    ) {
+      id
+      status
+    }
+  }
+`;
+
 const processPendingOrderMutation = gql`
   mutation ProcessPendingOrder($action: ProcessOrderAction!, $order: OrderUpdateInput!) {
     processPendingOrder(order: $order, action: $action) {
@@ -345,23 +363,7 @@ const stubStripePayments = sandbox => {
     id: stripePaymentMethodId,
     customer: 'cus_test',
   });
-  sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pi_test', status: 'requires_confirmation' });
-  sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
-    id: stripePaymentMethodId,
-    status: 'succeeded',
-    charges: {
-      // eslint-disable-next-line camelcase
-      data: [{ id: 'ch_id', balance_transaction: 'txn_id' }],
-    },
-  });
-
-  sandbox.stub(stripe.balanceTransactions, 'retrieve').resolves({
-    amount: 1100,
-    currency: 'usd',
-    fee: 0,
-    // eslint-disable-next-line camelcase
-    fee_details: [],
-  });
+  stubStripeBalanceSyncWithPaymentIntent(sandbox, { defaultStripeAmount: 5000, defaultCurrency: 'usd' });
 };
 
 describe('server/graphql/v2/mutation/OrderMutations', () => {
@@ -1405,7 +1407,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.js` + `test/server/graphql/v1/createOrder.test.js`
     describe('Collective to Collective Transactions', () => {
-      const ORDER_TOTAL_AMOUNT = 1000;
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,
         user1,
@@ -1484,11 +1485,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         sandbox = createSandbox();
         // And given that the endpoint for creating customers on Stripe
         // is patched
-        stubStripeCreate(sandbox, { charge: { currency: 'usd', status: 'succeeded' } });
-        // And given the stripe stuff that depends on values in the
-        // order struct is patch. It's here and not on each test because
-        // the `totalAmount' field doesn't change throught the tests.
-        stubStripeBalance(sandbox, ORDER_TOTAL_AMOUNT, 'usd', 0, STRIPE_FEE_STUBBED_VALUE); // This is the payment processor fee.
+        stubStripeCreate(sandbox, { charge: { currency: 'usd', status: 'succeeded' } }, { skipPaymentIntents: true });
+        // Balance tx must match PaymentIntent amount (createChargeTransactions uses balanceTransaction.amount).
+        stubStripeBalanceSyncWithPaymentIntent(sandbox, { stripeFee: STRIPE_FEE_STUBBED_VALUE });
       });
 
       afterEach(() => sandbox.restore());
@@ -2129,11 +2128,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
-      const newFromUser = await fakeUser();
+      const newFromAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
       validEditOrderParams = {
         legacyId: order.id,
         tier: { legacyId: newTier.id },
-        fromAccount: { legacyId: newFromUser.CollectiveId },
+        fromAccount: { legacyId: newFromAccount.id },
         fromAccountInfo: { name: 'Hey', email: 'hey@opencollective.com' },
         description: 'New description',
         memo: 'New memo',
@@ -2325,6 +2324,50 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         await order.reload();
         expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.be.eq(accountingCategory.code);
       });
+    });
+
+    it('must be a trusted host if fromAccount and collective have different hosts', async () => {
+      // Create a foreign account hosted by a different host
+      const otherHost = await fakeHost();
+      const foreignAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: otherHost.id });
+
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            fromAccount: { legacyId: foreignAccount.id },
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+      );
+
+      // Verify the order was NOT updated
+      await order.reload();
+      expect(order.FromCollectiveId).to.not.equal(foreignAccount.id);
+    });
+
+    it('should allow editing a pending order where fromAccount is a vendor belonging to the host', async () => {
+      const vendor = await fakeVendor({ ParentCollectiveId: host.id, currency: 'USD' });
+
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            fromAccount: { legacyId: vendor.id },
+          },
+        },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await order.reload();
+      expect(order.FromCollectiveId).to.equal(vendor.id);
     });
   });
 
@@ -2844,9 +2887,19 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
       await collective.addUserWithRole(adminUser, roles.ADMIN);
       await host.addUserWithRole(hostAdminUser, roles.ADMIN);
+      await hostAdminUser.populateRoles();
     });
 
     describe('cancelOrder', () => {
+      let cancelOrderSandbox, sendEmailSpy;
+
+      before(() => {
+        cancelOrderSandbox = createSandbox();
+        sendEmailSpy = cancelOrderSandbox.spy(emailLib, 'send');
+      });
+
+      after(() => cancelOrderSandbox.restore());
+
       it('must be authenticated', async () => {
         const result = await graphqlQueryV2(cancelRecurringContributionMutation, {
           order: { id: idEncode(order.id, 'order') },
@@ -2866,6 +2919,92 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.match(/You don't have permission to cancel this recurring contribution/);
+      });
+
+      it('rejects host-only options for non-host admins', async () => {
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(order.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor: 'A note from the host',
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Only host admins can use these options/);
+      });
+
+      it('allows host admins to cancel and remove the contributor', async () => {
+        const hostOrder = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          { withSubscription: true },
+        );
+        await models.Member.create({
+          CollectiveId: collective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+          CreatedByUserId: user.id,
+        });
+
+        sendEmailSpy.resetHistory();
+
+        const messageForContributor = 'We are ending this recurring contribution.';
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(hostOrder.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor,
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.cancelOrder.status).to.eq('CANCELLED');
+
+        const membership = await models.Member.findOne({
+          where: {
+            CollectiveId: collective.id,
+            MemberCollectiveId: user.CollectiveId,
+            role: MemberRoles.BACKER,
+          },
+        });
+        expect(membership).to.not.exist;
+
+        const cancelActivity = await models.Activity.findOne({
+          where: { type: activities.SUBSCRIPTION_CANCELED, OrderId: hostOrder.id },
+        });
+        expect(cancelActivity.data.messageSource).to.equal('HOST');
+        expect(cancelActivity.data.messageForContributors).to.equal(messageForContributor);
+        expect(cancelActivity.data.hostAction).to.deep.equal({
+          cancel: true,
+          refund: false,
+          removeAsContributor: true,
+        });
+
+        const removeActivity = await models.Activity.findOne({
+          where: { type: activities.CONTRIBUTOR_REMOVED_BY_HOST, OrderId: hostOrder.id },
+        });
+        expect(removeActivity).to.exist;
+        expect(removeActivity.data.hostAction).to.deep.equal({
+          cancel: true,
+          refund: false,
+          removeAsContributor: true,
+        });
+
+        // Only the cancel email should reach the contributor: the
+        // contributor-removed activity has no email template and is recorded
+        // for the timeline / webhooks only.
+        await waitForCondition(() => sendEmailSpy.calledWith('subscription.canceled'));
+        expect(sendEmailSpy.calledWith('subscription.canceled')).to.be.true;
       });
 
       it('cancels the order', async () => {

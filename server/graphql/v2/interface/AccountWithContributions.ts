@@ -11,16 +11,16 @@ import {
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil, omit } from 'lodash';
-import { OrderItem, QueryTypes } from 'sequelize';
+import { OrderItem, QueryTypes, WhereOptions } from 'sequelize';
 
-import PlatformConstants from '../../../constants/platform';
 import { filterContributors } from '../../../lib/contributors';
 import models, { Collective, sequelize } from '../../../models';
+import Tier, { AllTierTypes, TierType } from '../../../models/Tier';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLContributorCollection } from '../collection/ContributorCollection';
 import { GraphQLTierCollection } from '../collection/TierCollection';
-import { GraphQLAccountType, GraphQLMemberRole } from '../enum';
+import { GraphQLAccountType, GraphQLMemberRole, GraphQLTierType } from '../enum';
 
 import { CollectionArgs } from './Collection';
 
@@ -58,20 +58,48 @@ export const AccountWithContributionsFields = {
         description: 'The number of results to fetch',
         defaultValue: 100,
       },
+      onlyValid: {
+        type: GraphQLBoolean,
+        description:
+          'When true (default), exclude tiers with types that are no longer supported (e.g. types in host.disabledTierTypes). Use false for edit pages to show all tiers.',
+        defaultValue: true,
+      },
     },
-    async resolve(account: Collective, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    async resolve(
+      account: Collective,
+      args: Record<string, unknown>,
+      req: express.Request,
+    ): Promise<Record<string, unknown>> {
       if (!account.hasBudget()) {
         return { nodes: [], totalCount: 0 };
       }
 
-      const query = {
-        where: { CollectiveId: account.id },
+      const where: WhereOptions<Tier> = { CollectiveId: account.id };
+      if (args.onlyValid !== false) {
+        const host = await req.loaders.Collective.host.load(account);
+        const allowedTierTypes = Tier.getAllowedTierTypes(account, host);
+        if (allowedTierTypes.length !== AllTierTypes.length) {
+          where.type = allowedTierTypes;
+        }
+      }
+
+      const result = await models.Tier.findAndCountAll({
+        where,
         order: [['amount', 'ASC']] as OrderItem[],
         limit: <number>args.limit,
         offset: <number>args.offset,
-      };
-      const result = await models.Tier.findAndCountAll(query);
+      });
+
       return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+    },
+  },
+  supportedTierTypes: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTierType))),
+    description:
+      'Tier types that can be created for this account. Uses host disabledTierTypes and account overrides via Tier.isForbiddenTierType.',
+    async resolve(account: Collective, _, req: express.Request): Promise<readonly TierType[]> {
+      const host = await req.loaders.Collective.host.load(account);
+      return Tier.getAllowedTierTypes(account, host).toSorted();
     },
   },
   contributors: {
@@ -201,27 +229,7 @@ export const AccountWithContributionsFields = {
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
     async resolve(account: Collective, _, req: express.Request): Promise<boolean> {
-      if (!isNil(account.data?.platformTips)) {
-        return account.data.platformTips;
-      } else if (PlatformConstants.AllPlatformCollectiveIds.includes(account.id)) {
-        return false;
-      }
-
-      // Look at the host's plan
-      const host = await req.loaders.Collective.host.load(account);
-      if (host) {
-        // New pricing
-        const hasPlatformTips = await req.loaders.PlatformSubscription.hasPlatformTips.load(host.id);
-        if (typeof hasPlatformTips === 'boolean') {
-          return hasPlatformTips;
-        }
-
-        // hasPlatformTips undefined means we're on a legacy plan
-        const plan = host.getLegacyPlan();
-        return plan.platformTips;
-      }
-
-      return false;
+      return account.hasPlatformTips({ loaders: req.loaders });
     },
   },
   contributionPolicy: {

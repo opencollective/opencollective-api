@@ -56,6 +56,14 @@ export const checkReceiveFinancialContributions = async (collective, req, { igno
     return FEATURE_STATUS.DISABLED;
   }
 
+  // Check if contributions are disabled on the parent (for projects and events under a frozen parent)
+  if (collective.ParentCollectiveId) {
+    const parent = await req.loaders.Collective.byId.load(collective.ParentCollectiveId);
+    if (parent && isFeatureBlockedForAccount(parent, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)) {
+      return FEATURE_STATUS.DISABLED;
+    }
+  }
+
   // Check if contributions are disabled at the host level
   const host = await req.loaders.Collective.byId.load(collective.HostCollectiveId);
   if (isFeatureBlockedForAccount(host, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)) {
@@ -137,7 +145,7 @@ export const checkCanUsePaymentMethods = async collective => {
   }
 };
 
-const checkCanRequestVirtualCards = async (req: Express.Request, collective) => {
+export const checkCanRequestVirtualCards = async (req: Express.Request, collective) => {
   if (!collective.HostCollectiveId || !collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   }

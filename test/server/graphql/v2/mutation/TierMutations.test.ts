@@ -165,6 +165,61 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(createdTier).to.exist;
       expect(createdTier.currency).to.eql('EUR');
     });
+
+    it('rejects tier types when host has disabledTierTypes', async () => {
+      const host = await fakeCollective({ admin: adminUser });
+      const hostedCollective = await fakeCollective({
+        admin: adminUser,
+        HostCollectiveId: host.id,
+        settings: {},
+      });
+      await host.update({ settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE', 'TICKET'] } });
+
+      const result = await graphqlQueryV2(
+        CREATE_TIER_MUTATION,
+        {
+          account: { legacyId: hostedCollective.id },
+          tier: {
+            name: 'Product tier',
+            type: 'PRODUCT',
+            amountType: 'FIXED',
+            frequency: 'ONETIME',
+            amount: { valueInCents: 2000, currency: 'USD' },
+          },
+        },
+        adminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('not allowed');
+    });
+
+    it('allows tier types when collective has allowedTierTypes override in data', async () => {
+      const host = await fakeCollective({ admin: adminUser });
+      const hostedCollective = await fakeCollective({
+        admin: adminUser,
+        HostCollectiveId: host.id,
+      });
+      await hostedCollective.update({ data: { ...hostedCollective.data, allowedTierTypes: ['PRODUCT'] } });
+      await host.update({ settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE', 'TICKET'] } });
+
+      const result = await graphqlQueryV2(
+        CREATE_TIER_MUTATION,
+        {
+          account: { legacyId: hostedCollective.id },
+          tier: {
+            name: 'Product tier',
+            type: 'PRODUCT',
+            amountType: 'FIXED',
+            frequency: 'ONETIME',
+            amount: { valueInCents: 2000, currency: 'USD' },
+          },
+        },
+        adminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.createTier.legacyId).to.exist;
+    });
   });
 
   describe('editTierMutation', () => {
@@ -291,6 +346,38 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(editedTier.amount).to.equal(5000);
       expect(editedTier.currency).to.equal('EUR');
       expect(editedTier.interval).to.equal(existingTier.interval);
+    });
+
+    it('rejects changing tier type when host has disabledTierTypes', async () => {
+      const host = await fakeCollective({ admin: adminUser });
+      const hostedCollective = await fakeCollective({
+        admin: adminUser,
+        HostCollectiveId: host.id,
+      });
+      await host.update({ settings: { ...host.settings, disabledTierTypes: ['PRODUCT', 'SERVICE', 'TICKET'] } });
+
+      const tier = await fakeTier({
+        CollectiveId: hostedCollective.id,
+        type: 'TIER',
+        minimumAmount: 100,
+      });
+
+      const result = await graphqlQueryV2(
+        EDIT_TIER_MUTATION,
+        {
+          tier: {
+            id: idEncode(tier.id, IDENTIFIER_TYPES.TIER),
+            name: 'Updated name',
+            type: 'PRODUCT',
+            amountType: 'FIXED',
+            frequency: 'ONETIME',
+            amount: { valueInCents: 3000, currency: 'USD' },
+          },
+        },
+        adminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('not allowed');
     });
   });
 

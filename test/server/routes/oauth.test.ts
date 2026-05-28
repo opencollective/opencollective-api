@@ -466,8 +466,8 @@ describe('server/routes/oauth', () => {
           .expect(400);
 
         expect(response.body).to.deep.eq({
-          error: 'invalid_grant',
-          error_description: 'Invalid grant: code verifier is invalid',
+          error: 'invalid_request',
+          error_description: 'Invalid parameter: `code_verifier`',
         });
       });
     });
