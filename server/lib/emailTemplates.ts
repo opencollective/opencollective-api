@@ -1,7 +1,5 @@
 import fs from 'fs';
 
-import config from 'config';
-
 import handlebars from './handlebars';
 
 /*
@@ -164,23 +162,6 @@ handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
 handlebars.registerPartial('plan-details', planDetails);
 handlebars.registerPartial('subscription-details', subscriptionDetails);
-
-handlebars.registerHelper('concat', (...args) => {
-  args.pop();
-  return args.join('');
-});
-
-// Generates a permalink if the first argument contains a publicId, otherwise returns the fallbackURL
-handlebars.registerHelper('permalink', ({ publicId } = {}, fallbackURL) => {
-  if (publicId) {
-    return `${config.host.website}/permalink/${publicId}`;
-  }
-
-  if (typeof fallbackURL !== 'string' || fallbackURL === '') {
-    throw new Error('no publicId set, fallbackURL is required');
-  }
-  return fallbackURL;
-});
 
 export const isValidTemplate = (template: string): template is EmailTemplates => {
   return Boolean(templates[template]);

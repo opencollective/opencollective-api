@@ -431,7 +431,9 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       activity.data.expense = activity.data.expense.info;
       activity.data.UserId = activity.data.expense.UserId;
-      activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
+      activity.data.path = activity.data.expense.publicId
+        ? `/permalink/${activity.data.expense.publicId}`
+        : `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
 
       const customEmailHeaders = {
         'x-opencollective-expense-status': activity.data.expense.status,
@@ -497,9 +499,6 @@ export const notifyByEmail = async (activity: Activity) => {
     }
 
     case ActivityTypes.COLLECTIVE_EXPENSE_APPROVED:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
@@ -536,9 +535,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_REJECTED:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       await notify.user(activity, {
         from: config.email.noReply,
         userId: activity.data.expense.UserId,
@@ -570,9 +566,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_ERROR:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       await notify.user(activity, {
         from: config.email.noReply,
         userId: activity.data.expense.UserId,
@@ -586,9 +579,6 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_PROCESSING:
-      activity.data.actions = {
-        viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
-      };
       await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       break;
 

@@ -298,7 +298,6 @@ class Collective extends ModelWithPublicId<
         | 'invoice'
         | 'minimal'
         | 'activity'
-        | 'searchIndex'
         | 'getChildren'
         | 'getEvents'
         | 'getProjects';
@@ -538,6 +537,7 @@ class Collective extends ModelWithPublicId<
       settings: this.settings,
       currency: this.currency,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -571,6 +571,7 @@ class Collective extends ModelWithPublicId<
       repositoryUrl: this.repositoryUrl,
       publicUrl: this.publicUrl,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -593,22 +594,6 @@ class Collective extends ModelWithPublicId<
       previewImage: this.previewImage,
       hasHosting: this.hasHosting,
       isPrivate: this.isPrivate,
-    };
-  }
-
-  get searchIndex() {
-    // TODO: Not used?
-    return {
-      id: this.id,
-      name: this.name,
-      description: this.description,
-      currency: this.currency,
-      slug: this.slug,
-      type: this.type,
-      tags: this.tags,
-      balance: (this as any).balance, // useful in ranking
-      yearlyBudget: (this as any).yearlyBudget,
-      backersCount: (this as any).backersCount,
     };
   }
 

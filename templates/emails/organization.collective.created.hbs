@@ -23,15 +23,9 @@ Subject: Your Organization on Open Collective
 
 <p>Thanks for setting up an Organization! Here are some of the cool things you can do now.</p>
 
+{{#unless collective.isPrivate}}
 <p><b>Contribute As</b>: When you contribute to a Collective, you’ll see options to contribute as yourself or
   as your Organization. This determines what shows up on your receipt, and on the Collective's page, so make sure you select the correct profile.</p>
-
-<p><b>Submit Expenses</b>: When you request payment from a Collective, you can choose your Organization as the payee.
-  Enter your payout method details once and the system will save them for next time.</p>
-
-<p><b>Gift Cards</b>: Give the gift of giving! Gift Cards enable your employees, recruitment candidates, or ambassadors
-  to support the projects they care about, on behalf of your Organization. <a
-    href="https://opencollective.com/gift-cards">More info</a>.</p>
 
 <p><b>Bulk Contributions</b>: Transfer funds to be added to your Organization’s balance on the
   platform, then select this balance as your payment method. One invoice, one transfer, one purchase order—but as many contributions as you like!
@@ -40,11 +34,19 @@ Subject: Your Organization on Open Collective
 <p><b>Contributions by Your Team</b>: Save a credit card on file and enable employees or team members to make contributions up to a
   certain amount per month.</p>
 
+<p><b>Gift Cards</b>: Give the gift of giving! Gift Cards enable your employees, recruitment candidates, or ambassadors
+  to support the projects they care about, on behalf of your Organization. <a
+    href="https://opencollective.com/gift-cards">More info</a>.</p>
+
 <p><b>Contributions management</b>: You can edit or cancel recurring contributions <a
-    href="https://opencollective.com/{{collective.slug}}/recurring-contributions">here</a>.</p>
+    href="{{dashboardUrl collective 'outgoing-contributions'}}">here</a>.</p>
+{{/unless}}
+
+<p><b>Submit Expenses</b>: When you request payment from a Collective, you can choose your Organization as the payee.
+  Enter your payout method details once and the system will save them for next time.</p>
 
 <p><b>Invoices/Receipts</b>: Get documentation of aggregated or individual transactions <a
-    href="https://opencollective.com/{{collective.slug}}/transactions">here</a>.</p>
+    href="{{dashboardUrl collective 'transactions'}}">here</a>.</p>
 
 <p>Questions? See <a href="https://documentation.opencollective.com/giving-to-collectives/giving-as-a-company">more info about Organizations</a>, reply to this email, or <a href="https://discord.opencollective.com">join our Discord</a>.
 </p>

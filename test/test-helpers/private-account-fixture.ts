@@ -53,6 +53,7 @@ export async function createPrivateAccountFixture() {
     CollectiveId: 1, // OC Inc platform collective
     MemberCollectiveId: rootAdmin.CollectiveId,
     role: MemberRoles.ADMIN,
+    CreatedByUserId: rootAdmin.id,
   });
 
   // --- Private collective (hosted by privateHost) ---

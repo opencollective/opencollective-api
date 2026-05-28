@@ -1025,7 +1025,8 @@ export const fakeMember = async (data: Partial<InferCreationAttributes<Member>> 
     CollectiveId: collective.id,
     MemberCollectiveId: memberCollective.id,
     role: data.role || roles.ADMIN,
-    CreatedByUserId: collective.CreatedByUserId,
+    CreatedByUserId:
+      data.CreatedByUserId ?? collective.CreatedByUserId ?? memberCollective.CreatedByUserId ?? (await fakeUser()).id,
   });
 
   // Attach associations
@@ -1047,7 +1048,8 @@ export const fakeMemberInvitation = async (data: Partial<InferCreationAttributes
     CollectiveId: collective.id,
     MemberCollectiveId: memberCollective.id,
     role: data.role || roles.ADMIN,
-    CreatedByUserId: collective.CreatedByUserId,
+    CreatedByUserId:
+      data.CreatedByUserId ?? collective.CreatedByUserId ?? memberCollective.CreatedByUserId ?? (await fakeUser()).id,
   });
 
   // Attach associations
