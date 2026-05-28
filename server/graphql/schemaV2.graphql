@@ -7497,6 +7497,7 @@ type CollectiveFeatures {
   ACCOUNT_MANAGEMENT: CollectiveFeatureStatus
   KYC: CollectiveFeatureStatus
   PUBLIC_PROFILE: CollectiveFeatureStatus
+  SINGLE_RECEIPT_PLATFORM_TIP: CollectiveFeatureStatus
 }
 
 enum CollectiveFeatureStatus {

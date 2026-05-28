@@ -24,6 +24,7 @@ describe('server/graphql/common/transactions', () => {
     contributor,
     randomUser,
     transaction,
+    platformTipTransaction,
     refundTransaction,
     manualPaymentTransaction;
 
@@ -59,6 +60,17 @@ describe('server/graphql/common/transactions', () => {
       HostCollectiveId: collective.HostCollectiveId,
       kind: TransactionKind.CONTRIBUTION,
       amount: 100000,
+      OrderId: order.id,
+      PaymentMethodId: creditCard.id,
+    });
+    platformTipTransaction = await fakeTransaction({
+      description: 'Financial contribution to the Open Collective Platform',
+      CollectiveId: collective.id,
+      FromCollectiveId: contributor.CollectiveId,
+      HostCollectiveId: collective.HostCollectiveId,
+      TransactionGroup: transaction.TransactionGroup,
+      kind: TransactionKind.PLATFORM_TIP,
+      amount: 1000,
       OrderId: order.id,
       PaymentMethodId: creditCard.id,
     });
@@ -223,6 +235,11 @@ describe('server/graphql/common/transactions', () => {
 
       expect(await canDownloadInvoice(transaction, undefined, contributorOAuthReq)).to.be.false;
       expect(await canDownloadInvoice(refundTransaction, undefined, contributorOAuthReq)).to.be.false;
+    });
+
+    it('can download platform tip receipts', async () => {
+      expect(await canDownloadInvoice(platformTipTransaction, undefined, contributorReq)).to.be.true;
+      expect(await canDownloadInvoice(platformTipTransaction, undefined, hostAdminReq)).to.be.true;
     });
   });
 });
