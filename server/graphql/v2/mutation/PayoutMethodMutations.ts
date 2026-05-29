@@ -56,13 +56,17 @@ const payoutMethodMutations = {
         throw new ValidationFailed('Currency mismatch between data and currency');
       }
 
-      return await models.PayoutMethod.create({
-        ...pick(args.payoutMethod, ['name', 'type']),
-        currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
-        CollectiveId: collective.id,
-        CreatedByUserId: req.remoteUser.id,
-        data: PayoutMethod.filterUserSubmittedData(args.payoutMethod.data),
-      });
+      return models.PayoutMethod.createFromUserData(
+        {
+          name: args.payoutMethod.name,
+          type: args.payoutMethod.type,
+          data: args.payoutMethod.data, // createFromUserData calls filterUserSubmittedData
+          isSaved: args.payoutMethod.isSaved,
+          currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
+        },
+        req.remoteUser,
+        collective,
+      );
     },
   },
   removePayoutMethod: {
@@ -165,13 +169,23 @@ const payoutMethodMutations = {
         }
       }
 
+      const isExistingPayPalOAuthMethod = Boolean(
+        payoutMethod.type === PayoutMethodTypes.PAYPAL && (payoutMethod.data as PaypalPayoutMethodData)?.isPayPalOAuth,
+      );
+
       if (await payoutMethod.canBeEdited()) {
         const oldPayoutMethodDataValues = payoutMethod.dataValues;
         const updatedPayoutMethod = await payoutMethod.update({
           ...pick(args.payoutMethod, ['name', 'isSaved']),
+          currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
-          data: { ...payoutMethod.data, ...PayoutMethod.filterUserSubmittedData(args.payoutMethod.data) }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
+          data: {
+            ...payoutMethod.data,
+            ...PayoutMethod.filterUserSubmittedData(payoutMethod.type, args.payoutMethod.data, {
+              isExistingPayPalOAuthMethod,
+            }),
+          }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
         try {
           await handleKycPayoutMethodEdited(oldPayoutMethodDataValues, updatedPayoutMethod);
@@ -188,7 +202,12 @@ const payoutMethodMutations = {
           currency: args.payoutMethod.currency || args.payoutMethod.data?.currency,
           CollectiveId: collective.id,
           CreatedByUserId: req.remoteUser.id,
-          data: { ...payoutMethod.data, ...PayoutMethod.filterUserSubmittedData(args.payoutMethod.data) }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
+          data: {
+            ...payoutMethod.data,
+            ...PayoutMethod.filterUserSubmittedData(payoutMethod.type, args.payoutMethod.data, {
+              isExistingPayPalOAuthMethod,
+            }),
+          }, // Always preserve existing data, since user only see a filtered version (getFilteredData)
         });
 
         // Update Pending expenses to use the new payout method

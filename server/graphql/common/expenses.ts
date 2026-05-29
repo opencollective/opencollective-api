@@ -1866,7 +1866,7 @@ export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fr
       }
       return pm;
     } else {
-      return models.PayoutMethod.getOrCreateFromData(
+      return models.PayoutMethod.getOrCreateFromUserData(
         expenseData.payoutMethod,
         remoteUser,
         fromCollective,

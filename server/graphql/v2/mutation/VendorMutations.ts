@@ -106,22 +106,26 @@ const vendorMutations = {
         });
       }
 
-      if (
-        args.vendor.payoutMethod.currency &&
-        args.vendor.payoutMethod.data?.currency &&
-        args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
-      ) {
-        throw new ValidationFailed('Currency mismatch between data and currency');
-      }
-
       if (args.vendor.payoutMethod) {
-        await models.PayoutMethod.create({
-          ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-          currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
-          CollectiveId: vendor.id,
-          CreatedByUserId: req.remoteUser.id,
-          isSaved: true,
-        });
+        if (
+          args.vendor.payoutMethod.currency &&
+          args.vendor.payoutMethod.data?.currency &&
+          args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
+        ) {
+          throw new ValidationFailed('Currency mismatch between data and currency');
+        }
+
+        await models.PayoutMethod.createFromUserData(
+          {
+            name: args.vendor.payoutMethod.name,
+            type: args.vendor.payoutMethod.type,
+            currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
+            data: args.vendor.payoutMethod.data, // createFromUserData calls filterUserSubmittedData
+            isSaved: true,
+          },
+          req.remoteUser,
+          vendor,
+        );
       }
 
       await Activity.create({
@@ -249,14 +253,17 @@ const vendorMutations = {
             if (!isEmpty(existingPayoutMethods)) {
               await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false }, { transaction })));
             }
-            return await models.PayoutMethod.create(
+            return models.PayoutMethod.createFromUserData(
               {
-                ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-                CollectiveId: vendor.id,
-                CreatedByUserId: req.remoteUser.id,
+                name: args.vendor.payoutMethod.name,
+                type: args.vendor.payoutMethod.type,
+                data: args.vendor.payoutMethod.data, // createFromUserData calls filterUserSubmittedData
+                currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
                 isSaved: true,
               },
-              { transaction },
+              req.remoteUser,
+              vendor,
+              transaction,
             );
           });
         }
