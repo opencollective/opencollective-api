@@ -118,7 +118,7 @@ export class OpenSearchUpdatesAdapter implements OpenSearchModelAdapter {
     /* eslint-enable camelcase */
   }
 
-  public getPersonalizationFilters(userId: number | null, adminOfAccountIds: number[], isRoot: boolean) {
+  public getPersonalizationBoosts(userId: number | null, adminOfAccountIds: number[], isRoot: boolean) {
     /* eslint-disable camelcase */
     if (isRoot) {
       return null; // No filter, show all

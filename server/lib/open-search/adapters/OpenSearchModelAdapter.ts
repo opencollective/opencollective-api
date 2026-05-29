@@ -42,8 +42,8 @@ export interface OpenSearchModelAdapter {
   /** Returns the conditions for the permissions */
   getIndexPermissions(adminOfAccountIds: number[]): OpenSearchModelPermissions;
 
-  /** Returns personalization filters to restrict results to entries relevant to the user */
-  getPersonalizationFilters?(
+  /** Returns personalization boost filters to rank entries relevant to the user higher */
+  getPersonalizationBoosts?(
     userId: number | null,
     adminOfAccountIds: number[],
     isRoot: boolean,

@@ -5,6 +5,7 @@ import gql from 'fake-tag';
 import { isNil } from 'lodash';
 import sinon from 'sinon';
 
+import MemberRoles from '../../../../../server/constants/roles';
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
@@ -18,7 +19,7 @@ import {
   syncOpenSearchIndex,
   waitForAllIndexesRefresh,
 } from '../../../../../server/lib/open-search/sync';
-import { Collective, User } from '../../../../../server/models';
+import { Collective, User, sequelize } from '../../../../../server/models';
 import { CommentType } from '../../../../../server/models/Comment';
 import {
   fakeActiveHost,
@@ -26,6 +27,7 @@ import {
   fakeComment,
   fakeExpense,
   fakeHostApplication,
+  fakeMember,
   fakeOrder,
   fakeOrganization,
   fakeProject,
@@ -37,6 +39,10 @@ import {
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
+
+const refreshCommunityMaterializedViews = async () => {
+  await sequelize.query('REFRESH MATERIALIZED VIEW "AdminCommunityActivitySummary"');
+};
 
 describe('server/graphql/v2/query/SearchQuery', () => {
   [false, true].forEach(TEST_USE_TOP_HITS => {
@@ -70,12 +76,16 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         $updatesOffset: Int!
         $updatesLimit: Int!
         $usePersonalization: Boolean!
+        $host: AccountReferenceInput
+        $account: AccountReferenceInput
       ) {
         search(
           searchTerm: $searchTerm
           useTopHits: $useTopHits
           defaultLimit: $defaultLimit
           usePersonalization: $usePersonalization
+          host: $host
+          account: $account
         ) {
           results {
             accounts(offset: $accountsOffset, limit: $accountsLimit) @include(if: $includeAccounts) {
@@ -393,6 +403,8 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         updatesOffset = 0,
         updatesLimit = 10,
         usePersonalization = false,
+        host = undefined,
+        account = undefined,
       } = {},
       remoteUser?: User,
       params: { useOAuth?: boolean; oauthScopes?: OAuthScopes[] } = {},
@@ -426,6 +438,8 @@ describe('server/graphql/v2/query/SearchQuery', () => {
         updatesOffset,
         updatesLimit,
         usePersonalization,
+        host: host ? { slug: host.slug } : undefined,
+        account: account ? { slug: account.slug } : undefined,
       };
 
       if (params.useOAuth) {
@@ -899,12 +913,11 @@ describe('server/graphql/v2/query/SearchQuery', () => {
       });
 
       describe('personalization', () => {
-        it('should filter expenses by user context when usePersonalization is true', async () => {
-          // Create an expense for a different collective that the user doesn't administer
+        it('should boost expenses related to the user without hiding others', async () => {
           const otherCollective = await fakeCollective({
             name: 'Other Collective',
           });
-          await fakeExpense({
+          const otherExpense = await fakeExpense({
             CollectiveId: otherCollective.id,
             FromCollectiveId: testUsers.randomUser.CollectiveId,
             UserId: testUsers.randomUser.id,
@@ -914,65 +927,68 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
           await waitForAllIndexesRefresh();
 
-          // Search with personalization enabled - should only see expenses related to the user
           const personalizedResult = await callSearchQuery(
             'FullyPublicExpenseDescription',
             { includeExpenses: true, usePersonalization: true },
             testUsers.fromUser,
           );
-
           personalizedResult.errors && console.error(personalizedResult.errors);
           expect(personalizedResult.errors).to.be.undefined;
-          expect(personalizedResult.data.search.results.expenses.collection.totalCount).to.eq(1);
 
-          // Search with personalization disabled - should see all expenses
           const nonPersonalizedResult = await callSearchQuery(
             'FullyPublicExpenseDescription',
             { includeExpenses: true, usePersonalization: false },
             testUsers.fromUser,
           );
           expect(nonPersonalizedResult.errors).to.be.undefined;
-          expect(nonPersonalizedResult.data.search.results.expenses.collection.totalCount).to.be.gte(2);
+
+          expect(personalizedResult.data.search.results.expenses.collection.totalCount).to.eq(
+            nonPersonalizedResult.data.search.results.expenses.collection.totalCount,
+          );
+          expect(personalizedResult.data.search.results.expenses.collection.totalCount).to.be.gte(2);
+          expect(personalizedResult.data.search.results.expenses.collection.nodes[0].id).to.not.eq(
+            idEncode(otherExpense.id, IDENTIFIER_TYPES.EXPENSE),
+          );
+          expect(personalizedResult.data.search.results.expenses.maxScore).to.be.gt(
+            nonPersonalizedResult.data.search.results.expenses.maxScore,
+          );
         });
 
-        it('should filter accounts by user context when usePersonalization is true', async () => {
-          // Create an account that the user doesn't administer
+        it('should boost administered accounts without hiding public accounts', async () => {
           const otherCollective = await fakeCollective({
-            name: 'Other Collective',
+            name: 'Other Incredible Collective',
           });
           await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
           await waitForAllIndexesRefresh();
 
-          // Search with personalization enabled - should only see accounts the user admins
           const personalizedResult = await callSearchQuery(
             'Incredible',
             { includeAccounts: true, usePersonalization: true },
             testUsers.collectiveAdmin,
           );
-
           personalizedResult.errors && console.error(personalizedResult.errors);
           expect(personalizedResult.errors).to.be.undefined;
-          const personalizedAccounts = personalizedResult.data.search.results.accounts.collection.nodes;
-          expect(personalizedAccounts.some(acc => acc.id === idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT))).to.be
-            .true;
-          expect(personalizedAccounts.some(acc => acc.id === idEncode(otherCollective.id, IDENTIFIER_TYPES.ACCOUNT))).to
-            .be.false;
 
-          // Search with personalization disabled - should see all accounts
           const nonPersonalizedResult = await callSearchQuery(
             'Incredible',
             { includeAccounts: true, usePersonalization: false },
             testUsers.collectiveAdmin,
           );
           expect(nonPersonalizedResult.errors).to.be.undefined;
-          expect(nonPersonalizedResult.data.search.results.accounts.collection.totalCount).to.be.gte(
-            personalizedResult.data.search.results.accounts.collection.totalCount,
+
+          const personalizedAccounts = personalizedResult.data.search.results.accounts.collection.nodes;
+          expect(personalizedAccounts.some(acc => acc.id === idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT))).to.be
+            .true;
+          expect(personalizedAccounts.some(acc => acc.id === idEncode(otherCollective.id, IDENTIFIER_TYPES.ACCOUNT))).to
+            .be.true;
+          expect(personalizedResult.data.search.results.accounts.collection.totalCount).to.eq(
+            nonPersonalizedResult.data.search.results.accounts.collection.totalCount,
           );
+          expect(personalizedAccounts[0].id).to.eq(idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT));
         });
 
-        it('should filter orders by user context when usePersonalization is true', async () => {
-          // Create an order from a different user
-          await fakeOrder({
+        it('should boost orders related to the user without hiding others', async () => {
+          const otherOrder = await fakeOrder({
             CollectiveId: collective.id,
             FromCollectiveId: testUsers.randomUser.CollectiveId,
             CreatedByUserId: testUsers.randomUser.id,
@@ -981,27 +997,30 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           await syncOpenSearchIndex(OpenSearchIndexName.ORDERS);
           await waitForAllIndexesRefresh();
 
-          // Search with personalization enabled - should only see orders related to the user
           const personalizedResult = await callSearchQuery(
             'AVeryUniqueOrderDescription',
             { includeOrders: true, usePersonalization: true },
             testUsers.fromUser,
           );
           expect(personalizedResult.errors).to.be.undefined;
-          expect(personalizedResult.data.search.results.orders.collection.totalCount).to.eq(1);
 
-          // Search with personalization disabled - should see all orders
           const nonPersonalizedResult = await callSearchQuery(
             'AVeryUniqueOrderDescription',
             { includeOrders: true, usePersonalization: false },
             testUsers.fromUser,
           );
           expect(nonPersonalizedResult.errors).to.be.undefined;
-          expect(nonPersonalizedResult.data.search.results.orders.collection.totalCount).to.be.gte(2);
+
+          expect(personalizedResult.data.search.results.orders.collection.totalCount).to.eq(
+            nonPersonalizedResult.data.search.results.orders.collection.totalCount,
+          );
+          expect(personalizedResult.data.search.results.orders.collection.totalCount).to.be.gte(2);
+          expect(personalizedResult.data.search.results.orders.collection.nodes[0].id).to.not.eq(
+            idEncode(otherOrder.id, IDENTIFIER_TYPES.ORDER),
+          );
         });
 
-        it('should filter updates by user context when usePersonalization is true', async () => {
-          // Create an update from a different user
+        it('should boost updates related to the user without hiding public updates', async () => {
           await fakeUpdate({
             FromCollectiveId: testUsers.randomUser.CollectiveId,
             CollectiveId: collective.id,
@@ -1014,26 +1033,37 @@ describe('server/graphql/v2/query/SearchQuery', () => {
           await syncOpenSearchIndex(OpenSearchIndexName.UPDATES);
           await waitForAllIndexesRefresh();
 
-          // Search with personalization enabled - should only see updates related to the user
           const personalizedResult = await callSearchQuery(
             'AVeryUniqueUpdateHtml',
             { includeUpdates: true, usePersonalization: true },
             testUsers.fromUser,
           );
           expect(personalizedResult.errors).to.be.undefined;
-          expect(personalizedResult.data.search.results.updates.collection.totalCount).to.eq(1);
 
-          // Search with personalization disabled - should see all updates
           const nonPersonalizedResult = await callSearchQuery(
             'AVeryUniqueUpdateHtml',
             { includeUpdates: true, usePersonalization: false },
             testUsers.fromUser,
           );
           expect(nonPersonalizedResult.errors).to.be.undefined;
-          expect(nonPersonalizedResult.data.search.results.updates.collection.totalCount).to.be.gte(2);
+
+          expect(personalizedResult.data.search.results.updates.collection.totalCount).to.eq(
+            nonPersonalizedResult.data.search.results.updates.collection.totalCount,
+          );
+          expect(personalizedResult.data.search.results.updates.collection.totalCount).to.be.gte(2);
         });
 
-        it('should filter transactions by user context when usePersonalization is true', async () => {
+        it('should still return public updates for logged-in non-admin users with personalization enabled', async () => {
+          const result = await callSearchQuery(
+            'AVeryUniqueUpdateTitle',
+            { includeUpdates: true, usePersonalization: true },
+            testUsers.randomUser,
+          );
+          expect(result.errors).to.be.undefined;
+          expect(result.data.search.results.updates.collection.totalCount).to.be.gte(1);
+        });
+
+        it('should return transactions regardless of personalization', async () => {
           const uniqueStr = randStr('TransactionUniqueStr');
           await fakeTransaction({ kind: TransactionKind.CONTRIBUTION, description: uniqueStr });
           await syncOpenSearchIndex(OpenSearchIndexName.TRANSACTIONS);
@@ -1045,46 +1075,45 @@ describe('server/graphql/v2/query/SearchQuery', () => {
             { includeTransactions: true, usePersonalization: true },
             testUsers.collectiveAdmin,
           );
-
           personalizedResult.errors && console.error(personalizedResult.errors);
           expect(personalizedResult.errors).to.be.undefined;
-          expect(personalizedResult.data.search.results.transactions.collection.totalCount).to.be.eq(0);
 
-          // Search with personalization disabled - should see all transactions
           const nonPersonalizedResult = await callSearchQuery(
             uniqueStr,
             { includeTransactions: true, usePersonalization: false },
             testUsers.collectiveAdmin,
           );
-          nonPersonalizedResult.errors && console.error(nonPersonalizedResult.errors);
           expect(nonPersonalizedResult.errors).to.be.undefined;
-          expect(nonPersonalizedResult.data.search.results.transactions.collection.totalCount).to.be.eq(1);
+          expect(personalizedResult.data.search.results.transactions.collection.totalCount).to.eq(
+            nonPersonalizedResult.data.search.results.transactions.collection.totalCount,
+          );
+          expect(personalizedResult.data.search.results.transactions.collection.totalCount).to.eq(1);
         });
 
-        it('should filter tiers by user context when usePersonalization is true', async () => {
+        it('should return tiers regardless of personalization', async () => {
           const uniqueStr = randStr('TierUniqueStr');
           await fakeTier({ name: uniqueStr, description: uniqueStr });
           await syncOpenSearchIndex(OpenSearchIndexName.TIERS);
           await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
           await waitForAllIndexesRefresh();
 
-          // Search with personalization enabled
           const personalizedResult = await callSearchQuery(
             uniqueStr,
             { includeTiers: true, usePersonalization: true },
             testUsers.projectAdmin,
           );
           expect(personalizedResult.errors).to.be.undefined;
-          expect(personalizedResult.data.search.results.tiers.collection.totalCount).to.eq(0);
 
-          // Search with personalization disabled
           const nonPersonalizedResult = await callSearchQuery(
             uniqueStr,
             { includeTiers: true, usePersonalization: false },
             testUsers.projectAdmin,
           );
           expect(nonPersonalizedResult.errors).to.be.undefined;
-          expect(nonPersonalizedResult.data.search.results.tiers.collection.totalCount).to.be.eq(1);
+          expect(personalizedResult.data.search.results.tiers.collection.totalCount).to.eq(
+            nonPersonalizedResult.data.search.results.tiers.collection.totalCount,
+          );
+          expect(personalizedResult.data.search.results.tiers.collection.totalCount).to.eq(1);
         });
 
         it('should show all results for root users regardless of personalization', async () => {
@@ -1102,8 +1131,120 @@ describe('server/graphql/v2/query/SearchQuery', () => {
             testUsers.rootUser,
           );
           expect(nonPersonalizedResult.errors).to.be.undefined;
-          // Root users should see all results regardless of personalization
           expect(nonPersonalizedResult.data.search.results.expenses.collection.totalCount).to.eq(personalizedCount);
+        });
+      });
+
+      describe('in-context scoping', () => {
+        it('should scope account results to the host context', async () => {
+          const unrelatedCollective = await fakeCollective({
+            name: 'Unrelated Incredible Collective',
+          });
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          const scopedResult = await callSearchQuery(
+            'Incredible',
+            { includeAccounts: true, host, usePersonalization: false },
+            testUsers.hostAdmin,
+          );
+          expect(scopedResult.errors).to.be.undefined;
+
+          const scopedAccounts = scopedResult.data.search.results.accounts.collection.nodes;
+          expect(scopedAccounts.some(acc => acc.id === idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT))).to.be.true;
+          expect(scopedAccounts.some(acc => acc.id === idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT))).to.be.true;
+          expect(scopedAccounts.some(acc => acc.id === idEncode(unrelatedCollective.id, IDENTIFIER_TYPES.ACCOUNT))).to
+            .be.false;
+        });
+
+        it('should scope account results to the collective context', async () => {
+          const scopedResult = await callSearchQuery(
+            'Incredible',
+            { includeAccounts: true, account: collective, usePersonalization: false },
+            testUsers.collectiveAdmin,
+          );
+          expect(scopedResult.errors).to.be.undefined;
+
+          const scopedAccounts = scopedResult.data.search.results.accounts.collection.nodes;
+          expect(scopedAccounts.some(acc => acc.id === idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT))).to.be.true;
+          expect(scopedAccounts.some(acc => acc.id === idEncode(project.id, IDENTIFIER_TYPES.ACCOUNT))).to.be.true;
+          expect(scopedAccounts.some(acc => acc.id === idEncode(host.id, IDENTIFIER_TYPES.ACCOUNT))).to.be.false;
+        });
+      });
+
+      describe('individual account visibility', () => {
+        it('should hide individuals from unauthenticated users', async () => {
+          const stranger = await fakeUser({}, { name: 'Stranger SearchUser' });
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          const result = await callSearchQuery('SearchUser', { includeAccounts: true, usePersonalization: true });
+          expect(result.errors).to.be.undefined;
+          expect(
+            result.data.search.results.accounts.collection.nodes.some(
+              acc => acc.id === idEncode(stranger.CollectiveId, IDENTIFIER_TYPES.ACCOUNT),
+            ),
+          ).to.be.false;
+        });
+
+        it('should hide unrelated individuals from random users', async () => {
+          const stranger = await fakeUser({}, { name: 'Hidden SearchUser' });
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          const result = await callSearchQuery(
+            'Hidden SearchUser',
+            { includeAccounts: true, usePersonalization: true },
+            testUsers.randomUser,
+          );
+          expect(result.errors).to.be.undefined;
+          expect(
+            result.data.search.results.accounts.collection.nodes.some(
+              acc => acc.id === idEncode(stranger.CollectiveId, IDENTIFIER_TYPES.ACCOUNT),
+            ),
+          ).to.be.false;
+        });
+
+        it('should show individuals who interacted with an administrated host', async () => {
+          const contributor = await fakeUser({}, { name: 'Community SearchUser' });
+          await fakeMember({
+            CollectiveId: collective.id,
+            MemberCollectiveId: contributor.CollectiveId,
+            role: MemberRoles.BACKER,
+          });
+          await refreshCommunityMaterializedViews();
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          const result = await callSearchQuery(
+            'Community SearchUser',
+            { includeAccounts: true, usePersonalization: true },
+            testUsers.hostAdmin,
+          );
+          expect(result.errors).to.be.undefined;
+          expect(
+            result.data.search.results.accounts.collection.nodes.some(
+              acc => acc.id === idEncode(contributor.CollectiveId, IDENTIFIER_TYPES.ACCOUNT),
+            ),
+          ).to.be.true;
+        });
+
+        it('should show all individuals to root users', async () => {
+          const stranger = await fakeUser({}, { name: 'RootVisible SearchUser' });
+          await syncOpenSearchIndex(OpenSearchIndexName.COLLECTIVES);
+          await waitForAllIndexesRefresh();
+
+          const result = await callSearchQuery(
+            'RootVisible SearchUser',
+            { includeAccounts: true, usePersonalization: true },
+            testUsers.rootUser,
+          );
+          expect(result.errors).to.be.undefined;
+          expect(
+            result.data.search.results.accounts.collection.nodes.some(
+              acc => acc.id === idEncode(stranger.CollectiveId, IDENTIFIER_TYPES.ACCOUNT),
+            ),
+          ).to.be.true;
         });
       });
     });
