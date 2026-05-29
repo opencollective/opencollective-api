@@ -10,10 +10,11 @@ import {
 } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
-import { SUPPORTED_CURRENCIES } from '../constants/currencies';
+import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import ExpenseStatuses from '../constants/expense-status';
 import logger from '../lib/logger';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { PayPalSupportedCurrencies } from '../paymentProviders/paypal/constants';
@@ -113,10 +114,11 @@ class PayoutMethod extends ModelWithPublicId<
   declare public isSaved: boolean;
   declare public CollectiveId: number;
   declare public CreatedByUserId: ForeignKey<User['id']>;
+  declare public currency: SupportedCurrency | null;
 
   declare public Collective?: Collective;
 
-  private static editableFields = ['data', 'name', 'isSaved'];
+  private static editableFields = ['name', 'isSaved', 'currency'] as const;
 
   public static getFilteredData(type: PayoutMethodTypes, data: PayoutMethodDataType): Partial<PayoutMethodDataType> {
     switch (type) {
@@ -153,20 +155,23 @@ class PayoutMethod extends ModelWithPublicId<
    * @param userInput: The (potentially unsafe) user data. Fields will be whitelisted.
    * @param user: User creating this payout method
    */
-  static async createFromData(
-    userInput: Record<string, unknown>,
+  static async createFromUserData(
+    userInput: Pick<PayoutMethod, (typeof PayoutMethod.editableFields)[number]> & {
+      type: PayoutMethodTypes;
+      data: PayoutMethodDataType;
+    },
     user: User,
     collective: Collective,
-    dbTransaction: Transaction | null,
+    dbTransaction: Transaction | null | undefined = undefined,
   ): Promise<PayoutMethod> {
     const cleanInput = PayoutMethod.filterUserInput(userInput);
-    const type = userInput['type'] as string;
+    const type = userInput['type'];
     if (!(type in PayoutMethodTypes)) {
       throw new Error(`Invalid payout method type: ${type}`);
     }
 
     return PayoutMethod.create(
-      { ...cleanInput, type: type as PayoutMethodTypes, CreatedByUserId: user.id, CollectiveId: collective.id },
+      { ...cleanInput, type: type, CreatedByUserId: user.id, CollectiveId: collective.id },
       { transaction: dbTransaction },
     );
   }
@@ -176,8 +181,11 @@ class PayoutMethod extends ModelWithPublicId<
    * @param userInput: The (potentially unsafe) user data. Fields will be whitelisted.
    * @param user: User creating this
    */
-  static async getOrCreateFromData(
-    userInput: Record<string, unknown>,
+  static async getOrCreateFromUserData(
+    userInput: Pick<PayoutMethod, (typeof PayoutMethod.editableFields)[number]> & {
+      type: PayoutMethodTypes;
+      data: PayoutMethodDataType;
+    },
     user: User,
     collective: Collective,
     dbTransaction: Transaction | null,
@@ -209,7 +217,7 @@ class PayoutMethod extends ModelWithPublicId<
     }
 
     // Otherwise we just call createFromData
-    return existingPm || this.createFromData(userInput, user, collective, dbTransaction);
+    return existingPm || this.createFromUserData(userInput, user, collective, dbTransaction);
   }
 
   static getLabel(payoutMethod: PayoutMethod): string {
@@ -233,20 +241,45 @@ class PayoutMethod extends ModelWithPublicId<
 
   /** Filters out all the fields that cannot be edited by user */
   private static filterUserInput(input: Record<string, unknown>): Record<string, unknown> {
+    const type = input['type'] as PayoutMethodTypes;
     return {
       ...pick(input, PayoutMethod.editableFields),
-      data: PayoutMethod.filterUserSubmittedData(input?.['data']),
+      data: PayoutMethod.filterUserSubmittedData(type, input['data']),
     };
   }
 
-  /**
-   * We don't allow users to set the connectedAccountId or stripeAccountId fields in the payout method data.
-   */
-  static filterUserSubmittedData(data: unknown): Record<string, unknown> {
+  /** Whitelist filter on `data` field for user-submitted payloads. */
+  static filterUserSubmittedData(
+    type: PayoutMethodTypes,
+    data: unknown,
+    { isExistingPayPalOAuthMethod = false } = {},
+  ): Record<string, unknown> {
     if (!data || typeof data !== 'object') {
       return {};
-    } else {
-      return omit(data as Record<string, unknown>, ['connectedAccountId', 'stripeAccountId']);
+    }
+
+    const dataObj = data as Record<string, unknown>;
+    switch (type) {
+      case PayoutMethodTypes.PAYPAL:
+        return pick(dataObj, isExistingPayPalOAuthMethod ? ['currency'] : ['email', 'currency']);
+      case PayoutMethodTypes.OTHER:
+        return pick(dataObj, ['content', 'currency']);
+      case PayoutMethodTypes.BANK_ACCOUNT: {
+        const filtered: Record<string, unknown> = pick(dataObj, [
+          'accountHolderName',
+          'currency',
+          'type',
+          'legalType',
+          'details',
+        ]);
+        return filtered;
+      }
+      case PayoutMethodTypes.CREDIT_CARD:
+        return pick(dataObj, ['token', 'currency']);
+      case PayoutMethodTypes.ACCOUNT_BALANCE:
+      case PayoutMethodTypes.STRIPE:
+      default:
+        return pick(dataObj, ['currency']);
     }
   }
 
@@ -423,6 +456,16 @@ PayoutMethod.init(
       onUpdate: 'CASCADE',
       allowNull: true,
     },
+    currency: {
+      type: DataTypes.STRING(3),
+      allowNull: true,
+      validate: {
+        isIn: {
+          args: [SUPPORTED_CURRENCIES],
+          msg: 'Currency must be a supported currency',
+        },
+      },
+    },
   },
   {
     sequelize,
@@ -434,6 +477,18 @@ PayoutMethod.init(
       },
       paypal: {
         where: { type: PayoutMethodTypes.PAYPAL },
+      },
+    },
+    hooks: {
+      beforeValidate: (instance: PayoutMethod) => {
+        // Auto-extract currency from data field if not explicitly set on the column
+        const data = instance.getDataValue('data') as Record<string, unknown> | undefined;
+        if (!instance.currency && data?.currency) {
+          reportMessageToSentry(`Missing currency while creating payout method`, { extra: { data } });
+          instance.currency = data.currency as SupportedCurrency;
+        } else if (instance.currency && !data?.currency) {
+          instance.data = { ...data, currency: instance.currency };
+        }
       },
     },
   },

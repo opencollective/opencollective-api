@@ -11,7 +11,6 @@ import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import { assertCanSeeAccount } from '../../lib/private-accounts';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-search';
-import { expandAccountIdsWithParents } from '../../lib/vendor-visibility';
 import models, { Op, sequelize } from '../../models';
 import { NotFound, Unauthorized } from '../errors';
 
@@ -565,11 +564,7 @@ const queries = {
         const [collectives, total] = await searchCollectivesByEmail(cleanTerm, req.remoteUser);
         return generateResults(collectives, total);
       } else {
-        const expandedVisibleAccountIds = vendorVisibleToAccountIds?.length
-          ? await expandAccountIdsWithParents(vendorVisibleToAccountIds)
-          : vendorVisibleToAccountIds;
-
-        const [collectives, total] = await searchCollectivesInDB(cleanTerm, offset, limit, {
+        const [collectives, total] = await searchCollectivesInDB(req, cleanTerm, offset, limit, {
           types,
           hostCollectiveIds,
           parentCollectiveIds,
@@ -579,7 +574,7 @@ const queries = {
           includeArchived,
           includeVendorsForHostId,
           includeAllVendors,
-          vendorVisibleToAccountIds: expandedVisibleAccountIds,
+          vendorVisibleToAccountIds,
         });
         return generateResults(collectives, total);
       }

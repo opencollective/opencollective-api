@@ -2,7 +2,6 @@ import assert from 'assert';
 
 import config from 'config';
 import debugLib from 'debug';
-import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
 import {
@@ -41,6 +40,7 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
+  OrderItem,
   WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
@@ -299,7 +299,6 @@ class Collective extends ModelWithPublicId<
         | 'invoice'
         | 'minimal'
         | 'activity'
-        | 'searchIndex'
         | 'getChildren'
         | 'getEvents'
         | 'getProjects';
@@ -539,6 +538,7 @@ class Collective extends ModelWithPublicId<
       settings: this.settings,
       currency: this.currency,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -572,6 +572,7 @@ class Collective extends ModelWithPublicId<
       repositoryUrl: this.repositoryUrl,
       publicUrl: this.publicUrl,
       hasHosting: this.hasHosting,
+      isPrivate: this.isPrivate,
     };
   }
 
@@ -594,22 +595,6 @@ class Collective extends ModelWithPublicId<
       previewImage: this.previewImage,
       hasHosting: this.hasHosting,
       isPrivate: this.isPrivate,
-    };
-  }
-
-  get searchIndex() {
-    // TODO: Not used?
-    return {
-      id: this.id,
-      name: this.name,
-      description: this.description,
-      currency: this.currency,
-      slug: this.slug,
-      type: this.type,
-      tags: this.tags,
-      balance: (this as any).balance, // useful in ranking
-      yearlyBudget: (this as any).yearlyBudget,
-      backersCount: (this as any).backersCount,
     };
   }
 
@@ -1862,26 +1847,32 @@ class Collective extends ModelWithPublicId<
     });
   };
 
-  getIncomingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { CollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
-    return Order.findAll(query);
+  getIncomingOrders = function ({
+    where = undefined,
+    order = [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ] as OrderItem[],
+  } = {}) {
+    return Order.findAll({
+      where: { ...where, CollectiveId: this.id },
+      order,
+    });
   };
 
-  getOutgoingOrders = function (options) {
-    const query = deepmerge(
-      {
-        where: { FromCollectiveId: this.id },
-      },
-      options,
-      { clone: false },
-    );
-    return Order.findAll(query);
+  getOutgoingOrders = function ({
+    where = undefined,
+    include = undefined,
+    order = [
+      ['createdAt', 'DESC'],
+      ['id', 'DESC'],
+    ] as OrderItem[],
+  } = {}) {
+    return Order.findAll({
+      where: { ...where, FromCollectiveId: this.id },
+      order,
+      include,
+    });
   };
 
   getRoleForMemberCollective = function (MemberCollectiveId) {

@@ -6400,6 +6400,11 @@ type PayoutMethod {
   type: PayoutMethodType
 
   """
+  The currency of this payout method
+  """
+  currency: Currency
+
+  """
   A friendly name for users to easily find their payout methods
   """
   name: String
@@ -18383,7 +18388,7 @@ type Vendor implements Account & AccountWithContributions {
   hasPayoutMethod: Boolean
 
   """
-  The account who created this order
+  The account who created this vendor
   """
   createdByAccount: Account
 
@@ -27579,6 +27584,11 @@ input PayoutMethodInput {
   The type of payout method (e.g., PayPal, bank transfer)
   """
   type: PayoutMethodType
+
+  """
+  The currency for this payout method
+  """
+  currency: Currency
 }
 
 input ExpenseItemCreateInput {

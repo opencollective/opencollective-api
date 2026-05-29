@@ -55,6 +55,7 @@ export class OpenSearchCollectivesAdapter implements OpenSearchModelAdapter {
       raw: true,
       where: {
         isIncognito: false,
+        isPrivate: false,
         deactivatedAt: { [Op.is]: null },
         data: { hideFromSearch: { [Op.not]: true }, isGuest: { [Op.not]: true } },
         name: { [Op.notIn]: ['incognito', 'anonymous'] },
