@@ -513,17 +513,29 @@ export const handleExpense: Handler = async (req, res) => {
 
   const host = await models.Collective.findByPk(hostCollectiveId);
   if (host && req.remoteUser.isAdmin(host.id)) {
-    return redirect(res, getDashboardRoute(host, `host-payment-requests/${expense.id}`));
+    return redirect(
+      res,
+      preserveExpensePagePermalinkParameters(getDashboardRoute(host, `host-payment-requests/${expense.id}`), req.query),
+    );
   }
 
   if (req.remoteUser.isAdmin(expense.collective.id)) {
-    return redirect(res, getDashboardRoute(expense.collective, 'payment-requests', { openExpenseId: expense.id }));
+    return redirect(
+      res,
+      preserveExpensePagePermalinkParameters(
+        getDashboardRoute(expense.collective, 'payment-requests', { openExpenseId: expense.id }),
+        req.query,
+      ),
+    );
   }
 
   if (req.remoteUser.isAdmin(expense.fromCollective.id)) {
     return redirect(
       res,
-      getDashboardRoute(expense.fromCollective, 'submitted-expenses', { openExpenseId: expense.id }),
+      preserveExpensePagePermalinkParameters(
+        getDashboardRoute(expense.fromCollective, 'submitted-expenses', { openExpenseId: expense.id }),
+        req.query,
+      ),
     );
   }
 

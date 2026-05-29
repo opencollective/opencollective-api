@@ -233,7 +233,7 @@ describe('server/lib/permalink/handler', () => {
         CollectiveId: collective.id,
       });
       const url = await invokePermalink(expense.publicId, remoteUser, { key: 'draft-key' });
-      expect(url).to.equal(`/dashboard/${collective.slug}/payment-requests?openExpenseId=${expense.id}`);
+      expect(url).to.equal(`/dashboard/${collective.slug}/payment-requests?openExpenseId=${expense.id}&key=draft-key`);
     });
   });
 
