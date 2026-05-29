@@ -6,6 +6,7 @@ import assert from 'assert';
 
 import config from 'config';
 import type { Request } from 'express';
+import express from 'express';
 import { SelectQueryBuilder } from 'kysely';
 import slugify from 'limax';
 import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
@@ -35,7 +36,7 @@ import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 import { removeDiacritics } from './string-utils';
 
 // Returned when there's no result for a search
-const EMPTY_SEARCH_RESULT = [[], 0];
+const EMPTY_SEARCH_RESULT = [[], 0] as const;
 
 const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c');
 
@@ -96,7 +97,12 @@ const buildPrivateAccountSearchVisibilitySQL = async (
  * @param {String} email - a valid email address
  * @param {Object} user - the user triggering the search
  */
-export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 10) => {
+export const searchCollectivesByEmail = async (
+  email,
+  user,
+  offset = 0,
+  limit = 10,
+): Promise<readonly [readonly Collective[], number]> => {
   if (!email || !user) {
     return EMPTY_SEARCH_RESULT;
   }
@@ -309,6 +315,7 @@ const getSortSubQuery = (
  * Search collectives directly in the DB, using a full-text query.
  */
 export const searchCollectivesInDB = async (
+  req: express.Request,
   term: string,
   offset = 0,
   limit = 100,
@@ -351,7 +358,6 @@ export const searchCollectivesInDB = async (
     types?: string[];
     consolidatedBalance?: AmountRangeInputType;
     isRoot?: boolean;
-    req?: Request;
     isPlatformSubscriber?: boolean;
     plan?: string[];
     isVerified?: boolean;
@@ -364,13 +370,13 @@ export const searchCollectivesInDB = async (
     const collective = await models.Collective.findOne({
       where: { publicId: term },
     });
-    if (collective && (!collective.isPrivate || (args.req && (await canSeePrivateAccount(args.req, collective))))) {
+    if (collective && (!collective.isPrivate || (await canSeePrivateAccount(req, collective)))) {
       return [[collective], 1];
     }
   }
 
   // Build dynamic conditions based on arguments
-  const privateAccountVisibility = await buildPrivateAccountSearchVisibilitySQL(args.req);
+  const privateAccountVisibility = await buildPrivateAccountSearchVisibilitySQL(req);
   let dynamicConditions = privateAccountVisibility.sql;
   let countryCodes = null;
   let searchedTags = [''];

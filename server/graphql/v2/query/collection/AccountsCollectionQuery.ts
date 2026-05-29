@@ -168,7 +168,6 @@ const AccountsCollectionQuery = {
       includeVendorsForHostId,
       consolidatedBalance: args.consolidatedBalance,
       isRoot: req.remoteUser?.isRoot() || false,
-      req,
       onlyOpenHosts: args.onlyOpenToApplications ? true : null,
       plan: args.plan,
       isPlatformSubscriber: args.isPlatformSubscriber,
@@ -178,7 +177,7 @@ const AccountsCollectionQuery = {
       lastTransactionTo: args.lastTransactionTo,
     };
 
-    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
+    const [accounts, totalCount] = await searchCollectivesInDB(req, cleanTerm, offset, limit, extraParameters);
 
     return { nodes: accounts, totalCount, limit, offset };
   },

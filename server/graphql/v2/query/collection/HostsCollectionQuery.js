@@ -36,10 +36,7 @@ const HostsCollectionQuery = {
     };
 
     const cleanTerm = args.searchTerm?.trim();
-    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, args.offset, args.limit, {
-      ...searchParams,
-      req,
-    });
+    const [accounts, totalCount] = await searchCollectivesInDB(req, cleanTerm, args.offset, args.limit, searchParams);
 
     return { nodes: accounts, totalCount, limit: args.limit, offset: args.offset };
   },

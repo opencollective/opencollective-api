@@ -564,7 +564,7 @@ const queries = {
         const [collectives, total] = await searchCollectivesByEmail(cleanTerm, req.remoteUser);
         return generateResults(collectives, total);
       } else {
-        const [collectives, total] = await searchCollectivesInDB(cleanTerm, offset, limit, {
+        const [collectives, total] = await searchCollectivesInDB(req, cleanTerm, offset, limit, {
           types,
           hostCollectiveIds,
           parentCollectiveIds,
@@ -575,7 +575,6 @@ const queries = {
           includeVendorsForHostId,
           includeAllVendors,
           vendorVisibleToAccountIds,
-          req,
         });
         return generateResults(collectives, total);
       }
