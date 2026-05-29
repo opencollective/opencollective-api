@@ -6,7 +6,7 @@ Subject: Expense updated on {{{collective.name}}}: {{currency expense.amount cur
   <h3>An expense for {{collective.name}} has been updated and requires your approval.</h3>
   <h2><a href="{{permalink expense}}">{{expense.description}}</a></h2>
   <div>
-    Payee: <a href="{{config.host.website}}/{{fromCollective.slug}}"> {{fromCollective.name}} </a>
+    Payee: <a href="{{accountUrl fromCollective}}"> {{fromCollective.name}} </a>
   </div>
 
   <br />

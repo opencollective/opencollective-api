@@ -79,7 +79,9 @@ export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) 
         console.error(e);
         process.exit(1);
       }
-      console.error('Error while resetting the DB, retrying...');
+      console.error(
+        `Error while resetting the DB for connection ${JSON.stringify(config.database)}. Error: ${JSON.stringify(e)}\nRetrying...`,
+      );
       await sleep(1000 * t);
       t++;
     }

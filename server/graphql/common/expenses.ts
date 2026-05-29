@@ -51,6 +51,7 @@ import {
   roundCentsAmount,
 } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
+import { getExpenseUrl } from '../../lib/email-urls';
 import { formatAddress } from '../../lib/format-address';
 import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
@@ -2782,7 +2783,7 @@ export async function sendDraftExpenseInvite(
   collective: Collective,
   draftKey: string,
 ): Promise<void> {
-  const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+  const inviteUrl = getExpenseUrl(expense, collective, { key: draftKey });
   expense
     .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, {
       ...expense.data,
