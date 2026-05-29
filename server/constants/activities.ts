@@ -19,6 +19,7 @@ enum ActivityTypes {
   COLLECTIVE_EDITED = 'collective.edited',
   COLLECTIVE_DELETED = 'collective.deleted',
   COLLECTIVE_UNHOSTED = 'collective.unhosted',
+  COLLECTIVE_BALANCE_TRANSFERRED = 'collective.balance.transferred',
   COLLECTIVE_CONVERTED_TO_ORGANIZATION = 'collective.convertedToOrganization',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
   ORGANIZATION_CONVERTED_TO_COLLECTIVE = 'organization.convertedToCollective',
@@ -54,6 +55,10 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_INVITE_DECLINED = 'collective.expense.invite.declined',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',
   COLLECTIVE_EXPENSE_MISSING_RECEIPT = 'collective.expense.missing.receipt',
+  COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED = 'collective.expense.kyc.payoutMethod.changed',
+  COLLECTIVE_EXPENSE_KYC_REQUESTED = 'collective.expense.kyc.requested',
+  COLLECTIVE_EXPENSE_KYC_VERIFIED = 'collective.expense.kyc.verified',
+  COLLECTIVE_EXPENSE_KYC_REVOKED = 'collective.expense.kyc.revoked',
   TAXFORM_REQUEST = 'taxform.request',
   TAXFORM_RECEIVED = 'taxform.received',
   TAXFORM_INVALIDATED = 'taxform.invalidated',
@@ -82,6 +87,9 @@ enum ActivityTypes {
   // Transactions imports
   TRANSACTIONS_IMPORT_CREATED = 'transactions.import.created',
   TRANSACTIONS_IMPORT_ROW_UPDATED = 'transactions.import.updated',
+  // Export requests
+  EXPORT_REQUEST_COMPLETED = 'export.request.completed',
+  EXPORT_REQUEST_FAILED = 'export.request.failed',
   // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',
@@ -91,6 +99,8 @@ enum ActivityTypes {
   HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
+  CONTRIBUTION_REFUNDED = 'contribution.refunded',
+  CONTRIBUTOR_REMOVED_BY_HOST = 'contributor.removed.by.host',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   SUBSCRIPTION_PAUSED = 'subscription.paused',
@@ -197,6 +207,7 @@ export const TransactionalActivities = [
   ActivityTypes.ORDER_PENDING,
   ActivityTypes.ORDER_PENDING_CRYPTO,
   ActivityTypes.ORDER_PROCESSED,
+  ActivityTypes.CONTRIBUTION_REFUNDED,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
   ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
   ActivityTypes.PAYMENT_FAILED,
@@ -206,11 +217,12 @@ export const TransactionalActivities = [
   ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
   ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
   ActivityTypes.HOST_APPLICATION_CONTACT,
-  ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
   ActivityTypes.OAUTH_APPLICATION_AUTHORIZED,
   ActivityTypes.PLATFORM_SUBSCRIPTION_UPDATED,
   ActivityTypes.PLATFORM_BILLING_OVERDUE_REMINDER,
   ActivityTypes.PLATFORM_BILLING_ADDITIONAL_CHARGES_NOTIFICATION,
+  ActivityTypes.EXPORT_REQUEST_COMPLETED,
+  ActivityTypes.EXPORT_REQUEST_FAILED,
 ];
 
 export enum ActivityClasses {
@@ -273,10 +285,16 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.EXPENSE_COMMENT_CREATED,
     ActivityTypes.TAXFORM_REQUEST,
     ActivityTypes.TAXFORM_RECEIVED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_REQUESTED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_VERIFIED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_REVOKED,
+    ActivityTypes.COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED,
   ],
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.CONTRIBUTION_REJECTED,
+    ActivityTypes.CONTRIBUTION_REFUNDED,
+    ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST,
     ActivityTypes.ORDER_PAYMENT_FAILED,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,

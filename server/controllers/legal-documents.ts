@@ -4,6 +4,7 @@ import type express from 'express';
 import MemberRoles from '../constants/roles';
 import { idDecode } from '../graphql/v2/identifiers';
 import { getFileFromS3 } from '../lib/awsS3';
+import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import SQLQueries from '../lib/queries';
 import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
@@ -61,11 +62,19 @@ export default {
 
     // Parse ID
     const { id } = req.params;
+
     let decodedId;
-    try {
-      decodedId = idDecode(id, 'legal-document');
-    } catch {
-      return res.status(400).send({ message: 'Invalid id' });
+    if (isEntityPublicId(id, EntityShortIdPrefix.LegalDocument)) {
+      decodedId = await LegalDocument.findOne({ where: { publicId: id }, attributes: ['id'] }).then(doc => doc?.id);
+      if (!decodedId) {
+        return res.status(404).send({ message: 'Legal document not found' });
+      }
+    } else {
+      try {
+        decodedId = idDecode(id, 'legal-document');
+      } catch {
+        return res.status(400).send({ message: 'Invalid id' });
+      }
     }
 
     try {

@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { ObjectCannedACL, PutObjectCommand } from '@aws-sdk/client-s3';
 import { encode } from 'blurhash';
 import config from 'config';
 import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.js';
@@ -22,12 +22,14 @@ import { checkS3Configured, streamToS3, uploadToS3 } from '../lib/awsS3';
 import { isOpenCollectiveProtectedS3BucketURL, isOpenCollectiveS3BucketURL } from '../lib/images';
 import logger from '../lib/logger';
 import { ExpenseOCRParseResult, ExpenseOCRService } from '../lib/ocr/ExpenseOCRService';
+import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
 import RateLimit from '../lib/rate-limit';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import streamToBuffer from '../lib/stream-to-buffer';
 import { isValidURL } from '../lib/url-utils';
 
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 // Types
@@ -102,7 +104,14 @@ const SupportedTypeByKind: Record<FileKind, readonly SupportedFileType[]> = {
 /**
  * A file uploaded to our S3 bucket.
  */
-class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAttributes<UploadedFile>> {
+class UploadedFile extends ModelWithPublicId<
+  EntityShortIdPrefix.UploadedFile,
+  InferAttributes<UploadedFile>,
+  InferCreationAttributes<UploadedFile>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.UploadedFile;
+  public static readonly tableName = 'UploadedFiles' as const;
+
   declare id: CreationOptional<number>;
   declare kind: CreationOptional<FileKind>;
   declare fileName: CreationOptional<string>;
@@ -156,6 +165,9 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
 
     const encodedId = match[1];
+    if (isEntityPublicId(encodedId, EntityShortIdPrefix.UploadedFile)) {
+      return UploadedFile.findOne({ where: { publicId: encodedId } });
+    }
 
     return UploadedFile.findByPk(idDecode(encodedId, IDENTIFIER_TYPES.UPLOADED_FILE));
   }
@@ -164,9 +176,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     uploadedFile: UploadedFile,
     options?: { expenseId: number; draftKey: string },
   ): string {
-    const url = new URL(
-      `${config.host.website}/api/files/${idEncode(uploadedFile.id, IDENTIFIER_TYPES.UPLOADED_FILE)}`,
-    );
+    const url = new URL(`${config.host.website}/api/files/${uploadedFile.publicId}`);
 
     if (options?.expenseId) {
       url.searchParams.set('expenseId', idEncode(options.expenseId, IDENTIFIER_TYPES.EXPENSE));
@@ -332,6 +342,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       mimetype: SUPPORTED_FILE_TYPES_UNION;
       onProgress?: (progress: number) => void;
       abortController?: AbortController;
+      ACL?: ObjectCannedACL;
     },
   ) {
     if (!checkS3Configured()) {
@@ -343,7 +354,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
       Bucket: config.aws.s3.bucket,
       Key: `${kebabCase(kind)}/${uuid()}/${fileName || uuid()}`,
       Body: stream,
-      ACL: 'private',
+      ACL: args?.ACL || 'private',
       ContentType: args.mimetype,
       Metadata: {
         CreatedByUserId: `${user?.id}`,
@@ -353,12 +364,10 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
 
     let size = 0;
     const uploadStream = streamToS3(uploadParams);
-    if (args.onProgress) {
-      uploadStream.on('httpUploadProgress', progress => {
-        size = progress.total;
-        args.onProgress(progress.loaded);
-      });
-    }
+    uploadStream.on('httpUploadProgress', progress => {
+      size = progress.loaded;
+      args?.onProgress?.(progress.loaded);
+    });
     return uploadStream.done().then(uploadResult => {
       return UploadedFile.create({
         kind: kind,
@@ -417,6 +426,10 @@ UploadedFile.init(
       primaryKey: true,
       type: DataTypes.INTEGER,
     },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     kind: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -471,7 +484,7 @@ UploadedFile.init(
         const url = this.getDataValue('url');
         const kind = this.getDataValue('kind');
         if (
-          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE'].includes(kind) &&
+          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE', 'TRANSACTIONS_CSV_EXPORT'].includes(kind) &&
           UploadedFile.isOpenCollectiveS3BucketURL(url)
         ) {
           return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(this);

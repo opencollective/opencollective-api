@@ -4,7 +4,8 @@ import { Request, Response } from 'express';
 import { hasUploadedFilePermission } from '../graphql/common/uploaded-file';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { getSignedGetURL, parseS3Url } from '../lib/awsS3';
-import { UploadedFile } from '../models';
+import { EntityShortIdPrefix, isEntityPublicId } from '../lib/permalink/entity-map';
+import { Expense, UploadedFile } from '../models';
 import { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
 
 /**
@@ -25,23 +26,31 @@ export async function getFile(req: Request, res: Response) {
   const { uploadedFileId } = req.params;
   const { expenseId, draftKey } = req.query;
 
+  let resolvedExpenseId: number | null = null;
   if (expenseId && typeof expenseId !== 'string') {
     return res.status(400).send({ message: 'Invalid id' });
+  } else if (isEntityPublicId(expenseId, EntityShortIdPrefix.Expense)) {
+    resolvedExpenseId = await Expense.findOne({ where: { publicId: expenseId } }).then(expense => expense?.id);
+  } else if (expenseId) {
+    resolvedExpenseId = idDecode(expenseId as string, IDENTIFIER_TYPES.EXPENSE);
   }
 
   if (draftKey && typeof draftKey !== 'string') {
     return res.status(400).send({ message: 'Invalid id' });
   }
 
-  let decodedId: number;
-  try {
-    decodedId = idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (err) {
-    return res.status(400).send({ message: 'Invalid id' });
-  }
+  let uploadedFile: UploadedFile;
 
-  const uploadedFile = await UploadedFile.findByPk(decodedId);
+  if (isEntityPublicId(uploadedFileId, EntityShortIdPrefix.UploadedFile)) {
+    uploadedFile = await UploadedFile.findOne({ where: { publicId: uploadedFileId } });
+  } else {
+    try {
+      uploadedFile = await UploadedFile.findByPk(idDecode(uploadedFileId, IDENTIFIER_TYPES.UPLOADED_FILE));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (err) {
+      return res.status(400).send({ message: 'Invalid id' });
+    }
+  }
 
   if (!uploadedFile) {
     return res.status(403).send({ message: 'Unauthorized' });
@@ -51,7 +60,7 @@ export async function getFile(req: Request, res: Response) {
 
   if (
     !(await hasUploadedFilePermission(req, uploadedFile, {
-      expenseId: expenseId ? idDecode(expenseId as string, IDENTIFIER_TYPES.EXPENSE) : null,
+      expenseId: resolvedExpenseId,
       draftKey: draftKey as string,
     }))
   ) {

@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import URL from '../scalar/URL';
 
 import { GraphQLAmountInput } from './AmountInput';
@@ -13,7 +14,7 @@ export const GraphQLExpenseItemInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'ID of the item',
+      description: `The public id identifying the expense item (ie: ${EntityShortIdPrefix.ExpenseItem}_xxxxxxxx)`,
     },
     amount: {
       type: GraphQLInt,

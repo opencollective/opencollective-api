@@ -198,57 +198,6 @@ describe('server/graphql/v1/mutation', () => {
   });
 
   describe('editCollective tests', () => {
-    describe('change the hostFeePercent of the host', () => {
-      const updateHostFeePercentMutation = gqlV1 /* GraphQL */ `
-        mutation UpdateHostFeePercent($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id
-            slug
-            hostFeePercent
-            host {
-              id
-              hostFeePercent
-            }
-          }
-        }
-      `;
-
-      it('fails if not authenticated as an admin of the host', async () => {
-        const result = await utils.graphqlQuery(
-          updateHostFeePercentMutation,
-          { collective: { id: collective1.id, hostFeePercent: 11 } },
-          user1,
-        );
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.contain(
-          'Only an admin of the host collective can edit the host fee for this collective',
-        );
-      });
-
-      it('updates the hostFeePercent of the collective, not of the host', async () => {
-        const result = await utils.graphqlQuery(
-          updateHostFeePercentMutation,
-          { collective: { id: collective1.id, hostFeePercent: 11 } },
-          host,
-        );
-        expect(result.data.editCollective.hostFeePercent).to.equal(11);
-        expect(result.data.editCollective.host.hostFeePercent).to.equal(10);
-      });
-
-      it('updates the hostFeePercent of the host and of the hosted collectives', async () => {
-        const result = await utils.graphqlQuery(
-          updateHostFeePercentMutation,
-          { collective: { id: host.collective.id, hostFeePercent: 9 } },
-          host,
-        );
-        expect(result.data.editCollective.hostFeePercent).to.equal(9);
-        const hostedCollectives = await models.Collective.findAll({ where: { HostCollectiveId: host.collective.id } });
-        hostedCollectives.map(c => {
-          expect(c.hostFeePercent).to.equal(9);
-        });
-      });
-    });
-
     describe('archives a collective', () => {
       const archiveCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation ArchiveCollective($id: Int!) {

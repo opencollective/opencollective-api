@@ -2,6 +2,10 @@
 --
 -- Variables:
 --  • collectiveSlugs: The list of collective slugs to ban
+--
+-- Not covered yet:
+--   - models with no soft-delete mechanism: AccountingCategories, Activity, ConversationFollowers, Notifications, EmojiReactions, ExpenseAttachedFiles, SocialLinks.
+--   - incognito profiles
 -- 
 -- ---------------------------------------------------------------------------------
 
@@ -151,13 +155,6 @@ WITH requested_collectives AS (
   WHERE       (conv."FromCollectiveId" = deleted_collectives.id OR conv."CollectiveId" = deleted_collectives.id)
   AND         conv."deletedAt" IS NULL
   RETURNING   conv.id
-), deleted_conversation_followers AS (
-  -- Delete conversations followers
-  DELETE FROM "ConversationFollowers" f
-  WHERE
-    EXISTS (SELECT 1 FROM deleted_users WHERE deleted_users.id = f."UserId")
-    OR EXISTS (SELECT 1 FROM deleted_conversations WHERE deleted_conversations.id = f."ConversationId")
-  RETURNING   f.id
 ), deleted_expenses AS (
   -- Delete expenses
   UPDATE ONLY "Expenses" e SET "deletedAt" = NOW()
@@ -202,13 +199,7 @@ WITH requested_collectives AS (
   FROM        deleted_collectives
   WHERE       (o."FromCollectiveId" = deleted_collectives.id OR o."CollectiveId" = deleted_collectives.id)
   AND         o."deletedAt" IS NULL
-  RETURNING   o.id
-), deleted_notifications AS (
-  -- Delete notifications
-  DELETE FROM "Notifications" n
-  USING       deleted_users
-  WHERE       n."UserId" = deleted_users.id
-  RETURNING   n.id
+  RETURNING   o.id, o."SubscriptionId"
 ), deleted_recurring_expenses AS (
   -- Delete Recurring Expenses 
   UPDATE ONLY "RecurringExpenses" re SET "deletedAt" = NOW()
@@ -281,6 +272,44 @@ WITH requested_collectives AS (
   WHERE       rld."HostCollectiveId" = deleted_collectives.id
   AND         rld."deletedAt" IS NULL
   RETURNING   rld.id
+), deleted_export_requests AS (
+  -- Delete export requests
+  UPDATE ONLY "ExportRequests" er SET "deletedAt" = NOW()
+  WHERE       er."deletedAt" IS NULL
+  AND         (
+    er."CollectiveId" IN (SELECT id FROM deleted_collectives)
+    OR er."CreatedByUserId" IN (SELECT id FROM deleted_users)
+  )
+  RETURNING   er.id
+), deleted_manual_payment_providers AS (
+  -- Delete manual payment providers
+  UPDATE ONLY "ManualPaymentProviders" mpp SET "deletedAt" = NOW()
+  FROM        deleted_collectives
+  WHERE       mpp."CollectiveId" = deleted_collectives.id
+  AND         mpp."deletedAt" IS NULL
+  RETURNING   mpp.id
+), deleted_kyc_verifications AS (
+  -- Delete KYC verifications
+  UPDATE ONLY "KYCVerifications" kv SET "deletedAt" = NOW()
+  FROM        deleted_collectives
+  WHERE       (kv."CollectiveId" = deleted_collectives.id OR kv."RequestedByCollectiveId" = deleted_collectives.id)
+  AND         kv."deletedAt" IS NULL
+  RETURNING   kv.id
+), deleted_subscriptions AS (
+  -- Delete subscriptions linked to deleted orders
+  UPDATE ONLY "Subscriptions" s SET "deletedAt" = NOW()
+  FROM        deleted_orders
+  WHERE       s."deletedAt" IS NULL
+  AND         deleted_orders."SubscriptionId" IS NOT NULL
+  AND         s.id = deleted_orders."SubscriptionId"
+  RETURNING   s.id
+), deleted_uploaded_files AS (
+  -- Delete uploaded files
+  UPDATE ONLY "UploadedFiles" uf SET "deletedAt" = NOW()
+  FROM        deleted_users
+  WHERE       uf."CreatedByUserId" = deleted_users.id
+  AND         uf."deletedAt" IS NULL
+  RETURNING   uf.id
 ) SELECT 
   (SELECT COUNT(*) FROM deleted_collectives) AS nb_deleted_collectives,
   (SELECT COUNT(*) FROM deleted_users) AS deleted_users,
@@ -294,12 +323,10 @@ WITH requested_collectives AS (
   (SELECT COUNT(*) FROM deleted_payment_methods) AS nb_deleted_payment_methods,
   (SELECT COUNT(*) FROM deleted_connected_accounts) AS nb_deleted_connected_accounts,
   (SELECT COUNT(*) FROM deleted_conversations) AS nb_deleted_conversations,
-  (SELECT COUNT(*) FROM deleted_conversation_followers) AS nb_deleted_conversation_followers,
   (SELECT COUNT(*) FROM deleted_comments) AS nb_deleted_comments,
   (SELECT COUNT(*) FROM deleted_expenses) AS nb_deleted_expenses,
   (SELECT COUNT(*) FROM deleted_applications) AS nb_deleted_applications,
   (SELECT COUNT(*) FROM deleted_orders) AS nb_deleted_orders,
-  (SELECT COUNT(*) FROM deleted_notifications) AS nb_deleted_notifications,
   (SELECT COUNT(*) FROM deleted_users) AS nb_deleted_users,
   (SELECT COUNT(*) FROM deleted_recurring_expenses) AS nb_deleted_recurring_expenses,
   (SELECT COUNT(*) FROM deleted_transactions_imports) AS nb_deleted_transactions_imports,
@@ -316,8 +343,9 @@ WITH requested_collectives AS (
   (SELECT COUNT(*) FROM deleted_locations) AS nb_deleted_locations,
   (SELECT COUNT(*) FROM deleted_member_invitations) AS nb_deleted_member_invitations,
   (SELECT COUNT(*) FROM deleted_expense_items) AS nb_deleted_expense_items,
+  (SELECT COUNT(*) FROM deleted_export_requests) AS nb_deleted_export_requests,
+  (SELECT COUNT(*) FROM deleted_manual_payment_providers) AS nb_deleted_manual_payment_providers,
+  (SELECT COUNT(*) FROM deleted_kyc_verifications) AS nb_deleted_kyc_verifications,
+  (SELECT COUNT(*) FROM deleted_subscriptions) AS nb_deleted_subscriptions,
+  (SELECT COUNT(*) FROM deleted_uploaded_files) AS nb_deleted_uploaded_files,
   (SELECT ARRAY_AGG(deleted_collectives.id) FROM deleted_collectives) AS deleted_collectives_ids
-  
--- TODO:
--- Delete associated incognito profiles
--- Delete uploaded files, unless they're used for paid expenses or other critical things

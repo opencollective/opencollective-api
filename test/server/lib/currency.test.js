@@ -122,18 +122,16 @@ describe('server/lib/currency', () => {
     });
 
     it('converts EUR to USD', () =>
-      CurrencyLib.convertToCurrency(1, 'EUR', 'USD', new Date(startDate)).then(amount =>
-        expect(amount).to.equal(1.079),
+      CurrencyLib.convertToCurrency(100, 'EUR', 'USD', new Date(startDate)).then(amount =>
+        expect(amount).to.equal(108),
       ));
 
     it('converts EUR to USD for another date', () =>
-      CurrencyLib.convertToCurrency(1, 'EUR', 'USD', new Date(endDate)).then(amount =>
-        expect(amount).to.equal(1.0533),
-      ));
+      CurrencyLib.convertToCurrency(100, 'EUR', 'USD', new Date(endDate)).then(amount => expect(amount).to.equal(105)));
 
     it('converts INR to USD', () =>
-      CurrencyLib.convertToCurrency(1, 'INR', 'USD', new Date(endDate)).then(amount =>
-        expect(amount).to.equal(0.014962),
+      CurrencyLib.convertToCurrency(1, 'INR', 'USD', new Date(endDate)).then(
+        amount => expect(amount).to.equal(1), // Would be 0.014962, but currency should never be 0
       ));
   });
 
@@ -168,6 +166,112 @@ describe('server/lib/currency', () => {
         '2023-02-01T00:00:00.000Z': { USD: { EUR: 0.8, NZD: 1.6 } }, // Latest rates
         latest: { USD: { NZD: 1.6 } }, // Latest rates (no date provided)
       });
+    });
+  });
+
+  describe('roundCentsAmount', () => {
+    it('leaves amounts unchanged for standard (decimal) currencies', () => {
+      expect(CurrencyLib.roundCentsAmount(1234, 'USD')).to.equal(1234);
+      expect(CurrencyLib.roundCentsAmount(1650, 'EUR')).to.equal(1650);
+      expect(CurrencyLib.roundCentsAmount(99, 'GBP')).to.equal(99);
+      expect(CurrencyLib.roundCentsAmount(0, 'USD')).to.equal(0);
+    });
+
+    it('rounds to the nearest 100 for zero-decimal currencies', () => {
+      // JPY: 1650 → 1700 (rounds up)
+      expect(CurrencyLib.roundCentsAmount(1650, 'JPY')).to.equal(1700);
+      // JPY: 1049 → 1000 (rounds down)
+      expect(CurrencyLib.roundCentsAmount(1049, 'JPY')).to.equal(1000);
+      // JPY: 1050 → 1100 (rounds up, half-up behaviour from lodash round)
+      expect(CurrencyLib.roundCentsAmount(1050, 'JPY')).to.equal(1100);
+      // JPY: already a multiple of 100 – unchanged
+      expect(CurrencyLib.roundCentsAmount(1200, 'JPY')).to.equal(1200);
+      // KRW behaves the same way
+      expect(CurrencyLib.roundCentsAmount(550, 'KRW')).to.equal(600);
+    });
+
+    it('rounds to the nearest 100 for all supported zero-decimal currencies', () => {
+      const zeroDecimal = [
+        'BIF',
+        'CLP',
+        'DJF',
+        'GNF',
+        'JPY',
+        'KMF',
+        'KRW',
+        'MGA',
+        'PYG',
+        'RWF',
+        'UGX',
+        'VND',
+        'VUV',
+        'XAF',
+        'XOF',
+        'XPF',
+      ];
+      for (const currency of zeroDecimal) {
+        expect(CurrencyLib.roundCentsAmount(1650, currency) % 100).to.equal(
+          0,
+          `${currency} result should be a multiple of 100`,
+        );
+      }
+    });
+  });
+
+  describe('floatAmountToCents', () => {
+    it('multiplies by 100 and rounds to an integer', () => {
+      expect(CurrencyLib.floatAmountToCents(15.5)).to.equal(1550);
+      expect(CurrencyLib.floatAmountToCents(12.34)).to.equal(1234);
+      expect(CurrencyLib.floatAmountToCents(0)).to.equal(0);
+    });
+
+    it('avoids float drift for common decimal values', () => {
+      expect(CurrencyLib.floatAmountToCents(0.29)).to.equal(29);
+      expect(0.29 * 100).to.not.equal(29);
+    });
+
+    it('rounds to the nearest cent', () => {
+      expect(CurrencyLib.floatAmountToCents(15.555)).to.equal(1556);
+      expect(CurrencyLib.floatAmountToCents(-12.34)).to.equal(-1234);
+    });
+  });
+
+  describe('centsAmountToFloat', () => {
+    it('divides by 100 and rounds to two decimal places', () => {
+      expect(CurrencyLib.centsAmountToFloat(1500)).to.equal(15);
+      expect(CurrencyLib.centsAmountToFloat(1234)).to.equal(12.34);
+      expect(CurrencyLib.centsAmountToFloat(99)).to.equal(0.99);
+    });
+
+    it('returns null for null, undefined, or NaN', () => {
+      expect(CurrencyLib.centsAmountToFloat(null)).to.equal(null);
+      expect(CurrencyLib.centsAmountToFloat(undefined)).to.equal(null);
+      expect(CurrencyLib.centsAmountToFloat(NaN)).to.equal(null);
+    });
+  });
+
+  describe('isZeroDecimalCurrency', () => {
+    it('is true for known zero-decimal currencies (case-insensitive)', () => {
+      expect(CurrencyLib.isZeroDecimalCurrency('JPY')).to.equal(true);
+      expect(CurrencyLib.isZeroDecimalCurrency('jpy')).to.equal(true);
+      expect(CurrencyLib.isZeroDecimalCurrency('KRW')).to.equal(true);
+    });
+
+    it('is false for standard two-decimal currencies', () => {
+      expect(CurrencyLib.isZeroDecimalCurrency('USD')).to.equal(false);
+      expect(CurrencyLib.isZeroDecimalCurrency('EUR')).to.equal(false);
+    });
+  });
+
+  describe('getDefaultCurrencyPrecision', () => {
+    it('returns 0 for zero-decimal currencies', () => {
+      expect(CurrencyLib.getDefaultCurrencyPrecision('JPY')).to.equal(0);
+      expect(CurrencyLib.getDefaultCurrencyPrecision('jpy')).to.equal(0);
+    });
+
+    it('returns 2 for other currencies', () => {
+      expect(CurrencyLib.getDefaultCurrencyPrecision('USD')).to.equal(2);
+      expect(CurrencyLib.getDefaultCurrencyPrecision('eur')).to.equal(2);
     });
   });
 });

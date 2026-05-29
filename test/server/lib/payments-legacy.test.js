@@ -12,9 +12,15 @@ import emailLib from '../../../server/lib/email';
 import { createRefundTransaction, executeOrder, sendOrderPendingEmail } from '../../../server/lib/payments';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
-import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import stripeMocks from '../../mocks/stripe';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser, randStr } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeManualPaymentProvider,
+  fakeOrder,
+  fakeUser,
+  randStr,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
@@ -520,24 +526,18 @@ describe('server/lib/payments-legacy', () => {
     let order;
 
     beforeEach(async () => {
-      const host = await fakeHost({
-        settings: {
-          paymentMethods: {
-            manual: {
-              instructions:
-                'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
-            },
-          },
-        },
-      });
+      const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
-      await fakePayoutMethod({
+      const manualPaymentProvider = await fakeManualPaymentProvider({
         CollectiveId: host.id,
-        type: PayoutMethodTypes.BANK_ACCOUNT,
+        name: 'Bank Transfer',
+        instructions:
+          'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
         data: {
           type: 'sort_code',
           accountHolderName: 'John Malkovich',
           currency: 'GBP',
+          IBAN: 'DE893219828398123',
           details: {
             IBAN: 'DE893219828398123',
             sortCode: '40-30-20',
@@ -550,18 +550,28 @@ describe('server/lib/payments-legacy', () => {
               zip: '10001',
             },
           },
-          isManualBankTransfer: true,
         },
       });
-      order = await fakeOrder({ CollectiveId: collective.id });
+      order = await fakeOrder({
+        CollectiveId: collective.id,
+        ManualPaymentProviderId: manualPaymentProvider.id,
+        status: 'PENDING',
+      });
+      order = await models.Order.findByPk(order.id, {
+        include: [{ association: 'collective' }, { association: 'fromCollective' }, { association: 'createdByUser' }],
+      });
     });
 
     it('should include account information', async () => {
       await sendOrderPendingEmail(order);
       await utils.waitForCondition(() => emailSendSpy.callCount > 0);
 
-      expect(emailSendSpy.lastCall.args[2]).to.have.property('account');
-      expect(emailSendSpy.lastCall.args[2].instructions).to.include('IBAN: DE893219828398123');
+      const emailData = emailSendSpy.lastCall.args[2];
+      expect(emailData).to.have.property('account');
+      expect(emailData).to.have.property('instructions');
+      // ManualPaymentProvider bank data is in account and embedded in instructions via {account}
+      expect(emailData.account).to.include('John Malkovich');
+      expect(emailData.account).to.include('DE893219828398123');
     });
   });
 });

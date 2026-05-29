@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-import { idEncode } from '../graphql/v2/identifiers';
+import config from 'config';
 
 import handlebars from './handlebars';
 
@@ -58,6 +58,7 @@ export const templateNames = [
   'expense-accounting-category-educational',
   'host.application.contact',
   'host.application.comment.created',
+  'host.application.comment.created.host',
   'member.invitation',
   'oauth.application.authorized',
   'onboarding.day2',
@@ -87,6 +88,8 @@ export const templateNames = [
   'platform.billing.overdue.reminder',
   'platform.billing.additional.charges.notification',
   'platform.billing.payment.confirmation',
+  'export.request.completed',
+  'export.request.failed',
   'report.platform',
   'report.platform.weekly',
   'subscription.canceled',
@@ -112,6 +115,7 @@ export const templateNames = [
   'activated.hosting',
   'deactivated.hosting',
   'contribution.rejected',
+  'contribution.refunded',
   'virtualcard.charge.declined',
   'virtualcard.requested',
   'conversation.comment.created',
@@ -160,8 +164,22 @@ handlebars.registerPartial('mr-footer', mthReportFooter);
 handlebars.registerPartial('mr-subscription', mthReportSubscription);
 handlebars.registerPartial('plan-details', planDetails);
 handlebars.registerPartial('subscription-details', subscriptionDetails);
-handlebars.registerHelper('idEncode', (id, type) => {
-  return idEncode(id, type);
+
+handlebars.registerHelper('concat', (...args) => {
+  args.pop();
+  return args.join('');
+});
+
+// Generates a permalink if the first argument contains a publicId, otherwise returns the fallbackURL
+handlebars.registerHelper('permalink', ({ publicId } = {}, fallbackURL) => {
+  if (publicId) {
+    return `${config.host.website}/permalink/${publicId}`;
+  }
+
+  if (typeof fallbackURL !== 'string' || fallbackURL === '') {
+    throw new Error('no publicId set, fallbackURL is required');
+  }
+  return fallbackURL;
 });
 
 export const isValidTemplate = (template: string): template is EmailTemplates => {

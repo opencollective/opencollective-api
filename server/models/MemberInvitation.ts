@@ -1,21 +1,36 @@
 import config from 'config';
 import { pick } from 'lodash';
-import { CreateOptions, InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
+import { CreateOptions, InferAttributes, InferCreationAttributes, Transaction } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import { CollectiveType } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { purgeCacheForCollective } from '../lib/cache';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Activity from './Activity';
 import Collective from './Collective';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
-export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER, roles.COMMUNITY_MANAGER];
+export const MEMBER_INVITATION_SUPPORTED_ROLES = [
+  roles.ACCOUNTANT,
+  roles.ADMIN,
+  roles.MEMBER,
+  roles.COMMUNITY_MANAGER,
+] as const;
+export const PRIVATE_ACCOUNTS_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN] as const;
 
-class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCreationAttributes<MemberInvitation>> {
+class MemberInvitation extends ModelWithPublicId<
+  EntityShortIdPrefix.MemberInvitation,
+  InferAttributes<MemberInvitation>,
+  InferCreationAttributes<MemberInvitation>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.MemberInvitation;
+  public static readonly tableName = 'MemberInvitations' as const;
+
   declare id: number;
   declare CreatedByUserId: number;
   declare MemberCollectiveId: number;
@@ -57,6 +72,8 @@ class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCre
     // Check params
     if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
       throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
+    } else if (collective.isPrivate && !PRIVATE_ACCOUNTS_SUPPORTED_ROLES.includes(memberParams.role)) {
+      throw new Error(`Private accounts do not support the ${memberParams.role} role`);
     } else if (collective.type === CollectiveType.USER) {
       throw new Error('Individual accounts do not support members');
     }
@@ -101,24 +118,22 @@ class MemberInvitation extends Model<InferAttributes<MemberInvitation>, InferCre
       invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
       invitation.collective = collective;
 
-      if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
-        const memberCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
-        await Activity.create(
-          {
-            type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
-            CollectiveId: collective.id,
-            FromCollectiveId: memberParams.MemberCollectiveId,
-            HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-            data: {
-              notify: false,
-              memberCollective: memberCollective.activity,
-              collective: collective.activity,
-              invitation: pick(invitation, ['id', 'role', 'description', 'since']),
-            },
+      const memberCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+      await Activity.create(
+        {
+          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+          CollectiveId: collective.id,
+          FromCollectiveId: memberParams.MemberCollectiveId,
+          HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+          data: {
+            notify: false,
+            memberCollective: memberCollective.activity,
+            collective: collective.activity,
+            invitation: pick(invitation, ['id', 'role', 'description', 'since']),
           },
-          sequelizeParams,
-        );
-      }
+        },
+        sequelizeParams,
+      );
     }
 
     // Load remote user
@@ -139,6 +154,10 @@ MemberInvitation.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CreatedByUserId: {

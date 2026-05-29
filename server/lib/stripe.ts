@@ -1,16 +1,22 @@
 import config from 'config';
-import { get, pick } from 'lodash';
+import { get, pick, round } from 'lodash';
 import moment from 'moment';
 import Stripe from 'stripe';
 
-import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
+
+import { isZeroDecimalCurrency } from './currency';
 
 // Starting on stripe@v12, the default API version is set by the stripe package.
 // We need to hardcode the API version that we are compatible with.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore stripe-version 2015-04-07
-const stripe = new Stripe(config.stripe.secret, { apiVersion: '2015-04-07', maxNetworkRetries: 2 });
+
+const passthroughFetch = (...args: Parameters<typeof fetch>) => fetch(...args);
+const httpClient = process.env.NODE_ENV === 'test' ? Stripe.createFetchHttpClient(passthroughFetch) : undefined;
+
+// @ts-expect-error stripe-version 2015-04-07
+const stripe = new Stripe(config.stripe.secret, { apiVersion: '2015-04-07', maxNetworkRetries: 2, httpClient });
 
 export default stripe;
 
@@ -19,7 +25,7 @@ export const StripeCustomToken = token => {
   // We need to hardcode the API version that we are compatible with.
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore stripe-version 2015-04-07
-  const stripe = new Stripe(token, { apiVersion: '2015-04-07', maxNetworkRetries: 2 });
+  const stripe = new Stripe(token, { apiVersion: '2015-04-07', maxNetworkRetries: 2, httpClient });
   return stripe;
 };
 
@@ -63,16 +69,22 @@ export const isTestToken = token => {
  * Handles the zero-decimal currencies for Stripe; https://stripe.com/docs/currencies#zero-decimal
  */
 export const convertToStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+  if (isZeroDecimalCurrency(currency?.toUpperCase())) {
     return Math.floor(amount / 100);
   } else {
     return amount;
   }
 };
 
+/**
+ * Stripe uses cents (like us), but handle zero decimal currencies differently.
+ * For Stripe, ¥1 = 1, while we keep considering ¥1 as 100, just ensuring accross the codebase that the two last digits are always 00.
+ *
+ * This helper handles this complexity and returns a number that is safe to use in our codebase.
+ */
 export const convertFromStripeAmount = (currency, amount) => {
-  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
-    return Math.round(amount * 100);
+  if (isZeroDecimalCurrency(currency?.toUpperCase())) {
+    return round(amount * 100, -2); // This ensures that the two last digits are always 00.
   } else {
     return amount;
   }

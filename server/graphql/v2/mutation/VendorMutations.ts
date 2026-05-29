@@ -8,7 +8,8 @@ import { v4 as uuid } from 'uuid';
 import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
-import models, { Activity, Collective, LegalDocument, Op } from '../../../models';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
+import models, { Activity, Collective, LegalDocument, Op, sequelize } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -64,6 +65,7 @@ const vendorMutations = {
         image: args.vendor.imageUrl,
         isActive: false,
         ParentCollectiveId: host.id,
+        isPrivate: host.isPrivate,
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),
@@ -147,7 +149,7 @@ const vendorMutations = {
         description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
       },
     },
-    resolve: async (_, args, req) => {
+    resolve: async (_, args, req: Express.Request) => {
       checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
@@ -230,33 +232,56 @@ const vendorMutations = {
 
       if (args.vendor.payoutMethod) {
         let payoutMethod;
-        const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true } });
+
+        // Validate currency arguments
+        if (
+          args.vendor.payoutMethod.currency &&
+          args.vendor.payoutMethod.data?.currency &&
+          args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
+        ) {
+          throw new ValidationFailed('Currency mismatch between data and currency');
+        }
+
+        // If the payout method doesn't have an id, we consider it as a new payout method and we archive the previous one(s)
         if (!args.vendor.payoutMethod.id) {
-          if (!isEmpty(existingPayoutMethods)) {
-            existingPayoutMethods.map(pm => pm.update({ isSaved: false }));
-          }
-
-          if (
-            args.vendor.payoutMethod.currency &&
-            args.vendor.payoutMethod.data?.currency &&
-            args.vendor.payoutMethod.currency !== args.vendor.payoutMethod.data?.currency
-          ) {
-            throw new ValidationFailed('Currency mismatch between data and currency');
-          }
-
-          payoutMethod = await models.PayoutMethod.create({
-            ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
-            currency: args.vendor.payoutMethod.currency || args.vendor.payoutMethod.data?.currency,
-            CollectiveId: vendor.id,
-            CreatedByUserId: req.remoteUser.id,
-            isSaved: true,
+          payoutMethod = await sequelize.transaction(async transaction => {
+            const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
+            if (!isEmpty(existingPayoutMethods)) {
+              await Promise.all(existingPayoutMethods.map(pm => pm.update({ isSaved: false }, { transaction })));
+            }
+            return await models.PayoutMethod.create(
+              {
+                ...pick(args.vendor.payoutMethod, ['name', 'data', 'type']),
+                CollectiveId: vendor.id,
+                CreatedByUserId: req.remoteUser.id,
+                isSaved: true,
+              },
+              { transaction },
+            );
           });
-        } else {
-          const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
-          payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
-          await Promise.all(
-            existingPayoutMethods.filter(pm => pm.id !== payoutMethodId).map(pm => pm.update({ isSaved: false })),
+        }
+        // Otherwise the user is only selecting another existing payout method, we just need to update the isSaved flag
+        else {
+          if (isEntityPublicId(args.vendor.payoutMethod.id, EntityShortIdPrefix.PayoutMethod)) {
+            payoutMethod = await req.loaders.PayoutMethod.byPublicId.load(args.vendor.payoutMethod.id);
+          } else {
+            const payoutMethodId = idDecode(args.vendor.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
+            payoutMethod = await models.PayoutMethod.findByPk(payoutMethodId);
+          }
+          assert(payoutMethod, new NotFound('Payout method not found'));
+          assert(
+            payoutMethod.CollectiveId === vendor.id,
+            new Unauthorized('Payout method does not belong to this vendor'),
           );
+          await sequelize.transaction(async transaction => {
+            const existingPayoutMethods = await vendor.getPayoutMethods({ where: { isSaved: true }, transaction });
+            await Promise.all(
+              existingPayoutMethods
+                .filter(pm => pm.id !== payoutMethod.id)
+                .map(pm => pm.update({ isSaved: false }, { transaction })),
+            );
+            await payoutMethod.update({ isSaved: true }, { transaction });
+          });
         }
 
         // Since vendors can only have a single payout method, we update all expenses to use the new one

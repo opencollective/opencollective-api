@@ -18,7 +18,7 @@ export const MutexLockError = class extends Error {
  */
 export async function lockUntilResolved<T>(
   key: string,
-  until: () => Promise<T>,
+  until: (release?: () => Promise<number>) => Promise<T>,
   { lockAcquireTimeoutMs = 15 * 1000, unlockTimeoutMs = 10 * 60 * 1000, retryDelayMs = 100 } = {},
 ): Promise<T> {
   const redis = await createRedisClient(RedisInstanceType.SESSION);
@@ -42,9 +42,10 @@ export async function lockUntilResolved<T>(
     }
   }
 
+  const release = () => redis.del(_key);
   debug(`Acquired lock ${_key}`);
-  return until().finally(async () => {
-    await redis.del(_key);
+  return until(release).finally(async () => {
+    await release();
     debug(`Released lock ${_key}`);
   });
 }
@@ -57,7 +58,7 @@ export async function lockUntilResolved<T>(
  */
 export async function lockUntilOrThrow<T>(
   key: string,
-  until: () => Promise<T>,
+  until: (release?: () => Promise<number>) => Promise<T>,
   { unlockTimeoutMs = 10 * 60 * 1000 } = {},
 ): Promise<T> {
   const redis = await createRedisClient(RedisInstanceType.SESSION);
@@ -70,10 +71,11 @@ export async function lockUntilOrThrow<T>(
   const lockAcquired = await redis.set(_key, 1, { NX: true, PX: unlockTimeoutMs });
   if (lockAcquired) {
     debug(`Acquired lock ${_key}`);
+    const release = () => redis.del(_key);
     try {
-      return await until();
+      return await until(release);
     } finally {
-      await redis.del(_key);
+      await release();
       debug(`Released lock ${_key}`);
     }
   } else {

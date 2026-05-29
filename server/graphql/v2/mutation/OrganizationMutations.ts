@@ -7,15 +7,14 @@ import { pick } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
-import { PlatformSubscriptionTiers } from '../../../constants/plans';
 import roles from '../../../constants/roles';
 import { checkCaptcha, isCaptchaSetup } from '../../../lib/check-captcha';
 import { canUseSlug } from '../../../lib/collectivelib';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { reportMessageToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { parseToBoolean } from '../../../lib/utils';
-import models, { Collective, PlatformSubscription, type User } from '../../../models';
+import { sequelize } from '../../../models';
+import models, { Collective, type User } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { SocialLinkType } from '../../../models/SocialLink';
 import { processInviteMembersInput } from '../../common/members';
@@ -36,8 +35,6 @@ const DEFAULT_ORGANIZATION_SETTINGS = {
 };
 
 const { COLLECTIVE, ORGANIZATION } = CollectiveType;
-
-const NEW_PRICING = parseToBoolean(config.features?.newPricing);
 
 export default {
   createOrganization: {
@@ -148,54 +145,59 @@ export default {
       organization.image = avatar?.url ?? organization.image;
       organization.backgroundImage = banner?.url ?? organization.backgroundImage;
 
-      let user: User = req.remoteUser;
-      if (!user && args.individual) {
-        ({ user } = await createUser(args.individual, {
-          sendSignInLink: true,
-          redirect: `/dashboard/${organization.slug}`,
-          creationRequest: {
-            ip: req.ip,
-            userAgent: req.header('user-agent'),
-          },
-        }));
-        organization.set({ CreatedByUserId: user.id });
-      }
-      await organization.save();
-
-      if (args.organization.website) {
-        await organization.updateSocialLinks([{ type: SocialLinkType.WEBSITE, url: args.organization.website }]);
-      }
-      if (args.organization.currency) {
-        await organization.setCurrency(args.organization.currency);
-      }
-      if (args.hasMoneyManagement || args.hasHosting) {
-        await organization.activateMoneyManagement(user);
-        if (args.hasHosting) {
-          await organization.activateHosting(user);
+      // Save all to database
+      await sequelize.transaction(async transaction => {
+        let user: User = req.remoteUser;
+        if (!user && args.individual) {
+          ({ user } = await createUser(args.individual, {
+            sendSignInLink: true,
+            redirect: `/dashboard/${organization.slug}`,
+            creationRequest: {
+              ip: req.ip,
+              userAgent: req.header('user-agent'),
+            },
+            transaction,
+          }));
+          organization.set({ CreatedByUserId: user.id });
         }
-      }
+        await organization.save({ transaction });
 
-      if (NEW_PRICING) {
-        await PlatformSubscription.createSubscription(
-          organization,
-          new Date(),
-          PlatformSubscriptionTiers.find(t => (t.id = 'discover-1')),
+        if (args.organization.website) {
+          await organization.updateSocialLinks(
+            [{ type: SocialLinkType.WEBSITE, url: args.organization.website }],
+            transaction,
+          );
+        }
+        if (args.organization.currency) {
+          await organization.setCurrency(args.organization.currency, { transaction });
+        }
+        if (args.hasMoneyManagement || args.hasHosting) {
+          await organization.activateMoneyManagement({ remoteUser: user, transaction });
+          if (args.hasHosting) {
+            await organization.activateHosting({ remoteUser: user, transaction });
+          }
+        }
+
+        await organization.addUserWithRole(
           user,
-          { notify: false },
+          roles.ADMIN,
+          {
+            CreatedByUserId: user.id,
+            description: args.roleDescription,
+          },
+          undefined,
+          transaction,
         );
-      }
 
-      await organization.addUserWithRole(user, roles.ADMIN, {
-        CreatedByUserId: user.id,
-        description: args.roleDescription,
+        if (args.inviteMembers && args.inviteMembers.length) {
+          await processInviteMembersInput(organization, args.inviteMembers, {
+            supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
+            user,
+            transaction,
+          });
+        }
       });
 
-      if (args.inviteMembers && args.inviteMembers.length) {
-        await processInviteMembersInput(organization, args.inviteMembers, {
-          supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
-          user,
-        });
-      }
       return organization;
     },
   },
@@ -234,20 +236,22 @@ export default {
       const shouldHaveMoneyManagement = args.hasMoneyManagement;
 
       // Activate Money Management first, so Hosting can be properly activated
-      if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement) {
-        await organization.activateMoneyManagement(req.remoteUser);
-      }
-      if (shouldHaveHosting === true && !organization.hasHosting && organization.hasMoneyManagement) {
-        await organization.activateHosting(req.remoteUser);
-      }
+      await sequelize.transaction(async transaction => {
+        if (shouldHaveMoneyManagement === true && !organization.hasMoneyManagement) {
+          await organization.activateMoneyManagement({ remoteUser: req.remoteUser, transaction });
+        }
+        if (shouldHaveHosting === true && !organization.hasHosting && organization.hasMoneyManagement) {
+          await organization.activateHosting({ remoteUser: req.remoteUser, transaction });
+        }
 
-      // Deactivate Hosting first, so Money Management can be properly deactivated
-      if (shouldHaveHosting === false && organization.hasHosting) {
-        await organization.deactivateHosting(req.remoteUser);
-      }
-      if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement) {
-        await organization.deactivateMoneyManagement(req.remoteUser);
-      }
+        // Deactivate Hosting first, so Money Management can be properly deactivated
+        if (shouldHaveHosting === false && organization.hasHosting) {
+          await organization.deactivateHosting({ remoteUser: req.remoteUser, transaction });
+        }
+        if (shouldHaveMoneyManagement === false && organization.hasMoneyManagement) {
+          await organization.deactivateMoneyManagement({ remoteUser: req.remoteUser, transaction });
+        }
+      });
 
       return organization;
     },
@@ -285,6 +289,7 @@ export default {
 
       await twoFactorAuthLib.enforceForAccount(req, organization, { alwaysAskForToken: true });
 
+      // There's not need to update the plan here, as is has normally been updated when disabling money management
       const collective = await organization.update({ type: COLLECTIVE });
 
       await models.Activity.create({

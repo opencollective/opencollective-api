@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { GraphQLTransactionsImportRowStatus, TransactionsImportRowStatus } from '../enum/TransactionsImportRowStatus';
 
 import { AmountInputType, GraphQLAmountInput } from './AmountInput';
@@ -25,7 +26,7 @@ export const GraphQLTransactionsImportRowUpdateInput = new GraphQLInputObjectTyp
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
-      description: 'The id of the row',
+      description: `The id of the row (ie: ${EntityShortIdPrefix.TransactionsImportRow}_xxxxxxxx)`,
     },
     sourceId: {
       type: GraphQLNonEmptyString,

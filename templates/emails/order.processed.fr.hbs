@@ -9,61 +9,63 @@ Subject: {{#if erratum}}[Erratum] {{/if}}Merci pour votre contribution de {{curr
 {{> toplogo}}
 {{> erratum-box}}
 
-{{#if fromCollective.name}}
-<p>Bonjour {{fromCollective.name}},</p>
-{{else}}
-<p>Bonjour,</p>
-{{/if}}
+{{#unless erratum}}
+  {{#if fromCollective.name}}
+  <p>Bonjour {{fromCollective.name}},</p>
+  {{else}}
+  <p>Bonjour,</p>
+  {{/if}}
 
-{{#if interval}}
+  {{#if interval}}
 
-{{#if firstPayment }}
-<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} par {{interval}}{{#if order.platformTipAmount}}(incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}}. Votre premier
-  paiement a bien été reçu. Votre soutien nous permettra de poursuivre nos activités.</p>
-<p>À noter que vos prochains paiements seront effectués le premier du mois (<a
-    href='https://documentation.opencollective.com/giving-to-collectives/making-a-recurring-contribution'>plus
-    d'informations</a>).</p>
-{{else}}
-<p>Votre dernière contribution de {{currency order.totalAmount currency=order.currency}}{{#if order.platformTipAmount}} (incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}} vient d'être reçue. Merci de continuer à nous soutenir !</p>
-{{/if}}
+  {{#if firstPayment }}
+  <p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} par {{interval}}{{#if order.platformTipAmount}}(incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}}. Votre premier
+    paiement a bien été reçu. Votre soutien nous permettra de poursuivre nos activités.</p>
+  <p>À noter que vos prochains paiements seront effectués le premier du mois (<a
+      href='https://documentation.opencollective.com/giving-to-collectives/making-a-recurring-contribution'>plus
+      d'informations</a>).</p>
+  {{else}}
+  <p>Votre dernière contribution de {{currency order.totalAmount currency=order.currency}}{{#if order.platformTipAmount}} (incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}} vient d'être reçue. Merci de continuer à nous soutenir !</p>
+  {{/if}}
 
-{{else}}
-<p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}}.
-  Votre soutien nous permet de poursuivre nos activités.</p>
-{{/if}}
+  {{else}}
+  <p>Nous vous remercions pour votre contribution de {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(incluant un pourboire de {{currency order.platformTipAmount currency=order.currency}} pour la plateforme Open Collective){{/if}}.
+    Votre soutien nous permet de poursuivre nos activités.</p>
+  {{/if}}
 
-<p>Vous pouvez suivre nos activités et voir comment nous utilisons les fonds sur la page de notre collectif :
-  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
-</p>
+  <p>Vous pouvez suivre nos activités et voir comment nous utilisons les fonds sur la page de notre collectif :
+    <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
+  </p>
 
-{{#if customMessage}}
-<p>Message de {{collective.name}} :</p>
+  {{#if customMessage}}
+  <p>Message de {{collective.name}} :</p>
 
-<img width="40" height="33" src="{{config.host.website}}/static/images/email/quotation-custom-email.png" />
-<div style="color: #494B4D; font-size: 14px; line-height: 18px; padding-left: 10px; margin-top: 10px; border-left: 5px solid #F1F2F3">{{{customMessage}}}</div>
-{{/if}}
+  <img width="40" height="33" src="{{config.host.website}}/static/images/email/quotation-custom-email.png" />
+  <div style="color: #494B4D; font-size: 14px; line-height: 18px; padding-left: 10px; margin-top: 10px; border-left: 5px solid #F1F2F3">{{{customMessage}}}</div>
+  {{/if}}
 
-<h2>Aidez-nous à développer notre communauté !</h2>
-<p>Partagez cette URL : <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></p>
+  <h2>Aidez-nous à développer notre communauté !</h2>
+  <p>Partagez cette URL : <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></p>
 
   {{#if subscriptionsLink}}
   <p>
     Vous pouvez modifier ou annuler vos abonnements quand vous le souhaitez <a href="{{subscriptionsLink}}">ici</a>.
   </p>
   {{/if}}
+{{/unless}}
 
-  {{#if transactionPdf}}
-  <h2>📎 Pièces jointes</h2>
-  <ul>
-    <li>Un reçu de votre transaction au format PDF</li>
-  </ul>
-  {{/if}}
+{{#if transactionPdf}}
+<h2>📎 Pièces jointes</h2>
+<ul>
+  <li>Un reçu de votre transaction au format PDF</li>
+</ul>
+{{/if}}
 
 {{#if order.isGuest}}
 <p>
   {{#if order.interval}}
     Pour gérer vos contributions récurrentes, <a href="{{subscriptionsLink}}">connectez-vous</a> et
-    rendez-vous sur votre page de profil.
+    rendez-vous sur votre tableau de bord.
     <br/>
   {{/if}}
   Si vous avez besoin d'aide avec cette contribution, n'hésitez pas à contacter <a href="mailto:support@opencollective.com">le support</a>.

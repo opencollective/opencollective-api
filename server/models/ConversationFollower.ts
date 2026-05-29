@@ -9,6 +9,8 @@ class ConversationFollower extends Model<
   InferAttributes<ConversationFollower>,
   InferCreationAttributes<ConversationFollower>
 > {
+  public static readonly tableName = 'ConversationFollowers' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public UserId: ForeignKey<User['id']>;
   declare public ConversationId: ForeignKey<Conversation['id']>;

@@ -225,6 +225,7 @@ export const fakeIncognitoProfile = async user => {
     HostCollectiveId: null,
     CreatedByUserId: user.id,
     isIncognito: true,
+    data: { UserCollectiveId: user.CollectiveId, UserId: user.id },
   });
   await fakeMember({ CollectiveId: incognitoCollective.id, MemberCollectiveId: user.CollectiveId, role: roles.ADMIN });
   return incognitoCollective;
@@ -238,6 +239,7 @@ export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = 
     slug: randStr('host-'),
     HostCollectiveId: null,
     hasMoneyManagement: true,
+    hasHosting: true,
     ...hostData,
   });
 };
@@ -252,6 +254,7 @@ export const fakeActiveHost = async (hostData: Parameters<typeof fakeCollective>
     hasMoneyManagement: true,
     isActive: true,
     approvedAt: new Date(),
+    hasHosting: true,
     ...hostData,
   });
 
@@ -360,6 +363,15 @@ export const fakeCollective = async (
           );
         }),
       );
+
+      // Re-populate roles for affected users
+      await Promise.all(
+        admins.map(admin => {
+          if (admin instanceof models.User) {
+            return admin.populateRoles({ force: true });
+          }
+        }),
+      );
     } catch {
       // Ignore if host is already linked
     }
@@ -376,6 +388,16 @@ export const fakeOrganization = (organizationData: Record<string, unknown> = {})
     ...organizationData,
     type: CollectiveType.ORGANIZATION,
   });
+};
+
+/** Creates a fake private organization (not a host). */
+export const fakePrivateOrganization = (organizationData: Record<string, unknown> = {}) => {
+  return fakeOrganization({ isPrivate: true, ...organizationData });
+};
+
+/** Creates a fake private host (organization with money management, isPrivate=true). */
+export const fakePrivateHost = async (hostData: Parameters<typeof fakeActiveHost>[0] = {}) => {
+  return fakeActiveHost({ isPrivate: true, ...hostData });
 };
 
 /**
@@ -490,7 +512,7 @@ export const fakePayoutMethod = async ({
 }: Partial<InferCreationAttributes<PayoutMethod>> = {}) => {
   const generateData = type => {
     if (type === PayoutMethodTypes.PAYPAL) {
-      return { email: randEmail(), ...data };
+      return { email: randEmail(), currency: 'USD', ...data };
     } else if (type === PayoutMethodTypes.OTHER) {
       return { content: randStr(), ...data };
     } else if (type === PayoutMethodTypes.BANK_ACCOUNT) {
@@ -619,6 +641,7 @@ export const fakeComment = async (
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
   let ExpenseId = get(commentData, 'ExpenseId') || get(commentData, 'expense.id');
   const ConversationId = get(commentData, 'ConversationId') || get(commentData, 'conversation.id');
+  const HostApplicationId = get(commentData, 'HostApplicationId') || get(commentData, 'hostApplication.id');
   if (!FromCollectiveId) {
     FromCollectiveId = (await fakeCollective({}, sequelizeParams)).id;
   }
@@ -628,7 +651,7 @@ export const fakeComment = async (
   if (!CreatedByUserId) {
     CreatedByUserId = (await fakeUser()).id;
   }
-  if (!ExpenseId && !ConversationId) {
+  if (!ExpenseId && !ConversationId && !HostApplicationId) {
     ExpenseId = (await fakeExpense()).id;
   }
 
@@ -735,7 +758,8 @@ export const fakeOrder = async (
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(<number>CreatedByUserId);
-  const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
+  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
+  const FromCollectiveId = orderData.FromCollectiveId || fromCollective.id;
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
@@ -744,6 +768,13 @@ export const fakeOrder = async (
     : withTier
       ? await fakeTier()
       : null;
+  const data = {
+    ...orderData.data,
+    fromAccountInfo: {
+      name: fromCollective.name,
+      email: user.email,
+    },
+  };
 
   const order: Order & {
     subscription?: typeof Subscription;
@@ -758,6 +789,7 @@ export const fakeOrder = async (
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId: collective.id,
+    data,
   });
 
   if (order.PaymentMethodId) {

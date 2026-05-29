@@ -15,21 +15,21 @@ Subject: {{{collective.name}}}: New comment
     Hi,
     <br /><br />
     {{> linkCollective collective=fromCollective}} just posted
-    a new comment on an Expense, <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:
+    a new comment on an Expense, <a href="{{permalink comment}}">{{expense.description}}</a>:
   </p>
 {{else if conversation}}
   <p style="font-size: 17px; padding: 1em;">
     Hi {{collective.name}},
     <br /><br />
     {{> linkCollective collective=fromCollective}} just posted
-    a new comment on a Conversation, <a href="{{config.host.website}}{{path}}">{{conversation.title}}</a>:
+    a new comment on a Conversation, <a href="{{permalink comment}}">{{conversation.title}}</a>:
   </p>
 {{else if update}}
   <p style="font-size: 17px; padding: 1em;">
     Hi {{collective.name}},
     <br /><br />
     {{> linkCollective collective=fromCollective}} just posted
-    a new comment on an Update, <a href="{{config.host.website}}{{path}}">{{update.title}}</a>:
+    a new comment on an Update, <a href="{{permalink comment}}">{{update.title}}</a>:
   </p>
 {{/if}}
 
@@ -47,11 +47,11 @@ Subject: {{{collective.name}}}: New comment
 <p>
   <center>
   {{#if expense}}
-    <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}#new-comment-on-expense" class="btn blue">
+    <a href="{{permalink comment}}" class="btn blue">
       <div>Reply</div>
     </a>
   {{else}}
-    <a href="{{config.host.website}}{{path}}" class="btn blue"><div>View or Reply</div></a>
+    <a href="{{permalink comment}}" class="btn blue"><div>View or Reply</div></a>
   {{/if}}
   </center>
 </p>

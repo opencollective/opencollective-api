@@ -5,6 +5,7 @@
 import assert from 'assert';
 
 import config from 'config';
+import { SelectQueryBuilder } from 'kysely';
 import slugify from 'limax';
 import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
@@ -19,7 +20,13 @@ import {
 } from '../graphql/v2/input/AmountRangeInput';
 import models, { Collective, Op, sequelize } from '../models';
 
-import { floatAmountToCents } from './math';
+import {
+  EntityShortIdPrefix,
+  getEntityShortIdPrefix,
+  isAnyEntityPublicId,
+  isEntityPublicId,
+} from './permalink/entity-map';
+import { floatAmountToCents } from './currency';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 import { removeDiacritics } from './string-utils';
 
@@ -98,11 +105,13 @@ export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
-const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
+export const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRoot = false) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
   let sanitizedTerm = '';
   let sanitizedTermNoWhitespaces = '';
+  let sanitizedTermForILike = '';
+  let sanitizedTermNoWhitespacesForILike = '';
   const trimmedTerm = trimSearchTerm(term);
   const getField = field => (collectiveTable ? `${collectiveTable}."${field}"` : `"${field}"`);
   if (trimmedTerm?.length > 0) {
@@ -111,21 +120,23 @@ const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRo
     if (term[0] === '@' && splitTerm.length === 1) {
       // When the search starts with a `@`, we search by slug only
       sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
+      sanitizedTermForILike = sanitizedTerm;
       sqlConditions = `AND ${getField('slug')} ILIKE :sanitizedTerm || '%' `;
     } else if (isRoot && splitTerm.length === 1 && isEmail(trimmedTerm)) {
       sanitizedTerm = trimmedTerm.toLowerCase();
+      sanitizedTermForILike = sanitizeSearchTermForILike(sanitizedTerm);
       sqlConditions = `AND EXISTS (SELECT id FROM "Users" WHERE "deletedAt" IS NULL AND email = :sanitizedTerm AND "CollectiveId" = ${getField('id')})`;
     } else {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
       sanitizedTermNoWhitespaces = sanitizedTerm.replace(/\s/g, '');
+      sanitizedTermForILike = sanitizeSearchTermForILike(sanitizedTerm);
+      sanitizedTermNoWhitespacesForILike = sanitizeSearchTermForILike(sanitizedTermNoWhitespaces);
       // Only search for existing term
       if (sanitizedTerm) {
         if (splitTerm.length === 1) {
           tsQueryFunc = 'to_tsquery';
           tsQueryArg = `concat(:sanitizedTerm, ':*')`;
-          sqlConditions = `
-          AND (${getField('searchTsVector')} @@ to_tsquery('english', concat(:sanitizedTerm, ':*'))
-          OR ${getField('searchTsVector')} @@ to_tsquery('simple', concat(:sanitizedTerm, ':*')))`;
+          sqlConditions = `AND ${getField('searchTsVector')} @@ to_tsquery('simple', concat(:sanitizedTerm, ':*'))`;
         } else {
           // Search terms with more than word (seperated by spaces) should be searched for
           // both with and without the spaces.
@@ -143,7 +154,15 @@ const getSearchTermSQLConditions = (term: string, collectiveTable?: string, isRo
     }
   }
 
-  return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm, sanitizedTermNoWhitespaces };
+  return {
+    sqlConditions,
+    tsQueryArg,
+    tsQueryFunc,
+    sanitizedTerm,
+    sanitizedTermNoWhitespaces,
+    sanitizedTermForILike,
+    sanitizedTermNoWhitespacesForILike,
+  };
 };
 
 const getSortSubQuery = (
@@ -151,27 +170,40 @@ const getSortSubQuery = (
   orderBy: { field?: string | ORDER_BY_PSEUDO_FIELDS; direction?: string } = null,
 ) => {
   const sortSubQueries = {
-    [ORDER_BY_PSEUDO_FIELDS.ACTIVITY]: `COALESCE(transaction_stats."count", 0)`,
-    [ORDER_BY_PSEUDO_FIELDS.LAST_TRANSACTION_CREATED_AT]: `COALESCE(transaction_stats."LatestTransactionCreatedAt", '2015-11-23')`,
-    [ORDER_BY_PSEUDO_FIELDS.RANK]: `
-      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
-        1
-      ELSE
-        ${
-          searchTermConditions.tsQueryFunc
-            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
-            : '0'
-        }
+    [ORDER_BY_PSEUDO_FIELDS.ACTIVITY]: {
+      query: `COALESCE(transaction_stats."count", 0)`,
+      requiredJoin: 'transaction_stats',
+    },
+    [ORDER_BY_PSEUDO_FIELDS.LAST_TRANSACTION_CREATED_AT]: {
+      query: `COALESCE(transaction_stats."LatestTransactionCreatedAt", '2015-11-23')`,
+      requiredJoin: 'transaction_stats',
+    },
+    [ORDER_BY_PSEUDO_FIELDS.RANK]: {
+      query: `
+      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTermForILike)
+        THEN 1
+        ELSE
+          ${
+            searchTermConditions.tsQueryFunc
+              ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}), 1)`
+              : '0'
+          }
       END`,
-    [ORDER_BY_PSEUDO_FIELDS.CREATED_AT]: `c."createdAt"`,
-    [ORDER_BY_PSEUDO_FIELDS.HOSTED_COLLECTIVES_COUNT]: `
-      SELECT COUNT(1) FROM "Collectives" hosted
-      WHERE hosted."HostCollectiveId" = c.id
-      AND hosted."deletedAt" IS NULL
-      AND hosted."isActive" = TRUE
-      AND hosted."type" IN ('COLLECTIVE', 'FUND')
-    `,
-    [ORDER_BY_PSEUDO_FIELDS.HOST_RANK]: `
+    },
+    [ORDER_BY_PSEUDO_FIELDS.CREATED_AT]: {
+      query: `c."createdAt"`,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.HOSTED_COLLECTIVES_COUNT]: {
+      query: `
+        SELECT COUNT(1) FROM "Collectives" hosted
+        WHERE hosted."HostCollectiveId" = c.id
+        AND hosted."deletedAt" IS NULL
+        AND hosted."isActive" = TRUE
+        AND hosted."type" IN ('COLLECTIVE', 'FUND')
+      `,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.HOST_RANK]: {
+      query: `
         SELECT
           ARRAY [
             -- is host trusted or first party
@@ -190,14 +222,18 @@ const getSortSubQuery = (
             AND hosted."deletedAt" IS NULL
             AND hosted."isActive" = TRUE
             AND hosted."type" IN ('COLLECTIVE', 'FUND'))
-          ]
-    `,
-    [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: `
-      COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
-      * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
-    `,
-    [ORDER_BY_PSEUDO_FIELDS.BALANCE]: CONSOLIDATED_BALANCE_SUBQUERY,
-  };
+          ]`,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.MONEY_MANAGED]: {
+      query: `
+        COALESCE((SELECT SUM(balance) FROM "CollectiveBalanceCheckpoint" WHERE "HostCollectiveId" = c.id AND "hostCurrency" = c."currency" GROUP BY "HostCollectiveId", "hostCurrency"), 0)
+        * (SELECT rate FROM "CurrencyExchangeRates" WHERE "from" = c."currency" AND "to" = 'USD' ORDER BY "createdAt" DESC LIMIT 1)
+      `,
+    },
+    [ORDER_BY_PSEUDO_FIELDS.BALANCE]: {
+      query: CONSOLIDATED_BALANCE_SUBQUERY,
+    },
+  } as const;
 
   let sortQueryType = orderBy?.field || 'RANK';
   if (!searchTermConditions.sanitizedTerm && sortQueryType === 'RANK') {
@@ -207,7 +243,11 @@ const getSortSubQuery = (
   if (!(sortQueryType in sortSubQueries)) {
     throw new Error(`Sort field ${sortQueryType} is not supported for this query`);
   } else {
-    return sortSubQueries[sortQueryType];
+    return {
+      type: sortQueryType,
+      query: sortSubQueries[sortQueryType].query,
+      requiredJoin: sortSubQueries[sortQueryType].requiredJoin,
+    };
   }
 };
 
@@ -265,8 +305,18 @@ export const searchCollectivesInDB = async (
     lastTransactionTo?: Date;
   } = {},
 ): Promise<[Collective[], number]> => {
+  if (isEntityPublicId(term, EntityShortIdPrefix.Collective)) {
+    const collective = await models.Collective.findOne({
+      where: { publicId: term },
+    });
+    if (collective) {
+      return [[collective], 1];
+    }
+  }
+
+  // TODO(#8734): Add isPrivate filter once private-org search exclusion is implemented
   // Build dynamic conditions based on arguments
-  let dynamicConditions = '';
+  let dynamicConditions = 'AND c."isPrivate" IS NOT TRUE ';
   let countryCodes = null;
   let searchedTags = [''];
   if (countries) {
@@ -325,18 +375,18 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `
       AND (
         c."type" != \'VENDOR\'
-        OR data#>'{visibleToAccountIds}' IS NULL 
+        OR data#>'{visibleToAccountIds}' IS NULL
         OR data#>'{visibleToAccountIds}' = '[]'::jsonb
         OR data#>'{visibleToAccountIds}' = 'null'::jsonb
         OR
           (
             jsonb_typeof(data#>'{visibleToAccountIds}')='array'
-            AND 
+            AND
             EXISTS (
               SELECT v FROM (
                 SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
               ) WHERE v IN (:vendorVisibleToAccountIds)
-            )  
+            )
           )
       )
     `;
@@ -401,23 +451,28 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND transaction_stats."LatestTransactionCreatedAt" <= :lastTransactionTo `;
   }
 
+  // Small optimization: determine if we need to join the transaction stats table
+  const sortSubQuery = getSortSubQuery(searchTermConditions, orderBy);
+  const needsTransactionStatsJoin =
+    sortSubQuery.requiredJoin === 'transaction_stats' || args.lastTransactionFrom || args.lastTransactionTo;
+
   // Build the query
   const result = await sequelize.query(
     `
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      (${getSortSubQuery(searchTermConditions, orderBy)}) as __sort__
+      (${sortSubQuery.query}) as __sort__
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
-    LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id
+    ${needsTransactionStatsJoin ? 'LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id' : ''}
     WHERE c."deletedAt" IS NULL
     AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
     AND c.name != 'incognito'
     AND c.name != 'anonymous'
     AND c."isIncognito" = FALSE ${dynamicConditions}
     ${!isEmpty(args.consolidatedBalance) ? `AND ${CONSOLIDATED_BALANCE_SUBQUERY} ${getAmountRangeQuery(args.consolidatedBalance)}` : ''}
-    ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
+    ORDER BY __sort__ ${orderBy?.direction || 'DESC'}, c.id ${orderBy?.direction || 'DESC'}
     OFFSET :offset
     LIMIT :limit
     `,
@@ -430,6 +485,7 @@ export const searchCollectivesInDB = async (
         slugifiedTerm: term ? slugify(term) : '',
         sanitizedTerm: searchTermConditions.sanitizedTerm,
         sanitizedTermNoWhitespaces: searchTermConditions.sanitizedTermNoWhitespaces,
+        sanitizedTermForILike: searchTermConditions.sanitizedTermForILike,
         searchedTags,
         countryCodes,
         offset,
@@ -473,6 +529,11 @@ export const parseSearchTerm = (
       type: 'number';
       term: number;
       isFloat?: boolean;
+    }
+  | {
+      type: 'publicId';
+      term: string;
+      prefix: EntityShortIdPrefix;
     } => {
   const searchTerm = trimSearchTerm(fullSearchTerm);
   if (!searchTerm) {
@@ -489,6 +550,8 @@ export const parseSearchTerm = (
     return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
   } else if (searchTerm.match(/^\d+\.?\d*$/)) {
     return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
+  } else if (isAnyEntityPublicId(searchTerm)) {
+    return { type: 'publicId', term: searchTerm, prefix: getEntityShortIdPrefix(searchTerm) };
   } else {
     // We use a custom pattern here because Lodash will split A123 to ['A', '123']
     const wordsCount = words(searchTerm, /[^, -]+/g).length;
@@ -516,6 +579,7 @@ export const buildSearchConditions = (
     stringArrayFields = [],
     stringArrayTransformFn = null,
     castStringArraysToVarchar = false,
+    publicIdFields = [],
   }: {
     slugFields?: string[];
     idFields?: string[];
@@ -526,6 +590,10 @@ export const buildSearchConditions = (
     stringArrayFields?: string[];
     stringArrayTransformFn?: (str: string) => string;
     castStringArraysToVarchar?: boolean;
+    publicIdFields?: {
+      field: string | string[];
+      prefix: EntityShortIdPrefix;
+    }[];
   },
 ) => {
   const parsedTerm = parseSearchTerm(searchTerm);
@@ -548,6 +616,18 @@ export const buildSearchConditions = (
   // Inclusive conditions, search all fields except
   const conditions = [];
 
+  if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
+    const fields = publicIdFields
+      .filter(field => field.prefix === parsedTerm.prefix)
+      .reduce((acc, field) => {
+        if (Array.isArray(field.field)) {
+          return [...acc, ...field.field];
+        }
+        return [...acc, field.field];
+      }, []);
+
+    conditions.push(...fields.map(field => ({ [field]: parsedTerm.term })));
+  }
   // Conditions for text fields
   const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
   const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
@@ -568,7 +648,9 @@ export const buildSearchConditions = (
 
   if (
     dataFields?.length &&
-    ((parsedTerm.type === 'text' && parsedTerm.words === 1) || (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+    ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
+      (parsedTerm.type === 'number' && !parsedTerm.isFloat) ||
+      parsedTerm.type === 'publicId')
   ) {
     conditions.push(...dataFields.map(field => ({ [field]: toString(parsedTerm.term) })));
   }
@@ -586,26 +668,85 @@ export const buildSearchConditions = (
   return conditions;
 };
 
+export const buildKyselySearchConditions =
+  <T>(
+    searchTerm: string,
+    {
+      slugFields = [],
+      idFields = [],
+      textFields = [],
+      emailFields = [],
+      publicIdFields = [],
+    }: {
+      slugFields?: string[];
+      idFields?: string[];
+      textFields?: string[];
+      emailFields?: string[];
+      publicIdFields?: {
+        field: string | string[];
+        prefix: EntityShortIdPrefix;
+      }[];
+    },
+  ) =>
+  (q: SelectQueryBuilder<any, any, T>): SelectQueryBuilder<any, any, T> => {
+    const parsedTerm = parseSearchTerm(searchTerm);
+
+    // Empty search => no condition
+    if (!parsedTerm.term) {
+      return q;
+    }
+
+    // Exclusive conditions: if an ID or a slug is searched, on don't search other attributes
+    // We don't use ILIKE for them, they must match exactly
+    if (parsedTerm.type === 'slug' && slugFields?.length) {
+      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, 'ilike', parsedTerm.term))));
+    } else if (parsedTerm.type === 'id' && idFields?.length) {
+      return q.where(({ eb, or }) => or(idFields.map(field => eb(field, '=', parsedTerm.term))));
+    } else if (parsedTerm.type === 'email' && emailFields?.length) {
+      return q.where(({ eb, or }) => or(emailFields.map(field => eb(field, '=', parsedTerm.term))));
+    } else if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
+      const fields = publicIdFields
+        .filter(field => field.prefix === parsedTerm.prefix)
+        .reduce((acc, field) => {
+          if (Array.isArray(field.field)) {
+            return [...acc, ...field.field];
+          }
+          return [...acc, field.field];
+        }, []);
+      return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
+    }
+
+    // Inclusive conditions, search all fields except
+
+    // Conditions for text fields
+    const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+    const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
+    const allTextFields = [...(slugFields || []), ...(textFields || [])];
+
+    q = q.where(({ eb, or }) => or(allTextFields.map(field => eb(field, 'ilike', iLikeQuery))));
+    return q;
+  };
+
 /**
  * Returns tags along with their frequency of use.
  */
 export const getColletiveTagFrequencies = async args => {
   // If no searchTerm is provided, we can use the pre-computed stats in the materialized view
   if (!args.searchTerm) {
-    const { sanitizedTerm } = getSearchTermSQLConditions(args.tagSearchTerm);
+    const { sanitizedTermForILike } = getSearchTermSQLConditions(args.tagSearchTerm);
     // Note: The CollectiveTagStats materialized view will return tag stats for all collectives, with or without host, when HostCollectiveId is NULL
     return sequelize.query(
       `SELECT tag AS id, tag, count
         FROM "CollectiveTagStats"
-        WHERE "HostCollectiveId" ${args.hostCollectiveId ? '= :hostCollectiveId' : 'IS NULL'} 
-        ${args.tagSearchTerm ? `AND "tag" ILIKE :sanitizedTerm` : ``}
+        WHERE "HostCollectiveId" ${args.hostCollectiveId ? '= :hostCollectiveId' : 'IS NULL'}
+        ${args.tagSearchTerm ? `AND "tag" ILIKE :sanitizedTermForILike` : ``}
         ORDER BY count DESC
         LIMIT :limit
         OFFSET :offset`,
       {
         type: QueryTypes.SELECT,
         replacements: {
-          sanitizedTerm: `%${sanitizedTerm}%`,
+          sanitizedTermForILike: `%${sanitizedTermForILike}%`,
           hostCollectiveId: args.hostCollectiveId,
           limit: args.limit,
           offset: args.offset,
@@ -618,11 +759,11 @@ export const getColletiveTagFrequencies = async args => {
     `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Collectives"
       WHERE "deletedAt" IS NULL
-      AND "deactivatedAt" IS NULL 
-      AND ((data ->> 'isGuest'::text)::boolean) IS NOT TRUE 
-      AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE 
-      AND name::text <> 'incognito'::text 
-      AND name::text <> 'anonymous'::text 
+      AND "deactivatedAt" IS NULL
+      AND ((data ->> 'isGuest'::text)::boolean) IS NOT TRUE
+      AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE
+      AND name::text <> 'incognito'::text
+      AND name::text <> 'anonymous'::text
       AND "isIncognito" = false
       ${args.hostCollectiveId ? `AND "HostCollectiveId" = :hostCollectiveId` : ``}
       ${searchConditions.sqlConditions}
@@ -665,14 +806,14 @@ export const getExpenseTagFrequencies = async args => {
   }
 
   if (args.tagSearchTerm) {
-    const { sanitizedTerm } = getSearchTermSQLConditions(args.tagSearchTerm);
-    whereConditions.push(`"tag" ILIKE :sanitizedTerm`);
-    replacements['sanitizedTerm'] = `%${sanitizedTerm}%`;
+    const { sanitizedTermForILike } = getSearchTermSQLConditions(args.tagSearchTerm);
+    whereConditions.push(`"tag" ILIKE :sanitizedTermForILike`);
+    replacements['sanitizedTermForILike'] = `%${sanitizedTermForILike}%`;
   }
 
   const whereClause = whereConditions.length ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-  return sequelize.query(
+  return sequelize.query<{ id: string; tag: string; count: number }>(
     `SELECT tag AS id, tag, count
      FROM "ExpenseTagStats"
      ${whereClause}

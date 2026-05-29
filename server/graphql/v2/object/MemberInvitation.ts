@@ -2,9 +2,10 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import type { Collective } from '../../../models';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { Collective } from '../../../models';
 import { GraphQLMemberRole } from '../enum/MemberRole';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import { GraphQLIndividual } from './Individual';
@@ -17,7 +18,17 @@ export const GraphQLMemberInvitation = new GraphQLObjectType({
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.MEMBER_INVITATION),
+        resolve: memberInvitation => {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.MemberInvitation, memberInvitation.createdAt)) {
+            return memberInvitation.publicId;
+          } else {
+            return idEncode(memberInvitation.id, IDENTIFIER_TYPES.MEMBER_INVITATION);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.MemberInvitation}_xxxxxxxx)`,
       },
       inviter: {
         type: GraphQLIndividual,

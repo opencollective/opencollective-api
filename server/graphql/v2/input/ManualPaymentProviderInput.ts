@@ -1,8 +1,11 @@
 import { GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
+import { partition, uniq } from 'lodash';
+import { Op } from 'sequelize';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
-import type ManualPaymentProvider from '../../../models/ManualPaymentProvider';
+import ManualPaymentProvider from '../../../models/ManualPaymentProvider';
 import { NotFound } from '../../errors';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -15,7 +18,7 @@ export const GraphQLManualPaymentProviderReferenceInput = new GraphQLInputObject
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'The unique identifier of the manual payment provider',
+      description: `The unique identifier of the manual payment provider (ie: ${EntityShortIdPrefix.ManualPaymentProvider}_xxxxxxxx)`,
     },
   }),
 });
@@ -78,16 +81,22 @@ export const GraphQLManualPaymentProviderUpdateInput = new GraphQLInputObjectTyp
  * Retrieves a ManualPaymentProvider by reference
  */
 export const fetchManualPaymentProviderWithReference = async (
-  input: { id: string },
+  input: { id?: string },
   { loaders, throwIfMissing = false }: { loaders?: Express.Request['loaders']; throwIfMissing?: boolean } = {},
 ): Promise<ManualPaymentProvider | null> => {
-  const id = idDecode(input.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER);
-
   let provider: ManualPaymentProvider | null = null;
-  if (loaders) {
-    provider = await loaders.ManualPaymentProvider.byId.load(id);
-  } else {
-    provider = await models.ManualPaymentProvider.findByPk(id);
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.ManualPaymentProvider)) {
+    provider = await (loaders
+      ? loaders.ManualPaymentProvider.byPublicId.load(input.id)
+      : models.ManualPaymentProvider.findOne({ where: { publicId: input.id } }));
+  } else if (input.id) {
+    const id = idDecode(input.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER);
+
+    if (loaders) {
+      provider = await loaders.ManualPaymentProvider.byId.load(id);
+    } else {
+      provider = await models.ManualPaymentProvider.findByPk(id);
+    }
   }
 
   if (!provider && throwIfMissing) {
@@ -95,4 +104,56 @@ export const fetchManualPaymentProviderWithReference = async (
   }
 
   return provider;
+};
+
+export const fetchManualPaymentProvidersWithReferences = async (
+  inputs: { id?: string }[],
+  { loaders, throwIfMissing = false }: { loaders?: Express.Request['loaders']; throwIfMissing?: boolean } = {},
+): Promise<ManualPaymentProvider[]> => {
+  if (inputs.length === 0) {
+    return [];
+  }
+
+  const [inputsWithPublicId, inputsWithoutPublicId] = partition(inputs, input =>
+    isEntityPublicId(input.id, EntityShortIdPrefix.ManualPaymentProvider),
+  );
+
+  const ids = uniq(inputsWithoutPublicId.map(input => idDecode(input.id!, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER)));
+  const publicIds = uniq(inputsWithPublicId.map(input => input.id!));
+
+  const where: { id?: number[]; publicId?: string[]; [Op.or]?: Array<{ id: number[] } | { publicId: string[] }> } = {};
+  if (ids.length > 0 && publicIds.length > 0) {
+    where[Op.or] = [{ id: ids }, { publicId: publicIds }];
+  } else if (ids.length > 0) {
+    where.id = ids;
+  } else if (publicIds.length > 0) {
+    where.publicId = publicIds;
+  }
+
+  let providers: ManualPaymentProvider[] = [];
+  if (loaders && ids.length > 0 && publicIds.length === 0) {
+    const loaded = await loaders.ManualPaymentProvider.byId.loadMany(ids);
+    providers = loaded.filter((p): p is ManualPaymentProvider => p instanceof ManualPaymentProvider);
+  } else if (Object.keys(where).length > 0) {
+    providers = await models.ManualPaymentProvider.findAll({ where });
+  }
+
+  if (throwIfMissing) {
+    const inputMatchesProvider = (input: { id?: string }) =>
+      providers.some(
+        provider =>
+          (isEntityPublicId(input.id, EntityShortIdPrefix.ManualPaymentProvider) && provider.publicId === input.id) ||
+          (input.id && provider.id === idDecode(input.id!, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER)),
+      );
+    const missing = inputs.filter(input => !input.id);
+    if (missing.length > 0) {
+      throw new Error('Please provide id for each input');
+    }
+    if (!inputs.every(inputMatchesProvider)) {
+      const missingRefs = inputs.filter(input => !inputMatchesProvider(input));
+      throw new NotFound(`Could not find manual payment providers: ${missingRefs.map(i => i.id).join(', ')}`);
+    }
+  }
+
+  return providers;
 };

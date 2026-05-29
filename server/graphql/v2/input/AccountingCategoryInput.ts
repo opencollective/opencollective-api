@@ -10,15 +10,17 @@ import { GraphQLNonEmptyString } from 'graphql-scalars';
 
 import ExpenseTypes from '../../../constants/expense-type';
 import { TransactionKind } from '../../../constants/transaction-kind';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { AccountingCategoryAppliesTo, AccountingCategoryKind } from '../../../models/AccountingCategory';
+import { Loaders } from '../../loaders';
 import { GraphQLAccountingCategoryAppliesTo } from '../enum/AccountingCategoryAppliesTo';
 import { GraphQLAccountingCategoryKind } from '../enum/AccountingCategoryKind';
 import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { idDecode } from '../identifiers';
 
 export type AccountingCategoryInputFields = {
-  id?: string;
+  id: string;
   code?: string;
   name?: string;
   friendlyName?: string;
@@ -35,7 +37,7 @@ export const AccountingCategoryInput = new GraphQLInputObjectType({
   fields: (): Record<keyof AccountingCategoryInputFields, GraphQLInputFieldConfig> => ({
     id: {
       type: GraphQLNonEmptyString,
-      description: 'The ID of the accounting category to edit',
+      description: `The ID of the accounting category to edit (ie: ${EntityShortIdPrefix.AccountingCategory}_xxxxxxxx)`,
     },
     kind: {
       type: new GraphQLNonNull(GraphQLAccountingCategoryKind),
@@ -88,17 +90,24 @@ export const GraphQLAccountingCategoryReferenceInput = new GraphQLInputObjectTyp
   fields: (): Record<keyof GraphQLAccountingCategoryReferenceInputFields, GraphQLInputFieldConfig> => ({
     id: {
       type: new GraphQLNonNull(GraphQLNonEmptyString),
-      description: 'The ID of the accounting category',
+      description: `The ID of the accounting category (ie: ${EntityShortIdPrefix.AccountingCategory}_xxxxxxxx)`,
     },
   }),
 });
 
 export const fetchAccountingCategoryWithReference = async (
   input: GraphQLAccountingCategoryReferenceInputFields,
-  { loaders = null, throwIfMissing = false } = {},
+  { loaders = null, throwIfMissing = false }: { loaders?: Loaders; throwIfMissing?: boolean } = {},
 ) => {
-  const id = idDecode(input.id, 'accounting-category');
-  const category = await (loaders ? loaders.AccountingCategory.byId.load(id) : models.AccountingCategory.findByPk(id));
+  let category;
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.AccountingCategory)) {
+    category = await (loaders
+      ? loaders.AccountingCategory.byPublicId.load(input.id)
+      : models.AccountingCategory.findOne({ where: { publicId: input.id } }));
+  } else if (input.id && typeof input.id === 'string') {
+    const id = idDecode(input.id, 'accounting-category');
+    category = await (loaders ? loaders.AccountingCategory.byId.load(id) : models.AccountingCategory.findByPk(id));
+  }
   if (!category && throwIfMissing) {
     throw new Error(`Accounting category with id ${input.id} not found`);
   }

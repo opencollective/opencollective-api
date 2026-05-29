@@ -108,9 +108,9 @@ Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `de
 
 To setup the database for tests, run `npm run db:setup` or run `NODE_ENV=test npm run db:setup` to force the environment.
 
-If you want to do the steps manually, first, make sure the `opencollective` user is existing:
+If you want to do the steps manually, first, make sure the `opencollective` user is existing (with superuser privileges):
 
-`createuser opencollective`
+`createuser -s opencollective`
 
 Then:
 

@@ -1,11 +1,11 @@
-import { cloneDeep, get, set, update } from 'lodash';
+import { cloneDeep, get, set, uniq, update } from 'lodash';
 
 import ActivityTypes from '../../constants/activities';
 import { Activity, TransactionsImport, TransactionsImportRow } from '../../models';
 import ConnectedAccount from '../../models/ConnectedAccount';
 import { TransactionsImportLockedError } from '../../models/TransactionsImport';
+import { floatAmountToCents } from '../currency';
 import logger from '../logger';
-import { floatAmountToCents } from '../math';
 import { reportErrorToSentry, reportMessageToSentry } from '../sentry';
 
 import { getPlaidClient } from './client';
@@ -109,7 +109,10 @@ const syncTransactionsImport = async (
       // Removed transactions
       if (data.removed.length) {
         const existingTransactionsRemoved = await TransactionsImportRow.findAll({
-          where: { TransactionsImportId: transactionsImport.id, sourceId: data.removed.map(tr => tr.transaction_id) },
+          where: {
+            TransactionsImportId: transactionsImport.id,
+            sourceId: uniq(data.removed.map(tr => tr.transaction_id)),
+          },
         });
 
         // Plaid often send events for "removed" transactions that are in fact transactions going from pending to non-pending.

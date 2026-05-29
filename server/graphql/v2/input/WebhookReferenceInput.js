@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -7,11 +8,12 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 export const WebhookReferenceFields = {
   id: {
     type: GraphQLString,
-    description: 'The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    description: `The public id identifying the webhook (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Notification}_xxxxxxxx)`,
   },
   legacyId: {
     type: GraphQLInt,
     description: 'The legacy public id identifying the webhook (ie: 4242)',
+    deprecationReason: '2026-02-25: use id',
   },
 };
 
@@ -27,7 +29,9 @@ export const GraphQLWebhookReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchWebhookWithReference = async input => {
   let notification;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.Notification)) {
+    notification = await models.Notification.findOne({ where: { publicId: input.id } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.NOTIFICATION);
     notification = await models.Notification.findByPk(id);
   } else if (input.legacyId) {

@@ -9,17 +9,19 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { find, findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
+import { findLast, pick, round, takeRightWhile, toString, uniq } from 'lodash';
 import { WhereOptions } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
 import { Service } from '../../../constants/connected-account';
 import expenseStatus from '../../../constants/expense-status';
 import ExpenseTypes from '../../../constants/expense-type';
+import FEATURE from '../../../constants/feature';
 import OAuthScopes from '../../../constants/oauth-scopes';
-import { TransactionKind } from '../../../constants/transaction-kind';
-import { TransactionTypes } from '../../../constants/transactions';
-import { floatAmountToCents } from '../../../lib/math';
+import { hasFeature } from '../../../lib/allowed-features';
+import { floatAmountToCents } from '../../../lib/currency';
+import { expenseKycStatus } from '../../../lib/kyc/expenses/kyc-expenses-check';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import SQLQueries from '../../../lib/queries';
 import models, { Activity, UploadedFile } from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -40,7 +42,7 @@ import { GraphQLExpenseType } from '../enum/ExpenseType';
 import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { GraphQLLegalDocumentRequestStatus } from '../enum/LegalDocumentRequestStatus';
 import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
@@ -54,6 +56,7 @@ import { GraphQLActivity } from './Activity';
 import { GraphQLAmount } from './Amount';
 import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
 import GraphQLExpenseItem from './ExpenseItem';
+import { GraphQLExpenseKYCStatus } from './ExpenseKYCStatus';
 import GraphQLExpensePermissions from './ExpensePermissions';
 import GraphQLExpenseQuote from './ExpenseQuote';
 import { GraphQLExpenseValuesByRole } from './ExpenseValuesByRole';
@@ -75,7 +78,6 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'payee.slug',
   'payee.id',
   'payee.organization',
-  'reference',
 ];
 const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'recipientNote',
@@ -85,6 +87,7 @@ const EXPENSE_DRAFT_PRIVATE_FIELDS = [
   'payeeLocation',
   'payee.email',
   'payee.legalName',
+  'reference',
 ];
 const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = [
   'id',
@@ -111,11 +114,22 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),
-        resolve: getIdEncodeResolver(IDENTIFIER_TYPES.EXPENSE),
+        resolve(expense) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Expense, expense.createdAt)) {
+            return expense.publicId;
+          } else {
+            return idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.Expense}_xxxxxxxx)`,
       },
       legacyId: {
         type: new GraphQLNonNull(GraphQLInt),
         description: 'Legacy ID as returned by API V1. Avoid relying on this field as it may be removed in the future.',
+        deprecationReason: '2026-02-25: use publicId',
         resolve(expense) {
           return expense.id;
         },
@@ -131,6 +145,11 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       reference: {
         type: GraphQLString,
         description: 'User-provided reference number or any other identifier that references the invoice',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+            return expense.reference;
+          }
+        },
       },
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
@@ -288,18 +307,8 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
       paidAt: {
         type: GraphQLDateTime,
         description: 'The date on which the expense was paid',
-        async resolve(expense, _, req) {
-          if (expense.status !== expenseStatus.PAID) {
-            return null;
-          }
-          const transactions = await req.loaders.Transaction.byExpenseId.load(expense.id);
-          const transaction = find(transactions, {
-            kind: TransactionKind.EXPENSE,
-            isRefund: false,
-            type: TransactionTypes.DEBIT,
-            RefundTransactionId: null,
-          });
-          return transaction?.clearedAt || transaction?.createdAt || null;
+        resolve(expense) {
+          return expense.paidAt || null;
         },
       },
       onHold: {
@@ -492,13 +501,25 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLActivity))),
         description: 'The list of activities (ie. approved, edited, etc) for this expense ordered by date ascending',
         async resolve(expense, _, req) {
-          const activities = await req.loaders.Expense.activities.load(expense.id);
+          let activities = await req.loaders.Expense.activities.load(expense.id);
           if (!req.remoteUser || !(await ExpenseLib.canSeeExpenseOnHoldFlag(req, expense))) {
-            return activities.filter(
+            activities = activities.filter(
               activity =>
                 ![
                   ActivityTypes.COLLECTIVE_EXPENSE_PUT_ON_HOLD,
                   ActivityTypes.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD,
+                ].includes(activity.type),
+            );
+          }
+
+          if (!(await ExpenseLib.isHostAdmin(req, expense))) {
+            activities = activities.filter(
+              activity =>
+                ![
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_PAYOUT_METHOD_CHANGED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_REQUESTED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_VERIFIED,
+                  ActivityTypes.COLLECTIVE_EXPENSE_KYC_REVOKED,
                 ].includes(activity.type),
             );
           }
@@ -668,7 +689,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
               throw new Unauthorized("You don't have permission to pay this expense");
             }
             const quote = isScheduledForPayment ? expense.data?.quote : await ExpenseLib.quoteExpense(expense);
-            if (!quote) {
+            if (!quote?.paymentOption) {
               return null;
             }
 
@@ -806,6 +827,31 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
           if (req.remoteUser.isRoot()) {
             return expense.data.bill;
           }
+        },
+      },
+      kycStatus: {
+        type: GraphQLExpenseKYCStatus,
+        async resolve(expense, _, req) {
+          if (!req.remoteUser) {
+            return null;
+          }
+
+          if (expense.status === expenseStatus.DRAFT) {
+            return null;
+          }
+
+          expense.fromCollective = await req.loaders.Collective.byId.load(expense.FromCollectiveId);
+
+          const host = await loadHostForExpense(expense, req);
+          if (!host || !req.remoteUser.isAdminOfCollective(host)) {
+            return null;
+          }
+
+          if (!(await hasFeature(host, FEATURE.KYC, { loaders: req.loaders }))) {
+            return null;
+          }
+
+          return expenseKycStatus(expense, { loaders: req.loaders });
         },
       },
     };

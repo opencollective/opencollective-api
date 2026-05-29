@@ -1,5 +1,6 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import RateLimit from '../../../lib/rate-limit';
 import PaypalPlanModel from '../../../models/PaypalPlan';
 import Tier from '../../../models/Tier';
@@ -61,9 +62,12 @@ const PaypalPlanQuery = {
       throw new Error('Account not found');
     }
 
+    await assertCanSeeAccount(req, collective);
+
     const tier =
       args.tier && <Tier>await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
-    const order = args.order && (await fetchOrderWithReference(args.order, { throwIfMissing: true }));
+    const order =
+      args.order && (await fetchOrderWithReference(args.order, { throwIfMissing: true, loaders: req.loaders }));
     if (tier && tier.CollectiveId !== collective.id) {
       throw new Error('The tier does not belong to the account');
     } else if (order && order.CollectiveId !== collective.id) {

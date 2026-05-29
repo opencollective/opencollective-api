@@ -1,10 +1,11 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Collective, ConnectedAccount } from '../../../models';
 import { Unauthorized } from '../../errors';
 import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, Express.Request>({
@@ -14,12 +15,22 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this connected account',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.CONNECTED_ACCOUNT),
+      resolve(connectedAccount) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ConnectedAccount, connectedAccount.createdAt)) {
+          return connectedAccount.publicId;
+        } else {
+          return idEncode(connectedAccount.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.ConnectedAccount}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal database identifier of the Connected Account (ie: 580)',
-      deprecationReason: '2020-05-01: should only be used during the transition to GraphQL API v2.',
+      deprecationReason: '2026-02-25: use publicId',
       resolve(connectedAccount): number {
         return connectedAccount.id;
       },
@@ -32,7 +43,22 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The date on which the ConnectedAccount was last updated',
     },
-    settings: { type: GraphQLJSON },
+    settings: {
+      type: GraphQLJSON,
+      async resolve(connectedAccount, _, req) {
+        if (connectedAccount.service === 'persona') {
+          if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
+            throw new Unauthorized('You need to be logged in as an admin of the account');
+          }
+          return {
+            apiKeyId: connectedAccount.clientId,
+            inquiryTemplateId: connectedAccount.settings.inquiryTemplateId,
+          };
+        }
+
+        return connectedAccount.settings;
+      },
+    },
     service: { type: new GraphQLNonNull(GraphQLConnectedAccountService) },
     accountsMirrored: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),

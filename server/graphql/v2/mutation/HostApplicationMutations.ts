@@ -2,6 +2,7 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
+import { omit } from 'lodash';
 
 import { activities } from '../../../constants';
 import { CollectiveType } from '../../../constants/collectives';
@@ -83,11 +84,11 @@ const HostApplicationMutations = {
       const collective = await fetchAccountWithReference(args.collective);
       if (!collective) {
         throw new NotFound('Collective not found');
-      }
-      if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(collective.type)) {
+      } else if (collective.isPrivate) {
+        throw new Forbidden('Private accounts cannot apply to hosts');
+      } else if (![CollectiveType.COLLECTIVE, CollectiveType.FUND].includes(collective.type)) {
         throw new Error('Account must be a collective or a fund');
-      }
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
+      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Forbidden('You need to be an Admin of the account');
       }
 
@@ -109,9 +110,10 @@ const HostApplicationMutations = {
         models.MemberInvitation.count({ where }),
       ]);
       const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+      const requiredAdmins = minAdminsPolicy?.numberOfAdmins ?? 0;
       const validAdminsCount = adminCount + adminInvitationCount + (args.inviteMembers?.length || 0);
-      if ((minAdminsPolicy || 0) > validAdminsCount) {
-        throw new Forbidden(`This host policy requires at least ${minAdminsPolicy} admins for this account.`);
+      if (requiredAdmins > validAdminsCount) {
+        throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
       }
 
       let validatedRepositoryInfo: ValidatedRepositoryInfo,
@@ -293,6 +295,8 @@ const HostApplicationMutations = {
       const isAccountAdmin = req.remoteUser.isAdminOfCollective(account);
       if (!isHostAdmin && !isAccountAdmin && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
         throw new Forbidden('Only the host admin or the account admin can trigger this action');
+      } else if (host.isPrivate && !isHostAdmin) {
+        throw new Forbidden('Only the host admin can trigger this action');
       }
 
       await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, [account, host], { alwaysAskForToken: true });
@@ -326,7 +330,7 @@ const HostApplicationMutations = {
   },
 };
 
-const approveApplication = async (host, collective, req) => {
+const approveApplication = async (host: Collective, collective: Collective, req: express.Request) => {
   // Check minimum number of admins
   const countAdminsWhere = {
     CollectiveId: collective.id,
@@ -347,21 +351,26 @@ const approveApplication = async (host, collective, req) => {
   // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
   await sequelize.transaction(async transaction => {
     const newAccountData = {
-      isActive: true,
       approvedAt: new Date(),
       HostCollectiveId: host.id,
       currency: host.currency,
+      isActive: true,
     };
 
-    // Approve all events and projects created by this collective
+    // Approve all non-archived events and projects created by this collective
     await models.Collective.update(newAccountData, {
-      where: { ParentCollectiveId: collective.id },
+      where: { ParentCollectiveId: collective.id, deactivatedAt: null },
+      hooks: false,
+      transaction,
+    });
+    await models.Collective.update(omit(newAccountData, ['isActive']), {
+      where: { ParentCollectiveId: collective.id, deactivatedAt: { [Op.not]: null } },
       hooks: false,
       transaction,
     });
 
     // Convert all active tiers to host currency
-    const children = await collective.getChildren({ attributes: ['id'] });
+    const children = await collective.getChildren({ attributes: ['id'], transaction });
     await models.Tier.update(
       { currency: host.currency },
       {
@@ -376,33 +385,45 @@ const approveApplication = async (host, collective, req) => {
 
     // Approve the collective
     await collective.update(newAccountData, { transaction });
+
+    // If collective does not have enough admins, block it from receiving Contributions
+    const policy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS, { transaction });
+    if (policy?.freeze && policy.numberOfAdmins > adminCount) {
+      await collective.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS, { transaction });
+    }
+
+    // Mark the application as approved
+    await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.APPROVED, {
+      transaction,
+    });
   });
 
   // Send a notification to collective admins
-  await models.Activity.create({
-    type: activities.COLLECTIVE_APPROVED,
-    UserId: req.remoteUser?.id,
-    UserTokenId: req.userToken?.id,
-    CollectiveId: collective.id,
-    HostCollectiveId: host.id,
-    data: {
-      collective: collective.info,
-      host: host.info,
-      user: {
-        email: req.remoteUser?.email,
+  try {
+    await models.Activity.create({
+      type: activities.COLLECTIVE_APPROVED,
+      UserId: req.remoteUser?.id,
+      UserTokenId: req.userToken?.id,
+      CollectiveId: collective.id,
+      HostCollectiveId: host.id,
+      data: {
+        collective: collective.info,
+        host: host.info,
+        user: {
+          email: req.remoteUser?.email,
+        },
       },
-    },
-  });
-
-  // If collective does not have enough admins, block it from receiving Contributions
-  const policy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-  if (policy?.freeze && policy.numberOfAdmins > adminCount) {
-    await collective.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+    });
+  } catch (error) {
+    // Ignore failed notification activity
+    reportErrorToSentry(error, {
+      req,
+      extra: { host: host.info, collective: collective.info },
+    });
   }
 
-  // Purge cache and change the status of the application
+  // Purge cache
   purgeCacheForCollective(collective.slug);
-  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.APPROVED);
   return collective;
 };
 
@@ -413,7 +434,9 @@ const rejectApplication = async (host, collective, req, reason: string) => {
   const { remoteUser } = req;
 
   // Reset host for collective & its children
-  await collective.changeHost(null, remoteUser);
+  if (collective.HostCollectiveId === host.id) {
+    await collective.changeHost(null, remoteUser);
+  }
 
   // Notify collective admins
   const cleanReason = reason && stripHTML(reason).trim();

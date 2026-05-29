@@ -2,13 +2,13 @@ Subject: Your expense to {{{collective.name}}} for {{currency expense.amount cur
 
 {{> header}}
 
-<p>Your expense, <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>, has been approved.</p>
+<p>Your expense, <a href="{{permalink expense}}">{{expense.description}}</a>, has been approved.</p>
 <p>Most payments are processed within a few days, but the timing will depend on the available budget of {{> linkCollective collective=collective}}, the payment method, and other factors.</p>
-<p>If you have any questions related to this expense, please post a comment on <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">the expense page</a>.</p>
+<p>If you have any questions related to this expense, please post a comment on <a href="{{permalink expense}}">the expense page</a>.</p>
 <center>
-  <h1><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}}</a></h1>
-  <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></div>
-</center>
+  <h1><a href="{{permalink expense}}">{{currency expense.amount currency=expense.currency}}</a></h1>
+  <div><a href="{{permalink expense}}">{{expense.description}}</a></div>
+</center> 
 
 <br />
 <br />
@@ -29,7 +29,7 @@ Subject: Your expense to {{{collective.name}}} for {{currency expense.amount cur
   <br /><br />
   <p>
     <center>
-      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+      <a href="{{permalink expense}}" class="btn blue">
         <div>View Expense</div>
       </a>
     </center>

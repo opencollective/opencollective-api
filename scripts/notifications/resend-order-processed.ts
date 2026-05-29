@@ -26,6 +26,7 @@ export const main = async () => {
   program.option('--tierIds <tierIds>', 'Comma-separated list of tier IDs');
   program.option('--orderIds <orderIds>', 'Comma-separated list of order IDs');
   program.option('--execute', 'Actually send emails (default: dry run)');
+  program.option('--includeTicketConfirmed', 'Include ticket.confirmed activities');
   program.parse();
 
   const options = program.opts();
@@ -33,6 +34,7 @@ export const main = async () => {
   const orderIdsStr = options.orderIds;
   const erratum = program.args[0];
   const isDryRun = !options.execute;
+  const includeTicketConfirmed = options.includeTicketConfirmed;
 
   if (!erratum) {
     throw new Error('Erratum message is required');
@@ -105,13 +107,15 @@ export const main = async () => {
       const activities = await models.Activity.findAll({
         where: {
           OrderId: order.id,
-          type: ActivityTypes.ORDER_PROCESSED,
+          type: [ActivityTypes.ORDER_PROCESSED, includeTicketConfirmed ? ActivityTypes.TICKET_CONFIRMED : null].filter(
+            Boolean,
+          ),
         },
         order: [['createdAt', 'DESC']], // Get the most recent one
       });
 
       if (!activities.length) {
-        console.warn(`[SKIP] Order ${order.id}: No ORDER_PROCESSED activity found`);
+        console.warn(`[SKIP] Order ${order.id}: No ORDER_PROCESSED or TICKET_CONFIRMED activity found`);
         skippedCount++;
         continue;
       }

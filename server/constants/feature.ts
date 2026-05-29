@@ -15,6 +15,8 @@ enum FEATURE {
   USE_EXPENSES = 'USE_EXPENSES',
   /** Whether this profile can receive expenses */
   RECEIVE_EXPENSES = 'RECEIVE_EXPENSES',
+  /** Whether this profile can receive grants */
+  RECEIVE_GRANTS = 'RECEIVE_GRANTS',
   /** Whether this account can use multi-currency expenses */
   MULTI_CURRENCY_EXPENSES = 'MULTI_CURRENCY_EXPENSES',
   /** Whether this profile can create "goals" (displayed on the collective page) */
@@ -85,7 +87,12 @@ enum FEATURE {
   /** Whether this profile can receive host applications */
   RECEIVE_HOST_APPLICATIONS = 'RECEIVE_HOST_APPLICATIONS',
 
+  /** Whether the platform has PayPal Connect (Log in with PayPal) configured */
+  PAYPAL_CONNECT = 'PAYPAL_CONNECT',
+
   CHART_OF_ACCOUNTS = 'CHART_OF_ACCOUNTS',
+  ACCOUNTING_CATEGORIZATION_RULES = 'ACCOUNTING_CATEGORIZATION_RULES',
+  HOST_METRICS = 'HOST_METRICS',
   EXPENSE_SECURITY_CHECKS = 'EXPENSE_SECURITY_CHECKS',
   EXPECTED_FUNDS = 'EXPECTED_FUNDS',
   CHARGE_HOSTING_FEES = 'CHARGE_HOSTING_FEES',
@@ -95,6 +102,7 @@ enum FEATURE {
   VENDORS = 'VENDORS',
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
   KYC = 'KYC',
+  PUBLIC_PROFILE = 'PUBLIC_PROFILE',
 }
 
 // features that can conditionally enabled/disabled based on subscription
@@ -114,6 +122,7 @@ export const CommercialFeatures = [
   FEATURE.UPDATES,
   FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS,
   FEATURE.RECEIVE_EXPENSES,
+  FEATURE.RECEIVE_GRANTS,
   FEATURE.ACCOUNT_MANAGEMENT,
   FEATURE.OFF_PLATFORM_TRANSACTIONS,
 ] as const;
@@ -188,6 +197,10 @@ export const FeatureDetails: Record<CommercialFeaturesType, { label: string; doc
     label: 'Receive Expenses',
     documentationUrl:
       'https://documentation.opencollective.com/fiscal-hosts/expense-payment/paying-expenses-as-a-fiscal-host',
+  },
+  RECEIVE_GRANTS: {
+    label: 'Receive Grants',
+    documentationUrl: 'https://documentation.opencollective.com/fiscal-hosts/funds-and-grants/grants',
   },
   ACCOUNT_MANAGEMENT: {
     label: 'Account Management',

@@ -9,6 +9,7 @@ import { TransactionTypes } from '../../../server/constants/transactions';
 import {
   getBalances,
   getCurrentCollectiveBalances,
+  getHistoricalCollectiveBalances,
   getTotalMoneyManagedAmount,
   getYearlyBudgets,
   sumCollectivesTransactions,
@@ -368,6 +369,147 @@ describe('server/lib/budget', () => {
       });
       expect(balances[collective.id].value).to.eq(140e2);
       expect(balances[otherCollective.id].value).to.eq(130e2);
+    });
+  });
+
+  describe('getHistoricalCollectiveBalances', () => {
+    let collective, sandbox;
+
+    beforeEach(async () => {
+      await resetTestDB();
+      collective = await fakeCollective();
+    });
+
+    before(async () => {
+      sandbox = createSandbox();
+      sandbox.stub(libcurrency, 'getFxRate').withArgs('USD', 'USD').resolves(1);
+    });
+
+    after(() => {
+      sandbox.restore();
+    });
+
+    it('returns balance at a specific point in time using materialized view', async () => {
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 1000 * 60 * 60);
+      const twoHoursAgo = new Date(now.getTime() - 1000 * 60 * 60 * 2);
+      const threeHoursAgo = new Date(now.getTime() - 1000 * 60 * 60 * 3);
+
+      // Transaction 1: 3 hours ago - $20
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 20e2,
+          currency: 'USD',
+          createdAt: threeHoursAgo,
+        },
+        { createDoubleEntry: true },
+      );
+
+      // Transaction 2: 2 hours ago - $30 (cumulative: $50)
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 30e2,
+          currency: 'USD',
+          createdAt: twoHoursAgo,
+        },
+        { createDoubleEntry: true },
+      );
+
+      // Refresh materialized views
+      await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+      await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+      // Transaction 3: 1 hour ago - $50 (cumulative: $100)
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 50e2,
+          currency: 'USD',
+          createdAt: oneHourAgo,
+        },
+        { createDoubleEntry: true },
+      );
+
+      // Query balance as of 90 minutes ago (should only include first two transactions: $50)
+      const ninetyMinutesAgo = new Date(now.getTime() - 1000 * 60 * 90);
+      const historicalBalances = await getHistoricalCollectiveBalances([collective.id], ninetyMinutesAgo);
+
+      expect(historicalBalances[collective.id]).to.exist;
+      expect(historicalBalances[collective.id].value).to.eq(50e2);
+      expect(historicalBalances[collective.id].currency).to.eq('USD');
+    });
+
+    it('returns empty result when no transactions before endDate', async () => {
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 1000 * 60 * 60);
+
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 20e2,
+          currency: 'USD',
+          createdAt: now,
+        },
+        { createDoubleEntry: true },
+      );
+
+      await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+      await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+      // Query balance before any transactions exist
+      const historicalBalances = await getHistoricalCollectiveBalances([collective.id], oneHourAgo);
+
+      expect(historicalBalances[collective.id]).to.not.exist;
+    });
+
+    it('works through getBalances with endDate parameter', async () => {
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 1000 * 60 * 60 * 2);
+      const threeHoursAgo = new Date(now.getTime() - 1000 * 60 * 60 * 3);
+
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 20e2,
+          currency: 'USD',
+          createdAt: threeHoursAgo,
+        },
+        { createDoubleEntry: true },
+      );
+
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 30e2,
+          currency: 'USD',
+          createdAt: twoHoursAgo,
+        },
+        { createDoubleEntry: true },
+      );
+
+      await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+      await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+
+      // getBalances should use the fast path when endDate is provided
+      const ninetyMinutesAgo = new Date(now.getTime() - 1000 * 60 * 150);
+      const balances = await getBalances([collective.id], { endDate: ninetyMinutesAgo });
+
+      expect(balances[collective.id]).to.exist;
+      expect(balances[collective.id].value).to.eq(20e2);
     });
   });
 });

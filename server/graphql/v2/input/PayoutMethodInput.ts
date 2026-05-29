@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { GraphQLCurrency } from '../enum/Currency';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
 
@@ -13,10 +14,16 @@ export const GraphQLPayoutMethodInput = new GraphQLInputObjectType({
     id: {
       type: GraphQLString,
       description: 'The unique identifier of the payout method',
+      deprecationReason: '2026-02-25: use publicId',
+    },
+    publicId: {
+      type: GraphQLString,
+      description: `The resource public id (ie: ${EntityShortIdPrefix.PayoutMethod}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The legacy identifier used in older systems',
+      deprecationReason: '2026-02-25: use publicId',
     },
     data: {
       type: GraphQLJSON,

@@ -1,3 +1,4 @@
+import config from 'config';
 import type Express from 'express';
 import { get } from 'lodash';
 import { QueryOptions, QueryTypes } from 'sequelize';
@@ -7,6 +8,7 @@ import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { getFeatureAccess, isFeatureBlockedForAccount } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
+import { getSupportedExpenseTypes } from '../../lib/expenses';
 import { Collective, sequelize } from '../../models';
 
 import { hasMultiCurrency } from './expenses';
@@ -52,6 +54,14 @@ export const checkReceiveFinancialContributions = async (collective, req, { igno
     return FEATURE_STATUS.UNSUPPORTED;
   } else if (isFeatureBlockedForAccount(collective, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)) {
     return FEATURE_STATUS.DISABLED;
+  }
+
+  // Check if contributions are disabled on the parent (for projects and events under a frozen parent)
+  if (collective.ParentCollectiveId) {
+    const parent = await req.loaders.Collective.byId.load(collective.ParentCollectiveId);
+    if (parent && isFeatureBlockedForAccount(parent, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)) {
+      return FEATURE_STATUS.DISABLED;
+    }
   }
 
   // Check if contributions are disabled at the host level
@@ -135,7 +145,7 @@ export const checkCanUsePaymentMethods = async collective => {
   }
 };
 
-const checkCanRequestVirtualCards = async (req: Express.Request, collective) => {
+export const checkCanRequestVirtualCards = async (req: Express.Request, collective) => {
   if (!collective.HostCollectiveId || !collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
   }
@@ -189,6 +199,30 @@ const checkMultiCurrencyExpense = async (collective, req: Express.Request): Prom
   return FEATURE_STATUS.AVAILABLE;
 };
 
+const checkCanReceiveGrants = async (collective, req: Express.Request) => {
+  const supportedTypes = await getSupportedExpenseTypes(collective, { loaders: req.loaders });
+  if (!supportedTypes.includes('GRANT')) {
+    return FEATURE_STATUS.DISABLED;
+  } else {
+    return checkIsActiveIfExistsInDB(
+      `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" = 'GRANT'`,
+      { replacements: { CollectiveId: collective.id } },
+    );
+  }
+};
+
+const checkCanReceiveExpenses = async (collective, req: Express.Request) => {
+  const supportedTypes = await getSupportedExpenseTypes(collective, { loaders: req.loaders });
+  if (!supportedTypes.includes('INVOICE') && !supportedTypes.includes('RECEIPT')) {
+    return FEATURE_STATUS.DISABLED;
+  } else {
+    return checkIsActiveIfExistsInDB(
+      `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" IN ('INVOICE', 'RECEIPT')`,
+      { replacements: { CollectiveId: collective.id } },
+    );
+  }
+};
+
 /**
  * Returns a resolved that will give the `FEATURE_STATUS` for the given collective/feature.
  */
@@ -197,6 +231,12 @@ export const getFeatureStatusResolver =
   async (collective: Collective, _, req): Promise<FEATURE_STATUS> => {
     if (!collective) {
       return FEATURE_STATUS.UNSUPPORTED;
+    }
+
+    // PAYPAL_CONNECT is a platform-level feature: check server config, ignore account settings
+    if (feature === FEATURE.PAYPAL_CONNECT) {
+      const clientId = config.paypal?.connect?.clientId;
+      return clientId ? FEATURE_STATUS.AVAILABLE : FEATURE_STATUS.DISABLED;
     }
 
     const { access } = await getFeatureAccess(collective, feature, { loaders: req?.loaders });
@@ -214,10 +254,9 @@ export const getFeatureStatusResolver =
       case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
         return checkReceiveFinancialContributions(collective, req);
       case FEATURE.RECEIVE_EXPENSES:
-        return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
-          { replacements: { CollectiveId: collective.id } },
-        );
+        return checkCanReceiveExpenses(collective, req);
+      case FEATURE.RECEIVE_GRANTS:
+        return checkCanReceiveGrants(collective, req);
       case FEATURE.MULTI_CURRENCY_EXPENSES:
         return checkMultiCurrencyExpense(collective, req);
       case FEATURE.UPDATES:

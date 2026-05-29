@@ -45,3 +45,6 @@ output/
 
 # Dev binaries
 scripts/dev/bin
+
+# Sentry Config File
+.sentryclirc

@@ -23,12 +23,7 @@ describe('platform constants', () => {
     sandbox.restore();
   });
 
-  it('platform collective id is same before migration cutoff', () => {
-    sandbox.useFakeTimers({ now: moment('2024-10-01T00:00:00Z').toDate(), toFake: ['Date'] });
-    expect(PlatformConstants.PlatformCollectiveId).to.equal(8686);
-  });
-
-  it('platform collective id is migrated after migration cutoff', () => {
+  it('platform collective id defaults to Ofitech', () => {
     sandbox.useFakeTimers({ now: moment('2024-10-01T00:00:01Z').toDate(), toFake: ['Date'] });
     expect(PlatformConstants.PlatformCollectiveId).to.equal(845576);
   });
@@ -92,20 +87,7 @@ describe('platform transactions', () => {
 
   [
     {
-      title: 'Platform tips uses current platform collective id before migration',
-      when: moment('2024-10-01T00:00:00Z').toDate(),
-      orderData: StripeOrderData,
-      expect(result: Awaited<ReturnType<typeof makeContribution>>) {
-        const platformTipTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.PLATFORM_TIP,
-        );
-        expect(platformTipTransaction).to.exist;
-        expect(platformTipTransaction.toAccount.legacyId).to.eql(8686);
-      },
-    },
-    {
-      title: 'Platform tip uses current platform collective id after migration',
-      when: moment('2024-10-01T00:00:01Z').toDate(),
+      title: 'Platform tip uses current platform collective id',
       orderData: StripeOrderData,
       expect(result: Awaited<ReturnType<typeof makeContribution>>) {
         const platformTipTransaction = result.data?.createOrder?.order?.transactions?.find(
@@ -116,26 +98,7 @@ describe('platform transactions', () => {
       },
     },
     {
-      title: 'Platform tip debt uses current platform collective id before migration',
-      when: moment('2024-10-01T00:00:00Z').toDate(),
-      orderData: PaypalOrderData,
-      expect(result: Awaited<ReturnType<typeof makeContribution>>) {
-        const platformTipTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.PLATFORM_TIP,
-        );
-        expect(platformTipTransaction).to.exist;
-        expect(platformTipTransaction.toAccount.legacyId).to.eql(8686);
-
-        const platformTipDebtTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.PLATFORM_TIP_DEBT,
-        );
-        expect(platformTipDebtTransaction).to.exist;
-        expect(platformTipDebtTransaction.fromAccount.legacyId).to.eql(8686);
-      },
-    },
-    {
-      title: 'Platform tip debt uses current platform collective id after migration',
-      when: moment('2024-10-01T00:00:01Z').toDate(),
+      title: 'Platform tip debt uses current platform collective id',
       orderData: PaypalOrderData,
       expect(result: Awaited<ReturnType<typeof makeContribution>>) {
         const platformTipTransaction = result.data?.createOrder?.order?.transactions?.find(
@@ -152,29 +115,7 @@ describe('platform transactions', () => {
       },
     },
     {
-      title: 'Platform share uses current platform collective id before migration',
-      when: moment('2024-10-01T00:00:00Z').toDate(),
-      hostParams: {
-        hostFeePercent: 20,
-        data: {
-          hostFeeSharePercent: 10,
-          plan: {
-            platformTips: true,
-          },
-        },
-      } satisfies Parameters<typeof makeContribution>[0],
-      orderData: StripeOrderData,
-      expect(result: Awaited<ReturnType<typeof makeContribution>>) {
-        const hostFeeShareTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE,
-        );
-        expect(hostFeeShareTransaction).to.exist;
-        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(8686);
-      },
-    },
-    {
-      title: 'Platform share uses current platform collective id after migration',
-      when: moment('2024-10-01T00:00:01Z').toDate(),
+      title: 'Platform share uses current platform collective id',
       hostParams: {
         hostFeePercent: 20,
         data: {
@@ -194,35 +135,7 @@ describe('platform transactions', () => {
       },
     },
     {
-      title: 'Platform share debt uses current platform collective id before migration',
-      when: moment('2024-10-01T00:00:00Z').toDate(),
-      hostParams: {
-        hostFeePercent: 20,
-        data: {
-          hostFeeSharePercent: 10,
-          plan: {
-            platformTips: true,
-          },
-        },
-      } satisfies Parameters<typeof makeContribution>[0],
-      orderData: PaypalOrderData,
-      expect(result: Awaited<ReturnType<typeof makeContribution>>) {
-        const hostFeeShareTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE,
-        );
-        expect(hostFeeShareTransaction).to.exist;
-        expect(hostFeeShareTransaction.toAccount.legacyId).to.eql(8686);
-
-        const hostFeeShareDebtTransaction = result.data?.createOrder?.order?.transactions?.find(
-          txn => txn.type === TransactionTypes.CREDIT && txn.kind === TransactionKind.HOST_FEE_SHARE_DEBT,
-        );
-        expect(hostFeeShareDebtTransaction).to.exist;
-        expect(hostFeeShareDebtTransaction.fromAccount.legacyId).to.eql(8686);
-      },
-    },
-    {
-      title: 'Platform share debt uses current platform collective id after migration',
-      when: moment('2024-10-01T00:00:01Z').toDate(),
+      title: 'Platform share debt uses current platform collective id',
       hostParams: {
         hostFeePercent: 20,
         data: {
@@ -249,8 +162,6 @@ describe('platform transactions', () => {
     },
   ].map(tc =>
     ('only' in tc && tc.only ? it.only : it)(tc.title, async () => {
-      sandbox.useFakeTimers({ now: tc.when, toFake: ['Date'] });
-
       const result = await makeContribution(
         {
           data: {

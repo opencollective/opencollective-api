@@ -44,6 +44,8 @@ const FeaturesAccess: Partial<
       flagOverride?: string;
       /** If the feature is available in a specific country, this defines the country code */
       countries?: string[];
+      /** If set to true, only public accounts will have access to the feature */
+      onlyPublicAccounts?: boolean;
     }
   >
 > = {
@@ -64,10 +66,12 @@ const FeaturesAccess: Partial<
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.PROJECT],
     optIn: true,
     flagOverride: 'settings.collectivePage.showGoals',
+    onlyPublicAccounts: true,
   },
   [FEATURE.CONTACT_FORM]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     flagOverride: 'settings.features.contactForm',
+    onlyPublicAccounts: true,
     accountTypes: [
       CollectiveType.COLLECTIVE,
       CollectiveType.EVENT,
@@ -78,6 +82,11 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.CONVERSATIONS]: {
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION],
+    onlyPublicAccounts: true,
+  },
+  [FEATURE.EMIT_GIFT_CARDS]: {
+    accountTypes: [CollectiveType.ORGANIZATION],
+    onlyPublicAccounts: true,
   },
   [FEATURE.EVENTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
@@ -116,6 +125,7 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
     optIn: true,
     flagOverride: 'settings.features.paypalDonations',
+    onlyPublicAccounts: true,
   },
   [FEATURE.PAYPAL_PAYOUTS]: {
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.ACTIVE_ORGANIZATIONS, FEATURE_ACCESS_PARTY.INDEPENDENT_COLLECTIVES],
@@ -126,6 +136,17 @@ const FeaturesAccess: Partial<
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
     accountTypes: [CollectiveType.FUND, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
   },
+  [FEATURE.PUBLIC_PROFILE]: {
+    onlyPublicAccounts: true,
+    accountTypes: [
+      CollectiveType.COLLECTIVE,
+      CollectiveType.ORGANIZATION,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+      CollectiveType.USER,
+    ],
+  },
   [FEATURE.RECEIVE_EXPENSES]: {
     accountTypes: [
       CollectiveType.ORGANIZATION,
@@ -135,7 +156,17 @@ const FeaturesAccess: Partial<
       CollectiveType.PROJECT,
     ],
   },
+  [FEATURE.RECEIVE_GRANTS]: {
+    accountTypes: [
+      CollectiveType.ORGANIZATION,
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.FUND,
+      CollectiveType.PROJECT,
+    ],
+  },
   [FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS]: {
+    onlyPublicAccounts: true,
     accountTypes: [
       CollectiveType.ORGANIZATION,
       CollectiveType.COLLECTIVE,
@@ -145,14 +176,17 @@ const FeaturesAccess: Partial<
     ],
   },
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: {
+    onlyPublicAccounts: true,
     onlyAllowedFor: FEATURE_ACCESS_PARTY.HOSTS,
     optIn: true,
     flagOverride: 'settings.apply',
   },
   [FEATURE.RECURRING_CONTRIBUTIONS]: {
+    onlyPublicAccounts: true,
     accountTypes: [CollectiveType.USER, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE, CollectiveType.FUND],
   },
   [FEATURE.STRIPE_PAYMENT_INTENT]: {
+    onlyPublicAccounts: true,
     optIn: true,
     flagOverride: 'settings.features.stripePaymentIntent',
   },
@@ -160,6 +194,7 @@ const FeaturesAccess: Partial<
     accountTypes: MULTI_ADMIN_ACCOUNT_TYPES,
   },
   [FEATURE.TOP_FINANCIAL_CONTRIBUTORS]: {
+    onlyPublicAccounts: true,
     accountTypes: [CollectiveType.COLLECTIVE, CollectiveType.ORGANIZATION, CollectiveType.FUND],
   },
   [FEATURE.TRANSFERWISE]: {
@@ -167,6 +202,7 @@ const FeaturesAccess: Partial<
     flagOverride: 'settings.features.transferwise',
   },
   [FEATURE.UPDATES]: {
+    onlyPublicAccounts: true,
     accountTypes: [
       CollectiveType.COLLECTIVE,
       CollectiveType.ORGANIZATION,
@@ -188,6 +224,14 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.KYC]: {
     accountTypes: [CollectiveType.ORGANIZATION],
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
+    optIn: true,
+  },
+  [FEATURE.ACCOUNTING_CATEGORIZATION_RULES]: {
+    onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
+    optIn: true,
+  },
+  [FEATURE.HOST_METRICS]: {
     onlyAllowedFor: [FEATURE_ACCESS_PARTY.FIRST_PARTY_HOSTS, FEATURE_ACCESS_PARTY.PLATFORM_ACCOUNTS],
     optIn: true,
   },
@@ -315,6 +359,11 @@ export const getFeatureAccess = async (
   // Enforce feature config
   const featureAccess = FeaturesAccess[feature];
   if (featureAccess) {
+    // Private accounts
+    if (featureAccess.onlyPublicAccounts && collective.isPrivate) {
+      return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };
+    }
+
     // Account types
     if (featureAccess.accountTypes && !featureAccess.accountTypes.includes(collective.type)) {
       return { access: 'UNSUPPORTED', reason: 'ACCOUNT_TYPE' };

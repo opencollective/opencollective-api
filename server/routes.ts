@@ -30,6 +30,7 @@ import expressLimiter from './lib/express-limiter';
 import logger from './lib/logger';
 import { withTiming } from './lib/middleware-timing';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
+import { handlePermalink } from './lib/permalink/handler';
 import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { checkIfSentryConfigured } from './lib/sentry/init';
@@ -38,6 +39,7 @@ import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error-handler';
 import required from './middleware/required-param';
 import sanitizer from './middleware/sanitizer';
+import paypal from './paymentProviders/paypal';
 
 const upload = multer();
 
@@ -97,7 +99,7 @@ export default async (app: express.Application) => {
   const redisClient = await createRedisClient(RedisInstanceType.DEFAULT);
   if (redisClient) {
     const expressLimiterOptions = {
-      lookup: function (req, res, opts, next) {
+      lookup: function (req: express.Request, res: express.Response, opts, next: express.NextFunction) {
         if (req.personalToken) {
           opts.lookup = 'personalToken.id';
           // 100 requests / minute for registered API Key
@@ -116,12 +118,12 @@ export default async (app: express.Application) => {
         }
         return next();
       },
-      whitelist: function (req) {
-        const apiKey = req.query.api_key || req.body.api_key;
+      whitelist: function (req: express.Request) {
+        const apiKey = req.query.api_key || req.body?.api_key;
         // No limit with internal API Key
         return apiKey === config.keys.opencollective.apiKey;
       },
-      onRateLimited: function (req, res) {
+      onRateLimited: function (req: express.Request, res: express.Response) {
         let message;
         if (req.personalToken) {
           message = 'Rate limit exceeded. Contact-us to get higher limits.';
@@ -163,6 +165,9 @@ export default async (app: express.Application) => {
       }),
     );
   }
+
+  app.get('/id/:id', withTiming('handlePermalink', handlePermalink));
+  app.get('/permalink/:id', withTiming('handlePermalink', handlePermalink));
 
   /**
    * GraphQL scope
@@ -226,7 +231,7 @@ export default async (app: express.Application) => {
       onReject: [getGraphQLComplexityRejectionLogger('costLimit')],
       ignoreIntrospection: true,
       propagateOnRejection: parseToBoolean(config.graphql.rejectOnMaxComplexity),
-      maxCost: 130_000, // Currently identified max: around 125899 on the "ExpenseFormSchema" mutation
+      maxCost: 150_000, // Currently identified max: around 131214 on the "ExpenseFormSchema" mutation
     },
     // Tokens are the number of fields in a query
     maxTokens: {
@@ -339,18 +344,34 @@ export default async (app: express.Application) => {
   app.use('/graphql', expressMiddleware(graphqlServerV2, apolloExpressMiddlewareOptions));
 
   /**
+   * Generic OAuth (ConnectedAccounts)
+   * To keep in sync with opencollective-frontend/pages/api/connected-accounts/[service]/oauthUrl.js
+   */
+  const oauthServiceAllowlist = new Set(['github', 'stripe', 'transferwise', 'paypal']);
+
+  /**
    * Webhooks that should bypass api key check
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
   app.post('/webhooks/plaid', plaidWebhook);
-  app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
+  app.get('/connected-accounts/:service/callback', noCache, (req, res, next) => {
+    if (!oauthServiceAllowlist.has(req.params.service)) {
+      return next(new errors.NotFound('Service not supported'));
+    }
+    return authentication.authenticateServiceCallback(req, res, next);
+  }); // oauth callback
   app.delete(
     '/connected-accounts/:service/disconnect/:collectiveId',
     noCache,
     authentication.authenticateServiceDisconnect,
   );
+
+  /** Returns the PayPal Connect client ID when configured on this platform (used to initialize the SDK button) */
+  app.get('/connected-accounts/paypal/connect-config', noCache, paypal.oauth.connectConfig);
+  /** PayPal Connect JSON endpoint (used by the PayPal SDK button in the expense form) */
+  app.post('/connected-accounts/paypal/connect', noCache, paypal.oauth.connect);
 
   /**
    * Contact Form
@@ -370,11 +391,6 @@ export default async (app: express.Application) => {
    * Separate route for uploading images to S3
    */
   app.post('/images', upload.single('file'), uploadImage);
-
-  /**
-   * Generic OAuth (ConnectedAccounts)
-   */
-  const oauthServiceAllowlist = new Set(['github', 'stripe', 'paypal', 'transferwise']);
 
   // backward compatibility
   app.get('/connected-accounts/:service', noCache, (req, res, next) => {

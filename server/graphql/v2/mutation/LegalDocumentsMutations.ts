@@ -12,6 +12,7 @@ import FEATURE from '../../../constants/feature';
 import { checkFeatureAccess } from '../../../lib/allowed-features';
 import { notify } from '../../../lib/notifications/email';
 import { getUSTaxFormPdf } from '../../../lib/pdf';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import { encryptAndUploadTaxFormToS3 } from '../../../lib/tax-forms';
 import { Activity, LegalDocument, UploadedFile } from '../../../models';
@@ -195,7 +196,10 @@ export const legalDocumentsMutations = {
     ) => {
       checkRemoteUserCanUseHost(req);
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
-      const decodedDocumentId = idDecode(args.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
+      const decodedDocumentId = isEntityPublicId(args.id, EntityShortIdPrefix.LegalDocument)
+        ? await req.loaders.LegalDocument.idByPublicId.load(args.id)
+        : idDecode(args.id, IDENTIFIER_TYPES.LEGAL_DOCUMENT);
+
       const legalDocument = await LegalDocument.findByPk(decodedDocumentId, {
         include: [{ association: 'collective', required: true }],
       });

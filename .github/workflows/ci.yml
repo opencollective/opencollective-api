@@ -207,7 +207,8 @@ jobs:
     runs-on: ubuntu-24.04
 
     timeout-minutes: 30
-
+    env:
+      PG_DATABASE: opencollective_test
     services:
       redis:
         image: redis
@@ -215,7 +216,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.11
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -253,13 +254,12 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: npm run db:restore:test
 
       - run: npm run test:coverage -- --ignore "test/server/graphql/**"
 
       - name: Report coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: Unit
@@ -275,6 +275,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
+    env:
+      PG_DATABASE: opencollective_test
+
     services:
       redis:
         image: redis
@@ -282,7 +285,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.11
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -332,14 +335,13 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:restore
-      - run: npm run db:migrate
+      - run: npm run db:restore:test
 
       - run: npm run test:coverage test/server/graphql
 
       - name: Report coverage
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: GraphQL
@@ -361,7 +363,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.11
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -403,7 +405,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.11
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres

@@ -1,16 +1,19 @@
 import config from 'config';
 import { pick } from 'lodash';
 import moment from 'moment';
+import { NonAttribute } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { activities } from '../constants';
 import expenseStatus from '../constants/expense-status';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { reportErrorToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 
 import Collective from './Collective';
 import Expense from './Expense';
 import ExpenseItem from './ExpenseItem';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import User from './User';
 
 export enum RecurringExpenseIntervals {
@@ -31,17 +34,26 @@ interface RecurringExpenseAttributes {
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date;
+  publicId: string;
 }
 
 type RecurringExpenseCreateAttributes =
   | Required<Pick<RecurringExpenseAttributes, 'interval' | 'CollectiveId' | 'FromCollectiveId'>>
   | Pick<RecurringExpenseAttributes, 'endsAt' | 'lastDraftedAt'>;
 
-class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
+class RecurringExpense extends ModelWithPublicId<
+  EntityShortIdPrefix.RecurringExpense,
+  RecurringExpenseAttributes,
+  RecurringExpenseCreateAttributes
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.RecurringExpense;
+  public static readonly tableName = 'RecurringExpenses' as const;
+
   declare public id: number;
   declare public interval: string;
   declare public CollectiveId: number;
   declare public FromCollectiveId: number;
+  declare public fromCollective?: NonAttribute<Collective>;
   declare public lastDraftedAt: Date;
   declare public endsAt: Date;
   declare public createdAt: Date;
@@ -169,6 +181,10 @@ RecurringExpense.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     createdAt: {
       type: DataTypes.DATE,

@@ -12,7 +12,7 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
 <center>
   <h3>{{> greeting}}</h3>
   <p>
-    Your expense, <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>, submitted to {{> linkCollective collective=collective}} on {{moment expense.createdAt}} has been paid.
+    Your expense, <b><a href="{{permalink expense}}">{{expense.description}}</a></b>, submitted to {{> linkCollective collective=collective}} on {{moment expense.createdAt}} has been paid.
     {{#if expense.payoutMethod}}
       {{#ifCond expense.payoutMethod.type '===' 'BANK_ACCOUNT'}}
         The money can take a few days to arrive, depending on the bank.
@@ -21,8 +21,8 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
       The money can take a few days to arrive, depending on the payment processor.
     {{/if}}
   </p>
-  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}} {{#ifCond transaction.hostCurrency '!==' expense.currency}}({{currency amountInHostCurrency currency=transaction.hostCurrency}}){{/ifCond}}</a></h2>
-  <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{transaction.description}}</a></div>
+  <h2><a href="{{permalink expense}}">{{currency expense.amount currency=expense.currency}} {{#ifCond transaction.hostCurrency '!==' expense.currency}}({{currency amountInHostCurrency currency=transaction.hostCurrency}}){{/ifCond}}</a></h2>
+  <div><a href="{{permalink expense}}">{{transaction.description}}</a></div>
   <table>
     <tr>
       <th>Payee:</th><td>{{fromCollective.name}}</td>
@@ -35,7 +35,7 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
   <br /><br />
 
     <center>
-      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+      <a href="{{permalink expense}}" class="btn blue">
         <div>View Expense</div>
       </a>
     </center>

@@ -12,7 +12,6 @@ import { decodeAttestationObject } from '@simplewebauthn/server/helpers';
 import config from 'config';
 
 import { ApolloError } from '../../graphql/errors';
-import { idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import User from '../../models/User';
 import UserTwoFactorMethod, { UserTwoFactorMethodWebAuthnData } from '../../models/UserTwoFactorMethod';
 import { TOKEN_EXPIRATION_2FA } from '../auth';
@@ -71,7 +70,7 @@ export async function generateRegistrationOptions(user: User, req): Promise<Publ
   const options = await simplewebauthn.generateRegistrationOptions({
     rpName: config.webauthn.rpName,
     rpID: config.webauthn.rpId,
-    userID: new Uint8Array(Buffer.from(idEncode(user.id, IDENTIFIER_TYPES.USER))),
+    userID: new Uint8Array(Buffer.from(user.publicId)),
     userName: collective.slug,
     userDisplayName: collective.name,
     attestationType: 'direct',

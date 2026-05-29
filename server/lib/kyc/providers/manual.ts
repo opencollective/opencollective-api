@@ -1,9 +1,15 @@
 import { KYCVerification, KYCVerificationStatus } from '../../../models/KYCVerification';
 
-import { KYCProvider, KYCRequest } from './base';
+import { KYCProvider, KYCRequest, ProviderKYCRequestBase } from './base';
 import { KYCProviderName } from '.';
 
-type ManualKYCRequest = {
+type ManualKYCRequest = ProviderKYCRequestBase & {
+  legalName?: string;
+  legalAddress?: string;
+  notes?: string;
+};
+
+type ManualKYCSubmit = ProviderKYCRequestBase & {
   legalName: string;
   legalAddress?: string;
   notes?: string;
@@ -11,16 +17,16 @@ type ManualKYCRequest = {
 
 type ManualKYCVerification = KYCVerification<KYCProviderName.MANUAL>;
 
-class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerification> {
+class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCSubmit, ManualKYCVerification> {
   constructor() {
     super(KYCProviderName.MANUAL);
   }
 
-  async request(req: KYCRequest, providerRequest: ManualKYCRequest): Promise<ManualKYCVerification> {
+  async requestVerification(params: KYCRequest, manualParams: ManualKYCRequest): Promise<ManualKYCVerification> {
     const existing = await KYCVerification.findOne({
       where: {
-        CollectiveId: req.CollectiveId,
-        RequestedByCollectiveId: req.RequestedByCollectiveId,
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
         provider: this.providerName,
         status: KYCVerificationStatus.VERIFIED,
       },
@@ -30,25 +36,92 @@ class ManualKYCProvider extends KYCProvider<ManualKYCRequest, ManualKYCVerificat
       throw new Error(`Account already verified with this KYC provider`);
     }
 
-    const kycVerification = await KYCVerification.create<ManualKYCVerification>({
-      CollectiveId: req.CollectiveId,
-      RequestedByCollectiveId: req.RequestedByCollectiveId,
-      CreatedByUserId: req.CreatedByUserId,
-      providerData: {
-        notes: providerRequest.notes ?? '',
+    const existingPending = await KYCVerification.findOne({
+      where: {
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
+        provider: this.providerName,
+        status: KYCVerificationStatus.PENDING,
       },
-      data: {
-        legalName: providerRequest.legalName,
-        ...(providerRequest.legalAddress ? { legalAddress: providerRequest.legalAddress } : {}),
-      },
-      provider: this.providerName,
-      status: KYCVerificationStatus.VERIFIED,
-      verifiedAt: new Date(),
     });
 
-    await this.createRequestedActivity(kycVerification, req.UserTokenId);
+    if (existingPending && !manualParams.legalName) {
+      throw new Error(`Account already has a pending KYC verification`);
+    }
+
+    const kycVerification = await KYCVerification.create<ManualKYCVerification>({
+      CollectiveId: params.CollectiveId,
+      RequestedByCollectiveId: params.RequestedByCollectiveId,
+      CreatedByUserId: params.CreatedByUserId,
+      providerData: {
+        notes: manualParams.notes ?? '',
+      },
+      provider: this.providerName,
+      status: KYCVerificationStatus.PENDING,
+    });
+
+    await this.handleKycRequested(kycVerification, manualParams);
 
     return kycVerification;
+  }
+
+  async submitVerification(params: KYCRequest, manualParams: ManualKYCSubmit): Promise<ManualKYCVerification> {
+    const existing = await KYCVerification.findOne({
+      where: {
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
+        provider: this.providerName,
+        status: KYCVerificationStatus.VERIFIED,
+      },
+    });
+    if (existing) {
+      throw new Error(`Account already verified with this KYC provider`);
+    }
+
+    let verification = await KYCVerification.findOne({
+      where: {
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
+        provider: this.providerName,
+        status: KYCVerificationStatus.PENDING,
+      },
+    });
+
+    if (verification) {
+      await verification.update({
+        status: KYCVerificationStatus.VERIFIED,
+        verifiedAt: new Date(),
+        providerData: {
+          ...verification.providerData,
+          notes: (manualParams.notes || verification.providerData.notes) ?? '',
+        },
+        data: {
+          ...verification.data,
+          legalName: manualParams.legalName,
+          ...(manualParams.legalAddress ? { legalAddress: manualParams.legalAddress } : {}),
+        },
+      });
+    } else {
+      verification = await KYCVerification.create<ManualKYCVerification>({
+        CollectiveId: params.CollectiveId,
+        RequestedByCollectiveId: params.RequestedByCollectiveId,
+        CreatedByUserId: params.CreatedByUserId,
+        providerData: {
+          notes: manualParams.notes ?? '',
+        },
+        data: {
+          legalName: manualParams.legalName,
+          ...(manualParams.legalAddress ? { legalAddress: manualParams.legalAddress } : {}),
+        },
+        provider: this.providerName,
+        status: KYCVerificationStatus.VERIFIED,
+        verifiedAt: new Date(),
+      });
+    }
+
+    await this.handleKycVerified(verification);
+
+    return verification;
   }
 }
 

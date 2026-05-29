@@ -1,0 +1,57 @@
+{
+  "name": "Open Collective API",
+  "dockerComposeFile": [
+    "../docker-compose/node.yml", // Shell for VSCode terminal
+    "../docker-compose/db.yml",
+    "../docker-compose/mail.yml",
+    "../docker-compose/uploads.yml"
+  ],
+  "service": "dev",
+  "containerEnv": {
+    "PG_HOST": "postgres",
+    "MAILPIT_HOST": "mailpit",
+    "AWS_S3_ENDPOINT": "http://minio:9000"
+  },
+  // Features to add to the dev container. More info: https://containers.dev/features.
+  "features": {
+    "ghcr.io/robbert229/devcontainer-features/postgresql-client:1": {
+      "version": "16"
+    }
+  },
+  // Extensions
+  "customizations": {
+    "vscode": {
+      "extensions": ["esbenp.prettier-vscode", "dbaeumer.vscode-eslint", "thebearingedge.vscode-sql-lit"]
+    }
+  },
+  "portsAttributes": {
+    "3060": {
+      "label": "API",
+      "onAutoForward": "notify",
+      "requireLocalPort": true
+    },
+    "5432": {
+      "label": "Postgres",
+      "onAutoForward": "silent",
+      "requireLocalPort": true
+    },
+    "1080": {
+      "label": "Mailpit",
+      "onAutoForward": "silent",
+      "requireLocalPort": true
+    },
+    "9000": {
+      "label": "MinIO",
+      "onAutoForward": "silent",
+      "requireLocalPort": true
+    },
+    "9001": {
+      "label": "MinIO Console",
+      "onAutoForward": "silent",
+      "requireLocalPort": true
+    }
+  },
+  "postCreateCommand": "npm install",
+  "postStartCommand": "npm run dev",
+  "remoteUser": "node"
+}

@@ -10,6 +10,12 @@ import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { checkCanEmitGiftCards } from '../common/features';
 import { editPublicMessage } from '../common/members';
+import {
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseOrders,
+  checkRemoteUserCanUseWebhooks,
+} from '../common/scope-check';
 import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../errors';
 
@@ -44,6 +50,9 @@ const mutations = {
       collective: { type: new GraphQLNonNull(CollectiveInputType) },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req, {
+        signedOutMessage: 'You need to be logged in to create a collective',
+      });
       return createCollective(_, args, req);
     },
   },
@@ -53,6 +62,7 @@ const mutations = {
     args: {
       collective: { type: new GraphQLNonNull(CollectiveInputType) },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- deprecated mutation only available in test environments
     resolve(_, args, req) {
       return createCollectiveFromGithub(_, args, req);
     },
@@ -63,6 +73,9 @@ const mutations = {
       collective: { type: new GraphQLNonNull(CollectiveInputType) },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req, {
+        signedOutMessage: 'You need to be logged in to edit a collective',
+      });
       return editCollective(_, args, req);
     },
   },
@@ -72,6 +85,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
       return deleteCollective(_, args, req);
     },
   },
@@ -81,6 +95,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
       return deleteCollective(_, args, req);
     },
   },
@@ -90,6 +105,9 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req, {
+        signedOutMessage: 'You need to be logged in to archive a collective',
+      });
       return archiveCollective(_, args, req);
     },
   },
@@ -99,6 +117,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
       return unarchiveCollective(_, args, req);
     },
   },
@@ -144,6 +163,7 @@ const mutations = {
         description: 'Captcha verification data',
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- public mutation for account creation, no token scope required
     async resolve(_, args, req) {
       const { remoteUser } = req;
       const rateLimitKey = remoteUser ? `user_create_${remoteUser.id}` : `user_create_ip_${req.ip}`;
@@ -186,6 +206,7 @@ const mutations = {
       },
     },
     resolve: async (_, { email }, req) => {
+      checkRemoteUserCanUseAccount(req);
       await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
       return updateUserEmail(req.remoteUser, email);
     },
@@ -199,6 +220,7 @@ const mutations = {
       members: { type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(MemberInputType))) },
     },
     async resolve(_, args, req) {
+      checkRemoteUserCanUseAccount(req);
       const collective = await req.loaders.Collective.byId.load(args.collectiveId);
       if (!collective) {
         throw new NotFound();
@@ -237,6 +259,7 @@ const mutations = {
       data: { type: new GraphQLNonNull(StripeCreditCardDataInputType) },
     },
     resolve: async (_, args, req) => {
+      checkRemoteUserCanUseOrders(req);
       return paymentMethodsMutation.replaceCreditCard(args, req);
     },
   },
@@ -289,6 +312,7 @@ const mutations = {
       expiryDate: { type: GraphQLString },
     },
     resolve: async (_, { emails, numberOfGiftCards, ...args }, req) => {
+      checkRemoteUserCanUseHost(req);
       if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
         throw Error("numberOfGiftCards and emails counts doesn't match");
       } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
@@ -334,6 +358,7 @@ const mutations = {
       code: { type: new GraphQLNonNull(GraphQLString) },
       user: { type: UserInputType },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- public mutation for claiming gift cards, usable without authentication
     resolve: async (_, args, req) => paymentMethodsMutation.claimPaymentMethod(args, req),
   },
   editWebhooks: {
@@ -350,6 +375,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseWebhooks(req);
       return editWebhooks(args, req);
     },
   },
@@ -363,6 +389,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseHost(req);
       return activateCollectiveAsHost(_, args, req);
     },
   },
@@ -376,6 +403,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
+      checkRemoteUserCanUseHost(req);
       return deactivateCollectiveAsHost(_, args, req);
     },
   },

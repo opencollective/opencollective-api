@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { shuffle, times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
@@ -18,6 +19,7 @@ import {
   fakeVendor,
   multiple,
 } from '../../../../test-helpers/fake-data';
+import { createPrivateAccountFixture } from '../../../../test-helpers/private-account-fixture';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const accountQuery = gql`
@@ -124,11 +126,36 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     });
   });
 
+  describe('publicId', () => {
+    it('can fetch an account by publicId', async () => {
+      const user = await fakeUser({}, { legalName: 'PRIVATE!' });
+      const publicId = `${EntityShortIdPrefix.Collective}_${user.collective.id}`;
+      await user.collective.update({ publicId });
+
+      const accountByIdQuery = gql`
+        query AccountById($id: String!) {
+          account(id: $id) {
+            id
+            legacyId
+            slug
+          }
+        }
+      `;
+
+      const result = await graphqlQueryV2(accountByIdQuery, { id: publicId }, user);
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.account.legacyId).to.eq(user.collective.id);
+      expect(result.data.account.slug).to.eq(user.collective.slug);
+    });
+  });
+
   describe('location', () => {
     it('is public for host accounts', async () => {
       const hostAdminUser = await fakeUser();
       const randomUser = await fakeUser();
-      const host = await fakeHost({ location: { address: 'PUBLIC!' }, admin: hostAdminUser });
+      const host = await fakeHost({ hasHosting: true, location: { address: 'PUBLIC!' }, admin: hostAdminUser });
       const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: host.slug });
       const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: host.slug }, randomUser);
       const resultHostAdmin = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdminUser);
@@ -242,6 +269,47 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
         expect(resultUnauthenticated.data.account.memberOf.totalCount).to.eq(0);
         expect(resultAsAnotherUser.data.account.memberOf.totalCount).to.eq(0);
+      });
+    });
+
+    describe('with private accounts', () => {
+      let ctx;
+
+      before(async () => {
+        ctx = await createPrivateAccountFixture();
+      });
+
+      it("does not expose private collectives in a user's memberOf list for random viewers", async () => {
+        const result = await graphqlQueryV2(
+          accountQuery,
+          { slug: ctx.privateCollectiveAdmin.collective.slug },
+          ctx.randomUser,
+        );
+        expect(result.errors).to.be.undefined;
+        const accounts = result.data.account.memberOf.nodes.map(n => n.account.slug);
+        expect(accounts).to.not.include(ctx.privateCollective.slug);
+      });
+
+      it('shows private collectives in memberOf for admins of the private account', async () => {
+        const result = await graphqlQueryV2(
+          accountQuery,
+          { slug: ctx.privateCollectiveAdmin.collective.slug },
+          ctx.privateCollectiveAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        const accounts = result.data.account.memberOf.nodes.map(n => n.account.slug);
+        expect(accounts).to.include(ctx.privateCollective.slug);
+      });
+
+      it('shows private collectives in memberOf for root admins', async () => {
+        const result = await graphqlQueryV2(
+          accountQuery,
+          { slug: ctx.privateCollectiveAdmin.collective.slug },
+          ctx.rootAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        const accounts = result.data.account.memberOf.nodes.map(n => n.account.slug);
+        expect(accounts).to.include(ctx.privateCollective.slug);
       });
     });
   });
@@ -763,6 +831,314 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         await collective.host.addUserWithRole(accountant, 'ACCOUNTANT');
         const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, accountant);
         expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
+      });
+    });
+  });
+
+  describe('private accounts', () => {
+    const privateAccountVisibilityQuery = gql`
+      query Account($slug: String!) {
+        account(slug: $slug) {
+          id
+          slug
+          name
+          description
+          members {
+            totalCount
+            nodes {
+              id
+            }
+          }
+          updates {
+            totalCount
+            nodes {
+              id
+            }
+          }
+          conversations {
+            totalCount
+            nodes {
+              id
+            }
+          }
+          expensesTags {
+            tag
+            count
+          }
+          conversationsTags {
+            tag
+            count
+          }
+        }
+      }
+    `;
+
+    const privateAccountTransactionsQuery = gql`
+      query Transactions($slug: String!) {
+        transactions(account: [{ slug: $slug }]) {
+          totalCount
+          nodes {
+            id
+          }
+        }
+      }
+    `;
+
+    const privateAccountOrdersQuery = gql`
+      query Orders($slug: String!) {
+        orders(account: { slug: $slug }) {
+          totalCount
+          nodes {
+            id
+          }
+        }
+      }
+    `;
+
+    const privateAccountExpensesQuery = gql`
+      query Expenses($slug: String!) {
+        expenses(account: { slug: $slug }) {
+          totalCount
+          nodes {
+            id
+          }
+        }
+      }
+    `;
+
+    function expectPrivateAccountForbiddenError(result) {
+      expect(result.errors, `Expected errors but got: ${JSON.stringify(result.data)}`).to.have.length.greaterThan(0);
+      const codes = result.errors.map(e => e.extensions?.code);
+      expect(codes).to.include('Forbidden');
+    }
+
+    let ctx;
+
+    before(async function () {
+      this.timeout(60_000);
+      await resetTestDB();
+      ctx = await createPrivateAccountFixture();
+    });
+
+    describe('account() query', () => {
+      it('returns Forbidden for unauthenticated users querying the private host', async () => {
+        const result = await graphqlQueryV2(privateAccountVisibilityQuery, { slug: ctx.privateHost.slug });
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('returns Forbidden for a random authenticated user', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateHost.slug },
+          ctx.randomUser,
+        );
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('returns Forbidden for unauthenticated users querying the private collective', async () => {
+        const result = await graphqlQueryV2(privateAccountVisibilityQuery, { slug: ctx.privateCollective.slug });
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('returns Forbidden for a collective admin of Collective A trying to access Collective B', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateCollectiveAdmin2,
+        );
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('allows access for a host admin', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateHostAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.slug).to.eq(ctx.privateCollective.slug);
+      });
+
+      it('allows access for a host accountant', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateHostAccountant,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.slug).to.eq(ctx.privateCollective.slug);
+      });
+
+      it('allows access for a collective admin', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateCollectiveAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.slug).to.eq(ctx.privateCollective.slug);
+      });
+
+      it('allows access for a collective accountant', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateCollectiveAccountant,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.slug).to.eq(ctx.privateCollective.slug);
+      });
+
+      it('allows access for root admin', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateHost.slug },
+          ctx.rootAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.slug).to.eq(ctx.privateHost.slug);
+      });
+
+      it('does not affect public accounts', async () => {
+        const result = await graphqlQueryV2(privateAccountVisibilityQuery, { slug: ctx.publicCollective.slug });
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.slug).to.eq(ctx.publicCollective.slug);
+      });
+    });
+
+    describe('account nested collections (defense-in-depth)', () => {
+      it('members: returns empty for unauthenticated viewers', async () => {
+        const result = await graphqlQueryV2(privateAccountVisibilityQuery, { slug: ctx.privateCollective.slug }, null);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('Forbidden');
+        expect(result.data.account).to.be.null;
+      });
+
+      it('members: returns empty for unauthorized viewers', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.randomUser,
+        );
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.eq('Forbidden');
+        expect(result.data.account).to.be.null;
+      });
+
+      it('updates: returns empty for unauthorized viewers via collective admin', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateCollectiveAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.updates.totalCount).to.be.gte(1);
+      });
+
+      it('conversations: returns empty for unauthorized viewers via host admin', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateHostAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.account.conversations.totalCount).to.be.gte(1);
+      });
+    });
+
+    describe('transactions() collection query', () => {
+      it('returns Forbidden when filtering by a private account for unauthenticated users', async () => {
+        const result = await graphqlQueryV2(privateAccountTransactionsQuery, { slug: ctx.privateCollective.slug });
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('returns Forbidden when filtering by a private account for random users', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountTransactionsQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.randomUser,
+        );
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('allows authorized users to query transactions by private account', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountTransactionsQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateHostAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+      });
+    });
+
+    describe('orders() collection query', () => {
+      it('returns Forbidden when filtering by a private account for unauthenticated users', async () => {
+        const result = await graphqlQueryV2(privateAccountOrdersQuery, { slug: ctx.privateCollective.slug });
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('returns Forbidden for random users', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountOrdersQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.randomUser,
+        );
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('allows authorized users to query orders', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountOrdersQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateCollectiveAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+      });
+    });
+
+    describe('expenses() collection query', () => {
+      it('returns Forbidden when filtering by a private account for unauthenticated users', async () => {
+        const result = await graphqlQueryV2(privateAccountExpensesQuery, { slug: ctx.privateCollective.slug });
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('returns Forbidden for random users', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountExpensesQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.randomUser,
+        );
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('allows authorized users to query expenses', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountExpensesQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateHostAccountant,
+        );
+        expect(result.errors).to.be.undefined;
+      });
+    });
+
+    describe('isPrivate inheritance', () => {
+      it('privateProject inherits isPrivate from its host', async () => {
+        const result = await graphqlQueryV2(privateAccountVisibilityQuery, { slug: ctx.privateProject.slug });
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('privateEvent inherits isPrivate from its host', async () => {
+        const result = await graphqlQueryV2(privateAccountVisibilityQuery, { slug: ctx.privateEvent.slug });
+        expectPrivateAccountForbiddenError(result);
+      });
+
+      it('a collective admin can access the private project', async () => {
+        const result = await graphqlQueryV2(
+          privateAccountVisibilityQuery,
+          { slug: ctx.privateProject.slug },
+          ctx.privateCollectiveAdmin,
+        );
+        expect(result.errors).to.be.undefined;
       });
     });
   });

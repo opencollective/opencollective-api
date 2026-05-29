@@ -6,6 +6,8 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import User from './User';
 
 class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationAttributes<EmojiReaction>> {
+  public static readonly tableName = 'EmojiReactions' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public UserId: ForeignKey<User['id']>;
   declare public FromCollectiveId: number;

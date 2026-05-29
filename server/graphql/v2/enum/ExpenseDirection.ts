@@ -2,7 +2,8 @@ import { GraphQLEnumType } from 'graphql';
 
 export const GraphQLExpenseDirection = new GraphQLEnumType({
   name: 'ExpenseDirection',
-  description: 'Describes the role in which an account is involved in an expense. This is used to filter',
+  description:
+    'Describes the role of the filtered account/host in an expense. Controls which side the account, accounts, and host/hostContext arguments apply to.',
   values: {
     SUBMITTED: {
       description: 'Submitted: The account is the one who submitted the expense and possibly the beneficiary.',

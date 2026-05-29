@@ -21,6 +21,7 @@
   },
   "database": {
     "url": "PG_URL",
+    "logQueryOrigin": "PG_LOG_QUERY_ORIGIN",
     "override": {
       "database": "PG_DATABASE",
       "username": "PG_USERNAME",
@@ -32,6 +33,9 @@
       "pool": {
         "min": "PG_MIN_CONNECTIONS",
         "max": "PG_MAX_CONNECTIONS"
+      },
+      "dialectOptions": {
+        "application_name": "PG_APPLICATION_NAME"
       }
     },
     "readOnly": "DATABASE_READ_ONLY"
@@ -80,6 +84,14 @@
     "slowMiddleware": "LOG_SLOW_MIDDLEWARE",
     "slowMiddlewareThreshold": "LOG_SLOW_MIDDLEWARE_THRESHOLD"
   },
+  "platform": {
+    "collectiveId": "OC_PLATFORM_COLLECTIVE_ID",
+    "userId": "OC_PLATFORM_USER_ID",
+    "currency": "OC_PLATFORM_CURRENCY",
+    "address": "OC_PLATFORM_ADDRESS",
+    "country": "OC_PLATFORM_COUNTRY",
+    "name": "OC_PLATFORM_NAME"
+  },
   "gocardless": {
     "secretId": "GOCARDLESS_SECRET_ID",
     "secretKey": "GOCARDLESS_SECRET_KEY"
@@ -120,16 +132,13 @@
     "enabled": "KLIPPA_ENABLED"
   },
   "paypal": {
-    "classic": {
-      "appId": "PAYPAL_APP_ID",
-      "userId": "PAYPAL_USER_ID",
-      "password": "PAYPAL_PASSWORD",
-      "signature": "PAYPAL_SIGNATURE"
-    },
     "payment": {
-      "environment": "PAYPAL_ENVIRONMENT",
+      "environment": "PAYPAL_ENVIRONMENT"
+    },
+    "connect": {
       "clientId": "PAYPAL_CLIENT_ID",
-      "clientSecret": "PAYPAL_CLIENT_SECRET"
+      "clientSecret": "PAYPAL_CLIENT_SECRET",
+      "redirectUri": "PAYPAL_CONNECT_REDIRECT_URI"
     }
   },
   "mailgun": {
@@ -144,7 +153,8 @@
     "website": "WEBSITE_URL",
     "pdf": "PDF_SERVICE_URL",
     "rest": "REST_URL",
-    "ml": "ML_SERVICE_URL"
+    "ml": "ML_SERVICE_URL",
+    "webhooks": "WEBHOOKS_URL"
   },
   "limits": {
     "ordersPerHour": {
@@ -213,6 +223,7 @@
     "blockedCountries": "TRANSFERWISE_BLOCKED_COUNTRIES",
     "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
+    "recipientTypesBlockedForBusinessProfiles": "TRANSFERWISE_BLOCKED_RECIPIENT_TYPES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT",
     "useTransferRefundHandler": "TRANSFERWISE_USE_TRANSFER_REFUND_HANDLER",
     "useSimplifiedQuote": "TRANSFERWISE_USE_SIMPLIFIED_QUOTE"

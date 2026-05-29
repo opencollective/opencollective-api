@@ -3,9 +3,11 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 
 import ORDER_STATUS from '../../../constants/order-status';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { Order } from '../../../models';
 import { checkReceiveFinancialContributions } from '../../common/features';
 import * as OrdersLib from '../../common/orders';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 const GraphQLOrderPermissions = new GraphQLObjectType({
   name: 'OrderPermissions',
@@ -13,7 +15,17 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.ORDER),
+      resolve: order => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Order, order.createdAt)) {
+          return order.publicId;
+        } else {
+          return idEncode(order.id, IDENTIFIER_TYPES.ORDER);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${Order.nanoIdPrefix}_xxxxxxxx)`,
     },
     canMarkAsExpired: {
       type: new GraphQLNonNull(GraphQLBoolean),
@@ -99,6 +111,20 @@ const GraphQLOrderPermissions = new GraphQLObjectType({
         }
 
         return req.remoteUser.isAdmin(order.FromCollectiveId);
+      },
+    },
+    canCancel: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can cancel this recurring contribution',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return OrdersLib.canCancelOrder(req, order);
+      },
+    },
+    canRemoveAsContributor: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can remove the contributor from the collective public profile',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return OrdersLib.canRemoveContributorFromOrder(req, order);
       },
     },
   }),

@@ -6,7 +6,7 @@ Subject: {{{collective.name}}}: New comment on expense {{{escapeForSubject expen
   Hi,
   <br /><br />
   {{> linkCollective collective=fromCollective}} just posted
-  a new comment on an Expense, <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:
+  a new comment on an Expense, <a href="{{permalink comment}}">{{expense.description}}</a>:
 </p>
 
 
@@ -22,7 +22,7 @@ Subject: {{{collective.name}}}: New comment on expense {{{escapeForSubject expen
 
 <p>
   <center>
-    <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}#new-comment-on-expense" class="btn blue">
+    <a href="{{permalink comment}}" class="btn blue">
       <div style="font-size: 14px;">Reply</div>
     </a>
   </center>

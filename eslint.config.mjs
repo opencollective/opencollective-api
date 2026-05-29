@@ -1,7 +1,12 @@
 import graphqlPlugin from '@graphql-eslint/eslint-plugin'; // eslint-disable-line import/no-unresolved
 import openCollectiveConfig from 'eslint-config-opencollective/eslint-node.config.cjs';
-import mocha from 'eslint-plugin-mocha';
 import globals from 'globals';
+
+import graphqlMutationScopeCheck from './eslint-rules/graphql-mutation-scope-check.js';
+import noMathRoundAmountNames from './eslint-rules/no-math-round-amount-names.js';
+import requirePrivateAccountCheck from './eslint-rules/require-private-account-check.js';
+import sequelizeModelRequirePublicIdPrefix from './eslint-rules/sequelize-model-public-id-prefix.js';
+import sequelizeModelRequireTableName from './eslint-rules/sequelize-model-table-name.js';
 
 export default [
   ...openCollectiveConfig,
@@ -24,6 +29,14 @@ export default [
 
     processor: graphqlPlugin.processor,
 
+    plugins: {
+      'opencollective-currency': {
+        rules: {
+          'no-math-round-amount-names': noMathRoundAmountNames,
+        },
+      },
+    },
+
     settings: {
       'import/resolver': {
         // You will also need to install and configure the TypeScript resolver
@@ -40,6 +53,7 @@ export default [
     },
 
     rules: {
+      'opencollective-currency/no-math-round-amount-names': 'warn',
       'no-console': 'error',
       'import/no-commonjs': 'error',
       'import/no-named-as-default-member': 'off',
@@ -135,12 +149,25 @@ export default [
       'custom-errors/no-unthrown-errors': 'error',
     },
   },
+  // Sequelize models: require public static readonly tableName = '...' as const
+  {
+    files: ['server/models/**/*.ts'],
+    plugins: {
+      'sequelize-model': {
+        rules: {
+          'require-table-name': sequelizeModelRequireTableName,
+          'require-public-id-prefix': sequelizeModelRequirePublicIdPrefix,
+        },
+      },
+    },
+    rules: {
+      'sequelize-model/require-table-name': 'error',
+      'sequelize-model/require-public-id-prefix': 'error',
+    },
+  },
   // Tests
   {
     files: ['test/**/*'],
-    plugins: {
-      mocha,
-    },
     languageOptions: {
       globals: {
         ...globals.mocha,
@@ -150,8 +177,23 @@ export default [
       'n/no-unpublished-import': 'off',
       'n/no-missing-import': 'off', // We should configure it, but it's not working for now
       '@typescript-eslint/no-unused-expressions': 'off', // Doesn't play well with chai
-      'mocha/no-exclusive-tests': 'error',
+      // eslint-plugin-mocha no-exclusive-tests misses describe/it imported from 'mocha' (BDD
+      // interface only tracks globals). Use no-restricted-syntax so both styles are covered.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ObjectExpression > Property[key.name='logging'][value.value=true]",
+          message: 'Using `logging: true` in Sequelize queries is forbidden.',
+        },
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='only'][callee.object.type='Identifier'][callee.object.name=/^(describe|it|context|specify|suite|test)$/]",
+          message:
+            'Do not commit focused tests (describe.only, it.only, etc.). Remove .only before committing.',
+        },
+      ],
       'no-console': 'off',
+      'opencollective-currency/no-math-round-amount-names': 'off',
     },
   },
   // Mocks
@@ -208,6 +250,20 @@ export default [
       'no-console': 'warn',
     },
   },
+  // Enforce private-account visibility checks in top-level GraphQL query resolvers
+  {
+    files: ['server/graphql/v2/query/**/*.+(js|ts)', 'server/graphql/v1/queries.js'],
+    plugins: {
+      'private-accounts': {
+        rules: {
+          'require-account-visibility-check': requirePrivateAccountCheck,
+        },
+      },
+    },
+    rules: {
+      'private-accounts/require-account-visibility-check': 'error',
+    },
+  },
   {
     files: ['server/graphql/v2/**/*.+(js|ts)'],
 
@@ -223,6 +279,24 @@ export default [
           ],
         },
       ],
+    },
+  },
+  // GraphQL mutation scope-check enforcement
+  {
+    files: [
+      'server/graphql/v2/mutation/**/*.+(js|ts)',
+      'server/graphql/v1/mutations.js',
+      'server/graphql/v1/mutations/**/*.+(js|ts)',
+    ],
+    plugins: {
+      'graphql-mutations': {
+        rules: {
+          'require-scope-check': graphqlMutationScopeCheck,
+        },
+      },
+    },
+    rules: {
+      'graphql-mutations/require-scope-check': 'error',
     },
   },
 ];

@@ -2,7 +2,7 @@ import { pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
-import { getFxRate } from '../../lib/currency';
+import { getFxRate, roundCentsAmount } from '../../lib/currency';
 import {
   createRefundTransaction,
   getHostFee,
@@ -47,18 +47,20 @@ async function processOrder(order) {
   const currency = order.currency;
   const hostCurrency = host.currency;
   const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
-  const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
+  const amountInHostCurrency = roundCentsAmount(order.totalAmount * hostCurrencyFxRate, hostCurrency);
 
   const hostFee = await getHostFee(order);
-  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+  const hostFeeInHostCurrency = roundCentsAmount(hostFee * hostCurrencyFxRate, hostCurrency);
 
   const platformTipEligible = await isPlatformTipEligible(order);
   const platformTip = getPlatformTip(order);
-  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+  const platformTipInHostCurrency = roundCentsAmount(platformTip * hostCurrencyFxRate, hostCurrency);
 
   const paymentProcessorFee = order.data?.paymentProcessorFee || 0;
   const paymentProcessorFeeInHostCurrency =
-    order.data?.paymentProcessorFeeInHostCurrency || Math.round(paymentProcessorFee * hostCurrencyFxRate) || 0;
+    order.data?.paymentProcessorFeeInHostCurrency ||
+    roundCentsAmount(paymentProcessorFee * hostCurrencyFxRate, hostCurrency) ||
+    0;
 
   const transactionPayload = {
     ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),

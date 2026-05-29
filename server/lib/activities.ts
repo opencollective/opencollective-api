@@ -1,5 +1,5 @@
 import config from 'config';
-import { isNil, lowerCase } from 'lodash';
+import { isEmpty, isNil, lowerCase } from 'lodash';
 
 import activities from '../constants/activities';
 import { TransactionTypes } from '../constants/transactions';
@@ -288,7 +288,7 @@ const handleCollectiveApply = (activity, format) => {
     if (activity.data.application.message) {
       options.attachments.push({ text: activity.data.application.message });
     }
-    if (activity.data.application.customData) {
+    if (activity.data.application.customData && !isEmpty(activity.data.application.customData)) {
       options.attachments.push({
         title: 'Custom data',
         fields: Object.entries(activity.data.application.customData).map(([key, value]) => ({

@@ -57,7 +57,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.11
+        image: postgres:16.13
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -121,7 +121,7 @@ jobs:
 
       - name: Check matching branch
         id: check-matching-branch
-        uses: octokit/request-action@v2.x
+        uses: octokit/request-action@b91aabaa861c777dcdb14e2387e30eddf04619ae # v3.0.0
         with:
           route: GET /repos/{owner}/{repo}/git/ref/{ref}
           owner: opencollective
@@ -285,7 +285,7 @@ jobs:
           CYPRESS_TEST_FILES: ${{ matrix.files }}
 
       - name: Archive test screenshots
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: screenshots
           path: opencollective-frontend/test/cypress/screenshots

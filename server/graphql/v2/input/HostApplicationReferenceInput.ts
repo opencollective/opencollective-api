@@ -1,7 +1,9 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { HostApplication } from '../../../models';
 import { NotFound } from '../../errors';
+import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 interface HostApplcationReferenceInputFields {
@@ -13,13 +15,30 @@ export const GraphQLHostApplicationReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the host application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the host application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.HostApplication}_xxxxxxxx)`,
     },
   }),
 });
 
-export const getDatabaseIdFromHostApplicationReference = (input: HostApplcationReferenceInputFields): number => {
-  return idDecode(input['id'], IDENTIFIER_TYPES.HOST_APPLICATION);
+export const getDatabaseIdFromHostApplicationReference = async (
+  input: HostApplcationReferenceInputFields,
+  { loaders = null }: { loaders?: Loaders } = {},
+): Promise<number | null> => {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.HostApplication)) {
+    return (
+      loaders
+        ? loaders.HostApplication.byPublicId.load(input.id)
+        : models.HostApplication.findOne({ where: { publicId: input.id }, attributes: ['id'] })
+    ).then(hostApplication => {
+      if (!hostApplication) {
+        throw new NotFound(`Host application with public id ${input.id} not found`);
+      }
+      return hostApplication.id;
+    });
+  } else if (input.id) {
+    return idDecode(input['id'], IDENTIFIER_TYPES.HOST_APPLICATION);
+  }
+  return null;
 };
 
 /**
@@ -27,12 +46,20 @@ export const getDatabaseIdFromHostApplicationReference = (input: HostApplcationR
  */
 export const fetchHostApplicationWithReference = async (
   input: HostApplcationReferenceInputFields,
-  { loaders = null, throwIfMissing = false } = {},
+  { loaders = null, throwIfMissing = false }: { loaders?: Loaders; throwIfMissing?: boolean } = {},
 ): Promise<HostApplication> => {
-  const dbId = getDatabaseIdFromHostApplicationReference(input);
   let hostApplication = null;
-  if (dbId) {
-    hostApplication = await (loaders ? loaders.HostApplication.byId.load(dbId) : models.HostApplication.findByPk(dbId));
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.HostApplication)) {
+    hostApplication = await (loaders
+      ? loaders.HostApplication.byPublicId.load(input.id)
+      : models.HostApplication.findOne({ where: { publicId: input.id } }));
+  } else {
+    const dbId = await getDatabaseIdFromHostApplicationReference(input, { loaders });
+    if (dbId) {
+      hostApplication = await (loaders
+        ? loaders.HostApplication.byId.load(dbId)
+        : models.HostApplication.findByPk(dbId));
+    }
   }
 
   if (!hostApplication && throwIfMissing) {

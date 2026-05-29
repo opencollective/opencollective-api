@@ -1,8 +1,10 @@
 import type Express from 'express';
 import { QueryTypes } from 'sequelize';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../lib/permalink/entity-map';
 import { Expense, sequelize, UploadedFile } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
+import ExportRequest from '../../models/ExportRequest';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
 import { canSeeExpenseAttachments, canSeeExpenseDraftPrivateDetails } from './expenses';
@@ -23,7 +25,12 @@ export async function hasProtectedUrlPermission(req: Express.Request, url: strin
   }
 
   let expenseId: number;
-  if (encodedExpenseId) {
+  if (isEntityPublicId(encodedExpenseId, EntityShortIdPrefix.Expense)) {
+    expenseId = await req.loaders.Expense.idByPublicId.load(encodedExpenseId);
+    if (!expenseId) {
+      return false;
+    }
+  } else if (encodedExpenseId) {
     expenseId = idDecode(encodedExpenseId, IDENTIFIER_TYPES.EXPENSE);
   }
 
@@ -64,6 +71,16 @@ export async function hasUploadedFilePermission(
 
   if (!req?.remoteUser) {
     return false;
+  }
+
+  if (uploadedFile.kind === 'TRANSACTIONS_CSV_EXPORT') {
+    // One-to-one relationship enforced by a unique index constraint.
+    const exportRequest = await ExportRequest.findOne({
+      where: {
+        UploadedFileId: uploadedFile.id,
+      },
+    });
+    return req.remoteUser.isAdmin(exportRequest.CollectiveId);
   }
 
   const result = await sequelize.query<Array<{ ExpenseId: number }>>(

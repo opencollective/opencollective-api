@@ -5,14 +5,8 @@ import moment from 'moment-timezone';
 import { FeatureDetails } from '../constants/feature';
 import { freeFeatures } from '../constants/plans';
 
-import {
-  capitalize,
-  formatCurrency,
-  formatCurrencyObject,
-  getDefaultCurrencyPrecision,
-  pluralize,
-  resizeImage,
-} from './utils';
+import { getDefaultCurrencyPrecision } from './currency';
+import { capitalize, formatCurrency, formatCurrencyObject, pluralize, resizeImage } from './utils';
 
 // from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional
 handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {

@@ -185,13 +185,27 @@ Subject: Platform subscription updated for {{account.name}}
   <div class="billing-container">
     <div class="email-header">
       <h1>🔄 Subscription Updated</h1>
+      {{#if isAutomaticMigration}}
+      <p>
+        As part of our transition to the new pricing model,
+        {{> linkCollective collective=account}} has been moved
+        to the <strong>{{newPlan.title}}</strong> plan, effective
+        <strong>{{moment startDate format="MMMM Do, YYYY"}}</strong>.
+        {{#if newPlan.pricing.pricePerMonth}}
+        Your first invoice under the new plan will be sent on
+        <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.
+        {{/if}}
+      </p>
+      {{else}}
       <p>
         The platform subscription for {{> linkCollective collective=account}} has been updated
         {{#if previousPlan}}from <strong>{{previousPlan.title}}</strong>{{/if}}
-        to <strong>{{newPlan.title}}</strong>. {{#if newPlan.pricing.pricePerMonth}}
+        to <strong>{{newPlan.title}}</strong>.
+        {{#if newPlan.pricing.pricePerMonth}}
         The new subscription will be charged on <strong>{{moment nextBillingDate format="MMMM Do, YYYY"}}</strong>.
         {{/if}}
       </p>
+      {{/if}}
     </div>
 
     <div class="plan-comparison-container">

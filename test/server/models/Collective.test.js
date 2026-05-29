@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import { repeat } from 'lodash';
+import { repeat, uniq } from 'lodash';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
 
@@ -22,6 +22,7 @@ import {
   fakeEvent,
   fakeExpense,
   fakeHost,
+  fakeIncognitoProfile,
   fakeMember,
   fakeOrder,
   fakeOrganization,
@@ -35,7 +36,7 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-const { Transaction, Collective, User } = models;
+const { Transaction, Collective, User, Member } = models;
 
 describe('server/models/Collective', () => {
   let collective = {},
@@ -230,11 +231,11 @@ describe('server/models/Collective', () => {
     await Collective.create({ name: 'piamancini2' });
 
     const collective3 = await Collective.create({ name: 'PiaMancini', twitterHandle: '@piamancini' });
-    expect(collective3.slug).to.equal('piamancini1');
+    expect(collective3.slug).to.match(/^piamancini-[0-9a-f]{8}$/);
     expect(collective3.twitterHandle).to.equal('piamancini');
 
     const collective4 = await Collective.create({ name: 'XavierDamman' });
-    expect(collective4.slug).to.equal('xavierdamman1');
+    expect(collective4.slug).to.match(/^xavierdamman-[0-9a-f]{8}$/);
 
     const collective5 = await Collective.create({ name: 'hélène & les g.arçons' });
     expect(collective5.slug).to.equal('helene-and-les-g-arcons');
@@ -254,6 +255,93 @@ describe('server/models/Collective', () => {
     expect(collective.slug.length).to.equal(18);
   });
 
+  describe('getOrCreateIncognitoProfile', () => {
+    it('creates an incognito USER collective and ADMIN member from the main profile', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const profile = await main.getOrCreateIncognitoProfile();
+
+      expect(profile.isIncognito).to.be.true;
+      expect(profile.type).to.equal('USER');
+
+      const member = await Member.findOne({
+        where: { MemberCollectiveId: main.id, CollectiveId: profile.id, role: roles.ADMIN },
+      });
+      expect(member).to.exist;
+    });
+
+    it('returns the same profile on subsequent calls', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const first = await main.getOrCreateIncognitoProfile();
+      const second = await main.getOrCreateIncognitoProfile();
+      expect(second.id).to.equal(first.id);
+    });
+
+    it('reuses an existing incognito profile already linked with ADMIN', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const existing = await fakeIncognitoProfile(user);
+      const profile = await main.getOrCreateIncognitoProfile();
+      expect(profile.id).to.equal(existing.id);
+    });
+
+    it('throws when called on a non-USER collective', async () => {
+      const collective = await fakeCollective({ type: 'COLLECTIVE' });
+      await expect(collective.getOrCreateIncognitoProfile()).to.be.rejectedWith(
+        /Incognito profiles can only be created for users/,
+      );
+    });
+
+    it('creates a new incognito profile if the ADMIN membership was soft-deleted (main no longer "sees" a profile)', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+      const firstProfile = await main.getOrCreateIncognitoProfile();
+      const adminMember = await Member.findOne({
+        where: { MemberCollectiveId: main.id, CollectiveId: firstProfile.id, role: roles.ADMIN },
+      });
+      await adminMember.destroy();
+
+      expect(await main.getIncognitoProfile()).to.be.null;
+
+      const secondProfile = await main.getOrCreateIncognitoProfile();
+      expect(secondProfile.id).to.not.equal(firstProfile.id);
+    });
+
+    it('runs fully inside a caller-provided transaction', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+
+      await sequelize.transaction(async transaction => {
+        const profile = await main.getOrCreateIncognitoProfile({ transaction });
+        const member = await Member.findOne({
+          where: { MemberCollectiveId: main.id, CollectiveId: profile.id, role: roles.ADMIN },
+          transaction,
+        });
+        expect(member).to.exist;
+      });
+
+      const profile = await main.getIncognitoProfile();
+      expect(profile).to.exist;
+    });
+
+    it('parallel calls can create duplicate incognito profiles (no row-level lock in getOrCreate)', async () => {
+      const user = await fakeUser();
+      const main = user.collective;
+
+      await Promise.all([main.getOrCreateIncognitoProfile(), main.getOrCreateIncognitoProfile()]);
+
+      const links = await Member.findAll({
+        where: { MemberCollectiveId: main.id, role: roles.ADMIN },
+        include: [{ association: 'collective', required: true, where: { isIncognito: true, type: 'USER' } }],
+      });
+      const distinctIncognitoIds = uniq(links.map(l => l.CollectiveId));
+
+      // Documents current behavior: two concurrent transactions can both pass getIncognitoProfile() before either commits.
+      expect(distinctIncognitoIds.length).to.equal(2);
+    });
+  });
+
   it('frees up current slug when deleted', async () => {
     const slug = 'hi-this-is-an-unique-slug';
     const collective = await fakeCollective({ slug });
@@ -266,11 +354,9 @@ describe('server/models/Collective', () => {
   it('does not create collective with a blocked slug', () => {
     return Collective.create({ name: 'learn more' }).then(collective => {
       // `https://host/learn-more` is a protected page.
+      // When the slugified name is reserved, a random user-* slug is generated instead.
       expect(collective.slug).to.not.equal('learn-more');
-      // However we'd like to keep the base slug: if an collective with the
-      // name "Learn More" is created, we expect to have an URL like
-      // `https://host/learn-more1`
-      expect(collective.slug.startsWith('learn-more')).to.equal(true);
+      expect(collective.slug).to.match(/^user-[0-9a-f]{8}$/);
     });
   });
 
@@ -537,7 +623,7 @@ describe('server/models/Collective', () => {
 
     it('fails to deactivate as host if it is hosting any collective', async () => {
       try {
-        await hostUser.collective.deactivateAsHost();
+        await hostUser.collective.deactivateHosting();
         throw new Error("Didn't throw expected error!");
       } catch (e) {
         expect(e.message).to.contain("You can't deactivate hosting while still hosting");
@@ -551,6 +637,7 @@ describe('server/models/Collective', () => {
         currency: 'EUR',
         CreatedByUserId: user1.id,
         hasHosting: true,
+        settings: { apply: true },
       });
       await models.Member.create({
         CollectiveId: temporaryHost.id,
@@ -568,10 +655,83 @@ describe('server/models/Collective', () => {
       await pendingCollective.addHost(temporaryHost, user2);
       expect(pendingCollective.isActive).to.equal(false);
       expect(pendingCollective.HostCollectiveId).to.equal(temporaryHost.id);
-      await temporaryHost.deactivateAsHost();
+      await temporaryHost.deactivateHosting();
+      await temporaryHost.deactivateMoneyManagement();
       expect(temporaryHost.hasMoneyManagement).to.be.false;
       await pendingCollective.reload();
       expect(pendingCollective.HostCollectiveId).to.be.null;
+    });
+
+    it('deletes Stripe and Transferwise connected accounts when deactivateMoneyManagement is called', async () => {
+      const host = await fakeHost({
+        name: 'Host with connected accounts',
+        slug: randStr('host-ca-'),
+        currency: 'USD',
+        CreatedByUserId: user1.id,
+        hasHosting: false,
+        hasMoneyManagement: true,
+      });
+
+      const stripeAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'stripe' });
+      const transferwiseAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'transferwise' });
+      const otherAccount = await fakeConnectedAccount({ CollectiveId: host.id, service: 'github' });
+
+      await host.deactivateMoneyManagement();
+
+      const remainingAccounts = await models.ConnectedAccount.findAll({
+        where: { CollectiveId: host.id },
+      });
+
+      const remainingServices = remainingAccounts.map(a => a.service);
+      expect(remainingServices).to.not.include('stripe');
+      expect(remainingServices).to.not.include('transferwise');
+      expect(remainingServices).to.include('github');
+
+      // Verify the specific records were destroyed
+      const deletedStripe = await models.ConnectedAccount.findByPk(stripeAccount.id);
+      const deletedTransferwise = await models.ConnectedAccount.findByPk(transferwiseAccount.id);
+      const keptOther = await models.ConnectedAccount.findByPk(otherAccount.id);
+      expect(deletedStripe).to.be.null;
+      expect(deletedTransferwise).to.be.null;
+      expect(keptOther).to.not.be.null;
+    });
+
+    it('deletes Stripe and Transferwise connected accounts when a self-hosted collective changes host', async () => {
+      const selfHostedCollective = await fakeActiveHost({
+        name: 'Self Hosted',
+        slug: randStr('self-hosted-'),
+        currency: 'USD',
+        CreatedByUserId: user1.id,
+      });
+      // Ensure it is truly self-hosted
+      expect(selfHostedCollective.id).to.equal(selfHostedCollective.HostCollectiveId);
+
+      const stripeAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'stripe' });
+      const transferwiseAccount = await fakeConnectedAccount({
+        CollectiveId: selfHostedCollective.id,
+        service: 'transferwise',
+      });
+      const githubAccount = await fakeConnectedAccount({ CollectiveId: selfHostedCollective.id, service: 'github' });
+
+      // Remove host (changeHost with null)
+      await selfHostedCollective.changeHost(null, user1);
+
+      const remainingAccounts = await models.ConnectedAccount.findAll({
+        where: { CollectiveId: selfHostedCollective.id },
+      });
+
+      const remainingServices = remainingAccounts.map(a => a.service);
+      expect(remainingServices).to.not.include('stripe');
+      expect(remainingServices).to.not.include('transferwise');
+      expect(remainingServices).to.include('github');
+
+      // Verify the specific records were destroyed
+      const deletedStripe = await models.ConnectedAccount.findByPk(stripeAccount.id);
+      const deletedTransferwise = await models.ConnectedAccount.findByPk(transferwiseAccount.id);
+      const keptGithub = await models.ConnectedAccount.findByPk(githubAccount.id);
+      expect(deletedStripe).to.be.null;
+      expect(deletedTransferwise).to.be.null;
+      expect(keptGithub).to.not.be.null;
     });
 
     it('changes host successfully and sends email notification to host', async () => {
@@ -625,13 +785,80 @@ describe('server/models/Collective', () => {
       expect(applyArgs[3].from).to.equal('no-reply@opencollective.com');
     });
 
+    it('does not un-archive child projects/events when adding a host', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeHost({ admin: hostAdmin });
+
+      // Create a collective with an archived project, an archived event, and an active project
+      const collective = await fakeCollective({ HostCollectiveId: null });
+      await collective.addUserWithRole(hostAdmin, 'ADMIN');
+
+      const archivedProject = await fakeProject({
+        ParentCollectiveId: collective.id,
+        HostCollectiveId: null,
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      const archivedEvent = await fakeEvent({
+        ParentCollectiveId: collective.id,
+        HostCollectiveId: null,
+        isActive: false,
+        deactivatedAt: new Date(),
+      });
+      const activeProject = await fakeProject({
+        ParentCollectiveId: collective.id,
+        HostCollectiveId: null,
+        isActive: false,
+        approvedAt: null,
+      });
+
+      // Verify archived children are archived and the active project is not
+      expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+      expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+      expect(activeProject.deactivatedAt).to.be.null;
+
+      // Populate roles so that isAdmin checks work correctly
+      await hostAdmin.populateRoles();
+
+      // Add the host — hostAdmin is an admin of the host, so it auto-approves
+      await collective.addHost(host, hostAdmin);
+      await Promise.all([
+        archivedProject.reload(),
+        archivedEvent.reload(),
+        activeProject.reload(),
+        collective.reload(),
+      ]);
+
+      // The parent collective itself should be active (auto-approved)
+      expect(collective.isActive).to.be.true;
+
+      // The active project should be approved and active
+      expect(activeProject.HostCollectiveId).to.equal(host.id);
+      expect(activeProject.isActive).to.be.true;
+      expect(activeProject.approvedAt).to.not.be.null;
+      expect(activeProject.deactivatedAt).to.be.null;
+
+      // The archived children should have their host updated but remain archived: deactivatedAt preserved and isActive still false
+      expect(archivedProject.HostCollectiveId).to.equal(host.id);
+      expect(archivedProject.deactivatedAt).to.not.be.null;
+      expect(archivedProject.isActive).to.be.false;
+      expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+      expect(activeProject.approvedAt).to.not.be.null;
+
+      expect(archivedEvent.HostCollectiveId).to.equal(host.id);
+      expect(archivedEvent.deactivatedAt).to.not.be.null;
+      expect(archivedEvent.isActive).to.be.false;
+      expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+      expect(activeProject.approvedAt).to.not.be.null;
+    });
+
     it('updates hostFeePercent for collective and events when adding or changing host', async () => {
       const collective = await fakeCollective({ hostFeePercent: 0, HostCollectiveId: null });
       const event = await fakeEvent({
         ParentCollectiveId: collective.id,
         hostFeePercent: 0,
       });
-      const host = await fakeHost({ hostFeePercent: 3 });
+      const host = await fakeHost({ hostFeePercent: 3, settings: { apply: true } });
       // Adding new host
       await collective.addHost(host, user2);
       await Promise.all([event.reload(), collective.reload()]);
@@ -639,7 +866,7 @@ describe('server/models/Collective', () => {
       expect(event.hostFeePercent).to.be.equal(3);
 
       // Changing hosts
-      const newHost = await fakeHost({ hostFeePercent: 30 });
+      const newHost = await fakeHost({ hostFeePercent: 30, settings: { apply: true } });
       await collective.changeHost(newHost.id, user2);
       await Promise.all([event.reload(), collective.reload()]);
       expect(collective.hostFeePercent).to.be.equal(30);
@@ -647,16 +874,19 @@ describe('server/models/Collective', () => {
     });
 
     it('returns active plan', async () => {
-      const plan = await hostUser.collective.getPlan();
+      const collective = await hostUser.collective.reload();
+      const plan = await collective.getLegacyPlan();
 
       expect(plan).to.deep.equal({
-        id: 3,
         name: 'default',
         hostedCollectives: 0,
         addedFunds: 0,
         bankTransfers: 0,
         transferwisePayouts: 0,
         ...plans.default,
+        id: collective.id,
+        publicId: collective.publicId,
+        createdAt: collective.createdAt,
       });
     });
 
@@ -1559,7 +1789,7 @@ describe('server/models/Collective', () => {
       expect(account.id).to.equal(connectedAccount.id);
     });
 
-    it('returns the referenced connected account for specific service', async () => {
+    it('returns the mirrored Wise connected account', async () => {
       const collective = await fakeCollective();
       const connectedAccount = await fakeConnectedAccount({ service: 'transferwise' });
       await fakeConnectedAccount({
@@ -1571,6 +1801,43 @@ describe('server/models/Collective', () => {
 
       const account = await collective.getAccountForPaymentProvider('transferwise');
       expect(account.id).to.equal(connectedAccount.id);
+    });
+  });
+
+  describe('generateSlug', () => {
+    it('returns the base slug when available', async () => {
+      const slug = await Collective.generateSlug('completely-unique-test-slug');
+      expect(slug).to.equal('completely-unique-test-slug');
+    });
+
+    it('slugifies by default', async () => {
+      const slug = await Collective.generateSlug('My Cool Collective!');
+      expect(slug).to.equal('my-cool-collective');
+    });
+
+    it('appends a random suffix when the slug is taken', async () => {
+      const existing = await fakeCollective({ slug: 'taken-slug' });
+      try {
+        const slug = await Collective.generateSlug('taken-slug');
+        expect(slug).to.match(/^taken-slug-[0-9a-f]{8}$/);
+      } finally {
+        await existing.destroy();
+      }
+    });
+
+    it('returns an incognito-prefixed slug for "incognito"', async () => {
+      const slug = await Collective.generateSlug('incognito');
+      expect(slug).to.match(/^incognito(-[0-9a-f]{8})?$/);
+    });
+
+    it('returns a random user-* slug for falsy input', async () => {
+      const slug = await Collective.generateSlug('');
+      expect(slug).to.match(/^user-[0-9a-f]{8}$/);
+    });
+
+    it('returns a random user-* slug for reserved slugs', async () => {
+      const slug = await Collective.generateSlug('about');
+      expect(slug).to.match(/^user-[0-9a-f]{8}$/);
     });
   });
 });

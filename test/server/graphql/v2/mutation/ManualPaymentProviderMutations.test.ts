@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 
 import ActivityTypes from '../../../../../server/constants/activities';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { ManualPaymentProviderTypes } from '../../../../../server/models/ManualPaymentProvider';
 import {
@@ -365,6 +366,26 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       });
     });
 
+    it('accepts publicId in ManualPaymentProviderReferenceInput', async () => {
+      const publicId = `${EntityShortIdPrefix.ManualPaymentProvider}_${provider.id}`;
+      await provider.update({ publicId });
+
+      const result = await graphqlQueryV2(
+        UPDATE_MANUAL_PAYMENT_PROVIDER_MUTATION,
+        {
+          manualPaymentProvider: { id: publicId },
+          input: {
+            name: 'Updated Name 2',
+          },
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateManualPaymentProvider.name).to.equal('Updated Name 2');
+    });
+
     it('allows partial updates', async () => {
       const testProvider = await fakeManualPaymentProvider({
         CollectiveId: host.id,
@@ -582,6 +603,52 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       expect(provider3.order).to.equal(0);
       expect(provider1.order).to.equal(1);
       expect(provider2.order).to.equal(2);
+    });
+
+    it('rejects when the list includes a manual payment provider from another host', async () => {
+      const otherHostAdmin = await fakeUser();
+      const otherHost = await fakeActiveHost({ admin: otherHostAdmin });
+      const foreignProvider = await fakeManualPaymentProvider({
+        CollectiveId: otherHost.id,
+        type: ManualPaymentProviderTypes.BANK_TRANSFER,
+        name: 'Foreign host provider',
+        order: 5,
+      });
+
+      const initialOrders = {
+        p1: provider1.order,
+        p2: provider2.order,
+        p3: provider3.order,
+        foreign: foreignProvider.order,
+      };
+
+      const result = await graphqlQueryV2(
+        REORDER_MANUAL_PAYMENT_PROVIDERS_MUTATION,
+        {
+          host: { legacyId: host.id },
+          type: 'BANK_TRANSFER',
+          providers: [
+            { id: idEncode(provider1.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER) },
+            { id: idEncode(foreignProvider.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER) },
+            { id: idEncode(provider2.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER) },
+          ],
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+      expect(result.errors[0].message).to.include('do not belong to the host');
+
+      await provider1.reload();
+      await provider2.reload();
+      await provider3.reload();
+      await foreignProvider.reload();
+
+      expect(provider1.order).to.equal(initialOrders.p1);
+      expect(provider2.order).to.equal(initialOrders.p2);
+      expect(provider3.order).to.equal(initialOrders.p3);
+      expect(foreignProvider.order).to.equal(initialOrders.foreign);
     });
   });
 });

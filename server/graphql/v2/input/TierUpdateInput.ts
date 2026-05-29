@@ -8,6 +8,7 @@ import {
 } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { GraphQLTierAmountType, GraphQLTierType } from '../enum';
 import { GraphQLTierFrequency } from '../enum/TierFrequency';
 import GraphQLURL from '../scalar/URL';
@@ -22,7 +23,7 @@ export const GraphQLTierUpdateInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'The public id identifying the tier (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the tier (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Tier}_xxxxxxxx)`,
     },
     amount: {
       type: GraphQLAmountInput,

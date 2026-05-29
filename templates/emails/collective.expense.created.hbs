@@ -3,9 +3,9 @@ Subject: New expense on {{{collective.name}}}: {{currency expense.amount currenc
 {{> header}}
 
 <center>
-  <h1><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}}</a></h1>
+  <h1><a href="{{permalink expense}}">{{currency expense.amount currency=expense.currency}}</a></h1>
   <div>
-    <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>
+    <a href="{{permalink expense}}">{{expense.description}}</a>
   </div>
   <div>
     Payee: <a href="{{config.host.website}}/{{fromCollective.slug}}"> {{fromCollective.name}} </a>
@@ -26,7 +26,7 @@ Subject: New expense on {{{collective.name}}}: {{currency expense.amount currenc
   <br />
   <br />
   <br />
-  <a class="btn blue" href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">
+  <a class="btn blue" href="{{permalink expense}}">
     <div>View</div>
   </a>
 

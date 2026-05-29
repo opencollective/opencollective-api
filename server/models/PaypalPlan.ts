@@ -23,6 +23,8 @@ interface PaypalPlanCreateWithProductAttributes extends PaypalPlanCommonCreateAt
 type PaypalPlanCreateAttributes = PaypalPlanCreateWithProductIdAttributes | PaypalPlanCreateWithProductAttributes;
 
 class PaypalPlan extends Model<InferAttributes<PaypalPlan>, PaypalPlanCreateAttributes> {
+  public static readonly tableName = 'PaypalPlans' as const;
+
   declare public id: string;
   declare public ProductId: string;
   declare public currency: SupportedCurrency;

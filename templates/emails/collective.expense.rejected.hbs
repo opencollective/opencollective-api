@@ -2,7 +2,7 @@ Subject: Expense rejected: {{currency expense.amount currency=expense.currency}}
 
 {{> header}}
 
-<p>Your expense, <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>, has been rejected.</p>
+<p>Your expense, <a href="{{permalink expense}}">{{expense.description}}</a>, has been rejected.</p>
 
 <table>
   <tr><th>Submitted by:</th><td>{{> linkCollective collective=fromCollective}}</td></tr>
@@ -20,7 +20,7 @@ Subject: Expense rejected: {{currency expense.amount currency=expense.currency}}
 
   <p>
     <center>
-      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+      <a href="{{permalink expense}}" class="btn blue">
         <div>View Expense</div>
       </a>
     </center>

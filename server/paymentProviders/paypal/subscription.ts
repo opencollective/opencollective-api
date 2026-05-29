@@ -71,11 +71,12 @@ export const cancelPaypalSubscription = async (
   }
 };
 
-export const createPaypalPaymentMethodForSubscription = (
+const createPaypalPaymentMethodForSubscription = async (
   order: Order,
   user: User,
   paypalSubscriptionId: string,
 ): Promise<PaymentMethod> => {
+  const hostCollective = await order.collective.getHostCollective();
   return models.PaymentMethod.create({
     service: PAYMENT_METHOD_SERVICE.PAYPAL,
     type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
@@ -84,6 +85,9 @@ export const createPaypalPaymentMethodForSubscription = (
     currency: order.currency,
     saved: false,
     token: paypalSubscriptionId,
+    data: {
+      HostCollectiveId: hostCollective?.id,
+    },
   });
 };
 

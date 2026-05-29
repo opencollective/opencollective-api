@@ -1,9 +1,10 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLApplication } from '../object/Application';
 import { GraphQLIndividual } from '../object/Individual';
 
@@ -13,7 +14,17 @@ export const GraphQLOAuthAuthorization = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.USER_TOKEN),
+      resolve: authorization => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.UserToken, authorization.createdAt)) {
+          return authorization.publicId;
+        } else {
+          return idEncode(authorization.id, IDENTIFIER_TYPES.USER_TOKEN);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.UserToken}_xxxxxxxx)`,
     },
     account: {
       type: new GraphQLNonNull(GraphQLIndividual),

@@ -7,6 +7,7 @@ import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
+import POLICIES from '../../../../../server/constants/policies';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
@@ -266,6 +267,50 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         }
       });
 
+      it('cannot process application for already approved collective via hostApplication reference', async () => {
+        const isolatedHostAdmin = await fakeUser();
+        const isolatedCollectiveAdmin = await fakeUser();
+        const isolatedHost = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          admin: isolatedHostAdmin,
+          currency: 'USD',
+          hasHosting: true,
+          settings: { apply: true },
+        });
+        const isolatedCollective = await fakeCollective({
+          HostCollectiveId: isolatedHost.id,
+          admin: isolatedCollectiveAdmin,
+          isActive: true,
+          approvedAt: new Date(),
+        });
+        const inconsistentPendingApplication = await fakeHostApplication({
+          CollectiveId: isolatedCollective.id,
+          HostCollectiveId: isolatedHost.id,
+          status: HostApplicationStatus.PENDING,
+        });
+
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
+        for (const actionDetails of actionsDetails) {
+          const action = actionDetails.value;
+          const result = await graphqlQueryV2(
+            PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+            {
+              hostApplication: {
+                id: idEncode(inconsistentPendingApplication.id, IDENTIFIER_TYPES.HOST_APPLICATION),
+              },
+              action,
+              message:
+                action === 'REJECT' || action === 'SEND_PRIVATE_MESSAGE' || action === 'SEND_PUBLIC_MESSAGE'
+                  ? 'test message required for reject / messaging actions'
+                  : undefined,
+            },
+            isolatedHostAdmin,
+          );
+          expect(result.errors, `expected rejection for action ${action}`).to.exist;
+          expect(result.errors[0].message).to.eq('This collective application has already been approved');
+        }
+      });
+
       it('application must not be already approved', async () => {
         // Initialize the collective as "APPROVED"
         await collective.update({ isActive: true, approvedAt: new Date(), HostCollectiveId: host.id });
@@ -320,6 +365,85 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(subject).to.eq('🎉 Your Collective has been approved!');
         expect(body).to.include(`Hey ${collective.name}`);
         expect(body).to.include(`the money will be held by ${host.name}`);
+      });
+
+      it('does not un-archive archived child projects/events when approving', async () => {
+        // Create isolated host, collective and application for this test
+        const collectiveAdmin = await fakeUser();
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin,
+          isActive: false,
+          approvedAt: null,
+        });
+        const application = await fakeHostApplication({
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          status: HostApplicationStatus.PENDING,
+        });
+
+        // Create an archived project, an archived event, and a non-archived project as children
+        const archivedProject = await fakeProject({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          isActive: false,
+          deactivatedAt: new Date(),
+        });
+        const archivedEvent = await fakeEvent({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          isActive: false,
+          deactivatedAt: new Date(),
+        });
+        const activeProject = await fakeProject({
+          ParentCollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          isActive: false,
+          approvedAt: null,
+          deactivatedAt: null,
+        });
+
+        // Verify pre-conditions
+        expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+        expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+        expect(activeProject.deactivatedAt).to.be.null;
+
+        // Approve the application
+        const result = await graphqlQueryV2(
+          PROCESS_HOST_APPLICATION_MUTATION,
+          { host: { slug: host.slug }, account: { slug: collective.slug }, action: 'APPROVE' },
+          hostAdmin,
+        );
+        expect(result.errors).to.not.exist;
+
+        await Promise.all([
+          archivedProject.reload(),
+          archivedEvent.reload(),
+          activeProject.reload(),
+          application.reload(),
+        ]);
+
+        // The non-archived project should be approved and active
+        expect(activeProject.HostCollectiveId).to.equal(host.id);
+        expect(activeProject.isActive).to.be.true;
+        expect(activeProject.approvedAt).to.not.be.null;
+        expect(activeProject.deactivatedAt).to.be.null;
+
+        // The archived children should have their host preserved but remain archived
+        expect(archivedProject.HostCollectiveId).to.equal(host.id);
+        expect(archivedProject.isActive).to.be.false;
+        expect(archivedProject.deactivatedAt).to.not.be.null;
+        expect(Boolean(archivedProject.deactivatedAt && !archivedProject.isActive)).to.be.true;
+
+        expect(archivedEvent.HostCollectiveId).to.equal(host.id);
+        expect(archivedEvent.isActive).to.be.false;
+        expect(archivedEvent.deactivatedAt).to.not.be.null;
+        expect(Boolean(archivedEvent.deactivatedAt && !archivedEvent.isActive)).to.be.true;
+
+        expect(application.status).to.eq('APPROVED');
+
+        // Drain the async approval email fired by approveApplication before afterEach resets the shared spy
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
       });
 
       it('sends a special template for OSC', async () => {
@@ -388,6 +512,59 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
   });
 
   describe('applyToHost', () => {
+    it('rejects application when collective does not meet host minimum admin policy', async () => {
+      const host = await fakeHost({
+        data: {
+          policies: {
+            [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 3 },
+          },
+        },
+      });
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
+      const result = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host.slug }, collective: { slug: collective.slug } },
+        adminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.eq('This host policy requires at least 3 admins for this account.');
+    });
+
+    it('allows application when invite members satisfy host minimum admin policy', async () => {
+      const host = await fakeHost({
+        settings: { apply: true },
+        data: {
+          policies: {
+            [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 3 },
+          },
+        },
+      });
+      const adminUser = await fakeUser();
+      const existingUserToInvite = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
+      const result = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        {
+          host: { slug: host.slug },
+          collective: { slug: collective.slug },
+          inviteMembers: [
+            {
+              memberAccount: { slug: existingUserToInvite.collective.slug },
+              role: 'ADMIN',
+            },
+            {
+              memberInfo: { name: 'Another admin', email: randEmail() },
+              role: 'ADMIN',
+            },
+          ],
+        },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+    });
+
     it('needs to be an admin of the applying collective', async () => {
       const host = await fakeHost();
       const adminUser = await fakeUser();
@@ -405,7 +582,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
     });
 
     it('applies to host and invite other admins', async () => {
-      const host = await fakeHost();
+      const host = await fakeHost({ settings: { apply: true } });
       const adminUser = await fakeUser();
       const existingUserToInvite = await fakeUser();
       const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
@@ -513,44 +690,118 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       await collective.reload();
       expect(collective.HostCollectiveId).to.eq(host2.id);
 
-      // 2) Withdraw from host1 (host1 rejects the application) — sets HostCollectiveId to null.
-      const appToHost1 = await models.HostApplication.findOne({
-        where: { CollectiveId: collective.id, HostCollectiveId: host1.id, status: HostApplicationStatus.PENDING },
-      });
-      expect(appToHost1).to.exist;
-      await graphqlQueryV2(
-        PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
-        {
-          hostApplication: { id: idEncode(appToHost1.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
-          action: 'REJECT',
-          message: 'Withdrawn',
-        },
-        host1Admin,
-      );
-
-      // There again, not sure that updating HostCollectiveId is the right thing to do.
-      await collective.reload();
-      expect(collective.HostCollectiveId).to.be.null;
-
-      // 3) Approving the remaining (host2) application should still work and set HostCollectiveId to host2.
+      // 2) Host2 rejects the application - HostCollectiveId set to null
       const appToHost2 = await models.HostApplication.findOne({
         where: { CollectiveId: collective.id, HostCollectiveId: host2.id, status: HostApplicationStatus.PENDING },
       });
       expect(appToHost2).to.exist;
+      await graphqlQueryV2(
+        PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+        {
+          hostApplication: { id: idEncode(appToHost2.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
+          action: 'REJECT',
+          message: 'Withdrawn',
+        },
+        host2Admin,
+      );
+
+      await collective.reload();
+      expect(collective.HostCollectiveId).to.be.null;
+
+      // 3) Approving the remaining (host1) application should still work and set HostCollectiveId to host1.
+      const appToHost1 = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: host1.id, status: HostApplicationStatus.PENDING },
+      });
+      expect(appToHost1).to.exist;
 
       const result = await graphqlQueryV2(
         PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
         {
-          hostApplication: { id: idEncode(appToHost2.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
+          hostApplication: { id: idEncode(appToHost1.id, IDENTIFIER_TYPES.HOST_APPLICATION) },
           action: 'APPROVE',
         },
-        host2Admin,
+        host1Admin,
       );
+
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.processHostApplication.account.host.id).to.eq(idEncode(host2.id, 'account'));
+      expect(result.data.processHostApplication.account.host.id).to.eq(idEncode(host1.id, 'account'));
       await collective.reload();
-      expect(collective.HostCollectiveId).to.eq(host2.id);
+      expect(collective.HostCollectiveId).to.eq(host1.id);
       expect(collective.approvedAt).to.not.be.null;
+    });
+
+    it('marks other hosts pending HostApplications EXPIRED when approving', async () => {
+      const host1Admin = await fakeUser();
+      const host2Admin = await fakeUser();
+      const host1 = await fakeActiveHost({
+        plan: 'start-plan-2021',
+        currency: 'USD',
+        hasHosting: true,
+        settings: { apply: true },
+        admin: host1Admin,
+      });
+      const host2 = await fakeActiveHost({
+        plan: 'start-plan-2021',
+        currency: 'USD',
+        hasHosting: true,
+        settings: { apply: true },
+        admin: host2Admin,
+      });
+      const collectiveAdminForMultiApply = await fakeUser();
+      const collectiveForMultiApply = await fakeCollective({
+        HostCollectiveId: null,
+        admin: collectiveAdminForMultiApply,
+      });
+
+      await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host1.slug }, collective: { slug: collectiveForMultiApply.slug } },
+        collectiveAdminForMultiApply,
+      );
+      await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        { host: { slug: host2.slug }, collective: { slug: collectiveForMultiApply.slug } },
+        collectiveAdminForMultiApply,
+      );
+
+      const appHost1 = await models.HostApplication.findOne({
+        where: {
+          CollectiveId: collectiveForMultiApply.id,
+          HostCollectiveId: host1.id,
+          status: HostApplicationStatus.PENDING,
+        },
+      });
+      const appHost2 = await models.HostApplication.findOne({
+        where: {
+          CollectiveId: collectiveForMultiApply.id,
+          HostCollectiveId: host2.id,
+          status: HostApplicationStatus.PENDING,
+        },
+      });
+      expect(appHost1).to.exist;
+      expect(appHost2).to.exist;
+
+      const approveOnHost1 = await graphqlQueryV2(
+        PROCESS_HOST_APPLICATION_BY_APPLICATION_MUTATION,
+        {
+          hostApplication: {
+            id: idEncode(appHost1.id, IDENTIFIER_TYPES.HOST_APPLICATION),
+          },
+          action: 'APPROVE',
+        },
+        host1Admin,
+      );
+      expect(approveOnHost1.errors).to.not.exist;
+
+      await appHost1.reload();
+      await appHost2.reload();
+      expect(appHost1.status).to.eq(HostApplicationStatus.APPROVED);
+      expect(appHost2.status).to.eq(HostApplicationStatus.EXPIRED);
+
+      await collectiveForMultiApply.reload();
+      expect(collectiveForMultiApply.HostCollectiveId).to.eq(host1.id);
+      expect(collectiveForMultiApply.approvedAt).to.not.be.null;
     });
   });
 

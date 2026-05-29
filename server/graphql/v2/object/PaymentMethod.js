@@ -3,6 +3,7 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { get, omit, pick } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLOrderCollection } from '../collection/OrderCollection';
 import { getLegacyPaymentMethodType, GraphQLPaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
@@ -22,14 +23,30 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
       id: {
         type: GraphQLString,
         resolve(paymentMethod) {
-          return idEncode(paymentMethod.id, 'paymentMethod');
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.PaymentMethod, paymentMethod.createdAt)) {
+            return paymentMethod.publicId;
+          } else {
+            return idEncode(paymentMethod.id, IDENTIFIER_TYPES.PAYMENT_METHOD);
+          }
         },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.PaymentMethod}_xxxxxxxx)`,
       },
       legacyId: {
         type: GraphQLInt,
         resolve(paymentMethod) {
           return paymentMethod.id;
         },
+      },
+      createdAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'The date and time this payout method was created',
+      },
+      updatedAt: {
+        type: new GraphQLNonNull(GraphQLDateTime),
+        description: 'The date and time this payout method was updated',
       },
       name: {
         type: GraphQLString,
@@ -168,9 +185,6 @@ export const GraphQLPaymentMethod = new GraphQLObjectType({
             return paymentMethod.expiryDate;
           }
         },
-      },
-      createdAt: {
-        type: GraphQLDateTime,
       },
       monthlyLimit: {
         type: GraphQLAmount,

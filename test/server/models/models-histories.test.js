@@ -61,12 +61,13 @@ const tablesWithHistory = [
   'Collectives',
   'Comments',
   'Expenses',
+  'KYCVerifications',
   'Orders',
+  'PlatformSubscriptions',
   'Subscriptions',
   'Tiers',
   'Updates',
   'Users',
-  'PlatformSubscriptions',
 ];
 
 describe('server/models/models-histories', () => {

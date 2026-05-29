@@ -9,6 +9,8 @@ import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 
 class Subscription extends Model<InferAttributes<Subscription>, InferCreationAttributes<Subscription>> {
+  public static readonly tableName = 'Subscriptions' as const;
+
   declare id: number;
   declare amount: number;
   declare currency: SupportedCurrency;

@@ -1,8 +1,9 @@
-import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSONObject } from 'graphql-scalars';
 
 import ExpenseStatus from '../../../constants/expense-status';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { getSpendingLimitIntervalDates } from '../../../lib/stripe';
 import models, { Op, VirtualCard } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -30,7 +31,20 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
   name: 'VirtualCard',
   description: 'A Virtual Card used to pay expenses',
   fields: () => ({
-    id: { type: GraphQLString },
+    id: {
+      type: GraphQLString,
+      resolve: virtualCard => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.VirtualCard, virtualCard.createdAt)) {
+          return virtualCard.publicId;
+        } else {
+          return virtualCard.id;
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.VirtualCard}_xxxxxxxx)`,
+    },
     account: {
       type: GraphQLAccount,
       resolve(virtualCard, _, req) {
@@ -126,7 +140,7 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
         if (await canSeeVirtualCardPrivateInfo(req, virtualCard)) {
           const { spendingLimitInterval } = virtualCard;
 
-          const { renewsOn } = getSpendingLimitIntervalDates(spendingLimitInterval);
+          const { renewsOn } = getSpendingLimitIntervalDates(spendingLimitInterval as VirtualCardLimitIntervals);
 
           return renewsOn;
         }
@@ -142,7 +156,7 @@ export const GraphQLVirtualCard = new GraphQLObjectType({
             return spendingLimitAmount;
           }
 
-          const { renewedOn } = getSpendingLimitIntervalDates(spendingLimitInterval);
+          const { renewedOn } = getSpendingLimitIntervalDates(spendingLimitInterval as VirtualCardLimitIntervals);
 
           const sumExpensesInPeriod = await models.Expense.sum('amount', {
             where: {

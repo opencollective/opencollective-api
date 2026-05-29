@@ -1,9 +1,10 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { canSeeComment, collectiveResolver, fromCollectiveResolver } from '../../common/comment';
 import { GraphQLCommentType } from '../enum/CommentType';
-import { getIdEncodeResolver } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
 
 import GraphQLConversation from './Conversation';
@@ -19,7 +20,17 @@ export const GraphQLComment = new GraphQLObjectType({
     return {
       id: {
         type: GraphQLString,
-        resolve: getIdEncodeResolver('comment'),
+        resolve(comment) {
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Comment, comment.createdAt)) {
+            return comment.publicId;
+          } else {
+            return idEncode(comment.id, IDENTIFIER_TYPES.COMMENT);
+          }
+        },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${EntityShortIdPrefix.Comment}_xxxxxxxx)`,
       },
       createdAt: {
         type: GraphQLDateTime,

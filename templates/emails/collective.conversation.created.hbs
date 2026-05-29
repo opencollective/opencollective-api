@@ -6,7 +6,7 @@ Subject: New Conversation on {{{collective.name}}}: "{{{escapeForSubject convers
   {{> greeting}}
   <br /><br />
   {{> linkCollective collective=fromCollective}} just started
-  a new Conversation on {{collective.name}}: <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}">{{conversation.title}}</a>
+  a new Conversation on {{collective.name}}: <a href="{{permalink conversation}}">{{conversation.title}}</a>
 </p>
 
 <table style="width: 100%; margin-bottom: 30px;">
@@ -21,7 +21,7 @@ Subject: New Conversation on {{{collective.name}}}: "{{{escapeForSubject convers
 
 <p>
   <center>
-    <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}" class="btn blue"><div>View or Reply</div></a>
+    <a href="{{permalink conversation}}" class="btn blue"><div>View or Reply</div></a>
   </center>
 </p>
 

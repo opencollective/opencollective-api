@@ -1,0 +1,54 @@
+import express from 'express';
+import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
+
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
+import ExportRequest from '../../../models/ExportRequest';
+import { checkRemoteUserCanUseExportRequests } from '../../common/scope-check';
+import { Forbidden, NotFound } from '../../errors';
+import {
+  fetchExportRequestWithReference,
+  GraphQLExportRequestReferenceInput,
+} from '../input/ExportRequestReferenceInput';
+import { GraphQLExportRequest } from '../object/ExportRequest';
+
+const ExportRequestQuery = {
+  type: GraphQLExportRequest,
+  args: {
+    exportRequest: {
+      type: new GraphQLNonNull(GraphQLExportRequestReferenceInput),
+      description: 'Identifiers to retrieve the export request',
+    },
+    throwIfMissing: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'If true, an error will be returned if the export request is missing',
+      defaultValue: true,
+    },
+  },
+  async resolve(_: void, args, req: express.Request): Promise<ExportRequest | null> {
+    checkRemoteUserCanUseExportRequests(req);
+
+    const exportRequest = await fetchExportRequestWithReference(args.exportRequest, {
+      throwIfMissing: args.throwIfMissing,
+      loaders: req.loaders,
+    });
+
+    if (!exportRequest) {
+      return null;
+    }
+
+    // Fetch the account to check permissions
+    const account = await req.loaders.Collective.byId.load(exportRequest.CollectiveId);
+    if (!account) {
+      throw new NotFound('Account not found');
+    }
+
+    await assertCanSeeAccount(req, account);
+    if (!req.remoteUser.isAdminOfCollective(account)) {
+      throw new Forbidden('You do not have permission to view this export request');
+    }
+
+    return exportRequest;
+  },
+};
+
+export default ExportRequestQuery;

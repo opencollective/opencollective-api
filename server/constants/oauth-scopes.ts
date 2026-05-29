@@ -19,6 +19,7 @@ enum OAuthScopes {
   connectedAccounts = 'connectedAccounts',
   root = 'root',
   kyc = 'kyc',
+  exportRequests = 'exportRequests',
 }
 
 export default OAuthScopes;

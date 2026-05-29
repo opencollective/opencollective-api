@@ -1,3 +1,4 @@
+import assert from 'assert';
 import crypto from 'crypto';
 
 import * as LibTaxes from '@opencollective/taxes';
@@ -14,9 +15,10 @@ import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
+import { roundCentsAmount } from '../../../lib/currency';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
-import { executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
+import { calcFee, executeOrder, isPlatformTipEligible, processOrder } from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
@@ -408,9 +410,9 @@ export async function createOrder(order, req) {
 
     const tipAmount = order.platformTipAmount || 0;
     const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
-    const netAmountForCollective = Math.round(order.totalAmount - order.taxAmount - tipAmount);
-    const expectedAmountForCollective = Math.round(order.quantity * expectedGrossUnitAmount); // order.amount is always set when called from GraphQL v2
-    const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
+    const netAmountForCollective = roundCentsAmount(order.totalAmount - order.taxAmount - tipAmount, currency);
+    const expectedAmountForCollective = roundCentsAmount(order.quantity * expectedGrossUnitAmount, currency); // order.amount is always set when called from GraphQL v2
+    const expectedTaxAmount = calcFee(expectedAmountForCollective, taxPercent, currency);
 
     // Make sure net amount and tax amount are correct
     if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
@@ -425,7 +427,7 @@ export async function createOrder(order, req) {
     // If using a tier, amount can never be less than the minimum amount
     if (tier && tier.minimumAmount) {
       const minAmount = tier.minimumAmount * order.quantity;
-      const minTotalAmount = taxPercent ? Math.round(minAmount * (1 + taxPercent / 100)) : minAmount;
+      const minTotalAmount = taxPercent ? roundCentsAmount(minAmount * (1 + taxPercent / 100), currency) : minAmount;
       if ((order.totalAmount || 0) < minTotalAmount) {
         const prettyMinTotal = formatCurrency(minTotalAmount, currency);
         throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
@@ -438,30 +440,15 @@ export async function createOrder(order, req) {
     const isManualPayment = get(order, 'paymentMethod.type') === 'manual';
     if (isManualPayment) {
       orderStatus = status.PENDING;
-      // TODO: This parameter should become mandatory once we push the new frontend
-      if (order.paymentMethod.manualPaymentProvider) {
-        manualPaymentProvider = await fetchManualPaymentProviderWithReference(
-          order.paymentMethod.manualPaymentProvider,
-          {
-            throwIfMissing: true,
-            loaders: req.loaders,
-          },
-        );
-        if (manualPaymentProvider.CollectiveId !== host.id) {
-          throw new Error(`This payment provider is not available for this account.`);
-        } else if (manualPaymentProvider.archivedAt) {
-          throw new Error(`This payment provider is not available anymore, please select a different one.`);
-        }
-      } else {
-        manualPaymentProvider = await models.ManualPaymentProvider.findOne({
-          where: {
-            CollectiveId: host.id,
-            archivedAt: null,
-          },
-        });
-        if (!manualPaymentProvider) {
-          throw new Error(`No manual payment provider found for this account.`);
-        }
+      assert(order.paymentMethod.manualPaymentProvider, 'manualPaymentProvider is required for manual payments');
+      manualPaymentProvider = await fetchManualPaymentProviderWithReference(order.paymentMethod.manualPaymentProvider, {
+        throwIfMissing: true,
+        loaders: req.loaders,
+      });
+      if (manualPaymentProvider.CollectiveId !== host.id) {
+        throw new Error(`This payment provider is not available for this account.`);
+      } else if (manualPaymentProvider.archivedAt) {
+        throw new Error(`This payment provider is not available anymore, please select a different one.`);
       }
     }
 
@@ -471,7 +458,11 @@ export async function createOrder(order, req) {
       orderPublicData = pick(order.data, []);
     }
 
-    const platformTipEligible = await isPlatformTipEligible({ ...order, collective });
+    // When the frontend explicitly indicates the tip was not offered (e.g. OSC platform tip A/B
+    // treatment arm), persist the order as not eligible so downstream tip logic respects it and
+    // analytics can group by this flag.
+    const platformTipEligible =
+      order.context?.platformTipOffered === false ? false : await isPlatformTipEligible({ ...order, collective });
 
     const orderData = {
       CreatedByUserId: remoteUser.id,

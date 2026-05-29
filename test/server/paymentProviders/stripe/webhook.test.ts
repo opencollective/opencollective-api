@@ -11,6 +11,7 @@ import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
+import * as applyContributionAccountingCategoryRules from '../../../../server/lib/accounting/categorization/contribution-rules';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
 import * as transactions from '../../../../server/lib/transactions';
@@ -25,6 +26,7 @@ import {
   fakeExpense,
   fakeOrder,
   fakePaymentMethod,
+  fakeSubscription,
   fakeTransaction,
   fakeUser,
   randStr,
@@ -560,6 +562,109 @@ describe('webhook', () => {
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PAID);
         expect(order.processedAt).to.not.be.null;
+      });
+
+      it('calls applyContributionAccountingCategoryRules after processing stripe order', async () => {
+        const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+          applyContributionAccountingCategoryRules,
+          'applyContributionAccountingCategoryRules',
+        );
+        sandbox.stub(common, 'createChargeTransactions').resolves();
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        await webhook.paymentIntentSucceeded(event);
+
+        assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
+          order: {
+            dataValues: { id: order.id },
+          },
+        });
+        assert.calledOnceWithMatch(libPayments.sendEmailNotifications, {
+          dataValues: { id: order.id },
+        });
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PAID);
+        expect(order.processedAt).to.not.be.null;
+        expect(applyContributionAccountingCategoryRulesSpy.calledWithMatch({ id: order.id })).to.be.true;
+      });
+
+      it('calls applyContributionAccountingCategoryRules after processing initial subscription order', async () => {
+        const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+          applyContributionAccountingCategoryRules,
+          'applyContributionAccountingCategoryRules',
+        );
+        sandbox.stub(common, 'createChargeTransactions').resolves(
+          fakeTransaction(
+            {
+              OrderId: order.id,
+              amount: 100e2,
+              currency: order.currency,
+              type: 'CREDIT',
+            },
+            {
+              createDoubleEntry: true,
+            },
+          ),
+        );
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        await order.update({ interval: 'month', SubscriptionId: null });
+        await webhook.paymentIntentSucceeded(event);
+
+        assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
+          order: {
+            dataValues: { id: order.id },
+          },
+        });
+        assert.calledOnceWithMatch(libPayments.sendEmailNotifications, {
+          dataValues: { id: order.id },
+        });
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.ACTIVE);
+        expect(order.processedAt).to.not.be.null;
+        expect(applyContributionAccountingCategoryRulesSpy.calledWithMatch({ id: order.id })).to.be.true;
+      });
+
+      it('does not calls applyContributionAccountingCategoryRules on recurring order', async () => {
+        const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+          applyContributionAccountingCategoryRules,
+          'applyContributionAccountingCategoryRules',
+        );
+        sandbox.stub(common, 'createChargeTransactions').resolves(
+          fakeTransaction(
+            {
+              OrderId: order.id,
+              amount: 100e2,
+              currency: order.currency,
+              type: 'CREDIT',
+            },
+            {
+              createDoubleEntry: true,
+            },
+          ),
+        );
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        const subscription = await fakeSubscription({
+          CollectiveId: order.collective.id,
+          interval: 'month',
+          isActive: true,
+        });
+        await order.update({ interval: 'month', SubscriptionId: subscription.id });
+        await webhook.paymentIntentSucceeded(event);
+
+        assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
+          order: {
+            dataValues: { id: order.id },
+          },
+        });
+        assert.calledOnceWithMatch(libPayments.sendEmailNotifications, {
+          dataValues: { id: order.id },
+        });
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.ACTIVE);
+        expect(order.processedAt).to.not.be.null;
+        expect(applyContributionAccountingCategoryRulesSpy).to.not.have.been.called;
       });
     });
 

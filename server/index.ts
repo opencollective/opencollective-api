@@ -8,11 +8,12 @@ import os from 'os';
 import * as Sentry from '@sentry/node';
 import config from 'config';
 import express from 'express';
-import { isUndefined, toInteger } from 'lodash';
+import { toInteger } from 'lodash';
 import throng from 'throng';
 
 import setupExpress from './lib/express';
 import logger from './lib/logger';
+import { createRedisClient, RedisInstanceType } from './lib/redis';
 import { reportErrorToSentry } from './lib/sentry';
 import { updateCachedFidoMetadata } from './lib/two-factor-authentication/fido-metadata';
 import { parseToBoolean } from './lib/utils';
@@ -21,13 +22,14 @@ import { startSearchSyncWorker } from './workers/search-sync';
 import { sequelize } from './models';
 import routes from './routes';
 
-const workers = isUndefined(process.env.WEB_CONCURRENCY) ? toInteger(process.env.WEB_CONCURRENCY) : 1;
+const workers = toInteger(process.env.WEB_CONCURRENCY) || 1;
 
 async function startExpressServer(workerId) {
   const expressApp = express();
 
   await updateCachedFidoMetadata();
-  await setupExpress(expressApp);
+  const redisClient = await createRedisClient(RedisInstanceType.SESSION);
+  setupExpress(expressApp, redisClient);
 
   /**
    * Routes.
@@ -80,15 +82,6 @@ const gracefullyShutdown = async signal => {
     logger.info(`Received ${signal}. Shutting down.`);
     isShuttingDown = true;
 
-    if (appPromise) {
-      await appPromise.then(app => {
-        if (app['__server__']) {
-          logger.info('Closing express server');
-          app['__server__'].close();
-        }
-      });
-    }
-
     const stopSearchSyncWorker = await pStopSearchSyncWorker;
     if (stopSearchSyncWorker) {
       await stopSearchSyncWorker();
@@ -96,6 +89,15 @@ const gracefullyShutdown = async signal => {
     const stopExportWorker = await pStopExportWorker;
     if (stopExportWorker) {
       await stopExportWorker();
+    }
+
+    if (appPromise) {
+      await appPromise.then(app => {
+        if (app['__server__']) {
+          logger.info('Closing express server');
+          app['__server__'].close();
+        }
+      });
     }
 
     await sequelize.close();

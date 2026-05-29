@@ -2,9 +2,11 @@ import type { BelongsToGetAssociationMixin, ForeignKey, InferAttributes, InferCr
 import { z } from 'zod';
 
 import { formatZodError } from '../lib/errors';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Collective from './Collective';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import UploadedFile from './UploadedFile';
 import User from './User';
 
@@ -12,16 +14,7 @@ import User from './User';
 type CreationAttributes = InferCreationAttributes<
   ExportRequest,
   {
-    omit:
-      | 'id'
-      | 'parameters'
-      | 'data'
-      | 'status'
-      | 'createdAt'
-      | 'updatedAt'
-      | 'deletedAt'
-      | 'expiresAt'
-      | 'UploadedFileId';
+    omit: 'id' | 'data' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'expiresAt' | 'UploadedFileId';
   }
 >;
 
@@ -35,6 +28,7 @@ export enum ExportRequestStatus {
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
+  EXPIRED = 'EXPIRED',
 }
 
 const dataSchema = z
@@ -51,7 +45,14 @@ const dataSchema = z
 
 type ExportRequestData = z.infer<typeof dataSchema>;
 
-class ExportRequest extends Model<InferAttributes<ExportRequest>, CreationAttributes> {
+class ExportRequest extends ModelWithPublicId<
+  EntityShortIdPrefix.ExportRequest,
+  InferAttributes<ExportRequest>,
+  CreationAttributes
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.ExportRequest;
+  public static readonly tableName = 'ExportRequests' as const;
+
   declare public id: number;
   declare public CollectiveId: ForeignKey<Collective['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;
@@ -92,6 +93,10 @@ ExportRequest.init(
       autoIncrement: true,
       primaryKey: true,
     },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Collectives' },
@@ -106,6 +111,7 @@ ExportRequest.init(
       onUpdate: 'CASCADE',
       allowNull: true,
     },
+    // One-to-one relationship enforced by a unique index constraint.
     UploadedFileId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'UploadedFiles' },

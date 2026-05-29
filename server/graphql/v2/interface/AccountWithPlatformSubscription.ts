@@ -37,7 +37,7 @@ export const AccountWithPlatformSubscriptionFields = {
   legacyPlan: {
     type: new GraphQLNonNull(GraphQLHostPlan),
     resolve(account) {
-      return account.getPlan();
+      return account.getLegacyPlan();
     },
   },
 };

@@ -24,12 +24,13 @@ import { CollectiveType } from '../../constants/collectives';
 import { SupportedCurrency } from '../../constants/currencies';
 import status from '../../constants/expense-status';
 import expenseType from '../../constants/expense-type';
+import { isAccountHolderNameAndLegalNameMatch } from '../../graphql/common/expenses';
 import type { ConvertToCurrencyArgs } from '../../graphql/loaders/currency-exchange-rate';
 import models, { ExpenseAttachedFile, ExpenseItem, Op, sequelize, UploadedFile } from '../../models';
 import Expense from '../../models/Expense';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../models/PayoutMethod';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
-import { KYCProviderName } from '../kyc/providers';
+import { handleExpenseKycSecurityChecks } from '../kyc/expenses/kyc-expenses-check';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 import { formatCurrency } from '../utils';
 
@@ -48,7 +49,7 @@ export enum Level {
   HIGH = 'HIGH',
 }
 
-type SecurityCheck = {
+export type SecurityCheck = {
   scope: Scope;
   level: Level;
   message: string;
@@ -211,7 +212,7 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
   );
 
   // Map Attachments and Items from scanned expenses
-  const urlToExpense = mapValues(groupBy(attachments, 'url'), ids => ids.map(id => id.expenseId));
+  const urlToExpenseId = mapValues(groupBy(attachments, 'url'), ids => ids.map(id => id.expenseId));
   // Load Files checksums
   const urls = uniq(attachments.map(a => a.url));
   const uploadedFiles = await req.loaders.UploadedFile.byUrl.loadMany(urls);
@@ -219,11 +220,11 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
     .filter(f => f instanceof models.UploadedFile)
     .filter(f => Boolean(f.data?.s3SHA256));
 
-  const checksumToExpense: Record<string, number[]> = filesWithChecksum.reduce((result, file) => {
+  const checksumToExpenseIds: Record<string, number[]> = filesWithChecksum.reduce((result, file) => {
     if (result[file.data.s3SHA256]) {
-      result[file.data.s3SHA256] = uniq([...result[file.data.s3SHA256], ...urlToExpense[file.getDataValue('url')]]);
+      result[file.data.s3SHA256] = uniq([...result[file.data.s3SHA256], ...urlToExpenseId[file.getDataValue('url')]]);
     } else {
-      result[file.data.s3SHA256] = urlToExpense[file.getDataValue('url')];
+      result[file.data.s3SHA256] = urlToExpenseId[file.getDataValue('url')];
     }
     return result;
   }, {});
@@ -238,18 +239,23 @@ const buildExpenseAttachmentChecker = async (req: Express.Request, expenses: Arr
   const similarAttachments = compact(
     flatten(
       await Promise.all([
-        await req.loaders.ExpenseItem.byUrl.loadMany(similarFilesUrls),
-        await req.loaders.ExpenseAttachedFile.byUrl.loadMany(similarFilesUrls),
+        (await req.loaders.ExpenseItem.byUrl.loadMany(similarFilesUrls)) as Array<unknown>,
+        (await req.loaders.ExpenseAttachedFile.byUrl.loadMany(similarFilesUrls)) as Array<unknown>,
       ]),
     ) as Array<ExpenseItem | ExpenseAttachedFile>,
   );
+
   similarAttachments.forEach(item => {
     const checksum = similarFiles.find(f => f.getDataValue('url') === item.url)?.data?.s3SHA256;
-    checksumToExpense[checksum] = uniq([...checksumToExpense[checksum], item.ExpenseId]);
+    if (checksum) {
+      checksumToExpenseIds[checksum] = checksumToExpenseIds[checksum]
+        ? uniq(checksumToExpenseIds[checksum].concat(item.ExpenseId))
+        : [item.ExpenseId];
+    }
   });
 
   const checkExpense = (checks: Array<SecurityCheck>, expense: Expense) => {
-    forIn(checksumToExpense, (expenseIds, checksum) => {
+    forIn(checksumToExpenseIds, (expenseIds, checksum) => {
       if (expenseIds.includes(expense.id) && expenseIds.length > 1) {
         const files = uniq(similarFiles.filter(f => f.data.s3SHA256 === checksum).map(f => f.fileName));
         checks.push({
@@ -504,29 +510,7 @@ export const checkExpensesBatch = async (
         },
       );
 
-      const hostCollectiveId = expense.HostCollectiveId || expense.collective?.HostCollectiveId;
-
-      // KYC Verification Check: only for individual payees
-      const payeeCollective =
-        expense.fromCollective || (await req.loaders.Collective.byId.load(expense.FromCollectiveId));
-      if (payeeCollective?.type === CollectiveType.USER) {
-        const kycVerifications = await Promise.all(
-          Object.values(KYCProviderName).map(provider =>
-            req.loaders.KYCVerification.verifiedStatusByProvider(hostCollectiveId, provider).load(payeeCollective.id),
-          ),
-        );
-        for (const kycVerification of kycVerifications) {
-          if (!kycVerification) {
-            continue;
-          }
-          addBooleanCheck(checks, true, {
-            scope: Scope.PAYEE,
-            level: Level.PASS,
-            message: `Payee has KYC Verification with '${kycVerification.provider}' provider`,
-            details: kycVerification.data.legalName,
-          });
-        }
-      }
+      await handleExpenseKycSecurityChecks(expense, checks, { loaders: req.loaders });
 
       // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
       const userIsHostAdmin = expense.User.isAdmin(expense.HostCollectiveId);
@@ -619,6 +603,40 @@ export const checkExpensesBatch = async (
             message: `Payout Method address is different from the payee's address`,
             details: `While the payee is registered at ${payeeCity}, ${payeeCountry} (${payeeCode}), the payout method used in this expense is located at ${pmCity}, ${pmCountry} (${pmCode})`,
           });
+        } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+          const paypalData = payoutMethod.data as PaypalPayoutMethodData;
+          const paypalEmail = paypalData?.email;
+          const isVerified = Boolean(paypalData?.verifiedAt);
+          addBooleanCheck(
+            checks,
+            isVerified,
+            {
+              scope: Scope.PAYOUT_METHOD,
+              level: Level.PASS,
+              message: 'PayPal account has been verified',
+              details: `The PayPal account (${paypalEmail}) has been connected and verified, confirming ownership.`,
+            },
+            {
+              scope: Scope.PAYOUT_METHOD,
+              level: Level.MEDIUM,
+              message: 'PayPal account has not been verified',
+              details: `The PayPal account (${paypalEmail}) was entered manually and has not been connected. Verification helps confirm ownership of the account.`,
+            },
+          );
+
+          if (isVerified) {
+            const paypalName = paypalData?.paypalUserInfo?.name;
+            if (paypalName) {
+              const payeeLegalName = expense.fromCollective.legalName || expense.fromCollective.name;
+              const namesMatch = isAccountHolderNameAndLegalNameMatch(paypalName, payeeLegalName);
+              addBooleanCheck(checks, !namesMatch, {
+                scope: Scope.PAYOUT_METHOD,
+                level: Level.MEDIUM,
+                message: 'Payout Method name does not match the payee name',
+                details: `The name on the PayPal account ("${paypalName}") does not match the payee name ("${payeeLegalName}").`,
+              });
+            }
+          }
         }
       }
 

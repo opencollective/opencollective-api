@@ -64,15 +64,20 @@ type BanSummary = {
   usersCount: number;
 };
 
+// "TransactionGroup" is nullable. As of 2026-03-18, there are 29 soft-deleted transactions with a null "TransactionGroup".
+// They should probably be migrated, and the column moved to not nullable.
 const allTransactionGroupsForAccountQuery = `
-  SELECT DISTINCT "TransactionGroup"
-  FROM "Transactions" t
-  WHERE t."deletedAt" IS NULL
-  AND (
-    t."CollectiveId" IN (:collectiveIds)
-    OR t."FromCollectiveId" IN (:collectiveIds)
-    OR t."HostCollectiveId" IN (:collectiveIds)
-  )
+  SELECT DISTINCT "TransactionGroup" FROM "Transactions"
+  WHERE "deletedAt" IS NULL AND "TransactionGroup" IS NOT NULL
+  AND "CollectiveId" IN (:collectiveIds)
+  UNION
+  SELECT DISTINCT "TransactionGroup" FROM "Transactions"
+  WHERE "deletedAt" IS NULL AND "TransactionGroup" IS NOT NULL
+  AND "FromCollectiveId" IN (:collectiveIds)
+  UNION
+  SELECT DISTINCT "TransactionGroup" FROM "Transactions"
+  WHERE "deletedAt" IS NULL AND "TransactionGroup" IS NOT NULL
+  AND "HostCollectiveId" IN (:collectiveIds)
 `;
 
 const getAllRelatedTransactionsCount = async collectiveIds => {
@@ -129,7 +134,7 @@ const getUndeletableTransactionsCount = async collectiveIds => {
           payout.type NOT IN ('OTHER', 'ACCOUNT_BALANCE')
           AND (
             (e."VirtualCardId" IS NOT NULL) -- Can't delete virtual cards-related transactions
-            OR (payout.type = 'BANK_ACCOUNT' AND t.data -> 'transfer' IS NOT NULL) -- Can't delete wise transactions that were not paid manually
+            OR (payout.type = 'BANK_ACCOUNT' AND (t.data #>> '{transfer,id}') IS NOT NULL) -- Can't delete wise transactions that were not paid manually (uses transaction_wise_transfer_id index)
             OR (payout.type = 'PAYPAL' AND (t.data -> 'links' IS NOT NULL OR t.data -> 'createPaymentResponse' IS NOT NULL)) -- Can't delete paypal transactions that were not paid manually
           )
         )

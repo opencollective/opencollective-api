@@ -4,6 +4,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers } from '../../../constants/plans';
 import { Collective, PlatformSubscription } from '../../../models';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLPlatformSubscriptionInput } from '../input/PlatformSubcriptionInput';
 import { GraphQLAccount } from '../interface/Account';
@@ -25,9 +26,9 @@ const platformSubscriptionMutations = {
       },
     },
     async resolve(_, args, req: Express.Request): Promise<Collective> {
-      if (!req.remoteUser) {
-        throw new Error('You need to be logged in to update a platform subscription');
-      }
+      checkRemoteUserCanUseAccount(req, {
+        signedOutMessage: 'You need to be logged in to update a platform subscription',
+      });
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
 
       let plan: Partial<PlatformSubscriptionPlan>;
@@ -68,6 +69,7 @@ const platformSubscriptionMutations = {
             pricePerAdditionalExpense: args.subscription.plan.pricing.pricePerAdditionalExpense.valueInCents,
             includedCollectives: args.subscription.plan.pricing.includedCollectives,
             includedExpensesPerMonth: args.subscription.plan.pricing.includedExpensesPerMonth,
+            platformTips: true,
           },
           features: args.subscription.plan.features,
         };

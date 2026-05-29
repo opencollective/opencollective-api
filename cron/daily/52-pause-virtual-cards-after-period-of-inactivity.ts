@@ -73,7 +73,7 @@ async function pauseVirtualCardDueToInactivity(virtualCard: VirtualCard) {
       return;
     }
 
-    await virtualCard.pause();
+    await virtualCard.pause({ pauseReason: 'INACTIVITY' });
     await models.Activity.create({
       type: activities.COLLECTIVE_VIRTUAL_CARD_SUSPENDED_DUE_TO_INACTIVITY,
       CollectiveId: virtualCard.collective.id,

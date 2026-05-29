@@ -1,19 +1,18 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import { createSandbox, stub } from 'sinon';
+import sinon, { createSandbox } from 'sinon';
 
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
+import * as paypal from '../../../../../server/lib/paypal';
 import * as PlaidConnect from '../../../../../server/lib/plaid/connect';
-import * as transferwise from '../../../../../server/lib/transferwise';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   const sandbox = createSandbox();
   beforeEach(async () => {
-    sandbox.stub(transferwise, 'getProfiles').resolves();
     await utils.resetTestDB();
   });
 
@@ -36,22 +35,22 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
     let user, collective;
     beforeEach(async () => {
       user = await fakeUser();
-      collective = await fakeCollective({
+      collective = await fakeActiveHost({
         plan: 'start-plan-2021',
         admin: user.collective,
-        hasMoneyManagement: true,
-        isActive: true,
+        settings: { features: { paypalPayouts: true } },
       });
+    });
+
+    beforeEach(() => {
+      sandbox.stub(paypal, 'validateConnectedAccount').resolves();
+      sandbox.stub(paypal, 'setupPaypalWebhookForHost').resolves();
     });
 
     it('should create a new connected account', async () => {
       const connectedAccount = {
-        refreshToken: 'fakeRefreshToken',
-        settings: { a: true },
         token: 'fakeToken',
-        service: 'transferwise',
-        username: 'kewitz',
-        data: { secret: true },
+        service: 'paypal',
       };
 
       const result = await graphqlQueryV2(
@@ -72,12 +71,14 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
         result.data.createConnectedAccount.legacyId,
       );
       expect(createdConnectedAccount.toJSON()).to.deep.include(connectedAccount);
+      expect(paypal.validateConnectedAccount).to.have.been.calledOnce;
+      expect(paypal.setupPaypalWebhookForHost).to.have.been.calledOnce;
     });
 
     it('should fail if token already exists', async () => {
       const connectedAccount = {
         token: 'fakeToken',
-        service: 'transferwise',
+        service: 'paypal',
       };
 
       await graphqlQueryV2(
@@ -103,13 +104,28 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       expect(result.errors[0].message).to.include('This token is already being used');
     });
 
+    it('should fail if service is not supported (e.g. transferwise)', async () => {
+      const result = await graphqlQueryV2(
+        createConnectedAccountMutation,
+        {
+          connectedAccount: { token: 'fakeToken', service: 'transferwise' },
+          account: { legacyId: collective.id },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+      expect(result.errors[0].message).to.include('Only PayPal is supported');
+    });
+
     it('should fail if token is not valid', async () => {
+      (paypal.validateConnectedAccount as sinon.SinonStub).rejects();
+      const setupWebhookStub = paypal.setupPaypalWebhookForHost as sinon.SinonStub;
       const connectedAccount = {
         token: 'fakeToken',
-        service: 'transferwise',
+        service: 'paypal',
       };
-
-      (transferwise.getProfiles as stub).rejects();
 
       const result = await graphqlQueryV2(
         createConnectedAccountMutation,
@@ -122,7 +138,8 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
-      expect(result.errors[0].message).to.include('The token is not a valid TransferWise token');
+      expect(result.errors[0].message).to.include('The Client ID and Token are not a valid combination');
+      expect(setupWebhookStub).to.not.have.been.called;
     });
   });
 
@@ -162,6 +179,34 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
       const createdConnectedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id, { paranoid: false });
       expect(createdConnectedAccount).to.not.be.null;
       expect(createdConnectedAccount.deletedAt).to.not.be.null;
+    });
+
+    it('should fail if the connected account is being mirrored by another organization', async () => {
+      connectedAccount = await fakeConnectedAccount({ service: 'transferwise', CollectiveId: collective.id });
+      // Create a mirror connected account that references the original via data.MirrorConnectedAccountId
+      await fakeConnectedAccount({
+        data: { MirrorConnectedAccountId: connectedAccount.id },
+      });
+
+      const result = await graphqlQueryV2(
+        deleteConnectedAccountMutation,
+        {
+          connectedAccount: {
+            legacyId: connectedAccount.id,
+          },
+        },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include(
+        'This connected account is being mirrored by other organization(s). Please disconnect mirrors before removing this account.',
+      );
+
+      // Verify the account was NOT deleted
+      const stillExists = await models.ConnectedAccount.findByPk(connectedAccount.id);
+      expect(stillExists).to.not.be.null;
+      expect(stillExists.deletedAt).to.be.null;
     });
 
     describe('should disconnect on 3rd party services', () => {

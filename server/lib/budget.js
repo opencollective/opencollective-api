@@ -1,5 +1,5 @@
 import config from 'config';
-import { difference } from 'lodash';
+import { difference, groupBy } from 'lodash';
 import { QueryTypes } from 'sequelize';
 
 import { CollectiveType } from '../constants/collectives';
@@ -7,13 +7,15 @@ import expenseStatus from '../constants/expense-status';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
-import { getFxRate } from './currency';
+import { getFxRate, roundCentsAmount } from './currency';
 import { fillTimeSeriesWithNodes, parseToBoolean } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
 const DEFAULT_BUDGET_VERSION = 'v2';
+// TODO: Replace DEFAULT_BUDGET_VERSION checks with FAST_BALANCE_SUPPORTED_VERSIONS throughout this file
+const FAST_BALANCE_SUPPORTED_VERSIONS = ['v2', 'v3'];
 
 const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
 
@@ -22,7 +24,7 @@ export async function sumTransactionsInCurrency(results, currency) {
 
   for (const result of Object.values(results)) {
     const fxRate = await getFxRate(result.currency, currency);
-    total += Math.round(result.value * fxRate);
+    total += roundCentsAmount(result.value * fxRate, currency);
   }
 
   return total;
@@ -78,7 +80,7 @@ export async function getBalanceAmount(
   // There is no guarantee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -97,9 +99,17 @@ export async function getBalances(
     loaders = null,
   } = {},
 ) {
+  // Note: Historical balances (endDate path) don't support withBlockedFunds - the slow path will throw
+  // an error for that combination. We must not use the fast path in that case to preserve the error.
   const fastResults =
-    useMaterializedView === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
-      ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+    useMaterializedView === true && !includeChildren
+      ? endDate
+        ? FAST_BALANCE_SUPPORTED_VERSIONS.includes(version) && !withBlockedFunds
+          ? await getHistoricalCollectiveBalances(collectiveIds, endDate)
+          : {}
+        : version === DEFAULT_BUDGET_VERSION
+          ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
+          : {}
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
@@ -117,6 +127,38 @@ export async function getBalances(
   });
 
   return { ...fastResults, ...results };
+}
+
+/**
+ * Same as getBalances but uses each collective's budget version (from settings.budget.version)
+ * instead of a single default. Required for Ready to Pay and other features where collectives
+ * may have different budget versions (v2 vs v3).
+ *
+ * @return {Promise<Record<number, { CollectiveId: number, currency: string, value: number }>>}
+ */
+export async function getBalancesWithVersionPerCollective(collectiveIds, options = {}) {
+  if (!collectiveIds?.length) {
+    return {};
+  }
+
+  const collectives = await models.Collective.findAll({
+    where: { id: collectiveIds },
+    attributes: ['id', 'settings'],
+    raw: true,
+  });
+
+  const idsByVersion = groupBy(collectiveIds, id => {
+    const collective = collectives.find(c => c.id === id);
+    return collective?.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
+  });
+
+  const allBalances = {};
+  for (const [version, ids] of Object.entries(idsByVersion)) {
+    const balances = await getBalances(ids, { ...options, version });
+    Object.assign(allBalances, balances);
+  }
+
+  return allBalances;
 }
 
 export async function getTotalAmountReceivedAmount(
@@ -153,7 +195,7 @@ export async function getTotalAmountReceivedAmount(
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -191,7 +233,7 @@ export async function getTotalAmountSpentAmount(
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -358,7 +400,7 @@ export async function getTotalAmountReceivedTimeSeries(
   const nodes = result.groupBy?.date
     ? Object.values(result.groupBy.date).map(node => ({
         date: node.date,
-        amount: { value: Math.round(node.amount * fxRate), currency },
+        amount: { value: roundCentsAmount(node.amount * fxRate, currency), currency },
       }))
     : [];
 
@@ -415,7 +457,7 @@ export async function getBalanceTimeSeries(
     runningBalance += node.amount * fxRate;
     return {
       date: node.date,
-      amount: { value: Math.round(runningBalance), currency },
+      amount: { value: roundCentsAmount(runningBalance, currency), currency },
     };
   });
 
@@ -787,8 +829,9 @@ export async function sumCollectivesTransactions(
       totals[CollectiveId].currency = currency;
     }
 
-    const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
-    const amount = Math.round(value * fxRate);
+    const targetCurrency = totals[CollectiveId].currency;
+    const fxRate = await getFxRate(currency, targetCurrency);
+    const amount = roundCentsAmount(value * fxRate, targetCurrency);
     totals[CollectiveId].value += amount;
 
     // Add extra attributes if any
@@ -827,9 +870,9 @@ export async function sumCollectivesTransactions(
     for (const collectiveId of ids) {
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
-
-        const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
-        totals[CollectiveId].value -= Math.round(value * fxRate);
+        const targetCurrency = totals[CollectiveId].currency;
+        const fxRate = await getFxRate(currency, targetCurrency);
+        totals[CollectiveId].value -= roundCentsAmount(value * fxRate, targetCurrency);
       }
     }
   }
@@ -854,7 +897,7 @@ export async function getYearlyBudgetAmount(collective, { loaders, currency } = 
   // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
-    value: Math.round(result.value * fxRate),
+    value: roundCentsAmount(result.value * fxRate, currency),
     currency,
   };
 }
@@ -934,8 +977,9 @@ export async function getYearlyBudgets(collectiveIds) {
       totals[collectiveId] = { CollectiveId: collectiveId, currency: result['currency'], value: 0 };
     }
 
-    const fxRate = await getFxRate(result['currency'], totals[collectiveId].currency);
-    totals[collectiveId].value += Math.round(result['amount'] * fxRate);
+    const targetCurrency = totals[collectiveId].currency;
+    const fxRate = await getFxRate(result['currency'], targetCurrency);
+    totals[collectiveId].value += roundCentsAmount(result['amount'] * fxRate, targetCurrency);
   }
 
   for (const CollectiveId of collectiveIds) {
@@ -980,8 +1024,9 @@ export async function getBlockedExpenseFunds(collectiveIds) {
       totals[collectiveId] = { CollectiveId: collectiveId, currency: result['currency'], value: 0 };
     }
 
-    const fxRate = await getFxRate(result['currency'], totals[collectiveId].currency);
-    totals[collectiveId].value += Math.round(result['amount'] * fxRate);
+    const targetCurrency = totals[collectiveId].currency;
+    const fxRate = await getFxRate(result['currency'], targetCurrency);
+    totals[collectiveId].value += roundCentsAmount(result['amount'] * fxRate, targetCurrency);
   }
 
   return totals;
@@ -1003,6 +1048,41 @@ export async function getBlockedContributionsCount(collectiveId) {
   });
 }
 
+// Get historical balance for collectives at a specific point in time using TransactionBalances materialized view.
+// Note: No separate loader needed - batching is handled by the existing `balance` loader in getBalances().
+export async function getHistoricalCollectiveBalances(collectiveIds, endDate) {
+  const results = await sequelize.query(
+    `-- DISTINCT ON is a PostgreSQL extension that returns the first row for each unique CollectiveId.
+     -- Combined with ORDER BY CollectiveId, rank DESC, it returns the most recent balance per collective.
+     -- We use rank (not createdAt) because rank is deterministic within a CollectiveId - it incorporates
+     -- time ordering (10-second buckets), TransactionGroup, kind priority, and type priority.
+     SELECT DISTINCT ON (tb."CollectiveId")
+       tb."CollectiveId",
+       tb."balance" as "netAmountInHostCurrency",
+       tb."hostCurrency"
+     FROM "TransactionBalances" tb
+     INNER JOIN "Collectives" c ON tb."CollectiveId" = c."id"
+       AND COALESCE(c."settings"->'budget'->>'version', 'v2') IN (:supportedBudgetVersions)
+     WHERE tb."CollectiveId" IN (:collectiveIds)
+       AND tb."createdAt" < :endDate
+     ORDER BY tb."CollectiveId", tb."rank" DESC`,
+    {
+      replacements: { collectiveIds, endDate, supportedBudgetVersions: FAST_BALANCE_SUPPORTED_VERSIONS },
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+    },
+  );
+
+  const totals = {};
+
+  for (const result of results) {
+    const CollectiveId = result['CollectiveId'];
+    totals[CollectiveId] = { CollectiveId, currency: result['hostCurrency'], value: result['netAmountInHostCurrency'] };
+  }
+
+  return totals;
+}
+
 // Get current balance for collective using a combination of speed and accuracy.
 export async function getCurrentCollectiveBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
   const fastResults = loaders
@@ -1013,7 +1093,7 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
         `SELECT ccb.*
          FROM "CurrentCollectiveBalance" ccb
          INNER JOIN "Collectives" c ON ccb."CollectiveId" = c."id"
-         AND COALESCE(TRIM('"' FROM (c."settings"->'budget'->'version')::text), 'v2') = 'v2'
+         AND COALESCE(c."settings"->'budget'->>'version', 'v2') = 'v2'
          WHERE ccb."CollectiveId" IN (:collectiveIds)`,
         {
           replacements: { collectiveIds },
@@ -1039,8 +1119,9 @@ export async function getCurrentCollectiveBalances(collectiveIds, { loaders = nu
       if (blockedFundsResults[collectiveId]) {
         const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
 
-        const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
-        totals[CollectiveId].value -= Math.round(value * fxRate);
+        const targetCurrency = totals[CollectiveId].currency;
+        const fxRate = await getFxRate(currency, targetCurrency);
+        totals[CollectiveId].value -= roundCentsAmount(value * fxRate, targetCurrency);
       }
     }
   }

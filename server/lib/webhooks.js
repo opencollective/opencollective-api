@@ -17,6 +17,7 @@ const getCollectiveInfo = collective => {
     return {
       idV2: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT),
       ...pick(collective, [
+        'publicId',
         'id',
         'type',
         'slug',
@@ -40,7 +41,7 @@ const getTierInfo = tier => {
   } else {
     return {
       idV2: idEncode(tier.id, IDENTIFIER_TYPES.TIER),
-      ...pick(tier, ['id', 'name', 'amount', 'currency', 'description', 'maxQuantity']),
+      ...pick(tier, ['id', 'name', 'amount', 'currency', 'description', 'maxQuantity', 'publicId']),
     };
   }
 };
@@ -52,6 +53,7 @@ const getOrderInfo = order => {
     return {
       idV2: idEncode(order.id, IDENTIFIER_TYPES.ORDER),
       ...pick(order, [
+        'publicId',
         'id',
         'totalAmount',
         'currency',
@@ -73,7 +75,7 @@ const getExpenseInfo = expense => {
   } else {
     return {
       idV2: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-      ...pick(expense, ['id', 'description', 'amount', 'currency']),
+      ...pick(expense, ['id', 'description', 'amount', 'currency', 'publicId']),
     };
   }
 };
@@ -84,7 +86,7 @@ const getUpdateInfo = update => {
   } else {
     return {
       idV2: idEncode(update.id, IDENTIFIER_TYPES.UPDATE),
-      ...pick(update, ['html', 'title', 'slug', 'tags', 'isPrivate']),
+      ...pick(update, ['html', 'title', 'slug', 'tags', 'isPrivate', 'publicId']),
     };
   }
 };

@@ -4,15 +4,20 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, uniq } from 'lodash';
+import { cloneDeep, flatten, intersection, isEmpty, isNil, pick, pickBy, uniq } from 'lodash';
 import { Op, type Order as SequelizeOrder, Utils as SequelizeUtils, WhereOptions } from 'sequelize';
 
 import { CollectiveType } from '../../../../constants/collectives';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../constants/paymentMethods';
+import { RefundKind } from '../../../../constants/refund-kind';
+import { MemberRolesForPrivateAccounts } from '../../../../constants/roles';
 import { TransactionKind } from '../../../../constants/transaction-kind';
 import cache, { memoize } from '../../../../lib/cache';
+import { EntityShortIdPrefix } from '../../../../lib/permalink/entity-map';
+import { assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import { buildSearchConditions } from '../../../../lib/sql-search';
 import { parseToBoolean } from '../../../../lib/utils';
-import { AccountingCategory, Expense, PaymentMethod, sequelize } from '../../../../models';
+import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope } from '../../../common/scope-check';
@@ -37,7 +42,11 @@ import {
   CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   GraphQLChronologicalOrderInput,
 } from '../../input/ChronologicalOrderInput';
-import { getDatabaseIdFromExpenseReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../../input/ExpenseReferenceInput';
+import {
+  fetchManualPaymentProvidersWithReferences,
+  GraphQLManualPaymentProviderReferenceInput,
+} from '../../input/ManualPaymentProviderInput';
 import { getDatabaseIdFromOrderReference, GraphQLOrderReferenceInput } from '../../input/OrderReferenceInput';
 import {
   fetchPaymentMethodWithReferences,
@@ -171,6 +180,10 @@ export const TransactionsCollectionArgs = {
     type: GraphQLOrderReferenceInput,
     description: 'Only return transactions for this order.',
   },
+  manualPaymentProvider: {
+    type: new GraphQLList(new GraphQLNonNull(GraphQLManualPaymentProviderReferenceInput)),
+    description: 'Only return transactions for contributions that used this manual payment provider.',
+  },
   includeHost: {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: true,
@@ -203,6 +216,11 @@ export const TransactionsCollectionArgs = {
     type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: false,
     description: 'Whether to include debt transactions',
+  },
+  includeEditedReversedTransactions: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: true,
+    description: 'Whether to include the reversed transactions created due to an edit.',
   },
   kind: {
     type: new GraphQLList(GraphQLTransactionKind),
@@ -243,6 +261,9 @@ export const TransactionsCollectionResolver = async (
 ): Promise<GraphQLTransactionsCollectionReturnType> => {
   const where: WhereOptions<Transaction> = [];
   const include = [];
+  let hasCollectiveInclude = false;
+  let hasFromCollectiveInclude = false;
+  const hasHostInclude = false;
 
   // Check Pagination arguments
   if (isNil(args.limit) || args.limit < 0) {
@@ -267,6 +288,8 @@ export const TransactionsCollectionResolver = async (
     ? await getCollectiveIdsWithGiftCardTransactions()
     : [];
 
+  let accountsToCheckForPrivateVisibility = [fromAccount, host].filter(Boolean);
+
   if (fromAccount) {
     const fromAccountCondition = [];
 
@@ -279,13 +302,11 @@ export const TransactionsCollectionResolver = async (
       fromAccountCondition.push(...childIds);
     }
 
-    // When users are admins, also fetch their incognito contributions
-    if (
-      args.includeIncognitoTransactions &&
-      req.remoteUser?.isAdminOfCollective(fromAccount) &&
-      req.remoteUser.CollectiveId === fromAccount.id &&
-      checkScope(req, 'incognito')
-    ) {
+    // When users are admins, also fetch their incognito contributionos
+    const isAdminOfFromAccount =
+      req.remoteUser?.isAdminOfCollective(fromAccount) && req.remoteUser.CollectiveId === fromAccount.id;
+    const isAdminOfHost = host && req.remoteUser?.isAdminOfCollective(host);
+    if (args.includeIncognitoTransactions && (isAdminOfFromAccount || isAdminOfHost) && checkScope(req, 'incognito')) {
       const incognitoProfile = await fromAccount.getIncognitoProfile();
       if (incognitoProfile) {
         fromAccountCondition.push(incognitoProfile.id);
@@ -305,9 +326,10 @@ export const TransactionsCollectionResolver = async (
     }
   }
 
+  let accountsFromAccountParam: Collective[];
   if (args.account) {
     const accountCondition = [];
-    const attributes = ['id', 'HostCollectiveId']; // We only need IDs
+    const attributes = ['id', 'HostCollectiveId', 'isPrivate']; // Include isPrivate for privacy checks
     const fetchAccountsParams = { throwIfMissing: true, attributes };
     if (args.includeChildrenTransactions) {
       fetchAccountsParams['include'] = [
@@ -316,10 +338,14 @@ export const TransactionsCollectionResolver = async (
     }
 
     // Fetch accounts (and optionally their children)
-    const accounts = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+    accountsFromAccountParam = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+    accountsToCheckForPrivateVisibility.push(...accountsFromAccountParam);
+
+    // Block access when explicitly filtering by a private account the viewer cannot see
+    await assertCanSeeAllAccounts(req, accountsFromAccountParam);
     const accountsIds = uniq(
       flatten(
-        accounts.map(account => {
+        accountsFromAccountParam.map(account => {
           const accountIds = args.includeRegularTransactions ? [account.id] : [];
           const childrenIds = account.children?.map(child => child.id) || [];
           return [...accountIds, ...childrenIds];
@@ -350,6 +376,9 @@ export const TransactionsCollectionResolver = async (
     } else {
       where.push({ CollectiveId: accountCondition });
     }
+    if (args.includeEditedReversedTransactions === false) {
+      where.push({ [Op.or]: [{ refundKind: { [Op.is]: null } }, { refundKind: { [Op.ne]: RefundKind.EDIT } }] });
+    }
 
     // Database optimization, it seems faster to add the HostCollectiveId if possible
     // Only do this when they are multiple accountsIds and one of them has many transactions
@@ -357,7 +386,9 @@ export const TransactionsCollectionResolver = async (
       accountsIds.length > 1 &&
       intersection(config.performance.collectivesWithManyTransactions, accountsIds).length > 0
     ) {
-      const hostCollectiveIds = uniq(accounts.map(account => account.HostCollectiveId).filter(el => !!el));
+      const hostCollectiveIds = uniq(
+        accountsFromAccountParam.map(account => account.HostCollectiveId).filter(el => !!el),
+      );
       if (hostCollectiveIds.length === 1) {
         where.push({ HostCollectiveId: hostCollectiveIds[0] });
       }
@@ -406,11 +437,90 @@ export const TransactionsCollectionResolver = async (
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
     amountFields: ['amount'],
+    publicIdFields: [
+      { field: 'publicId', prefix: EntityShortIdPrefix.Transaction },
+      { field: ['$fromCollective.publicId$', '$collective.publicId$'], prefix: EntityShortIdPrefix.Collective },
+    ],
   });
 
   if (searchTermConditions.length) {
     where.push({ [Op.or]: searchTermConditions });
-    include.push({ association: 'fromCollective', attributes: [] }, { association: 'collective', attributes: [] }); // Must include associations to search their fields
+
+    // Must include associations to search their fields
+    include.push(
+      { association: 'fromCollective', attributes: [], required: true },
+      { association: 'collective', attributes: [], required: true },
+    );
+
+    hasCollectiveInclude = true;
+    hasFromCollectiveInclude = true;
+  }
+
+  if (args.expense) {
+    const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+    where.push({ ExpenseId: expense.id });
+    const collectives = await req.loaders.Collective.byId.loadMany([expense.CollectiveId, expense.FromCollectiveId]);
+    for (const collective of collectives) {
+      if (collective instanceof Collective) {
+        accountsToCheckForPrivateVisibility.push(collective);
+      }
+    }
+  }
+
+  // Block access when explicitly filtering by a private account the viewer cannot see
+  accountsToCheckForPrivateVisibility = accountsToCheckForPrivateVisibility.filter(Boolean);
+  if (accountsToCheckForPrivateVisibility.length > 0) {
+    await assertCanSeeAllAccounts(req, accountsToCheckForPrivateVisibility);
+  }
+
+  // For performance reasons, we don't want to enforce the below checks in all cases as they would impact regulard
+  // queries - like the host's dashboard > ledger view.
+  if (
+    !req.remoteUser ||
+    !(
+      req.remoteUser.isRoot() || // Root users can see all transactions
+      args.expense || // We already checked above that remote user could see all parties (fromCollective/collective)
+      (host && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, host.id)) || // Host admins can see external transactions from/to private accounts
+      (fromAccount && req.remoteUser.hasRole(MemberRolesForPrivateAccounts, fromAccount.id)) ||
+      (accountsFromAccountParam?.length &&
+        accountsFromAccountParam.every(account => req.remoteUser.hasRole(MemberRolesForPrivateAccounts, account.id)))
+    )
+  ) {
+    if (!hasCollectiveInclude) {
+      include.push({ association: 'collective', attributes: [] });
+    }
+    if (!hasFromCollectiveInclude) {
+      include.push({ association: 'fromCollective', attributes: [] });
+    }
+    if (!hasHostInclude) {
+      include.push({ association: 'host', attributes: [] });
+    }
+
+    // Either all components of the transactions are public
+    const orConditions: WhereOptions[] = [
+      {
+        [Op.and]: [
+          { [Op.or]: [{ '$collective.isPrivate$': false }, { '$collective.isPrivate$': null }] },
+          { [Op.or]: [{ '$fromCollective.isPrivate$': false }, { '$fromCollective.isPrivate$': null }] },
+          { [Op.or]: [{ '$host.isPrivate$': false }, { '$host.isPrivate$': null }] },
+        ],
+      },
+    ];
+
+    // Or remote user must have direct access to at least one of the components
+    if (req.remoteUser) {
+      const directAccess = [
+        req.remoteUser.CollectiveId,
+        ...req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts),
+      ];
+      orConditions.push(
+        { CollectiveId: directAccess },
+        { HostCollectiveId: directAccess },
+        { FromCollectiveId: directAccess },
+      );
+    }
+
+    where.push({ [Op.or]: orConditions });
   }
 
   if (args.type) {
@@ -449,9 +559,9 @@ export const TransactionsCollectionResolver = async (
               WHEN "Transaction"."hostCurrency" = :currency THEN ABS("Transaction"."amountInHostCurrency")
               ELSE ABS(
                 COALESCE(
-                  (SELECT rate FROM "CurrencyExchangeRates" 
-                    WHERE "from" = "Transaction"."currency" 
-                    AND "to" = :currency 
+                  (SELECT rate FROM "CurrencyExchangeRates"
+                    WHERE "from" = "Transaction"."currency"
+                    AND "to" = :currency
                     -- Most recent rate that is older than the expense, thanks to the combination of "<=" + ORDER BY DESC + LIMIT 1
                     AND "createdAt" <= COALESCE("Transaction"."clearedAt", "Transaction"."createdAt")
                     ORDER BY "createdAt" DESC
@@ -497,10 +607,6 @@ export const TransactionsCollectionResolver = async (
   if (args.clearedTo) {
     where.push({ clearedAt: { [Op.lte]: args.clearedTo } });
   }
-  if (args.expense) {
-    const expenseId = getDatabaseIdFromExpenseReference(args.expense);
-    where.push({ ExpenseId: expenseId });
-  }
   if (args.hasExpense !== undefined) {
     where.push({ ExpenseId: { [args.hasExpense ? Op.ne : Op.eq]: null } });
   }
@@ -513,7 +619,7 @@ export const TransactionsCollectionResolver = async (
     });
   }
   if (args.order) {
-    const orderId = getDatabaseIdFromOrderReference(args.order);
+    const orderId = await getDatabaseIdFromOrderReference(args.order, { loaders: req.loaders });
     where.push({ OrderId: orderId });
   }
   if (args.hasOrder !== undefined) {
@@ -526,6 +632,25 @@ export const TransactionsCollectionResolver = async (
     where.push({ kind: args.kind });
   }
 
+  if (args.manualPaymentProvider) {
+    const providers = await fetchManualPaymentProvidersWithReferences(args.manualPaymentProvider, {
+      loaders: req.loaders,
+      throwIfMissing: true,
+    });
+    providers.forEach(provider => {
+      assert(
+        req.remoteUser?.isAdmin(provider.CollectiveId),
+        new Forbidden('You need to be an admin of the host that owns this payment provider to filter by it'),
+      );
+    });
+    include.push({
+      model: Order,
+      attributes: [],
+      required: true,
+      where: { ManualPaymentProviderId: providers.map(provider => provider.id) },
+    });
+  }
+
   if (args.paymentMethod) {
     const paymentMethods = await fetchPaymentMethodWithReferences(args.paymentMethod);
     assert(
@@ -534,24 +659,25 @@ export const TransactionsCollectionResolver = async (
     );
     where.push({ PaymentMethodId: { [Op.in]: [...new Set(paymentMethods.map(pm => pm.id))] } });
   } else if (args.paymentMethodService || args.paymentMethodType) {
-    const paymentMethodTypeConditions = [];
-    const paymentMethodServiceConditions = [];
-    uniq(args.paymentMethodType).forEach(type => {
-      // If type is not null, we add a condtion to filter by type, otherwise we add a Transaction level PaymentMethodId to convey the absence of a PaymentMethod
-      paymentMethodTypeConditions.push(type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null });
-    });
+    const services = uniq(args.paymentMethodService);
+    const hasOpenCollective = !services?.length || services.includes(PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE);
+    const types = uniq(args.paymentMethodType?.map(type => type || PAYMENT_METHOD_TYPE.MANUAL)); // We historically used 'null' to fetch for manual payments
+    const hasManual = hasOpenCollective && (!types?.length || types.includes(PAYMENT_METHOD_TYPE.MANUAL));
+    const hasOnlyManual = hasManual && services?.length <= 1 && types?.length === 1;
 
-    uniq(args.paymentMethodService).forEach(service => {
-      paymentMethodServiceConditions.push({ '$PaymentMethod.service$': service });
-    });
-
-    include.push({ model: PaymentMethod });
-
-    if (paymentMethodTypeConditions.length) {
-      where.push({ [Op.or]: paymentMethodTypeConditions });
-    }
-    if (paymentMethodServiceConditions.length) {
-      where.push({ [Op.or]: paymentMethodServiceConditions });
+    if (hasOnlyManual) {
+      where.push({ PaymentMethodId: { [Op.is]: null } });
+    } else {
+      include.push({
+        model: PaymentMethod,
+        required: !hasManual,
+        where: pickBy({ service: !isEmpty(services) && services, type: !isEmpty(types) && types }, Boolean),
+      });
+      if (hasManual) {
+        where.push({
+          [Op.or]: [{ PaymentMethodId: { [Op.is]: null } }, { '$PaymentMethod.id$': { [Op.not]: null } }],
+        });
+      }
     }
   }
 
@@ -571,7 +697,7 @@ export const TransactionsCollectionResolver = async (
       model: Expense,
       required: true,
       where: {
-        VirtualCardId: args.virtualCard.map(vc => vc.id),
+        VirtualCardId: uniq(args.virtualCard.map(vc => vc.id)),
       },
     });
   }
@@ -621,7 +747,7 @@ export const TransactionsCollectionResolver = async (
     }
   }
 
-  /* 
+  /*
     Ordering of transactions by
     - createdAt (rounded by a 10s interval): to treat very close timestamps as the same to defer ordering to transaction group, kind and type
       - known issue: a transaction group can be split in two if the first transaction is rounded to the end of a 10s interval and the second to the beginning of the next 10s interval

@@ -2,7 +2,7 @@
 
 ## Node and npm
 
-You can play with GraphQL by opening http://localhost:3060/graphql with a tool like [Altair GraphQL](https://altair.sirmuel.design/).
+You can play with GraphQL by opening http://localhost:3060/graphql with a tool like [Altair GraphQL](https://altairgraphql.dev/).
 
 For example, try this query:
 

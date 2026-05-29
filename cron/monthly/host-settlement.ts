@@ -2,23 +2,25 @@ import '../../server/env';
 
 import { Parser } from '@json2csv/plainjs';
 import config from 'config';
-import { groupBy, min, sumBy } from 'lodash';
+import { get, groupBy, min, sumBy, uniq } from 'lodash';
 import moment from 'moment';
 import { QueryTypes } from 'sequelize';
 
 import activityType from '../../server/constants/activities';
 import expenseStatus from '../../server/constants/expense-status';
 import expenseTypes from '../../server/constants/expense-type';
-import { getPlatformConstantsForDate, PLATFORM_MIGRATION_DATE } from '../../server/constants/platform';
+import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getFxRate } from '../../server/lib/currency';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
+import logger from '../../server/lib/logger';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Collective, ConnectedAccount, Expense, PaymentMethod, sequelize } from '../../server/models';
-import { CommentType } from '../../server/models/Comment';
 import { ExpenseStatus, ExpenseType } from '../../server/models/Expense';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { TransactionSettlementStatus } from '../../server/models/TransactionSettlement';
 import { runCronJob } from '../utils';
 
 const json2csv = (data, opts = undefined) => new Parser(opts).parse(data);
@@ -100,7 +102,6 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   const month = momentDate.month();
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 1);
-  const PlatformConstants = getPlatformConstantsForDate(momentDate);
 
   console.info(`Invoicing hosts pending fees and tips for ${momentDate.format('MMMM')}.`);
 
@@ -131,7 +132,13 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       replacements: {
         startDate: startDate,
         endDate: endDate,
-        ignoreSettlementForIds: PlatformConstants.AllPlatformCollectiveIds,
+        ignoreSettlementForIds: uniq(
+          [
+            PlatformConstants.PlatformCollectiveId,
+            PlatformConstants.OfitechCollectiveId,
+            PlatformConstants.OficoCollectiveId,
+          ].filter(Boolean),
+        ),
       },
     },
   );
@@ -163,7 +170,7 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
     }
 
-    const plan = await host.getPlan();
+    const plan = host.getLegacyPlan();
 
     let items = [];
 
@@ -222,13 +229,53 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     const totalAmountCharged = sumBy(items, 'amount');
     const hostToPlatformFxRate = await getFxRate(host.currency, 'USD');
     const totalAmountChargedInUsd = totalAmountCharged * hostToPlatformFxRate;
+    const platformSubscription = await models.PlatformSubscription.getCurrentSubscription(host.id);
+    const autoPricingMigrationDate = platformSubscription && host.settings?.automaticBillingMigration;
+    const isLastPlatformShareExpense =
+      pendingHostFeeShare &&
+      autoPricingMigrationDate &&
+      moment.utc(autoPricingMigrationDate).isSameOrAfter(startDate) &&
+      moment.utc(autoPricingMigrationDate).isSameOrBefore(endDate);
+
+    // Safety: never charge Platform Share for HOST_FEE_SHARE_DEBT transactions
+    // that happened while the new platform subscription billing was already in
+    // place. Those should never have been created, so we warn loudly and skip
+    // the entire settlement for this host. Leaving the TransactionSettlements
+    // in OWED keeps them visible so the issue can be investigated manually.
+    if (pendingHostFeeShare && platformSubscription) {
+      const subscriptionStart = platformSubscription.startDate;
+      const debtDuringNewBilling = transactions.filter(
+        t => t.kind === HOST_FEE_SHARE_DEBT && moment.utc(t.createdAt).isSameOrAfter(subscriptionStart),
+      );
+      if (debtDuringNewBilling.length > 0) {
+        console.warn(
+          `!!! WARNING: ${host.name} (#${host.id}) has ${debtDuringNewBilling.length} HOST_FEE_SHARE_DEBT transaction(s) created on or after the platform subscription started on ${moment.utc(subscriptionStart).toISOString()}. Platform Share must not be charged for periods covered by the new billing - skipping this host. Investigate: ${debtDuringNewBilling.map(t => `#${t.id}`).join(', ')}`,
+        );
+        continue;
+      }
+    }
 
     if (totalAmountChargedInUsd < MIN_AMOUNT_USD) {
       console.warn(
         `${host.name} (#${host.id}) skipped, total amount pending ${totalAmountChargedInUsd / 100} < $${MIN_AMOUNT_USD / 100}.\n`,
       );
+      if (isLastPlatformShareExpense) {
+        // Settle the transactions, we don't want to carry them over to the new billing.
+        await models.TransactionSettlement.update(
+          {
+            status: TransactionSettlementStatus.SETTLED,
+          },
+          {
+            where: {
+              TransactionGroup: transactions.map(t => t.TransactionGroup),
+              kind: [HOST_FEE_SHARE_DEBT],
+            },
+          },
+        );
+      }
       continue;
     }
+
     console.info(
       `${host.name} (#${host.id}) has ${transactions.length} pending transactions and owes ${
         totalAmountCharged / 100
@@ -333,17 +380,35 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       await models.TransactionSettlement.markTransactionsAsInvoiced(transactions, expense.id);
 
       const platformUser = await models.User.findByPk(PlatformConstants.PlatformUserId);
-      await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
 
-      // If running for the month of `PLATFORM_MIGRATION_DATE`, add a comment to explain why we're using a different profile
-      if (momentDate.isSame(PLATFORM_MIGRATION_DATE, 'month') && momentDate.isSame(PLATFORM_MIGRATION_DATE, 'year')) {
+      try {
+        await expense.createActivity(activityType.COLLECTIVE_EXPENSE_CREATED, platformUser);
+      } catch (error) {
+        logger.warn(`Error creating activity for expense ${expense.id}: ${error}`);
+        reportErrorToSentry(error, { extra: { expenseId: expense.id } });
+      }
+
+      // For hosts that were migrated to the new platform subscription billing
+      // this month, the Platform Share expense is the last one of its type. Add
+      // a comment on the expense to make this clear and point to the new billing.
+      // `pendingHostFeeShare` is only computed when processing HOST_FEE_SHARE_DEBT
+      // (combined run or KIND=HOST_FEE_SHARE_DEBT), so it's a reliable signal that
+      // this expense carries the Platform Share items.
+      if (isLastPlatformShareExpense) {
+        const subscriptionUrl = `${config.host.website}/dashboard/${host.slug}/platform-subscription`;
         await models.Comment.create({
-          CreatedByUserId: platformUser.id,
-          FromCollectiveId: platformUser.CollectiveId,
           CollectiveId: host.id,
+          FromCollectiveId: PlatformConstants.PlatformCollectiveId,
+          CreatedByUserId: PlatformConstants.PlatformUserId,
           ExpenseId: expense.id,
-          type: CommentType.COMMENT,
-          html: `<div>Dear ${host.name},<br /><br /></div><div>You may notice that this expense comes from the "<a href="https://opencollective.com/ofitech">Ofitech</a>" profile instead of "<a href="https://opencollective.com/opencollective">Open Collective</a>". This change is part of a recent transition of the Open Collective platform to a community-governed non-profit. For more information, you can read the full announcement <a href="https://blog.opencollective.com/the-open-collective-platform-is-moving-to-a-community-governed-non-profit/">here</a>.<br /><br />As always, if you have any questions or need assistance, please reach out via <a href="https://opencollective.com/contact">our contact page</a>.<br /><br />Thank you for your understanding and continued support!</div>`,
+          html: [
+            `<p>This is the last Platform Share settlement you will receive. Your account has been migrated to the new <a href="${subscriptionUrl}">platform subscription</a> billing, which replaces Platform Share going forward.</p>`,
+            get(platformSubscription, 'plan.pricing.platformTips')
+              ? `<p>Platform Tips settlements will continue to be billed as usual.</p>`
+              : '',
+          ]
+            .filter(Boolean)
+            .join(''),
         });
       }
     }

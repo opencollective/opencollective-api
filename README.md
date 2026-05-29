@@ -1,7 +1,5 @@
 # Open Collective API
 
-![CI](https://github.com/opencollective/opencollective-api/workflows/CI/badge.svg)
-![E2E](https://github.com/opencollective/opencollective-api/workflows/E2E/badge.svg)
 [![Discord](https://discordapp.com/api/guilds/1241017531318276158/widget.png)](https://discord.opencollective.com)
 
 ## Foreword
@@ -18,7 +16,7 @@ If you see a step below that could be improved (or is outdated), please update t
 
 2. Make sure you have a PostgreSQL database available
 
-- Check the version: 14.x or newer
+- Check the version: 16.x or newer
 - More info in our [PostgreSQL Database](docs/postgres.md) documentation
 
 3. For [node-gyp](https://github.com/nodejs/node-gyp), make sure you have Python 2 available and configured as the active version.

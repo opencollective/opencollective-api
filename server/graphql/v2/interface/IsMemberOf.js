@@ -2,6 +2,8 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { cloneDeep, invert, isEmpty, isNil, isUndefined } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import { MemberRolesForPrivateAccounts } from '../../../constants/roles';
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
@@ -82,7 +84,7 @@ export const IsMemberOfFields = {
       }
 
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
-      const collectiveConditions = {};
+      const collectiveConditions = { isPrivate: false };
       const collectiveDataConditions = [];
 
       if (!isNil(args.isApproved)) {
@@ -150,6 +152,10 @@ export const IsMemberOfFields = {
         stringArrayFields: ['$collective.tags$'],
         stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
         castStringArraysToVarchar: true,
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Member },
+          { field: '$collective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
       });
 
       if (searchTermConditions.length) {
@@ -202,6 +208,26 @@ export const IsMemberOfFields = {
           order.push(['createdAt', direction]);
         } else {
           order.push([field, direction]);
+        }
+      }
+
+      // Handle private accounts
+      if (req.remoteUser) {
+        if (req.remoteUser.isRoot()) {
+          // Allow all private accounts to be seen by root admins
+          delete collectiveConditions.isPrivate;
+        } else {
+          const directAccess = req.remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts);
+          if (directAccess.size) {
+            const idsList = Array.from(directAccess);
+            delete collectiveConditions.isPrivate;
+            collectiveConditions[Op.or] = [
+              { isPrivate: false },
+              { id: idsList }, // User is an admin of accountant of the collective
+              { ParentCollectiveId: idsList }, // User is an admin of accountant of the collective's parent collective (for events/projects)
+              { HostCollectiveId: idsList, approvedAt: { [Op.ne]: null } }, // User is an admin of accountant of the collective's fiscal host
+            ];
+          }
         }
       }
 

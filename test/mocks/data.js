@@ -114,9 +114,7 @@ export default {
   paymentMethod1: {
     token: 'PA-1B0110758V169653C',
     service: 'paypal',
-    type: 'adaptive',
-    startDate: '2017-01-30T07:31:37.747Z',
-    endDate: '2018-01-30T07:31:37.747Z',
+    type: 'payout',
     confirmedAt: '2017-01-30T07:31:37.747Z',
   },
 

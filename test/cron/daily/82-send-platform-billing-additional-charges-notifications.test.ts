@@ -8,7 +8,7 @@ import emailLib from '../../../server/lib/email';
 import { sleep } from '../../../server/lib/utils';
 import models from '../../../server/models';
 import PlatformSubscription from '../../../server/models/PlatformSubscription';
-import { fakeCollective, fakePlatformSubscription, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeOrganization, fakePlatformSubscription, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB, waitForCondition } from '../../utils';
 
 describe('cron/daily/send-platform-billing-additional-charges-notifications', () => {
@@ -34,7 +34,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
   it('should send notifications for first-time additional charges', async () => {
     // Create test data
     const admin = await fakeUser();
-    const collective = await fakeCollective({ admin });
+    const collective = await fakeCollective({ admin, hasHosting: true });
 
     // Create a platform subscription
     await fakePlatformSubscription({
@@ -47,6 +47,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600, // $6.00 per additional collective
           pricePerAdditionalExpense: 200, // $2.00 per additional expense
+          platformTips: true,
         },
       },
     });
@@ -126,6 +127,80 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
     expect(activity.data.subscription.plan.pricing.pricePerAdditionalExpense).to.equal(200);
   });
 
+  it('should omit active collectives wording from the email body when hosting is disabled on the organization', async () => {
+    const admin = await fakeUser();
+    const collective = await fakeCollective({ admin, hasHosting: false });
+
+    await fakePlatformSubscription({
+      CollectiveId: collective.id,
+      plan: {
+        title: 'Standard Plan',
+        pricing: {
+          pricePerMonth: 10000,
+          includedCollectives: 5,
+          includedExpensesPerMonth: 10,
+          pricePerAdditionalCollective: 600,
+          pricePerAdditionalExpense: 200,
+          platformTips: true,
+        },
+      },
+    });
+
+    sandbox.stub(PlatformSubscription, 'calculateBilling').resolves({
+      collectiveId: collective.id,
+      base: {
+        total: 10000,
+        subscriptions: [
+          {
+            title: 'Standard Plan',
+            amount: 10000,
+            startDate: moment().subtract(1, 'month').toDate(),
+            endDate: moment().toDate(),
+          },
+        ],
+      },
+      additional: {
+        total: 5000,
+        utilization: {
+          activeCollectives: 5,
+          expensesPaid: 10,
+        },
+        amounts: {
+          activeCollectives: 3000,
+          expensesPaid: 2000,
+        },
+      },
+      totalAmount: 15000,
+      billingPeriod: PlatformSubscription.currentBillingPeriod(),
+      subscriptions: [
+        {
+          plan: {
+            title: 'Standard Plan',
+            pricing: {
+              pricePerMonth: 10000,
+              includedCollectives: 5,
+              includedExpensesPerMonth: 10,
+              pricePerAdditionalCollective: 600,
+              pricePerAdditionalExpense: 200,
+            },
+          },
+        },
+      ],
+      utilization: {
+        activeCollectives: 10,
+        expensesPaid: 20,
+      },
+      dueDate: moment().add(1, 'month').startOf('month').toDate(),
+    });
+
+    await run();
+
+    await waitForCondition(() => sendEmailSpy.callCount > 0);
+    const emailBody = sendEmailSpy.firstCall.args[2] as string;
+    expect(emailBody).to.not.match(/active monthly collectives/i);
+    expect(emailBody).to.include('paid expenses');
+  });
+
   it('should not send notifications for subscriptions without additional charges', async () => {
     // Create test data
     const admin = await fakeUser();
@@ -142,6 +217,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 20,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -218,6 +294,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -259,7 +336,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
   it('should handle subscriptions with only active collectives additional charges', async () => {
     // Create test data
     const admin = await fakeUser();
-    const collective = await fakeCollective({ admin });
+    const collective = await fakeOrganization({ admin, hasHosting: true });
 
     // Create a platform subscription
     await fakePlatformSubscription({
@@ -272,6 +349,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 20,
           pricePerAdditionalCollective: 300, // $3.00 per additional collective
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -312,7 +390,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
   it('should handle subscriptions with only paid expenses additional charges', async () => {
     // Create test data
     const admin = await fakeUser();
-    const collective = await fakeCollective({ admin });
+    const collective = await fakeOrganization({ admin });
 
     // Create a platform subscription
     await fakePlatformSubscription({
@@ -325,6 +403,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 300,
           pricePerAdditionalExpense: 100, // $1.00 per additional expense
+          platformTips: true,
         },
       },
     });
@@ -379,6 +458,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -392,6 +472,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });
@@ -405,6 +486,7 @@ describe('cron/daily/send-platform-billing-additional-charges-notifications', ()
           includedExpensesPerMonth: 10,
           pricePerAdditionalCollective: 600,
           pricePerAdditionalExpense: 200,
+          platformTips: true,
         },
       },
     });

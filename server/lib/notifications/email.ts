@@ -1,6 +1,6 @@
 import config from 'config';
 import debugLib from 'debug';
-import { cloneDeep, compact, get } from 'lodash';
+import { cloneDeep, compact, get, uniq } from 'lodash';
 import PQueue from 'p-queue';
 
 import { roles } from '../../constants';
@@ -114,7 +114,7 @@ export const notify = {
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
-      UserId: cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id)),
+      UserId: uniq(cleanUsersArray.map(u => (typeof u === 'number' ? u : u.id))),
       attributes: ['id'],
     });
 
@@ -216,6 +216,8 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
     case ActivityTypes.USER_CARD_CLAIMED:
+    case ActivityTypes.EXPORT_REQUEST_COMPLETED:
+    case ActivityTypes.EXPORT_REQUEST_FAILED:
       await notify.user(activity);
       break;
 
@@ -257,7 +259,18 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.SUBSCRIPTION_CANCELED:
-      await notify.user(activity);
+      // When the cancel happens as part of a host-driven refund flow, the
+      // CONTRIBUTION_REFUNDED email already covers the cancellation, so we skip
+      // this one to avoid sending the contributor multiple emails for what they
+      // perceive as a single action.
+      if (activity.data?.hostAction?.refund) {
+        break;
+      }
+      await notify.collective(activity, { collectiveId: activity.FromCollectiveId });
+      break;
+
+    case ActivityTypes.CONTRIBUTION_REFUNDED:
+      await notify.collective(activity, { collectiveId: activity.FromCollectiveId });
       break;
 
     case ActivityTypes.SUBSCRIPTION_PAUSED:
@@ -611,6 +624,11 @@ export const notifyByEmail = async (activity: Activity) => {
       if (isCommentFromHostAdmin) {
         await notify.collective(activity, {
           replyTo: activity.data.host.data?.replyToEmail || undefined,
+        });
+      } else {
+        await notify.collective(activity, {
+          collectiveId: activity.data.host.id,
+          template: 'host.application.comment.created.host',
         });
       }
 

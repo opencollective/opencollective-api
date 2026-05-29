@@ -3,7 +3,7 @@ Subject: New expense approved on {{{collective.name}}}: {{currency expense.amoun
 {{> header}}
 
 <center>
-  <h1><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}}</a></h1>
+  <h1><a href="{{permalink expense}}">{{currency expense.amount currency=expense.currency}}</a></h1>
   <div>{{expense.description}}</div>
 </center>
 
@@ -25,7 +25,7 @@ Subject: New expense approved on {{{collective.name}}}: {{currency expense.amoun
   {{> expenseItems items=items}}
 
   <br /><br />
-  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn"><div>View Expense</div></a>
+  <a href="{{permalink expense}}" class="btn"><div>View Expense</div></a>
 </center>
 
 {{> footer}}

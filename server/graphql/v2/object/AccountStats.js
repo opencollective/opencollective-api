@@ -7,10 +7,11 @@ import assert from 'node:assert';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { getCollectiveIds } from '../../../lib/budget';
 import { getFxRate } from '../../../lib/currency';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
-import models from '../../../models';
+import models, { Collective } from '../../../models';
 import { ValidationFailed } from '../../errors';
 import { GraphQLContributionFrequency } from '../enum/ContributionFrequency';
 import { GraphQLCurrency } from '../enum/Currency';
@@ -64,8 +65,16 @@ export const GraphQLAccountStats = new GraphQLObjectType({
       id: {
         type: GraphQLString,
         resolve(collective) {
-          return idEncode(collective.id);
+          if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
+            return collective.publicId;
+          } else {
+            return idEncode(collective.id);
+          }
         },
+      },
+      publicId: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: `The resource public id (ie: ${Collective.nanoIdPrefix}_xxxxxxxx)`,
       },
       balanceWithBlockedFunds: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
@@ -843,9 +852,9 @@ export const GraphQLAccountStats = new GraphQLObjectType({
       managedAmount: {
         type: GraphQLAmount,
         description:
-          'The total amount managed by the account, including all its children accounts (events and projects), calculated using existing balance checkpoint. This is not a real-time value and may not reflect the current state of the account.',
+          '[Root only] The total amount managed by the account, including all its children accounts (events and projects), calculated using existing balance checkpoint. This is not a real-time value and may not reflect the current state of the account.',
         resolve: async (account, _args, req) => {
-          assert(req.remoteUser.isRoot());
+          assert(req.remoteUser?.isRoot());
 
           const result = await req.loaders.Collective.moneyManaged.load(account.id);
           return pick(result, ['value', 'currency']);

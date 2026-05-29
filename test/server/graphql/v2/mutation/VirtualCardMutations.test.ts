@@ -6,10 +6,16 @@ import { frequencies } from '../../../../../server/constants';
 import ActivityTypes from '../../../../../server/constants/activities';
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards';
-import models from '../../../../../server/models';
+import models, { sequelize } from '../../../../../server/models';
 import { VirtualCardStatus } from '../../../../../server/models/VirtualCard';
 import * as stripeVirtualCards from '../../../../../server/paymentProviders/stripe/virtual-cards';
-import { fakeCollective, fakeHost, fakeUser, fakeVirtualCard } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeTransaction,
+  fakeUser,
+  fakeVirtualCard,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const DELETE_VIRTUAL_CARD_MUTATION = gql`
@@ -40,6 +46,17 @@ const EDIT_VIRTUAL_CARD_MUTATION = gql`
       spendingLimitAmount
       spendingLimitInterval
     }
+  }
+`;
+
+const REQUEST_VIRTUAL_CARD_MUTATION = gql`
+  mutation RequestVirtualCard($account: AccountReferenceInput!) {
+    requestVirtualCard(
+      account: $account
+      purpose: "Test purpose"
+      notes: "Test notes"
+      spendingLimitAmount: { valueInCents: 50000 }
+    )
   }
 `;
 
@@ -580,6 +597,74 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
       expect(result.data.createVirtualCard.name).to.equal('Test Virtual Card!');
       expect(result.data.createVirtualCard.spendingLimitAmount).to.equal(50000);
       expect(result.data.createVirtualCard.spendingLimitInterval).to.equal(VirtualCardLimitIntervals.MONTHLY);
+    });
+  });
+
+  describe('requestVirtualCard', () => {
+    let collectiveAdminUser, host, collective;
+
+    beforeEach(resetTestDB);
+    beforeEach(async () => {
+      collectiveAdminUser = await fakeUser();
+      host = await fakeHost({
+        admin: await fakeUser(),
+        settings: { virtualcards: { requestcard: true } },
+      });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdminUser });
+    });
+
+    it('rejects when host disabled virtual card requests in settings', async () => {
+      await host.update({
+        settings: { ...host.settings, virtualcards: { ...host.settings?.virtualcards, requestcard: false } },
+      });
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Virtual card requests are not available for this account');
+      expect(await models.VirtualCardRequest.count()).to.equal(0);
+    });
+
+    it('rejects when collective has no balance', async () => {
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Virtual card requests are not available for this account');
+      expect(await models.VirtualCardRequest.count()).to.equal(0);
+    });
+
+    it('creates a pending request when the feature is available', async () => {
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        amount: 5000,
+      });
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+      await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+
+      const result = await graphqlQueryV2(
+        REQUEST_VIRTUAL_CARD_MUTATION,
+        { account: { legacyId: collective.id } },
+        collectiveAdminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.requestVirtualCard).to.equal(true);
+
+      const pending = await models.VirtualCardRequest.findOne({ where: { CollectiveId: collective.id } });
+      expect(pending).to.exist;
+
+      const activity = await models.Activity.findOne({ where: { type: ActivityTypes.VIRTUAL_CARD_REQUESTED } });
+      expect(activity).to.exist;
     });
   });
 });

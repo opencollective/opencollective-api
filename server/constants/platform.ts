@@ -1,18 +1,15 @@
-import moment from 'moment';
+import config from 'config';
+import { uniq } from 'lodash';
 
 import { SupportedCurrency } from './currencies';
 
 /**
- * Defines the transition date and time from OCI to Ofico.
- */
-export const PLATFORM_MIGRATION_DATE = moment('2024-10-01T00:00:00Z');
-
-/**
  * Returns the platform constants based on a function to check if the platform has been migrated.
  */
-const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
+const getPlatformConstants = () => ({
   get OCICollectiveId() {
     // https://opencollective.com/opencollective
+    // used to be the default platform account before 2024-10-01
     return 8686;
   },
 
@@ -27,55 +24,46 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 
   get PlatformCollectiveId() {
-    if (checkIfMigrated()) {
-      return this.OfitechCollectiveId;
-    } else {
-      return this.OCICollectiveId;
-    }
+    return parseInt(config.platform.collectiveId) || this.OfitechCollectiveId;
   },
 
   get PlatformUserId() {
     // https://opencollective.com/ofitech-admin
-    return 741159;
+    return parseInt(config.platform.userId) || 741159;
   },
 
   get PlatformCurrency(): SupportedCurrency {
-    return 'USD';
-  },
-
-  get PlatformBankAccountId() {
-    // Ofitech bank account
-    return 70674;
-  },
-
-  // Not supported for now
-  // get PlatformPayPalId() {
-  //   return 6087;
-  // },
-
-  get PlatformDefaultPaymentMethodId() {
-    return this.PlatformBankAccountId;
+    return config.platform.currency || 'USD';
   },
 
   get PlatformAddress() {
-    return '440 N Barranca Ave #3489, Covina, CA 91723';
+    return config.platform.address || '440 N Barranca Ave #3489, Covina, CA 91723';
   },
 
   get PlatformCountry() {
-    return 'US';
+    return config.platform.country || 'US';
   },
 
   get PlatformName() {
-    return 'Open Collective';
+    return config.platform.name || 'Open Collective';
   },
 
   /** Gets all platform collective ids - old and new */
   get AllPlatformCollectiveIds() {
-    return [this.OCICollectiveId, this.OfitechCollectiveId, this.OficoCollectiveId];
+    return uniq(
+      [
+        parseInt(config.platform.collectiveId),
+        this.OCICollectiveId,
+        this.OfitechCollectiveId,
+        this.OficoCollectiveId,
+      ].filter(Boolean),
+    );
   },
 
   get CurrentPlatformCollectiveIds() {
-    return [this.OfitechCollectiveId, this.OficoCollectiveId];
+    return uniq(
+      [parseInt(config.platform.collectiveId), this.OfitechCollectiveId, this.OficoCollectiveId].filter(Boolean),
+    );
   },
 
   get FiscalHostOSCCollectiveId() {
@@ -94,13 +82,5 @@ const getPlatformConstants = (checkIfMigrated: () => boolean) => ({
   },
 });
 
-function isMigrated(date: moment.Moment) {
-  return date.isAfter(PLATFORM_MIGRATION_DATE);
-}
-
-export const getPlatformConstantsForDate = (date: Date | moment.Moment) => {
-  return getPlatformConstants(() => isMigrated(moment(date)));
-};
-
-const PlatformConstants = getPlatformConstants(() => isMigrated(moment()));
+const PlatformConstants = getPlatformConstants();
 export default PlatformConstants;

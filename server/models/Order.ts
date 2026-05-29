@@ -19,7 +19,6 @@ import {
   HasManySetAssociationsMixin,
   InferAttributes,
   InferCreationAttributes,
-  Model,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -32,6 +31,7 @@ import PlatformConstants from '../constants/platform';
 import TierType from '../constants/tiers';
 import { TransactionTypes } from '../constants/transactions';
 import { executeOrder } from '../lib/payments';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes, Transaction as SequelizeTransaction } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
@@ -43,6 +43,7 @@ import Collective from './Collective';
 import Comment from './Comment';
 import CustomDataTypes from './DataTypes';
 import Member from './Member';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import PaymentMethod from './PaymentMethod';
 import Subscription from './Subscription';
 import Tier from './Tier';
@@ -62,8 +63,24 @@ export type OrderTax = {
   taxIDNumberFrom?: string;
 };
 
-class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>> {
-  declare id: CreationOptional<number>;
+type OrderDataValuesRoleDetails = {
+  accountingCategory?: AccountingCategory['publicInfo'];
+};
+
+type OrderDataValuesByRole = {
+  hostAdmin?: OrderDataValuesRoleDetails;
+  accountingRules?: OrderDataValuesRoleDetails;
+};
+
+class Order extends ModelWithPublicId<
+  EntityShortIdPrefix.Order,
+  InferAttributes<Order>,
+  InferCreationAttributes<Order>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Order;
+  public static readonly tableName = 'Orders' as const;
+
+  declare public readonly id: CreationOptional<number>;
   declare CreatedByUserId: ForeignKey<User['id']>;
   declare CollectiveId: ForeignKey<Collective['id']>;
   declare currency: SupportedCurrency;
@@ -85,6 +102,9 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     hostFeePercent?: number;
     paymentProcessorFee?: number;
     paymentProcessorFeeInHostCurrency?: number;
+    expectedAt?: Date;
+    ponumber?: string;
+    paymentMethod?: PaymentMethod;
     memo?: string;
     resumeReason?: string;
     pausedBy?: 'HOST' | 'PLATFORM' | 'USER' | 'COLLECTIVE';
@@ -96,6 +116,7 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     paypalStatusChangeNote?: string;
     savePaymentMethod?: boolean;
     isBalanceTransfer?: boolean;
+    isRootBalanceTransfer?: boolean;
     isGuest?: boolean;
     isPendingContribution?: boolean;
     isManualContribution?: boolean;
@@ -117,6 +138,8 @@ class Order extends Model<InferAttributes<Order>, InferCreationAttributes<Order>
     fromAccountInfo?: Record<string, unknown>; // TODO: type me
     reqIp?: string;
     lockedAt?: Date;
+    valuesByRole?: OrderDataValuesByRole;
+    previousStatus?: OrderStatus;
   };
 
   declare taxAmount?: number;
@@ -501,6 +524,11 @@ Order.init(
       autoIncrement: true,
     },
 
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
+    },
+
     CreatedByUserId: {
       type: DataTypes.INTEGER,
       references: {
@@ -683,6 +711,7 @@ Order.init(
       info() {
         return {
           id: this.id,
+          publicId: this.publicId,
           type: get(this, 'collective.type') === 'EVENT' ? 'registration' : 'donation',
           CreatedByUserId: this.CreatedByUserId,
           TierId: this.TierId,

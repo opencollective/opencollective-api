@@ -1,6 +1,7 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import VirtualCardRequest from '../../../models/VirtualCardRequest';
 import { GraphQLCurrency } from '../enum';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
@@ -19,11 +20,20 @@ export const GraphQLVirtualCardRequest = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(virtualCardRequest: VirtualCardRequest) {
-        return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.VirtualCardRequest, virtualCardRequest.createdAt)) {
+          return virtualCardRequest.publicId;
+        } else {
+          return idEncode(virtualCardRequest.id, IDENTIFIER_TYPES.VIRTUAL_CARD_REQUEST);
+        }
       },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${VirtualCardRequest.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
+      deprecationReason: '2026-02-25: use publicId',
       resolve(virtualCardRequest: VirtualCardRequest) {
         return virtualCardRequest.id;
       },

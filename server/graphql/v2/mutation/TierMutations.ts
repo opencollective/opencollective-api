@@ -3,10 +3,11 @@ import { isNil, isUndefined, omitBy, pick, uniq } from 'lodash';
 
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { Tier as TierModel } from '../../../models';
+import models, { Tier, Tier as TierModel } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { NotFound, Unauthorized } from '../../errors';
+import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { getIntervalFromTierFrequency } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
@@ -85,19 +86,29 @@ const tierMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
 
-      const tierId = idDecode(args.tier.id, IDENTIFIER_TYPES.TIER);
+      const tierId = isEntityPublicId(args.tier.id, EntityShortIdPrefix.Tier)
+        ? await req.loaders.Tier.idByPublicId.load(args.tier.id)
+        : idDecode(args.tier.id, IDENTIFIER_TYPES.TIER);
       const tier = await TierModel.findByPk(tierId);
       if (!tier) {
         throw new NotFound('Tier Not Found');
       }
 
       const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Unauthorized();
+      const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
+      if (!req.remoteUser.isAdminOfCollective(collective) && (!host || !req.remoteUser.isAdminOfCollective(host))) {
+        throw new Unauthorized(`Only collective admins or host admins can edit tiers for an account`);
       }
 
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
+
+      // Validate tier type restriction when changing type
+      if (args.tier.type && !Tier.getAllowedTierTypes(collective, host).includes(args.tier.type)) {
+        throw new ValidationFailed(
+          'This tier type is not allowed by your fiscal host. Reach out to them for more information.',
+        );
+      }
 
       // Update tier
       const updatedTier = await tier.update(transformTierInputToAttributes(args.tier));
@@ -125,12 +136,20 @@ const tierMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-      if (!req.remoteUser.isAdminOfCollective(account)) {
+      const host = account.HostCollectiveId && (await req.loaders.Collective.host.load(account));
+      if (!req.remoteUser.isAdminOfCollective(account) && (!host || !req.remoteUser.isAdminOfCollective(host))) {
         throw new Unauthorized();
       }
 
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
+
+      // Validate tier type restriction
+      if (args.tier.type && !Tier.getAllowedTierTypes(account, host).includes(args.tier.type)) {
+        throw new ValidationFailed(
+          'This tier type is not allowed by your fiscal host. Reach out to them for more information.',
+        );
+      }
 
       // Create tier
       const tier = await TierModel.create({
@@ -162,8 +181,9 @@ const tierMutations = {
 
       const tier = await fetchTierWithReference(args.tier, { throwIfMissing: true });
       const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Unauthorized();
+      const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
+      if (!req.remoteUser.isAdminOfCollective(collective) && (!host || !req.remoteUser.isAdminOfCollective(host))) {
+        throw new Unauthorized(`Only collective admins or host admins can delete tiers for an account`);
       }
 
       // Check 2FA

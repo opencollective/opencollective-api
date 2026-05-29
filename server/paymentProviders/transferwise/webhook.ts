@@ -10,6 +10,7 @@ import expenseStatus from '../../constants/expense-status';
 import FEATURE from '../../constants/feature';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import { roundCentsAmount } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { lockUntilResolved } from '../../lib/mutex';
 import { createRefundTransaction } from '../../lib/payments';
@@ -77,7 +78,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     ) {
       logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
       // Mark Expense as Paid, create activity and send notifications
-      await expense.markAsPaid();
+      await expense.markAsPaid({ paidAt: transaction.clearedAt || transaction.createdAt });
     } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
       logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
       const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
@@ -109,7 +110,10 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
         feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
       } else {
         // This is simplified because we enforce sourceCurrency to be the same as hostCurrency
-        feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
+        feesInHostCurrency.paymentProcessorFeeInHostCurrency = roundCentsAmount(
+          paymentOption.fee.total * 100,
+          expense.host.currency,
+        );
       }
 
       const hostAmount =
@@ -129,8 +133,9 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       });
       await expense.update({ data: { ...expense.data, feesInHostCurrency, transfer } });
 
+      const paidAt = (event.data?.occurred_at && new Date(event.data.occurred_at)) || new Date();
       // Mark Expense as Paid, create activity and send notifications
-      await expense.markAsPaid();
+      await expense.markAsPaid({ paidAt });
     }
     // Legacy refund handler
     else if (
@@ -238,7 +243,7 @@ const handleTransferRefund = async (event: TransferRefundEvent): Promise<void> =
         const paymentProcessorFee = expense.data.paymentOption.fee.total;
         await createRefundTransaction(
           creditTransaction,
-          Math.round((paymentProcessorFee - difference) * 100),
+          roundCentsAmount((paymentProcessorFee - difference) * 100, host.currency),
           pick(creditTransaction.data, ['transfer']),
           expense.User,
         );

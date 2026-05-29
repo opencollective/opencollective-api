@@ -32,6 +32,7 @@ const makeTimelineQuery = async (
       conditionals.push(
         {
           type: [
+            ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
             ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
             ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
             ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
@@ -167,6 +168,8 @@ const makeTimelineQuery = async (
       ...[
         ActivityTypes.COLLECTIVE_MEMBER_CREATED,
         ActivityTypes.CONTRIBUTION_REJECTED,
+        ActivityTypes.CONTRIBUTION_REFUNDED,
+        ActivityTypes.CONTRIBUTOR_REMOVED_BY_HOST,
         ActivityTypes.ORDER_PAYMENT_FAILED,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
         ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,

@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import {
   fakeCollective,
   fakeComment,
@@ -67,6 +68,21 @@ describe('server/graphql/v2/mutation/EmojiReactionMutations', () => {
       const result = await graphqlQueryV2(addReactionMutation, { comment: { id: commentId }, emoji: '🎉' }, user);
 
       expect(result.data.addEmojiReaction).to.exist;
+      expect(result.data.addEmojiReaction.comment.reactions).to.deep.eq({ '🎉': 1 });
+      expect(result.data.addEmojiReaction.comment.userReactions).to.deep.eq(['🎉']);
+    });
+
+    it('accepts publicId in CommentReferenceInput', async () => {
+      const user = await fakeUser();
+      const expense = await fakeExpense({ FromCollectiveId: user.CollectiveId });
+      const comment = await fakeComment({ ExpenseId: expense.id });
+      const publicId = `${EntityShortIdPrefix.Comment}_${comment.id}`;
+      await comment.update({ publicId });
+
+      const result = await graphqlQueryV2(addReactionMutation, { comment: { id: publicId }, emoji: '🎉' }, user);
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
       expect(result.data.addEmojiReaction.comment.reactions).to.deep.eq({ '🎉': 1 });
       expect(result.data.addEmojiReaction.comment.userReactions).to.deep.eq(['🎉']);
     });

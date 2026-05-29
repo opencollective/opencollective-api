@@ -8,6 +8,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { EntityShortIdPrefix } from '../../../lib/permalink/entity-map';
 import { GraphQLCurrency } from '../enum/Currency';
 import GraphQLURL from '../scalar/URL';
 
@@ -19,7 +20,7 @@ export const GraphQLAccountUpdateInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
     },
     name: { type: GraphQLString },
     legalName: { type: GraphQLString },

@@ -4,9 +4,10 @@ import { pick, set } from 'lodash';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { canUseSlug } from '../../../lib/collectivelib';
+import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { Forbidden, NotFound } from '../../errors';
+import { BadRequest, Forbidden, NotFound, Unauthorized } from '../../errors';
 import { handleCollectiveImageUploadFromArgs } from '../input/AccountCreateInputImageFields';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLProjectCreateInput } from '../input/ProjectCreateInput';
@@ -37,9 +38,14 @@ async function createProject(_, args, req) {
   const parent = await fetchAccountWithReference(args.parent);
   if (!parent) {
     throw new NotFound('Parent not found');
-  }
-  if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
+  } else if (!(await canSeePrivateAccount(req, parent))) {
+    throw new Unauthorized('You are not authorized to create a project under this parent account');
+  } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Forbidden(`You must be logged in as a member of the ${parent.slug} collective to create a Project`);
+  } else if (!['COLLECTIVE', 'ORGANIZATION'].includes(parent.type)) {
+    throw new BadRequest('Parent account must be a collective or organization');
+  } else if (parent.isFrozen()) {
+    throw new Forbidden('This account is frozen and cannot create new projects at this time.');
   }
 
   const projectData = {
@@ -50,8 +56,11 @@ async function createProject(_, args, req) {
     approvedAt: parent.isActive ? new Date() : null,
     ParentCollectiveId: parent.id,
     CreatedByUserId: req.remoteUser.id,
+    isPrivate: parent.isPrivate,
     settings: { ...DEFAULT_PROJECT_SETTINGS, ...args.project.settings },
-    data: {},
+    data: {
+      ...pick(parent.data, 'allowedTierTypes'),
+    },
   };
 
   if (args.disableContributions) {
@@ -125,6 +134,7 @@ const createProjectMutation = {
       defaultValue: false,
     },
   },
+  // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside createProject
   resolve: (_, args, req) => {
     return createProject(_, args, req);
   },

@@ -5,14 +5,16 @@ import { cloneDeep, set } from 'lodash';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
-import { roles } from '../../../../../server/constants';
+import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import PlatformConstants from '../../../../../server/constants/platform';
 import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import * as applyContributionAccountingCategoryRules from '../../../../../server/lib/accounting/categorization/contribution-rules';
 import emailLib from '../../../../../server/lib/email';
+import { EntityPublicId, EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import * as OrderSecurityLib from '../../../../../server/lib/security/order';
 import stripe from '../../../../../server/lib/stripe';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
@@ -31,13 +33,14 @@ import {
   fakePaymentMethod,
   fakeTier,
   fakeUser,
+  fakeVendor,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import {
   generateValid2FAHeader,
   graphqlQueryV2,
   resetTestDB,
-  stubStripeBalance,
+  stubStripeBalanceSyncWithPaymentIntent,
   stubStripeCreate,
   waitForCondition,
 } from '../../../../utils';
@@ -279,9 +282,36 @@ const moveOrdersMutation = gql`
   }
 `;
 
+const orderPublicIdQuery = gql`
+  query OrderPublicId($legacyId: Int!) {
+    order(order: { legacyId: $legacyId }) {
+      id
+      legacyId
+      publicId
+    }
+  }
+`;
+
 const cancelRecurringContributionMutation = gql`
   mutation CancelRecurringContribution($order: OrderReferenceInput!) {
     cancelOrder(order: $order) {
+      id
+      status
+    }
+  }
+`;
+
+const cancelRecurringContributionAsHostMutation = gql`
+  mutation CancelRecurringContributionAsHost(
+    $order: OrderReferenceInput!
+    $removeAsContributor: Boolean
+    $messageForContributor: String
+  ) {
+    cancelOrder(
+      order: $order
+      removeAsContributor: $removeAsContributor
+      messageForContributor: $messageForContributor
+    ) {
       id
       status
     }
@@ -333,26 +363,24 @@ const stubStripePayments = sandbox => {
     id: stripePaymentMethodId,
     customer: 'cus_test',
   });
-  sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pi_test', status: 'requires_confirmation' });
-  sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
-    id: stripePaymentMethodId,
-    status: 'succeeded',
-    charges: {
-      // eslint-disable-next-line camelcase
-      data: [{ id: 'ch_id', balance_transaction: 'txn_id' }],
-    },
-  });
-
-  sandbox.stub(stripe.balanceTransactions, 'retrieve').resolves({
-    amount: 1100,
-    currency: 'usd',
-    fee: 0,
-    // eslint-disable-next-line camelcase
-    fee_details: [],
-  });
+  stubStripeBalanceSyncWithPaymentIntent(sandbox, { defaultStripeAmount: 5000, defaultCurrency: 'usd' });
 };
 
 describe('server/graphql/v2/mutation/OrderMutations', () => {
+  describe('Order publicId', () => {
+    it('returns publicId and hashid id for orders', async () => {
+      const order = await fakeOrder();
+
+      const result = await graphqlQueryV2(orderPublicIdQuery, { legacyId: order.id });
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      expect(result.data.order.legacyId).to.eq(order.id);
+      expect(result.data.order.publicId).to.eq(order.publicId);
+      expect(result.data.order.id).to.eq(idEncode(order.id, IDENTIFIER_TYPES.ORDER));
+    });
+  });
+
   describe('createOrder', () => {
     describe('General cases', () => {
       let fromUser, toCollective, host, validOrderParams, sandbox, emailSendMessageSpy;
@@ -739,6 +767,53 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
           config.captcha.enabled = captchaDefaultValue;
         });
+
+        it('Persists the guest location and derives a formatted address from structured fields', async () => {
+          const email = randEmail();
+          const orderData = {
+            ...validOrderParams,
+            fromAccount: null,
+            guestInfo: {
+              email,
+              captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+              location: {
+                country: 'US',
+                structured: {
+                  address1: '123 Main St',
+                  city: 'New York',
+                  zone: 'NY',
+                  postalCode: '10001',
+                },
+                // Intentionally omitting `address` — it must be auto-derived from `structured`
+              },
+            },
+          };
+
+          const result = await callCreateOrder({ order: orderData });
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+
+          const order = result.data.createOrder.order;
+          const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
+          const location = await fromCollective.getLocation();
+
+          // Location row must exist and carry the country
+          expect(location).to.exist;
+          expect(location.country).to.eq('US');
+
+          // Structured fields must be stored as-is
+          expect(location.structured).to.deep.include({
+            address1: '123 Main St',
+            city: 'New York',
+            zone: 'NY',
+            postalCode: '10001',
+          });
+
+          // address must be auto-derived from structured — never null when structured has data
+          expect(location.address).to.be.a('string').that.is.not.empty;
+          expect(location.address).to.include('123 Main St');
+          expect(location.address).to.include('New York');
+        });
       });
 
       describe('Common checks', () => {
@@ -1078,6 +1153,115 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           });
         });
       });
+
+      describe('zero-decimal currencies', () => {
+        let hostWithGST, jpyCollective, jpyTier, fromUser, sandbox;
+
+        before(async () => {
+          sandbox = createSandbox();
+          sandbox.stub(OrderSecurityLib, 'orderFraudProtection').callsFake(() => Promise.resolve());
+          sandbox.stub(stripe.tokens, 'retrieve').resolves({
+            card: {
+              token: 'tok_testtoken123456789012345',
+              brand: 'VISA',
+              country: 'NZ',
+              expMonth: 11,
+              expYear: 2024,
+              last4: '4242',
+              name: 'Test User',
+            },
+          });
+
+          const stripePaymentMethodId = randStr('pm_');
+          sandbox.stub(StripeCommon, 'resolvePaymentMethodForOrder').resolves({
+            id: stripePaymentMethodId,
+            customer: 'cus_test',
+          });
+          sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pi_test', status: 'requires_confirmation' });
+          sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
+            id: stripePaymentMethodId,
+            status: 'succeeded',
+            // eslint-disable-next-line camelcase
+            charges: { data: [{ id: 'ch_id', balance_transaction: 'txn_id' }] },
+          });
+          // ¥127 in Stripe's zero-decimal representation (= 12700 in internal cents-everywhere convention)
+          sandbox.stub(stripe.balanceTransactions, 'retrieve').resolves({
+            amount: 127,
+            currency: 'jpy',
+            fee: 0,
+            // eslint-disable-next-line camelcase
+            fee_details: [],
+          });
+
+          fromUser = await fakeUser({ countryISO: 'NZ' });
+          // A NZ host using JPY as its currency, with GST enabled
+          hostWithGST = await fakeActiveHost({
+            countryISO: 'NZ',
+            currency: 'JPY',
+            settings: { GST: { number: 'NZ123456789' } },
+          });
+          await models.ConnectedAccount.create({
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            token: 'abc',
+            CollectiveId: hostWithGST.id,
+            username: 'stripeAccount',
+          });
+          jpyCollective = await fakeCollective({ HostCollectiveId: hostWithGST.id, currency: 'JPY', countryISO: 'NZ' });
+          // Tier is required so getApplicableTaxes returns GST (empty tier type yields no applicable taxes).
+          jpyTier = await fakeTier({
+            type: 'PRODUCT',
+            amount: 11000,
+            interval: null,
+            currency: 'JPY',
+            CollectiveId: jpyCollective.id,
+          });
+        });
+
+        after(() => sandbox.restore());
+
+        it('tax computed from rate is rounded to a whole yen for JPY orders', async () => {
+          // ¥110 base (stored as 11000 internally). 15% NZ GST on ¥110 = ¥16.5, which must round to ¥17 (1700 internally).
+          const baseAmountInCents = 11000;
+          const res = await callCreateOrder(
+            {
+              order: {
+                fromAccount: { legacyId: fromUser.CollectiveId },
+                toAccount: { legacyId: jpyCollective.id },
+                tier: { legacyId: jpyTier.id },
+                frequency: 'ONETIME',
+                amount: { valueInCents: baseAmountInCents, currency: 'JPY' },
+                tax: { type: 'GST', rate: 0.15, country: 'NZ' },
+                paymentMethod: {
+                  service: 'STRIPE',
+                  type: 'CREDITCARD',
+                  name: '4242',
+                  creditCardInfo: {
+                    token: 'tok_testtoken123456789012345',
+                    brand: 'VISA',
+                    country: 'NZ',
+                    expMonth: 11,
+                    expYear: 2024,
+                  },
+                },
+              },
+            },
+            fromUser,
+          );
+
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+
+          const createdOrder = res.data.createOrder.order;
+          // Tax must be a whole yen (multiple of 100 in internal representation)
+          expect(createdOrder.taxAmount.valueInCents).to.equal(1700); // ¥17, rounded up from raw ¥16.5
+          expect(createdOrder.taxAmount.valueInCents % 100).to.equal(0);
+
+          // Total must also be a whole yen
+          const orderFromDB = await models.Order.findByPk(createdOrder.legacyId);
+          expect(orderFromDB.totalAmount).to.equal(baseAmountInCents + 1700); // ¥110 + ¥17 = ¥127
+          expect(orderFromDB.totalAmount % 100).to.equal(0);
+        });
+      });
     });
 
     describe('payment methods', () => {
@@ -1223,7 +1407,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     // Moved/adapted from `test/server/paymentProviders/opencollective/collective.test.js` + `test/server/graphql/v1/createOrder.test.js`
     describe('Collective to Collective Transactions', () => {
-      const ORDER_TOTAL_AMOUNT = 1000;
       const STRIPE_FEE_STUBBED_VALUE = 300;
       let sandbox,
         user1,
@@ -1302,11 +1485,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         sandbox = createSandbox();
         // And given that the endpoint for creating customers on Stripe
         // is patched
-        stubStripeCreate(sandbox, { charge: { currency: 'usd', status: 'succeeded' } });
-        // And given the stripe stuff that depends on values in the
-        // order struct is patch. It's here and not on each test because
-        // the `totalAmount' field doesn't change throught the tests.
-        stubStripeBalance(sandbox, ORDER_TOTAL_AMOUNT, 'usd', 0, STRIPE_FEE_STUBBED_VALUE); // This is the payment processor fee.
+        stubStripeCreate(sandbox, { charge: { currency: 'usd', status: 'succeeded' } }, { skipPaymentIntents: true });
+        // Balance tx must match PaymentIntent amount (createChargeTransactions uses balanceTransaction.amount).
+        stubStripeBalanceSyncWithPaymentIntent(sandbox, { stripeFee: STRIPE_FEE_STUBBED_VALUE });
       });
 
       afterEach(() => sandbox.restore());
@@ -1609,14 +1790,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
   describe('createPendingOrder', () => {
     let validOrderPrams, host, hostAdmin, collectiveAdmin;
-
+    let validAccountingCategory;
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
       host = await fakeActiveHost({ plan: 'start-plan-2021', admin: hostAdmin, data: { isTrustedHost: true } });
       const collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id, admin: collectiveAdmin });
       const user = await fakeUser();
-      const validAccountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
+      validAccountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
       validOrderPrams = {
         fromAccount: { legacyId: user.CollectiveId },
         toAccount: { legacyId: collective.id },
@@ -1703,6 +1884,14 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     });
 
     describe('accounting category', () => {
+      let sandbox;
+      beforeEach(() => {
+        sandbox = createSandbox();
+      });
+      afterEach(() => {
+        sandbox.restore();
+      });
+
       it('must exist', async () => {
         const orderInput = {
           ...validOrderPrams,
@@ -1735,6 +1924,33 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors[0].message).to.equal(
           'This accounting category is not allowed for contributions and added funds',
         );
+      });
+
+      it('calls applyContributionAccountingCategoryRules after creating a pending order', async () => {
+        const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+          applyContributionAccountingCategoryRules,
+          'applyContributionAccountingCategoryRules',
+        );
+        const result = await callCreatePendingOrder(
+          { order: { ...validOrderPrams, accountingCategory: null } },
+          hostAdmin,
+        );
+        expect(result.errors).to.not.exist;
+        expect(
+          applyContributionAccountingCategoryRulesSpy.calledWithMatch({ id: result.data.createPendingOrder.legacyId }),
+        ).to.be.true;
+      });
+
+      it('does not call applyContributionAccountingCategoryRules if the accounting category is set', async () => {
+        const applyContributionAccountingCategoryRulesSpy = sandbox.spy(
+          applyContributionAccountingCategoryRules,
+          'applyContributionAccountingCategoryRules',
+        );
+        const result = await callCreatePendingOrder({ order: validOrderPrams }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        expect(applyContributionAccountingCategoryRulesSpy).to.not.have.been.called;
+        const order = await models.Order.findByPk(result.data.createPendingOrder.legacyId);
+        expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.equal(validAccountingCategory.code);
       });
     });
   });
@@ -1853,6 +2069,39 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       );
       expect(result.errors).to.not.exist;
       expect(result.data.updateOrderAccountingCategory.accountingCategory.code).to.equal(accountingCategory.code);
+      await order.reload();
+      expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.equal(accountingCategory.code);
+    });
+
+    it('accepts publicId in OrderReferenceInput and AccountingCategoryReferenceInput', async () => {
+      const hostAdmin = await fakeUser();
+      const order = await fakeOrder();
+      await order.collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+
+      const accountingCategory = await fakeAccountingCategory({
+        CollectiveId: order.collective.HostCollectiveId,
+        kind: 'CONTRIBUTION',
+      });
+
+      const orderPublicId = `${EntityShortIdPrefix.Order}_public`;
+      await order.update({ publicId: orderPublicId });
+
+      const accountingCategoryPublicId = `${EntityShortIdPrefix.AccountingCategory}_${accountingCategory.id}`;
+      await accountingCategory.update({
+        publicId: accountingCategoryPublicId as EntityPublicId<EntityShortIdPrefix.AccountingCategory>,
+      });
+
+      const result = await callUpdateOrderAccountingCategory(
+        {
+          order: { id: orderPublicId },
+          accountingCategory: { id: accountingCategoryPublicId },
+        },
+        hostAdmin,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.updateOrderAccountingCategory.accountingCategory.code).to.equal(accountingCategory.code);
     });
   });
 
@@ -1879,11 +2128,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       const newTier = await fakeTier({ CollectiveId: order.CollectiveId, currency: 'USD' });
-      const newFromUser = await fakeUser();
+      const newFromAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
       validEditOrderParams = {
         legacyId: order.id,
         tier: { legacyId: newTier.id },
-        fromAccount: { legacyId: newFromUser.CollectiveId },
+        fromAccount: { legacyId: newFromAccount.id },
         fromAccountInfo: { name: 'Hey', email: 'hey@opencollective.com' },
         description: 'New description',
         memo: 'New memo',
@@ -2056,7 +2305,69 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors).to.not.exist;
         const resultOrder = result.data.editPendingOrder;
         expect(resultOrder.accountingCategory).to.be.null;
+        await order.reload();
+        expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.be.eq('__uncategorized__');
       });
+
+      it('can be set', async () => {
+        const accountingCategory = await fakeAccountingCategory({ CollectiveId: host.id, kind: 'CONTRIBUTION' });
+        const orderInput = {
+          ...validEditOrderParams,
+          accountingCategory: { id: idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY) },
+        };
+        const result = await callEditPendingOrder({ order: orderInput }, hostAdmin);
+        expect(result.errors).to.not.exist;
+        const resultOrder = result.data.editPendingOrder;
+        expect(resultOrder.accountingCategory.id).to.be.eq(
+          idEncode(accountingCategory.id, IDENTIFIER_TYPES.ACCOUNTING_CATEGORY),
+        );
+        await order.reload();
+        expect(order.data.valuesByRole.hostAdmin.accountingCategory.code).to.be.eq(accountingCategory.code);
+      });
+    });
+
+    it('must be a trusted host if fromAccount and collective have different hosts', async () => {
+      // Create a foreign account hosted by a different host
+      const otherHost = await fakeHost();
+      const foreignAccount = await fakeCollective({ currency: 'USD', HostCollectiveId: otherHost.id });
+
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            fromAccount: { legacyId: foreignAccount.id },
+          },
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        "You don't have the permission to create pending contributions from this account. Please contact support@opencollective.com if you want to enable this.",
+      );
+
+      // Verify the order was NOT updated
+      await order.reload();
+      expect(order.FromCollectiveId).to.not.equal(foreignAccount.id);
+    });
+
+    it('should allow editing a pending order where fromAccount is a vendor belonging to the host', async () => {
+      const vendor = await fakeVendor({ ParentCollectiveId: host.id, currency: 'USD' });
+
+      const result = await callEditPendingOrder(
+        {
+          order: {
+            ...validEditOrderParams,
+            fromAccount: { legacyId: vendor.id },
+          },
+        },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await order.reload();
+      expect(order.FromCollectiveId).to.equal(vendor.id);
     });
   });
 
@@ -2576,9 +2887,19 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
       await collective.addUserWithRole(adminUser, roles.ADMIN);
       await host.addUserWithRole(hostAdminUser, roles.ADMIN);
+      await hostAdminUser.populateRoles();
     });
 
     describe('cancelOrder', () => {
+      let cancelOrderSandbox, sendEmailSpy;
+
+      before(() => {
+        cancelOrderSandbox = createSandbox();
+        sendEmailSpy = cancelOrderSandbox.spy(emailLib, 'send');
+      });
+
+      after(() => cancelOrderSandbox.restore());
+
       it('must be authenticated', async () => {
         const result = await graphqlQueryV2(cancelRecurringContributionMutation, {
           order: { id: idEncode(order.id, 'order') },
@@ -2598,6 +2919,92 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.match(/You don't have permission to cancel this recurring contribution/);
+      });
+
+      it('rejects host-only options for non-host admins', async () => {
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(order.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor: 'A note from the host',
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Only host admins can use these options/);
+      });
+
+      it('allows host admins to cancel and remove the contributor', async () => {
+        const hostOrder = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+          },
+          { withSubscription: true },
+        );
+        await models.Member.create({
+          CollectiveId: collective.id,
+          MemberCollectiveId: user.CollectiveId,
+          role: MemberRoles.BACKER,
+          CreatedByUserId: user.id,
+        });
+
+        sendEmailSpy.resetHistory();
+
+        const messageForContributor = 'We are ending this recurring contribution.';
+        const result = await graphqlQueryV2(
+          cancelRecurringContributionAsHostMutation,
+          {
+            order: { id: idEncode(hostOrder.id, 'order') },
+            removeAsContributor: true,
+            messageForContributor,
+          },
+          hostAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.cancelOrder.status).to.eq('CANCELLED');
+
+        const membership = await models.Member.findOne({
+          where: {
+            CollectiveId: collective.id,
+            MemberCollectiveId: user.CollectiveId,
+            role: MemberRoles.BACKER,
+          },
+        });
+        expect(membership).to.not.exist;
+
+        const cancelActivity = await models.Activity.findOne({
+          where: { type: activities.SUBSCRIPTION_CANCELED, OrderId: hostOrder.id },
+        });
+        expect(cancelActivity.data.messageSource).to.equal('HOST');
+        expect(cancelActivity.data.messageForContributors).to.equal(messageForContributor);
+        expect(cancelActivity.data.hostAction).to.deep.equal({
+          cancel: true,
+          refund: false,
+          removeAsContributor: true,
+        });
+
+        const removeActivity = await models.Activity.findOne({
+          where: { type: activities.CONTRIBUTOR_REMOVED_BY_HOST, OrderId: hostOrder.id },
+        });
+        expect(removeActivity).to.exist;
+        expect(removeActivity.data.hostAction).to.deep.equal({
+          cancel: true,
+          refund: false,
+          removeAsContributor: true,
+        });
+
+        // Only the cancel email should reach the contributor: the
+        // contributor-removed activity has no email template and is recorded
+        // for the timeline / webhooks only.
+        await waitForCondition(() => sendEmailSpy.calledWith('subscription.canceled'));
+        expect(sendEmailSpy.calledWith('subscription.canceled')).to.be.true;
       });
 
       it('cancels the order', async () => {
@@ -2778,6 +3185,26 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.data.updateOrder.paymentMethod.id).to.eq(idEncode(paymentMethod.id, 'paymentMethod'));
       });
 
+      it('accepts publicId in PaymentMethodReferenceInput', async () => {
+        const publicId = `pm_${paymentMethod.id}`;
+        await paymentMethod.update({ publicId });
+        await order2.update({ publicId: `${EntityShortIdPrefix.Order}_${order2.id}` });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: order2.publicId },
+            paymentMethod: {
+              id: publicId,
+            },
+          },
+          user,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.updateOrder.paymentMethod.id).to.eq(idEncode(paymentMethod.id, 'paymentMethod'));
+      });
+
       it('updates the order tier and amount', async () => {
         const result = await graphqlQueryV2(
           updateOrderMutation,
@@ -2830,6 +3257,44 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.platformTipAmount).to.eq(100);
         expect(orderWithTaxes.taxAmount).to.eq(333); // 20% VAT on $2000 (tip is not included in the tax calculation)
         expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
+      });
+
+      it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {
+        const paypalPm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+          token: 'I-PAYPALSUBTEST',
+          CollectiveId: user.CollectiveId,
+        });
+        const paypalOrder = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            PaymentMethodId: paypalPm.id,
+            totalAmount: 5000,
+            subscription: {
+              isManagedExternally: true,
+              isActive: true,
+              amount: 5000,
+            },
+          },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(paypalOrder.id, 'order') },
+            amount: { value: 1000 / 100, currency: collective.currency },
+            tier: { legacyId: flexibleTier.id },
+          },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/PayPal approval flow/);
       });
 
       describe('update interval', async () => {

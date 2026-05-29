@@ -1,16 +1,18 @@
 import { pick } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
-import { DataTypes, Model, Transaction } from 'sequelize';
+import { DataTypes, Transaction } from 'sequelize';
 
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '../constants/currencies';
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 import { isValidURL } from '../lib/url-utils';
 
 import { FX_RATE_SOURCE } from './CurrencyExchangeRate';
 import Expense from './Expense';
+import { ModelWithPublicId } from './ModelWithPublicId';
 import { MAX_UPLOADED_FILE_URL_LENGTH } from './UploadedFile';
 import User from './User';
 
@@ -20,7 +22,14 @@ type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
-class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttributes<ExpenseItem>> {
+class ExpenseItem extends ModelWithPublicId<
+  EntityShortIdPrefix.ExpenseItem,
+  InferAttributes<ExpenseItem>,
+  InferCreationAttributes<ExpenseItem>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.ExpenseItem;
+  public static readonly tableName = 'ExpenseItems' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public CreatedByUserId: ForeignKey<User['id']>;
@@ -108,6 +117,10 @@ ExpenseItem.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
     amount: {
       type: DataTypes.INTEGER,

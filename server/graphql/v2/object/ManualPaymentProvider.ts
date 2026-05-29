@@ -1,9 +1,10 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON, GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { ManualPaymentProviderTypes } from '../../../models/ManualPaymentProvider';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
-import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 export const GraphQLManualPaymentProvider = new GraphQLObjectType({
   name: 'ManualPaymentProvider',
@@ -12,7 +13,17 @@ export const GraphQLManualPaymentProvider = new GraphQLObjectType({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this provider',
-      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER),
+      resolve: provider => {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ManualPaymentProvider, provider.createdAt)) {
+          return provider.publicId;
+        } else {
+          return idEncode(provider.id, IDENTIFIER_TYPES.MANUAL_PAYMENT_PROVIDER);
+        }
+      },
+    },
+    publicId: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: `The resource public id (ie: ${EntityShortIdPrefix.ManualPaymentProvider}_xxxxxxxx)`,
     },
     type: {
       type: new GraphQLNonNull(GraphQLManualPaymentProviderType),

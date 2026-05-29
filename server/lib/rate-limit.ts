@@ -1,8 +1,14 @@
 import config from 'config';
 
 import { sessionCache } from './cache';
+import logger from './logger';
+import { parseToBoolean } from './utils';
 
 export const ONE_HOUR_IN_SECONDS = 60 * 60;
+
+const isTestEnvironment =
+  process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci' || config.env === 'e2e' || config.env === 'ci';
+const DISABLE_RATE_LIMITING = parseToBoolean(process.env.DISABLE_RATE_LIMITING);
 
 /**
  * A small wrapper around the cache specialized to handle rate limitings.
@@ -22,24 +28,26 @@ export default class RateLimit {
 
   /** Load the count from cache if required and check if the limit has been reached */
   public async hasReachedLimit(): Promise<boolean> {
-    if (
-      this.ignoreTests &&
-      (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci' || config.env === 'e2e')
-    ) {
+    if (this.ignoreTests && isTestEnvironment) {
+      return false;
+    } else if (DISABLE_RATE_LIMITING) {
+      logger.debug(`Rate limiting is disabled`);
       return false;
     }
+
     const count = await this.getCallsCount();
     return count >= this.limit;
   }
 
   /** Register `nbCalls` in the cache. Returns false if limit has been reached. */
   public async registerCall(nbCalls = 1): Promise<boolean> {
-    if (
-      this.ignoreTests &&
-      (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci' || config.env === 'e2e')
-    ) {
+    if (this.ignoreTests && isTestEnvironment) {
+      return true;
+    } else if (DISABLE_RATE_LIMITING) {
+      logger.debug(`Rate limiting is disabled`);
       return true;
     }
+
     const count = await this.getCallsCount();
     if (count >= this.limit) {
       return false;

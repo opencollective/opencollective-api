@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gqlV1 from 'fake-tag';
-import { describe, it } from 'mocha';
+import { before, describe, it } from 'mocha';
 import sinon, { createSandbox } from 'sinon';
 
 import { activities as ACTIVITY } from '../../../../server/constants';
@@ -18,6 +18,7 @@ import {
   fakeTier,
   fakeUser,
 } from '../../../test-helpers/fake-data';
+import { createPrivateAccountFixture } from '../../../test-helpers/private-account-fixture';
 import * as utils from '../../../utils';
 
 const collectiveQuery = gqlV1 /* GraphQL */ `
@@ -738,22 +739,6 @@ describe('server/graphql/v1/collective', () => {
       ).collective;
     });
 
-    it('edits legalName', async () => {
-      const user = await fakeUser();
-      const editCollectiveMutation = gqlV1 /* GraphQL */ `
-        mutation EditCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id
-            legalName
-          }
-        }
-      `;
-
-      const collective = { id: user.collective.id, legalName: 'New Legal Name' };
-      const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
-      expect(result.data.editCollective.legalName).to.eq('New Legal Name');
-    });
-
     it('edits social links', async () => {
       const user = await fakeUser();
       const editCollectiveMutation = gqlV1 /* GraphQL */ `
@@ -812,59 +797,6 @@ describe('server/graphql/v1/collective', () => {
       expect(result.data.editCollective.repositoryUrl).to.eq('https://github.com/opencollective/opencollective-api');
     });
 
-    it('updates social links', async () => {
-      const user = await fakeUser();
-      const editCollectiveMutation = gqlV1 /* GraphQL */ `
-        mutation EditCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id
-            socialLinks {
-              type
-              url
-            }
-            website
-            repositoryUrl
-            githubHandle
-            twitterHandle
-          }
-        }
-      `;
-
-      const collective = {
-        id: user.collective.id,
-        website: 'https://opencollective.com',
-        twitterHandle: 'opencollect',
-        githubHandle: 'opencollective',
-        repositoryUrl: 'https://github.com/opencollective/opencollective-api',
-      };
-      const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
-      console.log(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.editCollective.socialLinks).to.eql([
-        {
-          type: 'WEBSITE',
-          url: 'https://opencollective.com',
-        },
-        {
-          type: 'GIT',
-          url: 'https://github.com/opencollective/opencollective-api',
-        },
-        {
-          type: 'GITHUB',
-          url: 'https://github.com/opencollective',
-        },
-        {
-          type: 'TWITTER',
-          url: 'https://twitter.com/opencollect',
-        },
-      ]);
-
-      expect(result.data.editCollective.website).to.eq('https://opencollective.com');
-      expect(result.data.editCollective.twitterHandle).to.eq('opencollect');
-      expect(result.data.editCollective.githubHandle).to.eq('opencollective/opencollective-api');
-      expect(result.data.editCollective.repositoryUrl).to.eq('https://github.com/opencollective/opencollective-api');
-    });
-
     it('apply to host', async () => {
       const { hostCollective } = await store.newHost(
         'brusselstogether',
@@ -906,19 +838,19 @@ describe('server/graphql/v1/collective', () => {
     });
 
     it('check edit activity is created after', async () => {
-      const user = await fakeUser(null, { legalName: 'Old Legal Name' });
+      const user = await fakeUser(null, { tags: ['old tag'] });
       const editCollectiveMutation = gqlV1 /* GraphQL */ `
         mutation EditCollective($collective: CollectiveInputType!) {
           editCollective(collective: $collective) {
             id
-            legalName
+            tags
           }
         }
       `;
 
-      const collective = { id: user.collective.id, legalName: 'New Legal Name' };
+      const collective = { id: user.collective.id, tags: ['new tag'] };
       const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
-      expect(result.data.editCollective.legalName).to.eq('New Legal Name');
+      expect(result.data.editCollective.tags).to.deep.eq(['new tag']);
       // Check activity
       const activity = await models.Activity.findOne({
         where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED },
@@ -927,11 +859,12 @@ describe('server/graphql/v1/collective', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(user.collective.id);
       expect(activity.data).to.containSubset({
-        previousData: { legalName: 'Old Legal Name' },
-        newData: { legalName: 'New Legal Name' },
+        previousData: { tags: ['old tag'] },
+        newData: { tags: ['new tag'] },
       });
     });
   });
+
   describe('edits member public message', () => {
     const editPublicMessageMutation = gqlV1 /* GraphQL */ `
       mutation EditPublicMessage($fromCollectiveId: Int!, $collectiveId: Int!, $message: String) {
@@ -1126,6 +1059,181 @@ describe('server/graphql/v1/collective', () => {
       // Make sure we haven't called `getContributorsForCollective` and `cache.set` more than once
       expect(getContributorsForCollectiveSpy.callCount).to.equal(1);
       expect(cacheSetSpy.callCount).to.equal(1);
+    });
+  });
+});
+
+// Private organizations must not leak via the GraphQL V1 API (Collective query, members, memberOf, allTransactions).
+const collectiveV1PrivateAccountQuery = gqlV1`
+  query Collective($slug: String!) {
+    Collective(slug: $slug) {
+      id
+      slug
+      name
+      members {
+        id
+      }
+      memberOf {
+        id
+        collective {
+          id
+          slug
+        }
+      }
+    }
+  }
+`;
+
+const allTransactionsV1PrivateAccountQuery = gqlV1`
+  query AllTransactions($collectiveSlug: String!) {
+    allTransactions(collectiveSlug: $collectiveSlug) {
+      id
+      type
+    }
+  }
+`;
+
+function expectPrivateAccountV1ForbiddenError(result) {
+  expect(result.errors, `Expected errors but got: ${JSON.stringify(result.data)}`).to.have.length.greaterThan(0);
+  const codes = result.errors.map(e => e.extensions?.code);
+  expect(codes).to.include('Forbidden');
+}
+
+describe('server/graphql/v1/Collective - private accounts', () => {
+  let ctx;
+
+  before(async () => {
+    await utils.resetTestDB();
+    ctx = await createPrivateAccountFixture();
+  });
+
+  describe('Collective query', () => {
+    describe('returns Forbidden', () => {
+      it('for unauthenticated users querying a private account', async () => {
+        const result = await utils.graphqlQuery(collectiveV1PrivateAccountQuery, { slug: ctx.privateCollective.slug });
+        expectPrivateAccountV1ForbiddenError(result);
+      });
+
+      it('for random authenticated users', async () => {
+        const result = await utils.graphqlQuery(
+          collectiveV1PrivateAccountQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.randomUser,
+        );
+        expectPrivateAccountV1ForbiddenError(result);
+      });
+
+      it('when admin of Collective A tries to access Collective B', async () => {
+        const result = await utils.graphqlQuery(
+          collectiveV1PrivateAccountQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateCollectiveAdmin2,
+        );
+        expectPrivateAccountV1ForbiddenError(result);
+      });
+    });
+
+    describe('allows', () => {
+      it('host admin to access a private collective', async () => {
+        const result = await utils.graphqlQuery(
+          collectiveV1PrivateAccountQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateHostAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.Collective.slug).to.eq(ctx.privateCollective.slug);
+      });
+
+      it('collective admin to access a private collective', async () => {
+        const result = await utils.graphqlQuery(
+          collectiveV1PrivateAccountQuery,
+          { slug: ctx.privateCollective.slug },
+          ctx.privateCollectiveAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.be.undefined;
+        expect(result.data.Collective.slug).to.eq(ctx.privateCollective.slug);
+      });
+
+      it('root to access a private collective', async () => {
+        const result = await utils.graphqlQuery(
+          collectiveV1PrivateAccountQuery,
+          { slug: ctx.privateHost.slug },
+          ctx.rootAdmin,
+        );
+        expect(result.errors).to.be.undefined;
+        expect(result.data.Collective.slug).to.eq(ctx.privateHost.slug);
+      });
+    });
+  });
+
+  describe('members field (nested)', () => {
+    it('members: empty array for unauthorized queries (gate at Collective query level)', async () => {
+      const result = await utils.graphqlQuery(collectiveV1PrivateAccountQuery, { slug: ctx.privateCollective.slug });
+      expectPrivateAccountV1ForbiddenError(result);
+    });
+
+    it('members: populated for authorized admin', async () => {
+      const result = await utils.graphqlQuery(
+        collectiveV1PrivateAccountQuery,
+        { slug: ctx.privateCollective.slug },
+        ctx.privateCollectiveAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(result.data.Collective.members.length).to.be.gte(1);
+    });
+  });
+
+  describe('memberOf field', () => {
+    it("does not show private collectives in a user's memberOf when viewed by random user", async () => {
+      const result = await utils.graphqlQuery(
+        collectiveV1PrivateAccountQuery,
+        { slug: ctx.privateCollectiveAdmin.collective.slug },
+        ctx.randomUser,
+      );
+      expect(result.errors).to.be.undefined;
+      const memberOfSlugs = (result.data.Collective.memberOf || []).map(m => m.collective.slug);
+      expect(memberOfSlugs).to.not.include(ctx.privateCollective.slug);
+    });
+
+    it('shows private collectives in memberOf for the admin themselves', async () => {
+      const result = await utils.graphqlQuery(
+        collectiveV1PrivateAccountQuery,
+        { slug: ctx.privateCollectiveAdmin.collective.slug },
+        ctx.privateCollectiveAdmin,
+      );
+      console.log(`Looking for ${ctx.privateCollective.id} in memberOf`);
+      expect(result.errors).to.be.undefined;
+      const memberOfSlugs = (result.data.Collective.memberOf || []).map(m => m.collective.slug);
+      expect(memberOfSlugs).to.include(ctx.privateCollective.slug);
+    });
+  });
+
+  describe('allTransactions query', () => {
+    it('returns Forbidden for unauthenticated users', async () => {
+      const result = await utils.graphqlQuery(allTransactionsV1PrivateAccountQuery, {
+        collectiveSlug: ctx.privateCollective.slug,
+      });
+      expectPrivateAccountV1ForbiddenError(result);
+    });
+
+    it('returns Forbidden for random users', async () => {
+      const result = await utils.graphqlQuery(
+        allTransactionsV1PrivateAccountQuery,
+        { collectiveSlug: ctx.privateCollective.slug },
+        ctx.randomUser,
+      );
+      expectPrivateAccountV1ForbiddenError(result);
+    });
+
+    it('allows host admin to query transactions', async () => {
+      const result = await utils.graphqlQuery(
+        allTransactionsV1PrivateAccountQuery,
+        { collectiveSlug: ctx.privateCollective.slug },
+        ctx.privateHostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(Array.isArray(result.data.allTransactions)).to.be.true;
     });
   });
 });

@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models, { ConnectedAccount } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -12,11 +13,12 @@ export const GraphQLConnectedAccountReferenceInput = new GraphQLInputObjectType(
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the connected account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the connected account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${models.ConnectedAccount.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The internal id of the account (ie: 580)',
+      deprecationReason: '2026-02-25: use id',
     },
   }),
 });
@@ -26,7 +28,9 @@ export const fetchConnectedAccountWithReference = async (
   { throwIfMissing } = { throwIfMissing: false },
 ): Promise<ConnectedAccount> => {
   let connectedAccount;
-  if (input.id) {
+  if (isEntityPublicId(input.id, EntityShortIdPrefix.ConnectedAccount)) {
+    connectedAccount = await models.ConnectedAccount.findOne({ where: { publicId: input.id } });
+  } else if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.CONNECTED_ACCOUNT);
     connectedAccount = await models.ConnectedAccount.findByPk(id);
   } else if (input.legacyId) {

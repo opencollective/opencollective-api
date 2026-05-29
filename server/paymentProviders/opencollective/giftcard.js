@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities } from '../../constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { TransactionKind } from '../../constants/transaction-kind';
 import { ValidationFailed } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import * as currency from '../../lib/currency';
@@ -35,6 +36,7 @@ async function getBalance(paymentMethod) {
   }
   let query = {
     PaymentMethodId: paymentMethod.id,
+    kind: { [Op.ne]: TransactionKind.PAYMENT_PROCESSOR_COVER },
     type: 'DEBIT',
     RefundTransactionId: null,
   };
@@ -65,7 +67,7 @@ async function getBalance(paymentMethod) {
     }
   }
   const balance = {
-    amount: Math.round(initialBalance + spent),
+    amount: currency.roundCentsAmount(initialBalance + spent, paymentMethod.currency),
     currency: paymentMethod.currency,
   };
   return balance;
@@ -296,7 +298,7 @@ async function checkSourcePaymentMethodBalance(paymentMethod, amount, giftCardCu
 
   // Convert amounts if not the same currency
   const fxRate = await currency.getFxRate(giftCardCurrency, balance.currency);
-  const totalAmountInPaymentMethodCurrency = Math.round(amount * fxRate);
+  const totalAmountInPaymentMethodCurrency = currency.roundCentsAmount(amount * fxRate, balance.currency);
 
   // Check balance
   if (totalAmountInPaymentMethodCurrency > balance.amount) {
@@ -341,7 +343,7 @@ async function getTotalAmountAllocatedForGiftCards(sourcePaymentMethod) {
     }),
   ]);
 
-  return Math.round(sum(results.filter(Boolean)));
+  return currency.roundCentsAmount(sum(results.filter(Boolean)), sourcePaymentMethod.currency);
 }
 
 async function getAmountLeftToSpendForMonthlyLimits(sourcePaymentMethod) {

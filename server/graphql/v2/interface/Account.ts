@@ -1,7 +1,7 @@
 import type express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { assign, get, invert, isEmpty, isNil, isNull, merge, omit, omitBy } from 'lodash';
+import { assign, get, invert, isEmpty, isNil, omit, orderBy } from 'lodash';
 import moment from 'moment';
 import { Order, QueryTypes, Sequelize, WhereOptions } from 'sequelize';
 
@@ -9,7 +9,9 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import PlatformConstants from '../../../constants/platform';
-import { hasFeature } from '../../../lib/allowed-features';
+import { getSupportedExpenseTypes } from '../../../lib/expenses';
+import { canSeeIncognitoProfile } from '../../../lib/incognito';
+import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { buildSearchConditions } from '../../../lib/sql-search';
 import { getCollectiveFeed } from '../../../lib/timeline';
 import { getAccountReportNodesFromQueryResult } from '../../../lib/transaction-reports';
@@ -58,7 +60,7 @@ import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
 import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
 import { GraphQLTimeUnit } from '../enum/TimeUnit';
 import { GraphQLVirtualCardStatusEnum } from '../enum/VirtualCardStatus';
-import { idEncode } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   fetchAccountsIdsWithReference,
   fetchAccountWithReference,
@@ -113,11 +115,22 @@ const accountFieldsDefinition = () => ({
   id: {
     type: new GraphQLNonNull(GraphQLString),
     description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
+    resolve(collective: Collective) {
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
+        return collective.publicId;
+      } else {
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      }
+    },
   },
   legacyId: {
     type: new GraphQLNonNull(GraphQLInt),
     description: 'The internal database identifier of the collective (ie: 580)',
     deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
+  },
+  publicId: {
+    type: new GraphQLNonNull(GraphQLString),
+    description: `The resource public id (ie: ${EntityShortIdPrefix.Collective}_xxxxxxxx)`,
   },
   slug: {
     type: new GraphQLNonNull(GraphQLString),
@@ -205,6 +218,34 @@ const accountFieldsDefinition = () => ({
   isIncognito: {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Defines if the contributors wants to be incognito (name not displayed)',
+  },
+  isPrivate: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether the account is private',
+  },
+  mainProfile: {
+    type: GraphQLAccount,
+    description:
+      'For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".',
+    resolve: async (account: Collective, _, req: express.Request) => {
+      const isIncognito = account.isIncognito;
+      if (!isIncognito) {
+        return null;
+      }
+      if (!checkScope(req, 'account') || !checkScope(req, 'incognito')) {
+        return null;
+      }
+
+      const mainProfile = isIncognito && (await req.loaders.Collective.mainProfileFromIncognito.load(account.id));
+      if (
+        canSeeIncognitoProfile(req, account) ||
+        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
+      ) {
+        return mainProfile;
+      }
+
+      return null;
+    },
   },
   imageUrl: {
     type: GraphQLString,
@@ -409,10 +450,10 @@ const accountFieldsDefinition = () => ({
   expenses: {
     type: new GraphQLNonNull(GraphQLExpenseCollection),
     args: {
+      ...ExpensesCollectionQueryArgs,
       direction: {
         type: GraphQLExpenseDirection,
       },
-      ...ExpensesCollectionQueryArgs,
     },
   },
   settings: {
@@ -447,28 +488,7 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseType))),
     description: 'The list of expense types supported by this account',
     async resolve(collective: Collective, _, req) {
-      const host = collective.hasMoneyManagement
-        ? collective
-        : collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
-      const parent =
-        collective.ParentCollectiveId && (await req.loaders.Collective.byId.load(collective.ParentCollectiveId));
-
-      // Aggregate all configs, using the order of priority collective > parent > host
-      const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
-      const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
-      const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
-      const supportedFromConfig = Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
-      if (supportedFromConfig.includes('GRANT')) {
-        const hasGrantsFeature = await hasFeature(host, FEATURE.FUNDS_GRANTS_MANAGEMENT, {
-          loaders: req.loaders,
-        });
-
-        if (!hasGrantsFeature) {
-          return supportedFromConfig.filter(type => type !== 'GRANT');
-        }
-      }
-
-      return supportedFromConfig;
+      return getSupportedExpenseTypes(collective, { loaders: req.loaders });
     },
   },
   transferwise: {
@@ -485,7 +505,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   payoutMethods: {
-    type: new GraphQLList(GraphQLPayoutMethod),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
     description: 'The list of payout methods that this account can use to get paid',
     args: {
       includeArchived: {
@@ -637,6 +657,10 @@ const accountFieldsDefinition = () => ({
         idFields: ['id'],
         slugFields: ['$fromCollective.slug$'],
         textFields: ['$fromCollective.name$', 'title', 'html'],
+        publicIdFields: [
+          { field: 'publicId', prefix: EntityShortIdPrefix.Update },
+          { field: '$fromCollective.publicId$', prefix: EntityShortIdPrefix.Collective },
+        ],
       });
 
       if (searchTermConditions.length) {
@@ -1197,10 +1221,10 @@ export const GraphQLAccount = new GraphQLInterfaceType({
 const accountTransactions = {
   type: new GraphQLNonNull(GraphQLTransactionCollection),
   args: {
-    ...TransactionsCollectionArgs,
+    ...omit(TransactionsCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return TransactionsCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return TransactionsCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
@@ -1208,30 +1232,30 @@ const accountTransactionGroups = {
   type: new GraphQLNonNull(GraphQLTransactionGroupCollection),
   description: '[!] Warning: this query is currently in beta and the API might change',
   args: {
-    ...TransactionGroupCollectionArgs,
+    ...omit(TransactionGroupCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return TransactionGroupCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return TransactionGroupCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
 const accountOrders = {
   type: new GraphQLNonNull(GraphQLOrderCollection),
   args: {
-    ...OrdersCollectionArgs,
+    ...omit(OrdersCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return OrdersCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return OrdersCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
 const accountWebhooks = {
   type: new GraphQLNonNull(GraphQLWebhookCollection),
   args: {
-    ...WebhookCollectionArgs,
+    ...omit(WebhookCollectionArgs, ['account']),
   },
   async resolve(collective: Collective, args, req) {
-    return WebhookCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
+    return WebhookCollectionResolver({ ...args, account: { legacyId: collective.id } }, req);
   },
 };
 
@@ -1240,7 +1264,11 @@ export const AccountFields = {
   id: {
     type: new GraphQLNonNull(GraphQLString),
     resolve(collective: Collective) {
-      return idEncode(collective.id, 'account');
+      if (isEntityMigratedToPublicId(EntityShortIdPrefix.Collective, collective.createdAt)) {
+        return collective.publicId;
+      } else {
+        return idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT);
+      }
     },
   },
   legacyId: {
@@ -1403,7 +1431,7 @@ export const AccountFields = {
     },
   },
   payoutMethods: {
-    type: new GraphQLList(GraphQLPayoutMethod),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLPayoutMethod)),
     description:
       'The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".',
     args: {
@@ -1424,13 +1452,15 @@ export const AccountFields = {
 
       const payoutMethods: PayoutMethod[] = await loader.load(collective.id);
 
-      return payoutMethods.filter(pm => {
+      const filteredPayoutMethods = payoutMethods.filter(pm => {
         if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
           return false;
         }
 
         return true;
       });
+
+      return orderBy(filteredPayoutMethods, 'id', 'asc');
     },
   },
   paymentMethods: {

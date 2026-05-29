@@ -9,6 +9,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
+import { Order } from '../../../models';
 import { GraphQLContributionFrequency } from '../enum';
 
 import { GraphQLAccountingCategoryReferenceInput } from './AccountingCategoryInput';
@@ -32,6 +33,11 @@ const GraphQLOrderContextInput = new GraphQLInputObjectType({
     isNewPlatformTipFlow: {
       type: GraphQLBoolean,
       description: 'Whether this order was created using the new platform tip flow',
+    },
+    platformTipOffered: {
+      type: GraphQLBoolean,
+      description:
+        'Whether the platform tip was offered to the user in the contribution flow. When explicitly false, the order is persisted as not eligible for platform tips (used by the OSC platform tip A/B).',
     },
   }),
 });
@@ -197,11 +203,12 @@ export const GraphQLPendingOrderEditInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+      description: `The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re, ${Order.nanoIdPrefix}_xxxxxxxx)`,
     },
     legacyId: {
       type: GraphQLInt,
       description: 'The legacy public id identifying the order (ie: 4242)',
+      deprecationReason: '2026-02-25: use id',
     },
     amount: {
       type: new GraphQLNonNull(GraphQLAmountInput),

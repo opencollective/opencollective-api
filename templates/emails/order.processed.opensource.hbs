@@ -5,42 +5,44 @@ Subject: {{#if erratum}}[Erratum] {{/if}}Thank you for your contribution to {{{c
 {{> toplogo}}
 {{> erratum-box}}
 
-{{#if fromCollective.name}}
-<p>Dear {{fromCollective.name}},</p>
-{{else}}
-<p>Hi!</p>
-{{/if}}
-
-{{#if interval}}
-  {{#if firstPayment }}
-    <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} per {{interval}} to {{collective.name}}.
-       Your first payment was made on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Source Collective acknowledges your donation.</p>
-      {{> charge_date_notice}}
+{{#unless erratum}}
+  {{#if fromCollective.name}}
+  <p>Dear {{fromCollective.name}},</p>
   {{else}}
-    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} was received on {{moment transaction.createdAt}}.
-      As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
+  <p>Hi!</p>
   {{/if}}
-{{else}}
 
-<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} on {{moment order.createdAt}}.
-  As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
-{{/if}}
+  {{#if interval}}
+    {{#if firstPayment }}
+      <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} per {{interval}} to {{collective.name}}.
+        Your first payment was made on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Source Collective acknowledges your donation.</p>
+        {{> charge_date_notice}}
+    {{else}}
+      <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} was received on {{moment transaction.createdAt}}.
+        As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
+    {{/if}}
+  {{else}}
 
-<p>You can follow our future activities and how we will be spending the money on our open collective page:
-  <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
-</p>
+  <p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} {{#if order.platformTipAmount}}(including a {{currency order.platformTipAmount currency=order.currency}} tip to the Open Collective Platform){{/if}} on {{moment order.createdAt}}.
+    As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
+  {{/if}}
 
-<h2>Help us raise more money!</h2>
-<p>See our activities and transparent budget on
-  <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>, and share the link to help us spread the word!
-</p>
+  <p>You can follow our future activities and how we will be spending the money on our open collective page:
+    <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.
+  </p>
 
-{{#if customMessage}}
-<p>A message from {{collective.name}}:</p>
+  <h2>Help us raise more money!</h2>
+  <p>See our activities and transparent budget on
+    <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>, and share the link to help us spread the word!
+  </p>
 
-<img width="40" height="33" src="{{config.host.website}}/static/images/email/quotation-custom-email.png" />
-<div style="color: #494B4D; font-size: 14px; line-height: 18px; padding-left: 10px; margin-top: 10px; border-left: 5px solid #F1F2F3">{{{customMessage}}}</div>
-{{/if}}
+  {{#if customMessage}}
+  <p>A message from {{collective.name}}:</p>
+
+  <img width="40" height="33" src="{{config.host.website}}/static/images/email/quotation-custom-email.png" />
+  <div style="color: #494B4D; font-size: 14px; line-height: 18px; padding-left: 10px; margin-top: 10px; border-left: 5px solid #F1F2F3">{{{customMessage}}}</div>
+  {{/if}}
+{{/unless}}
 
 {{#if transactionPdf}}
 <h2>📎 Attachments</h2>
@@ -52,17 +54,19 @@ Subject: {{#if erratum}}[Erratum] {{/if}}Thank you for your contribution to {{{c
 </ul>
 {{/if}}
 
-{{#if order.platformTipAmount}}
-<h2>Payment Details</h2>
+{{#unless erratum}}
+  {{#if order.platformTipAmount}}
+  <h2>Payment Details</h2>
 
-<ul>
-  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency}}</li>
-  <li>Tip for Open Collective: {{currency order.platformTipAmount currency=order.currency}}</li>
-  <li>Total amount: {{currency order.chargeAmount currency=order.currency}}</li>
-</ul>
+  <ul>
+    <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency}}</li>
+    <li>Tip for Open Collective: {{currency order.platformTipAmount currency=order.currency}}</li>
+    <li>Total amount: {{currency order.chargeAmount currency=order.currency}}</li>
+  </ul>
 
-<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency}}</p>
-{{/if}}
+  <p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency}}</p>
+  {{/if}}
+{{/unless}}
 
 <p>
   {{#if order.interval}}

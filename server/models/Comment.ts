@@ -1,13 +1,17 @@
 import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute, Op } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
+import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
 import Collective from './Collective';
 import Conversation from './Conversation';
 import Expense from './Expense';
 import HostApplication from './HostApplication';
+import { ModelWithPublicId } from './ModelWithPublicId';
+import Order from './Order';
+import Update from './Update';
 import User from './User';
 
 // Options for sanitizing comment's body
@@ -23,7 +27,14 @@ export enum CommentType {
   PRIVATE_NOTE = 'PRIVATE_NOTE',
 }
 
-class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Comment>> {
+class Comment extends ModelWithPublicId<
+  EntityShortIdPrefix.Comment,
+  InferAttributes<Comment>,
+  InferCreationAttributes<Comment>
+> {
+  public static readonly nanoIdPrefix = EntityShortIdPrefix.Comment;
+  public static readonly tableName = 'Comments' as const;
+
   declare public readonly id: CreationOptional<number>;
   declare public CollectiveId: number;
   declare public FromCollectiveId: number;
@@ -43,6 +54,9 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   declare public collective?: NonAttribute<Collective>;
   declare public expense?: NonAttribute<Expense>;
   declare public hostApplication?: NonAttribute<HostApplication>;
+  declare public order?: NonAttribute<Order>;
+  declare public conversation?: NonAttribute<Conversation>;
+  declare public commentUpdate?: NonAttribute<Update>;
 
   // Returns the User model of the User that created this Update
   getUser = function () {
@@ -55,6 +69,7 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   get info(): NonAttribute<Partial<Comment>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       html: this.html,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -64,6 +79,7 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   get minimal(): NonAttribute<Partial<Comment>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       createdAt: this.createdAt,
     };
   }
@@ -71,6 +87,7 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   get activity(): NonAttribute<Partial<Comment>> {
     return {
       id: this.id,
+      publicId: this.publicId,
       createdAt: this.createdAt,
     };
   }
@@ -82,6 +99,11 @@ Comment.init(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+
+    publicId: {
+      type: DataTypes.STRING,
+      unique: true,
     },
 
     CollectiveId: {

@@ -2,9 +2,11 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
+import FEATURE_STATUS from '../../../constants/feature-status';
 import POLICIES from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
 import logger from '../../../lib/logger';
+import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -12,6 +14,7 @@ import models from '../../../models';
 import VirtualCardModel, { VirtualCardStatus } from '../../../models/VirtualCard';
 import VirtualCardRequest, { VirtualCardRequestStatus } from '../../../models/VirtualCardRequest';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
+import { checkCanRequestVirtualCards } from '../../common/features';
 import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { GraphQLVirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
@@ -269,7 +272,9 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: isEntityPublicId(args.virtualCard.id, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
         include: [
           { association: 'host', required: true },
           { association: 'collective', required: true },
@@ -388,6 +393,11 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to request a virtual card for this collective");
       }
 
+      const requestVirtualCardsStatus = await checkCanRequestVirtualCards(req, collective);
+      if (requestVirtualCardsStatus !== FEATURE_STATUS.AVAILABLE) {
+        throw new BadRequest('Virtual card requests are not available for this account');
+      }
+
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
@@ -441,6 +451,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardRequest> {
+      checkRemoteUserCanUseVirtualCards(req);
       const virtualCardRequest = await fetchVirtualCardRequestWithReference(args.virtualCardRequest, {
         include: ['host', 'collective', 'user'],
       });
@@ -489,7 +500,9 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: isEntityPublicId(args.virtualCard.id as string, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
         include: [
           {
             model: models.Collective,
@@ -517,7 +530,7 @@ const virtualCardMutations = {
         throw new BadRequest('This Virtual Card cannot be paused');
       }
 
-      const card = await virtualCard.pause();
+      const card = await virtualCard.pause({ pauseReason: 'MANUAL' });
       const data = {
         virtualCard,
         host: virtualCard.host.info,
@@ -547,7 +560,9 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: isEntityPublicId(args.virtualCard.id as string, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
         include: [
           { association: 'host', required: true },
           { association: 'collective', required: true },
@@ -595,7 +610,9 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
-        where: { id: args.virtualCard.id },
+        where: isEntityPublicId(args.virtualCard.id as string, EntityShortIdPrefix.VirtualCard)
+          ? { publicId: args.virtualCard.id }
+          : { id: args.virtualCard.id },
         include: [
           {
             model: models.Collective,

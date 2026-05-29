@@ -11,7 +11,6 @@ import moment from 'moment';
 import logger from '../../server/lib/logger';
 import { listPayPalTransactions } from '../../server/lib/paypal';
 import models, { Op, sequelize } from '../../server/models';
-import paypalAdaptive from '../../server/paymentProviders/paypal/adaptiveGateway';
 import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { PaypalCapture } from '../../server/types/paypal';
 
@@ -153,12 +152,6 @@ const showAuthorizationInfo = async (hostSlug, authorizationId) => {
   console.dir(authorizationDetails, { depth: 10 });
 };
 
-const showPaymentInfo = async paymentId => {
-  const paymentDetails = await paypalAdaptive.paymentDetails({ payKey: paymentId });
-  console.log('==== Payment details ====');
-  console.dir(paymentDetails, { depth: 10 });
-};
-
 const main = async (): Promise<void> => {
   const command = process.argv[2];
   switch (command) {
@@ -184,8 +177,6 @@ const main = async (): Promise<void> => {
       return showPayPalTransactionInfo(process.argv[3], process.argv[4]);
     case 'authorization':
       return showAuthorizationInfo(process.argv[3], process.argv[4]);
-    case 'payment':
-      return showPaymentInfo(process.argv[3]);
     default:
       throw new Error(`Unknown command: ${command}`);
   }

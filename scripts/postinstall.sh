@@ -32,6 +32,7 @@ else
 fi
 if psql -h $PG_HOST -U postgres -lqt | cut -d \| -f 1 | grep -qw opencollective_dvl; then
   echo "✓ opencollective_dvl exists"
+  ./scripts/db_restore_extensions.sh -d opencollective_dvl -U opencollective -h $PG_HOST
 else
   echo "- restoring opencollective_dvl";
   npm run db:restore
