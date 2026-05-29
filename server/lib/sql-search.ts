@@ -66,9 +66,13 @@ const buildPrivateAccountSearchVisibilitySQL = async (
     sql: `
     AND (
       c."isPrivate" IS FALSE
+      -- User is admin of private collective
       OR c.id IN (:privilegedCollectiveIds)
+      -- User is fiscal-host admin of private collective
       OR c."HostCollectiveId" IN (:privilegedCollectiveIds)
+      -- User is admin of private collective who owns this event/project
       OR c."ParentCollectiveId" IN (:privilegedCollectiveIds)
+      -- User is admin of private collective hosted by this organization
       OR (
         c."type" = '${CollectiveType.ORGANIZATION}'
         AND c."hasHosting" IS TRUE
