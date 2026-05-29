@@ -63,6 +63,7 @@ export class OpenSearchTiersAdapter implements OpenSearchModelAdapter {
           association: 'Collective',
           required: true,
           attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
+          where: { isPrivate: false }, // Don't index private accounts for now
         },
       ],
     });

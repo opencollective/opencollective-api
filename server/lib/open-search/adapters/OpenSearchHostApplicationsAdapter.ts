@@ -62,6 +62,7 @@ export class OpenSearchHostApplicationsAdapter implements OpenSearchModelAdapter
           association: 'collective',
           required: true,
           attributes: ['ParentCollectiveId'],
+          where: { isPrivate: false }, // Don't index private accounts for now
         },
       ],
     });
