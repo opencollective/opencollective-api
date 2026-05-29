@@ -67,6 +67,7 @@ import { CreateTransfer } from '../../lib/transferwise';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency } from '../../lib/utils';
+import { canUserUseVendor } from '../../lib/vendor-visibility';
 import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, {
@@ -2020,14 +2021,13 @@ const checkFromCollective = async (
     );
 
     if (!skipPermissionCheck) {
-      const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
-      const isVendorVisibleByCollective = fromCollective.data?.visibleToAccountIds?.includes(collective.id);
-      assert(
-        publicVendorPolicy ||
-          remoteUser.isAdminOfCollective(fromCollective) ||
-          (isVendorVisibleByCollective && remoteUser.isAdminOfCollective(collective)),
-        new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
-      );
+      const permitted = await canUserUseVendor({
+        remoteUser,
+        vendor: fromCollective,
+        collective,
+        host,
+      });
+      assert(permitted, new ValidationFailed('User cannot submit expenses on behalf of this vendor'));
     }
   } else if (!skipPermissionCheck && !remoteUser.isAdminOfCollective(fromCollective)) {
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');

@@ -47,14 +47,14 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to create a vendor for this host");
       }
 
-      const { vendorInfo, visibleToAccounts: visibleToAccountsArg } = args.vendor;
+      const { vendorInfo, visibleToAccounts: visibleToAccountsArg, useVendorPolicy } = args.vendor;
 
       let visibleToAccounts: Collective[] = [];
       if (visibleToAccountsArg) {
         visibleToAccounts = await fetchAccountsWithReferences(visibleToAccountsArg, { throwIfMissing: true });
       }
 
-      if (!visibleToAccounts.every(acc => acc.HostCollectiveId === host.id)) {
+      if (!visibleToAccounts.every(acc => acc.id === host.id || acc.HostCollectiveId === host.id)) {
         throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
       }
 
@@ -69,7 +69,8 @@ const vendorMutations = {
         ...pick(args.vendor, ['name', 'legalName', 'tags']),
         data: {
           vendorInfo: pick(vendorInfo, VENDOR_INFO_FIELDS),
-          visibleToAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
+          canBeUsedWithAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
+          useVendorPolicy: useVendorPolicy ?? null,
         },
         settings: {},
       };
@@ -165,14 +166,14 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to edit a vendor for this host");
       }
 
-      const { vendorInfo, visibleToAccounts: visibleToAccountsArg } = args.vendor;
+      const { vendorInfo, visibleToAccounts: visibleToAccountsArg, useVendorPolicy } = args.vendor;
 
       let visibleToAccounts: Collective[] = [];
       if (visibleToAccountsArg) {
         visibleToAccounts = await fetchAccountsWithReferences(visibleToAccountsArg, { throwIfMissing: true });
       }
 
-      if (!visibleToAccounts.every(acc => acc.HostCollectiveId === host.id)) {
+      if (!visibleToAccounts.every(acc => acc.id === host.id || acc.HostCollectiveId === host.id)) {
         throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
       }
 
@@ -191,7 +192,10 @@ const vendorMutations = {
         settings: vendor.settings,
         data: {
           ...vendor.data,
-          visibleToAccountIds: uniq(visibleToAccounts.map(acc => acc.id)),
+          canBeUsedWithAccountIds: isUndefined(visibleToAccountsArg)
+            ? (vendor.data?.canBeUsedWithAccountIds ?? [])
+            : uniq(visibleToAccounts.map(acc => acc.id)),
+          useVendorPolicy: isUndefined(useVendorPolicy) ? (vendor.data?.useVendorPolicy ?? null) : useVendorPolicy,
           vendorInfo: { ...vendor.data?.vendorInfo, ...pick(vendorInfo, VENDOR_INFO_FIELDS) },
         },
       };
