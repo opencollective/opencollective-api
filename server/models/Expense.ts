@@ -270,6 +270,8 @@ class Expense extends ModelWithPublicId<
           'reference',
           'estimatedDelivery',
           'previousData',
+          'payoutResponse',
+          'payoutItem',
         ]),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
@@ -341,6 +343,7 @@ class Expense extends ModelWithPublicId<
     isManualPayout = false,
     skipActivity = false,
     paidAt = new Date() as Date,
+    activityData = {},
   } = {}) {
     const collective = this.collective || (await this.getCollective());
     const lastEditedById = user?.id || this.lastEditedById;
@@ -368,7 +371,7 @@ class Expense extends ModelWithPublicId<
 
     if (!skipActivity) {
       user = user ?? (await User.findByPk(lastEditedById));
-      await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { isManualPayout });
+      await this.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_PAID, user, { ...activityData, isManualPayout });
     }
   };
 
