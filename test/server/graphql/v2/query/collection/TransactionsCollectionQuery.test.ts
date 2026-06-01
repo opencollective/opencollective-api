@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import type Stripe from 'stripe';
 
+import { roles } from '../../../../../../server/constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
@@ -12,6 +13,7 @@ import {
   fakeHost,
   fakeIncognitoProfile,
   fakeManualPaymentProvider,
+  fakeMember,
   fakeOrder,
   fakeOrganization,
   fakePaidExpense,
@@ -323,6 +325,9 @@ const transactionsCollectionQuery = gql`
         toAccount {
           id
           legalName
+        }
+        taxInfo {
+          idNumber
         }
       }
     }
@@ -769,6 +774,72 @@ describe('server/graphql/v2/collection/TransactionCollection', () => {
       resultHostAdmin.data.transactions.nodes.forEach(transaction => {
         expect(transaction.fromAccount?.location?.address).to.eq('123 Secret Street');
       });
+    });
+
+    it('can only see taxInfo.idNumber if host admin/accountant', async () => {
+      const SECRET_TAX_ID = 'FRXX999999997';
+      const randomUser = await fakeUser();
+      const testHostAdmin = await fakeUser();
+      const testHostAccountant = await fakeUser();
+      const testFromCollectiveAdmin = await fakeUser();
+      const testFromCollectiveAccountant = await fakeUser();
+      const testCollectiveAdmin = await fakeUser();
+      const testHost = await fakeHost({ admin: testHostAdmin.collective });
+      await fakeMember({
+        CollectiveId: testHost.id,
+        MemberCollectiveId: testHostAccountant.CollectiveId,
+        role: roles.ACCOUNTANT,
+      });
+      const testFromCollective = await fakeOrganization({
+        admin: testFromCollectiveAdmin.collective,
+      });
+      await fakeMember({
+        CollectiveId: testFromCollective.id,
+        MemberCollectiveId: testFromCollectiveAccountant.CollectiveId,
+        role: roles.ACCOUNTANT,
+      });
+      const testCollective = await fakeCollective({
+        admin: testCollectiveAdmin.collective,
+        HostCollectiveId: testHost.id,
+      });
+      await fakeTransaction({
+        type: 'CREDIT',
+        FromCollectiveId: testFromCollective.id,
+        CollectiveId: testCollective.id,
+        HostCollectiveId: testHost.id,
+        kind: TransactionKind.CONTRIBUTION,
+        amount: 1000,
+        data: {
+          tax: {
+            id: 'VAT',
+            idNumber: SECRET_TAX_ID,
+            percentage: 20,
+            rate: 0.2,
+          },
+        },
+      });
+
+      const queryArgs = { slug: testCollective.slug };
+      const expectTaxIdToBeNull = result => {
+        result.data.transactions.nodes.forEach(transaction => {
+          expect(transaction.taxInfo?.idNumber ?? null).to.be.null;
+        });
+      };
+      const expectTaxIdToBeVisible = result => {
+        const transactionsWithTax = result.data.transactions.nodes.filter(t => t.taxInfo);
+        expect(transactionsWithTax.length).to.be.above(0);
+        transactionsWithTax.forEach(transaction => {
+          expect(transaction.taxInfo.idNumber).to.equal(SECRET_TAX_ID);
+        });
+      };
+
+      expectTaxIdToBeNull(await graphqlQueryV2(transactionsCollectionQuery, queryArgs));
+      expectTaxIdToBeNull(await graphqlQueryV2(transactionsCollectionQuery, queryArgs, randomUser));
+      expectTaxIdToBeNull(await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testCollectiveAdmin));
+      expectTaxIdToBeVisible(await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testHostAdmin));
+      expectTaxIdToBeVisible(await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testHostAccountant));
+      expectTaxIdToBeNull(await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testFromCollectiveAdmin)); // Not yet, but we'll ultimately allow this
+      expectTaxIdToBeNull(await graphqlQueryV2(transactionsCollectionQuery, queryArgs, testFromCollectiveAccountant)); // Not yet, but we'll ultimately allow this
     });
   });
 });

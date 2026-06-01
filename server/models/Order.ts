@@ -59,8 +59,8 @@ export type OrderTax = {
   percentage: number;
   taxedCountry?: string;
   taxerCountry?: string;
-  taxIDNumber?: string;
-  taxIDNumberFrom?: string;
+  idNumber?: string;
+  idNumberFrom?: string;
 };
 
 type OrderDataValuesRoleDetails = {
