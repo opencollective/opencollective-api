@@ -86,13 +86,6 @@ import { getFxRate, roundCentsAmount } from '../lib/currency';
 import emailLib from '../lib/email';
 import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
-import {
-  getHostFees,
-  getHostFeeShare,
-  getPendingHostFeeShare,
-  getPendingPlatformTips,
-  getPlatformTips,
-} from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
 import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
@@ -3699,58 +3692,30 @@ class Collective extends ModelWithPublicId<
   };
 
   /**
-   * Returns financial metrics from the Host collective.
-   * @param {Date} from The start date from which the metrics should be calculated.
-   * @param {Date} to The end date upto which the metrics should be calculated.
-   * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
+   * Returns zeroed-out financial metrics from the Host collective.
+   *
+   * This method backs the deprecated `Host.hostMetrics` GraphQL field. As of 2026-05-15 no
+   * frontend consumer queries any HostMetrics field, so all values are stubbed to 0 and the
+   * underlying SQL helpers (getHostFees, getHostFeeShare, getPlatformTips) have been removed.
+   * If you need any of these numbers, derive them inline from transactions or settlement state
+   * rather than reintroducing the old metrics helpers.
    */
-  getHostMetrics = async function (from, to, collectiveIds) {
+  getHostMetrics = async function () {
     if (!this.hasMoneyManagement || !this.isActive || this.type !== CollectiveType.ORGANIZATION) {
       return null;
     }
-    from = from ? moment(from) : null;
-    to = to ? moment(to) : null;
-
-    const plan = await this.getLegacyPlan();
-    const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
-
-    const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });
-
-    const hostFeeShare = await getHostFeeShare(this, {
-      startDate: from,
-      endDate: to,
-      collectiveIds,
-    });
-    const pendingHostFeeShare = await getPendingHostFeeShare(this, {
-      startDate: from,
-      endDate: to,
-      collectiveIds,
-    });
-    const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
-
-    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to, collectiveIds });
-
-    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
-    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
-
-    // We don't support platform fees anymore
-    const platformFees = 0;
-    const pendingPlatformFees = 0;
-
-    const metrics = {
-      hostFees,
-      platformFees,
-      pendingPlatformFees,
-      platformTips,
-      pendingPlatformTips,
-      hostFeeShare,
-      pendingHostFeeShare,
-      settledHostFeeShare,
-      hostFeeSharePercent,
-      totalMoneyManaged,
+    return {
+      hostFees: 0,
+      platformFees: 0,
+      pendingPlatformFees: 0,
+      platformTips: 0,
+      pendingPlatformTips: 0,
+      hostFeeShare: 0,
+      pendingHostFeeShare: 0,
+      settledHostFeeShare: 0,
+      hostFeeSharePercent: 0,
+      totalMoneyManaged: 0,
     };
-
-    return metrics;
   };
 
   setPolicies = async function (policies: Policies) {
