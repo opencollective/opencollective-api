@@ -453,7 +453,12 @@ const orderMutations = {
       },
       amount: {
         type: GraphQLAmountInput,
-        description: 'An Amount to update the order to',
+        description: 'New amount to charge the contributor, excluding the platform tip. Includes taxes if any.',
+      },
+      platformTipAmount: {
+        type: GraphQLAmountInput,
+        description:
+          'Platform tip for this order. Omit or pass null to keep the current tip; provide a value (including zero) to update it.',
       },
     },
     async resolve(_, args, req) {
@@ -462,7 +467,7 @@ const orderMutations = {
       const decodedId = isEntityPublicId(args.order.id, EntityShortIdPrefix.Order)
         ? await req.loaders.Order.idByPublicId.load(args.order.id)
         : idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
-      const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
+      const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier) || !isNil(args.platformTipAmount);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod) || Boolean(args.paypalSubscriptionId);
 
       let order = await models.Order.findOne({
@@ -529,17 +534,28 @@ const orderMutations = {
             where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: order.CollectiveId, role: 'BACKER' },
           }));
         const expectedCurrency = order.currency;
-        let newTotalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
-        // We add the current Platform Tip to the totalAmount
-        if (order.platformTipAmount) {
-          newTotalAmount = newTotalAmount + order.platformTipAmount;
+        if (!isUndefined(args.amount)) {
+          assertAmountInputCurrency(args.amount, expectedCurrency, { name: 'amount' });
         }
-        // interval, amount, tierId, paymentMethodId
+        if (!isNil(args.platformTipAmount)) {
+          assertAmountInputCurrency(args.platformTipAmount, expectedCurrency, { name: 'platformTipAmount' });
+        }
+
+        // `args.amount` (when provided) is the post-tax total excluding the platform tip — i.e. it matches `Order.amount`.
+        // When not provided, fall back to the order's existing amount under the same convention.
+        const amountWithoutTip = !isUndefined(args.amount)
+          ? getValueInCentsFromAmountInput(args.amount, { expectedCurrency })
+          : order.totalAmount - order.platformTipAmount;
+        const platformTipAmount = isNil(args.platformTipAmount)
+          ? order.platformTipAmount
+          : getValueInCentsFromAmountInput(args.platformTipAmount, { expectedCurrency });
+        const newTotalAmount = amountWithoutTip + platformTipAmount;
         ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(
           order,
           tier,
           membership,
           newTotalAmount,
+          platformTipAmount,
         ));
       }
 
