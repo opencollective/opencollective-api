@@ -745,10 +745,12 @@ export const canEditPayoutMethod: ExpensePermissionEvaluator = async (req, expen
       throw new Forbidden('User cannot use expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
+  } else if (expense.status === ExpenseStatus.DRAFT) {
+    // Mirror `canEditExpense` for drafts: the invited payee (and host admin) must be able to
+    // set the payout method when completing a "submit on behalf" invitation, not just the owner.
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (
-    [ExpenseStatus.DRAFT, ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED].includes(
-      expense.status as ExpenseStatus,
-    )
+    [ExpenseStatus.PENDING, ExpenseStatus.INCOMPLETE, ExpenseStatus.APPROVED].includes(expense.status as ExpenseStatus)
   ) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner], options);
   }
@@ -1865,10 +1867,24 @@ export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fr
       }
       return pm;
     } else {
+      // New payout method: created on the payee by default. For cross-host expenses, when the
+      // submitter is an admin of the payee's host (but not of the payee itself, e.g. a host admin
+      // completing an invited draft), create the payout method on the recipient host so they can
+      // add their own payment method.
+      let payoutMethodCollective = fromCollective;
+      if (
+        fromCollective.HostCollectiveId &&
+        fromCollective.HostCollectiveId !== fromCollective.id &&
+        !remoteUser.isAdmin(fromCollective.id) &&
+        remoteUser.isAdmin(fromCollective.HostCollectiveId)
+      ) {
+        payoutMethodCollective =
+          fromCollective.host || (await models.Collective.findByPk(fromCollective.HostCollectiveId));
+      }
       return models.PayoutMethod.getOrCreateFromUserData(
         expenseData.payoutMethod,
         remoteUser,
-        fromCollective,
+        payoutMethodCollective,
         dbTransaction,
       );
     }
