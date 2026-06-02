@@ -44,7 +44,8 @@ export const GraphQLManualPaymentProvider = new GraphQLObjectType({
     accountDetails: {
       type: GraphQLJSON,
       description: 'Bank account details for BANK_TRANSFER type providers',
-      resolve: provider => (provider.type === ManualPaymentProviderTypes.BANK_TRANSFER ? provider.data : null),
+      resolve: provider =>
+        provider.type === ManualPaymentProviderTypes.BANK_TRANSFER ? provider.data?.accountDetails : null,
     },
     isArchived: {
       type: new GraphQLNonNull(GraphQLBoolean),

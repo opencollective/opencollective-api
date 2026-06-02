@@ -7,7 +7,7 @@ import ActivityTypes from '../../../constants/activities';
 import sequelize from '../../../lib/sequelize';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Activity } from '../../../models';
-import ManualPaymentProviderModel from '../../../models/ManualPaymentProvider';
+import ManualPaymentProviderModel, { ManualPaymentProviderData } from '../../../models/ManualPaymentProvider';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { GraphQLManualPaymentProviderType } from '../enum/ManualPaymentProviderType';
@@ -56,6 +56,11 @@ const manualPaymentProviderMutations = {
           where: { CollectiveId: host.id },
         });
 
+        const data: ManualPaymentProviderData = {};
+        if (args.manualPaymentProvider.accountDetails) {
+          data.accountDetails = args.manualPaymentProvider.accountDetails;
+        }
+
         const provider = await models.ManualPaymentProvider.create(
           {
             CollectiveId: host.id,
@@ -63,7 +68,7 @@ const manualPaymentProviderMutations = {
             name: args.manualPaymentProvider.name,
             instructions: args.manualPaymentProvider.instructions,
             icon: args.manualPaymentProvider.icon,
-            data: args.manualPaymentProvider.accountDetails,
+            data,
             order: (maxOrder || 0) + 1,
           },
           { transaction },
@@ -124,7 +129,12 @@ const manualPaymentProviderMutations = {
             name: args.input.name,
             instructions: args.input.instructions,
             icon: args.input.icon,
-            data: args.input.accountDetails,
+            data: isUndefined(args.input.accountDetails)
+              ? undefined
+              : {
+                  ...(provider.data || {}),
+                  accountDetails: args.input.accountDetails,
+                },
           },
           isUndefined,
         ),
