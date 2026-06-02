@@ -1,12 +1,13 @@
 import config from 'config';
 import { get } from 'lodash';
 
+import { Service } from '../constants/connected-account';
 import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
 import logger from '../lib/logger';
 import RateLimit from '../lib/rate-limit';
-import models from '../models';
+import models, { sequelize } from '../models';
 import paymentProviders from '../paymentProviders';
 
 export const createOrUpdate = async (req, res, next, accessToken, data) => {
@@ -81,11 +82,28 @@ export const disconnect = async (req, res) => {
       where: { service, CollectiveId },
     });
 
-    if (account) {
-      await account.destroy();
-      await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: account.id } } });
+    if (!account) {
+      throw new errors.NotFound('Connected account not found');
     }
 
+    await sequelize.transaction(async transaction => {
+      if (account.service === Service.TRANSFERWISE) {
+        const mirroredAccounts = await models.ConnectedAccount.findOne(
+          {
+            where: {
+              data: { MirrorConnectedAccountId: account.id },
+            },
+          },
+          { transaction },
+        );
+        if (mirroredAccounts) {
+          throw new Error(
+            'This connected account is being mirrored by other organization(s). Please disconnect mirrors before removing this account.',
+          );
+        }
+      }
+      await account.destroy({ transaction });
+    });
     res.send({
       deleted: true,
       service,
