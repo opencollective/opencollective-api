@@ -225,7 +225,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
         createVendorMutation,
         {
           host: { legacyId: host.id },
-          vendor: { ...vendorData, visibleToAccounts: [{ legacyId: host.id }] },
+          vendor: { ...vendorData, canBeUsedWithAccounts: [{ legacyId: host.id }] },
         },
         hostAdminUser,
       );
@@ -246,7 +246,7 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
           host: { legacyId: host.id },
           vendor: {
             ...vendorData,
-            visibleToAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }],
+            canBeUsedWithAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }],
           },
         },
         hostAdminUser,
@@ -256,6 +256,24 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
       expect(vendor.data.canBeUsedWithAccountIds).to.have.members([collectiveA.id, collectiveB.id]);
+    });
+
+    it('accepts the deprecated `visibleToAccounts` alias for backward compat', async () => {
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: host.id },
+          vendor: { ...vendorData, visibleToAccounts: [{ legacyId: collectiveA.id }] },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
     });
   });
 
@@ -631,7 +649,53 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(vendor.data.useVendorPolicy).to.be.null;
     });
 
-    it('updates canBeUsedWithAccountIds when visibleToAccounts is provided', async () => {
+    it('updates canBeUsedWithAccountIds when canBeUsedWithAccounts is provided', async () => {
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [host.id] },
+      });
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            name: vendor.name,
+            canBeUsedWithAccounts: [{ legacyId: collectiveA.id }],
+          },
+        },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
+    });
+
+    it('preserves existing canBeUsedWithAccountIds when canBeUsedWithAccounts is not provided', async () => {
+      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: host.id,
+        data: { canBeUsedWithAccountIds: [collectiveA.id] },
+      });
+
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        { vendor: { legacyId: vendor.id, name: 'Renamed' } },
+        hostAdminUser,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await vendor.reload();
+      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
+    });
+
+    it('accepts the deprecated `visibleToAccounts` alias for backward compat', async () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,
         ParentCollectiveId: host.id,
@@ -648,26 +712,6 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
             visibleToAccounts: [{ legacyId: collectiveA.id }],
           },
         },
-        hostAdminUser,
-      );
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-
-      await vendor.reload();
-      expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
-    });
-
-    it('preserves existing canBeUsedWithAccountIds when visibleToAccounts is not provided', async () => {
-      const collectiveA = await fakeCollective({ HostCollectiveId: host.id });
-      const vendor = await fakeCollective({
-        type: CollectiveType.VENDOR,
-        ParentCollectiveId: host.id,
-        data: { canBeUsedWithAccountIds: [collectiveA.id] },
-      });
-
-      const result = await graphqlQueryV2(
-        editVendorMutation,
-        { vendor: { legacyId: vendor.id, name: 'Renamed' } },
         hostAdminUser,
       );
       result.errors && console.error(result.errors);

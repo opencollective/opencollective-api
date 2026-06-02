@@ -54,10 +54,6 @@ export const GraphQLPoliciesInput = new GraphQLInputObjectType({
         }),
       }),
     },
-    [POLICIES.EXPENSE_PUBLIC_VENDORS]: {
-      type: GraphQLBoolean,
-      deprecationReason: 'Use USE_VENDOR_POLICY instead.',
-    },
     [POLICIES.USE_VENDOR_POLICY]: {
       type: GraphQLUseVendorPolicy,
     },
