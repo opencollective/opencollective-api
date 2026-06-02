@@ -443,11 +443,11 @@ describe('server/graphql/v2/object/Host', () => {
         $slug: String!
         $forAccount: AccountReferenceInput
         $searchTerm: String
-        $visibleToAccounts: [AccountReferenceInput]
+        $canBeUsedWithAccounts: [AccountReferenceInput]
       ) {
         host(slug: $slug) {
           id
-          vendors(forAccount: $forAccount, searchTerm: $searchTerm, visibleToAccounts: $visibleToAccounts) {
+          vendors(forAccount: $forAccount, searchTerm: $searchTerm, canBeUsedWithAccounts: $canBeUsedWithAccounts) {
             totalCount
             nodes {
               id
@@ -555,7 +555,7 @@ describe('server/graphql/v2/object/Host', () => {
     });
 
     it('should return vendors visible to given accounts', async () => {
-      let result = await graphqlQueryV2(accountQuery, { slug: host.slug, visibleToAccounts: [] }, hostAdmin);
+      let result = await graphqlQueryV2(accountQuery, { slug: host.slug, canBeUsedWithAccounts: [] }, hostAdmin);
 
       expect(result.data.host.vendors.nodes.map(n => n.slug)).to.include.members([
         vendor.slug,
@@ -572,7 +572,7 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveA.id }] },
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveA.id }] },
         hostAdmin,
       );
 
@@ -582,7 +582,7 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }] },
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }] },
         hostAdmin,
       );
 
@@ -594,7 +594,7 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveB.id }] },
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveB.id }] },
         hostAdmin,
       );
 
@@ -604,7 +604,7 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveAProject.id }] },
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveAProject.id }] },
         hostAdmin,
       );
 
@@ -616,10 +616,38 @@ describe('server/graphql/v2/object/Host', () => {
       // same as visible to parent collectiveB
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveBEvent.id }] },
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveBEvent.id }] },
         hostAdmin,
       );
 
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+    });
+
+    it('still accepts the deprecated `visibleToAccounts` filter alias', async () => {
+      // Use a separate query that targets the deprecated argument name explicitly, so the test
+      // exercises the alias path the codegen / external consumers might still rely on.
+      const deprecatedAliasQuery = gql`
+        query HostVendorsLegacyAlias($slug: String!, $visibleToAccounts: [AccountReferenceInput]) {
+          host(slug: $slug) {
+            id
+            vendors(visibleToAccounts: $visibleToAccounts) {
+              nodes {
+                slug
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await graphqlQueryV2(
+        deprecatedAliasQuery,
+        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveB.id }] },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
       );
