@@ -51,7 +51,7 @@ import {
   Transfer,
   Webhook,
 } from '../../types/transferwise';
-import { hashObject } from '../utils';
+import { hashObject, validateRedirectUrl } from '../utils';
 
 import { handleTransferStateChange } from './webhook';
 
@@ -736,10 +736,13 @@ const oauth = {
     }
     assert(user.isAdmin(CollectiveId), 'User must be an admin of the Collective');
 
+    if (query?.redirect) {
+      validateRedirectUrl(query.redirect);
+    }
     const state = hashObject({ CollectiveId, userId: user.id, nonce: random(100000) });
     await sessionCache.set(
       `transferwise_oauth_${state}`,
-      { CollectiveId, redirect: query.redirect, UserId: user.id },
+      { CollectiveId, redirect: query?.redirect, UserId: user.id },
       60 * 10,
     );
     return transferwise.getOAuthUrl(state);
