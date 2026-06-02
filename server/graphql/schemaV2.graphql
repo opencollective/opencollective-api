@@ -2625,9 +2625,14 @@ type TaxInfo {
   rate: Float!
 
   """
-  Tax ID number of the 3rd party receiving/paying the tax
+  Tax ID number of the 3rd party receiving/paying the tax. Will be null if not allowed to see it.
   """
   idNumber: String
+
+  """
+  Whether the tax ID number is available. Contrary to `idNumber`, this field is public.
+  """
+  hasTaxIdNumber: Boolean!
 }
 
 """
@@ -6036,6 +6041,7 @@ enum ActivityType {
   USER_CREATED
   USER_NEW_TOKEN
   USER_SIGNIN
+  USER_NEW_PASSWORD_SIGNIN
   USER_RESET_PASSWORD
   USER_OTP_REQUESTED
   OAUTH_APPLICATION_AUTHORIZED
@@ -7481,7 +7487,6 @@ type CollectiveFeatures {
   PAYPAL_CONNECT: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
   ACCOUNTING_CATEGORIZATION_RULES: CollectiveFeatureStatus
-  HOST_METRICS: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
@@ -18430,8 +18435,7 @@ type Vendor implements Account & AccountWithContributions {
   The accounts this vendor can be used with. If empty, the vendor can be used with any collective under the vendor host.
   """
   canBeUsedWithAccounts: [Account]!
-  visibleToAccounts: [Account]!
-    @deprecated(reason: "Use canBeUsedWithAccounts instead. Same data, name aligned with the underlying field.")
+  visibleToAccounts: [Account]! @deprecated(reason: "Use canBeUsedWithAccounts instead.")
 
   """
   Per-vendor override for who can attribute financial activities to this vendor. Null means inherit from host.
@@ -21378,6 +21382,7 @@ enum ActivityAndClassesType {
   USER_CREATED
   USER_NEW_TOKEN
   USER_SIGNIN
+  USER_NEW_PASSWORD_SIGNIN
   USER_RESET_PASSWORD
   USER_OTP_REQUESTED
   OAUTH_APPLICATION_AUTHORIZED
