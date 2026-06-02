@@ -135,6 +135,7 @@ export const signin = async (req: express.Request, res: express.Response, next: 
             scope: 'twofactorauth',
             supported2FAMethods,
             authenticationOptions,
+            isPasswordLogin: true, // Track that this 2FA was initiated from password login
           },
           auth.TOKEN_EXPIRATION_2FA,
         );
@@ -142,7 +143,12 @@ export const signin = async (req: express.Request, res: express.Response, next: 
         return;
       } else {
         // Context: this is token generation when using a password and no 2FA
-        const token = await user.generateSessionToken({ createActivity: true, updateLastLoginAt: true, req });
+        const token = await user.generateSessionToken({
+          req,
+          createActivity: true,
+          updateLastLoginAt: true,
+          isPasswordLogin: true,
+        });
         auth.setAuthCookie(res, token);
         res.send({ token });
         return;
@@ -711,11 +717,13 @@ export const twoFactorAuthAndUpdateToken = async (
   }
 
   // Context: this is token generation after signin and valid 2FA authentication
+
   const token = await user.generateSessionToken({
+    req,
     sessionId: req.jwtPayload.sessionId,
     createActivity: true,
     updateLastLoginAt: true,
-    req,
+    isPasswordLogin: req.jwtPayload.isPasswordLogin === true, // Check if this 2FA was initiated from password login (not magic link)
   });
   auth.setAuthCookie(res, token);
 
