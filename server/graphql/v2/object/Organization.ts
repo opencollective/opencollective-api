@@ -31,7 +31,7 @@ import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions, checkScope } from '../../common/scope-check';
-import { Unauthorized } from '../../errors';
+import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
@@ -1099,14 +1099,19 @@ export const getOrganizationFields = () => ({
         description: 'Whether to include archived providers',
       },
     },
-    async resolve(collective, args) {
+    async resolve(collective, args, req) {
       const where: Record<string, unknown> = { CollectiveId: collective.id };
       if (args.type) {
         where.type = args.type;
       }
+
+      // Handle archived
       if (!args.includeArchived) {
         where.archivedAt = null;
+      } else if (!req.remoteUser?.isAdmin(collective.id) && !req.remoteUser?.isRoot()) {
+        throw new Forbidden('You are not authorized to see archived manual payment providers for this account');
       }
+
       return models.ManualPaymentProvider.findAll({
         where,
         order: [
