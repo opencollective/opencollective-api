@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
-import OrderStatuses from '../../../../../server/constants/order-status';
-import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
+import OrderStatuses from '../../../../../../server/constants/order-status';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -12,8 +12,8 @@ import {
   fakeOrder,
   fakePrivateHost,
   fakeUser,
-} from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+} from '../../../../../test-helpers/fake-data';
+import { graphqlQueryV2, resetTestDB } from '../../../../../utils';
 
 const ordersQuery = gql`
   query Orders(

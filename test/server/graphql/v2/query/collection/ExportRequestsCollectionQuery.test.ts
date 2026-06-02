@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
-import { ExportRequestStatus, ExportRequestTypes } from '../../../../../server/models/ExportRequest';
-import { fakeCollective, fakeExportRequest, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { ExportRequestStatus, ExportRequestTypes } from '../../../../../../server/models/ExportRequest';
+import { fakeCollective, fakeExportRequest, fakeUser } from '../../../../../test-helpers/fake-data';
+import { graphqlQueryV2 } from '../../../../../utils';
 
 const exportRequestsCollectionQuery = gql`
   query ExportRequests(
