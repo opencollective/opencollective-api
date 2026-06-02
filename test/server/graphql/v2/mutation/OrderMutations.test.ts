@@ -1038,7 +1038,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             id: 'VAT',
             taxerCountry: 'FR',
             taxedCountry: 'FR',
-            taxIDNumberFrom: 'FRXX999999999',
+            idNumberFrom: 'FRXX999999999',
             percentage: 20,
           });
 
@@ -1159,7 +1159,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             id: 'VAT',
             taxerCountry: 'FR',
             taxedCountry: 'FR',
-            taxIDNumberFrom: 'FRXX999999999',
+            idNumberFrom: 'FRXX999999999',
             percentage: 20,
           });
         });
