@@ -750,7 +750,7 @@ const oauth = {
 
   callback: async function (req: express.Request, res: express.Response): Promise<void> {
     const state = req.query?.state;
-    if (!state || !req.remoteUser) {
+    if (!state) {
       res.sendStatus(401);
       return;
     }
@@ -765,18 +765,6 @@ const oauth = {
     }
 
     const { redirect, CollectiveId, UserId: CreatedByUserId } = originalRequest;
-    if (
-      !req.remoteUser ||
-      !CreatedByUserId ||
-      CreatedByUserId !== req.remoteUser.id ||
-      !req.remoteUser.isAdmin(CollectiveId)
-    ) {
-      const errorMessage = `This user cannot complete this OAuth request.`;
-      logger.error(errorMessage);
-      res.status(401).send(errorMessage);
-      return;
-    }
-
     const redirectUrl = new URL(redirect);
     try {
       const { code, profileId } = req.query;
