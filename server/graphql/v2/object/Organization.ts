@@ -371,7 +371,8 @@ export const getOrganizationFields = () => ({
 
       // WHERE filter: verifies if the vendor can be use on the given accounts args
       // When given a account scope, check if the vendor can be used in that context.
-      if (canBeUsedWithAccounts.length > 0) {
+      // Host admins are exempt — they can use any vendor of their host
+      if (!isAdmin && canBeUsedWithAccounts.length > 0) {
         const accountIds = await expandAccountIdsWithParents(canBeUsedWithAccounts.map(acc => acc.id));
 
         query = query.where(({ or }) => {

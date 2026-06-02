@@ -48,6 +48,10 @@ export async function canUserUseVendor({
   host: Collective;
   loaders?: Express.Request['loaders'];
 }): Promise<boolean> {
+  if (remoteUser.isAdminOfCollective(host)) {
+    return true;
+  }
+
   if (!isVendorScopedToCollective(vendor, collective)) {
     return false;
   }
@@ -58,13 +62,11 @@ export async function canUserUseVendor({
   if (policy === UseVendorPolicyValue.ALL_SUBMITTERS) {
     return true;
   }
-
-  const isHostAdmin = remoteUser.isAdminOfCollective(host);
   if (policy === UseVendorPolicyValue.HOST_ADMINS) {
-    return isHostAdmin;
+    return false;
   }
   if (policy === UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS) {
-    return isHostAdmin || remoteUser.isAdminOfCollective(collective);
+    return remoteUser.isAdminOfCollective(collective);
   }
 
   return false;
