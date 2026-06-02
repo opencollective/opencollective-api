@@ -1,6 +1,7 @@
 import config from 'config';
 import { get } from 'lodash';
 
+import { Service } from '../constants/connected-account';
 import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
@@ -82,14 +83,30 @@ export const disconnect = async (req, res) => {
     });
 
     if (account) {
-      await account.destroy();
-      await models.ConnectedAccount.destroy({ where: { data: { MirrorConnectedAccountId: account.id } } });
-    }
+      if (account.service === Service.TRANSFERWISE) {
+        const mirroredAccounts = await models.ConnectedAccount.findOne({
+          where: {
+            data: { MirrorConnectedAccountId: account.id },
+          },
+        });
+        if (mirroredAccounts) {
+          throw new Error(
+            'This connected account is being mirrored by other organization(s). Please disconnect mirrors before removing this account.',
+          );
+        }
+      }
 
-    res.send({
-      deleted: true,
-      service,
-    });
+      await account.destroy();
+      res.send({
+        deleted: true,
+        service,
+      });
+    } else {
+      res.send({
+        deleted: false,
+        service,
+      });
+    }
   } catch (err) {
     res.send({
       error: {
