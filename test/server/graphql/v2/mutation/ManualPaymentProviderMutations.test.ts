@@ -169,6 +169,9 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
       });
       expect(savedProvider).to.exist;
       expect(savedProvider.type).to.equal('BANK_TRANSFER');
+      expect(savedProvider.data).to.deep.equal({
+        accountDetails: { bankName: 'Test Bank', accountNumber: '123456' },
+      });
 
       // Verify MANUAL_PAYMENT_PROVIDER_CREATED activity was created
       const activity = await models.Activity.findOne({
@@ -359,7 +362,7 @@ describe('server/graphql/v2/mutation/ManualPaymentProviderMutations', () => {
           type: provider.type,
           instructions: '<p>Updated instructions</p>',
           icon: 'CreditCard',
-          data: { newField: 'newValue' },
+          data: { accountDetails: { newField: 'newValue' } },
           order: 0,
           archivedAt: null,
         },
