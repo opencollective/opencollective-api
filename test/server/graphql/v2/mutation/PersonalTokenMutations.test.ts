@@ -8,8 +8,11 @@ import { generateSecret, generateSync } from 'otplib';
 
 import OAuthScopes from '../../../../../server/constants/oauth-scopes';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
-import { fakePersonalToken, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, personalTokenGraphqlQueryV2, resetTestDB } from '../../../../utils';
+import { fakePersonalToken, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, personalTokenGraphqlQueryV2, resetTestDB } from '../../../../utils';
+
+const TOKEN_AUTH_FORBIDDEN_MESSAGE =
+  'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.';
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
@@ -130,6 +133,32 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(result.errors[0].message).to.eq('Two-factor authentication required');
       expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED');
     });
+    it('cannot create a personal token when authenticated with a personal token', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.applications] });
+      const result = await personalTokenGraphqlQueryV2(
+        CREATE_PERSONAL_TOKEN_MUTATION,
+        { personalToken: VALID_TOKEN_PARAMS },
+        personalToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TOKEN_AUTH_FORBIDDEN_MESSAGE);
+    });
+    it('cannot create a personal token when authenticated with an OAuth token', async () => {
+      const user = await fakeUser();
+      const userToken = await fakeUserToken({ user, scope: [OAuthScopes.applications] });
+      const result = await oAuthGraphqlQueryV2(
+        CREATE_PERSONAL_TOKEN_MUTATION,
+        { personalToken: VALID_TOKEN_PARAMS },
+        userToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TOKEN_AUTH_FORBIDDEN_MESSAGE);
+    });
   });
 
   describe('updatePersonalTokenMutation', () => {
@@ -194,9 +223,22 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(
-        'Personal tokens cannot be edited when authenticated with a personal token. Please use the interface.',
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TOKEN_AUTH_FORBIDDEN_MESSAGE);
+    });
+    it('cannot update a personal token when authenticated with an OAuth token', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user });
+      const userToken = await fakeUserToken({ user, scope: [OAuthScopes.applications] });
+      const result = await oAuthGraphqlQueryV2(
+        UPDATE_PERSONAL_TOKEN_MUTATION,
+        { personalToken: { legacyId: personalToken.id, name: 'New Name' } },
+        userToken,
       );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TOKEN_AUTH_FORBIDDEN_MESSAGE);
     });
   });
 
@@ -244,6 +286,36 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       );
 
       expect(result.errors).to.not.exist;
+    });
+
+    it('cannot delete a personal token when authenticated with a personal token', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user, scope: [OAuthScopes.applications] });
+      const tokenToDelete = await fakePersonalToken({ user });
+      const result = await personalTokenGraphqlQueryV2(
+        DELETE_PERSONAL_TOKEN_MUTATION,
+        { personalToken: { legacyId: tokenToDelete.id } },
+        personalToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TOKEN_AUTH_FORBIDDEN_MESSAGE);
+    });
+
+    it('cannot delete a personal token when authenticated with an OAuth token', async () => {
+      const user = await fakeUser();
+      const personalToken = await fakePersonalToken({ user });
+      const userToken = await fakeUserToken({ user, scope: [OAuthScopes.applications] });
+      const result = await oAuthGraphqlQueryV2(
+        DELETE_PERSONAL_TOKEN_MUTATION,
+        { personalToken: { legacyId: personalToken.id } },
+        userToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
+      expect(result.errors[0].message).to.equal(TOKEN_AUTH_FORBIDDEN_MESSAGE);
     });
   });
 });

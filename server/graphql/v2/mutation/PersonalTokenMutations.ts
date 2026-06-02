@@ -7,7 +7,7 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import PersonalTokenModel from '../../../models/PersonalToken';
-import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
+import { checkRemoteUserCanUseApplications, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput';
@@ -27,6 +27,7 @@ const createPersonalToken = {
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
     checkRemoteUserCanUseApplications(req);
+    rejectOAuthAndPersonalTokenAuth(req);
 
     const collective = args.personalToken.account
       ? await fetchAccountWithReference(args.personalToken.account, { throwIfMissing: true })
@@ -66,6 +67,7 @@ const updatePersonalToken = {
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
     checkRemoteUserCanUseApplications(req);
+    rejectOAuthAndPersonalTokenAuth(req);
 
     const personalToken = await fetchPersonalTokenWithReference(args.personalToken, {
       include: [{ association: 'collective', required: true }],
@@ -75,10 +77,6 @@ const updatePersonalToken = {
       throw new NotFound(`Personal token not found`);
     } else if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
       throw new Forbidden('Authenticated user is not the token owner.');
-    } else if (req.personalToken) {
-      throw new Error(
-        'Personal tokens cannot be edited when authenticated with a personal token. Please use the interface.',
-      );
     }
 
     const editableFields = ['name', 'scope', 'expiresAt', 'preAuthorize2FA'];
@@ -104,6 +102,7 @@ const deletePersonalToken = {
   },
   async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
     checkRemoteUserCanUseApplications(req);
+    rejectOAuthAndPersonalTokenAuth(req);
 
     const personalToken = await fetchPersonalTokenWithReference(args.personalToken, {
       include: [{ association: 'collective', required: true }],
