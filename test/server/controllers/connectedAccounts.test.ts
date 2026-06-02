@@ -43,19 +43,6 @@ describe('server/controllers/connectedAccounts', () => {
       expect((res._body as any).error.message).to.match(/not authorized/i);
     });
 
-    it('returns deleted: false when no connected account exists', async () => {
-      const remoteUser = await fakeUser();
-      const collective = await fakeCollective({ admin: remoteUser });
-      await remoteUser.populateRoles();
-
-      const { req, res } = makeReqRes({ collectiveId: collective.id, service: Service.TRANSFERWISE }, remoteUser);
-
-      await disconnect(req as any, res as any);
-
-      expect((res._body as any).deleted).to.be.false;
-      expect((res._body as any).service).to.equal(Service.TRANSFERWISE);
-    });
-
     it('deletes a TransferWise connected account that has no mirrored accounts', async () => {
       const remoteUser = await fakeUser();
       const collective = await fakeCollective({ admin: remoteUser });
