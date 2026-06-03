@@ -88,14 +88,12 @@ export const disconnect = async (req, res) => {
 
     await sequelize.transaction(async transaction => {
       if (account.service === Service.TRANSFERWISE) {
-        const mirroredAccounts = await models.ConnectedAccount.findOne(
-          {
-            where: {
-              data: { MirrorConnectedAccountId: account.id },
-            },
+        const mirroredAccounts = await models.ConnectedAccount.findOne({
+          where: {
+            data: { MirrorConnectedAccountId: account.id },
           },
-          { transaction },
-        );
+          transaction,
+        });
         if (mirroredAccounts) {
           throw new Error(
             'This connected account is being mirrored by other organization(s). Please disconnect mirrors before removing this account.',
