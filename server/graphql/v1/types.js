@@ -1561,8 +1561,9 @@ export const ConnectedAccountType = new GraphQLObjectType({
       },
       settings: {
         type: GraphQLJSON,
-        resolve(ca) {
-          return ca.settings;
+        deprecationReason: '2026-06-03: This field can only be accessed in GraphQL V2',
+        resolve() {
+          return null;
         },
       },
       createdAt: {

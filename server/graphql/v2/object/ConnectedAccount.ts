@@ -46,16 +46,9 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
     settings: {
       type: GraphQLJSON,
       async resolve(connectedAccount, _, req) {
-        if (connectedAccount.service === 'persona') {
-          if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
-            throw new Unauthorized('You need to be logged in as an admin of the account');
-          }
-          return {
-            apiKeyId: connectedAccount.clientId,
-            inquiryTemplateId: connectedAccount.settings.inquiryTemplateId,
-          };
+        if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
+          throw new Unauthorized('You need to be logged in as an admin of the account');
         }
-
         return connectedAccount.settings;
       },
     },
