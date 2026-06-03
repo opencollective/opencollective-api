@@ -14,7 +14,7 @@ import { getContextPermission, PERMISSION_TYPE } from '../common/context-permiss
 import { GraphQLTaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
+import { DateString, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -420,15 +420,6 @@ export const TransactionExpenseType = new GraphQLObjectType({
             ? transaction.getExpense().then(expense => expense && expense.description)
             : null;
           return transaction.description || expense;
-        },
-      },
-      expense: {
-        type: ExpenseType,
-        deprecationReason: '2024-12-13: Please move to GraphQL v2',
-        resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId
-          // otherwise we return null
-          return transaction.ExpenseId ? req.loaders.Expense.byId.load(transaction.ExpenseId) : null;
         },
       },
     };
