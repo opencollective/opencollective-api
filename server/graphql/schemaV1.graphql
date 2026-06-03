@@ -1125,7 +1125,6 @@ type CollectiveFeatures {
   PAYPAL_CONNECT: CollectiveFeatureStatus
   CHART_OF_ACCOUNTS: CollectiveFeatureStatus
   ACCOUNTING_CATEGORIZATION_RULES: CollectiveFeatureStatus
-  HOST_METRICS: CollectiveFeatureStatus
   EXPENSE_SECURITY_CHECKS: CollectiveFeatureStatus
   EXPECTED_FUNDS: CollectiveFeatureStatus
   CHARGE_HOSTING_FEES: CollectiveFeatureStatus
@@ -1195,7 +1194,6 @@ type Policies {
   COLLECTIVE_MINIMUM_ADMINS: COLLECTIVE_MINIMUM_ADMINS
   MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL: MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL
   EXPENSE_CATEGORIZATION: EXPENSE_CATEGORIZATION
-  EXPENSE_PUBLIC_VENDORS: Boolean @deprecated(reason: "Use USE_VENDOR_POLICY instead.")
 
   """
   Default rule for who can attribute financial activities to vendors under this host.
@@ -3763,9 +3761,14 @@ type TaxInfo {
   rate: Float!
 
   """
-  Tax ID number of the 3rd party receiving/paying the tax
+  Tax ID number of the 3rd party receiving/paying the tax. Will be null if not allowed to see it.
   """
   idNumber: String
+
+  """
+  Whether the tax ID number is available. Contrary to `idNumber`, this field is public.
+  """
+  hasTaxIdNumber: Boolean!
 }
 
 """
