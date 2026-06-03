@@ -19,6 +19,8 @@ export const GraphQLPersonalTokenCreateInput = new GraphQLInputObjectType({
     account: {
       type: GraphQLAccountReferenceInput,
       description: 'The account to use as the owner of the application. Defaults to currently logged in user.',
+      deprecationReason:
+        '2026-06-03: This field is ignored, the account will always default to the currently logged in user.',
     },
   }),
 });
