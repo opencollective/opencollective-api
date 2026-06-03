@@ -1844,7 +1844,13 @@ const checkExpenseType = async (
   }
 };
 
-export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction?) => {
+export const getPayoutMethodFromExpenseData = async (
+  expenseData,
+  remoteUser,
+  fromCollective,
+  toCollective,
+  dbTransaction?,
+) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
       const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
@@ -1869,10 +1875,14 @@ export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fr
     } else {
       // New payout method: created on the payee by default. For cross-host expenses, when the
       // submitter is an admin of the payee's host (but not of the payee itself, e.g. a host admin
-      // completing an invited draft), create the payout method on the recipient host so they can
+      // completing an invited draft), create the payout method on the payee's host so they can
       // add their own payment method.
+      const isCrossHostExpense = Boolean(
+        toCollective?.HostCollectiveId && fromCollective.HostCollectiveId !== toCollective.HostCollectiveId,
+      );
       let payoutMethodCollective = fromCollective;
       if (
+        isCrossHostExpense &&
         fromCollective.HostCollectiveId &&
         fromCollective.HostCollectiveId !== fromCollective.id &&
         !remoteUser.isAdmin(fromCollective.id) &&
@@ -2403,7 +2413,7 @@ export async function createExpense(
   const payoutMethod =
     fromCollective.type === CollectiveType.VENDOR
       ? await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first)
-      : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+      : await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, collective, null);
 
   if (
     payoutMethod?.type === PayoutMethodTypes.STRIPE &&
@@ -3163,7 +3173,7 @@ export async function editExpense(
         payoutMethod = await fromCollective.getPayoutMethods({ where: { isSaved: true } }).then(first);
         assert(payoutMethod, 'The vendor payee must have a saved payout method');
       } else {
-        payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+        payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, collective, null);
       }
 
       if (
