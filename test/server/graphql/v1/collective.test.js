@@ -155,9 +155,6 @@ describe('server/graphql/v1/collective', () => {
               id
               publicMessage
               createdAt
-              stats {
-                totalTransactions
-              }
               fromCollective {
                 id
                 name
@@ -682,48 +679,50 @@ describe('server/graphql/v1/collective', () => {
     it('gets totalAmountSpent by collective', async () => {
       const sandbox = createSandbox();
 
-      const stub = sandbox.stub(currency, 'getFxRate');
+      try {
+        const stub = sandbox.stub(currency, 'getFxRate');
 
-      stub
-        .withArgs('EUR', 'EUR')
-        .resolves(1)
-        .withArgs('USD', 'USD')
-        .resolves(1)
-        .withArgs('EUR', 'USD')
-        .resolves(1.1)
-        .withArgs('USD', 'EUR')
-        .resolves(1 / 1.1);
+        stub
+          .withArgs('EUR', 'EUR')
+          .resolves(1)
+          .withArgs('USD', 'USD')
+          .resolves(1)
+          .withArgs('EUR', 'USD')
+          .resolves(1.1)
+          .withArgs('USD', 'EUR')
+          .resolves(1 / 1.1);
 
-      const query = gqlV1 /* GraphQL */ `
-        query TotalCollectiveContributions($slug: String, $type: String) {
-          Collective(slug: $slug) {
-            id
-            currency
-            stats {
+        const query = gqlV1 /* GraphQL */ `
+          query TotalCollectiveContributions($slug: String, $type: String) {
+            Collective(slug: $slug) {
               id
-              totalAmountSpent
-            }
-            transactions(type: $type) {
               currency
-              netAmountInCollectiveCurrency
+              stats {
+                id
+                totalAmountSpent
+              }
+              transactions(type: $type) {
+                currency
+                netAmountInCollectiveCurrency
+              }
             }
           }
-        }
-      `;
+        `;
 
-      const result = await utils.graphqlQuery(query, {
-        slug: 'olu',
-        type: 'DEBIT',
-      });
+        const result = await utils.graphqlQuery(query, {
+          slug: 'olu',
+          type: 'DEBIT',
+        });
 
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      const collective = result.data.Collective;
-      expect(Number.isInteger(collective.stats.totalAmountSpent)).to.be.true;
-      const totalAmountSpent = Math.round(1000 * 1.1 + 1000);
-      expect(collective.stats.totalAmountSpent).to.equal(totalAmountSpent);
-
-      sandbox.restore();
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const collective = result.data.Collective;
+        expect(Number.isInteger(collective.stats.totalAmountSpent)).to.be.true;
+        const totalAmountSpent = Math.round(1000 * 1.1 + 1000);
+        expect(collective.stats.totalAmountSpent).to.equal(totalAmountSpent);
+      } finally {
+        sandbox.restore();
+      }
     });
   });
 

@@ -161,6 +161,7 @@ const queries = {
         endDate: args.dateTo,
         includeExpenseTransactions: args.includeExpenseTransactions,
         kinds: args.kinds,
+        excludePrivateAccounts: true,
       });
     },
   },
