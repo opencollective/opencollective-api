@@ -576,9 +576,9 @@ export const OrdersCollectionResolver = async (args: OrdersCollectionArgsType, r
                   : []),
               ],
               emailFields: [
-                ...(isCollectiveAdmin ? [sql<string>`lower("Orders".data#>>'{fromAccountInfo,email}')`] : []),
-                ...(isHostAdminEmailSearch ? ['Users.email'] : []),
-              ],
+                isCollectiveAdmin && sql<string>`lower("Orders".data#>>'{fromAccountInfo,email}')`,
+                isHostAdminEmailSearch && 'Users.email',
+              ].filter(Boolean),
               stringArrayFields: ['Orders.tags'],
               stringArrayTransformFn: (str: string) => str.toLowerCase(),
               publicIdFields: [
