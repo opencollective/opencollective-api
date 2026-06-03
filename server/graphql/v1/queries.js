@@ -533,12 +533,18 @@ const queries = {
         includeArchived,
         includeVendorsForHostId,
         includeAllVendors,
-        vendorVisibleToAccountIds,
       } = args;
 
       if (includeAllVendors && !req.remoteUser?.isRoot()) {
         throw new Unauthorized('You must be root to include all vendors');
       }
+
+      // Host admins bypass the vendor WHERE-scope, drop `vendorVisibleToAccountIds` so they see
+      // every vendor regardless of scope.
+      const isHostAdminForVendors = Boolean(
+        includeVendorsForHostId && req.remoteUser?.isAdmin(includeVendorsForHostId),
+      );
+      const vendorVisibleToAccountIds = isHostAdminForVendors ? undefined : args.vendorVisibleToAccountIds;
 
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);

@@ -2392,7 +2392,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
       });
 
-      it('host admin cannot set a vendor scoped to a different collective', async () => {
+      it('host admin can set a vendor scoped to a different collective', async () => {
         const hostAdmin = await fakeUser();
         const host = await fakeHost({ admin: hostAdmin });
         const collective = await fakeCollective({ HostCollectiveId: host.id });
@@ -2409,11 +2409,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
       });
 
-      it('host-only vendor cannot be set as payee on a hosted collective expense', async () => {
+      it('host admin can set a host-only vendor as payee on a hosted collective expense', async () => {
         const hostAdmin = await fakeUser();
         const host = await fakeHost({ admin: hostAdmin });
         const collective = await fakeCollective({ HostCollectiveId: host.id });
@@ -2429,8 +2430,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
       });
     });
 

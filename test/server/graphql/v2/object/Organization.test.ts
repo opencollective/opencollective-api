@@ -367,7 +367,7 @@ describe('server/graphql/v2/object/Organization', () => {
           vendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
           vendorScope: ['hosted-collective'],
           queryScope: ['host'],
-          visible: false,
+          visible: true,
         },
 
         {
