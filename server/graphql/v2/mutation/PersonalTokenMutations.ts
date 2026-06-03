@@ -9,7 +9,6 @@ import models from '../../../models';
 import PersonalTokenModel from '../../../models/PersonalToken';
 import { checkRemoteUserCanUseApplications, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
-import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput';
 import {
   fetchPersonalTokenWithReference,
@@ -26,19 +25,13 @@ const createPersonalToken = {
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
-    checkRemoteUserCanUseApplications(req);
     rejectOAuthAndPersonalTokenAuth(req);
+    checkRemoteUserCanUseApplications(req);
 
-    const collective = args.personalToken.account
-      ? await fetchAccountWithReference(args.personalToken.account, { throwIfMissing: true })
-      : req.remoteUser.collective;
+    const collective = req.remoteUser.collective;
 
     // Enforce 2FA
     await twoFactorAuthLib.enforceForAccount(req, collective, TWO_FACTOR_SESSIONS_PARAMS.MANAGE_PERSONAL_TOKENS);
-
-    if (!req.remoteUser.isAdminOfCollective(collective)) {
-      throw new Forbidden();
-    }
 
     const numberOfPersonalTokensForThisAccount = await models.PersonalToken.count({
       where: { CollectiveId: collective.id },
