@@ -1,5 +1,6 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
+import { pick } from 'lodash';
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import { Collective, ConnectedAccount } from '../../../models';
@@ -49,7 +50,7 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
         if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
           throw new Unauthorized('You need to be logged in as an admin of the account');
         }
-        return connectedAccount.settings;
+        return pick(connectedAccount.settings, ['mirroredCollective', 'isMirror']);
       },
     },
     service: { type: new GraphQLNonNull(GraphQLConnectedAccountService) },
