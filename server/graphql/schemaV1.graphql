@@ -212,11 +212,6 @@ interface CollectiveInterface {
   ): [PaymentMethodType]
 
   """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
-
-  """
   List all the gift cards batches emitted by this collective. May include `null` as key for unbatched gift cards.
   """
   giftCardsBatches: [PaymentMethodBatchInfo]
@@ -342,17 +337,10 @@ type OrderType {
   totalAmount: Float
 
   """
-  The amount paid in tax (for example VAT) for this order
-  """
-  taxAmount: Float
-
-  """
   frequency of the subscription if any (could be either null, 'month' or 'year')
   """
   interval: String
   subscription: Subscription
-  stats: StatsOrderType
-  createdByUser: UserDetails
 
   """
   Description of the order that will show up in the invoice
@@ -365,11 +353,6 @@ type OrderType {
   publicMessage: String
 
   """
-  Private message for the admins and the host of the collective
-  """
-  privateMessage: String
-
-  """
   Collective ordering (most of the time it will be the collective of the createdByUser)
   """
   fromCollective: CollectiveInterface
@@ -379,38 +362,13 @@ type OrderType {
   """
   collective: CollectiveInterface
   tier: Tier
-
-  """
-  Payment method used to pay for the order. The paymentMethod is also attached to individual transactions since a credit card can change over the lifetime of a subscription.
-  """
-  paymentMethod: PaymentMethodType
-
-  """
-  transactions for this order ordered by createdAt DESC
-  """
-  transactions(
-    limit: Int
-    offset: Int
-
-    """
-    type of transaction (DEBIT/CREDIT)
-    """
-    type: String
-  ): [Transaction]
   currency: String
   createdAt: DateString
-  updatedAt: DateString
 
   """
   Current status for an order
   """
   status: OrderStatus
-
-  """
-  Additional information on order: tax and custom fields
-  """
-  data: JSON
-  stripeError: StripeError
 }
 
 """
@@ -423,23 +381,6 @@ type Subscription {
   interval: String
   stripeSubscriptionId: String
   isActive: Boolean
-}
-
-"""
-Stats about an order
-"""
-type StatsOrderType {
-  id: Int
-
-  """
-  number of transactions for this order (includes past recurring transactions)
-  """
-  transactions: Int
-
-  """
-  total amount of all the transactions for this order (includes past recurring transactions)
-  """
-  totalTransactions: Float
 }
 
 """
@@ -919,7 +860,6 @@ type ExpenseType {
   tags: [String]
   status: String
   type: String
-  PayoutMethod: PayoutMethod @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
   privateMessage: String
   items: [ExpenseItem] @deprecated(reason: "2024-12-13: Please move to GraphQL v2")
   attachedFiles: [ExpenseAttachedFile!]
@@ -931,26 +871,6 @@ type ExpenseType {
   Returns the DEBIT transaction to pay out this expense
   """
   transaction: Transaction
-}
-
-"""
-A payout method for expenses
-"""
-type PayoutMethod {
-  id: Int
-  type: PayoutMethodTypeEnum
-  name: String
-  isSaved: Boolean
-  data: JSON
-}
-
-enum PayoutMethodTypeEnum {
-  OTHER
-  PAYPAL
-  BANK_ACCOUNT
-  ACCOUNT_BALANCE
-  CREDIT_CARD
-  STRIPE
 }
 
 """
@@ -2370,11 +2290,6 @@ type Collective implements CollectiveInterface {
   ): [PaymentMethodType]
 
   """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
-
-  """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
   giftCardsBatches: [PaymentMethodBatchInfo]
@@ -2675,11 +2590,6 @@ type Event implements CollectiveInterface {
     """
     includeHostCollectivePaymentMethod: Boolean = false
   ): [PaymentMethodType]
-
-  """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
 
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
@@ -2984,11 +2894,6 @@ type Fund implements CollectiveInterface {
   ): [PaymentMethodType]
 
   """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
-
-  """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
   giftCardsBatches: [PaymentMethodBatchInfo]
@@ -3291,11 +3196,6 @@ type Organization implements CollectiveInterface {
   ): [PaymentMethodType]
 
   """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
-
-  """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
   giftCardsBatches: [PaymentMethodBatchInfo]
@@ -3596,11 +3496,6 @@ type Project implements CollectiveInterface {
     """
     includeHostCollectivePaymentMethod: Boolean = false
   ): [PaymentMethodType]
-
-  """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
 
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
@@ -4205,11 +4100,6 @@ type User implements CollectiveInterface {
   ): [PaymentMethodType]
 
   """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
-
-  """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.
   """
   giftCardsBatches: [PaymentMethodBatchInfo]
@@ -4512,11 +4402,6 @@ type Vendor implements CollectiveInterface {
     """
     includeHostCollectivePaymentMethod: Boolean = false
   ): [PaymentMethodType]
-
-  """
-  The list of payout methods that this collective can use to get paid
-  """
-  payoutMethods: [PayoutMethod]
 
   """
   List all the gift cards batches emitted by this collective. May include `null` for unbatched gift cards.

@@ -40,7 +40,6 @@ import {
   InferAttributes,
   InferCreationAttributes,
   NonAttribute,
-  OrderItem,
   WhereOptions,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
@@ -1845,11 +1844,17 @@ class Collective extends ModelWithPublicId<
     order = [
       ['createdAt', 'DESC'],
       ['id', 'DESC'],
-    ] as OrderItem[],
+    ],
+    include = [],
+  }: {
+    where?: Omit<Parameters<typeof Order.findAll>[0]['where'], 'CollectiveId'>;
+    order?: Parameters<typeof Order.findAll>[0]['order'];
+    include?: Parameters<typeof Order.findAll>[0]['include'];
   } = {}) {
     return Order.findAll({
       where: { ...where, CollectiveId: this.id },
       order,
+      include,
     });
   };
 
@@ -1859,7 +1864,11 @@ class Collective extends ModelWithPublicId<
     order = [
       ['createdAt', 'DESC'],
       ['id', 'DESC'],
-    ] as OrderItem[],
+    ],
+  }: {
+    where?: Omit<Parameters<typeof Order.findAll>[0]['where'], 'FromCollectiveId'>;
+    include?: Parameters<typeof Order.findAll>[0]['include'];
+    order?: Parameters<typeof Order.findAll>[0]['order'];
   } = {}) {
     return Order.findAll({
       where: { ...where, FromCollectiveId: this.id },
@@ -3203,6 +3212,7 @@ class Collective extends ModelWithPublicId<
     order = [['createdAt', 'DESC']],
     includeUsedGiftCardsEmittedByOthers = true,
     includeExpenseTransactions = true,
+    excludePrivateAccounts = false,
   }: any = {}) {
     // Base query
     const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
@@ -3252,6 +3262,21 @@ class Collective extends ModelWithPublicId<
     // OrderBy
     if (order) {
       query.order = order;
+    }
+
+    if (excludePrivateAccounts) {
+      query.include = query.include || [];
+      query.include.push({ association: 'collective', attributes: [] });
+      query.include.push({ association: 'fromCollective', attributes: [] });
+      query.include.push({ association: 'host', attributes: [] });
+      query.where[Op.and] = query.where[Op.and] || [];
+      query.where[Op.and].push({
+        [Op.and]: [
+          { [Op.or]: [{ '$collective.isPrivate$': false }, { '$collective.isPrivate$': null }] },
+          { [Op.or]: [{ '$fromCollective.isPrivate$': false }, { '$fromCollective.isPrivate$': null }] },
+          { [Op.or]: [{ '$host.isPrivate$': false }, { '$host.isPrivate$': null }] },
+        ],
+      });
     }
 
     return Transaction.findAll(query);

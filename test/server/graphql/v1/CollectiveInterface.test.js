@@ -33,10 +33,6 @@ const collectiveQuery = gqlV1 /* GraphQL */ `
         id
         description
         totalAmount
-        createdByUser {
-          id
-          email
-        }
         fromCollective {
           slug
           name
@@ -96,7 +92,6 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       const collectiveData = res.data.Collective;
       expect(collectiveData).to.exist;
       expect(collectiveData.orders).to.not.be.empty;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
       expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
       expect(collectiveData.members.length).to.equal(4);
@@ -118,7 +113,6 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
       expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
@@ -139,7 +133,6 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
       expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
@@ -160,7 +153,6 @@ describe('server/graphql/v1/CollectiveInterface', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
       expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
