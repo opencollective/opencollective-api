@@ -59,7 +59,7 @@ type CaseDef = {
   expectedUrl: string | ((result: any) => string);
 };
 
-const invokePermalink = async (publicId: string, remoteUser: RemoteUser | null) => {
+const invokePermalink = async (publicId: string, remoteUser: RemoteUser | null, query: Record<string, string> = {}) => {
   const redirect = sinon.stub();
   if (remoteUser) {
     await remoteUser.populateRoles();
@@ -67,6 +67,7 @@ const invokePermalink = async (publicId: string, remoteUser: RemoteUser | null) 
   const req = {
     ...makeRequest(remoteUser ?? undefined),
     params: { id: publicId },
+    query,
   } as unknown as Parameters<typeof handlePermalink>[0];
   const res = { redirect } as unknown as Parameters<typeof handlePermalink>[1];
 
@@ -218,6 +219,38 @@ describe('server/lib/permalink/handler', () => {
         `/dashboard/${remoteUser.collective.slug}/submitted-expenses?openExpenseId=${expense.id}`,
     },
   ]);
+
+  describe('Expense draft key query param', () => {
+    it('preserves draft key for anonymous visitors', async () => {
+      const expense = await fakeExpense();
+      const url = await invokePermalink(expense.publicId, null, { key: 'draft-key' });
+      expect(url).to.equal(`/${expense.collective.slug}/expenses/${expense.id}?key=draft-key`);
+    });
+
+    it('preserves draft key for collective admins', async () => {
+      const { remoteUser, collective } = await createCollectiveAdmin();
+      const expense = await fakeExpense({
+        CollectiveId: collective.id,
+      });
+      const url = await invokePermalink(expense.publicId, remoteUser, { key: 'draft-key' });
+      expect(url).to.equal(`/dashboard/${collective.slug}/payment-requests?openExpenseId=${expense.id}&key=draft-key`);
+    });
+  });
+
+  describe('Expense edit query param', () => {
+    it('preserves edit for anonymous visitors', async () => {
+      const expense = await fakeExpense();
+      const url = await invokePermalink(expense.publicId, null, { edit: '1' });
+      expect(url).to.equal(`/${expense.collective.slug}/expenses/${expense.id}?edit=1`);
+    });
+
+    it('preserves edit in signin next for private collectives', async () => {
+      const ctx = await createPrivateAccountFixture();
+      const expense = await fakeExpense({ CollectiveId: ctx.privateCollective.id });
+      const url = await invokePermalink(expense.publicId, null, { edit: '1' });
+      expect(url).to.equal(`/signin?next=${encodeURIComponent(`/permalink/${expense.publicId}?edit=1`)}`);
+    });
+  });
 
   runCases('Order', [
     {
@@ -1077,6 +1110,13 @@ describe('server/lib/permalink/handler', () => {
     it('blocks anonymous visitors for expense permalinks on a private collective', async () => {
       const url = await invokePermalink(ctx.privateExpense.publicId, null);
       expect(url).to.equal(signinNext(ctx.privateExpense.publicId));
+    });
+
+    it('preserves draft key when redirecting anonymous visitors on a private collective to signin', async () => {
+      const url = await invokePermalink(ctx.privateExpense.publicId, null, { key: 'draft-key' });
+      expect(url).to.equal(
+        `/signin?next=${encodeURIComponent(`/permalink/${ctx.privateExpense.publicId}?key=draft-key`)}`,
+      );
     });
 
     it('blocks anonymous visitors for order permalinks on a private collective', async () => {

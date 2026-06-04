@@ -443,11 +443,11 @@ describe('server/graphql/v2/object/Host', () => {
         $slug: String!
         $forAccount: AccountReferenceInput
         $searchTerm: String
-        $visibleToAccounts: [AccountReferenceInput]
+        $canBeUsedWithAccounts: [AccountReferenceInput]
       ) {
         host(slug: $slug) {
           id
-          vendors(forAccount: $forAccount, searchTerm: $searchTerm, visibleToAccounts: $visibleToAccounts) {
+          vendors(forAccount: $forAccount, searchTerm: $searchTerm, canBeUsedWithAccounts: $canBeUsedWithAccounts) {
             totalCount
             nodes {
               id
@@ -486,7 +486,7 @@ describe('server/graphql/v2/object/Host', () => {
         name: 'Vendor Dafoe',
         legalName: 'William James',
         data: {
-          visibleToAccountIds: null,
+          canBeUsedWithAccountIds: null,
         },
       });
       knownVendor = await fakeCollective({
@@ -495,7 +495,7 @@ describe('server/graphql/v2/object/Host', () => {
         name: 'Vendor 2',
         legalName: 'Bob Builder',
         data: {
-          visibleToAccountIds: [],
+          canBeUsedWithAccountIds: [],
         },
       });
 
@@ -504,7 +504,7 @@ describe('server/graphql/v2/object/Host', () => {
         type: CollectiveType.VENDOR,
         name: 'vendorVisibleToCollectiveA',
         data: {
-          visibleToAccountIds: [collectiveA.id],
+          canBeUsedWithAccountIds: [collectiveA.id],
         },
       });
 
@@ -513,7 +513,7 @@ describe('server/graphql/v2/object/Host', () => {
         type: CollectiveType.VENDOR,
         name: 'vendorVisibleToCollectiveAAndB',
         data: {
-          visibleToAccountIds: [collectiveA.id, collectiveB.id],
+          canBeUsedWithAccountIds: [collectiveA.id, collectiveB.id],
         },
       });
 
@@ -526,12 +526,12 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
     });
 
-    it('should publicly return vendors if host EXPENSE_PUBLIC_VENDORS policy is true', async () => {
+    it('should publicly return vendors if host USE_VENDOR_POLICY is ALL_SUBMITTERS', async () => {
       const user = await fakeUser();
       let result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
       expect(result.data.host.vendors.nodes).to.be.empty;
 
-      await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+      await host.update({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
       result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
       expect(result.data.host.vendors.nodes).to.containSubset([{ slug: vendor.slug }, { slug: knownVendor.slug }]);
     });
@@ -554,8 +554,10 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.vendors.nodes[0]).to.include({ slug: vendor.slug });
     });
 
-    it('should return vendors visible to given accounts', async () => {
-      let result = await graphqlQueryV2(accountQuery, { slug: host.slug, visibleToAccounts: [] }, hostAdmin);
+    it('non-admin: applies canBeUsedWithAccounts filter to results', async () => {
+      const user = await fakeUser();
+
+      let result = await graphqlQueryV2(accountQuery, { slug: host.slug, canBeUsedWithAccounts: [] }, user);
 
       expect(result.data.host.vendors.nodes.map(n => n.slug)).to.include.members([
         vendor.slug,
@@ -564,7 +566,7 @@ describe('server/graphql/v2/object/Host', () => {
         vendorVisibleToCollectiveAAndB.slug,
       ]);
 
-      result = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdmin);
+      result = await graphqlQueryV2(accountQuery, { slug: host.slug }, user);
 
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
@@ -572,8 +574,8 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveA.id }] },
-        hostAdmin,
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveA.id }] },
+        user,
       );
 
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
@@ -582,8 +584,8 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }] },
-        hostAdmin,
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveA.id }, { legacyId: collectiveB.id }] },
+        user,
       );
 
       result.error && console.error(result.error);
@@ -594,8 +596,8 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveB.id }] },
-        hostAdmin,
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveB.id }] },
+        user,
       );
 
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
@@ -604,8 +606,8 @@ describe('server/graphql/v2/object/Host', () => {
 
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveAProject.id }] },
-        hostAdmin,
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveAProject.id }] },
+        user,
       );
 
       // same as visible to parent collectiveA
@@ -616,10 +618,52 @@ describe('server/graphql/v2/object/Host', () => {
       // same as visible to parent collectiveB
       result = await graphqlQueryV2(
         accountQuery,
-        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveBEvent.id }] },
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveBEvent.id }] },
+        user,
+      );
+
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+    });
+
+    it('host admin: sees every vendor regardless of canBeUsedWithAccounts filter', async () => {
+      const result = await graphqlQueryV2(
+        accountQuery,
+        { slug: host.slug, canBeUsedWithAccounts: [{ legacyId: collectiveB.id }] },
         hostAdmin,
       );
 
+      expect(result.errors).to.not.exist;
+      expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
+        [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveA.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
+      );
+    });
+
+    it('still accepts the deprecated `visibleToAccounts` filter alias', async () => {
+      // Exercise the deprecated arg name through the filter path. Use a non-admin querier so the
+      // filter actually narrows results — host admins now bypass the filter entirely.
+      const user = await fakeUser();
+      const deprecatedAliasQuery = gql`
+        query HostVendorsLegacyAlias($slug: String!, $visibleToAccounts: [AccountReferenceInput]) {
+          host(slug: $slug) {
+            id
+            vendors(visibleToAccounts: $visibleToAccounts) {
+              nodes {
+                slug
+              }
+            }
+          }
+        }
+      `;
+
+      const result = await graphqlQueryV2(
+        deprecatedAliasQuery,
+        { slug: host.slug, visibleToAccounts: [{ legacyId: collectiveB.id }] },
+        user,
+      );
+
+      expect(result.errors).to.not.exist;
       expect(result.data.host.vendors.nodes.map(n => n.slug).sort()).to.deep.eq(
         [vendor.slug, knownVendor.slug, vendorVisibleToCollectiveAAndB.slug].sort(),
       );
@@ -633,7 +677,7 @@ describe('server/graphql/v2/object/Host', () => {
 
     it('should not return vendor by legal name if not admin of Account', async () => {
       const user = await fakeUser();
-      await host.update({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+      await host.update({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
       const result = await graphqlQueryV2(accountQuery, { slug: host.slug, searchTerm: 'Bob' }, user);
 
       expect(result.data.host.vendors.nodes).to.be.empty;

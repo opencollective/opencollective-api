@@ -4,6 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { TWO_FACTOR_SESSIONS_PARAMS } from '../../../lib/two-factor-authentication/lib';
+import { rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { GraphQLOAuthScope } from '../enum/OAuthScope';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -36,6 +37,7 @@ export const GraphQLPersonalToken = new GraphQLObjectType({
       type: GraphQLString,
       description: 'The personal token',
       resolve: async (personalToken, _, req): Promise<string> => {
+        rejectOAuthAndPersonalTokenAuth(req);
         const collective = await req.loaders.Collective.byId.load(personalToken.CollectiveId);
         await twoFactorAuthLib.enforceForAccount(req, collective, TWO_FACTOR_SESSIONS_PARAMS.MANAGE_PERSONAL_TOKENS);
         return personalToken.token;

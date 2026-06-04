@@ -9,10 +9,6 @@ import { getTotalMoneyManagedAmount } from './budget';
 import { getFxRate } from './currency';
 import { computeDatesAsISOStrings } from './utils';
 
-function oppositeTotal(total) {
-  return total !== 0 ? -total : total;
-}
-
 /**
  * Compute the sum of the given transactions in `currency`
  * @returns number
@@ -32,93 +28,9 @@ async function computeTotal(results, currency) {
   return total;
 }
 
-async function convertCurrencyForTimeSeries(results, currency) {
-  const fxRates = {}; // FX rates are likely to be the same for all results, better cache them
-  for (const result of results) {
-    const value = result['_amount'];
-    result['currency'] = currency;
-
-    if (value) {
-      const resultCurrency = result['_currency'];
-      fxRates[resultCurrency] = fxRates[resultCurrency] || {};
-      if (!fxRates[resultCurrency][currency]) {
-        fxRates[resultCurrency][currency] = await getFxRate(resultCurrency, currency);
-      }
-
-      result['amount'] = Math.round(value * fxRates[resultCurrency][currency]);
-      result['currency'] = currency;
-    } else {
-      result['amount'] = 0;
-    }
-  }
-
-  return results;
-}
-
-export async function getPlatformTips(
-  host,
-  { startDate = null, endDate = null, groupTimeUnit = null, collectiveIds = null } = {},
-) {
-  const timeUnitFragments = { select: '', groupBy: '', orderBy: '' };
-  if (groupTimeUnit) {
-    timeUnitFragments.select = ', DATE_TRUNC(:groupTimeUnit, t1."createdAt") AS "date"';
-    timeUnitFragments.groupBy = ', DATE_TRUNC(:groupTimeUnit, t1."createdAt")';
-    timeUnitFragments.orderBy = ' ORDER BY DATE_TRUNC(:groupTimeUnit, t1."createdAt") ASC';
-  }
-
-  const results = await sequelize.query(
-    `SELECT
-  SUM(
-    CASE
-      WHEN t2."data"->>'hostToPlatformFxRate' IS NOT NULL THEN
-        t2."amountInHostCurrency"::numeric / (t2."data"->>'hostToPlatformFxRate')::numeric
-      ELSE
-        t2."amountInHostCurrency"
-    END
-  ) as "_amount",
-  (
-    CASE
-      WHEN t2."data"->>'hostToPlatformFxRate' IS NOT NULL THEN
-        h."currency"
-      ELSE
-        t2."hostCurrency"
-    END
-   ) as "_currency"${timeUnitFragments.select}
-FROM "Transactions" as t1
-INNER JOIN "Transactions" as t2
-ON t1."TransactionGroup" = t2."TransactionGroup"
-INNER JOIN "Collectives" as h
-ON t1."HostCollectiveId" = h."id"
-WHERE t1."HostCollectiveId" = :HostCollectiveId
-${collectiveIds ? `AND t1."CollectiveId" IN (:CollectiveIds)` : ``}
-${startDate ? `AND t1."createdAt" >= :startDate` : ``}
-${endDate ? `AND t1."createdAt" <= :endDate` : ``}
-AND (t1."kind" IS NULL OR t1."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS'))
-AND t2."kind" = 'PLATFORM_TIP'
-AND t2."type" = 'CREDIT'
-AND t1."deletedAt" IS NULL
-AND t2."deletedAt" IS NULL
-AND t2."RefundTransactionId" IS NULL
-GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
-    {
-      replacements: {
-        HostCollectiveId: host.id,
-        CollectiveIds: collectiveIds,
-        ...computeDatesAsISOStrings(startDate, endDate),
-        groupTimeUnit,
-      },
-      type: QueryTypes.SELECT,
-    },
-  );
-
-  if (groupTimeUnit) {
-    return convertCurrencyForTimeSeries(results, host.currency);
-  } else {
-    return computeTotal(results, host.currency);
-  }
-}
-
-// NOTE: we're not looking at the settlementStatus and just SUM all debts of the month
+// Used by the monthly host-settlement cron to size the "Platform Tips" expense line item.
+// Counts legacy PLATFORM_TIP_DEBT rows; not aware of the NEW_PLATFORM_TIPS_LEDGER opt-in
+// flow which lives on its own PLATFORM_TIP rows.
 export async function getPendingPlatformTips(
   host,
   { startDate = null, endDate = null, collectiveIds = null, status = ['OWED', 'INVOICED'] } = {},
@@ -161,58 +73,27 @@ GROUP BY t."hostCurrency"`,
   return computeTotal(results, host.currency);
 }
 
-export async function getHostFees(host, { startDate = null, endDate = null, fromCollectiveIds = null } = {}) {
-  const newResults = await sequelize.query(
-    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
-FROM "Transactions" as t1
-WHERE t1."CollectiveId" = :CollectiveId
-${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
-AND t1."kind" = 'HOST_FEE'
-${startDate ? `AND t1."createdAt" >= :startDate` : ``}
-${endDate ? `AND t1."createdAt" <= :endDate` : ``}
-AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency"`,
-    {
-      replacements: {
-        CollectiveId: host.id,
-        FromCollectiveIds: fromCollectiveIds,
-        ...computeDatesAsISOStrings(startDate, endDate),
-      },
-      type: QueryTypes.SELECT,
-    },
-  );
+async function convertCurrencyForTimeSeries(results, currency) {
+  const fxRates = {}; // FX rates are likely to be the same for all results, better cache them
+  for (const result of results) {
+    const value = result['_amount'];
+    result['currency'] = currency;
 
-  // TODO(Ledger): We should only run the query below if startDate < newHostFeeDeployDate
-  const legacyResults = await sequelize.query(
-    `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
-FROM "Transactions" as t1
-WHERE t1."HostCollectiveId" = :HostCollectiveId
-${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
-${startDate ? `AND t1."createdAt" >= :startDate` : ``}
-${endDate ? `AND t1."createdAt" <= :endDate` : ``}
-AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
-AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency"`,
-    {
-      replacements: {
-        HostCollectiveId: host.id,
-        FromCollectiveIds: fromCollectiveIds,
-        ...computeDatesAsISOStrings(startDate, endDate),
-      },
-      type: QueryTypes.SELECT,
-    },
-  );
+    if (value) {
+      const resultCurrency = result['_currency'];
+      fxRates[resultCurrency] = fxRates[resultCurrency] || {};
+      if (!fxRates[resultCurrency][currency]) {
+        fxRates[resultCurrency][currency] = await getFxRate(resultCurrency, currency);
+      }
 
-  let total = await computeTotal(legacyResults, host.currency);
-
-  // amount/hostFeeInHostCurrency is expressed as a negative number
-  total = oppositeTotal(total);
-
-  if (newResults?.length) {
-    total += await computeTotal(newResults, host.currency);
+      result['amount'] = Math.round(value * fxRates[resultCurrency][currency]);
+      result['currency'] = currency;
+    } else {
+      result['amount'] = 0;
+    }
   }
 
-  return total;
+  return results;
 }
 
 export async function getHostFeesTimeSeries(host, { startDate = null, endDate = null, timeUnit } = {}) {
@@ -322,50 +203,6 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     sum = (sum || 0) + point.amount;
     return { ...point, amount: Math.abs(sum + balanceAtStartDate.value) };
   });
-}
-
-export async function getHostFeeShare(host, { startDate = null, endDate = null, collectiveIds = null } = {}) {
-  if (
-    config.env === 'production' &&
-    (host.slug === 'opencollective' || PlatformConstants.AllPlatformCollectiveIds.includes(host.id))
-  ) {
-    return 0;
-  }
-
-  const results = await sequelize.query(
-    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
-FROM "Transactions" as t1
-${
-  collectiveIds
-    ? `INNER JOIN "Transactions" AS t2 ON t1."TransactionGroup" = t2."TransactionGroup"
-       WHERE t2.kind IN ('CONTRIBUTION', 'ADDED_FUNDS')
-       AND t2."HostCollectiveId" = :CollectiveId
-       AND t2."deletedAt" IS NULL
-       AND t2."CollectiveId" IN (:CollectiveIds)
-       AND t1."CollectiveId" = :CollectiveId`
-    : `WHERE t1."CollectiveId" = :CollectiveId`
-}
-AND t1."kind" = 'HOST_FEE_SHARE'
-${startDate ? `AND t1."createdAt" >= :startDate` : ``}
-${endDate ? `AND t1."createdAt" <= :endDate` : ``}
-AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency"`,
-    {
-      replacements: {
-        CollectiveId: host.id,
-        CollectiveIds: collectiveIds,
-        ...computeDatesAsISOStrings(startDate, endDate),
-      },
-      type: QueryTypes.SELECT,
-    },
-  );
-
-  let total = await computeTotal(results, host.currency);
-
-  // we're looking at the DEBIT, so it's a negative number
-  total = oppositeTotal(total);
-
-  return total;
 }
 
 export async function getHostFeeShareTimeSeries(host, { startDate = null, endDate = null, timeUnit } = {}) {

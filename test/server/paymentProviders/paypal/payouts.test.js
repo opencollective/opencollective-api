@@ -110,6 +110,11 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
 
       expect(expense.data).to.deep.equals({ payout_batch_id: 'fake' });
       expect(expense).to.have.property('status', status.PROCESSING);
+
+      // Check that the activity includes the payout response data
+      const processingActivities = await expense.getActivities({ where: { type: 'collective.expense.processing' } });
+      expect(processingActivities).to.have.length(1);
+      expect(processingActivities[0].data).to.deep.include({ payoutResponse: { payout_batch_id: 'fake' } });
     });
   });
 
@@ -179,6 +184,18 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
       expect(expense.paidAt.toISOString()).to.eq(new Date('2024-08-15T10:30:00Z').toISOString());
       expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -123);
       expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10123);
+
+      // Check that the paid activity includes the payout item data
+      const paidActivities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
+      expect(paidActivities).to.have.length(1);
+      expect(paidActivities[0].data).to.containSubset({
+        payoutItem: {
+          transaction_status: 'SUCCESS',
+          payout_batch_id: 'fake-batch-id',
+          payout_item_fee: { currency: 'USD', value: '1.23' },
+          time_processed: '2024-08-15T10:30:00Z',
+        },
+      });
     });
 
     it('work with cross-currency collectives', async () => {
@@ -285,20 +302,25 @@ describe('server/paymentProviders/paypal/payouts.js', () => {
     const failedStatuses = ['FAILED', 'BLOCKED', 'REFUNDED', 'RETURNED', 'REVERSED'];
     failedStatuses.map(transaction_status =>
       it(`should set expense status to error if the transaction status is ${transaction_status}`, async () => {
-        paypalLib.getBatchInfo.resolves({
-          items: [
-            {
-              transaction_status,
-              payout_batch_id: 'fake-batch-id',
-              payout_item: { sender_item_id: expense.id.toString() },
-            },
-          ],
-        });
+        const payoutItem = {
+          transaction_status,
+          payout_batch_id: 'fake-batch-id',
+          payout_item: { sender_item_id: expense.id.toString() },
+          errors: { message: `Transaction ${transaction_status}` },
+        };
+        paypalLib.getBatchInfo.resolves({ items: [payoutItem] });
         await paypalPayouts.checkBatchStatus([expense]);
         const transactions = await expense.getTransactions({ where: { type: 'DEBIT' } });
 
         expect(expense).to.have.property('status', 'ERROR');
         expect(transactions).to.have.length(0);
+
+        // Check that the error activity includes the payout item data
+        const errorActivities = await expense.getActivities({ where: { type: 'collective.expense.error' } });
+        expect(errorActivities).to.have.length(1);
+        expect(errorActivities[0].data).to.containSubset({
+          payoutItem: { transaction_status, payout_batch_id: 'fake-batch-id' },
+        });
       }),
     );
   });

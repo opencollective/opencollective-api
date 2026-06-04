@@ -10,6 +10,7 @@ import { createSandbox } from 'sinon';
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import FEATURE from '../../../../../server/constants/feature';
+import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
   US_TAX_FORM_THRESHOLD_PRE_2026,
@@ -50,6 +51,7 @@ import {
   fakeOrganization,
   fakePayoutMethod,
   fakePlatformSubscription,
+  fakeProject,
   fakeRecurringExpense,
   fakeTransaction,
   fakeTransactionsImport,
@@ -2166,7 +2168,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       it('collective admins can edit an expense to set a vendor if the policy explicitly allows it', async () => {
         const collectiveAdminUser = await fakeUser();
-        const host = await fakeHost({ data: { policies: { EXPENSE_PUBLIC_VENDORS: true } } });
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
         const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
         const vendor = await fakeVendor({ ParentCollectiveId: host.id });
         const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
@@ -2182,12 +2184,152 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
       });
 
-      it('collective admins cannot edit an expense to set a vendor if the policy does not explicitly allow it', async () => {
+      it('collective admins cannot edit an expense to set a vendor under USE_VENDOR_POLICY=HOST_ADMINS', async () => {
         const collectiveAdminUser = await fakeUser();
-        const host = await fakeHost();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'HOST_ADMINS' } } });
         const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
         const vendor = await fakeVendor({ ParentCollectiveId: host.id });
         const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('host policy USE_VENDOR_POLICY=ALL_SUBMITTERS lets random users set a vendor', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({ ParentCollectiveId: host.id });
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
+      });
+
+      it('host policy USE_VENDOR_POLICY=HOST_ADMINS blocks collective admins even on scoped vendors', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'HOST_ADMINS' } } });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [collective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('per-vendor useVendorPolicy=ALL_SUBMITTERS overrides a stricter host policy', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'HOST_ADMINS' } } });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { useVendorPolicy: 'ALL_SUBMITTERS' },
+        });
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
+      });
+
+      it('per-vendor useVendorPolicy=HOST_ADMINS overrides a permissive host policy', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({ data: { policies: { USE_VENDOR_POLICY: 'ALL_SUBMITTERS' } } });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: {
+            useVendorPolicy: 'HOST_ADMINS',
+            canBeUsedWithAccountIds: [collective.id],
+          },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('collective admin can use a vendor scoped to the parent collective on a child project', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+        });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const project = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collective.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [collective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: project.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          collectiveAdminUser,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.equal(vendor.id);
+      });
+
+      it('collective admin cannot use a vendor scoped to a different collective on a child project', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS } },
+        });
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const project = await fakeProject({ HostCollectiveId: host.id, ParentCollectiveId: collective.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: project.id });
 
         const result = await graphqlQueryV2(
           editExpenseMutation,
@@ -2220,6 +2362,77 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('ALL_SUBMITTERS host: random user cannot set a vendor scoped to a different collective', async () => {
+        const randomUser = await fakeUser();
+        const host = await fakeHost({
+          data: { policies: { USE_VENDOR_POLICY: UseVendorPolicyValue.ALL_SUBMITTERS } },
+        });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({
+          status: 'PENDING',
+          CollectiveId: collective.id,
+          UserId: randomUser.id,
+          FromCollectiveId: randomUser.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          randomUser,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+      });
+
+      it('host admin can set a vendor scoped to a different collective', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [otherCollective.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
+      });
+
+      it('host admin can set a host-only vendor as payee on a hosted collective expense', async () => {
+        const hostAdmin = await fakeUser();
+        const host = await fakeHost({ admin: hostAdmin });
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const vendor = await fakeVendor({
+          ParentCollectiveId: host.id,
+          data: { canBeUsedWithAccountIds: [host.id] },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          { expense: { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), payee: { legacyId: vendor.id } } },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
       });
     });
 

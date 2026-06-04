@@ -13,7 +13,7 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
-import { hashObject } from '../utils';
+import { hashObject, validateRedirectUrl } from '../utils';
 
 import bacsdebit from './bacsdebit';
 import bancontact from './bancontact';
@@ -24,19 +24,6 @@ import { webhook } from './webhook';
 const debug = debugLib('stripe');
 
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
-
-const validateRedirectUrl = redirect => {
-  let parsedRedirect;
-
-  try {
-    parsedRedirect = new URL(redirect);
-    if (parsedRedirect.origin !== config.host.website) {
-      throw new Error();
-    }
-  } catch {
-    throw new Error(`Invalid redirect url: ${redirect}`);
-  }
-};
 
 export default {
   // Payment Method types implemented using Stripe

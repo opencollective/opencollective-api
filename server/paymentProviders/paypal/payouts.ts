@@ -79,7 +79,7 @@ export const payExpensesBatch = async (expenses: Expense[]): Promise<Expense[]> 
     const updateExpenses = expenses.map(async e => {
       await e.update({ data: { ...e.data, ...response.batch_header }, status: status.PROCESSING });
       const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user);
+      await e.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, user, { payoutResponse: response.batch_header });
       return e;
     });
     return Promise.all(updateExpenses);
@@ -153,7 +153,7 @@ export const checkBatchItemStatus = async (
           clearedAt,
         });
         // Mark Expense as Paid, create activity and send notifications
-        await expense.markAsPaid({ paidAt: clearedAt });
+        await expense.markAsPaid({ paidAt: clearedAt, activityData: { payoutItem: item } });
       }
       break;
     case 'FAILED':
@@ -168,7 +168,7 @@ export const checkBatchItemStatus = async (
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
-          { error: item.errors, isSystem: true },
+          { error: item.errors, isSystem: true, payoutItem: item },
         );
       }
       break;

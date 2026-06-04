@@ -16,12 +16,14 @@ import {
   checkRemoteUserCanUseWebhooks,
   checkScope,
   enforceScope,
+  rejectOAuthAndPersonalTokenAuth,
 } from '../../../../server/graphql/common/scope-check';
 import {
   fakeApplication,
   fakeComment,
   fakeConversation,
   fakeExpense,
+  fakePersonalToken,
   fakeUpdate,
   fakeUser,
   fakeUserToken,
@@ -405,6 +407,29 @@ describe('server/graphql/common/scope-check', () => {
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanRoot(req)).to.throw(
         `The User Token is not allowed for operations in scope "root".`,
+      );
+    });
+  });
+
+  describe('rejectOAuthAndPersonalTokenAuth', () => {
+    it('does nothing for session auth', () => {
+      req.userToken = null;
+      req.personalToken = null;
+      expect(() => rejectOAuthAndPersonalTokenAuth(req)).to.not.throw();
+    });
+
+    it('throws for OAuth token auth', () => {
+      expect(() => rejectOAuthAndPersonalTokenAuth(req)).to.throw(
+        'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.',
+      );
+    });
+
+    it('throws for personal token auth', async () => {
+      const personalToken = await fakePersonalToken({ user: userOwningTheToken });
+      req.userToken = null;
+      req.personalToken = personalToken;
+      expect(() => rejectOAuthAndPersonalTokenAuth(req)).to.throw(
+        'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.',
       );
     });
   });

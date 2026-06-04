@@ -205,6 +205,7 @@ export const GraphQLExpense = new GraphQLObjectType<ExpenseModel, Express.Reques
               percentage: round(rate * 100, 2),
               type,
               rate,
+              hasTaxIdNumber: Boolean(idNumber),
               idNumber: async () => {
                 const canSeePayoutDetails = await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense);
                 return canSeePayoutDetails ? idNumber : null;

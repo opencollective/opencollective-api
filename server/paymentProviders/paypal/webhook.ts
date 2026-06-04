@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import Debug from 'debug';
 import { Request } from 'express';
 import { get, toNumber } from 'lodash';
@@ -68,13 +70,12 @@ const loadSubscriptionForWebhookEvent = async (
   subscriptionId: string,
   { throwIfMissing = true } = {},
 ) => {
-  // TODO: This can be optimized by using the `host` from path
-
+  const hostId = parseInt(req.params.hostId);
   const order = await models.Order.findOne({
     include: [
       { association: 'fromCollective', required: false },
       { association: 'createdByUser', required: false },
-      { association: 'collective', required: true },
+      { association: 'collective', required: true, where: { HostCollectiveId: hostId } },
       {
         association: 'Subscription',
         required: true,
@@ -157,7 +158,8 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 }
 
 async function handleCaptureCompleted(req: Request): Promise<void> {
-  // TODO: This can be optimized by using the `host` from path
+  const hostId = parseInt(req.params.hostId);
+
   // Retrieve the order for this event
   const capture = req.body.resource;
   const order = await models.Order.findOne({
@@ -168,7 +170,7 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
     include: [
       { association: 'fromCollective' },
       { association: 'createdByUser' },
-      { association: 'collective', required: true },
+      { association: 'collective', required: true, where: { HostCollectiveId: hostId } },
       {
         association: 'paymentMethod',
         required: true,
@@ -531,12 +533,7 @@ const getEventHandler = (eventType: string | WatchedPaypalWebhookEvent): ((req: 
  */
 async function webhook(req: Request): Promise<void> {
   debug('new event', req.body);
-
-  if (!req.params?.hostId) {
-    // Received on legacy webhook
-    // 2026-04-29: This has normally been the default for a white, adding a global log to get a final confirmation.
-    logger.warn('Please update PayPal webhooks to latest version using scripts/paypal/webhooks.ts');
-  }
+  assert(req.params?.hostId, 'hostId is required');
 
   try {
     const eventType = get(req, 'body.event_type') as string | WatchedPaypalWebhookEvent;

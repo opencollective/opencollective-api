@@ -1,6 +1,6 @@
 import { GraphQLNonNull } from 'graphql';
 
-import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { NotFound } from '../../errors';
 import {
   fetchOAuthAuthorizationWithReference,
@@ -20,6 +20,7 @@ const oAuthAuthorizationMutations = {
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
+      rejectOAuthAndPersonalTokenAuth(req);
 
       const userToken = await fetchOAuthAuthorizationWithReference(args.oAuthAuthorization);
       if (!userToken || userToken.user.id !== req.remoteUser.id) {

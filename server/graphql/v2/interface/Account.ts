@@ -22,7 +22,12 @@ import { KYCVerification } from '../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseKYC,
+  checkScope,
+  rejectOAuthAndPersonalTokenAuth,
+} from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
@@ -564,6 +569,7 @@ const accountFieldsDefinition = () => ({
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
+      rejectOAuthAndPersonalTokenAuth(req);
 
       const { limit, offset } = args;
       const where = { CollectiveId: collective.id, type: 'oAuth' };

@@ -1,20 +1,39 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import roles from '../../../../../server/constants/roles';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
-import { fakeActivity, fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import {
+  fakeActivity,
+  fakeCollective,
+  fakeHost,
+  fakeMember,
+  fakeOrder,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
-describe('server/graphql/v2/query/ExpenseQuery', () => {
+const SECRET_TAX_ID = 'FRXX999999997';
+
+describe('server/graphql/v2/query/OrderQuery', () => {
   before(resetTestDB);
 
-  let order, ownerUser, collectiveAdminUser, hostAdminUser, randomUser;
+  let order,
+    ownerUser,
+    collectiveAdminUser,
+    hostAdminUser,
+    hostAccountantUser,
+    fromCollectiveAccountantUser,
+    randomUser;
 
   const orderQuery = gql`
     query Order($legacyId: Int!) {
       order(order: { legacyId: $legacyId }) {
         id
         customData
+        tax {
+          idNumber
+        }
         activities {
           totalCount
           nodes {
@@ -29,10 +48,22 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
   before(async () => {
     ownerUser = await fakeUser({}, { legalName: 'A Legal Name' });
     hostAdminUser = await fakeUser();
+    hostAccountantUser = await fakeUser();
+    fromCollectiveAccountantUser = await fakeUser();
     collectiveAdminUser = await fakeUser();
     randomUser = await fakeUser();
 
     const host = await fakeHost({ admin: hostAdminUser });
+    await fakeMember({
+      CollectiveId: host.id,
+      MemberCollectiveId: hostAccountantUser.CollectiveId,
+      role: roles.ACCOUNTANT,
+    });
+    await fakeMember({
+      CollectiveId: ownerUser.CollectiveId,
+      MemberCollectiveId: fromCollectiveAccountantUser.CollectiveId,
+      role: roles.ACCOUNTANT,
+    });
     const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
     order = await fakeOrder({
       FromCollectiveId: ownerUser.CollectiveId,
@@ -40,6 +71,11 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       data: {
         customData: {
           hello: 'world',
+        },
+        tax: {
+          id: 'VAT',
+          idNumber: SECRET_TAX_ID,
+          percentage: 20,
         },
       },
     });
@@ -93,6 +129,32 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
           expect(fetchedOrderUnauthenticated.customData).to.be.null;
           expect(fetchedOrderRandomUser.customData).to.be.null;
           expect(fetchedOrderHostAdmin.customData).to.be.null;
+        });
+      });
+
+      describe('tax.idNumber', () => {
+        it('reads idNumber from persisted order data', async () => {
+          const fetchedOrderHostAdmin = await fetchOrder(order.id, hostAdminUser);
+          expect(fetchedOrderHostAdmin.tax.idNumber).to.equal(SECRET_TAX_ID);
+        });
+
+        it('can only be fetched by the contributing account admin/accountant or fiscal host admin/accountant', async () => {
+          const fetchedOrderUnauthenticated = await fetchOrder(order.id);
+          const fetchedOrderRandomUser = await fetchOrder(order.id, randomUser);
+          const fetchedOrderCollectiveAdmin = await fetchOrder(order.id, collectiveAdminUser);
+          const fetchedOrderHostAccountant = await fetchOrder(order.id, hostAccountantUser);
+          const fetchedOrderFromCollectiveAccountant = await fetchOrder(order.id, fromCollectiveAccountantUser);
+          const fetchedOrderOwner = await fetchOrder(order.id, ownerUser);
+          const fetchedOrderHostAdmin = await fetchOrder(order.id, hostAdminUser);
+
+          expect(fetchedOrderOwner.tax.idNumber).to.equal(SECRET_TAX_ID);
+          expect(fetchedOrderHostAdmin.tax.idNumber).to.equal(SECRET_TAX_ID);
+          expect(fetchedOrderHostAccountant.tax.idNumber).to.equal(SECRET_TAX_ID);
+          expect(fetchedOrderFromCollectiveAccountant.tax.idNumber).to.equal(SECRET_TAX_ID);
+
+          expect(fetchedOrderUnauthenticated.tax.idNumber).to.be.null;
+          expect(fetchedOrderRandomUser.tax.idNumber).to.be.null;
+          expect(fetchedOrderCollectiveAdmin.tax.idNumber).to.be.null;
         });
       });
     });
