@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import config from 'config';
 import { set } from 'lodash';
 import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
@@ -1125,6 +1126,54 @@ describe('webhook', () => {
         await expense.reload();
         expect(expense.status).to.eql(ExpenseStatuses.APPROVED);
       });
+    });
+  });
+
+  describe('createOrUpdatePaymentMethod()', () => {
+    const PLATFORM_ACCOUNT_ID = config.stripe.accountId;
+
+    it('matches a legacy platform PM that has no data.stripeAccount', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ CreatedByUserId: user.id });
+      const stripePaymentMethodId = randStr('pm_legacy_');
+      const existingPm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        data: { stripePaymentMethodId },
+      });
+      const retrieveStub = sandbox.stub(stripe.paymentMethods, 'retrieve');
+
+      const result = await webhook.createOrUpdatePaymentMethod(collective.id, user.id, PLATFORM_ACCOUNT_ID, {
+        payment_method: stripePaymentMethodId,
+      } as Stripe.PaymentIntent);
+
+      expect(result.id).to.equal(existingPm.id);
+      assert.notCalled(retrieveStub);
+      const count = await models.PaymentMethod.count({ where: { data: { stripePaymentMethodId } } });
+      expect(count).to.equal(1);
+    });
+
+    it('matches a platform PM that has data.stripeAccount set to the platform id', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ CreatedByUserId: user.id });
+      const stripePaymentMethodId = randStr('pm_platform_');
+      const existingPm = await fakePaymentMethod({
+        CollectiveId: collective.id,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        data: { stripePaymentMethodId, stripeAccount: PLATFORM_ACCOUNT_ID },
+      });
+      const retrieveStub = sandbox.stub(stripe.paymentMethods, 'retrieve');
+
+      const result = await webhook.createOrUpdatePaymentMethod(collective.id, user.id, PLATFORM_ACCOUNT_ID, {
+        payment_method: stripePaymentMethodId,
+      } as Stripe.PaymentIntent);
+
+      expect(result.id).to.equal(existingPm.id);
+      assert.notCalled(retrieveStub);
+      const count = await models.PaymentMethod.count({ where: { data: { stripePaymentMethodId } } });
+      expect(count).to.equal(1);
     });
   });
 });
