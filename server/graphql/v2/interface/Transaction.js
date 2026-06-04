@@ -36,7 +36,7 @@ import { GraphQLTaxInfo } from '../object/TaxInfo';
 
 import { GraphQLAccount } from './Account';
 
-const { EXPENSE, PLATFORM_TIP, PLATFORM_TIP_DEBT, HOST_FEE_SHARE } = TransactionKind;
+const { EXPENSE, PLATFORM_TIP, HOST_FEE_SHARE } = TransactionKind;
 
 /**
  * @typedef {import("../../../models/PaymentMethod")} PaymentMethod
@@ -781,18 +781,15 @@ export const TransactionFields = () => {
             expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
           }
           return expense?.data?.transactionId;
-        } else if ([PLATFORM_TIP, PLATFORM_TIP_DEBT, HOST_FEE_SHARE].includes(transaction.kind)) {
+        } else if (
+          [PLATFORM_TIP, HOST_FEE_SHARE].includes(transaction.kind) &&
+          req.remoteUser.hasRole(allowedRoles, PlatformConstants.PlatformCollectiveId)
+        ) {
           // For Stripe platform tips collected directly, we have to get the merchant ID from the related contribution transaction
           const contributionTransaction =
             await req.loaders.Transaction.relatedContributionTransaction.load(transaction);
-          if (
-            [PLATFORM_TIP, HOST_FEE_SHARE].includes(transaction.kind) &&
-            req.remoteUser.hasRole(allowedRoles, PlatformConstants.PlatformCollectiveId) &&
-            contributionTransaction?.data?.isPlatformRevenueDirectlyCollected
-          ) {
+          if (contributionTransaction && contributionTransaction.data?.isPlatformRevenueDirectlyCollected) {
             return get(contributionTransaction, 'data.charge.application_fee');
-          } else if (transaction.kind === PLATFORM_TIP_DEBT) {
-            return contributionTransaction?.merchantId;
           }
         }
       },

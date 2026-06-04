@@ -1,17 +1,15 @@
 import { expect } from 'chai';
 import config from 'config';
 import { get, set } from 'lodash';
-import { v4 as uuid } from 'uuid';
 
 import { roles } from '../../../../../server/constants';
-import PlatformConstants from '../../../../../server/constants/platform';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { createRefundTransaction } from '../../../../../server/lib/payments';
 import { createTransactionsFromPaidExpense } from '../../../../../server/lib/transactions';
 import models from '../../../../../server/models';
 import { MERCHANT_ID_PATHS } from '../../../../../server/models/Transaction';
-import { fakeExpense, fakeHost, fakeTransaction, fakeUser, randStr } from '../../../../test-helpers/fake-data';
+import { fakeExpense, fakeTransaction, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, seedDefaultVendors } from '../../../../utils';
 
 describe('Transaction', () => {
@@ -161,45 +159,6 @@ describe('Transaction', () => {
   });
 
   describe('merchantId', () => {
-    const transactionMerchantIdQuery = `
-      query Transaction($id: String!) {
-        transaction(id: $id) {
-          id
-          legacyId
-          merchantId
-        }
-      }
-    `;
-
-    const createRelatedContributionAndTipTransaction = async ({
-      contributionData,
-      tipKind = TransactionKind.PLATFORM_TIP_DEBT,
-      tipHostCollectiveId = expense.collective.HostCollectiveId,
-      tipCollectiveId = expense.collective.HostCollectiveId,
-      tipType = TransactionTypes.CREDIT,
-    }) => {
-      const transactionGroup = uuid();
-
-      await fakeTransaction({
-        kind: TransactionKind.CONTRIBUTION,
-        type: tipType,
-        amount: 1000,
-        TransactionGroup: transactionGroup,
-        CollectiveId: expense.CollectiveId,
-        HostCollectiveId: expense.collective.HostCollectiveId,
-        data: contributionData,
-      });
-
-      return fakeTransaction({
-        kind: tipKind,
-        type: tipType,
-        amount: 100,
-        TransactionGroup: transactionGroup,
-        CollectiveId: tipCollectiveId,
-        HostCollectiveId: tipHostCollectiveId,
-      });
-    };
-
     MERCHANT_ID_PATHS.CONTRIBUTION.forEach(path =>
       it(`returns the merchantId of CONTRIBUTION path ${path}`, async () => {
         const data = {
@@ -251,73 +210,6 @@ describe('Transaction', () => {
         expect(result.data.transaction.merchantId).to.equal(get(data, path));
       }),
     );
-
-    it('returns the related contribution charge id for host admins querying platform tip debt', async () => {
-      const chargeId = randStr('ch_');
-      const transaction = await createRelatedContributionAndTipTransaction({
-        contributionData: { charge: { id: chargeId } },
-      });
-
-      const result = await graphqlQueryV2(transactionMerchantIdQuery, { id: transaction.uuid }, hostAdmin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.transaction.merchantId).to.equal(chargeId);
-    });
-
-    [
-      { path: 'capture', data: id => ({ capture: { id } }) },
-      { path: 'sale', data: id => ({ paypalSale: { id } }) },
-    ].forEach(({ path, data }) => {
-      it(`returns the related contribution PayPal ${path} id for host admins querying platform tip debt`, async () => {
-        const paypalId = randStr('PAYPAL-');
-        const transaction = await createRelatedContributionAndTipTransaction({
-          contributionData: data(paypalId),
-        });
-
-        const result = await graphqlQueryV2(transactionMerchantIdQuery, { id: transaction.uuid }, hostAdmin);
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
-        expect(result.data.transaction.merchantId).to.equal(paypalId);
-      });
-    });
-
-    it('returns the application fee id for platform admins querying platform-scoped tip rows', async () => {
-      const platform = await fakeHost({ id: PlatformConstants.PlatformCollectiveId, slug: randStr('platform-') });
-      const platformAdmin = await fakeUser();
-      await platform.addUserWithRole(platformAdmin, roles.ADMIN);
-
-      const applicationFeeId = randStr('fee_');
-      const contributionData = {
-        isPlatformRevenueDirectlyCollected: true,
-        charge: {
-          id: randStr('ch_'),
-        },
-      };
-      set(contributionData, 'charge.application_fee', applicationFeeId);
-      const transaction = await createRelatedContributionAndTipTransaction({
-        contributionData,
-        tipKind: TransactionKind.PLATFORM_TIP,
-        tipHostCollectiveId: PlatformConstants.PlatformCollectiveId,
-        tipCollectiveId: PlatformConstants.PlatformCollectiveId,
-      });
-
-      const result = await graphqlQueryV2(transactionMerchantIdQuery, { id: transaction.uuid }, platformAdmin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.transaction.merchantId).to.equal(applicationFeeId);
-    });
-
-    it('returns nothing for non-admins querying platform tip debt', async () => {
-      const transaction = await createRelatedContributionAndTipTransaction({
-        contributionData: { charge: { id: randStr('ch_') } },
-      });
-      const user = await fakeUser();
-
-      const result = await graphqlQueryV2(transactionMerchantIdQuery, { id: transaction.uuid }, user);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.transaction.merchantId).to.be.null;
-    });
   });
 
   describe('clearedAt', () => {
