@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { Request } from 'express';
 import { get, omit } from 'lodash';
 import moment from 'moment';
-import { QueryTypes, Transaction } from 'sequelize';
+import { Op, QueryTypes, Transaction } from 'sequelize';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -50,12 +50,13 @@ export async function createOrUpdatePaymentMethod(
   const stripePaymentMethodId =
     typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
 
+  const isPlatformAccount = stripeAccount === config.stripe.accountId;
   const matchingPaymentMethod = await models.PaymentMethod.findOne({
     where: {
       CollectiveId: PaymentMethodCollectiveId,
       data: {
         stripePaymentMethodId,
-        stripeAccount,
+        stripeAccount: isPlatformAccount ? { [Op.or]: [stripeAccount, null] } : stripeAccount,
       },
     },
     transaction,
