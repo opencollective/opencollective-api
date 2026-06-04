@@ -26086,6 +26086,26 @@ type Mutation {
   ): GoCardlessConnectAccountResponse!
 
   """
+  Complete the Wise (TransferWise) OAuth flow and connect the account to the host. Scope: "connectedAccounts".
+  """
+  connectTransferwiseAccount(
+    """
+    The authorization code returned by Wise in the OAuth callback
+    """
+    code: String!
+
+    """
+    The Wise profile id returned in the OAuth callback
+    """
+    profileId: String!
+
+    """
+    The OAuth state token that was generated when initiating the connection
+    """
+    state: String!
+  ): TransferwiseConnectAccountResponse!
+
+  """
   [Root only] Edits account flags (deleted, banned, archived, trusted host)
   """
   editAccountFlags(
@@ -29013,6 +29033,18 @@ type GoCardlessConnectAccountResponse {
   transactionsImport: TransactionsImport!
 }
 
+type TransferwiseConnectAccountResponse {
+  """
+  The connected account that was created
+  """
+  connectedAccount: ConnectedAccount!
+
+  """
+  The URL to redirect the user to once the connection is complete
+  """
+  redirectUrl: String
+}
+
 enum AccountCacheType {
   CLOUDFLARE
   GRAPHQL_QUERIES
@@ -29409,6 +29441,9 @@ input PersonalTokenCreateInput {
   The account to use as the owner of the application. Defaults to currently logged in user.
   """
   account: AccountReferenceInput
+    @deprecated(
+      reason: "2026-06-03: This field is ignored, the account will always default to the currently logged in user."
+    )
 }
 
 """
