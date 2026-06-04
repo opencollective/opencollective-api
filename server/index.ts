@@ -8,8 +8,6 @@ import os from 'os';
 import * as Sentry from '@sentry/node';
 import config from 'config';
 import express from 'express';
-import { toInteger } from 'lodash';
-import throng from 'throng';
 
 import setupExpress from './lib/express';
 import logger from './lib/logger';
@@ -21,8 +19,6 @@ import { startExportWorker } from './workers/exports';
 import { startSearchSyncWorker } from './workers/search-sync';
 import { sequelize } from './models';
 import routes from './routes';
-
-const workers = toInteger(process.env.WEB_CONCURRENCY) || 1;
 
 async function startExpressServer(workerId) {
   const expressApp = express();
@@ -65,11 +61,7 @@ async function startExpressServer(workerId) {
 // Start the express server
 let appPromise: Promise<express.Express> | undefined;
 if (parseToBoolean(config.services.server)) {
-  if (['production', 'staging'].includes(config.env) && workers > 1) {
-    throng({ worker: startExpressServer, count: workers }); // TODO: Thong is not compatible with the shutdown logic below
-  } else {
-    appPromise = startExpressServer(1);
-  }
+  appPromise = startExpressServer(1);
 }
 
 // Start the search sync job

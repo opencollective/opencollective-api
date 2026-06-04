@@ -5,12 +5,16 @@
 import assert from 'assert';
 
 import config from 'config';
-import { SelectQueryBuilder } from 'kysely';
+import type { Request } from 'express';
+import express from 'express';
+import { Expression, RawBuilder, SelectQueryBuilder, sql } from 'kysely';
 import slugify from 'limax';
 import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
+import { CollectiveType } from '../constants/collectives';
+import { MemberRolesForPrivateAccounts } from '../constants/roles';
 import { BadRequest, RateLimitExceeded } from '../graphql/errors';
 import { ORDER_BY_PSEUDO_FIELDS } from '../graphql/v2/enum/OrderByFieldType';
 import {
@@ -27,13 +31,64 @@ import {
   isEntityPublicId,
 } from './permalink/entity-map';
 import { floatAmountToCents } from './currency';
+import { canSeePrivateAccount } from './private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 import { removeDiacritics } from './string-utils';
 
 // Returned when there's no result for a search
-const EMPTY_SEARCH_RESULT = [[], 0];
+const EMPTY_SEARCH_RESULT = [[], 0] as const;
 
 const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c');
+
+/**
+ * Returns SQL conditions to filter collectives based on private account visibility rules.
+ * Mirrors the logic in `canSeePrivateAccount` (server/graphql/loaders/collective.ts).
+ */
+const buildPrivateAccountSearchVisibilitySQL = async (
+  req?: Request,
+): Promise<{ sql: string; privilegedCollectiveIds?: number[] }> => {
+  const remoteUser = req?.remoteUser;
+  if (!remoteUser) {
+    return { sql: 'AND c."isPrivate" IS FALSE ' };
+  }
+
+  if (remoteUser.isRoot()) {
+    return { sql: '' };
+  }
+
+  await remoteUser.populateRoles();
+  const privilegedCollectiveIds = Array.from(remoteUser.getCollectiveIdsForRoles(MemberRolesForPrivateAccounts));
+
+  if (privilegedCollectiveIds.length === 0) {
+    return { sql: 'AND c."isPrivate" IS FALSE ' };
+  }
+
+  return {
+    sql: `
+    AND (
+      c."isPrivate" IS FALSE
+      -- User is admin of private collective
+      OR c.id IN (:privilegedCollectiveIds)
+      -- User is fiscal-host admin of private collective
+      OR c."HostCollectiveId" IN (:privilegedCollectiveIds)
+      -- User is admin of private collective who owns this event/project
+      OR c."ParentCollectiveId" IN (:privilegedCollectiveIds)
+      -- User is admin of private collective hosted by this organization
+      OR (
+        c."type" = '${CollectiveType.ORGANIZATION}'
+        AND c."hasHosting" IS TRUE
+        AND EXISTS (
+          SELECT 1 FROM "Collectives" hosted
+          WHERE hosted."HostCollectiveId" = c.id
+          AND hosted."deletedAt" IS NULL
+          AND hosted."approvedAt" IS NOT NULL
+          AND hosted.id IN (:privilegedCollectiveIds)
+        )
+      )
+    ) `,
+    privilegedCollectiveIds,
+  };
+};
 
 /**
  * Search users by email address. `user` must be set because this endpoint is rate
@@ -42,7 +97,12 @@ const CONSOLIDATED_BALANCE_SUBQUERY = makeConsolidatedBalanceSubquery('c');
  * @param {String} email - a valid email address
  * @param {Object} user - the user triggering the search
  */
-export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 10) => {
+export const searchCollectivesByEmail = async (
+  email,
+  user,
+  offset = 0,
+  limit = 10,
+): Promise<readonly [readonly Collective[], number]> => {
   if (!email || !user) {
     return EMPTY_SEARCH_RESULT;
   }
@@ -255,6 +315,7 @@ const getSortSubQuery = (
  * Search collectives directly in the DB, using a full-text query.
  */
 export const searchCollectivesInDB = async (
+  req: express.Request,
   term: string,
   offset = 0,
   limit = 100,
@@ -309,14 +370,14 @@ export const searchCollectivesInDB = async (
     const collective = await models.Collective.findOne({
       where: { publicId: term },
     });
-    if (collective) {
+    if (collective && (!collective.isPrivate || (await canSeePrivateAccount(req, collective)))) {
       return [[collective], 1];
     }
   }
 
-  // TODO(#8734): Add isPrivate filter once private-org search exclusion is implemented
   // Build dynamic conditions based on arguments
-  let dynamicConditions = 'AND c."isPrivate" IS NOT TRUE ';
+  const privateAccountVisibility = await buildPrivateAccountSearchVisibilitySQL(req);
+  let dynamicConditions = privateAccountVisibility.sql;
   let countryCodes = null;
   let searchedTags = [''];
   if (countries) {
@@ -375,16 +436,16 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `
       AND (
         c."type" != \'VENDOR\'
-        OR data#>'{visibleToAccountIds}' IS NULL
-        OR data#>'{visibleToAccountIds}' = '[]'::jsonb
-        OR data#>'{visibleToAccountIds}' = 'null'::jsonb
+        OR data#>'{canBeUsedWithAccountIds}' IS NULL
+        OR data#>'{canBeUsedWithAccountIds}' = '[]'::jsonb
+        OR data#>'{canBeUsedWithAccountIds}' = 'null'::jsonb
         OR
           (
-            jsonb_typeof(data#>'{visibleToAccountIds}')='array'
+            jsonb_typeof(data#>'{canBeUsedWithAccountIds}')='array'
             AND
             EXISTS (
               SELECT v FROM (
-                SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{visibleToAccountIds}') as v)
+                SELECT v::text::int FROM (SELECT jsonb_array_elements(data#>'{canBeUsedWithAccountIds}') as v)
               ) WHERE v IN (:vendorVisibleToAccountIds)
             )
           )
@@ -499,6 +560,7 @@ export const searchCollectivesInDB = async (
         lastTransactionFrom: args.lastTransactionFrom,
         lastTransactionTo: args.lastTransactionTo,
         vendorVisibleToAccountIds,
+        privilegedCollectiveIds: privateAccountVisibility.privilegedCollectiveIds,
       },
     },
   );
@@ -668,6 +730,8 @@ export const buildSearchConditions = (
   return conditions;
 };
 
+type KyselySearchField = string | Expression<unknown> | RawBuilder<unknown>;
+
 export const buildKyselySearchConditions =
   <T>(
     searchTerm: string,
@@ -675,15 +739,25 @@ export const buildKyselySearchConditions =
       slugFields = [],
       idFields = [],
       textFields = [],
+      dataFields = [],
+      amountFields = [],
       emailFields = [],
+      stringArrayFields = [],
+      stringArrayTransformFn = null,
+      castStringArraysToVarchar = false,
       publicIdFields = [],
     }: {
-      slugFields?: string[];
-      idFields?: string[];
-      textFields?: string[];
-      emailFields?: string[];
+      slugFields?: KyselySearchField[];
+      idFields?: KyselySearchField[];
+      textFields?: KyselySearchField[];
+      dataFields?: KyselySearchField[];
+      amountFields?: KyselySearchField[];
+      emailFields?: KyselySearchField[];
+      stringArrayFields?: KyselySearchField[];
+      stringArrayTransformFn?: (str: string) => string;
+      castStringArraysToVarchar?: boolean;
       publicIdFields?: {
-        field: string | string[];
+        field: KyselySearchField | KyselySearchField[];
         prefix: EntityShortIdPrefix;
       }[];
     },
@@ -696,35 +770,81 @@ export const buildKyselySearchConditions =
       return q;
     }
 
-    // Exclusive conditions: if an ID or a slug is searched, on don't search other attributes
-    // We don't use ILIKE for them, they must match exactly
+    // Exclusive conditions: if an ID, slug, or email is searched, don't search other attributes.
     if (parsedTerm.type === 'slug' && slugFields?.length) {
-      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, 'ilike', parsedTerm.term))));
-    } else if (parsedTerm.type === 'id' && idFields?.length) {
+      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, '=', parsedTerm.term))));
+    }
+    if (parsedTerm.type === 'id' && idFields?.length) {
       return q.where(({ eb, or }) => or(idFields.map(field => eb(field, '=', parsedTerm.term))));
-    } else if (parsedTerm.type === 'email' && emailFields?.length) {
+    }
+    if (parsedTerm.type === 'email' && emailFields?.length) {
       return q.where(({ eb, or }) => or(emailFields.map(field => eb(field, '=', parsedTerm.term))));
-    } else if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
+    }
+    if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
       const fields = publicIdFields
         .filter(field => field.prefix === parsedTerm.prefix)
-        .reduce((acc, field) => {
+        .reduce<KyselySearchField[]>((acc, field) => {
           if (Array.isArray(field.field)) {
             return [...acc, ...field.field];
           }
           return [...acc, field.field];
         }, []);
-      return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
+      if (fields.length) {
+        return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
+      }
     }
 
-    // Inclusive conditions, search all fields except
+    // Inclusive conditions: single OR across all applicable field groups
 
-    // Conditions for text fields
-    const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
-    const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
-    const allTextFields = [...(slugFields || []), ...(textFields || [])];
+    return q.where(({ eb, or }) => {
+      const conditions = [];
 
-    q = q.where(({ eb, or }) => or(allTextFields.map(field => eb(field, 'ilike', iLikeQuery))));
-    return q;
+      // Conditions for text fields
+      const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+      const allTextFields = [...(slugFields || []), ...(textFields || [])];
+
+      // Partial match on slug + free-text columns (also used for multi-word queries).
+      allTextFields.forEach(field => conditions.push(eb(field, 'ilike', `%${sanitizeSearchTermForILike(strTerm)}%`)));
+
+      // Tag / string-array overlap
+      if (stringArrayFields?.length) {
+        const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
+        stringArrayFields.forEach(field => {
+          if (castStringArraysToVarchar) {
+            conditions.push(eb(field, '&&', sql`CAST(ARRAY[${preparedTerm}] AS varchar[])`));
+          } else {
+            conditions.push(eb(field, '&&', sql`ARRAY[${preparedTerm}]::varchar[]`));
+          }
+        });
+      }
+
+      // Exact match on structured data columns (JSON paths, references): single token only,
+      // so "foo bar" stays a text search and does not hit dataFields.
+      if (
+        dataFields?.length &&
+        ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
+          (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+      ) {
+        dataFields.forEach(field => conditions.push(eb(field, '=', toString(parsedTerm.term))));
+      }
+
+      // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
+      if (parsedTerm.type === 'number') {
+        if (!parsedTerm.isFloat && idFields?.length) {
+          idFields.forEach(field => conditions.push(eb(field, '=', parsedTerm.term)));
+        }
+        if (amountFields?.length) {
+          amountFields.forEach(field => conditions.push(eb(field, '=', floatAmountToCents(parsedTerm.term as number))));
+        }
+      }
+
+      // Same as buildSearchConditions returning []: skip search when no field applies.
+      if (!conditions.length) {
+        return eb.val(true);
+      }
+
+      return or(conditions);
+    });
   };
 
 /**

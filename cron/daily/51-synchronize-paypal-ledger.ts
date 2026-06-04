@@ -44,9 +44,10 @@ const WATCHED_EVENT_TYPES = [
   'T0006',
 ];
 
-// Refund event types to detect missing refunds directly from the transaction list
+// Refund/reversal event types to detect missing refunds directly from the transaction list
 const REFUND_EVENT_TYPES = [
-  'T1107', // Refund Payment
+  'T1107', // Merchant-initiated payment refund
+  'T1106', // PayPal-initiated payment reversal
 ];
 
 // Ignore some hosts, usually because they haven't enabled transactions search API yet
@@ -250,20 +251,24 @@ const handleCheckoutTransaction = async (
   }
 };
 
+type MissingPaypalRefund = {
+  dbTransaction: Transaction;
+  eventCode: string;
+  paypalPayload: Record<string, unknown>;
+};
+
 /**
- * From a full list of PayPal transactions for the period, find refund events (T1107) whose
- * corresponding contribution is recorded in the database but has no refund entry yet.
+ * From a full list of PayPal transactions for the period, find refund/reversal events (T1107/T1106)
+ * whose corresponding contribution is recorded in the database but has no refund entry yet.
  *
- * Each T1107 transaction carries the original capture ID in `paypal_reference_id` (type TXN) and
- * its own `transaction_id` is the refund ID — so we never need to call `payments/captures/` to
- * discover whether a capture was refunded or to look up the refund ID.
- *
- * Returns pairs of [paypalRefundDetails, dbTransaction] for each match found.
+ * Both T1107 (merchant refund) and T1106 (PayPal-initiated reversal) carry the original capture ID
+ * in `paypal_reference_id` (type TXN), and both use `transaction_id` as the refund/reversal ID
+ * queryable via `payments/refunds/{id}`. PayPal creates a Refund resource for both cases.
  */
 const getMissingRefundTransactions = async (
   transactions: PaypalTransactionSearchResult['transaction_details'],
   host: Collective,
-): Promise<Array<[Record<string, unknown>, Transaction]>> => {
+): Promise<MissingPaypalRefund[]> => {
   // Keep only refund events that reference an original capture via a TXN reference
   const refundTransactions = transactions.filter(
     t =>
@@ -319,21 +324,26 @@ const getMissingRefundTransactions = async (
     },
   });
 
-  const result: Array<[Record<string, unknown>, Transaction]> = [];
+  const result: MissingPaypalRefund[] = [];
   for (const dbTransaction of dbTransactions) {
     const captureId = (dbTransaction.data as { paypalCaptureId?: string }).paypalCaptureId;
-    const refundId = refundByOriginalCaptureId[captureId].transaction_info.transaction_id;
+    const paypalEvent = refundByOriginalCaptureId[captureId];
+    const eventCode = paypalEvent.transaction_info.transaction_event_code;
+    // For both T1107 (merchant refund) and T1106 (PayPal reversal), transaction_id is the refund ID.
+    const refundId = paypalEvent.transaction_info.transaction_id;
 
-    let refundDetails: Record<string, unknown>;
+    let paypalPayload: Record<string, unknown>;
     try {
-      refundDetails = await paypalRequestV2(`payments/refunds/${refundId}`, host, 'GET');
+      paypalPayload = await paypalRequestV2(`payments/refunds/${refundId}`, host, 'GET');
     } catch (e) {
       logger.error(`Error fetching refund ${refundId} for capture ${captureId}: ${e.message}`);
-      reportErrorToSentry(e, { extra: { transactionId: dbTransaction.id, captureId, refundId, hostSlug: host.slug } });
+      reportErrorToSentry(e, {
+        extra: { transactionId: dbTransaction.id, captureId, refundId, hostSlug: host.slug, eventCode },
+      });
       continue;
     }
 
-    result.push([refundDetails, dbTransaction]);
+    result.push({ dbTransaction, eventCode, paypalPayload });
   }
 
   return result;
@@ -457,18 +467,19 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         }
       }
 
-      // Find out which transactions are refunded on PayPal but still marked as paid in the database.
-      // We pass the full unfiltered list so that T1107 refund events (excluded from filteredTransactions)
+      // Find out which transactions are refunded/reversed on PayPal but still marked as paid in the database.
+      // We pass the full unfiltered list so that T1107/T1106 events (excluded from filteredTransactions)
       // are visible to the function.
       const paypalRefundedTransactions = await getMissingRefundTransactions(transactions, host);
-      for (const [paypalTransaction, transaction] of paypalRefundedTransactions) {
+      for (const { dbTransaction: transaction, eventCode, paypalPayload } of paypalRefundedTransactions) {
+        const isReversal = eventCode === 'T1106';
         const refundedPaypalFee = floatAmountToCents(
-          parseFloat(get(paypalTransaction, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string),
+          parseFloat(get(paypalPayload, 'seller_payable_breakdown.paypal_fee.value', '0.00') as string),
         );
 
-        // Throw on partial refunds so they are investigated manually
+        // Flag partial refunds/reversals for manual investigation
         const totalRefundedCents = floatAmountToCents(
-          parseFloat(get(paypalTransaction, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string),
+          parseFloat(get(paypalPayload, 'seller_payable_breakdown.total_refunded_amount.value', '0') as string),
         );
         const originalProcessorFee = Math.abs(
           transaction.paymentProcessorFeeInHostCurrency ||
@@ -477,7 +488,7 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
         );
         const expectedMinRefund = transaction.amountInHostCurrency - Math.abs(originalProcessorFee);
         if (totalRefundedCents < expectedMinRefund) {
-          reportMessageToSentry('PayPal partial refund detected', {
+          reportMessageToSentry(`PayPal partial ${isReversal ? 'reversal' : 'refund'} detected`, {
             extra: {
               transactionId: transaction.id,
               expectedMinRefund,
@@ -489,13 +500,13 @@ const processHost = async (host, periodStart: moment.Moment, periodEnd: moment.M
           continue;
         }
 
-        const msg = `Record missing refund for PayPal capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId} (transaction #${transaction.id})`;
+        const msg = `Record missing ${isReversal ? 'reversal' : 'refund'} for PayPal capture ${(transaction.data as { paypalCaptureId?: string }).paypalCaptureId} (transaction #${transaction.id})`;
         logger.info(DRY_RUN ? `DRY RUN: ${msg}` : msg);
         if (!DRY_RUN) {
           await createRefundTransaction(
             transaction,
             refundedPaypalFee,
-            { paypalResponse: paypalTransaction, isRefundedFromPayPal: true },
+            { paypalResponse: paypalPayload, isRefundedFromPayPal: true },
             null,
           );
         }

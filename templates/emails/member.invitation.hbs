@@ -12,7 +12,7 @@ Subject: Invitation to join {{{collective.name}}} on Open Collective
   {{#if skipDefaultAdmin}}
     You were just invited to the role of {{role}} of {{> linkCollective collective=collective}} on Open Collective.
   {{else}}
-    <a href="{{config.host.website}}/{{invitedByUser.collective.slug}}">{{invitedByUser.collective.name}}</a> just invited you to the role of {{role}} of {{> linkCollective collective=collective}} on Open Collective.
+    <a href="{{accountUrl invitedByUser.collective}}">{{invitedByUser.collective.name}}</a> just invited you to the role of {{role}} of {{> linkCollective collective=collective}} on Open Collective.
   {{/if}}
 </p>
 

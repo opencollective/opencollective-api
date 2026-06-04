@@ -15,8 +15,6 @@ import {
   isNil,
   isNumber,
   isUndefined,
-  keyBy,
-  mapValues,
   matches,
   min,
   omit,
@@ -53,6 +51,7 @@ import {
   roundCentsAmount,
 } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
+import { getExpenseUrl } from '../../lib/email-urls';
 import { formatAddress } from '../../lib/format-address';
 import { handleExpensePayoutMethodChange } from '../../lib/kyc/expenses/kyc-expenses-check';
 import logger from '../../lib/logger';
@@ -68,6 +67,7 @@ import { CreateTransfer } from '../../lib/transferwise';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency } from '../../lib/utils';
+import { canUserUseVendor } from '../../lib/vendor-visibility';
 import models, { Collective, sequelize, TransactionsImportRow, UploadedFile } from '../../models';
 import AccountingCategory, { AccountingCategoryAppliesTo } from '../../models/AccountingCategory';
 import Expense, {
@@ -79,7 +79,6 @@ import Expense, {
 } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
 import ExpenseItem from '../../models/ExpenseItem';
-import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
@@ -1866,7 +1865,7 @@ export const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fr
       }
       return pm;
     } else {
-      return models.PayoutMethod.getOrCreateFromData(
+      return models.PayoutMethod.getOrCreateFromUserData(
         expenseData.payoutMethod,
         remoteUser,
         fromCollective,
@@ -2022,14 +2021,13 @@ const checkFromCollective = async (
     );
 
     if (!skipPermissionCheck) {
-      const publicVendorPolicy = await getPolicy(host, POLICIES.EXPENSE_PUBLIC_VENDORS);
-      const isVendorVisibleByCollective = fromCollective.data?.visibleToAccountIds?.includes(collective.id);
-      assert(
-        publicVendorPolicy ||
-          remoteUser.isAdminOfCollective(fromCollective) ||
-          (isVendorVisibleByCollective && remoteUser.isAdminOfCollective(collective)),
-        new ValidationFailed('User cannot submit expenses on behalf of this vendor'),
-      );
+      const permitted = await canUserUseVendor({
+        remoteUser,
+        vendor: fromCollective,
+        collective,
+        host,
+      });
+      assert(permitted, new ValidationFailed('User cannot submit expenses on behalf of this vendor'));
     }
   } else if (!skipPermissionCheck && !remoteUser.isAdminOfCollective(fromCollective)) {
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
@@ -2785,7 +2783,7 @@ export async function sendDraftExpenseInvite(
   collective: Collective,
   draftKey: string,
 ): Promise<void> {
-  const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+  const inviteUrl = getExpenseUrl(expense, collective, { key: draftKey });
   expense
     .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, req.remoteUser, {
       ...expense.data,
@@ -4130,33 +4128,29 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
       },
     );
 
-    const [, updatedComments] = await models.Comment.update(
+    await models.Comment.update(
       { CollectiveId: destinationAccount.id },
       {
         transaction: dbTransaction,
-        returning: ['id'],
         where: { ExpenseId: expenseIds },
         hooks: false,
       },
     );
 
-    const [, updatedActivities] = await models.Activity.update(
+    await models.Activity.update(
       { CollectiveId: destinationAccount.id },
       {
         transaction: dbTransaction,
-        returning: ['id'],
         where: { ExpenseId: expenseIds },
         hooks: false,
       },
     );
 
-    let updatedRecurringExpenses = [];
     if (recurringExpenseIds.length) {
-      [, updatedRecurringExpenses] = await models.RecurringExpense.update(
+      await models.RecurringExpense.update(
         { CollectiveId: destinationAccount.id },
         {
           transaction: dbTransaction,
-          returning: ['id'],
           where: { id: recurringExpenseIds },
           hooks: false,
         },
@@ -4186,24 +4180,6 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
         transaction: dbTransaction,
         hooks: false, // Hooks are not playing well with `bulkCreate`, and we don't need to send any email here anyway
       },
-    );
-
-    // Record the migration log
-    await models.MigrationLog.create(
-      {
-        type: MigrationLogType.MOVE_EXPENSES,
-        description: `Moved ${updatedExpenses.length} expenses`,
-        CreatedByUserId: req.remoteUser.id,
-        data: {
-          expenses: updatedExpenses.map(o => o.id),
-          recurringExpenses: updatedRecurringExpenses.map(o => o.id),
-          comments: updatedComments.map(c => c.id),
-          activities: updatedActivities.map(a => a.id),
-          destinationAccount: destinationAccount.id,
-          previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
-        },
-      },
-      { transaction: dbTransaction },
     );
 
     return updatedExpenses;

@@ -6,6 +6,7 @@ import sinon from 'sinon';
 import { activities } from '../../../server/constants';
 import { Service } from '../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../server/constants/expense-status';
+import ExpenseType from '../../../server/constants/expense-type';
 import FEATURE from '../../../server/constants/feature';
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers } from '../../../server/constants/plans';
 import * as GoCardlessConnect from '../../../server/lib/gocardless/connect';
@@ -879,6 +880,28 @@ describe('server/models/PlatformSubscriptions', () => {
         CollectiveId: rePaidInThisBillingPeriod.CollectiveId,
         ExpenseId: rePaidInThisBillingPeriod.id,
         createdAt: new Date(Date.UTC(2016, 0, 30)),
+      });
+
+      await expect(PlatformSubscription.calculateUtilization(host.id, billingPeriod)).to.eventually.eql({
+        [UtilizationType.ACTIVE_COLLECTIVES]: 4,
+        [UtilizationType.EXPENSES_PAID]: 3,
+      });
+
+      // Platform settlements and platform billing expenses must not count towards billing utilization
+      await fakeExpensePaidWithActivity({
+        HostCollectiveId: host.id,
+        CollectiveId: otherCol.id,
+        createdAt: new Date(Date.UTC(2016, 0, 30)),
+        status: ExpenseStatuses.PAID,
+        type: ExpenseType.SETTLEMENT,
+      });
+
+      await fakeExpensePaidWithActivity({
+        HostCollectiveId: host.id,
+        CollectiveId: otherCol.id,
+        createdAt: new Date(Date.UTC(2016, 0, 30)),
+        status: ExpenseStatuses.PAID,
+        type: ExpenseType.PLATFORM_BILLING,
       });
 
       await expect(PlatformSubscription.calculateUtilization(host.id, billingPeriod)).to.eventually.eql({

@@ -1,6 +1,6 @@
 import '../server/env';
 
-import { ArgumentParser } from 'argparse';
+import { Command } from 'commander';
 
 import * as libdb from '../server/lib/db';
 
@@ -38,31 +38,21 @@ export async function main(args) {
 }
 
 /** Return the options passed by the user to run the script */
-/* eslint-disable camelcase */
 function parseCommandLineArguments() {
-  const parser = new ArgumentParser({
-    add_help: true,
-    description: 'Restore dump file into a Database',
-  });
-  parser.add_argument('-q', '--quiet', {
-    help: 'Silence output',
-    default: true,
-    action: 'store_const',
-    const: false,
-  });
-  parser.add_argument('-f', '--force', {
-    help: 'Overwrite existing database',
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-  parser.add_argument('file', {
-    help: 'Path for the dump file',
-    action: 'store',
-  });
-  return parser.parse_args();
+  const program = new Command()
+    .description('Restore dump file into a Database')
+    .argument('<file>', 'Path for the dump file')
+    .option('-q, --quiet', 'Silence output', false)
+    .option('-f, --force', 'Overwrite existing database', false)
+    .parse(process.argv);
+
+  const opts = program.opts();
+  return {
+    file: program.args[0],
+    quiet: opts.quiet,
+    force: opts.force,
+  };
 }
-/* eslint-enable camelcase */
 
 if (!module.parent) {
   main(parseCommandLineArguments());

@@ -1,15 +1,12 @@
 import { expect } from 'chai';
 import config from 'config';
 import { repeat, uniq } from 'lodash';
-import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
 import FEATURE from '../../../server/constants/feature';
 import plans from '../../../server/constants/plans';
-import PlatformConstants from '../../../server/constants/platform';
 import POLICIES from '../../../server/constants/policies';
-import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
 import * as ImagesLib from '../../../server/lib/images';
@@ -1553,144 +1550,6 @@ describe('server/models/Collective', () => {
       const fx = await getFxRate('EUR', 'USD');
       const totalAddedFunds = await collective.getTotalTransferwisePayouts();
       expect(totalAddedFunds).to.equals(100000 + 50000 * fx);
-    });
-  });
-
-  describe('getHostMetrics()', () => {
-    const lastMonth = moment.utc().subtract(1, 'month');
-
-    after(async () => {
-      await utils.resetTestDB();
-    });
-
-    let gbpHost, socialCollective, metrics;
-    before(async () => {
-      await utils.resetTestDB();
-      const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
-      const opencollective = await fakeHost({
-        id: PlatformConstants.PlatformCollectiveId,
-        slug: randStr('platform-'),
-        CreatedByUserId: user.id,
-      });
-      // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
-      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
-      await fakePayoutMethod({
-        id: 2955,
-        CollectiveId: opencollective.id,
-        type: 'BANK_ACCOUNT',
-      });
-
-      gbpHost = await fakeHost({ currency: 'GBP' });
-
-      const stripePaymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
-
-      socialCollective = await fakeCollective({ HostCollectiveId: gbpHost.id });
-      const transactionProps = {
-        amount: 100,
-        type: 'CREDIT',
-        CollectiveId: socialCollective.id,
-        currency: 'GBP',
-        hostCurrency: 'GBP',
-        HostCollectiveId: gbpHost.id,
-        createdAt: lastMonth,
-        CreatedByUserId: user.id,
-      };
-      // Create Platform Fees
-      await fakeTransaction({
-        ...transactionProps,
-        amount: 3000,
-        platformFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: -600,
-        netAmountInCollectiveCurrency: 3000 - 600,
-      });
-      await fakeTransaction({
-        ...transactionProps,
-        amount: 5000,
-        platformFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: -1000,
-        PaymentMethodId: stripePaymentMethod.id,
-        netAmountInCollectiveCurrency: 5000 - 1000,
-      });
-      // Add OWED Platform Tips with Debt
-      const t1 = await fakeTransaction(transactionProps);
-      await fakeTransaction({
-        type: 'CREDIT',
-        FromCollectiveId: gbpHost.id,
-        CollectiveId: opencollective.id,
-        HostCollectiveId: opencollective.id,
-        amount: 100,
-        currency: 'USD',
-        data: { hostToPlatformFxRate: 1.23 },
-        TransactionGroup: t1.TransactionGroup,
-        kind: TransactionKind.PLATFORM_TIP,
-        createdAt: lastMonth,
-        CreatedByUserId: user.id,
-      });
-      await fakeTransaction(
-        {
-          type: 'CREDIT',
-          FromCollectiveId: opencollective.id,
-          CollectiveId: gbpHost.id,
-          HostCollectiveId: gbpHost.id,
-          amount: 81, // 100 / 1.23
-          currency: 'GBP',
-          amountInHostCurrency: 81, // 100 / 1.23
-          hostCurrency: 'GBP',
-          TransactionGroup: t1.TransactionGroup,
-          kind: TransactionKind.PLATFORM_TIP_DEBT,
-          createdAt: lastMonth,
-          CreatedByUserId: user.id,
-        },
-        { settlementStatus: 'OWED' },
-      );
-      // Add Collected Platform Tip without Debt
-      const t2 = await fakeTransaction(transactionProps);
-      await fakeTransaction({
-        type: 'CREDIT',
-        CollectiveId: opencollective.id,
-        HostCollectiveId: opencollective.id,
-        amount: 300,
-        currency: 'USD',
-        data: { hostToPlatformFxRate: 1.2 },
-        TransactionGroup: t2.TransactionGroup,
-        kind: TransactionKind.PLATFORM_TIP,
-        createdAt: lastMonth,
-        CreatedByUserId: user.id,
-        PaymentMethodId: stripePaymentMethod.id,
-      });
-      // Different Currency Transaction
-      const otherCollective = await fakeCollective({ currency: 'USD', HostCollectiveId: gbpHost.id });
-      await fakeTransaction({
-        type: 'CREDIT',
-        CollectiveId: otherCollective.id,
-        amount: 1000,
-        currency: 'USD',
-        amountInHostCurrency: 800,
-        hostCurrency: 'GBP',
-        HostCollectiveId: gbpHost.id,
-        hostCurrencyFxRate: 0.8,
-        createdAt: lastMonth,
-        CreatedByUserId: user.id,
-      });
-
-      metrics = await gbpHost.getHostMetrics(lastMonth);
-    });
-
-    it('returns acurate metrics for requested month', async () => {
-      const expectedTotalMoneyManaged = 3000 - 600 + 5000 - 1000 + 100 + 100 + 81 + 800;
-
-      expect(metrics).to.deep.equal({
-        hostFees: 1600,
-        platformFees: 0,
-        pendingPlatformFees: 0,
-        platformTips: 331,
-        pendingPlatformTips: 81,
-        hostFeeShare: 0,
-        pendingHostFeeShare: 0,
-        hostFeeSharePercent: 0,
-        settledHostFeeShare: 0,
-        totalMoneyManaged: expectedTotalMoneyManaged,
-      });
     });
   });
 

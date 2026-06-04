@@ -409,9 +409,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
       expect(firstEmailBody).to.match(
         /some of the expenses you submitted were reviewed by the fiscal host(.+)Test Host(.+)and in the process/,
       );
-      expect(firstEmailBody).to.contain(
-        `http://localhost:3000/${collective.slug}/expenses/${expensesWithWrongPicks[0].id}`,
-      );
+      expect(firstEmailBody).to.contain(`http://localhost:3000/permalink/${expensesWithWrongPicks[0].publicId}`);
       expect(firstEmailBody).to.contain('Expense with a different category picked by the submitter');
       expect(firstEmailBody).to.match(/you selected:(.+)GENERIC1 - Generic Category 1/);
       expect(firstEmailBody).to.match(/category selected by the fiscal host:(.+)GENERIC2 - Generic Category 2/);
@@ -427,9 +425,7 @@ describe('cron/weekly/send-accounting-category-educational-emails', () => {
       expect(secondEmailBody).to.contain(`Hi ${collectiveAdmin.collective.name}`);
       expect(secondEmailBody).to.match(/an expense you approved on behalf of your collective(.+)Test Collective(.+)/);
       expect(secondEmailBody).to.match(/was reviewed by\s+your fiscal host(.+)Test Host(.+)and in the process/);
-      expect(secondEmailBody).to.contain(
-        `http://localhost:3000/${collective.slug}/expenses/${expensesWithWrongPicks[2].id}`,
-      );
+      expect(secondEmailBody).to.contain(`http://localhost:3000/permalink/${expensesWithWrongPicks[2].publicId}`);
       expect(secondEmailBody).to.contain('Expense with a different category picked by the collective admin');
       expect(secondEmailBody).to.match(/you selected:(.+)GENERIC1 - Generic Category 1/);
       expect(secondEmailBody).to.match(/category selected by the fiscal host:(.+)GENERIC2 - Generic Category 2/);

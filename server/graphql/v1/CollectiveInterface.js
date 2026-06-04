@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import {
   GraphQLBoolean,
   GraphQLEnumType,
@@ -10,7 +12,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
-import { get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash';
+import { clone, get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash';
 import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
@@ -18,8 +20,8 @@ import SqlString from 'sequelize/lib/sql-string';
 import { CollectiveType as CollectiveTypeEnum } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import PlatformConstants from '../../constants/platform';
 import MemberRoles, { MemberRolesForPrivateAccounts } from '../../constants/roles';
+import { TransactionTypes } from '../../constants/transactions';
 import { hasFeature } from '../../lib/allowed-features';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
@@ -27,11 +29,11 @@ import logger from '../../lib/logger';
 import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
-import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import Tier, { AllTierTypes } from '../../models/Tier';
 import { hostResolver } from '../common/collective';
 import { GraphQLCollectiveFeatures } from '../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { BadRequest } from '../errors';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { GraphQLPolicies } from '../v2/object/Policies';
 import { GraphQLSocialLink } from '../v2/object/SocialLink';
@@ -53,7 +55,6 @@ import {
   PaginatedPaymentMethodsType,
   PaymentMethodBatchInfo,
   PaymentMethodType,
-  PayoutMethodType,
   TierType,
   UserType,
 } from './types';
@@ -620,10 +621,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
             description: 'Defines if the host "collective" payment method should be returned',
           },
         },
-      },
-      payoutMethods: {
-        type: new GraphQLList(PayoutMethodType),
-        description: 'The list of payout methods that this collective can use to get paid',
       },
       giftCardsBatches: {
         type: new GraphQLList(PaymentMethodBatchInfo),
@@ -1430,7 +1427,15 @@ const CollectiveFields = () => {
 
         return collective.getIncomingOrders({
           where,
-          order: [['createdAt', 'DESC']],
+          // We never return private accounts related stuff on GraphQL V1
+          include: [
+            { association: 'fromCollective', where: { isPrivate: false }, required: true, attributes: [] },
+            { association: 'collective', where: { isPrivate: false }, required: true, attributes: [] },
+          ],
+          order: [
+            ['createdAt', 'DESC'],
+            ['id', 'DESC'],
+          ],
         });
       },
     },
@@ -1442,16 +1447,22 @@ const CollectiveFields = () => {
       resolve(collective, args) {
         const query = {
           where: {}, // TODO: might need a filter of 'processedAt'
-          order: [['createdAt', 'DESC']],
+          // We never return private accounts related stuff on GraphQL V1
+          include: [
+            { association: 'fromCollective', where: { isPrivate: false }, required: true, attributes: [] },
+            { association: 'collective', where: { isPrivate: false }, required: true, attributes: [] },
+          ],
+          order: [
+            ['createdAt', 'DESC'],
+            ['id', 'DESC'],
+          ],
         };
 
         if (args.subscriptionsOnly) {
-          query.include = [
-            {
-              model: models.Subscription,
-              required: true,
-            },
-          ];
+          query.include.push({
+            model: models.Subscription,
+            required: true,
+          });
         }
         return collective.getOutgoingOrders(query);
       },
@@ -1463,16 +1474,35 @@ const CollectiveFields = () => {
           type: GraphQLString,
           description: 'type of transaction (DEBIT/CREDIT)',
         },
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
+        limit: { type: GraphQLInt, defaultValue: 100 },
+        offset: { type: GraphQLInt, defaultValue: 0 },
         includeExpenseTransactions: {
           type: GraphQLBoolean,
           default: true,
           description: 'If false, only the transactions not linked to an expense (orders/refunds) will be returned',
         },
       },
-      resolve(collective, args) {
-        return collective.getTransactions({ ...args, order: [['id', 'DESC']] });
+      resolve(collective, _args) {
+        const args = clone(_args);
+
+        // Apply defaults in case user pass `null` to the fields
+        if (isNil(args.limit) || args.limit <= 0) {
+          args.limit = 100;
+        }
+        if (isNil(args.offset) || args.offset < 0) {
+          args.offset = 0;
+        }
+
+        assert(args.limit <= 10_000, new BadRequest('Limit must be less than or equal to 10,000'));
+        if (args.type && !Object.values(TransactionTypes).includes(args.type)) {
+          throw new BadRequest('Invalid transaction type');
+        }
+
+        return collective.getTransactions({
+          ...args,
+          order: [['id', 'DESC']],
+          excludePrivateAccounts: true,
+        });
       },
     },
     expenses: {
@@ -1486,7 +1516,14 @@ const CollectiveFields = () => {
         status: { type: GraphQLString },
       },
       async resolve(collective, args) {
-        const query = { where: {} };
+        const query = {
+          where: {},
+          include: [
+            { association: 'collective', where: { isPrivate: false }, required: true, attributes: [] },
+            { association: 'fromCollective', where: { isPrivate: false }, required: true, attributes: [] },
+            // Not checking host since host can be null. Not a big deal since we're enfocing hosted/children to be private if the host is private.
+          ],
+        };
         if (args.status) {
           query.where.status = args.status;
         }
@@ -1595,7 +1632,7 @@ const CollectiveFields = () => {
         },
       },
       resolve(collective, args) {
-        const query = { where: { data: { isSuspended: { [Op.not]: true } } } };
+        const query = { where: { isPrivate: false, data: { isSuspended: { [Op.not]: true } } } };
 
         if (args.limit) {
           query.limit = args.limit;
@@ -1639,7 +1676,7 @@ const CollectiveFields = () => {
       resolve(collective, args) {
         return collective.getProjects({
           ...args,
-          where: { data: { isSuspended: { [Op.not]: true } } },
+          where: { isPrivate: false, data: { isSuspended: { [Op.not]: true } } },
         });
       },
     },
@@ -1710,24 +1747,6 @@ const CollectiveFields = () => {
 
         const now = new Date();
         return paymentMethods.filter(pm => !pm.expiryDate || pm.expiryDate > now);
-      },
-    },
-    payoutMethods: {
-      type: new GraphQLList(PayoutMethodType),
-      description: 'The list of payout methods that this collective can use to get paid',
-      async resolve(collective, _, req) {
-        if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-          return null;
-        } else {
-          const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
-          return payoutMethods.filter(pm => {
-            if (pm.type === PayoutMethodTypes.STRIPE && collective.id !== PlatformConstants.OfitechCollectiveId) {
-              return false;
-            }
-
-            return true;
-          });
-        }
       },
     },
     giftCardsBatches: {
@@ -1865,7 +1884,7 @@ const CollectiveFields = () => {
         if (!collective.data?.duplicatedToCollectiveIds) {
           return { nodes: [], totalCount: 0, limit, offset };
         } else {
-          const where = { id: collective.data.duplicatedToCollectiveIds };
+          const where = { id: collective.data.duplicatedToCollectiveIds, isPrivate: false };
           return {
             id: `duplicatedCollectives-${collective.id}-${limit}-${offset}`,
             collectives: () => models.Collective.findAll({ where, limit, offset }),
@@ -1970,13 +1989,13 @@ export const VendorCollectiveType = new GraphQLObjectType({
       description:
         'The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host',
       async resolve(vendor, _, req) {
-        const visibleToAccountIds = vendor.data?.visibleToAccountIds || [];
+        const canBeUsedWithAccountIds = vendor.data?.canBeUsedWithAccountIds || [];
 
-        if (visibleToAccountIds.length === 0) {
+        if (canBeUsedWithAccountIds.length === 0) {
           return [];
         }
 
-        return req.loaders.Collective.byId.loadMany(visibleToAccountIds);
+        return req.loaders.Collective.byId.loadMany(canBeUsedWithAccountIds);
       },
     },
   }),

@@ -80,6 +80,7 @@ export class OpenSearchExpensesAdapter implements OpenSearchModelAdapter {
           association: 'collective',
           required: true,
           attributes: ['isActive', 'HostCollectiveId', 'ParentCollectiveId'],
+          where: { isPrivate: false }, // Don't index private accounts for now
         },
         {
           association: 'items',

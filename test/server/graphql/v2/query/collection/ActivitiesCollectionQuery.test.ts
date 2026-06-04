@@ -2,9 +2,9 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import { times } from 'lodash';
 
-import ActivityTypes from '../../../../../server/constants/activities';
-import { fakeActivity, fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import ActivityTypes from '../../../../../../server/constants/activities';
+import { fakeActivity, fakeCollective, fakeHost, fakeUser } from '../../../../../test-helpers/fake-data';
+import { graphqlQueryV2, resetTestDB } from '../../../../../utils';
 
 const activitiesCollectionQuery = gql`
   query Activities(

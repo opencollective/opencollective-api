@@ -2,13 +2,14 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import moment from 'moment';
-import nodemailer from 'nodemailer';
 import { generateSecret, generateSync } from 'otplib';
-import { stub } from 'sinon';
+import sinon from 'sinon';
 import request from 'supertest';
 
+import ActivityTypes from '../../../server/constants/activities';
 import app from '../../../server/index';
 import * as auth from '../../../server/lib/auth';
+import emailLib, { getTemplateAttributes } from '../../../server/lib/email';
 import models from '../../../server/models';
 import { fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
@@ -24,40 +25,13 @@ const CIPHER = config.dbEncryption.cipher;
  * Tests.
  */
 describe('server/routes/users', () => {
-  let nm, expressApp;
+  let expressApp;
 
   before(async () => {
     expressApp = await app();
   });
 
   beforeEach(() => utils.resetTestDB());
-
-  // create a fake nodemailer transport
-  beforeEach(() => {
-    config.mailgun.user = 'xxxxx';
-    config.mailgun.password = 'password';
-
-    nm = nodemailer.createTransport({
-      name: 'testsend',
-      service: 'Mailgun',
-      sendMail(data, callback) {
-        callback();
-      },
-      logger: false,
-    });
-    stub(nodemailer, 'createTransport').callsFake(() => nm);
-  });
-
-  // stub the transport
-  beforeEach(() => stub(nm, 'sendMail').callsFake((object, cb) => cb(null, object)));
-
-  afterEach(() => nm.sendMail.restore());
-
-  afterEach(() => {
-    config.mailgun.user = '';
-    config.mailgun.password = '';
-    nodemailer.createTransport.restore();
-  });
 
   describe('existence', () => {
     it('returns true', done => {
@@ -286,6 +260,157 @@ describe('server/routes/users', () => {
 
       // And then the token should have a long expiration
       expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
+    });
+  });
+
+  describe('#newPasswordSigninEmail', () => {
+    const signinUrl = `/users/signin?api_key=${application.api_key}`;
+    const exchangeLoginTokenUrl = `/users/exchange-login-token?api_key=${application.api_key}`;
+    const refreshTokenUrl = `/users/refresh-token?api_key=${application.api_key}`;
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = sinon.createSandbox();
+      sandbox.stub(emailLib, 'send').resolves();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    const passwordSignin = (email, password, ip, userAgent) =>
+      request(expressApp)
+        .post(signinUrl)
+        .send({ user: { email, password } })
+        .set('X-Forwarded-For', ip)
+        .set('User-Agent', userAgent);
+
+    const sentNewPasswordSigninEmails = () =>
+      emailLib.send.getCalls().filter(call => call.args[0] === ActivityTypes.USER_NEW_PASSWORD_SIGNIN);
+
+    const renderEmailFromSendCall = call => {
+      const [template, recipient, data] = call.args;
+      const { html } = emailLib.generateEmailFromTemplate(template, recipient, data);
+      return getTemplateAttributes(html);
+    };
+
+    const setupUserWithInitialPasswordSignin = async email => {
+      const user = await fakeUser({ email });
+      await user.setPassword('testpassword123');
+      await passwordSignin(user.email, 'testpassword123', '192.168.1.1', 'Mozilla/5.0 (Known Device)');
+      emailLib.send.resetHistory();
+      return user;
+    };
+
+    it('should NOT send email on first password login', async () => {
+      const user = await fakeUser({ email: 'newuser@example.com' });
+      await user.setPassword('testpassword123');
+
+      const response = await passwordSignin(user.email, 'testpassword123', '192.168.1.1', 'Mozilla/5.0');
+
+      expect(response.statusCode).to.equal(200);
+      expect(response.body.token).to.exist;
+      expect(sentNewPasswordSigninEmails()).to.have.lengthOf(0);
+    });
+
+    it('should NOT send email when signing in with magic link', async () => {
+      const user = await setupUserWithInitialPasswordSignin('magiclink@example.com');
+      await user.reload();
+      const loginToken = user.jwt({ scope: 'login' });
+
+      const exchangeResponse = await request(expressApp)
+        .post(exchangeLoginTokenUrl)
+        .set('Authorization', `Bearer ${loginToken}`)
+        .set('X-Forwarded-For', '192.168.1.2')
+        .set('User-Agent', 'Different User Agent');
+
+      expect(exchangeResponse.statusCode).to.equal(200);
+      expect(sentNewPasswordSigninEmails()).to.have.lengthOf(0);
+    });
+
+    it('should NOT send email when signing in with password from known location/device', async () => {
+      const user = await setupUserWithInitialPasswordSignin('knowndevice@example.com');
+      const knownIp = '192.168.1.1';
+      const knownUserAgent = 'Mozilla/5.0 (Known Device)';
+
+      const response = await passwordSignin(user.email, 'testpassword123', knownIp, knownUserAgent);
+
+      expect(response.statusCode).to.equal(200);
+      expect(response.body.token).to.exist;
+      expect(sentNewPasswordSigninEmails()).to.have.lengthOf(0);
+    });
+
+    it('should send email when signing in with password from new location/device', async () => {
+      const user = await setupUserWithInitialPasswordSignin('newdevice@example.com');
+      await user.reload({ include: [{ model: models.Collective, as: 'collective' }] });
+      const newIp = '192.168.1.2';
+      const newUserAgent = 'Mozilla/5.0 (New Device)';
+
+      const response = await passwordSignin(user.email, 'testpassword123', newIp, newUserAgent);
+
+      expect(response.statusCode).to.equal(200);
+      expect(response.body.token).to.exist;
+      expect(sentNewPasswordSigninEmails()).to.have.lengthOf(1);
+
+      const sendCall = sentNewPasswordSigninEmails()[0];
+      expect(sendCall.args[0]).to.equal(ActivityTypes.USER_NEW_PASSWORD_SIGNIN);
+      expect(sendCall.args[1]).to.equal(user.email);
+
+      const emailData = sendCall.args[2];
+      expect(emailData.clientIP).to.equal(newIp);
+      expect(emailData.userAgent).to.equal(newUserAgent);
+      expect(emailData.signInTime).to.exist;
+      expect(emailData.collective.slug).to.equal(user.collective.slug);
+
+      const { subject, body } = renderEmailFromSendCall(sendCall);
+      expect(subject).to.equal('New sign-in to your Open Collective account');
+      expect(body).to.include('New sign-in detected');
+      expect(body).to.include('new sign-in to your Open Collective account using your password');
+      expect(body).to.include(newIp);
+      expect(body).to.include(newUserAgent);
+      expect(body).to.include(`/${user.collective.slug}/admin/user-security`);
+      expect(body).to.include('Review Security Settings');
+      expect(body).to.include('support@opencollective.com');
+    });
+
+    it('should NOT send email when lastLoginAt update fails', async () => {
+      const user = await setupUserWithInitialPasswordSignin('dbfail@example.com');
+      await user.reload();
+      sandbox.stub(user, 'update').rejects(new Error('Database error'));
+
+      const req = {
+        ip: '192.168.1.2',
+        header: name => (name === 'user-agent' ? 'Mozilla/5.0 (New Device)' : undefined),
+      };
+
+      try {
+        await user.generateSessionToken({
+          req,
+          createActivity: false,
+          updateLastLoginAt: true,
+          isPasswordLogin: true,
+        });
+        expect.fail('Should have thrown');
+      } catch (e) {
+        expect(e.message).to.equal('Database error');
+      }
+
+      expect(sentNewPasswordSigninEmails()).to.have.lengthOf(0);
+    });
+
+    it('should NOT send email when signing in with a dev token (like generate-jwt.ts)', async () => {
+      const user = await setupUserWithInitialPasswordSignin('devtoken@example.com');
+      const devToken = await user.generateSessionToken({ createActivity: false, updateLastLoginAt: false });
+
+      const response = await request(expressApp)
+        .post(refreshTokenUrl)
+        .set('Authorization', `Bearer ${devToken}`)
+        .set('X-Forwarded-For', '192.168.1.2')
+        .set('User-Agent', 'Mozilla/5.0 (Dev Token Sign-in)');
+
+      expect(response.statusCode).to.equal(200);
+      expect(response.body.token).to.exist;
+      expect(sentNewPasswordSigninEmails()).to.have.lengthOf(0);
     });
   });
 });
