@@ -21,7 +21,7 @@ import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } fro
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
 import { checkScope, enforceScope } from '../../../common/scope-check';
-import { Forbidden, NotFound } from '../../../errors';
+import { BadRequest, Forbidden, NotFound } from '../../../errors';
 import {
   GraphQLTransactionCollection,
   GraphQLTransactionsCollectionReturnType,
@@ -538,6 +538,9 @@ export const TransactionsCollectionResolver = async (
       assert(args.amount.gte.currency === args.amount.lte.currency, 'Amount range must have the same currency');
     }
     const currency = args.amount.gte?.currency || args.amount.lte?.currency;
+    if (!currency) {
+      throw new BadRequest('A currency must be provided when filtering transactions by amount');
+    }
     const gte = args.amount.gte && getValueInCentsFromAmountInput(args.amount.gte);
     const lte = args.amount.lte && getValueInCentsFromAmountInput(args.amount.lte);
     const operator =
