@@ -27,7 +27,7 @@ import {
   sendOrderFailedEmail,
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -223,6 +223,25 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
+  const expectedAmount = convertToStripeAmount(order.currency, order.totalAmount);
+  const expectedCurrency = order.currency.toLowerCase();
+  if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
+    const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${expectedCurrency})`;
+    logger.error(message);
+    reportMessageToSentry(message, {
+      extra: {
+        paymentIntentId: paymentIntent.id,
+        paymentIntentAmount: paymentIntent.amount,
+        paymentIntentCurrency: paymentIntent.currency,
+        paymentIntentStatus: paymentIntent.status,
+        orderId: order.id,
+        expectedAmount,
+        expectedCurrency,
+      },
+    });
+    return;
+  }
+
   // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
   const existingChargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: charge.id } } },
@@ -305,6 +324,25 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
     if (!expense) {
       logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`);
+      return [expense, false];
+    }
+
+    const expectedAmount = convertToStripeAmount(expense.currency, expense.amount);
+    const expectedCurrency = expense.currency.toLowerCase();
+    if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
+      const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expectedCurrency})`;
+      logger.error(message);
+      reportMessageToSentry(message, {
+        extra: {
+          paymentIntentId: paymentIntent.id,
+          paymentIntentAmount: paymentIntent.amount,
+          paymentIntentCurrency: paymentIntent.currency,
+          paymentIntentStatus: paymentIntent.status,
+          expenseId: expense.id,
+          expectedAmount,
+          expectedCurrency,
+        },
+      });
       return [expense, false];
     }
 
