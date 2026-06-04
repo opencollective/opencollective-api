@@ -171,3 +171,12 @@ export const enforceScope = (req: Express.Request, scope: OAuthScope): void => {
     }
   }
 };
+
+export const rejectOAuthAndPersonalTokenAuth = (
+  req: Express.Request,
+  message = 'OAuth and personal tokens cannot be used to manage tokens. Please use the web interface.',
+): void => {
+  if (req.userToken || req.personalToken) {
+    throw new Forbidden(message);
+  }
+};

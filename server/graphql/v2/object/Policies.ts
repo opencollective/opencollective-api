@@ -9,6 +9,7 @@ import { getPolicy } from '../../../lib/policies';
 import { Collective } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { GraphQLPolicyApplication } from '../enum/PolicyApplication';
+import { GraphQLUseVendorPolicy } from '../enum/UseVendorPolicy';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { GraphQLAmount } from './Amount';
@@ -136,12 +137,11 @@ export const GraphQLPolicies = new GraphQLObjectType({
         return getPolicy(account, POLICIES.EXPENSE_CATEGORIZATION);
       },
     },
-    [POLICIES.EXPENSE_PUBLIC_VENDORS]: {
-      type: GraphQLBoolean,
-      async resolve(account, _, req) {
-        if (req.remoteUser?.isAdminOfCollectiveOrHost(account) && checkScope(req, 'account')) {
-          return await getPolicy(account, POLICIES.EXPENSE_PUBLIC_VENDORS);
-        }
+    [POLICIES.USE_VENDOR_POLICY]: {
+      type: GraphQLUseVendorPolicy,
+      description: 'Default rule for who can attribute financial activities to vendors under this host.',
+      async resolve(account) {
+        return getPolicy(account, POLICIES.USE_VENDOR_POLICY);
       },
     },
     [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: {

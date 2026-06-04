@@ -1108,7 +1108,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
     providerName = manualPaymentProvider.name || null;
     providerAccount =
       manualPaymentProvider.type === ManualPaymentProviderTypes.BANK_TRANSFER
-        ? formatAccountDetails(manualPaymentProvider.data, { asSafeHTML: true })
+        ? formatAccountDetails(manualPaymentProvider.data?.accountDetails, { asSafeHTML: true })
         : '';
   }
 

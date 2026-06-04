@@ -13,6 +13,8 @@ import {
 } from '../../../../test-helpers/fake-data';
 import { expectNoErrorsFromResult, graphqlQueryV2, resetTestDB, traverse } from '../../../../utils';
 
+const SECRET_TAX_ID = 'FRXX999999997';
+
 describe('server/graphql/v2/query/ExpenseQuery', () => {
   before(resetTestDB);
 
@@ -48,6 +50,9 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
             type
             data
           }
+          taxes {
+            idNumber
+          }
           permissions {
             editAccountingCategory {
               allowed
@@ -76,6 +81,9 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         FromCollectiveId: ownerUser.collective.id,
         CollectiveId: collective.id,
         PayoutMethodId: payoutMethod.id,
+        data: {
+          taxes: [{ type: 'VAT', rate: 0.2, idNumber: SECRET_TAX_ID }],
+        },
       });
       draftExpense = await fakeExpense({
         FromCollectiveId: ownerUser.collective.id,
@@ -188,6 +196,23 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expectFilesToNotBeNull(resultAsHostAccountant.data);
       expectFilesToNotBeNull(resultAsOwner.data);
       expectFilesToNotBeNull(resultAsHostAdmin.data);
+    });
+
+    it('can only see taxes idNumber if allowed (same as invoice info)', async () => {
+      const queryParams = { id: expense.id };
+      const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
+      const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
+      const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+
+      expect(resultUnauthenticated.data.expense.taxes[0].idNumber).to.be.null;
+      expect(resultAsRandomUser.data.expense.taxes[0].idNumber).to.be.null;
+      expect(resultAsOwner.data.expense.taxes[0].idNumber).to.equal(SECRET_TAX_ID);
+      expect(resultAsCollectiveAdmin.data.expense.taxes[0].idNumber).to.equal(SECRET_TAX_ID);
+      expect(resultAsHostAdmin.data.expense.taxes[0].idNumber).to.equal(SECRET_TAX_ID);
+      expect(resultAsHostAccountant.data.expense.taxes[0].idNumber).to.equal(SECRET_TAX_ID);
     });
 
     it('can only see payee legalName if self or host admin', async () => {

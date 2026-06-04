@@ -40,10 +40,10 @@ export const GraphQLHostMetricsTimeSeries = new GraphQLObjectType({
     platformTips: {
       type: new GraphQLNonNull(GraphQLTimeSeriesAmount),
       description: 'History of the collected platform tips',
-      resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
-        const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, groupTimeUnit: timeUnit };
-        const results = await HostMetricsLib.getPlatformTips(host, timeSeriesParams);
-        return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountNode(results) };
+      deprecationReason:
+        '2026-05-15: Unused by the frontend; the platform-tips ledger is now opt-in per host (NEW_PLATFORM_TIPS_LEDGER) and this aggregated series is no longer maintained. Always returns an empty series.',
+      resolve: async ({ dateFrom, dateTo, timeUnit }) => {
+        return { dateFrom, dateTo, timeUnit, nodes: [] };
       },
     },
     hostFees: {

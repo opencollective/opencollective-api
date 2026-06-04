@@ -8,10 +8,10 @@ Subject: New expense on {{{collective.name}}}: {{currency expense.amount currenc
     <a href="{{permalink expense}}">{{expense.description}}</a>
   </div>
   <div>
-    Payee: <a href="{{config.host.website}}/{{fromCollective.slug}}"> {{fromCollective.name}} </a>
+    Payee: <a href="{{accountUrl fromCollective}}"> {{fromCollective.name}} </a>
   </div>
   <div>
-    Submitted by: <a href="{{config.host.website}}/{{user.slug}}"> {{user.name}} </a>
+    Submitted by: <a href="{{accountUrl user}}"> {{user.name}} </a>
   </div>
   {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}

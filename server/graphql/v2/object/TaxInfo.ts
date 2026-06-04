@@ -1,4 +1,4 @@
-import { GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { GraphQLTaxType } from '../enum/TaxType';
 
@@ -25,7 +25,11 @@ export const GraphQLTaxInfo = new GraphQLObjectType({
     },
     idNumber: {
       type: GraphQLString,
-      description: 'Tax ID number of the 3rd party receiving/paying the tax',
+      description: 'Tax ID number of the 3rd party receiving/paying the tax. Will be null if not allowed to see it.',
+    },
+    hasTaxIdNumber: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the tax ID number is available. Contrary to `idNumber`, this field is public.',
     },
   }),
 });

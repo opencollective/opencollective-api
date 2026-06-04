@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLS
 
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
-import { checkScope } from '../../common/scope-check';
+import { checkScope, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { GraphQLApplicationType } from '../enum';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 import { GraphQLAccount } from '../interface/Account';
@@ -60,6 +60,7 @@ export const GraphQLApplication = new GraphQLObjectType({
         '2022-06-16: This Application object will only be used for OAuth tokens. Use PersonalToken for user tokens',
       resolve(application, args, req) {
         if (req.remoteUser?.isAdmin(application.CollectiveId)) {
+          rejectOAuthAndPersonalTokenAuth(req);
           return application.apiKey;
         }
       },
@@ -74,6 +75,7 @@ export const GraphQLApplication = new GraphQLObjectType({
       type: GraphQLString,
       resolve(application, args, req) {
         if (req.remoteUser?.isAdmin(application.CollectiveId)) {
+          rejectOAuthAndPersonalTokenAuth(req);
           return application.clientSecret;
         }
       },
@@ -96,6 +98,7 @@ export const GraphQLApplication = new GraphQLObjectType({
         if (!req.remoteUser || !checkScope(req, 'account')) {
           return null;
         }
+        rejectOAuthAndPersonalTokenAuth(req);
         const userToken = await models.UserToken.findOne({
           where: { ApplicationId: application.id, UserId: req.remoteUser.id },
         });

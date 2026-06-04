@@ -22,7 +22,12 @@ import { KYCVerification } from '../../../models/KYCVerification';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseKYC,
+  checkScope,
+  rejectOAuthAndPersonalTokenAuth,
+} from '../../common/scope-check';
 import { BadRequest, ContentNotReady, Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLConversationCollection } from '../collection/ConversationCollection';
@@ -227,17 +232,23 @@ const accountFieldsDefinition = () => ({
     type: GraphQLAccount,
     description:
       'For an incognito account, returns the main profile. Only visible to users with the right permissions. Scope: "account".',
-    resolve: async (account: Collective, _, req) => {
-      if (!account.isIncognito || !checkScope(req, 'account') || !checkScope(req, 'incognito')) {
+    resolve: async (account: Collective, _, req: express.Request) => {
+      const isIncognito = account.isIncognito;
+      if (!isIncognito) {
+        return null;
+      }
+      if (!checkScope(req, 'account') || !checkScope(req, 'incognito')) {
         return null;
       }
 
+      const mainProfile = isIncognito && (await req.loaders.Collective.mainProfileFromIncognito.load(account.id));
       if (
-        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id) ||
-        canSeeIncognitoProfile(req, account)
+        canSeeIncognitoProfile(req, account) ||
+        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
       ) {
-        return req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        return mainProfile;
       }
+
       return null;
     },
   },
@@ -558,6 +569,7 @@ const accountFieldsDefinition = () => ({
       if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
+      rejectOAuthAndPersonalTokenAuth(req);
 
       const { limit, offset } = args;
       const where = { CollectiveId: collective.id, type: 'oAuth' };

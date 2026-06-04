@@ -27,7 +27,7 @@ export const sanitizeActivityData = async (req: Express.Request, activity): Prom
     if (activity.ExpenseId) {
       const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
       if (expense && (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense))) {
-        toPick.push('message', 'reference', 'estimatedDelivery');
+        toPick.push('message', 'reference', 'estimatedDelivery', 'payoutResponse.payout_batch_id');
       }
     }
   } else if (activity.type === ActivityTypes.COLLECTIVE_EXPENSE_MOVED) {

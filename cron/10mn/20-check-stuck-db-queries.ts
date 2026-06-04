@@ -81,7 +81,7 @@ async function run() {
     AND query != E'SHOW extwlist.extensions\n;'
     AND query != 'SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL READ COMMITTED'
     AND query NOT LIKE 'START_REPLICATION %'
-    AND query NOT LIKE 'autovacuum: VACUUM ANALYZE %'
+    AND query NOT LIKE 'autovacuum: VACUUM %'
     --
     GROUP BY usename, application_name, query
     ORDER BY max(now() - query_start) DESC

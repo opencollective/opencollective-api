@@ -801,20 +801,22 @@ describe('server/lib/payments', () => {
         instructions:
           'Please make a bank transfer as follows:\n\n<code>\n    Amount: {amount}\n    Reference/Communication: {OrderId}\n    {account}\n</code>\n\nPlease note that it will take a few days to process your payment.',
         data: {
-          type: 'sort_code',
-          accountHolderName: 'John Malkovich',
-          currency: 'GBP',
-          IBAN: 'DE893219828398123',
-          details: {
+          accountDetails: {
+            type: 'sort_code',
+            accountHolderName: 'John Malkovich',
+            currency: 'GBP',
             IBAN: 'DE893219828398123',
-            sortCode: '40-30-20',
-            legalType: 'PRIVATE',
-            accountNumber: '12345678',
-            address: {
-              country: 'US',
-              state: 'NY',
-              city: 'New York',
-              zip: '10001',
+            details: {
+              IBAN: 'DE893219828398123',
+              sortCode: '40-30-20',
+              legalType: 'PRIVATE',
+              accountNumber: '12345678',
+              address: {
+                country: 'US',
+                state: 'NY',
+                city: 'New York',
+                zip: '10001',
+              },
             },
           },
         },

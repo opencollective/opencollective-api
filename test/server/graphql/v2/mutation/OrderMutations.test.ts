@@ -193,14 +193,25 @@ const updateOrderMutation = gql`
   mutation UpdateOrder(
     $order: OrderReferenceInput!
     $amount: AmountInput
+    $platformTipAmount: AmountInput
     $tier: TierReferenceInput
     $paymentMethod: PaymentMethodReferenceInput
   ) {
-    updateOrder(order: $order, amount: $amount, tier: $tier, paymentMethod: $paymentMethod) {
+    updateOrder(
+      order: $order
+      amount: $amount
+      platformTipAmount: $platformTipAmount
+      tier: $tier
+      paymentMethod: $paymentMethod
+    ) {
       id
       status
       amount {
         value
+        currency
+      }
+      platformTipAmount {
+        valueInCents
         currency
       }
       tier {
@@ -1027,7 +1038,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             id: 'VAT',
             taxerCountry: 'FR',
             taxedCountry: 'FR',
-            taxIDNumberFrom: 'FRXX999999999',
+            idNumberFrom: 'FRXX999999999',
             percentage: 20,
           });
 
@@ -1148,7 +1159,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             id: 'VAT',
             taxerCountry: 'FR',
             taxedCountry: 'FR',
-            taxIDNumberFrom: 'FRXX999999999',
+            idNumberFrom: 'FRXX999999999',
             percentage: 20,
           });
         });
@@ -3257,6 +3268,162 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(orderWithTaxes.platformTipAmount).to.eq(100);
         expect(orderWithTaxes.taxAmount).to.eq(333); // 20% VAT on $2000 (tip is not included in the tax calculation)
         expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
+      });
+
+      it('updates the platform tip amount without changing the contribution amount', async () => {
+        const orderWithPlatformTip = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1100,
+            platformTipAmount: 100,
+            currency: 'USD',
+            subscription: {
+              amount: 1100,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithPlatformTip.id, 'order') },
+            platformTipAmount: { valueInCents: 250, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.updateOrder.amount.value).to.eq(10);
+        expect(result.data.updateOrder.platformTipAmount.valueInCents).to.eq(250);
+
+        await orderWithPlatformTip.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithPlatformTip.totalAmount).to.eq(1250);
+        expect(orderWithPlatformTip.platformTipAmount).to.eq(250);
+        expect(orderWithPlatformTip.Subscription.amount).to.eq(1250);
+      });
+
+      it('preserves tax calculation when updating the platform tip amount', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1300,
+            taxAmount: 200,
+            platformTipAmount: 100,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+            subscription: {
+              amount: 1300,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            platformTipAmount: { valueInCents: 300, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithTaxes.totalAmount).to.eq(1500);
+        expect(orderWithTaxes.platformTipAmount).to.eq(300);
+        expect(orderWithTaxes.taxAmount).to.eq(200);
+        expect(orderWithTaxes.Subscription.amount).to.eq(1500);
+      });
+
+      it('recomputes tax when changing the amount and platform tip together', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1300,
+            taxAmount: 200,
+            platformTipAmount: 100,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+            subscription: {
+              amount: 1300,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            amount: { valueInCents: 900, currency: 'USD' },
+            platformTipAmount: { valueInCents: 400, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithTaxes.totalAmount).to.eq(1300);
+        expect(orderWithTaxes.platformTipAmount).to.eq(400);
+        expect(orderWithTaxes.taxAmount).to.eq(150); // 20% VAT back-derived from $9.00 charge (gross $7.50)
+      });
+
+      it('clears the platform tip amount when set to zero', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1500,
+            taxAmount: 200,
+            platformTipAmount: 300,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+            subscription: {
+              amount: 1500,
+            },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            platformTipAmount: { valueInCents: 0, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload({ include: [{ association: 'Subscription' }] });
+        expect(orderWithTaxes.totalAmount).to.eq(1200);
+        expect(orderWithTaxes.platformTipAmount).to.eq(0);
+        expect(orderWithTaxes.taxAmount).to.eq(200);
+        expect(orderWithTaxes.Subscription.amount).to.eq(1200);
       });
 
       it('rejects amount/tier change for PayPal-managed subscription without paypalSubscriptionId', async () => {

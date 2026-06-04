@@ -3,7 +3,7 @@ import '../../server/env';
 import fs from 'fs';
 
 import { Parser } from '@json2csv/plainjs';
-import { ArgumentParser } from 'argparse';
+import { Command } from 'commander';
 import PQueue from 'p-queue';
 
 import FEATURE from '../../server/constants/feature';
@@ -45,7 +45,7 @@ const startTime = new Date();
 async function run(options) {
   options.startDate = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 
-  const queue = new PQueue({ concurrency: Number(options.concurrency) });
+  const queue = new PQueue({ concurrency: options.concurrency });
 
   const { count, rows: orders } = await ordersWithPendingCharges({
     limit: options.limit,
@@ -149,43 +149,24 @@ async function emailReport(orders, data, attachments) {
 }
 
 /** Return the options passed by the user to run the script */
-/* eslint-disable camelcase */
 function parseCommandLineArguments() {
-  const parser = new ArgumentParser({
-    add_help: true,
-    description: 'Charge due recurring contributions',
-  });
-  parser.add_argument('--dryrun', {
-    help: "Don't perform any payment or change to the database",
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-  parser.add_argument('-l', '--limit', {
-    help: 'Total recurring contributions to process',
-    default: 500,
-  });
-  parser.add_argument('-c', '--concurrency', {
-    help: 'Number of operations to process at the same time',
-    default: 3,
-  });
-  parser.add_argument('-s', '--simulate', {
-    help: 'If in dry run, simulate operation between 0 to 5 seconds',
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-  parser.add_argument('--orders', {
-    help: 'Comma separated list of order ids to process',
-  });
-  const args = parser.parse_args();
+  const program = new Command()
+    .description('Charge due recurring contributions')
+    .option('--dryrun', "Don't perform any payment or change to the database", false)
+    .option('-l, --limit <n>', 'Total recurring contributions to process', Number, 500)
+    .option('-c, --concurrency <n>', 'Number of operations to process at the same time', Number, 3)
+    .option('-s, --simulate', 'If in dry run, simulate operation between 0 to 5 seconds', false)
+    .option('--orders <ids>', 'Comma separated list of order ids to process')
+    .parse(process.argv);
+
+  const opts = program.opts();
   return {
-    dryRun: args.dryrun,
-    limit: args.limit,
-    concurrency: args.concurrency,
-    simulate: args.simulate,
-    orderIds: args.orders
-      ? args.orders.split(',').map(str => {
+    dryRun: opts.dryrun,
+    limit: opts.limit,
+    concurrency: opts.concurrency,
+    simulate: opts.simulate,
+    orderIds: opts.orders
+      ? opts.orders.split(',').map(str => {
           const num = Number(str);
           if (isNaN(num)) {
             throw new Error(`Invalid order id: ${str}`);
@@ -195,7 +176,6 @@ function parseCommandLineArguments() {
       : undefined,
   };
 }
-/* eslint-enable camelcase */
 
 /** Kick off the script with all the user selected options */
 if (require.main === module) {

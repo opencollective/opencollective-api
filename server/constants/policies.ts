@@ -15,13 +15,22 @@ enum POLICIES {
   COLLECTIVE_ADMINS_CAN_REFUND = 'COLLECTIVE_ADMINS_CAN_REFUND',
   // Whether we expect expense submitters and collective admins to take part in the expense categorization process (for accounting)
   EXPENSE_CATEGORIZATION = 'EXPENSE_CATEGORIZATION',
-  // When enabled, users can also use Vendors when submitting expenses.
+  // @deprecated Use USE_VENDOR_POLICY instead.
   EXPENSE_PUBLIC_VENDORS = 'EXPENSE_PUBLIC_VENDORS',
+  // Controls who can attribute financial activities (expenses, orders) to vendors.
+  // Per-vendor override: vendor.data.useVendorPolicy.
+  USE_VENDOR_POLICY = 'USE_VENDOR_POLICY',
   // When enabled, admins of the collective are allowed to see the payout methods of expenses
   COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS = 'COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS',
   EXPENSE_POLICIES = 'EXPENSE_POLICIES',
   /** Enforces contributor information requirements based on yearly contribution amount thresholds */
   CONTRIBUTOR_INFO_THRESHOLDS = 'CONTRIBUTOR_INFO_THRESHOLDS',
+}
+
+export enum UseVendorPolicyValue {
+  HOST_ADMINS = 'HOST_ADMINS',
+  HOST_AND_COLLECTIVE_ADMINS = 'HOST_AND_COLLECTIVE_ADMINS',
+  ALL_SUBMITTERS = 'ALL_SUBMITTERS',
 }
 
 export type Policies = Partial<{
@@ -53,6 +62,7 @@ export type Policies = Partial<{
     requiredForCollectiveAdmins: boolean;
   };
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: boolean;
+  [POLICIES.USE_VENDOR_POLICY]: UseVendorPolicyValue;
   [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: boolean;
   [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: {
     legalName?: number;
@@ -95,6 +105,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
     requiredForCollectiveAdmins: false,
   },
   [POLICIES.EXPENSE_PUBLIC_VENDORS]: false,
+  [POLICIES.USE_VENDOR_POLICY]: UseVendorPolicyValue.HOST_ADMINS,
   [POLICIES.COLLECTIVE_ADMINS_CAN_SEE_PAYOUT_METHODS]: false,
   [POLICIES.CONTRIBUTOR_INFO_THRESHOLDS]: undefined,
 };

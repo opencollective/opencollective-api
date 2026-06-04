@@ -44,7 +44,7 @@ Subject: Some of your expenses have been re-categorized
 <ul>
 {{#each mistakes}}
   <li>
-    Expense: <a href="{{../config.host.website}}/{{this.expense.collective.slug}}/expenses/{{this.expense.id}}">{{this.expense.description}}</a>
+    Expense: <a href="{{permalink this.expense}}">{{this.expense.description}}</a>
     <ul>
       <li>
         <strong>The expense category you selected:</strong> {{formatAccountingCategory this.selectedCategory}}.

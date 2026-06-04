@@ -25,10 +25,12 @@ Dear admin of {{host.name}},
     <th>Name</th>
     <td>{{collective.name}}</td>
   </tr>
-  <tr>
-    <th>Url</th>
-    <td><a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></td>
-  </tr>
+  {{#unless collective.isPrivate}}
+    <tr>
+      <th>Public profile</th>
+      <td><a href="{{accountUrl collective}}">{{accountUrl collective}}</a></td>
+    </tr>
+  {{/unless}}
   {{#if collective.website}}
   <tr>
     <th>Website</th>
@@ -73,7 +75,7 @@ Dear admin of {{host.name}},
 {{/if}}
 
 <h2>Creator</h2>
-<a href="https://opencollective.com/{{user.collective.slug}}">https://opencollective.com/{{user.collective.slug}}</a>
+<a href="{{accountUrl user.collective}}">{{accountUrl user.collective}}</a>
 <br /><br />
 <table>
   <tr>
@@ -98,7 +100,7 @@ Dear admin of {{host.name}},
 <center>
   <a
     class="btn blue"
-    href="{{permalink hostApplication (concat config.host.website '/dashboard/' host.slug '/host-applications?accountId=' collective.id)}}"
+    href="{{dashboardUrl host 'host-applications'}}?accountId={{collective.id}}"
   >
     <div style="font-size: 15px;">View application</div>
   </a>

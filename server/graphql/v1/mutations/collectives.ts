@@ -48,10 +48,19 @@ export async function createCollective(_, args, req: express.Request) {
   let hostCollective: Collective, parentCollective: Collective, collective: Collective;
 
   const collectiveData = {
-    ...args.collective,
+    // This mutation is now only used in `CreateCollectiveMiniForm`, we limit the fields to the ones that are actually used.
+    ...pick(args.collective, [
+      'slug',
+      'name',
+      'legalName',
+      'type',
+      'website',
+      'ParentCollectiveId',
+      'HostCollectiveId',
+    ] as const),
     CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
-  };
+  } as Partial<Collective>;
 
   // Set private instructions
   if (args.collective.privateInstructions) {

@@ -4,6 +4,7 @@ import { InferCreationAttributes } from 'sequelize';
 
 import { CollectiveType } from '../../constants/collectives';
 import status from '../../constants/order-status';
+import roles from '../../constants/roles';
 import { purgeCacheForCollective } from '../../lib/cache';
 import { roundCentsAmount } from '../../lib/currency';
 import { executeOrder } from '../../lib/payments';
@@ -255,6 +256,19 @@ export const isOrderHostAdmin = async (req: express.Request, order: Order): Prom
   return req.remoteUser.isAdmin(toAccount.HostCollectiveId);
 };
 
+const isOrderHostAdminOrAccountant = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  const toAccount = order.collective || (await req.loaders.Collective.byId.load(order.CollectiveId));
+  if (!toAccount) {
+    return false;
+  }
+
+  return req.remoteUser.hasRole([roles.ADMIN, roles.ACCOUNTANT], toAccount.HostCollectiveId);
+};
+
 export const canMarkAsPaid = async (req: express.Request, order: Order): Promise<boolean> => {
   const allowedStatuses = [status.PENDING, status.EXPIRED];
   return allowedStatuses.includes(order.status) && isOrderHostAdmin(req, order);
@@ -275,7 +289,7 @@ export const canComment = async (req: express.Request, order: Order): Promise<bo
 };
 
 export const canSeeOrderPrivateActivities = async (req: express.Request, order: Order): Promise<boolean> => {
-  return isOrderHostAdmin(req, order);
+  return isOrderHostAdminOrAccountant(req, order);
 };
 
 const validateOrderScope = (req: express.Request, options: { throw?: boolean } = { throw: false }) => {
@@ -294,7 +308,7 @@ export const canSeeOrderTransactionImportRow = async (req: express.Request, orde
   if (!validateOrderScope(req)) {
     return false;
   } else {
-    return isOrderHostAdmin(req, order);
+    return isOrderHostAdminOrAccountant(req, order);
   }
 };
 
@@ -372,7 +386,7 @@ export const canRemoveContributorFromOrder = async (req: express.Request, order:
 
 export const canSeeOrderCreator = async (req: express.Request, order: Order): Promise<boolean> => {
   // Host admins can always see the creator
-  if (await isOrderHostAdmin(req, order)) {
+  if (await isOrderHostAdminOrAccountant(req, order)) {
     return true;
   }
 
@@ -384,4 +398,15 @@ export const canSeeOrderCreator = async (req: express.Request, order: Order): Pr
 
   // Otherwise the creator is public
   return true;
+};
+
+/** Whether the user can see sensitive tax fields on an order (e.g. tax ID number). */
+export const canSeeOrderTaxIdNumber = async (req: express.Request, order: Order): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  } else if (await isOrderHostAdminOrAccountant(req, order)) {
+    return true;
+  } else {
+    return req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], order.FromCollectiveId);
+  }
 };

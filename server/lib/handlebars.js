@@ -1,3 +1,4 @@
+import config from 'config';
 import handlebars from 'handlebars';
 import { add, divide, isEqual, isNil, lowerCase, multiply, startCase, subtract, sum } from 'lodash';
 import moment from 'moment-timezone';
@@ -6,6 +7,7 @@ import { FeatureDetails } from '../constants/feature';
 import { freeFeatures } from '../constants/plans';
 
 import { getDefaultCurrencyPrecision } from './currency';
+import { getAccountUrl, getAccountUrlWithParent, getCollectiveExpensesUrl, getFullDashboardUrl } from './email-urls';
 import { capitalize, formatCurrency, formatCurrencyObject, pluralize, resizeImage } from './utils';
 
 // from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional
@@ -280,6 +282,49 @@ handlebars.registerHelper('hasPremiumFeatures', features => {
   // Check if any enabled feature is not in the free features list
   return Object.keys(features).some(featureKey => features[featureKey] === true && !freeFeatures.includes(featureKey));
 });
+
+handlebars.registerHelper('concat', (...args) => {
+  args.pop();
+  return args.join('');
+});
+
+// Generates a permalink if the first argument contains a publicId, otherwise returns the fallbackURL
+handlebars.registerHelper('permalink', (...args) => {
+  const lastArg = args[args.length - 1];
+  if (lastArg && typeof lastArg === 'object' && typeof lastArg.fn === 'function') {
+    args.pop();
+  }
+
+  const [entity, fallbackURL] = args;
+  const publicId = entity?.publicId;
+
+  if (publicId) {
+    return `${config.host.website}/permalink/${publicId}`;
+  }
+
+  if (typeof fallbackURL !== 'string' || !fallbackURL) {
+    throw new Error('no publicId set, fallbackURL is required');
+  }
+
+  return fallbackURL;
+});
+
+handlebars.registerHelper('accountUrl', (...args) => {
+  args.pop();
+  const [account, parent] = args;
+  if (parent && typeof parent === 'object' && parent.slug) {
+    return getAccountUrlWithParent(account, parent);
+  }
+  return getAccountUrl(account);
+});
+
+handlebars.registerHelper('dashboardUrl', (...args) => {
+  args.pop();
+  const [account, section, params = {}] = args;
+  return getFullDashboardUrl(account, section, params);
+});
+
+handlebars.registerHelper('collectiveExpensesUrl', collective => getCollectiveExpensesUrl(collective));
 
 // Math operations
 handlebars.registerHelper('add', add);

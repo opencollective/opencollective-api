@@ -354,7 +354,7 @@ export default async (app: express.Application) => {
    */
   app.post('/webhooks/stripe', stripeWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/transferwise', transferwiseWebhook); // when it gets a new subscription invoice
-  app.post('/webhooks/paypal{/:hostId}', paypalWebhook);
+  app.post('/webhooks/paypal/:hostId', paypalWebhook);
   app.post('/webhooks/plaid', plaidWebhook);
   app.get('/connected-accounts/:service/callback', noCache, (req, res, next) => {
     if (!oauthServiceAllowlist.has(req.params.service)) {

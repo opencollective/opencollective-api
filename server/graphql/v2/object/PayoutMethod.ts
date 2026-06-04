@@ -7,6 +7,7 @@ import { PayoutMethod } from '../../../models';
 import { PayoutMethodTypes, PaypalPayoutMethodData } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
+import { GraphQLCurrency } from '../enum/Currency';
 import { GraphQLPayoutMethodType } from '../enum/PayoutMethodType';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -32,6 +33,10 @@ const GraphQLPayoutMethod = new GraphQLObjectType({
     type: {
       type: GraphQLPayoutMethodType,
       description: 'The type of this payout method (usually the payment provider)',
+    },
+    currency: {
+      type: GraphQLCurrency,
+      description: 'The currency of this payout method',
     },
     name: {
       type: GraphQLString,
