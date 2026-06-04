@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 
 import OrderStatuses from '../../../../../../server/constants/order-status';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
+import models from '../../../../../../server/models';
 import {
   fakeAccountingCategory,
   fakeActiveHost,
@@ -12,12 +13,14 @@ import {
   fakeOrder,
   fakePrivateHost,
   fakeUser,
+  randStr,
 } from '../../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../../utils';
 
 const ordersQuery = gql`
   query Orders(
     $account: AccountReferenceInput
+    $host: AccountReferenceInput
     $hostContext: HostContext
     $filter: AccountOrdersFilter
     $includeChildrenAccounts: Boolean
@@ -29,6 +32,7 @@ const ordersQuery = gql`
   ) {
     orders(
       account: $account
+      host: $host
       hostContext: $hostContext
       filter: $filter
       includeChildrenAccounts: $includeChildrenAccounts
@@ -943,14 +947,15 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
   });
 
   describe('searchTerm argument', () => {
-    let collective, user1, user2, order1, order2;
+    let collective, collectiveAdmin, user1, user2, order1, order2;
 
     before(async () => {
-      collective = await fakeCollective();
+      collectiveAdmin = await fakeUser();
+      collective = await fakeCollective({ admin: collectiveAdmin });
 
       // Create users with specific names for search testing
       user1 = await fakeUser(null, { name: 'Alice Anderson' });
-      user2 = await fakeUser(null, { name: 'Bob Builder' });
+      user2 = await fakeUser({ email: `bob${randStr()}@test.com` }, { name: 'Bob Builder' });
 
       // Create orders by different users
       order1 = await fakeOrder({
@@ -981,7 +986,24 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       expect(orderIds).to.include(order1.id);
     });
 
-    it("should return the order when the search term matches a user's email", async () => {
+    it('returns the order when a collective admin searches by snapshot email', async () => {
+      await collectiveAdmin.populateRoles({ force: true });
+      const result = await graphqlQueryV2(
+        ordersQuery,
+        {
+          account: { legacyId: collective.id },
+          filter: 'INCOMING',
+          searchTerm: user2.email,
+        },
+        collectiveAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes.map(node => node.legacyId)).to.include(order2.id);
+    });
+
+    it('does not return orders when searching by snapshot email without admin access', async () => {
       const result = await graphqlQueryV2(ordersQuery, {
         account: { legacyId: collective.id },
         filter: 'INCOMING',
@@ -989,9 +1011,149 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
       });
 
       expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(0);
+    });
+  });
+
+  describe('searchTerm argument (live collective joins)', () => {
+    let collective, fromUser, order;
+
+    before(async () => {
+      collective = await fakeCollective({ name: 'Payee Collective Search', slug: 'payee-collective-search' });
+      fromUser = await fakeUser(null, { name: 'Original From Name' });
+      order = await fakeOrder({
+        CollectiveId: collective.id,
+        FromCollectiveId: fromUser.CollectiveId,
+        CreatedByUserId: fromUser.id,
+        status: OrderStatuses.PAID,
+        data: {
+          fromAccountInfo: {
+            name: 'Stale Snapshot Name Only',
+            email: fromUser.email,
+          },
+        },
+      });
+      const fromCollective = await models.Collective.findByPk(fromUser.CollectiveId);
+      await fromCollective.update({ name: 'Live From Collective Name', slug: 'live-from-collective-slug' });
+    });
+
+    it('matches fromCollective.name via live join when it differs from data.fromAccountInfo.name', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        searchTerm: 'Live From Collective',
+      });
+
+      expect(result.errors).to.not.exist;
       expect(result.data.orders.totalCount).to.eq(1);
-      const orderIds = result.data.orders.nodes.map(node => node.legacyId);
-      expect(orderIds).to.include(order2.id);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(order.id);
+    });
+
+    it('matches fromCollective.slug via live join', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        searchTerm: 'live-from-collective',
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(order.id);
+    });
+
+    it('matches collective.name via live join', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        searchTerm: 'Payee Collective',
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(order.id);
+    });
+
+    it('matches @slug shortcut on fromCollective slug', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        searchTerm: '@live-from-collective-slug',
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(order.id);
+    });
+
+    it('matches #id shortcut on order id', async () => {
+      const result = await graphqlQueryV2(ordersQuery, {
+        account: { legacyId: collective.id },
+        filter: 'INCOMING',
+        searchTerm: `#${order.id}`,
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(order.id);
+    });
+
+    it('matches Users.email for host admin', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const hostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+        isActive: true,
+      });
+      // parseSearchTerm only treats addresses without hyphens in the local part as emails
+      const contributor = await fakeUser({ email: `contributor${randStr()}@test.com` });
+      const hostOrder = await fakeOrder({
+        CollectiveId: hostedCollective.id,
+        FromCollectiveId: contributor.CollectiveId,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+      });
+
+      await hostAdmin.populateRoles({ force: true });
+      const result = await graphqlQueryV2(
+        ordersQuery,
+        {
+          account: { legacyId: host.id },
+          hostContext: 'HOSTED',
+          filter: 'INCOMING',
+          searchTerm: contributor.email,
+        },
+        hostAdmin,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(1);
+      expect(result.data.orders.nodes[0].legacyId).to.eq(hostOrder.id);
+    });
+
+    it('does not match Users.email without host admin', async () => {
+      const host = await fakeActiveHost();
+      const hostedCollective = await fakeCollective({
+        HostCollectiveId: host.id,
+        approvedAt: new Date(),
+        isActive: true,
+      });
+      const contributor = await fakeUser({ email: `contributor${randStr()}@test.com` });
+      await fakeOrder({
+        CollectiveId: hostedCollective.id,
+        FromCollectiveId: contributor.CollectiveId,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+      });
+
+      const result = await graphqlQueryV2(ordersQuery, {
+        host: { legacyId: host.id },
+        filter: 'INCOMING',
+        searchTerm: contributor.email,
+      });
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.orders.totalCount).to.eq(0);
     });
   });
 
