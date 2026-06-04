@@ -669,7 +669,7 @@ describe('webhook', () => {
       });
 
       describe('when the order was cancelled while the async charge was in-flight', () => {
-        it('records the transaction but keeps the order CANCELLED', async () => {
+        it('records the transaction and creates the membership but keeps the order CANCELLED', async () => {
           sandbox
             .stub(common, 'createChargeTransactions')
             .resolves(
@@ -679,7 +679,7 @@ describe('webhook', () => {
               ),
             );
           sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
-          const getOrCreateMembersSpy = sandbox.spy(order, 'getOrCreateMembers');
+          const getOrCreateMembersSpy = sandbox.spy(models.Order.prototype, 'getOrCreateMembers');
 
           // User cancelled while the async charge was still being confirmed
           await order.update({
@@ -691,10 +691,10 @@ describe('webhook', () => {
           assert.calledOnce(common.createChargeTransactions);
           await order.reload();
           expect(order.status).to.equal(OrderStatuses.CANCELLED);
-          expect(getOrCreateMembersSpy).to.not.have.been.called;
+          expect(getOrCreateMembersSpy).to.have.been.called;
         });
 
-        it('records the transaction but keeps a recurring order CANCELLED and does not touch the subscription', async () => {
+        it('records the charge but keeps a recurring order CANCELLED without reactivating the subscription', async () => {
           sandbox
             .stub(common, 'createChargeTransactions')
             .resolves(
@@ -723,6 +723,8 @@ describe('webhook', () => {
           await subscription.reload();
 
           expect(order.status).to.equal(OrderStatuses.CANCELLED);
+          expect(subscription.isActive).to.be.false;
+          expect(subscription.lastChargedAt).to.not.be.null;
         });
       });
     });
