@@ -45,10 +45,10 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
 
   /**
    * Build a minimal stub for listPayPalTransactions.
-   * Pass `refundId` to also include a T1107 refund event referencing `captureId`; omit it to
-   * simulate a period with no refund transactions (the new getMissingRefundTransactions path).
+   * Pass `refundId` to also include a T1107 refund event referencing `captureId`.
+   * Pass `reversalId` to include a T1106 PayPal-initiated reversal event referencing `captureId`.
    */
-  const stubListTransactions = (captureId: string, eventCode = 'T0006', refundId?: string) => {
+  const stubListTransactions = (captureId: string, eventCode = 'T0006', refundId?: string, reversalId?: string) => {
     const transactions: object[] = [
       {
         transaction_info: {
@@ -64,6 +64,18 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
         transaction_info: {
           transaction_id: refundId,
           transaction_event_code: 'T1107',
+          paypal_reference_id: captureId,
+          paypal_reference_id_type: 'TXN',
+          transaction_amount: { value: '-10.00', currency_code: 'USD' },
+        },
+      });
+    }
+
+    if (reversalId) {
+      transactions.push({
+        transaction_info: {
+          transaction_id: reversalId,
+          transaction_event_code: 'T1106',
           paypal_reference_id: captureId,
           paypal_reference_id_type: 'TXN',
           transaction_amount: { value: '-10.00', currency_code: 'USD' },
@@ -135,6 +147,63 @@ describe('cron/daily/51-synchronize-paypal-ledger', () => {
       expect((refundTransaction.data as Record<string, unknown>).isRefundedFromPayPal).to.be.true;
 
       // The original transaction should now point to its refund
+      await originalTransaction.reload();
+      expect(originalTransaction.RefundTransactionId).to.not.be.null;
+    });
+
+    it('records a missing reversal when PayPal marks a capture as reversed (T1106)', async () => {
+      const host = await setupHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.PAYPAL,
+        type: PAYMENT_METHOD_TYPE.PAYMENT,
+      });
+      const order = await fakeOrder({ CollectiveId: collective.id, PaymentMethodId: paymentMethod.id });
+      const captureId = 'CAPTURE-REVERSED-001';
+
+      const originalTransaction = await fakeTransaction(
+        {
+          type: TransactionTypes.CREDIT,
+          kind: TransactionKind.CONTRIBUTION,
+          isRefund: false,
+          RefundTransactionId: null,
+          OrderId: order.id,
+          CollectiveId: collective.id,
+          HostCollectiveId: host.id,
+          PaymentMethodId: paymentMethod.id,
+          amount: 1000,
+          paymentProcessorFeeInHostCurrency: -50,
+          data: { paypalCaptureId: captureId },
+        },
+        { createDoubleEntry: true },
+      );
+
+      stubListTransactions(captureId, 'T0006', undefined, 'REVERSAL-001');
+
+      // T1106 transaction_id is the PayPal refund/reversal ID, queryable via payments/refunds/
+      sandbox.stub(PaypalApi, 'paypalRequestV2').callsFake(async url => {
+        if (url === 'payments/refunds/REVERSAL-001') {
+          return {
+            id: 'REVERSAL-001',
+            status: 'COMPLETED',
+            seller_payable_breakdown: {
+              paypal_fee: { value: '0.00', currency_code: 'USD' },
+              total_refunded_amount: { value: '10.00', currency_code: 'USD' },
+            },
+          };
+        }
+        throw new Error(`Unexpected PayPal API call: ${url}`);
+      });
+
+      await run();
+
+      const refundTransaction = await models.Transaction.findOne({
+        where: { RefundTransactionId: originalTransaction.id },
+      });
+      expect(refundTransaction, 'reversal transaction should exist').to.exist;
+      expect(refundTransaction.isRefund).to.be.true;
+      expect((refundTransaction.data as Record<string, unknown>).isRefundedFromPayPal).to.be.true;
+
       await originalTransaction.reload();
       expect(originalTransaction.RefundTransactionId).to.not.be.null;
     });

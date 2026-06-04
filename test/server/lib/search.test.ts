@@ -1,10 +1,13 @@
 import { expect } from 'chai';
 import config from 'config';
+import { sql } from 'kysely';
 import { times } from 'lodash';
 
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
+import { getKysely } from '../../../server/lib/kysely';
 import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
+  buildKyselySearchConditions,
   buildSearchConditions,
   parseSearchTerm,
   sanitizeSearchTermForILike,
@@ -14,9 +17,12 @@ import {
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { createPrivateAccountFixture } from '../../test-helpers/private-account-fixture';
+import { makeRequest, resetTestDB } from '../../utils';
 
 describe('server/lib/search', () => {
+  const publicReq = makeRequest();
+
   before(async () => {
     await resetTestDB();
   });
@@ -24,13 +30,13 @@ describe('server/lib/search', () => {
   describe('Search in DB', () => {
     it('By slug', async () => {
       const { userCollective } = await newUser();
-      const [results] = await searchCollectivesInDB(userCollective.slug);
+      const [results] = await searchCollectivesInDB(publicReq, userCollective.slug);
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
     it('By slug (prefixed with an @)', async () => {
       const { userCollective } = await newUser();
-      const [results] = await searchCollectivesInDB(`@${userCollective.slug}`);
+      const [results] = await searchCollectivesInDB(publicReq, `@${userCollective.slug}`);
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
@@ -38,21 +44,21 @@ describe('server/lib/search', () => {
       it('matches with the exact search term', async () => {
         const name = 'AVeryUniqueName ThatNoOneElseHas';
         const { userCollective } = await newUser(name);
-        const [results] = await searchCollectivesInDB(name);
+        const [results] = await searchCollectivesInDB(publicReq, name);
         expect(results.find(collective => collective.id === userCollective.id)).to.exist;
       });
 
       it('matches when spaces are included in search term and not in name', async () => {
         const name = 'SomethingNew';
         const { userCollective } = await newUser(name);
-        const [results] = await searchCollectivesInDB('Something New');
+        const [results] = await searchCollectivesInDB(publicReq, 'Something New');
         expect(results.find(collective => collective.id === userCollective.id)).to.exist;
       });
 
       it('does not match when spaces are not included in search term and are in name', async () => {
         const name = 'Something New';
         const { userCollective } = await newUser(name);
-        const [results] = await searchCollectivesInDB('SomethingNew');
+        const [results] = await searchCollectivesInDB(publicReq, 'SomethingNew');
         expect(results.find(collective => collective.id === userCollective.id)).to.not.exist;
       });
     });
@@ -61,7 +67,7 @@ describe('server/lib/search', () => {
       it('works with the basics', async () => {
         const tags = ['open source', 'stuff', 'potatoes'];
         const collective = await fakeCollective({ tags });
-        const [results] = await searchCollectivesInDB('potatoes');
+        const [results] = await searchCollectivesInDB(publicReq, 'potatoes');
         expect(results.find(c => c.id === collective.id)).to.exist;
       });
 
@@ -69,20 +75,22 @@ describe('server/lib/search', () => {
         await fakeCollective({ tags: ['something with "double" quotes'] });
         await fakeCollective({ tags: ["something with 'simple' quotes"] });
 
-        const [results1] = await searchCollectivesInDB('"double');
+        const [results1] = await searchCollectivesInDB(publicReq, '"double');
         expect(results1).to.have.length(1);
         expect(results1[0].tags).to.include('something with "double" quotes');
 
-        const [results2] = await searchCollectivesInDB("'simple");
+        const [results2] = await searchCollectivesInDB(publicReq, "'simple");
         expect(results2).to.have.length(1);
         expect(results2[0].tags).to.include("something with 'simple' quotes");
       });
     });
 
     it("Doesn't return items with the wrong type", async () => {
-      const typeFilter = [CollectiveType.ORGANIZATION];
+      const typeFilter = [CollectiveType['ORGANIZATION']];
       const { userCollective } = await newUser();
-      const [results, count] = await searchCollectivesInDB(userCollective.slug, 0, 10000, { types: typeFilter });
+      const [results, count] = await searchCollectivesInDB(publicReq, userCollective.slug, 0, 10000, {
+        types: typeFilter,
+      });
       expect(results.length).to.eq(0);
       expect(count).to.eq(0);
     });
@@ -91,12 +99,12 @@ describe('server/lib/search', () => {
       const description = 'Wow thats&&}{\'" !%|wow AVeryUniqueDescriptionZZZzzz I swear!!!';
       const tags = ['\'"{}[]!&|dsa🔥️das'];
       const collective = await fakeCollective({ description, tags });
-      const [results] = await searchCollectivesInDB('!%|wow🔥️🔥️ AVeryUniqueDescriptionZZZzzz!! &&}{\'"');
+      const [results] = await searchCollectivesInDB(publicReq, '!%|wow🔥️🔥️ AVeryUniqueDescriptionZZZzzz!! &&}{\'"');
       expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
     it('escapes ILIKE special characters (\\, %, _) to avoid "LIKE pattern must not end with escape character"', async () => {
-      const [results] = await searchCollectivesInDB('le 47 \\');
+      const [results] = await searchCollectivesInDB(publicReq, 'le 47 \\');
       expect(results).to.be.an('array');
       // No error should be thrown; the search completes successfully
     });
@@ -105,14 +113,17 @@ describe('server/lib/search', () => {
       it('with an apostrophe', async () => {
         const name = "The Watchers' defense Collective";
         const collective = await fakeCollective({ name });
-        const [results] = await searchCollectivesInDB("Watcher's defense");
+        const [results] = await searchCollectivesInDB(publicReq, "Watcher's defense");
         expect(results.find(res => res.id === collective.id)).to.exist;
       });
 
       it('with a comma', async () => {
         const name = 'Ethics, Public Policy, and Technological Change Course';
         const collective = await fakeCollective({ name });
-        const [results] = await searchCollectivesInDB('Ethics, Public Policy, and Technological Change Course');
+        const [results] = await searchCollectivesInDB(
+          publicReq,
+          'Ethics, Public Policy, and Technological Change Course',
+        );
         expect(results.length).to.eq(1);
         expect(results.find(res => res.id === collective.id)).to.exist;
       });
@@ -121,7 +132,7 @@ describe('server/lib/search', () => {
     it('supports OR operator', async () => {
       const accounts = await Promise.all(times(3, () => fakeCollective({ name: randStr() })));
       const accountNames = accounts.map(c => c.name);
-      const [results] = await searchCollectivesInDB(accountNames.join(' OR '));
+      const [results] = await searchCollectivesInDB(publicReq, accountNames.join(' OR '));
       expect(results.length).to.eq(3);
       expect(results.map(c => c.name)).to.deep.eqInAnyOrder(accountNames);
     });
@@ -129,26 +140,26 @@ describe('server/lib/search', () => {
     it('supports quotes for exact search', async () => {
       const accountWithExactMatch = await fakeCollective({ description: 'The description must match exactly' });
       await fakeCollective({ description: 'Exactly must the description match' }); // Should not match
-      const [results] = await searchCollectivesInDB('"The description must match exactly"');
+      const [results] = await searchCollectivesInDB(publicReq, '"The description must match exactly"');
       expect(results.length).to.eq(1);
       expect(results[0].id).to.eq(accountWithExactMatch.id);
     });
 
     it('supports empty search', async () => {
-      const [results] = await searchCollectivesInDB('');
+      const [results] = await searchCollectivesInDB(publicReq, '');
       expect(results.length).to.be.above(1);
 
-      const [results2] = await searchCollectivesInDB('   ');
+      const [results2] = await searchCollectivesInDB(publicReq, '   ');
       expect(results2.length).to.be.above(1);
     });
 
     it('empty quotes', async () => {
       // act as empty search
-      const [results] = await searchCollectivesInDB('""');
+      const [results] = await searchCollectivesInDB(publicReq, '""');
       expect(results.length).to.be.above(1);
 
       // we have no account with multiple spaces in their searchable content
-      const [results2] = await searchCollectivesInDB('"  "');
+      const [results2] = await searchCollectivesInDB(publicReq, '"  "');
       expect(results2.length).to.eq(0);
     });
 
@@ -160,7 +171,7 @@ describe('server/lib/search', () => {
       });
 
       it('when searching for a phrase with diacritics in the search input', async () => {
-        const [results2] = await searchCollectivesInDB('árvíztűrő tükörfúrógép');
+        const [results2] = await searchCollectivesInDB(publicReq, 'árvíztűrő tükörfúrógép');
         expect(results2.length).to.eq(1);
         expect(results2[0].id).to.eq(accountWithDiacritics.id);
       });
@@ -168,7 +179,9 @@ describe('server/lib/search', () => {
       it('when searching with a country filter give correct results', async () => {
         const collectiveName = 'JHipster Canada';
         const collective = await fakeCollective({ name: collectiveName, countryISO: 'CA' });
-        const [results] = await searchCollectivesInDB('JHipster', undefined, undefined, { countries: ['CA'] });
+        const [results] = await searchCollectivesInDB(publicReq, 'JHipster', undefined, undefined, {
+          countries: ['CA'],
+        });
         expect(results.length).to.eq(1);
         expect(results.find(res => res.id === collective.id)).to.exist;
       });
@@ -178,7 +191,7 @@ describe('server/lib/search', () => {
         const childCollective = 'JHipsterLite Project';
         const collective = await fakeCollective({ name: collectiveName, countryISO: 'LK' });
         const project = await fakeCollective({ name: childCollective, ParentCollectiveId: collective.id });
-        const [results] = await searchCollectivesInDB('', undefined, undefined, { countries: ['LK'] });
+        const [results] = await searchCollectivesInDB(publicReq, '', undefined, undefined, { countries: ['LK'] });
         expect(results.length).to.eq(2);
         expect(results.find(res => res.id === collective.id)).to.exist;
         expect(results.find(res => res.id === project.id)).to.exist;
@@ -187,19 +200,19 @@ describe('server/lib/search', () => {
       // TODO: We want the 3 cases below to be supported, but it probably requires removing the diacritics when building Collectives.searchTsVector
 
       // it('when searching for a phrase without diacritics in the search input', async () => {
-      //   const [results2] = await searchCollectivesInDB('arvizturo tukorfurogep');
+      //   const [results2] = await searchCollectivesInDB(publicReq, 'arvizturo tukorfurogep');
       //   expect(results2.length).to.eq(1);
       //   expect(results2[0].id).to.eq(accountWithDiacritics.id);
       // });
 
       // it('when searching for a single word without diacritics in the search input', async () => {
-      //   const [results] = await searchCollectivesInDB('arvizturo');
+      //   const [results] = await searchCollectivesInDB(publicReq, 'arvizturo');
       //   expect(results.length).to.eq(1);
       //   expect(results[0].id).to.eq(accountWithDiacritics.id);
       // });
 
       // it('when searching for a single word with diacritics in the search input', async () => {
-      //   const [results] = await searchCollectivesInDB('árvíztűrő');
+      //   const [results] = await searchCollectivesInDB(publicReq, 'árvíztűrő');
       //   expect(results.length).to.eq(1);
       //   expect(results[0].id).to.eq(accountWithDiacritics.id);
       // });
@@ -225,6 +238,66 @@ describe('server/lib/search', () => {
       });
     });
 
+    describe('Private collectives', () => {
+      let fixture;
+
+      before(async () => {
+        fixture = await createPrivateAccountFixture();
+        await fixture.privateCollective.update({ name: 'AVeryUniquePrivateCollectiveSearchName' });
+        await fixture.privateHost.update({ name: 'AVeryUniquePrivateHostSearchName' });
+        await fixture.privateProject.update({ name: 'AVeryUniquePrivateProjectSearchName' });
+        await Promise.all(
+          [fixture.randomUser, fixture.privateHostAdmin, fixture.privateCollectiveAdmin, fixture.rootAdmin].map(user =>
+            user.populateRoles(),
+          ),
+        );
+      });
+
+      it('does not return private collectives to unauthenticated users', async () => {
+        const [results] = await searchCollectivesInDB(publicReq, 'AVeryUniquePrivateCollectiveSearchName');
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.not.exist;
+      });
+
+      it('does not return private collectives to unrelated users', async () => {
+        const [results] = await searchCollectivesInDB(
+          makeRequest(fixture.randomUser),
+          'AVeryUniquePrivateCollectiveSearchName',
+          0,
+          100,
+        );
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.not.exist;
+      });
+      it('returns private collectives to root admins', async () => {
+        const [results] = await searchCollectivesInDB(
+          makeRequest(fixture.rootAdmin),
+          'AVeryUniquePrivateCollectiveSearchName',
+          0,
+          100,
+        );
+        expect(results.find(c => c.id === fixture.privateCollective.id)).to.exist;
+      });
+
+      it('returns private projects to parent collective admins', async () => {
+        const [results] = await searchCollectivesInDB(
+          makeRequest(fixture.privateCollectiveAdmin),
+          'AVeryUniquePrivateProjectSearchName',
+          0,
+          100,
+        );
+        expect(results.find(c => c.id === fixture.privateProject.id)).to.exist;
+      });
+
+      it('returns private host organizations to admins of hosted collectives', async () => {
+        const [results] = await searchCollectivesInDB(
+          makeRequest(fixture.privateCollectiveAdmin),
+          'AVeryUniquePrivateHostSearchName',
+          0,
+          100,
+        );
+        expect(results.find(c => c.id === fixture.privateHost.id)).to.exist;
+      });
+    });
+
     describe('Hosts', async () => {
       beforeEach(async () => {
         await resetTestDB();
@@ -233,7 +306,7 @@ describe('server/lib/search', () => {
         const host = await fakeHost({
           name: 'New Host',
         });
-        const [collectives] = await searchCollectivesInDB('New Host', 0, 10, {
+        const [collectives] = await searchCollectivesInDB(publicReq, 'New Host', 0, 10, {
           isHost: true,
         });
         expect(collectives[0].id).to.equal(host.id);
@@ -246,7 +319,7 @@ describe('server/lib/search', () => {
         await fakeHost({
           name: 'New Host 2',
         });
-        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+        const [collectives] = await searchCollectivesInDB(publicReq, '', 0, 10, {
           isHost: true,
         });
         expect(collectives).to.have.length(2);
@@ -262,7 +335,7 @@ describe('server/lib/search', () => {
             apply: true,
           },
         });
-        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+        const [collectives] = await searchCollectivesInDB(publicReq, '', 0, 10, {
           isHost: true,
           onlyOpenHosts: true,
         });
@@ -301,7 +374,7 @@ describe('server/lib/search', () => {
           },
         });
 
-        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+        const [collectives] = await searchCollectivesInDB(publicReq, '', 0, 10, {
           isHost: true,
           orderBy: { field: 'HOST_RANK', direction: 'DESC' },
         });
@@ -594,6 +667,117 @@ describe('server/lib/search', () => {
           stringArrayTransformFn: value => value.toUpperCase(),
         }),
       ).to.deep.eq([{ tags: { [Op.overlap]: ['HELLO WORLD'] } }]);
+    });
+  });
+
+  describe('buildKyselySearchConditions', () => {
+    const compileWithSearch = (searchTerm: string, config: Parameters<typeof buildKyselySearchConditions>[1]) => {
+      const kysely = getKysely();
+      const query = buildKyselySearchConditions(searchTerm, config)(kysely.selectFrom('Orders').selectAll('Orders'));
+      return query.compile();
+    };
+
+    it('returns query unchanged for an empty search', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('', { textFields: ['name'] });
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.be.empty;
+    });
+
+    it('applies no search filter when no fields apply to the parsed term', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('#4242', {});
+      expect(compiledSql).to.not.include('ilike');
+      expect(compiledSql).to.not.include('"Orders"."id"');
+      expect(parameters).to.not.include(4242);
+      expect(parameters).to.include(true);
+    });
+
+    it('builds exclusive id condition for #id', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('#4242', { idFields: ['Orders.id'] });
+      expect(compiledSql).to.include('"Orders"."id"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include(4242);
+    });
+
+    it('builds exclusive slug condition for @slug', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('@betree', { slugFields: ['slug'] });
+      expect(compiledSql).to.include('"slug"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include('betree');
+    });
+
+    it('builds exclusive publicId condition without inclusive ILIKE (Kysely deviation)', () => {
+      const publicId = 'acc_searchPubId';
+      const { sql: compiledSql, parameters } = compileWithSearch(publicId, {
+        slugFields: ['slug'],
+        textFields: ['name'],
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+      });
+      expect(compiledSql).to.include('"publicId"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include(publicId);
+    });
+
+    it('falls through to inclusive ILIKE when publicId prefix does not match', () => {
+      const publicId = 'tx_abc123';
+      const { sql: compiledSql } = compileWithSearch(publicId, {
+        slugFields: ['slug'],
+        textFields: ['name'],
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+      });
+      expect(compiledSql).to.include('ilike');
+    });
+
+    it('builds inclusive conditions for numbers including id and amount', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('4242', {
+        slugFields: ['slug'],
+        textFields: ['name'],
+        idFields: ['Orders.id'],
+        amountFields: ['totalAmount'],
+        stringArrayFields: ['tags'],
+      });
+      expect(compiledSql).to.include('ilike');
+      expect(compiledSql).to.include('"Orders"."id"');
+      expect(compiledSql).to.include('"totalAmount"');
+      expect(parameters).to.include(4242);
+      expect(parameters).to.include(424200);
+    });
+
+    it('includes jsonb sql expression in textFields ILIKE OR', () => {
+      const { sql: compiledSql } = compileWithSearch('PO-123', {
+        textFields: [sql`"Orders".data->>'ponumber'`],
+      });
+      expect(compiledSql).to.include(`"Orders".data->>'ponumber'`);
+      expect(compiledSql).to.include('ilike');
+    });
+
+    it('uses exact match for dataFields on single-word text', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('ref_abc', {
+        dataFields: ['data.reference'],
+      });
+      expect(compiledSql).to.include('"data"."reference"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include('ref_abc');
+    });
+
+    it('falls through to inclusive ILIKE when email type has empty emailFields', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('a@b.com', {
+        emailFields: [],
+        textFields: ['data.email'],
+      });
+      expect(compiledSql).to.include('ilike');
+      expect(compiledSql).to.include('"data"."email"');
+      expect(parameters).to.not.include('a@b.com');
+    });
+
+    it('builds exclusive email condition when emailFields is set', () => {
+      const email = 'contributor@example.com';
+      const { sql: compiledSql, parameters } = compileWithSearch(email, {
+        emailFields: ['Users.email'],
+        textFields: ['description'],
+      });
+      expect(compiledSql).to.include('"Users"."email"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include(email);
     });
   });
 });

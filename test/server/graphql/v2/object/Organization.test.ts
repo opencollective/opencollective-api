@@ -1,10 +1,19 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 
+import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import models from '../../../../../server/models';
-import { fakeActiveHost, fakeOrganization, fakeTransaction, fakeUser } from '../../../../test-helpers/fake-data';
+import models, { Collective, User } from '../../../../../server/models';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeOrganization,
+  fakeProject,
+  fakeTransaction,
+  fakeUser,
+  fakeVendor,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const canBeVendorOfQuery = gql`
@@ -270,6 +279,282 @@ describe('server/graphql/v2/object/Organization', () => {
       expect(result.errors).to.not.exist;
       // Should still be true because only ADMIN role matters
       expect(result.data.organization.canBeVendorOf).to.be.true;
+    });
+  });
+
+  describe('vendors field', () => {
+    const hostVendorsQuery = gql`
+      query HostVendors($slug: String!, $canBeUsedWithAccounts: [AccountReferenceInput]) {
+        host(slug: $slug) {
+          id
+          vendors(canBeUsedWithAccounts: $canBeUsedWithAccounts) {
+            totalCount
+            nodes {
+              slug
+              name
+            }
+          }
+        }
+      }
+    `;
+
+    describe('visibility policies', () => {
+      let hostAdmin, host, collectiveAdmin, collective, collectiveProject, hostProject;
+      let projectOnlyAdmin, foreignHostAdmin;
+
+      before(async () => {
+        hostAdmin = await fakeUser();
+        host = await fakeActiveHost({ admin: hostAdmin });
+
+        collectiveAdmin = await fakeUser();
+
+        collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin,
+        });
+
+        collectiveProject = await fakeProject({ ParentCollectiveId: collective.id, HostCollectiveId: host.id });
+
+        hostProject = await fakeProject({ ParentCollectiveId: host.id });
+
+        projectOnlyAdmin = await fakeUser();
+        await models.Member.create({
+          CollectiveId: collectiveProject.id,
+          MemberCollectiveId: projectOnlyAdmin.collective.id,
+          role: roles.ADMIN,
+          CreatedByUserId: projectOnlyAdmin.id,
+        });
+
+        foreignHostAdmin = await fakeUser();
+        await fakeActiveHost({ admin: foreignHostAdmin });
+      });
+
+      type QuerierRole =
+        | 'host-admin'
+        | 'collective-admin'
+        | 'project-only-admin'
+        | 'foreign-host-admin'
+        | 'random-user'
+        | 'anonymous';
+      type VendorScope = 'host' | 'host-child' | 'hosted-collective' | 'hosted-collective-child';
+
+      const MATRIX: Array<{
+        hostPolicy: UseVendorPolicyValue;
+        querier: QuerierRole;
+        visible: boolean;
+        vendorPolicy?: UseVendorPolicyValue;
+        vendorScope?: VendorScope[];
+        queryScope?: VendorScope[];
+      }> = [
+        // host ALL_SUBMITTERS policy: anyone can list the vendor
+        { hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS, querier: 'host-admin', visible: true },
+        { hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS, querier: 'collective-admin', visible: true },
+        { hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS, querier: 'random-user', visible: true },
+        { hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS, querier: 'anonymous', visible: true },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'host-admin',
+          vendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          vendorScope: [],
+          queryScope: ['host'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'host-admin',
+          vendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['host'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'random-user',
+          vendorPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective'],
+          visible: false,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'collective-admin',
+          vendorPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'host-admin',
+          vendorPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'host-admin',
+          vendorPolicy: UseVendorPolicyValue.HOST_ADMINS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'collective-admin',
+          vendorPolicy: UseVendorPolicyValue.HOST_ADMINS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: false,
+        },
+
+        // host HOST_AND_COLLECTIVE_ADMINS policy: host admins + admins of any collective under host
+        { hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS, querier: 'host-admin', visible: true },
+        { hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS, querier: 'collective-admin', visible: true },
+        { hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS, querier: 'random-user', visible: false },
+        { hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS, querier: 'anonymous', visible: false },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'random-user',
+          vendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        // host HOST_ADMINS policy: only host admins
+        { hostPolicy: UseVendorPolicyValue.HOST_ADMINS, querier: 'host-admin', visible: true },
+        { hostPolicy: UseVendorPolicyValue.HOST_ADMINS, querier: 'collective-admin', visible: false },
+        { hostPolicy: UseVendorPolicyValue.HOST_ADMINS, querier: 'random-user', visible: false },
+        { hostPolicy: UseVendorPolicyValue.HOST_ADMINS, querier: 'anonymous', visible: false },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_ADMINS,
+          querier: 'collective-admin',
+          vendorPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_ADMINS,
+          querier: 'random-user',
+          vendorPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: false,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_ADMINS,
+          querier: 'random-user',
+          vendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'project-only-admin',
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective-child'],
+          visible: true,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+          querier: 'host-admin',
+          vendorScope: ['host-child'],
+          queryScope: ['host-child'],
+          visible: true,
+        },
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'random-user',
+          vendorScope: ['host-child'],
+          queryScope: ['host-child'],
+          visible: false,
+        },
+
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'random-user',
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective'],
+          visible: false,
+        },
+
+        { hostPolicy: UseVendorPolicyValue.ALL_SUBMITTERS, querier: 'foreign-host-admin', visible: true },
+        { hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS, querier: 'foreign-host-admin', visible: false },
+        {
+          hostPolicy: UseVendorPolicyValue.HOST_AND_COLLECTIVE_ADMINS,
+          querier: 'foreign-host-admin',
+          vendorScope: ['hosted-collective'],
+          queryScope: ['hosted-collective'],
+          visible: false,
+        },
+      ];
+
+      for (const { hostPolicy, querier, visible, vendorScope, vendorPolicy, queryScope } of MATRIX) {
+        it(`[hostPolicy=${hostPolicy}] [querier=${querier}] [vendor=${vendorPolicy ?? '-'}] [vendorScope=${vendorScope?.join(',') ?? '-'}] [queryScope=${queryScope?.join(',') ?? '-'}] → ${visible ? 'VISIBLE' : 'hidden'}`, async () => {
+          await host.update({ data: { policies: { USE_VENDOR_POLICY: hostPolicy } } });
+
+          const vendorScopes: Record<VendorScope, Collective> = {
+            host: host,
+            'host-child': hostProject,
+            'hosted-collective': collective,
+            'hosted-collective-child': collectiveProject,
+          };
+
+          const queryScopes: Record<VendorScope, Collective> = {
+            host: host,
+            'host-child': vendorScopes['host-child'],
+            'hosted-collective': collective,
+            'hosted-collective-child': vendorScopes['hosted-collective-child'],
+          };
+
+          const vendorUnderTest = await fakeVendor({
+            ParentCollectiveId: host.id,
+            data: {
+              canBeUsedWithAccountIds: vendorScope?.map(s => vendorScopes[s].id),
+              useVendorPolicy: vendorPolicy,
+            },
+          });
+
+          const queries: Record<QuerierRole, User> = {
+            anonymous: null,
+            'collective-admin': collectiveAdmin,
+            'host-admin': hostAdmin,
+            'project-only-admin': projectOnlyAdmin,
+            'foreign-host-admin': foreignHostAdmin,
+            'random-user': await fakeUser(),
+          };
+
+          const args = {
+            slug: host.slug,
+            canBeUsedWithAccounts: queryScope?.map(s => ({ slug: queryScopes[s].slug })),
+          };
+
+          const result = await graphqlQueryV2(hostVendorsQuery, args, queries[querier]);
+          expect(result.errors).to.not.exist;
+          const slugs = result.data.host.vendors.nodes.map(n => n.slug);
+          if (visible) {
+            expect(slugs, 'should be visible').to.include(vendorUnderTest.slug);
+          } else {
+            expect(slugs, 'should be hidden').to.not.include(vendorUnderTest.slug);
+          }
+        });
+      }
     });
   });
 });

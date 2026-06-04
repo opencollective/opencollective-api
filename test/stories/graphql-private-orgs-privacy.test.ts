@@ -193,6 +193,7 @@ const PRIVACY_STRATEGY: Record<string, string> = {
   'Vendor.parentAccount': 'parent-gate',
   'Vendor.duplicatedFromAccount': 'parent-gate',
   'Vendor.createdByAccount': 'parent-gate',
+  'Vendor.canBeUsedWithAccounts': 'admin-only',
   'Vendor.visibleToAccounts': 'admin-only',
   'Vendor.mainProfile': 'parent-gate',
 

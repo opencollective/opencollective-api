@@ -13,7 +13,12 @@ import models, { Collective, Op } from '../../../models';
 import { KYCVerification } from '../../../models/KYCVerification';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseKYC, checkScope } from '../../common/scope-check';
+import {
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseKYC,
+  checkScope,
+  rejectOAuthAndPersonalTokenAuth,
+} from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLKYCVerificationCollection } from '../collection/KYCVerificationCollection';
@@ -218,6 +223,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'account')) {
             return null;
           }
+          rejectOAuthAndPersonalTokenAuth(req);
 
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
 
@@ -258,6 +264,7 @@ export const GraphQLIndividual = new GraphQLObjectType({
           if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
             return null;
           }
+          rejectOAuthAndPersonalTokenAuth(req);
           const { limit, offset } = args;
 
           const result = await models.PersonalToken.findAndCountAll({

@@ -1,6 +1,6 @@
 import '../../server/env';
 
-import { ArgumentParser } from 'argparse';
+import { Command } from 'commander';
 import { QueryTypes } from 'sequelize';
 
 import { refundTransaction } from '../../server/lib/payments';
@@ -76,46 +76,25 @@ async function main({ dryRun, totalAmount, reqMask, isGuest, fromCollectiveId })
   }
 }
 
-/* eslint-disable camelcase */
 function parseCommandLineArguments() {
-  const parser = new ArgumentParser({
-    add_help: true,
-    description: 'Refund Fraudulent Orders based on parameters',
-  });
+  const program = new Command()
+    .description('Refund Fraudulent Orders based on parameters')
+    .option('--mask <mask>', 'The request mask to look for')
+    .option('--guest <guest>', 'Pass "true" to limit to guest contributions')
+    .option('--amount <amount>', 'The request totalAmount to look for')
+    .option('--fromCollectiveId <id>', 'The fromCollectiveId to look for')
+    .option('--run', 'Perform the changes.', false)
+    .parse(process.argv);
 
-  parser.add_argument('--mask', {
-    help: 'The request mask to look for',
-  });
-
-  parser.add_argument('--guest', {
-    help: 'Pass "true" to limit to guest contributions',
-  });
-
-  parser.add_argument('--amount', {
-    help: 'The request totalAmount to look for',
-  });
-
-  parser.add_argument('--fromCollectiveId', {
-    help: 'The fromCollectiveId to look for',
-  });
-
-  parser.add_argument('--run', {
-    help: 'Perform the changes.',
-    default: false,
-    action: 'store_const',
-    const: true,
-  });
-
-  const args = parser.parse_args();
+  const opts = program.opts();
   return {
-    dryRun: !args.run,
-    reqMask: args.mask,
-    isGuest: args.guest,
-    totalAmount: args.amount,
-    fromCollectiveId: args.fromCollectiveId,
+    dryRun: !opts.run,
+    reqMask: opts.mask,
+    isGuest: opts.guest,
+    totalAmount: opts.amount,
+    fromCollectiveId: opts.fromCollectiveId,
   };
 }
-/* eslint-enable camelcase */
 
 if (require.main === module) {
   main(parseCommandLineArguments())

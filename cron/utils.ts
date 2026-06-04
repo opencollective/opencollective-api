@@ -1,5 +1,5 @@
 import config from 'config';
-import deepmerge from 'deepmerge';
+import { merge } from 'lodash';
 
 import logger from '../server/lib/logger';
 import { lockUntilOrThrow } from '../server/lib/mutex';
@@ -46,7 +46,7 @@ export const runCronJob = async (
     logger.error(`Error running ${name} job`, error);
     reportErrorToSentry(
       error,
-      deepmerge({ handler: 'CRON', extra: { name, timeout: timeoutSeconds } }, errorParameters || {}),
+      merge({ handler: 'CRON', extra: { name, timeout: timeoutSeconds } }, errorParameters || {}),
     );
     // Await for Sentry to finish sending the error
     exitCode = 1;

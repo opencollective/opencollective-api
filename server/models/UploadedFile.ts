@@ -71,7 +71,7 @@ type FileUpload = {
 const MAX_FILENAME_LENGTH = 1024; // From S3
 export const MAX_UPLOADED_FILE_URL_LENGTH = 1200; // From S3
 const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
-export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
+const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf', 'text/csv'] as const;
 type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];
 export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, string> = {
@@ -483,10 +483,16 @@ UploadedFile.init(
       get() {
         const url = this.getDataValue('url');
         const kind = this.getDataValue('kind');
-        if (
-          ['EXPENSE_ITEM', 'EXPENSE_ATTACHED_FILE', 'EXPENSE_INVOICE', 'TRANSACTIONS_CSV_EXPORT'].includes(kind) &&
-          UploadedFile.isOpenCollectiveS3BucketURL(url)
-        ) {
+        const protectedKinds: FileKind[] = [
+          'EXPENSE_ITEM',
+          'EXPENSE_ATTACHED_FILE',
+          'EXPENSE_INVOICE',
+          'TRANSACTIONS_CSV_EXPORT',
+          'TRANSACTIONS_IMPORT',
+          'AGREEMENT_ATTACHMENT',
+        ];
+
+        if (protectedKinds.includes(kind) && UploadedFile.isOpenCollectiveS3BucketURL(url)) {
           return UploadedFile.getProtectedURLFromOpenCollectiveS3Bucket(this);
         } else {
           return url;

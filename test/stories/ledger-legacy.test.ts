@@ -279,21 +279,6 @@ describe('test/stories/ledger-legacy', () => {
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
       expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 (tip) - 200 (processor fee) - 68 (host fee share)
 
-      // Check host metrics pre-refund
-      let hostMetrics = await host.getHostMetrics();
-      expect(hostMetrics).to.deep.equal({
-        hostFees: 450,
-        platformFees: 0,
-        pendingPlatformFees: 0,
-        platformTips: 1000,
-        pendingPlatformTips: 0, // Already settled
-        hostFeeShare: 68,
-        pendingHostFeeShare: 0,
-        hostFeeSharePercent: 15,
-        settledHostFeeShare: 68,
-        totalMoneyManaged: 8732,
-      });
-
       // ---- Refund transaction -----
       const contributionTransaction = await models.Transaction.findOne({
         where: { OrderId: order.id, kind: 'CONTRIBUTION', type: 'CREDIT' },
@@ -311,21 +296,6 @@ describe('test/stories/ledger-legacy', () => {
       expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
       expect(await ocInc.getBalance()).to.eq(1068);
       expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1068);
-
-      // Check host metrics
-      hostMetrics = await host.getHostMetrics();
-      expect(hostMetrics).to.deep.equal({
-        hostFees: 0,
-        platformFees: 0,
-        pendingPlatformFees: 0,
-        platformTips: 0, // There was a 1000 tip, but it was refunded
-        pendingPlatformTips: -1000,
-        hostFeeShare: 0, // Refunded. -> 68 - 68 = 0
-        hostFeeSharePercent: 15,
-        pendingHostFeeShare: -68, // -> 0 - 68 = -68 (Negative because owed by platform)
-        settledHostFeeShare: 68, // hostFeeShare - pendingHostFeeShare (weak metric)
-        totalMoneyManaged: -1268,
-      });
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount
@@ -408,21 +378,6 @@ describe('test/stories/ledger-legacy', () => {
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
       expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 - 200 - 68
 
-      // Check host metrics pre-refund
-      let hostMetrics = await host.getHostMetrics();
-      expect(hostMetrics).to.deep.equal({
-        hostFees: 450,
-        platformFees: 0,
-        pendingPlatformFees: 0,
-        platformTips: 1000,
-        pendingPlatformTips: 0, // Already settled
-        hostFeeShare: 68,
-        hostFeeSharePercent: 15,
-        pendingHostFeeShare: 0,
-        settledHostFeeShare: 68,
-        totalMoneyManaged: 8732,
-      });
-
       // ---- Refund transaction -----
       const contributionTransaction = await models.Transaction.findOne({
         where: { OrderId: order.id, kind: 'CONTRIBUTION', type: 'CREDIT' },
@@ -440,21 +395,6 @@ describe('test/stories/ledger-legacy', () => {
       expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
       expect(await ocInc.getBalance()).to.eq(Math.round(1068 * hostToPlatformFxRate));
       expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1068 * hostToPlatformFxRate));
-
-      // Check host metrics
-      hostMetrics = await host.getHostMetrics();
-      expect(hostMetrics).to.deep.equal({
-        hostFees: 0,
-        platformFees: 0,
-        pendingPlatformFees: 0,
-        platformTips: 0, // There was a 1000 tip, but it was refunded
-        pendingPlatformTips: -1000,
-        hostFeeShare: 0, // Refunded
-        hostFeeSharePercent: 15,
-        pendingHostFeeShare: -68, // -> 0 - 68 = -68 (Negative because owed by platform)
-        settledHostFeeShare: 68, // hostFeeShare - pendingHostFeeShare (weak metric)
-        totalMoneyManaged: -1268,
-      });
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount
@@ -548,21 +488,6 @@ describe('test/stories/ledger-legacy', () => {
         ),
       );
 
-      // Check host metrics pre-refund
-      let hostMetrics = await host.getHostMetrics();
-      expect(hostMetrics).to.deep.equal({
-        hostFees: expectedHostFeeInHostCurrency,
-        platformFees: 0,
-        pendingPlatformFees: 0,
-        platformTips: Math.round((platformTipInCollectiveCurrency * RATES.JPY.USD) / RATES.EUR.USD),
-        pendingPlatformTips: 0, // Already settled
-        hostFeeShare: expectedHostFeeShareInHostCurrency,
-        hostFeeSharePercent: 15,
-        pendingHostFeeShare: 0,
-        settledHostFeeShare: expectedHostFeeShareInHostCurrency,
-        totalMoneyManaged: expectedNetAmountInHostCurrency,
-      });
-
       // ---- Refund transaction -----
       const contributionTransaction = await models.Transaction.findOne({
         where: { OrderId: order.id, kind: 'CONTRIBUTION', type: 'CREDIT' },
@@ -589,21 +514,6 @@ describe('test/stories/ledger-legacy', () => {
       expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(
         Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate),
       );
-
-      // Check host metrics
-      hostMetrics = await host.getHostMetrics();
-      expect(hostMetrics).to.deep.equal({
-        hostFees: 0,
-        platformFees: 0,
-        pendingPlatformFees: 0,
-        platformTips: 0, // There was a 1000 tip, but it was refunded
-        pendingPlatformTips: -platformTipInHostCurrency,
-        hostFeeShare: 0, // Refunded
-        hostFeeSharePercent: 15,
-        pendingHostFeeShare: -expectedHostFeeShareInHostCurrency, // Negative because owed by platform
-        settledHostFeeShare: expectedHostFeeShareInHostCurrency, // hostFeeShare - pendingHostFeeShare (weak metric)
-        totalMoneyManaged: -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
-      });
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount

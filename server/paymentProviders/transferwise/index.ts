@@ -51,7 +51,7 @@ import {
   Transfer,
   Webhook,
 } from '../../types/transferwise';
-import { hashObject } from '../utils';
+import { hashObject, validateRedirectUrl } from '../utils';
 
 import { handleTransferStateChange } from './webhook';
 
@@ -736,10 +736,13 @@ const oauth = {
     }
     assert(user.isAdmin(CollectiveId), 'User must be an admin of the Collective');
 
+    if (query?.redirect) {
+      validateRedirectUrl(query.redirect);
+    }
     const state = hashObject({ CollectiveId, userId: user.id, nonce: random(100000) });
     await sessionCache.set(
       `transferwise_oauth_${state}`,
-      { CollectiveId, redirect: query.redirect, UserId: user.id },
+      { CollectiveId, redirect: query?.redirect, UserId: user.id },
       60 * 10,
     );
     return transferwise.getOAuthUrl(state);
@@ -747,7 +750,7 @@ const oauth = {
 
   callback: async function (req: express.Request, res: express.Response): Promise<void> {
     const state = req.query?.state;
-    if (!state || !req.remoteUser) {
+    if (!state) {
       res.sendStatus(401);
       return;
     }
@@ -762,18 +765,6 @@ const oauth = {
     }
 
     const { redirect, CollectiveId, UserId: CreatedByUserId } = originalRequest;
-    if (
-      !req.remoteUser ||
-      !CreatedByUserId ||
-      CreatedByUserId !== req.remoteUser.id ||
-      !req.remoteUser.isAdmin(CollectiveId)
-    ) {
-      const errorMessage = `This user cannot complete this OAuth request.`;
-      logger.error(errorMessage);
-      res.status(401).send(errorMessage);
-      return;
-    }
-
     const redirectUrl = new URL(redirect);
     try {
       const { code, profileId } = req.query;

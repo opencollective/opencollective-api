@@ -1,6 +1,8 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
+import { GraphQLUseVendorPolicy } from '../enum/UseVendorPolicy';
+
 import { AccountImagesInputFields } from './AccountCreateInputImageFields';
 import { AccountReferenceInputFields, GraphQLAccountReferenceInput } from './AccountReferenceInput';
 import { GraphQLLocationInput } from './LocationInput';
@@ -40,7 +42,19 @@ const VendorInputFields = {
   imageUrl: { type: GraphQLString, deprecationReason: '2024-11-26: Please use image + backgroundImage fields' },
   vendorInfo: { type: GraphQLVendorInfoInput },
   payoutMethod: { type: GraphQLPayoutMethodInput },
-  visibleToAccounts: { type: new GraphQLList(GraphQLAccountReferenceInput) },
+  canBeUsedWithAccounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    description:
+      'Restrict this vendor to specific accounts under the host. If empty/omitted, the vendor can be used with any hosted account.',
+  },
+  visibleToAccounts: {
+    type: new GraphQLList(GraphQLAccountReferenceInput),
+    deprecationReason: 'Use canBeUsedWithAccounts instead.',
+  },
+  useVendorPolicy: {
+    type: GraphQLUseVendorPolicy,
+    description: 'Per-vendor override for who can attribute financial activities. Null means inherit from host.',
+  },
   ...AccountImagesInputFields,
 };
 

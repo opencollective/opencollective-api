@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import config from 'config';
 import type { Request, Response } from 'express';
+import moment from 'moment';
 import sinon from 'sinon';
 
+import { US_TAX_FORM_THRESHOLD_POST_2026, US_TAX_FORM_THRESHOLD_PRE_2026 } from '../../../server/constants/tax-form';
 import LegalDocumentsController from '../../../server/controllers/legal-documents';
 import { idEncode } from '../../../server/graphql/v2/identifiers';
 import * as LibS3 from '../../../server/lib/awsS3';
@@ -22,6 +24,9 @@ import {
   fakeUser,
 } from '../../test-helpers/fake-data';
 import { makeRequest } from '../../utils';
+
+const YEAR = moment().get('year');
+const US_TAX_FORM_THRESHOLD = YEAR >= 2026 ? US_TAX_FORM_THRESHOLD_POST_2026 : US_TAX_FORM_THRESHOLD_PRE_2026;
 
 const getResStub = () => {
   return {
@@ -158,7 +163,7 @@ describe('server/controllers/legal-documents', () => {
           FromCollectiveId: payee.CollectiveId,
           PayoutMethodId: payoutMethod.id, // Need to make sure we're not using PayPal, as PayPal expenses are not subject to tax form
           status: 'APPROVED',
-          totalAmount: 1000e2,
+          amount: US_TAX_FORM_THRESHOLD + 100e2,
           currency: 'USD',
         });
 
