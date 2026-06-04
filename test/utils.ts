@@ -640,6 +640,24 @@ export const prettifyTransactionsData = (transactions, columns, opts = null) => 
 /**
  * Create a nock for Fixer.io at given rate
  */
+/**
+ * Directly seeds the cache with FX rates, using the same key format as `lib/currency.ts`.
+ * This is an alternative to `nockFixerRates` that bypasses HTTP entirely.
+ *
+ * @param ratesConfig - A nested map of { [fromCurrency]: { [toCurrency]: rate } }
+ * @param date - The date key to use (defaults to 'latest')
+ */
+export const seedCachedRates = async (
+  ratesConfig: Record<string, Record<string, number>>,
+  date = 'latest',
+): Promise<void> => {
+  for (const [fromCurrency, targets] of Object.entries(ratesConfig)) {
+    for (const [toCurrency, rate] of Object.entries(targets)) {
+      await cache.set(`${date}-${fromCurrency}-${toCurrency}`, rate);
+    }
+  }
+};
+
 export const nockFixerRates = ratesConfig => {
   nock('https://data.fixer.io')
     .persist()

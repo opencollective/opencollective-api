@@ -42,7 +42,7 @@
     }
   },
   "transferwise": {
-    "apiUrl": "https://api.transferwise.com",
+    "apiUrl": "https://api.wise.com",
     "oauthUrl": "https://wise.com",
     "redirectUri": "https://api.opencollective.com/connected-accounts/transferwise/callback"
   },

@@ -189,8 +189,8 @@
     "minNbStars": 100
   },
   "transferwise": {
-    "apiUrl": "https://api.sandbox.transferwise.tech",
-    "oauthUrl": "https://sandbox.transferwise.tech",
+    "apiUrl": "https://api.wise-sandbox.com",
+    "oauthUrl": "https://wise-sandbox.com",
     "clientId": "opencollective",
     "clientKey": "opencollective",
     "clientSecret": "4C08C79F-44B4-461E-8997-BF9DCC20101F",
