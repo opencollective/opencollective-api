@@ -30,15 +30,15 @@ export const transferwiseMutations = {
       'Complete the Wise (TransferWise) OAuth flow and connect the account to the host. Scope: "connectedAccounts".',
     args: {
       code: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
         description: 'The authorization code returned by Wise in the OAuth callback',
       },
       profileId: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
         description: 'The Wise profile id returned in the OAuth callback',
       },
       state: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
         description: 'The OAuth state token that was generated when initiating the connection',
       },
     },

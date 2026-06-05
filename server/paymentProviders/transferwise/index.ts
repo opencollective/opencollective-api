@@ -34,7 +34,6 @@ import cache, { sessionCache } from '../../lib/cache';
 import { centsAmountToFloat, getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { safeJsonStringify } from '../../lib/safe-json-stringify';
-import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
 import { parseToBoolean } from '../../lib/utils';
 import { Collective, ConnectedAccount, Expense, Op, PayoutMethod, sequelize, User } from '../../models';
@@ -896,45 +895,8 @@ const oauth = {
   },
 
   callback: async function (req: express.Request, res: express.Response): Promise<void> {
-    const state = req.query?.state;
-    if (!state) {
-      res.sendStatus(401);
-      return;
-    }
-
-    const cacheKey = `transferwise_oauth_${state}`;
-    const originalRequest = await sessionCache.get(cacheKey);
-    if (!originalRequest) {
-      const errorMessage = `TransferWise OAuth request not found or expired for state ${state}.`;
-      logger.error(errorMessage);
-      res.send(errorMessage);
-      return;
-    }
-
-    const { redirect, CollectiveId, UserId: CreatedByUserId } = originalRequest;
-    const redirectUrl = new URL(redirect);
-    try {
-      const { code, profileId } = req.query;
-      await connectTransferwiseAccount({
-        code: code?.toString(),
-        profileId: profileId?.toString(),
-        CollectiveId,
-        CreatedByUserId,
-      });
-
-      // Clear cached authorization state key
-      await sessionCache.delete(cacheKey);
-
-      res.redirect(redirectUrl.href);
-    } catch (e) {
-      logger.error(`Error with Wise OAuth callback: ${e.message}`, { ...e, state });
-      reportErrorToSentry(e);
-      redirectUrl.searchParams.append(
-        'error',
-        `Could not OAuth with Wise: ${e.message}. Please contact support@opencollective.com. State: ${state}`,
-      );
-      res.redirect(redirectUrl.href);
-    }
+    res.sendStatus(401);
+    return;
   },
 };
 
