@@ -3,6 +3,7 @@ import { uniq } from 'lodash';
 
 import { assertCanSeeAllAccounts } from '../../../lib/private-accounts';
 import models from '../../../models';
+import { enforceScope } from '../../common/scope-check';
 import { NotFound } from '../../errors';
 import { fetchTransactionWithReference, GraphQLTransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { GraphQLTransaction } from '../interface/Transaction';
@@ -22,6 +23,8 @@ const TransactionQuery = {
     },
   },
   async resolve(_, args, req) {
+    enforceScope(req, 'transactions');
+
     let transaction;
     if (args.transaction) {
       transaction = await fetchTransactionWithReference(args.transaction, req);

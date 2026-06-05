@@ -212,7 +212,7 @@ describe('TransactionsCollectionQuery - includeIncognitoTransactions', () => {
 
   describe('OAuth scope check', () => {
     it('host admin with incognito scope can see incognito transactions via OAuth token', async () => {
-      const userToken = await fakeUserToken({ user: hostAdminUser, scope: ['incognito'] });
+      const userToken = await fakeUserToken({ user: hostAdminUser, scope: ['incognito', 'transactions'] });
 
       const result = await oAuthGraphqlQueryV2(
         transactionsQuery,
@@ -232,7 +232,7 @@ describe('TransactionsCollectionQuery - includeIncognitoTransactions', () => {
     });
 
     it('host admin WITHOUT incognito scope cannot see incognito transactions via OAuth token', async () => {
-      const userToken = await fakeUserToken({ user: hostAdminUser, scope: ['account'] });
+      const userToken = await fakeUserToken({ user: hostAdminUser, scope: ['account', 'transactions'] });
 
       const result = await oAuthGraphqlQueryV2(
         transactionsQuery,
@@ -249,6 +249,24 @@ describe('TransactionsCollectionQuery - includeIncognitoTransactions', () => {
 
       const slugs = result.data.transactions.nodes.map(t => t.fromAccount.slug);
       expect(slugs).to.not.include(incognitoProfile.slug);
+    });
+
+    it('rejects transactions query when OAuth token only has email scope', async () => {
+      const userToken = await fakeUserToken({ user: hostAdminUser, scope: ['email'] });
+
+      const result = await oAuthGraphqlQueryV2(
+        transactionsQuery,
+        {
+          fromAccount: { slug: userCollective.slug },
+          host: { slug: host.slug },
+        },
+        userToken,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'The User Token is not allowed for operations in scope "transactions".',
+      );
     });
   });
 });

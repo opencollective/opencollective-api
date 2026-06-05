@@ -404,6 +404,8 @@ export const canSeeOrderCreator = async (req: express.Request, order: Order): Pr
 export const canSeeOrderTaxIdNumber = async (req: express.Request, order: Order): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
+  } else if ((req.userToken || req.personalToken) && !checkScope(req, 'transactions')) {
+    return false;
   } else if (await isOrderHostAdminOrAccountant(req, order)) {
     return true;
   } else {
