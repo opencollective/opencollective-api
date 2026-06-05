@@ -6549,5 +6549,224 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const draftedExpense = result.data.draftExpenseAndInviteUser;
       expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
+
+    describe('draft invite item description sanitization', () => {
+      let grantCollective;
+
+      const phishingDescription = '</td></tr></table><br><a href="https://attacker.example.com/phish">Click here</a>';
+
+      before(async () => {
+        const host = await fakeActiveHost({
+          plan: 'start-plan-2021',
+          settings: {
+            expenseTypes: {
+              GRANT: true,
+              INVOICE: true,
+              RECEIPT: true,
+            },
+          },
+        });
+        grantCollective = await fakeCollective({ HostCollectiveId: host.id });
+      });
+
+      it('strips HTML from item descriptions for non-grant draft invites', async () => {
+        emailLib.sendMessage.resetHistory();
+        const payeeEmail = randEmail();
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: {
+              ...invoice,
+              payee: { name: 'John Doe', email: payeeEmail },
+              items: [{ ...invoice.items[0], description: phishingDescription }],
+            },
+            account: { legacyId: collective.id },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+        expect(draftedExpense.data.items[0].description).to.not.include('<a href');
+        expect(draftedExpense.data.items[0].description).to.not.include('attacker.example.com');
+
+        await waitForCondition(() => emailLib.sendMessage.lastCall);
+        const body = emailLib.sendMessage.lastCall.args[2];
+        expect(body).to.not.include('href="https://attacker.example.com/phish"');
+      });
+
+      it('preserves allowed HTML for grant draft invites', async () => {
+        emailLib.sendMessage.resetHistory();
+        const payeeEmail = randEmail();
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: {
+              ...invoice,
+              type: 'GRANT',
+              payee: { name: 'John Doe', email: payeeEmail },
+              items: [{ ...invoice.items[0], description: '<strong>Scope</strong>' }],
+            },
+            account: { legacyId: grantCollective.id },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+        expect(draftedExpense.data.items[0].description).to.include('<strong>Scope</strong>');
+
+        await waitForCondition(() => emailLib.sendMessage.lastCall);
+        const body = emailLib.sendMessage.lastCall.args[2];
+        expect(body).to.include('<strong>Scope</strong>');
+      });
+
+      it('strips disallowed HTML for grant draft invites', async () => {
+        emailLib.sendMessage.resetHistory();
+        const payeeEmail = randEmail();
+        const maliciousDescription = '<script>alert(1)</script></td></tr></table><strong>Scope</strong>';
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: {
+              ...invoice,
+              type: 'GRANT',
+              payee: { name: 'John Doe', email: payeeEmail },
+              items: [{ ...invoice.items[0], description: maliciousDescription }],
+            },
+            account: { legacyId: grantCollective.id },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+
+        const draftedExpense = await models.Expense.findByPk(result.data.draftExpenseAndInviteUser.legacyId);
+        expect(draftedExpense.data.items[0].description).to.not.include('<script>');
+        expect(draftedExpense.data.items[0].description).to.not.match(/<\/td><\/tr><\/table>/);
+
+        await waitForCondition(() => emailLib.sendMessage.lastCall);
+        const body = emailLib.sendMessage.lastCall.args[2];
+        expect(body).to.not.include('<script>alert(1)</script>');
+        expect(body).to.include('<strong>Scope</strong>');
+      });
+    });
+
+    describe('disabled expense type policy', () => {
+      const getDraftInviteData = payeeEmail => ({
+        description: 'Disabled type policy test draft',
+        type: 'INVOICE',
+        payee: { name: 'Invited Payee', email: payeeEmail },
+        items: [{ amount: 4200, incurredAt: '2020-10-08', description: 'Item' }],
+        payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+        currency: 'USD',
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the host', async () => {
+        const collectiveAdmin = await fakeUser();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the collective', async () => {
+        const collectiveAdmin = await fakeUser();
+        const disabledCollective = await fakeCollective({
+          admin: collectiveAdmin.collective,
+          settings: { expenseTypes: { INVOICE: false } },
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the account');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the parent', async () => {
+        const collectiveAdmin = await fakeUser();
+        const parent = await fakeCollective({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          ParentCollectiveId: parent.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the parent');
+      });
+
+      it('rejects draft submission when the expense type is disabled', async () => {
+        const payeeEmail = randEmail();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const draftExpense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: 'INVOICE',
+          CollectiveId: disabledCollective.id,
+          data: {
+            draftKey: 'fake-key',
+            payee: { email: payeeEmail },
+            items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(draftExpense.id, IDENTIFIER_TYPES.EXPENSE),
+              description: 'Submitted draft',
+              payee: { name: 'Invited Payee', email: payeeEmail },
+              payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+              items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+            },
+            draftKey: 'fake-key',
+          },
+          await fakeUser(),
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+        await draftExpense.reload();
+        expect(draftExpense.status).to.eq(expenseStatus.DRAFT);
+      });
+    });
   });
 });
