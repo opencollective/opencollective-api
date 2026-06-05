@@ -73,7 +73,8 @@ const updateApplication = {
     const updateParams = pick(args.application, ['name', 'description']);
 
     // Doing this we're not supporting update to NULL
-    if (args.application.redirectUri) {
+    if (args.application.redirectUri && args.application.redirectUri !== application.callbackUrl) {
+      await twoFactorAuthLib.enforceForAccount(req, application.collective, { alwaysAskForToken: true });
       updateParams.callbackUrl = args.application.redirectUri;
     }
 

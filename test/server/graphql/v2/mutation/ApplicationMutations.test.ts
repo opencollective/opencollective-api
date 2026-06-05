@@ -218,6 +218,118 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       expect(resultApp.description).to.eq(VALID_APPLICATION_PARAMS.description);
       expect(resultApp.redirectUri).to.eq(VALID_APPLICATION_PARAMS.redirectUri);
     });
+
+    it('required 2FA when 2FA enabled and updating redirectUri', async () => {
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
+      const application = await fakeApplication({ type: 'oAuth', user });
+
+      const updateResult = await graphqlQueryV2(
+        UPDATE_APPLICATION_MUTATION,
+        {
+          application: {
+            legacyId: application.id,
+            redirectUri: 'https://attacker.example/oauth/callback',
+          },
+        },
+        user,
+      );
+      expect(updateResult.errors[0].message).to.eq('Two-factor authentication required');
+      expect(updateResult.errors[0].extensions.code).to.eq('2FA_REQUIRED');
+    });
+
+    it('invalid 2FA when 2FA enabled and updating redirectUri', async () => {
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
+      const application = await fakeApplication({ type: 'oAuth', user });
+
+      const updateResult = await graphqlQueryV2(
+        UPDATE_APPLICATION_MUTATION,
+        {
+          application: {
+            legacyId: application.id,
+            redirectUri: 'https://attacker.example/oauth/callback',
+          },
+        },
+        user,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp 1234` },
+      );
+      expect(updateResult.errors[0].message).to.eq('Two-factor authentication code is invalid');
+      expect(updateResult.errors[0].extensions.code).to.eq('INVALID_2FA_CODE');
+    });
+
+    it('updates redirectUri with valid 2FA when 2FA enabled', async () => {
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const twoFactorAuthenticatorCode = generateSync({ secret });
+      const newRedirectUri = 'https://attacker.example/oauth/callback';
+      const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
+
+      const createResult = await graphqlQueryV2(
+        CREATE_APPLICATION_MUTATION,
+        { application: VALID_APPLICATION_PARAMS },
+        user,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}` },
+      );
+      expect(createResult.errors).to.not.exist;
+      const appLegacyId = createResult.data.createApplication.legacyId;
+
+      const updateResult = await graphqlQueryV2(
+        UPDATE_APPLICATION_MUTATION,
+        {
+          application: {
+            legacyId: appLegacyId,
+            redirectUri: newRedirectUri,
+          },
+        },
+        user,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}` },
+      );
+      expect(updateResult.errors).to.not.exist;
+      expect(updateResult.data.updateApplication.redirectUri).to.eq(newRedirectUri);
+
+      const appFromDB = await models.Application.findByPk(appLegacyId);
+      expect(appFromDB.callbackUrl).to.eq(newRedirectUri);
+    });
+
+    it('updates name and description without 2FA when redirectUri is unchanged', async () => {
+      const secret = generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
+      const twoFactorAuthenticatorCode = generateSync({ secret });
+      const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
+
+      const createResult = await graphqlQueryV2(
+        CREATE_APPLICATION_MUTATION,
+        { application: VALID_APPLICATION_PARAMS },
+        user,
+        null,
+        { [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}` },
+      );
+      expect(createResult.errors).to.not.exist;
+      const appLegacyId = createResult.data.createApplication.legacyId;
+
+      const updateResult = await graphqlQueryV2(
+        UPDATE_APPLICATION_MUTATION,
+        {
+          application: {
+            legacyId: appLegacyId,
+            name: 'Updated name only',
+            description: 'Updated description only',
+            redirectUri: VALID_APPLICATION_PARAMS.redirectUri,
+          },
+        },
+        user,
+      );
+      expect(updateResult.errors).to.not.exist;
+      expect(updateResult.data.updateApplication.name).to.eq('Updated name only');
+      expect(updateResult.data.updateApplication.description).to.eq('Updated description only');
+      expect(updateResult.data.updateApplication.redirectUri).to.eq(VALID_APPLICATION_PARAMS.redirectUri);
+    });
   });
 
   describe('deleteApplication', () => {
