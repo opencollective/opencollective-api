@@ -732,7 +732,7 @@ async function getAccountBalances(
  * `connectTransferwiseAccount` GraphQL mutation. Permission checks (the user being an admin of the
  * Collective) are expected to be done by the caller.
  */
-export async function connectTransferwiseAccount({
+async function connectTransferwiseAccount({
   code,
   profileId,
   CollectiveId,
@@ -781,8 +781,7 @@ export async function connectTransferwiseAccount({
     const user = await User.findByPk(CreatedByUserId);
     await user.populateRoles();
     const connectedAccountToMirror = connectedAccountToOtherCollectives.find(
-      connectedAccount =>
-        connectedAccount.CreatedByUserId === CreatedByUserId && user.isAdmin(connectedAccountToMirror.CollectiveId),
+      ca => ca.CreatedByUserId === CreatedByUserId && user.isAdmin(ca.CollectiveId),
     );
     assert(
       connectedAccountToMirror,
