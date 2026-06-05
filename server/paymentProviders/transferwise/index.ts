@@ -971,4 +971,5 @@ export default {
   validateTransferRequirements,
   removeWebhooksForHost,
   oauth,
+  connectTransferwiseAccount,
 };
