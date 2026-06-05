@@ -16,11 +16,12 @@ import {
   fakeTransaction,
   fakeUpdate,
   fakeUser,
+  fakeUserToken,
   fakeVendor,
   multiple,
 } from '../../../../test-helpers/fake-data';
 import { createPrivateAccountFixture } from '../../../../test-helpers/private-account-fixture';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const accountQuery = gql`
   query Account($slug: String!, $updatesOrder: UpdateChronologicalOrderInput) {
@@ -831,6 +832,15 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         await collective.host.addUserWithRole(accountant, 'ACCOUNTANT');
         const result = await graphqlQueryV2(accountQuery, { slug: collective.slug }, accountant);
         expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.true;
+      });
+
+      it('is false for OAuth token with email scope only', async () => {
+        const collective = await fakeCollective();
+        const admin = await fakeUser();
+        await collective.addUserWithRole(admin, 'ADMIN');
+        const userToken = await fakeUserToken({ user: admin, scope: ['email'] });
+        const result = await oAuthGraphqlQueryV2(accountQuery, { slug: collective.slug }, userToken);
+        expect(result.data.account.permissions.canDownloadPaymentReceipts.allowed).to.be.false;
       });
     });
   });

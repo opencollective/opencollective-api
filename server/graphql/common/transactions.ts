@@ -20,6 +20,7 @@ import { Forbidden, NotFound, ValidationFailed } from '../errors';
 
 import { isHostAdmin } from './expenses';
 import { canCancelOrder, canRemoveContributorFromOrder, sanitizeMessageForContributor } from './orders';
+import { checkScope } from './scope-check';
 
 const getPayee = async (req, transaction) => {
   if (
@@ -196,6 +197,10 @@ export const canRefund = async (transaction: Transaction, _: void, req: Express.
 };
 
 export const canDownloadInvoice = async (transaction: Transaction, _: void, req: Express.Request): Promise<boolean> => {
+  if ((req.userToken || req.personalToken) && !checkScope(req, 'transactions')) {
+    return false;
+  }
+
   if (transaction.OrderId) {
     const order = await req.loaders.Order.byId.load(transaction.OrderId);
     if (order.status === orderStatus.REJECTED) {
