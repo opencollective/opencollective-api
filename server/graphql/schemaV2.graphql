@@ -1,4 +1,14 @@
 """
+When called with an OAuth or personal token, the token must include all listed scopes. Session/cookie auth is unaffected.
+"""
+directive @requiresOAuthScope(
+  """
+  Required OAuth scopes (e.g. transactions, expenses).
+  """
+  scopes: [String!]!
+) on FIELD_DEFINITION
+
+"""
 An OAuth application.
 """
 type Application {
@@ -29409,6 +29419,9 @@ input PersonalTokenCreateInput {
   The account to use as the owner of the application. Defaults to currently logged in user.
   """
   account: AccountReferenceInput
+    @deprecated(
+      reason: "2026-06-03: This field is ignored, the account will always default to the currently logged in user."
+    )
 }
 
 """
