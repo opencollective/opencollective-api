@@ -1356,9 +1356,13 @@ export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
 export const getHostFeePercent = async (
   order: Order,
   { loaders = null }: { loaders?: loaders } = {},
-): Promise<number> => {
+): Promise<number | null> => {
   const collective =
     order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
+
+  if (!collective) {
+    return null;
+  }
 
   const host = await collective.getHostCollective({ loaders });
   const parent = await collective.getParentCollective({ loaders });
