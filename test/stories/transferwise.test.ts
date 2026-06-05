@@ -20,13 +20,20 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../test-helpers/fake-data';
-import { resetTestDB, snapshotLedger, useIntegrationTestRecorder } from '../utils';
+import { resetTestDB, seedCachedRates, snapshotLedger, useIntegrationTestRecorder } from '../utils';
 
 /**
  * This integration test is ran against recorded API requests against Wise's sandbox environment.
  * To regenerate the recordings, you can run `NODE_ENV=test RECORD=1 mocha test/stories/transferwise.test.ts`.
  * Make sure to also delete transferwise.test.ts.snap before recording a new test, since values can fluctuate due to FX rates.
  * */
+
+const RATES = {
+  USD: { EUR: 0.84, GBP: 0.79, JPY: 110.94 },
+  EUR: { USD: 1.19, GBP: 0.94, JPY: 132.45 },
+  GBP: { USD: 1.27, EUR: 1.06, JPY: 140.5 },
+  JPY: { USD: 0.009, EUR: 0.0075, GBP: 0.0071 },
+};
 
 describe('/test/stories/transferwise.test.ts', () => {
   useIntegrationTestRecorder(config.transferwise.apiUrl, __filename, nock => {
@@ -40,7 +47,7 @@ describe('/test/stories/transferwise.test.ts', () => {
   before(async () => {
     await resetTestDB();
     await cache.clear();
-    config.fixer = { accessKey: 'fake-token' };
+    await seedCachedRates(RATES);
   });
 
   const setupTest = async ({ expenseCurrency, collectiveCurrency, payoutData }) => {
@@ -66,99 +73,88 @@ describe('/test/stories/transferwise.test.ts', () => {
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
-      token: '5943426d-2b7e-407e-b943-37805e55e373',
+      token: 'ab530676-ea17-4cd5-9a6d-73605b5dee3b',
+      // refreshToken: '984bd68c-cb65-4046-9649-48ddb8620da1',
       data: {
-        id: 29100096,
+        id: 28891298,
         type: 'BUSINESS',
-        email: 'iajsdiajsdijaijsdiasjdi@oficonsortium.org',
+        email: 'asdasd@test.dev',
         scope: 'transfers',
-        userId: 13286308,
+        userId: 13144073,
         address: {
-          id: 50440316,
-          city: 'Artoon',
-          postCode: '41234',
+          id: 50137467,
+          city: 'Port Ha',
+          postCode: 'E38JJ',
           stateCode: null,
-          countryIso2Code: 'ES',
-          countryIso3Code: 'esp',
-          addressFirstLine: '14 Norwich Parc',
+          countryIso2Code: 'GB',
+          countryIso3Code: 'gbr',
+          addressFirstLine: '73 Birch Link',
         },
         partner: false,
         version: 0,
-        webpage: 'https://raymondunlimited9404.com',
-        fullName: 'Raymond Unlimited 9404',
-        publicId: 'd4d72b16-108d-4456-a0d5-8615716cdf2e',
-        createdAt: '2025-10-31T10:04:14',
-        updatedAt: '2025-10-31T10:04:14',
-        expires_at: '2025-11-03T19:14:55.095Z',
+        webpage: 'https://raymondandco4011.com',
+        fullName: 'Raymond and Co 4011',
+        publicId: '1aa1e5d1-01c3-45c5-ab0e-975ff36f512c',
+        createdAt: '2026-06-04T10:52:37',
+        updatedAt: '2026-06-04T10:52:37',
+        expires_at: '2026-06-04T23:03:51.097Z',
         expires_in: 43199,
         obfuscated: false,
         token_type: 'bearer',
-        companyType: 'SOLE_TRADER',
+        companyRole: 'OWNER',
+        companyType: 'LIMITED',
         profileRole: 'DIRECT_CUSTOMER_PROFILE',
-        businessName: 'Raymond Unlimited 9404',
+        businessName: 'Raymond and Co 4011',
         currentState: 'VISIBLE',
-        contactDetails: {
-          email: 'leo+twusa@oficonsortium.org',
-          phoneNumber: '+38263072971',
-        },
+        contactDetails: { email: 'asdasd@test.dev', phoneNumber: '+905616137250' },
         dataObfuscated: false,
         onboardingFlow: 'DEFAULT',
         creatorClientId: 'transferwise_web',
         partnerCustomer: false,
         personalProfile: {
-          id: 29100090,
+          id: 28891297,
           type: 'PERSONAL',
-          email: 'juahsduihasdiuha@oficonsortium.org',
-          userId: 13286308,
+          email: 'asdasd@test.dev',
+          userId: 13144073,
           address: {
-            id: 50440308,
-            city: 'Triakestocksfield',
-            postCode: 'E56JJ',
+            id: 50137466,
+            city: 'Artoon',
+            postCode: 'E79JJ',
             stateCode: null,
-            countryIso2Code: 'DE',
-            countryIso3Code: 'deu',
-            addressFirstLine: '25 Sackville Court',
+            countryIso2Code: 'GB',
+            countryIso3Code: 'gbr',
+            addressFirstLine: '57 Redcar Glebe',
           },
           partner: false,
           version: 1,
-          fullName: 'Kaitlynn Adams',
-          lastName: 'Adams',
-          publicId: '84453470-bfe3-41bd-a299-00c6288e790e',
-          createdAt: '2025-10-31T10:01:30',
-          firstName: 'Kaitlynn',
-          updatedAt: '2025-10-31T10:01:31',
+          fullName: 'Franco Beasley',
+          lastName: 'Beasley',
+          publicId: '623d276f-da07-44f7-8243-1cd555997043',
+          createdAt: '2026-06-04T10:52:35',
+          firstName: 'Franco',
+          updatedAt: '2026-06-04T10:52:36',
           obfuscated: false,
-          dateOfBirth: '1997-01-05',
-          phoneNumber: '+38263072971',
+          dateOfBirth: '1995-01-06',
+          phoneNumber: '+905616137250',
           profileRole: 'DIRECT_CUSTOMER_PROFILE',
           currentState: 'VISIBLE',
-          contactDetails: {
-            email: 'leo+twusa@oficonsortium.org',
-            phoneNumber: '+38263072971',
-          },
+          jointProfile: false,
+          contactDetails: { email: 'asdasd@test.dev', phoneNumber: '+905616137250' },
           dataObfuscated: false,
           creatorClientId: 'transferwise_web',
           partnerCustomer: false,
           secondaryAddresses: [],
+          contractingWithWise: true,
         },
         firstLevelCategory: 'CONSULTING_IT_BUSINESS_SERVICES',
-        registrationNumber: '00000000000000000000',
+        industryCategories: ['ADVERTISING_DESIGN_PHOTOGRAPHY'],
+        registrationNumber: '85771766',
+        contractingWithWise: true,
         secondLevelCategory: 'DESIGN',
-        operationalAddresses: [
-          {
-            id: 50440317,
-            city: 'Artoon',
-            postCode: '41234',
-            stateCode: 'NY',
-            countryIso2Code: 'US',
-            countryIso3Code: 'usa',
-            addressFirstLine: '14 Norwich Parc',
-          },
-        ],
+        operationalAddresses: [],
         descriptionOfBusiness: 'DESIGN',
-        refresh_token_expires_at: '2045-10-29T07:14:55.095Z',
+        refresh_token_expires_at: '2046-05-30T11:03:51.097Z',
         refresh_token_expires_in: 630719999,
-        businessFreeFormDescription: 'asdasdasdasdasda asd asd as asd as',
       },
     });
     await hostAdmin.populateRoles();
@@ -174,6 +170,7 @@ describe('/test/stories/transferwise.test.ts', () => {
       type: PayoutMethodTypes.BANK_ACCOUNT,
       CollectiveId: user.CollectiveId,
       data: payoutData,
+      currency: payoutData.currency,
     });
     const expense: Expense & { data: any } = await fakeExpense({
       payoutMethod: 'transferwise',
