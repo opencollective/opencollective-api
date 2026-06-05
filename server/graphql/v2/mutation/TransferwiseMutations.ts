@@ -7,6 +7,7 @@ import { connectTransferwiseAccount } from '../../../paymentProviders/transferwi
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import GraphQLURL from '../scalar/URL';
 
 const GraphQLTransferwiseConnectAccountResponse = new GraphQLObjectType({
   name: 'TransferwiseConnectAccountResponse',
@@ -16,7 +17,7 @@ const GraphQLTransferwiseConnectAccountResponse = new GraphQLObjectType({
       description: 'The connected account that was created',
     },
     redirectUrl: {
-      type: GraphQLString,
+      type: GraphQLURL,
       description: 'The URL to redirect the user to once the connection is complete',
     },
   },

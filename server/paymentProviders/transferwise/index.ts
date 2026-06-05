@@ -771,43 +771,44 @@ export async function connectTransferwiseAccount({
   );
 
   // Check if this account was already connected to another collective, if so, we'll mirror it to that Account so we avoid invalidating tokens.
-  const mirroredAccounts = await ConnectedAccount.findAll({
+  const connectedAccountToOtherCollectives = await ConnectedAccount.findAll({
     where: { service: PROVIDER_NAME, data: { id: profile.id }, CollectiveId: { [Op.ne]: collective.id } },
     include: [{ model: Collective, as: 'collective' }],
   });
 
   let connectedAccount: ConnectedAccount;
   // Link to existing connected account if the profileId is already connected to another collective
-  if (mirroredAccounts.length > 0) {
-    const mirroredAccount = mirroredAccounts.find(
-      mirroredAccount => mirroredAccount.CreatedByUserId === CreatedByUserId,
-    );
-    assert(mirroredAccount, 'You can only mirror accounts that were previously connected by your user');
-    logger.warn(
-      `${collective.slug} connected a Wise account that is already connected to another collective, linking to existing account ${mirroredAccount.id}`,
-    );
+  if (connectedAccountToOtherCollectives.length > 0) {
     const user = await User.findByPk(CreatedByUserId);
     await user.populateRoles();
+    const connectedAccountToMirror = connectedAccountToOtherCollectives.find(
+      connectedAccount =>
+        connectedAccount.CreatedByUserId === CreatedByUserId && user.isAdmin(connectedAccountToMirror.CollectiveId),
+    );
     assert(
-      user.isAdmin(mirroredAccount.CollectiveId),
-      'This account is already connected to another Collective, make sure you have the right permissions on the other Collective',
+      connectedAccountToMirror,
+      'You can only mirror accounts that were previously connected by your user and you need to be an admmin of both the account to mirror and the account being mirrored.',
+    );
+    logger.warn(
+      `${collective.slug} connected a Wise account that is already connected to another collective, linking to existing account ${connectedAccountToMirror.id}`,
     );
 
     const mirrorHash = hashObject({
       profileId: profile.id,
       service: 'transferwise',
       userId: profile.userId,
-      MirrorConnectedAccountId: mirroredAccount.id,
+      MirrorConnectedAccountId: connectedAccountToMirror.id,
     });
-    const existingConnectedAccount = await ConnectedAccount.findOne({
+    const existingMirror = await ConnectedAccount.findOne({
       where: { service: PROVIDER_NAME, CollectiveId, hash: mirrorHash },
     });
     // If mirror account already exists, update it with new tokens
-    if (existingConnectedAccount) {
-      await existingConnectedAccount.update({ token, refreshToken });
-      connectedAccount = existingConnectedAccount;
-    } else {
-      // Create a new empty connected account pointing to the existing one that ports the same credentials
+    if (existingMirror) {
+      await existingMirror.update({ token, refreshToken });
+      connectedAccount = existingMirror;
+    }
+    // Create a new empty connected account pointing to the existing one that ports the same credentials
+    else {
       connectedAccount = await ConnectedAccount.create({
         CollectiveId,
         CreatedByUserId: CreatedByUserId,
@@ -816,19 +817,19 @@ export async function connectTransferwiseAccount({
         refreshToken: null,
         hash: mirrorHash,
         data: {
-          MirrorConnectedAccountId: mirroredAccount.id,
+          MirrorConnectedAccountId: connectedAccountToMirror.id,
         },
-        settings: { isMirror: true, mirroredCollective: mirroredAccount.collective.minimal },
+        settings: { isMirror: true, mirroredCollective: connectedAccountToMirror.collective.minimal },
       });
     }
 
     // Update the original connected account with the new tokens
-    await mirroredAccount.update({
+    await connectedAccountToMirror.update({
       token,
       refreshToken,
-      data: { ...mirroredAccount.data, ...data },
+      data: { ...connectedAccountToMirror.data, ...data },
     });
-    await populateProfileId(mirroredAccount, profile.id);
+    await populateProfileId(connectedAccountToMirror, profile.id);
   }
   // Otherwise update the existing connected account or create a new one
   else {
