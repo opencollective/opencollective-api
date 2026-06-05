@@ -1784,7 +1784,7 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
   }
 };
 
-const checkExpenseType = async (
+export const checkExpenseType = async (
   newType: ExpenseType,
   fromAccount: Collective,
   account: Collective,
@@ -2632,6 +2632,24 @@ export async function submitExpenseDraft(
   }
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
+
+  const collective = await models.Collective.findByPk(existingExpense.CollectiveId, {
+    include: [
+      { association: 'host', required: false },
+      { association: 'parent', required: false },
+    ],
+  });
+  const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
+  await checkExpenseType(
+    expenseData.type || existingExpense.type,
+    fromCollective,
+    collective,
+    collective.parent,
+    collective.host,
+    existingExpense,
+    req.remoteUser,
+    req,
+  );
 
   const options = {
     overrideRemoteUser: undefined,

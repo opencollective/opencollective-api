@@ -6549,5 +6549,117 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const draftedExpense = result.data.draftExpenseAndInviteUser;
       expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
+
+    describe('disabled expense type policy', () => {
+      const getDraftInviteData = payeeEmail => ({
+        description: 'Disabled type policy test draft',
+        type: 'INVOICE',
+        payee: { name: 'Invited Payee', email: payeeEmail },
+        items: [{ amount: 4200, incurredAt: '2020-10-08', description: 'Item' }],
+        payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+        currency: 'USD',
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the host', async () => {
+        const collectiveAdmin = await fakeUser();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the collective', async () => {
+        const collectiveAdmin = await fakeUser();
+        const disabledCollective = await fakeCollective({
+          admin: collectiveAdmin.collective,
+          settings: { expenseTypes: { INVOICE: false } },
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the account');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the parent', async () => {
+        const collectiveAdmin = await fakeUser();
+        const parent = await fakeCollective({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          ParentCollectiveId: parent.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the parent');
+      });
+
+      it('rejects draft submission when the expense type is disabled', async () => {
+        const payeeEmail = randEmail();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const draftExpense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: 'INVOICE',
+          CollectiveId: disabledCollective.id,
+          data: {
+            draftKey: 'fake-key',
+            payee: { email: payeeEmail },
+            items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(draftExpense.id, IDENTIFIER_TYPES.EXPENSE),
+              description: 'Submitted draft',
+              payee: { name: 'Invited Payee', email: payeeEmail },
+              payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+              items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+            },
+            draftKey: 'fake-key',
+          },
+          await fakeUser(),
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+        await draftExpense.reload();
+        expect(draftExpense.status).to.eq(expenseStatus.DRAFT);
+      });
+    });
   });
 });
