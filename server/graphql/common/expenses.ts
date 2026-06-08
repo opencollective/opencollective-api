@@ -243,13 +243,24 @@ const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promis
 export const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.HostCollectiveId) {
-    return req.remoteUser.isAdmin(expense.HostCollectiveId);
-  } else if (!expense.collective) {
+  }
+
+  if (!expense.collective) {
     expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
     if (!expense.collective) {
       return false;
     }
+  }
+
+  // Address the exceptional case where the expense host id would be stale after a collective rehost
+  const hasStaleExpenseHostId =
+    expense.HostCollectiveId &&
+    expense.collective.HostCollectiveId &&
+    expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
+    expense.status !== expenseStatus.PAID;
+
+  if (expense.HostCollectiveId && !hasStaleExpenseHostId) {
+    return req.remoteUser.isAdmin(expense.HostCollectiveId);
   }
 
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;

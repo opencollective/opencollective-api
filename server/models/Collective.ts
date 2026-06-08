@@ -2800,6 +2800,18 @@ class Collective extends ModelWithPublicId<
       },
     );
 
+    // Clear stale host references from unpaid expenses so payment authorization uses the current host
+    await Expense.update(
+      { HostCollectiveId: null },
+      {
+        where: {
+          CollectiveId: [this.id, ...children.map(c => c.id)],
+          status: { [Op.not]: 'PAID' },
+          HostCollectiveId: { [Op.not]: null },
+        },
+      },
+    );
+
     // If frozen, unfreeze
     if (this.isFrozen()) {
       await this.unfreeze();

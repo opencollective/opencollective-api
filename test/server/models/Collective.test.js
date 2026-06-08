@@ -870,6 +870,31 @@ describe('server/models/Collective', () => {
       expect(event.hostFeePercent).to.be.equal(30);
     });
 
+    it('clears stale HostCollectiveId from unpaid expenses when changing host', async () => {
+      const oldHost = await fakeActiveHost({ currency: 'USD' });
+      const newHost = await fakeHost({ settings: { apply: true } });
+      const collective = await fakeCollective({ HostCollectiveId: oldHost.id, currency: 'USD' });
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      const unpaidExpense = await fakeExpense({
+        CollectiveId: collective.id,
+        status: expenseStatus.APPROVED,
+        HostCollectiveId: oldHost.id,
+        PayoutMethodId: payoutMethod.id,
+      });
+      const paidExpense = await fakeExpense({
+        CollectiveId: collective.id,
+        status: expenseStatus.PAID,
+        HostCollectiveId: oldHost.id,
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      await collective.changeHost(newHost.id, user2);
+      await Promise.all([unpaidExpense.reload(), paidExpense.reload()]);
+
+      expect(unpaidExpense.HostCollectiveId).to.be.null;
+      expect(paidExpense.HostCollectiveId).to.equal(oldHost.id);
+    });
+
     it('returns active plan', async () => {
       const collective = await hostUser.collective.reload();
       const plan = await collective.getLegacyPlan();
