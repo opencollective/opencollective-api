@@ -135,6 +135,7 @@
   "devDependencies": {
     "@babel/cli": "^7.23.4",
     "@babel/register": "^7.23.7",
+    "@eslint/js": "^10.0.1",
     "@graphql-eslint/eslint-plugin": "^4.0.0",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/auto-instrumentations-node": "^0.73.0",
@@ -151,7 +152,7 @@
     "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^8.0.0",
     "@types/validator": "^13.11.8",
-    "@typescript-eslint/parser": "^8.13.0",
+    "@typescript-eslint/parser": "^8.60.1",
     "babel-plugin-istanbul": "^8.0.0",
     "chai": "^6.0.0",
     "chai-as-promised": "^7.1.1",
@@ -162,7 +163,7 @@
     "commitizen": "^4.3.1",
     "cz-conventional-changelog": "^3.3.0",
     "eslint": "^10.0.0",
-    "eslint-config-opencollective": "^6.0.0",
+    "eslint-config-opencollective": "^6.2.0",
     "eslint-import-resolver-typescript": "^4.0.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-n": "^17.11.1",
@@ -189,7 +190,7 @@
     "supertest": "^7.0.0",
     "ts-unused-exports": "^11.0.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.13.0",
+    "typescript-eslint": "^8.60.1",
     "ws": "^8.18.3"
   },
   "scripts": {

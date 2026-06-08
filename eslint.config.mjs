@@ -53,6 +53,10 @@ export default [
     },
 
     rules: {
+      // ESLint v10 adds these to eslint:recommended; disable until the codebase is updated
+      'preserve-caught-error': 'off',
+      'no-useless-assignment': 'off',
+      'no-unassigned-vars': 'off',
       'opencollective-currency/no-math-round-amount-names': 'warn',
       'no-console': 'error',
       'import/no-commonjs': 'error',
