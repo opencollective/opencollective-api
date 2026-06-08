@@ -1,23 +1,29 @@
 # AGENTS.md
 
-## Cursor Cloud specific instructions
+## Development environment notes
 
 ### Product overview
 
 This repo is **opencollective-api** — the Open Collective backend (Express + GraphQL + Sequelize). The main dev surface is the API at `http://localhost:3060` (GraphQL at `/graphql`).
 
-### System dependencies (VM)
+### System dependencies
 
-- **Node.js 24.x** and **npm 11.x** (see `.nvmrc`, `package.json` engines). The cloud VM may ship Node 22 at `/exec-daemon/node`; use nvm and put Node 24 first on `PATH` before running npm scripts.
+- **Node.js 24.x** and **npm 11.x** (see `.nvmrc`, `package.json` engines). Use nvm (`nvm install && nvm use`) and ensure Node 24 is first on `PATH` before running npm scripts.
 - **PostgreSQL 16+** with client tools (`psql`). `npm postinstall` requires `psql` and a running Postgres on `localhost:5432` with trust auth for local users (see `docs/postgres.md`).
-- **Docker** is optional. In this cgroup-limited environment, `docker compose -f docker-compose/db.yml up` may fail; use the native Postgres service instead (`sudo pg_ctlcluster 16 main start`).
+- **Docker** is optional for Postgres (`docker compose -f docker-compose/db.yml up`). If Docker is unavailable, install and run Postgres natively (see `docs/postgres.md`).
 
 ### Starting services
 
 1. **PostgreSQL** (required):
+
    ```bash
+   # Docker
+   docker compose -f docker-compose/db.yml up -d
+
+   # Or native (Debian/Ubuntu example)
    sudo pg_ctlcluster 16 main start
    ```
+
 2. **API** (required for dev):
    ```bash
    npm run dev
