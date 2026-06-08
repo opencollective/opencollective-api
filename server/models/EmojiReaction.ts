@@ -5,6 +5,11 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import User from './User';
 
+// Guard function to check if an emoji is valid
+export const isValidEmoji = (emoji: string): emoji is ReactionEmoji => {
+  return (REACTION_EMOJI as readonly string[]).includes(emoji as ReactionEmoji);
+};
+
 class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationAttributes<EmojiReaction>> {
   public static readonly tableName = 'EmojiReactions' as const;
 

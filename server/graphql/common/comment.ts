@@ -3,6 +3,7 @@ import { lowerCase, pick } from 'lodash';
 import ActivityTypes from '../../constants/activities';
 import ExpenseStatuses from '../../constants/expense-status';
 import { mustBeLoggedInTo } from '../../lib/auth';
+import { assertCanSeeAccount } from '../../lib/private-accounts';
 import models, { HostApplication, User } from '../../models';
 import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
@@ -90,6 +91,20 @@ const loadCommentedEntity = async (
 
 /* eslint-disable custom-errors/no-unthrown-errors */
 const getCommentPermissionsError = async (req, commentedEntity, commentType) => {
+  if (!commentedEntity?.collective) {
+    return new Unauthorized('Cannot find the account for the commented entity');
+  }
+
+  // Private accounts
+  if (commentedEntity.collective.isPrivate) {
+    try {
+      await assertCanSeeAccount(req, commentedEntity.collective);
+    } catch (error) {
+      return error;
+    }
+  }
+
+  // Entity-specific checks
   if (commentedEntity instanceof Expense) {
     if (!(await canCommentExpense(req, commentedEntity))) {
       return new Unauthorized('You are not allowed to comment on this expense');
