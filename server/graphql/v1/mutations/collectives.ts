@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
+import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { defaultHostCollective } from '../../../lib/collectivelib';
@@ -432,6 +433,11 @@ export function editCollective(_, args, req) {
           });
 
           return collective.changeHost(newCollectiveData.HostCollectiveId, req.remoteUser);
+        }
+      })
+      .then(async () => {
+        if (newCollectiveData.settings !== undefined) {
+          await assertSettingsChangeAllowed(req, collective, collective.settings, newCollectiveData.settings);
         }
       })
       .then(() => {
