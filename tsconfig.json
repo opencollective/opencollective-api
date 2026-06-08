@@ -2,6 +2,9 @@
   "compilerOptions": {
     "ignoreDeprecations": "6.0",
     "resolveJsonModule": true,
+    "paths": {
+      "config": ["./server/types/node-config.d.ts"]
+    },
     // Target latest version of ECMAScript.
     "target": "esnext",
     // Search under node_modules for non-relative imports.
