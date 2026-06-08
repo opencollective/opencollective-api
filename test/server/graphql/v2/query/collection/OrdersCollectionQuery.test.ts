@@ -12,6 +12,7 @@ import {
   fakeManualPaymentProvider,
   fakeOrder,
   fakePrivateHost,
+  fakePrivateOrganization,
   fakeUser,
   randStr,
 } from '../../../../../test-helpers/fake-data';
@@ -1887,6 +1888,7 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
     let privateCollectiveAdminUser;
     let privateCollective2AdminUser;
     let randomUser;
+    let privateFromAccountOrder;
 
     before(async () => {
       privateHostAdminUser = await fakeUser();
@@ -1930,6 +1932,15 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
         CreatedByUserId: contributorUser.id,
         status: OrderStatuses.PAID,
         description: 'Order to public collective',
+      });
+
+      const privateFromAccount = await fakePrivateOrganization();
+      privateFromAccountOrder = await fakeOrder({
+        FromCollectiveId: privateFromAccount.id,
+        CollectiveId: publicCollective.id,
+        CreatedByUserId: contributorUser.id,
+        status: OrderStatuses.PAID,
+        description: 'Order from private org to public collective',
       });
     });
 
@@ -2058,6 +2069,19 @@ describe('server/graphql/v2/collection/OrdersCollectionQuery', () => {
           'Order to private collective 1',
           'Order to private collective 2',
         ]);
+      });
+
+      it('blocks unauthenticated access to private fromAccount on public collective orders', async () => {
+        const result = await graphqlQueryV2(ordersQuery, { account: { legacyId: publicCollective.id } }, null);
+
+        expect(result.errors).to.exist;
+        expect(
+          result.errors.some(error => error.message === 'This account is private. You must be a member to view it.'),
+        ).to.be.true;
+        const orderFromPrivateOrg = result.data.orders.nodes.find(
+          node => node?.legacyId === privateFromAccountOrder.id,
+        );
+        expect(orderFromPrivateOrg?.fromAccount).to.be.null;
       });
     });
   });
