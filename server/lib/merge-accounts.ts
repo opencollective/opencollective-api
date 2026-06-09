@@ -386,7 +386,6 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
       } else {
         throw new Error(
           `Error moving ${entity} from ${from.slug} to ${into.slug}: ${e.message} (${safeJsonStringify(updateWhere)})`,
-          { cause: e },
         );
       }
     }

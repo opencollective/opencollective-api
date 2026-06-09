@@ -28,10 +28,10 @@ export const requestPlaidAccountSync = async (connectedAccount: ConnectedAccount
     });
   } catch (e) {
     if (get(e, 'response.data.error_code') === 'ITEM_LOGIN_REQUIRED') {
-      throw new Error('The login details of this item have changed. Please reconnect the account.', { cause: e });
+      throw new Error('The login details of this item have changed. Please reconnect the account.');
     } else {
       reportErrorToSentry(e, { extra: { connectedAccountId: connectedAccount.id } });
-      throw new Error(`Failed to request a bank account sync: ${e.message}`, { cause: e });
+      throw new Error(`Failed to request a bank account sync: ${e.message}`);
     }
   }
 };

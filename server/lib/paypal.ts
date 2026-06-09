@@ -154,7 +154,7 @@ export const validateWebhookEvent = async (
       throw new Error('Invalid webhook request');
     }
   } catch (e) {
-    throw new Error(parseError(e), { cause: e });
+    throw new Error(parseError(e));
   }
 };
 

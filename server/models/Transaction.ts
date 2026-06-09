@@ -1194,7 +1194,7 @@ class Transaction extends ModelWithPublicId<
     try {
       Transaction.validateContributionPayload(transaction);
     } catch (error) {
-      throw new Error(`createFromContributionPayload: ${error.message}`, { cause: error });
+      throw new Error(`createFromContributionPayload: ${error.message}`);
     }
 
     // Retrieve Host

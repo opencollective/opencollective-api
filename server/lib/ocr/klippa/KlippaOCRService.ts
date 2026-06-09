@@ -80,8 +80,8 @@ export class KlippaOCRService implements ExpenseOCRService {
   }
 
   private async checkRateLimits(urls: string[]): Promise<void> {
-    let failedLimit;
-    let ocrStats;
+    let failedLimit: string | undefined;
+    let ocrStats: { month: number; week: number; day: number; hour: number } | undefined;
     const nbFilesToParse = urls.length;
     const limitsPerUser: Record<string, number> = config.limits.klippa.perUser;
 
@@ -203,7 +203,7 @@ export class KlippaOCRService implements ExpenseOCRService {
       return response.data;
     } catch (error) {
       reportErrorToSentry(error, { extra: { url, formData: Object.fromEntries(formData) } });
-      throw new Error('Unexpected Error while calling the AI service', { cause: error });
+      throw new Error('Unexpected Error while calling the AI service');
     }
   }
 }

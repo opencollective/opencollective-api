@@ -480,7 +480,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
     );
   } catch (e) {
     reportErrorToSentry(e, { extra: { host: host.info, collective: collective.info, message } });
-    throw new Error('Failed to send the contact message, please try again later', { cause: e });
+    throw new Error('Failed to send the contact message, please try again later');
   }
 };
 

@@ -1251,9 +1251,7 @@ const orderMutations = {
         };
       } catch (e) {
         logger.error(e);
-        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.', {
-          cause: e,
-        });
+        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.');
       }
     },
   },

@@ -216,7 +216,7 @@ export const checkBatchStatus = async (batch: Expense[]): Promise<Expense[]> => 
     }
   } catch (error) {
     reportErrorToSentry(error, { feature: FEATURE.PAYPAL_PAYOUTS });
-    throw new Error('There was an error fetching the batch info.', { cause: error });
+    throw new Error('There was an error fetching the batch info.');
   }
   return batch;
 };

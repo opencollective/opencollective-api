@@ -283,7 +283,7 @@ class ExportWorker {
     } catch (error) {
       logger.error(`Error setting up Postgres triggers: ${JSON.stringify(error)}`);
       reportErrorToSentry(error, { handler: HandlerType.EXPORTS_WORKER });
-      throw new Error('Failed to setup Postgres triggers', { cause: error });
+      throw new Error('Failed to setup Postgres triggers');
     }
 
     this.interval = setInterval(() => this.tick(), TICK_INTERVAL);

@@ -81,7 +81,7 @@ const processOrder = async (order: Order): Promise<void> => {
     const sanitizedError = pick(e, ['code', 'message', 'requestId', 'statusCode']);
     const errorMessage = `Error processing Stripe bacs_debit: ${e.message}`;
     logger.error(errorMessage, sanitizedError);
-    throw new Error(errorMessage, { cause: e });
+    throw new Error(errorMessage);
   }
 };
 

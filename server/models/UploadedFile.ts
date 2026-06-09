@@ -286,7 +286,7 @@ class UploadedFile extends ModelWithPublicId<
         file.size = file.buffer.length;
       } catch (e) {
         reportErrorToSentry(e, { user });
-        throw new Error('The image is corrupted', { cause: e });
+        throw new Error('The image is corrupted');
       }
     }
 
@@ -329,7 +329,7 @@ class UploadedFile extends ModelWithPublicId<
         user,
       });
 
-      throw new Error('There was a problem while uploading the file', { cause: err });
+      throw new Error('There was a problem while uploading the file');
     }
   }
 

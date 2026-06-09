@@ -64,7 +64,17 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   });
 
   const hostsById = {};
-  const invoicesByKey = {};
+  const invoicesByKey: Record<
+    string,
+    {
+      HostCollectiveId: number;
+      FromCollectiveId: number;
+      slug: string;
+      year: number;
+      month: number;
+      totalTransactions: number;
+    }
+  > = {};
   for (const transaction of transactions) {
     const HostCollectiveId = transaction.HostCollectiveId;
     if (!HostCollectiveId) {
@@ -184,7 +194,7 @@ export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
     response = await fetchWithTimeout(pdfURL.toString(), { method: 'get', headers, timeoutInMs: 15000 });
   } catch (e) {
     reportErrorToSentry(e, { severity: 'error', extra: { formType, formData } });
-    throw new Error(`Failed to generate PDF. The service is either offline or unresponsive.`, { cause: e });
+    throw new Error(`Failed to generate PDF. The service is either offline or unresponsive.`);
   }
 
   const { status } = response;

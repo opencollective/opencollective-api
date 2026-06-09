@@ -152,9 +152,9 @@ export async function validateAndNormalizeContributionAccountingCategoryRulePred
     if (error instanceof ZodError && error.issues[0]?.message) {
       const firstIssue = error.issues[0];
       if (firstIssue.path[0] === 'subject') {
-        throw new Error(`Invalid subject: ${predicate.subject}`, { cause: error });
+        throw new Error(`Invalid subject: ${predicate.subject}`);
       }
-      throw new Error(error.issues[0].message, { cause: error });
+      throw new Error(error.issues[0].message);
     }
     throw error;
   }
