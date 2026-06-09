@@ -255,7 +255,6 @@ export const isHostAdmin = async (req: express.Request, expense: Expense): Promi
   // Address the exceptional case where the expense host id would be stale after a collective rehost
   const hasStaleExpenseHostId =
     expense.HostCollectiveId &&
-    expense.collective.HostCollectiveId &&
     expense.HostCollectiveId !== expense.collective.HostCollectiveId &&
     expense.status !== expenseStatus.PAID;
 

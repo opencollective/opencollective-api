@@ -2717,11 +2717,12 @@ class Collective extends ModelWithPublicId<
       shouldAutomaticallyApprove?: boolean;
     } = {},
   ) {
-    // Skip
+    // Skip if the host is the same
     if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
     }
 
+    // Pre-conditions checks
     const balance = await this.getBalance();
     if (balance > 0) {
       if (isChildren) {
@@ -2735,6 +2736,15 @@ class Collective extends ModelWithPublicId<
       }
     }
 
+    const blockingExpensesCount = await Expense.count({
+      where: { CollectiveId: this.id, status: expenseStatus.PROCESSING },
+    });
+
+    if (blockingExpensesCount > 0) {
+      throw new Error(`Unable to change host: there are still ${blockingExpensesCount} expenses in a processing state`);
+    }
+
+    // Proceed with host removal
     await Member.destroy({
       where: {
         CollectiveId: this.id,
