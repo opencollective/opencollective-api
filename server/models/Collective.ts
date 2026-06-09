@@ -2696,9 +2696,9 @@ class Collective extends ModelWithPublicId<
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  changeHost = async function (
-    newHostCollectiveId,
-    remoteUser = undefined,
+  changeHost = async (
+    newHostCollectiveId: number | null,
+    remoteUser: User | null = null,
     {
       pauseContributions = true,
       isChildren = false,
@@ -2716,7 +2716,7 @@ class Collective extends ModelWithPublicId<
       message?: string;
       shouldAutomaticallyApprove?: boolean;
     } = {},
-  ) {
+  ) => {
     // Skip if the host is the same
     if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
@@ -2824,7 +2824,8 @@ class Collective extends ModelWithPublicId<
 
     // If frozen, unfreeze
     if (this.isFrozen()) {
-      await this.unfreeze();
+      const message = 'Leaving current Fiscal Host';
+      await this.unfreeze(message, message, remoteUser);
     }
 
     // Reset current host
