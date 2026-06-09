@@ -678,7 +678,7 @@ const expenseMutations = {
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
-      let payee = null;
+      let payee;
       if (expenseData.payee?.legacyId || expenseData.payee?.id) {
         payee = (
           await fetchAccountWithReference(

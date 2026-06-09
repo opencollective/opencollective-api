@@ -3566,7 +3566,7 @@ export const getExpenseFees = async (
   }
 
   // Build fees in expense currency
-  let feesInExpenseCurrency = {};
+  let feesInExpenseCurrency;
   if (expense.currency === expense.collective.currency) {
     feesInExpenseCurrency = {
       paymentProcessorFee: resultFees['paymentProcessorFeeInCollectiveCurrency'],
