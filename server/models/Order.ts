@@ -353,12 +353,23 @@ class Order extends ModelWithPublicId<
     );
   }
 
-  static countActiveRecurringForPaymentService(
-    paymentMethodService: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`,
-  ) {
+  static countActiveRecurringForPaymentService({
+    service,
+    HostCollectiveId,
+  }: {
+    service: PAYMENT_METHOD_SERVICE | `${PAYMENT_METHOD_SERVICE}`;
+    HostCollectiveId: number;
+  }) {
     return models.Order.count({
       where: { status: { [Op.or]: [OrderStatus.ACTIVE, OrderStatus.ERROR] } },
-      include: [{ where: { service: paymentMethodService }, association: 'paymentMethod', required: true }],
+      include: [
+        { where: { service }, association: 'paymentMethod', required: true },
+        {
+          where: { HostCollectiveId, isActive: true, approvedAt: { [Op.not]: null } },
+          association: 'collective',
+          required: true,
+        },
+      ],
     });
   }
 
