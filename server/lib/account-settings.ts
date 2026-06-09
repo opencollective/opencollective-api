@@ -7,26 +7,11 @@ import type { Collective } from '../models';
 
 import twoFactorAuthLib from './two-factor-authentication';
 
-type CollectivePageSettings = {
-  sections?: Array<{ section?: string; isEnabled?: boolean }>;
-  showGoals?: boolean;
-  [key: string]: unknown;
-};
-
-export type AccountSettings = {
-  collectivePage?: unknown;
-  payoutsTwoFactorAuth?: {
-    enabled?: boolean;
-    rollingLimit?: number;
-  };
-  [key: string]: unknown;
-};
-
-export type SettingsChangeRequirements = {
+type SettingsChangeRequirements = {
   /** The resulting settings violate a product permission rule. */
-  forbidden?: true;
+  forbidden: boolean;
   /** A fresh 2FA token is required before applying the change. */
-  requireTwoFactorAuth?: true;
+  requireTwoFactorAuth: boolean;
 };
 
 const ACCOUNT_TYPES_ALLOWED_TO_DISABLE_BUDGET_SECTION = [CollectiveType.FUND, CollectiveType.PROJECT];
@@ -37,10 +22,13 @@ const ACCOUNT_TYPES_ALLOWED_TO_DISABLE_BUDGET_SECTION = [CollectiveType.FUND, Co
  */
 export function getSettingsChangeRequirements(
   account: Pick<Collective, 'type'>,
-  oldSettings: AccountSettings | null | undefined,
-  newSettings: AccountSettings | null | undefined,
+  oldSettings: Collective['settings'] | null | undefined,
+  newSettings: Collective['settings'] | null | undefined,
 ): SettingsChangeRequirements {
-  const requirements: SettingsChangeRequirements = {};
+  const requirements: SettingsChangeRequirements = {
+    forbidden: false,
+    requireTwoFactorAuth: false,
+  };
 
   if (isCollectivePageBudgetDisableForbidden(account.type, oldSettings, newSettings)) {
     requirements.forbidden = true;
@@ -55,24 +43,23 @@ export function getSettingsChangeRequirements(
 
 export function isCollectivePageBudgetDisableForbidden(
   accountType: Collective['type'],
-  oldSettings: AccountSettings | null | undefined,
-  newSettings: AccountSettings | null | undefined,
+  oldSettings: Collective['settings'] | null | undefined,
+  newSettings: Collective['settings'] | null | undefined,
 ): boolean {
   if (ACCOUNT_TYPES_ALLOWED_TO_DISABLE_BUDGET_SECTION.includes(accountType)) {
     return false;
   }
 
-  if (isEqual(getCollectivePageSettings(oldSettings), getCollectivePageSettings(newSettings))) {
-    return false;
-  }
-
-  const budgetSection = getCollectivePageSettings(newSettings)?.sections?.find(section => section.section === 'budget');
-  return Boolean(budgetSection && !budgetSection.isEnabled);
+  const oldBudget = getCollectivePageSettings(oldSettings)?.sections?.find(s => s.section === 'budget');
+  const newBudget = getCollectivePageSettings(newSettings)?.sections?.find(s => s.section === 'budget');
+  const oldEnabled = oldBudget?.isEnabled ?? true;
+  const newEnabled = newBudget?.isEnabled ?? true;
+  return Boolean(oldEnabled && !newEnabled);
 }
 
 export function shouldRequireTwoFactorAuthForPayoutSettingsChange(
-  oldSettings: AccountSettings | null | undefined,
-  newSettings: AccountSettings | null | undefined,
+  oldSettings: Collective['settings'] | null | undefined,
+  newSettings: Collective['settings'] | null | undefined,
 ): boolean {
   if (!oldSettings?.payoutsTwoFactorAuth?.enabled) {
     return false;
@@ -81,13 +68,15 @@ export function shouldRequireTwoFactorAuthForPayoutSettingsChange(
   return !isEqual(oldSettings.payoutsTwoFactorAuth, newSettings?.payoutsTwoFactorAuth);
 }
 
-function getCollectivePageSettings(settings: AccountSettings | null | undefined): CollectivePageSettings | undefined {
+function getCollectivePageSettings(
+  settings: Collective['settings'] | null | undefined,
+): Collective['settings']['collectivePage'] | undefined {
   const collectivePage = settings?.collectivePage;
   if (!collectivePage || typeof collectivePage !== 'object') {
     return undefined;
   }
 
-  return collectivePage as CollectivePageSettings;
+  return collectivePage;
 }
 
 /**
@@ -96,8 +85,8 @@ function getCollectivePageSettings(settings: AccountSettings | null | undefined)
 export async function assertSettingsChangeAllowed(
   req: Express.Request,
   account: Pick<Collective, 'id' | 'type'>,
-  oldSettings: AccountSettings | null | undefined,
-  newSettings: AccountSettings | null | undefined,
+  oldSettings: Collective['settings'] | null | undefined,
+  newSettings: Collective['settings'] | null | undefined,
 ): Promise<void> {
   const requirements = getSettingsChangeRequirements(account, oldSettings, newSettings);
 

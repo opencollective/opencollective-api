@@ -64,6 +64,17 @@ describe('server/lib/account-settings', () => {
 
       expect(isCollectivePageBudgetDisableForbidden(CollectiveType.COLLECTIVE, oldSettings, newSettings)).to.be.false;
     });
+
+    it('does not block when another collectivePage field changes but budget isEnabled stays the same', () => {
+      const oldSettings = {
+        collectivePage: { sections: [{ section: 'budget', isEnabled: true }], showGoals: false },
+      };
+      const newSettings = {
+        collectivePage: { sections: [{ section: 'budget', isEnabled: true }], showGoals: true },
+      };
+
+      expect(isCollectivePageBudgetDisableForbidden(CollectiveType.COLLECTIVE, oldSettings, newSettings)).to.be.false;
+    });
   });
 
   describe('getSettingsChangeRequirements', () => {
@@ -82,6 +93,53 @@ describe('server/lib/account-settings', () => {
       ).to.deep.equal({
         forbidden: true,
         requireTwoFactorAuth: true,
+      });
+    });
+
+    it('returns no requirements for unrelated settings changes', () => {
+      const oldSettings = { apply: false };
+      const newSettings = { apply: true };
+
+      expect(
+        getSettingsChangeRequirements({ type: CollectiveType.COLLECTIVE }, oldSettings, newSettings),
+      ).to.deep.equal({
+        forbidden: false,
+        requireTwoFactorAuth: false,
+      });
+    });
+
+    it('returns no requirements when payout 2FA is enabled but unchanged', () => {
+      const settings = { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 50000 } };
+
+      expect(getSettingsChangeRequirements({ type: CollectiveType.COLLECTIVE }, settings, settings)).to.deep.equal({
+        forbidden: false,
+        requireTwoFactorAuth: false,
+      });
+    });
+
+    it('returns no requirements when a FUND disables the budget section', () => {
+      const oldSettings = { collectivePage: { sections: [{ section: 'budget', isEnabled: true }] } };
+      const newSettings = { collectivePage: { sections: [{ section: 'budget', isEnabled: false }] } };
+
+      expect(getSettingsChangeRequirements({ type: CollectiveType.FUND }, oldSettings, newSettings)).to.deep.equal({
+        forbidden: false,
+        requireTwoFactorAuth: false,
+      });
+    });
+
+    it('returns no requirements when collectivePage changes but budget isEnabled stays the same', () => {
+      const oldSettings = {
+        collectivePage: { sections: [{ section: 'budget', isEnabled: true }], showGoals: false },
+      };
+      const newSettings = {
+        collectivePage: { sections: [{ section: 'budget', isEnabled: true }], showGoals: true },
+      };
+
+      expect(
+        getSettingsChangeRequirements({ type: CollectiveType.COLLECTIVE }, oldSettings, newSettings),
+      ).to.deep.equal({
+        forbidden: false,
+        requireTwoFactorAuth: false,
       });
     });
   });
