@@ -14,6 +14,10 @@ export const AccountWithPlatformSubscriptionFields = {
     type: GraphQLPlatformSubscription,
     description: 'Returns the current platform subscription',
     async resolve(host: Collective, _, req: Express.Request) {
+      if (!req.remoteUser) {
+        return null;
+      }
+
       checkRemoteUserCanUseAccount(req);
       if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
         return null;
@@ -30,6 +34,10 @@ export const AccountWithPlatformSubscriptionFields = {
       },
     },
     async resolve(host, args, req) {
+      if (!req.remoteUser) {
+        return null;
+      }
+
       checkRemoteUserCanUseAccount(req);
       if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
         return null;
