@@ -102,7 +102,7 @@ const addCreditCard = {
       }
 
       if (error.type === 'StripeCardError') {
-        throw new Error(error.raw?.message || 'An error occurred while processing the card');
+        throw new Error(error.raw?.message || 'An error occurred while processing the card', { cause: error });
       } else if (!error.stripeResponse) {
         throw error;
       }

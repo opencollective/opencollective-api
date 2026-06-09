@@ -79,7 +79,7 @@ const PAGINATION_LIMIT = 10000;
 
 async function* paginate(model: ModelNames, where: Record<string, any>, order: Record<string, any>, limit?: number) {
   let offset = 0;
-  let totalCount = 0;
+  let totalCount;
   if (limit) {
     yield await (models[model] as any).findAll({ where, order, limit });
   } else {

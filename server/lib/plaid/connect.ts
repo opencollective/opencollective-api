@@ -78,7 +78,7 @@ export const generatePlaidLinkToken = async (
     return tokenResponse.data;
   } catch (e) {
     reportErrorToSentry(e, { extra: { linkTokenConfig }, user: remoteUser });
-    throw new Error('Failed to generate Plaid link token');
+    throw new Error('Failed to generate Plaid link token', { cause: e });
   }
 };
 
@@ -109,12 +109,12 @@ export const connectPlaidAccount = async (
   } catch (error) {
     const errorData = error.response?.data;
     if (!errorData) {
-      throw new Error('A network occurred while connecting Plaid');
+      throw new Error('A network occurred while connecting Plaid', { cause: error });
     } else if (errorData.error_code === 'INVALID_PUBLIC_TOKEN') {
-      throw new Error('Provided Plaid public token is invalid');
+      throw new Error('Provided Plaid public token is invalid', { cause: error });
     } else {
       reportErrorToSentry(error, { extra: { errorData }, user: remoteUser });
-      throw new Error('An error occurred while connecting Plaid');
+      throw new Error('An error occurred while connecting Plaid', { cause: error });
     }
   }
 
@@ -183,12 +183,12 @@ export const disconnectPlaidAccount = async (connectedAccount: ConnectedAccount)
   } catch (error) {
     const errorData = error.response?.data;
     if (!errorData) {
-      throw new Error('A network error occurred while disconnecting the Plaid account');
+      throw new Error('A network error occurred while disconnecting the Plaid account', { cause: error });
     } else if (errorData.error_code === 'INVALID_ACCESS_TOKEN') {
-      throw new Error('Provided Plaid access token is invalid');
+      throw new Error('Provided Plaid access token is invalid', { cause: error });
     } else {
       reportErrorToSentry(error, { extra: { errorData } });
-      throw new Error('An error occurred while disconnecting the Plaid account');
+      throw new Error('An error occurred while disconnecting the Plaid account', { cause: error });
     }
   }
 

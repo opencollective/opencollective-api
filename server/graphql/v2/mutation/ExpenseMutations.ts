@@ -678,7 +678,7 @@ const expenseMutations = {
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
-      let payee = null;
+      let payee;
       if (expenseData.payee?.legacyId || expenseData.payee?.id) {
         payee = (
           await fetchAccountWithReference(
@@ -908,7 +908,9 @@ const expenseMutations = {
         };
       } catch (e) {
         logger.error(e);
-        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.');
+        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.', {
+          cause: e,
+        });
       }
     },
   },

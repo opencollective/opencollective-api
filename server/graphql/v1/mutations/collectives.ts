@@ -150,7 +150,7 @@ export async function createCollective(_, args, req: express.Request) {
         msg = e.message;
         break;
     }
-    throw new Error(msg);
+    throw new Error(msg, { cause: e });
   }
 
   const promises = [];
@@ -290,7 +290,7 @@ export async function createCollectiveFromGithub(_, args, req) {
   try {
     collective = await models.Collective.create(collectiveData);
   } catch (err) {
-    throw new Error(err.message);
+    throw new Error(err.message, { cause: err });
   }
 
   const host = await defaultHostCollective('opensource');

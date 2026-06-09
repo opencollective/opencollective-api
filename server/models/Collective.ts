@@ -2140,7 +2140,7 @@ class Collective extends ModelWithPublicId<
       );
     } catch (e) {
       reportErrorToSentry(e, { user: remoteUser });
-      throw new Error(`The member was invited, but we couldn't send the email`);
+      throw new Error(`The member was invited, but we couldn't send the email`, { cause: e });
     }
   };
 

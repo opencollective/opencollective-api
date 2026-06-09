@@ -23,7 +23,7 @@ const setupPostgresTriggers = async () => {
   } catch (error) {
     logger.error(`Error setting up Postgres triggers: ${JSON.stringify(error)}`);
     reportErrorToSentry(error, { handler: HandlerType.OPENSEARCH_SYNC_JOB });
-    throw new Error('Failed to setup Postgres triggers');
+    throw new Error('Failed to setup Postgres triggers', { cause: error });
   }
 };
 

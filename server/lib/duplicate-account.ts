@@ -62,7 +62,7 @@ const duplicateCollectiveProfile = async (
     );
   } catch (e) {
     if (e.name === 'SequelizeUniqueConstraintError') {
-      throw new Error('This slug is already taken');
+      throw new Error('This slug is already taken', { cause: e });
     } else {
       throw e;
     }

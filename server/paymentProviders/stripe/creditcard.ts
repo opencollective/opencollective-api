@@ -225,7 +225,7 @@ export default {
 
       const userFriendlyError = userFriendlyErrorMessage(error);
       if (userFriendlyError) {
-        throw new Error(userFriendlyError);
+        throw new Error(userFriendlyError, { cause: error });
       }
 
       logger.error(`Unknown Stripe Payment Error: ${error.message}`);
@@ -233,7 +233,7 @@ export default {
       logger.error(error.stack);
       reportErrorToSentry(error);
 
-      throw new Error(UNKNOWN_ERROR_MSG);
+      throw new Error(UNKNOWN_ERROR_MSG, { cause: error });
     }
 
     await order.paymentMethod.update({

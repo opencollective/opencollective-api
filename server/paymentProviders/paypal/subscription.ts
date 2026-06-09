@@ -512,7 +512,7 @@ const PaymentMethodServicePayPalSubscription: PaymentMethodServiceWithExternalRe
         });
       }
 
-      throw new Error('Failed to pause PayPal subscription');
+      throw new Error('Failed to pause PayPal subscription', { cause: e });
     }
   },
 

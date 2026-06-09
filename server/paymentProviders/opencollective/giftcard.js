@@ -113,7 +113,7 @@ async function processOrder(order) {
   // finding the payment provider lib to execute the order
   const sourcePaymentMethodProvider = findPaymentMethodProvider(sourcePaymentMethod);
 
-  let creditTransaction = null;
+  let creditTransaction;
   try {
     // modifying original order to then process the order of the source payment method
     order.PaymentMethodId = sourcePaymentMethod.id;
@@ -264,7 +264,7 @@ export async function createGiftCardsForEmails(collective, args, remoteUser, ema
  * @param {object} remoteUser
  */
 async function getSourcePaymentMethodFromCreateArgs(args, collective) {
-  let paymentMethod = null;
+  let paymentMethod;
   if (!args.PaymentMethodId) {
     paymentMethod = await collective.getPaymentMethod({ service: 'stripe', type: 'creditcard' }, false);
     if (!paymentMethod) {
@@ -288,7 +288,7 @@ async function getSourcePaymentMethodFromCreateArgs(args, collective) {
 async function checkSourcePaymentMethodBalance(paymentMethod, amount, giftCardCurrency) {
   // Load balance
   const paymentProvider = findPaymentMethodProvider(paymentMethod);
-  let balance = 0;
+  let balance;
   if (paymentProvider && paymentProvider.getBalance) {
     balance = await paymentProvider.getBalance(paymentMethod);
   } else {

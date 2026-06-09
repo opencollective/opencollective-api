@@ -96,7 +96,7 @@ export const getRatesFromDb = async (
   const [from, to] = isInverted ? [toCurrencies[0], [fromCurrency]] : [fromCurrency, toCurrencies];
   const allRates = await models.CurrencyExchangeRate.getMany(from, to, date);
   const result = {};
-  let missingCurrencies = [];
+  let missingCurrencies;
   if (isInverted) {
     allRates.forEach(rate => (result[from] = 1 / rate.rate));
   } else {

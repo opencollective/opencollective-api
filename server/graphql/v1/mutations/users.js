@@ -70,7 +70,7 @@ export const updateUserEmail = async (user, newEmail) => {
     });
   } catch (e) {
     reportErrorToSentry(e, { user, extra: { newEmail } });
-    throw new Error('Error while sending the verification email, please try again later');
+    throw new Error('Error while sending the verification email, please try again later', { cause: e });
   }
 
   await models.Activity.create({

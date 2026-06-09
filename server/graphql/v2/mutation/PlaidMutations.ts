@@ -238,7 +238,7 @@ export const plaidMutations = {
     resolve: async (_, args, req) => {
       checkRemoteUserCanUseTransactions(req);
 
-      let transactionsImport: TransactionsImport | null = null;
+      let transactionsImport: TransactionsImport | null;
       let connectedAccount: ConnectedAccount | null = null;
 
       if (args.transactionImport) {

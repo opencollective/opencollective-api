@@ -132,7 +132,7 @@ const exportRequestMutations = {
             await uploadedFile.destroy();
           } catch (error) {
             reportErrorToSentry(error);
-            throw new Error('Failed to delete the uploaded file for this export request. Please contact support.');
+            throw new Error('Failed to delete the uploaded file for this export request. Please contact support.', { cause: error });
           }
         }
       }

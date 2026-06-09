@@ -150,7 +150,7 @@ export const createGoCardlessLink = async (
       },
     });
 
-    throw new Error('Failed to create open banking link');
+    throw new Error('Failed to create open banking link', { cause: error });
   }
 };
 

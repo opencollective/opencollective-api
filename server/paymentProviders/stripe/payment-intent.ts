@@ -85,7 +85,7 @@ async function processNewOrder(order: Order) {
     logger.error(errorMessage, sanitizedError);
     // Hard-delete the order so we can re-use the existing Payment Intent in the next attempt.
     await order.destroy({ force: true });
-    throw new Error(errorMessage);
+    throw new Error(errorMessage, { cause: e });
   }
 }
 
@@ -148,7 +148,7 @@ async function processRecurringOrder(order: Order) {
     const errorMessage = `Error processing Stripe Payment Intent: ${e.message}`;
     logger.error(errorMessage, sanitizedError);
     // Hard-delete the order so we can re-use the existing Payment Intent in the next attempt.
-    throw new Error(errorMessage);
+    throw new Error(errorMessage, { cause: e });
   }
 }
 

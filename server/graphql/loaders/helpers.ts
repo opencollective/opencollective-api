@@ -148,7 +148,7 @@ export function buildLoaderForAssociation<SM extends Model, AM extends Model>(
       const associationNotLoadedYet = (id: ForeignKeyType): boolean => !associationsByForeignKey[id];
       const associationsIdsToLoad = Object.keys(associationsByForeignKey).filter(associationNotLoadedYet);
       if (associationsIdsToLoad.length > 0) {
-        let loadedAssociations: Array<AM> = [];
+        let loadedAssociations: Array<AM>;
         if (options.loader) {
           // If a loader is provided, use it to load the associations using the IDs we've collected
           loadedAssociations = await options.loader(associationsIdsToLoad);

@@ -238,7 +238,7 @@ const formatLinkHref = (url: string): string => {
 };
 
 const isTrustedLinkUrl = (url: string): boolean => {
-  let parsedUrl = null;
+  let parsedUrl;
 
   try {
     parsedUrl = new URL(url);

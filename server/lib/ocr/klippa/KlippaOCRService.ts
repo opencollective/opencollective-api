@@ -80,7 +80,8 @@ export class KlippaOCRService implements ExpenseOCRService {
   }
 
   private async checkRateLimits(urls: string[]): Promise<void> {
-    let failedLimit, ocrStats;
+    let failedLimit;
+    let ocrStats;
     const nbFilesToParse = urls.length;
     const limitsPerUser: Record<string, number> = config.limits.klippa.perUser;
 
@@ -90,7 +91,7 @@ export class KlippaOCRService implements ExpenseOCRService {
       failedLimit = 'hour';
     } else {
       // Check rate limit in DB
-      const ocrStats = await this.getUserKlippaOCRStats();
+      ocrStats = await this.getUserKlippaOCRStats();
       type statType = keyof typeof ocrStats;
       const checkLimit = (key: statType) => (ocrStats[key] || 0) + nbFilesToParse <= limitsPerUser[key];
       failedLimit = Object.keys(ocrStats).find(key => !checkLimit(key as statType));
@@ -202,7 +203,7 @@ export class KlippaOCRService implements ExpenseOCRService {
       return response.data;
     } catch (error) {
       reportErrorToSentry(error, { extra: { url, formData: Object.fromEntries(formData) } });
-      throw new Error('Unexpected Error while calling the AI service');
+      throw new Error('Unexpected Error while calling the AI service', { cause: error });
     }
   }
 }

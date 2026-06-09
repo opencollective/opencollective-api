@@ -258,7 +258,7 @@ export const openSearchMultiIndexGlobalSearch = async (
     } as SearchRequest);
   } catch (e) {
     reportErrorToSentry(e, { user, extra: { requestedIndexes, searchTerm, limit, account, host } });
-    throw new Error('The search query failed, please try again later');
+    throw new Error('The search query failed, please try again later', { cause: e });
   }
 };
 
@@ -309,6 +309,6 @@ export const openSearchSingleIndexSearch = async (
     } as SearchRequest);
   } catch (e) {
     reportErrorToSentry(e, { user, extra: { request, searchTerm, limit, account, host } });
-    throw new Error('The search query failed, please try again later');
+    throw new Error('The search query failed, please try again later', { cause: e });
   }
 };

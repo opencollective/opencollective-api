@@ -105,7 +105,7 @@ export const createUser = (
           extra: { userData: user.minimal, organizationData, throwIfExists, redirect, websiteUrl, creationRequest },
         });
 
-        throw new Error('Failed to send the confirmation email, please try again later');
+        throw new Error('Failed to send the confirmation email, please try again later', { cause: e });
       }
     }
     return { user, organization };
