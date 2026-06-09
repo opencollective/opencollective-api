@@ -2,13 +2,22 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import sinon, { createSandbox } from 'sinon';
 
+import OrderStatuses from '../../../../../server/constants/order-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import * as GoCardlessConnect from '../../../../../server/lib/gocardless/connect';
 import * as paypal from '../../../../../server/lib/paypal';
 import * as PlaidConnect from '../../../../../server/lib/plaid/connect';
 import models from '../../../../../server/models';
-import { fakeActiveHost, fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
-import * as utils from '../../../../utils';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeOrder,
+  fakePaymentMethod,
+  fakeUser,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
+import * as utils from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   const sandbox = createSandbox();
@@ -225,6 +234,108 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
         expect(PlaidConnect.disconnectPlaidAccount).to.have.been.calledOnce;
         const deletedAccount = await models.ConnectedAccount.findByPk(connectedAccount.id);
         expect(deletedAccount).to.be.null;
+      });
+
+      it('with Stripe - no active recurring contributions', async () => {
+        const host = await fakeActiveHost();
+        await host.addUserWithRole(user, 'ADMIN');
+        const stripeAccount = await fakeConnectedAccount({ service: 'stripe', CollectiveId: host.id });
+
+        const result = await graphqlQueryV2(
+          deleteConnectedAccountMutation,
+          { connectedAccount: { legacyId: stripeAccount.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const deletedAccount = await models.ConnectedAccount.findByPk(stripeAccount.id, { paranoid: false });
+        expect(deletedAccount.deletedAt).to.not.be.null;
+      });
+
+      it('with Stripe - fails when there are active recurring contributions', async () => {
+        const host = await fakeActiveHost();
+        await host.addUserWithRole(user, 'ADMIN');
+        const stripeAccount = await fakeConnectedAccount({ service: 'stripe', CollectiveId: host.id });
+
+        // Create an active recurring order via a Stripe payment method hosted by this host
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const pm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
+        await fakeOrder(
+          { CollectiveId: hostedCollective.id, PaymentMethodId: pm.id, status: OrderStatuses.ACTIVE },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          deleteConnectedAccountMutation,
+          { connectedAccount: { legacyId: stripeAccount.id } },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+        expect(result.errors[0].message).to.include(
+          'There are active contributions based on this payment provider. Please contact support to disconnect it.',
+        );
+
+        // Verify the account was NOT deleted
+        const stillExists = await models.ConnectedAccount.findByPk(stripeAccount.id);
+        expect(stillExists).to.not.be.null;
+        expect(stillExists.deletedAt).to.be.null;
+      });
+
+      it('with PayPal - no active recurring contributions', async () => {
+        const host = await fakeActiveHost();
+        await host.addUserWithRole(user, 'ADMIN');
+        const paypalAccount = await fakeConnectedAccount({ service: 'paypal', CollectiveId: host.id });
+
+        const result = await graphqlQueryV2(
+          deleteConnectedAccountMutation,
+          { connectedAccount: { legacyId: paypalAccount.id } },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        const deletedAccount = await models.ConnectedAccount.findByPk(paypalAccount.id, { paranoid: false });
+        expect(deletedAccount.deletedAt).to.not.be.null;
+      });
+
+      it('with PayPal - fails when there are active recurring contributions', async () => {
+        const host = await fakeActiveHost();
+        await host.addUserWithRole(user, 'ADMIN');
+        const paypalAccount = await fakeConnectedAccount({ service: 'paypal', CollectiveId: host.id });
+
+        // Create an active recurring order via a PayPal payment method hosted by this host
+        const hostedCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const pm = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.PAYPAL,
+          type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+        });
+        await fakeOrder(
+          { CollectiveId: hostedCollective.id, PaymentMethodId: pm.id, status: OrderStatuses.ACTIVE },
+          { withSubscription: true },
+        );
+
+        const result = await graphqlQueryV2(
+          deleteConnectedAccountMutation,
+          { connectedAccount: { legacyId: paypalAccount.id } },
+          user,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].extensions.code).to.equal('ValidationFailed');
+        expect(result.errors[0].message).to.include(
+          'There are active contributions based on this payment provider. Please contact support to disconnect it.',
+        );
+
+        // Verify the account was NOT deleted
+        const stillExists = await models.ConnectedAccount.findByPk(paypalAccount.id);
+        expect(stillExists).to.not.be.null;
+        expect(stillExists.deletedAt).to.be.null;
       });
 
       it('with GoCardless', async () => {
