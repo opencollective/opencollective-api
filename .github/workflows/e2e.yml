@@ -1,6 +1,13 @@
 name: E2E
 
-on: [push]
+# Security: Do not switch this workflow to `pull_request_target` to run on fork PRs with secrets.
+# Use `pull_request` (secrets blocked for forks by default) or trusted push/workflow_dispatch instead.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
   TZ: UTC
