@@ -18,6 +18,7 @@ import Temporal from 'sequelize-temporal';
 
 import ActivityTypes from '../constants/activities';
 import { ENGINEERING_DOMAINS } from '../constants/engineering-domains';
+import ExpenseType from '../constants/expense-type';
 import FEATURE from '../constants/feature';
 import { PlatformSubscriptionPlan, PlatformSubscriptionTiers, PlatformSubscriptionTierTypes } from '../constants/plans';
 import { sortResultsSimple } from '../graphql/loaders/helpers';
@@ -274,6 +275,7 @@ class PlatformSubscription extends Model<
       `
       SELECT COUNT(DISTINCT(a."ExpenseId")) "expensesPaid"
         FROM "Activities" a
+        JOIN "Expenses" e ON e.id = a."ExpenseId"
         LEFT JOIN LATERAL (
           SELECT count(1) > 0 "previouslyPaid"
           FROM "Activities" "hist"
@@ -286,6 +288,7 @@ class PlatformSubscription extends Model<
         WHERE a."HostCollectiveId" = :HostCollectiveId
         AND a."type" = 'collective.expense.paid'
         AND a."createdAt" <@ ${billingRangeArg}
+        AND e."type" NOT IN (:excludedExpenseTypes)
         AND NOT "hist"."previouslyPaid"
     `,
       {
@@ -294,6 +297,7 @@ class PlatformSubscription extends Model<
         plain: true,
         replacements: {
           HostCollectiveId: collectiveId,
+          excludedExpenseTypes: [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING],
         },
       },
     );

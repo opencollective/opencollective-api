@@ -20,7 +20,7 @@ import { parseToBoolean } from '../../../../lib/utils';
 import { AccountingCategory, Collective, Expense, PaymentMethod, sequelize } from '../../../../models';
 import Order from '../../../../models/Order';
 import Transaction, { MERCHANT_ID_PATHS } from '../../../../models/Transaction';
-import { checkScope } from '../../../common/scope-check';
+import { checkScope, enforceScope } from '../../../common/scope-check';
 import { Forbidden, NotFound } from '../../../errors';
 import {
   GraphQLTransactionCollection,
@@ -259,6 +259,8 @@ export const TransactionsCollectionResolver = async (
   args,
   req: express.Request,
 ): Promise<GraphQLTransactionsCollectionReturnType> => {
+  enforceScope(req, 'transactions');
+
   const where: WhereOptions<Transaction> = [];
   const include = [];
   let hasCollectiveInclude = false;

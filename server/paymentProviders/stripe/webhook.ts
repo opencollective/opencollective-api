@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { Request } from 'express';
 import { get, omit } from 'lodash';
 import moment from 'moment';
-import { QueryTypes, Transaction } from 'sequelize';
+import { Op, QueryTypes, Transaction } from 'sequelize';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -27,7 +27,7 @@ import {
   sendOrderFailedEmail,
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
-import stripe, { getDashboardObjectIdURL } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -50,12 +50,13 @@ export async function createOrUpdatePaymentMethod(
   const stripePaymentMethodId =
     typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
 
+  const isPlatformAccount = stripeAccount === config.stripe.accountId;
   const matchingPaymentMethod = await models.PaymentMethod.findOne({
     where: {
       CollectiveId: PaymentMethodCollectiveId,
       data: {
         stripePaymentMethodId,
-        stripeAccount,
+        stripeAccount: isPlatformAccount ? { [Op.or]: [stripeAccount, null] } : stripeAccount,
       },
     },
     transaction,
@@ -222,6 +223,25 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
+  const expectedAmount = convertToStripeAmount(order.currency, order.totalAmount);
+  const expectedCurrency = order.currency.toLowerCase();
+  if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
+    const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match order ${order.id} (${expectedAmount} ${expectedCurrency})`;
+    logger.error(message);
+    reportMessageToSentry(message, {
+      extra: {
+        paymentIntentId: paymentIntent.id,
+        paymentIntentAmount: paymentIntent.amount,
+        paymentIntentCurrency: paymentIntent.currency,
+        paymentIntentStatus: paymentIntent.status,
+        orderId: order.id,
+        expectedAmount,
+        expectedCurrency,
+      },
+    });
+    return;
+  }
+
   // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
   const existingChargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: charge.id } } },
@@ -235,11 +255,16 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
 
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
+  const wasCancelled = order.status === OrderStatuses.CANCELLED;
   const transaction = await createChargeTransactions(charge, { order });
   const sideEffects: (() => Promise<unknown>)[] = [
     () =>
       order.update({
-        status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
+        status: wasCancelled
+          ? OrderStatuses.CANCELLED
+          : !order.SubscriptionId
+            ? OrderStatuses.PAID
+            : OrderStatuses.ACTIVE,
         processedAt: new Date(),
         data: {
           ...omit(order.data, 'paymentIntent'),
@@ -252,9 +277,12 @@ const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
   // after successful first payment of a recurring subscription where the payment confirmation is async
   // and the subscription is managed by us.
   if (order.interval && !order.SubscriptionId) {
-    sideEffects.push(() =>
-      createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }),
-    );
+    if (!wasCancelled) {
+      sideEffects.push(() =>
+        createSubscription(order, { lastChargedAt: transaction.clearedAt || transaction.createdAt }),
+      );
+    }
+
     sideEffects.push(() => applyContributionAccountingCategoryRules(order));
   } else if (order.SubscriptionId) {
     const subscription = await models.Subscription.findByPk(order.SubscriptionId);
@@ -304,6 +332,25 @@ async function handleExpensePaymentIntentSucceeded(event: Stripe.Event) {
 
     if (!expense) {
       logger.debug(`Stripe Webhook: Could not find Expense for Payment Intent ${paymentIntent.id}`);
+      return [expense, false];
+    }
+
+    const expectedAmount = convertToStripeAmount(expense.currency, expense.amount);
+    const expectedCurrency = expense.currency.toLowerCase();
+    if (paymentIntent.amount !== expectedAmount || paymentIntent.currency?.toLowerCase() !== expectedCurrency) {
+      const message = `Stripe Webhook: PaymentIntent ${paymentIntent.id} amount/currency (${paymentIntent.amount} ${paymentIntent.currency}) does not match expense ${expense.id} (${expectedAmount} ${expectedCurrency})`;
+      logger.error(message);
+      reportMessageToSentry(message, {
+        extra: {
+          paymentIntentId: paymentIntent.id,
+          paymentIntentAmount: paymentIntent.amount,
+          paymentIntentCurrency: paymentIntent.currency,
+          paymentIntentStatus: paymentIntent.status,
+          expenseId: expense.id,
+          expectedAmount,
+          expectedCurrency,
+        },
+      });
       return [expense, false];
     }
 
@@ -582,8 +629,9 @@ const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
   const reason = paymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
+  const wasCancelled = order.status === OrderStatuses.CANCELLED;
   await order.update({
-    status: OrderStatuses.ERROR,
+    status: wasCancelled ? OrderStatuses.CANCELLED : OrderStatuses.ERROR,
     data: { ...order.data, paymentIntent },
   });
 

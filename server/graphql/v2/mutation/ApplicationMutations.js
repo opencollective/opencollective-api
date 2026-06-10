@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
-import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
+import { checkRemoteUserCanUseApplications, rejectOAuthAndPersonalTokenAuth } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { GraphQLApplicationCreateInput } from '../input/ApplicationCreateInput';
@@ -21,6 +21,7 @@ const createApplication = {
   },
   async resolve(_, args, req) {
     checkRemoteUserCanUseApplications(req);
+    rejectOAuthAndPersonalTokenAuth(req);
 
     const collective = args.application.account
       ? await fetchAccountWithReference(args.application.account, { throwIfMissing: true })
@@ -58,6 +59,7 @@ const updateApplication = {
   },
   async resolve(_, args, req) {
     checkRemoteUserCanUseApplications(req);
+    rejectOAuthAndPersonalTokenAuth(req);
 
     const application = await fetchApplicationWithReference(args.application, {
       include: [{ association: 'collective', required: true }],
@@ -71,7 +73,8 @@ const updateApplication = {
     const updateParams = pick(args.application, ['name', 'description']);
 
     // Doing this we're not supporting update to NULL
-    if (args.application.redirectUri) {
+    if (args.application.redirectUri && args.application.redirectUri !== application.callbackUrl) {
+      await twoFactorAuthLib.enforceForAccount(req, application.collective, { alwaysAskForToken: true });
       updateParams.callbackUrl = args.application.redirectUri;
     }
 
@@ -88,6 +91,7 @@ const deleteApplication = {
   },
   async resolve(_, args, req) {
     checkRemoteUserCanUseApplications(req);
+    rejectOAuthAndPersonalTokenAuth(req);
 
     const application = await fetchApplicationWithReference(args.application, {
       include: [{ association: 'collective', required: true }],

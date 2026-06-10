@@ -22,6 +22,7 @@ declare global {
         access_token?: string;
         lastLoginAt?: number;
         passwordUpdatedAt?: number;
+        isPasswordLogin?: boolean;
       };
       clientApp?: {
         id: number;

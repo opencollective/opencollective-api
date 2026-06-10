@@ -24,6 +24,7 @@ import * as LibCurrency from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import stripe from '../../../../../server/lib/stripe';
 import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
@@ -1655,6 +1656,56 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('clears stored Stripe paymentIntent when payment-relevant fields change', () => {
+      it('drops data.paymentIntent when items (and therefore amount) change', async () => {
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+        });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: { url: randUrl(), amount: 5000, description: randStr() },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.be.undefined;
+      });
+
+      it('drops data.paymentIntent when payout method changes', async () => {
+        const expense = await fakeExpense({
+          status: 'APPROVED',
+          legacyPayoutMethod: 'other',
+          data: { paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' } },
+        });
+        const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense.User.CollectiveId });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.be.undefined;
+      });
+
+      it('keeps data.paymentIntent when only the description changes', async () => {
+        const paymentIntent = { id: 'pi_old', amount: 1000, currency: 'usd' };
+        const expense = await fakeExpense({ status: 'APPROVED', data: { paymentIntent } });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('APPROVED');
+
+        await expense.reload();
+        expect(expense.data?.paymentIntent).to.deep.equal(paymentIntent);
+      });
+    });
+
     describe('INCOMPLETE side effects', () => {
       it('goes back to APPROVED if only Payout changes', async () => {
         const expense2 = await fakeExpense({ status: 'INCOMPLETE', legacyPayoutMethod: 'other' });
@@ -2392,7 +2443,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
       });
 
-      it('host admin cannot set a vendor scoped to a different collective', async () => {
+      it('host admin can set a vendor scoped to a different collective', async () => {
         const hostAdmin = await fakeUser();
         const host = await fakeHost({ admin: hostAdmin });
         const collective = await fakeCollective({ HostCollectiveId: host.id });
@@ -2409,11 +2460,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
       });
 
-      it('host-only vendor cannot be set as payee on a hosted collective expense', async () => {
+      it('host admin can set a host-only vendor as payee on a hosted collective expense', async () => {
         const hostAdmin = await fakeUser();
         const host = await fakeHost({ admin: hostAdmin });
         const collective = await fakeCollective({ HostCollectiveId: host.id });
@@ -2429,8 +2481,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
-        expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('User cannot submit expenses on behalf of this vendor');
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.payee.legacyId).to.eq(vendor.id);
       });
     });
 
@@ -6497,5 +6550,101 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const draftedExpense = result.data.draftExpenseAndInviteUser;
       expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
+  });
+
+  describe('createExpenseStripePaymentIntent', () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+    });
+
+    afterEach(() => sandbox.restore());
+
+    const createPaymentIntentMutation = gql`
+      mutation CreateExpenseStripePaymentIntent($expense: ExpenseReferenceInput!) {
+        createExpenseStripePaymentIntent(expense: $expense) {
+          id
+          paymentIntentClientSecret
+          stripeAccount
+          stripeAccountPublishableSecret
+        }
+      }
+    `;
+
+    const setupStripeExpense = async ({ paymentIntent } = {}) => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'stripe',
+        username: 'acct_test',
+        token: 'sk_test_token',
+        data: { publishableKey: 'pk_test_123' },
+      });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const payee = await fakeCollective({ HostCollectiveId: host.id });
+      const expense = await fakeExpense({
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        CollectiveId: collective.id,
+        FromCollectiveId: payee.id,
+        data: paymentIntent ? { paymentIntent } : {},
+      });
+      return { hostAdmin, expense };
+    };
+
+    const expenseRef = expense => ({ id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) });
+
+    it('returns the stored PaymentIntent when it is still processing', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense({
+        paymentIntent: { id: 'pi_inflight', amount: 1000, currency: 'usd' },
+      });
+      sandbox.stub(stripe.paymentIntents, 'retrieve').resolves({
+        id: 'pi_inflight',
+        amount: 1000,
+        currency: 'usd',
+        status: 'processing',
+        // eslint-disable-next-line camelcase
+        client_secret: 'cs_inflight',
+      });
+      const createStub = sandbox.stub(stripe.paymentIntents, 'create');
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_inflight');
+      expect(result.data.createExpenseStripePaymentIntent.paymentIntentClientSecret).to.equal('cs_inflight');
+      expect(createStub.called).to.be.false;
+
+      await expense.reload();
+      expect(expense.data.paymentIntent.id).to.equal('pi_inflight'); // not overwritten
+    });
+
+    for (const status of ['canceled', 'succeeded']) {
+      it(`creates a new PaymentIntent when the stored one is ${status}`, async () => {
+        const { hostAdmin, expense } = await setupStripeExpense({
+          paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
+        });
+        sandbox
+          .stub(stripe.paymentIntents, 'retrieve')
+          .resolves({ id: 'pi_old', amount: 1000, currency: 'usd', status });
+        sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+        const createStub = sandbox
+          .stub(stripe.paymentIntents, 'create')
+          // eslint-disable-next-line camelcase
+          .resolves({ id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' });
+
+        const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_new');
+        expect(createStub.calledOnce).to.be.true;
+
+        await expense.reload();
+        expect(expense.data.paymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
+      });
+    }
   });
 });

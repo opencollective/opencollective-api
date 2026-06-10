@@ -143,8 +143,8 @@ export default {
             { transaction, returning: true },
           );
 
-          // Create activity as a side effect
-          models.AccountingCategory.createEditActivity(account, req.remoteUser, {
+          // Create activity
+          await models.AccountingCategory.createEditActivity(account, req.remoteUser, {
             added: newCategories.map(c => c.publicInfo),
             removed: toRemove.map(c => c.publicInfo),
             edited: updated,

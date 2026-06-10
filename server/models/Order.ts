@@ -59,8 +59,8 @@ export type OrderTax = {
   percentage: number;
   taxedCountry?: string;
   taxerCountry?: string;
-  taxIDNumber?: string;
-  taxIDNumberFrom?: string;
+  idNumber?: string;
+  idNumberFrom?: string;
 };
 
 type OrderDataValuesRoleDetails = {
@@ -92,7 +92,6 @@ class Order extends ModelWithPublicId<
   declare deletedAt?: Date;
   declare PaymentMethodId?: ForeignKey<PaymentMethod['id']>;
   declare processedAt?: Date;
-  declare privateMessage?: string;
   declare TierId?: ForeignKey<Tier['id']>;
   declare FromCollectiveId: ForeignKey<Collective['id']>;
   declare publicMessage?: string;
@@ -627,8 +626,6 @@ Order.init(
       type: DataTypes.STRING,
     },
 
-    privateMessage: DataTypes.STRING,
-
     SubscriptionId: {
       type: DataTypes.INTEGER,
       references: {
@@ -727,7 +724,6 @@ Order.init(
           platformTipAmount: this.platformTipAmount,
           chargeAmount: this.totalAmount,
           description: this.description,
-          privateMessage: this.privateMessage,
           publicMessage: this.publicMessage,
           SubscriptionId: this.SubscriptionId,
           AccountingCategoryId: this.AccountingCategoryId,

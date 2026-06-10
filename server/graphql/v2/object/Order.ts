@@ -322,14 +322,16 @@ export const GraphQLOrder = new GraphQLObjectType({
       },
       tax: {
         type: GraphQLTaxInfo,
-        resolve(order) {
+        async resolve(order, _, req) {
           if (order.data?.tax) {
             return {
               id: order.data.tax.id,
               type: order.data.tax.id,
               percentage: order.data.tax.percentage,
               rate: round(order.data.tax.percentage / 100, 4),
-              idNumber: order.data.tax.idNumber,
+              hasTaxIdNumber: Boolean(order.data.tax.idNumber),
+              idNumber: async () =>
+                (await OrdersLib.canSeeOrderTaxIdNumber(req, order)) ? order.data.tax.idNumber : null,
             };
           }
         },

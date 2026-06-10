@@ -678,7 +678,7 @@ const expenseMutations = {
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
-      let payee = null;
+      let payee;
       if (expenseData.payee?.legacyId || expenseData.payee?.id) {
         payee = (
           await fetchAccountWithReference(
@@ -829,12 +829,19 @@ const expenseMutations = {
             : undefined,
         );
 
-        return {
-          id: paymentIntent.id,
-          paymentIntentClientSecret: paymentIntent.client_secret,
-          stripeAccount: payeeHostStripeAccount.username,
-          stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
-        };
+        const matchesExpense =
+          paymentIntent.amount === convertToStripeAmount(expense.currency, expense.amount) &&
+          paymentIntent.currency?.toLowerCase() === expense.currency.toLowerCase() &&
+          !['canceled', 'succeeded'].includes(paymentIntent.status);
+
+        if (matchesExpense) {
+          return {
+            id: paymentIntent.id,
+            paymentIntentClientSecret: paymentIntent.client_secret,
+            stripeAccount: payeeHostStripeAccount.username,
+            stripeAccountPublishableSecret: payeeHostStripeAccount.data.publishableKey,
+          };
+        }
       }
 
       let stripeCustomerAccount = await payer.getCustomerStripeAccount(payeeHostStripeAccount.username);

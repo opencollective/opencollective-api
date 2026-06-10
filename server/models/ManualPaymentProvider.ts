@@ -16,6 +16,10 @@ import type { Collective } from '.';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import { Order } from '.';
 
+export type ManualPaymentProviderData = {
+  accountDetails?: RecipientAccount | Record<string, unknown>;
+};
+
 /**
  * Enum for ManualPaymentProvider types
  */
@@ -48,7 +52,7 @@ class ManualPaymentProvider extends ModelWithPublicId<
   declare public name: string;
   declare public instructions: string;
   declare public icon: CreationOptional<string>;
-  declare public data: CreationOptional<RecipientAccount | Record<string, unknown>>;
+  declare public data: CreationOptional<ManualPaymentProviderData | null>;
   declare public order: CreationOptional<number>;
   declare public archivedAt: CreationOptional<Date>;
   declare public createdAt: CreationOptional<Date>;

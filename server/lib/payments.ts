@@ -1085,9 +1085,9 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const host = await collective.getHostCollective();
 
   // Use manual payment provider if available, otherwise fall back to legacy manual bank transfer
-  let providerAccount = null;
-  let providerInstructions = null;
-  let providerName = null;
+  let providerAccount;
+  let providerInstructions;
+  let providerName;
 
   const manualPaymentProvider =
     order.ManualPaymentProviderId && (await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId));
@@ -1098,7 +1098,7 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
     providerName = manualPaymentProvider.name || null;
     providerAccount =
       manualPaymentProvider.type === ManualPaymentProviderTypes.BANK_TRANSFER
-        ? formatAccountDetails(manualPaymentProvider.data, { asSafeHTML: true })
+        ? formatAccountDetails(manualPaymentProvider.data?.accountDetails, { asSafeHTML: true })
         : '';
   }
 
@@ -1356,9 +1356,13 @@ export const isPlatformTipEligible = async (order: Order): Promise<boolean> => {
 export const getHostFeePercent = async (
   order: Order,
   { loaders = null }: { loaders?: loaders } = {},
-): Promise<number> => {
+): Promise<number | null> => {
   const collective =
     order.collective || (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
+
+  if (!collective) {
+    return null;
+  }
 
   const host = await collective.getHostCollective({ loaders });
   const parent = await collective.getParentCollective({ loaders });

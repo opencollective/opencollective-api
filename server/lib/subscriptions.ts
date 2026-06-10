@@ -1,5 +1,5 @@
 import config from 'config';
-import { isEmpty, keys, pick } from 'lodash';
+import { isEmpty, keys, omit, pick } from 'lodash';
 import moment from 'moment';
 
 import INTERVALS from '../constants/intervals';
@@ -215,9 +215,13 @@ export const updateSubscriptionDetails = async (
   tier: Tier,
   member: Member,
   amountInCents: number,
+  platformTipAmount: number = order.platformTipAmount,
 ): Promise<OrderSubscriptionUpdate> => {
-  // Make sure the new details are ok values, that match tier's minimum amount if there's one
-  checkSubscriptionDetails(order, tier, amountInCents);
+  // Make sure the new details are ok values, that match tier's minimum amount if there's one.
+  // Validate against the contribution amount excluding the platform tip, since the tip goes to
+  // the platform rather than the tier/collective.
+  const netContribution = Math.max(0, amountInCents - (platformTipAmount || 0));
+  checkSubscriptionDetails(order, tier, netContribution);
 
   const newOrderData = {};
   const newSubscriptionData = {};
@@ -227,13 +231,20 @@ export const updateSubscriptionDetails = async (
   if (amountInCents !== order.totalAmount) {
     newOrderData['totalAmount'] = amountInCents;
     newSubscriptionData['amount'] = amountInCents;
-    // If the order has taxes, we need to update the taxAmount
-    if (order.data?.tax?.percentage) {
-      const taxRate = order.data.tax.percentage / 100;
-      const amountWithoutTip = amountInCents - order.platformTipAmount;
-      const grossAmount = amountWithoutTip / (1 + taxRate);
-      newOrderData['taxAmount'] = roundCentsAmount(amountWithoutTip - grossAmount, order.currency);
-    }
+  }
+
+  if (platformTipAmount !== order.platformTipAmount) {
+    newOrderData['platformTipAmount'] = platformTipAmount;
+  }
+
+  // Recompute the back-derived tax whenever the post-tax amount (total minus tip) changes.
+  const previousAmountWithoutTip = order.totalAmount - order.platformTipAmount;
+  const nextAmountWithoutTip = amountInCents - platformTipAmount;
+  const grossChanged = nextAmountWithoutTip !== previousAmountWithoutTip;
+  if (order.data?.tax?.percentage && grossChanged) {
+    const taxRate = order.data.tax.percentage / 100;
+    const grossAmount = nextAmountWithoutTip / (1 + taxRate);
+    newOrderData['taxAmount'] = roundCentsAmount(nextAmountWithoutTip - grossAmount, order.currency);
   }
 
   // Update interval
@@ -269,6 +280,10 @@ export const updateSubscriptionDetails = async (
   if (newTierId !== order.TierId) {
     newOrderData['TierId'] = newTierId;
     newMemberData['TierId'] = newTierId;
+  }
+
+  if (!isEmpty(newOrderData) && (order.data?.paymentIntent || order.data?.needsConfirmation)) {
+    newOrderData['data'] = omit(order.data, ['paymentIntent', 'needsConfirmation']);
   }
 
   // Backup previous values

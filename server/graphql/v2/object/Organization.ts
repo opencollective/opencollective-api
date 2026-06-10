@@ -31,7 +31,7 @@ import { AccountingCategoryRule } from '../../../models/AccountingCategoryRule';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseHost, checkRemoteUserCanUseTransactions, checkScope } from '../../common/scope-check';
-import { Unauthorized } from '../../errors';
+import { Forbidden, Unauthorized } from '../../errors';
 import { GraphQLAccountCollection } from '../collection/AccountCollection';
 import { GraphQLAccountingCategoryCollection } from '../collection/AccountingCategoryCollection';
 import { GraphQLTransactionsImportRowCollection } from '../collection/GraphQLTransactionsImportRow';
@@ -225,9 +225,13 @@ export const getOrganizationFields = () => ({
         type: GraphQLAccountReferenceInput,
         description: 'Rank vendors based on their relationship with this account',
       },
+      canBeUsedWithAccounts: {
+        type: new GraphQLList(GraphQLAccountReferenceInput),
+        description: 'Only return vendors that can be used with the given accounts',
+      },
       visibleToAccounts: {
         type: new GraphQLList(GraphQLAccountReferenceInput),
-        description: 'Only returns vendors that are visible to the given accounts',
+        deprecationReason: 'Use canBeUsedWithAccounts instead.',
       },
       isArchived: {
         type: GraphQLBoolean,
@@ -252,9 +256,11 @@ export const getOrganizationFields = () => ({
     },
     async resolve(host: Collective, args, req: express.Request) {
       const isAdmin = req.remoteUser?.isAdminOfCollective(host);
-      const visibleToAccounts =
-        args.visibleToAccounts?.length > 0
-          ? await fetchAccountsWithReferences(args.visibleToAccounts, { throwIfMissing: true })
+      // `visibleToAccounts` is a deprecated alias of `canBeUsedWithAccounts`.
+      const canBeUsedWithAccountsArg = args.canBeUsedWithAccounts ?? args.visibleToAccounts;
+      const canBeUsedWithAccounts =
+        canBeUsedWithAccountsArg?.length > 0
+          ? await fetchAccountsWithReferences(canBeUsedWithAccountsArg, { throwIfMissing: true })
           : [];
 
       const hostPolicy = await getPolicy(host, POLICIES.USE_VENDOR_POLICY);
@@ -365,8 +371,9 @@ export const getOrganizationFields = () => ({
 
       // WHERE filter: verifies if the vendor can be use on the given accounts args
       // When given a account scope, check if the vendor can be used in that context.
-      if (visibleToAccounts.length > 0) {
-        const accountIds = await expandAccountIdsWithParents(visibleToAccounts.map(acc => acc.id));
+      // Host admins are exempt — they can use any vendor of their host
+      if (!isAdmin && canBeUsedWithAccounts.length > 0) {
+        const accountIds = await expandAccountIdsWithParents(canBeUsedWithAccounts.map(acc => acc.id));
 
         query = query.where(({ or }) => {
           const ors = [];
@@ -1099,14 +1106,19 @@ export const getOrganizationFields = () => ({
         description: 'Whether to include archived providers',
       },
     },
-    async resolve(collective, args) {
+    async resolve(collective, args, req) {
       const where: Record<string, unknown> = { CollectiveId: collective.id };
       if (args.type) {
         where.type = args.type;
       }
+
+      // Handle archived
       if (!args.includeArchived) {
         where.archivedAt = null;
+      } else if (!req.remoteUser?.isAdmin(collective.id) && !req.remoteUser?.isRoot()) {
+        throw new Forbidden('You are not authorized to see archived manual payment providers for this account');
       }
+
       return models.ManualPaymentProvider.findAll({
         where,
         order: [

@@ -76,10 +76,23 @@ export const GraphQLVendor = new GraphQLObjectType({
           }
         },
       },
-      visibleToAccounts: {
+      canBeUsedWithAccounts: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
         description:
-          'The accounts where this vendor is visible, if empty or null applies to all collectives under the vendor host',
+          'The accounts this vendor can be used with. If empty, the vendor can be used with any collective under the vendor host.',
+        async resolve(vendor: Collective, _, req) {
+          const canBeUsedWithAccountIds = vendor.data?.canBeUsedWithAccountIds || [];
+
+          if (canBeUsedWithAccountIds.length === 0) {
+            return [];
+          }
+
+          return req.loaders.Collective.byId.loadMany(canBeUsedWithAccountIds);
+        },
+      },
+      visibleToAccounts: {
+        type: new GraphQLNonNull(new GraphQLList(GraphQLAccount)),
+        deprecationReason: 'Use canBeUsedWithAccounts instead.',
         async resolve(vendor: Collective, _, req) {
           const canBeUsedWithAccountIds = vendor.data?.canBeUsedWithAccountIds || [];
 

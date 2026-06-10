@@ -144,7 +144,7 @@ const parsePaypalError = async (
   message: string;
   metadata: { response: Response; error: Error | Record<string, unknown>; status: number; url: string };
 }> => {
-  let error = null;
+  let error;
   let message = defaultMessage;
 
   // Parse error

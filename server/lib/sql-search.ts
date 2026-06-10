@@ -7,7 +7,7 @@ import assert from 'assert';
 import config from 'config';
 import type { Request } from 'express';
 import express from 'express';
-import { SelectQueryBuilder } from 'kysely';
+import { Expression, RawBuilder, SelectQueryBuilder, sql } from 'kysely';
 import slugify from 'limax';
 import { get, isEmpty, isNil, isUndefined, toString, words } from 'lodash';
 import { QueryTypes } from 'sequelize';
@@ -730,6 +730,8 @@ export const buildSearchConditions = (
   return conditions;
 };
 
+type KyselySearchField = string | Expression<unknown> | RawBuilder<unknown>;
+
 export const buildKyselySearchConditions =
   <T>(
     searchTerm: string,
@@ -737,15 +739,25 @@ export const buildKyselySearchConditions =
       slugFields = [],
       idFields = [],
       textFields = [],
+      dataFields = [],
+      amountFields = [],
       emailFields = [],
+      stringArrayFields = [],
+      stringArrayTransformFn = null,
+      castStringArraysToVarchar = false,
       publicIdFields = [],
     }: {
-      slugFields?: string[];
-      idFields?: string[];
-      textFields?: string[];
-      emailFields?: string[];
+      slugFields?: KyselySearchField[];
+      idFields?: KyselySearchField[];
+      textFields?: KyselySearchField[];
+      dataFields?: KyselySearchField[];
+      amountFields?: KyselySearchField[];
+      emailFields?: KyselySearchField[];
+      stringArrayFields?: KyselySearchField[];
+      stringArrayTransformFn?: (str: string) => string;
+      castStringArraysToVarchar?: boolean;
       publicIdFields?: {
-        field: string | string[];
+        field: KyselySearchField | KyselySearchField[];
         prefix: EntityShortIdPrefix;
       }[];
     },
@@ -758,35 +770,81 @@ export const buildKyselySearchConditions =
       return q;
     }
 
-    // Exclusive conditions: if an ID or a slug is searched, on don't search other attributes
-    // We don't use ILIKE for them, they must match exactly
+    // Exclusive conditions: if an ID, slug, or email is searched, don't search other attributes.
     if (parsedTerm.type === 'slug' && slugFields?.length) {
-      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, 'ilike', parsedTerm.term))));
-    } else if (parsedTerm.type === 'id' && idFields?.length) {
+      return q.where(({ eb, or }) => or(slugFields.map(field => eb(field, '=', parsedTerm.term))));
+    }
+    if (parsedTerm.type === 'id' && idFields?.length) {
       return q.where(({ eb, or }) => or(idFields.map(field => eb(field, '=', parsedTerm.term))));
-    } else if (parsedTerm.type === 'email' && emailFields?.length) {
+    }
+    if (parsedTerm.type === 'email' && emailFields?.length) {
       return q.where(({ eb, or }) => or(emailFields.map(field => eb(field, '=', parsedTerm.term))));
-    } else if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
+    }
+    if (parsedTerm.type === 'publicId' && publicIdFields?.length) {
       const fields = publicIdFields
         .filter(field => field.prefix === parsedTerm.prefix)
-        .reduce((acc, field) => {
+        .reduce<KyselySearchField[]>((acc, field) => {
           if (Array.isArray(field.field)) {
             return [...acc, ...field.field];
           }
           return [...acc, field.field];
         }, []);
-      return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
+      if (fields.length) {
+        return q.where(({ eb, or }) => or(fields.map(field => eb(field, '=', parsedTerm.term))));
+      }
     }
 
-    // Inclusive conditions, search all fields except
+    // Inclusive conditions: single OR across all applicable field groups
 
-    // Conditions for text fields
-    const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
-    const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
-    const allTextFields = [...(slugFields || []), ...(textFields || [])];
+    return q.where(({ eb, or }) => {
+      const conditions = [];
 
-    q = q.where(({ eb, or }) => or(allTextFields.map(field => eb(field, 'ilike', iLikeQuery))));
-    return q;
+      // Conditions for text fields
+      const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+      const allTextFields = [...(slugFields || []), ...(textFields || [])];
+
+      // Partial match on slug + free-text columns (also used for multi-word queries).
+      allTextFields.forEach(field => conditions.push(eb(field, 'ilike', `%${sanitizeSearchTermForILike(strTerm)}%`)));
+
+      // Tag / string-array overlap
+      if (stringArrayFields?.length) {
+        const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
+        stringArrayFields.forEach(field => {
+          if (castStringArraysToVarchar) {
+            conditions.push(eb(field, '&&', sql`CAST(ARRAY[${preparedTerm}] AS varchar[])`));
+          } else {
+            conditions.push(eb(field, '&&', sql`ARRAY[${preparedTerm}]::varchar[]`));
+          }
+        });
+      }
+
+      // Exact match on structured data columns (JSON paths, references): single token only,
+      // so "foo bar" stays a text search and does not hit dataFields.
+      if (
+        dataFields?.length &&
+        ((parsedTerm.type === 'text' && parsedTerm.words === 1) ||
+          (parsedTerm.type === 'number' && !parsedTerm.isFloat))
+      ) {
+        dataFields.forEach(field => conditions.push(eb(field, '=', toString(parsedTerm.term))));
+      }
+
+      // Bare numbers (not #id): match integer id columns and/or amount columns (stored in cents).
+      if (parsedTerm.type === 'number') {
+        if (!parsedTerm.isFloat && idFields?.length) {
+          idFields.forEach(field => conditions.push(eb(field, '=', parsedTerm.term)));
+        }
+        if (amountFields?.length) {
+          amountFields.forEach(field => conditions.push(eb(field, '=', floatAmountToCents(parsedTerm.term as number))));
+        }
+      }
+
+      // Same as buildSearchConditions returning []: skip search when no field applies.
+      if (!conditions.length) {
+        return eb.val(true);
+      }
+
+      return or(conditions);
+    });
   };
 
 /**

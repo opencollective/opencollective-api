@@ -64,9 +64,17 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   });
 
   const hostsById = {};
-  const invoicesByKey = {};
-  let invoices = [];
-
+  const invoicesByKey: Record<
+    string,
+    {
+      HostCollectiveId: number;
+      FromCollectiveId: number;
+      slug: string;
+      year: number;
+      month: number;
+      totalTransactions: number;
+    }
+  > = {};
   for (const transaction of transactions) {
     const HostCollectiveId = transaction.HostCollectiveId;
     if (!HostCollectiveId) {
@@ -96,7 +104,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     };
   }
 
-  invoices = Object.values(invoicesByKey);
+  const invoices = Object.values(invoicesByKey);
   invoices.sort((a, b) => {
     return b.slug.localeCompare(a.slug);
   });

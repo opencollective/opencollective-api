@@ -1,10 +1,14 @@
+import type express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { REACTION_EMOJI } from '../../../constants/reaction-emoji';
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import models from '../../../models';
-import { canComment } from '../../common/expenses';
+import { isValidEmoji } from '../../../models/EmojiReaction';
+import { canSeeComment } from '../../common/comment';
 import { checkRemoteUserCanUseComment, checkRemoteUserCanUseUpdates } from '../../common/scope-check';
+import { canSeeUpdate } from '../../common/update';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { Loaders } from '../../loaders';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -58,6 +62,7 @@ const emojiReactionMutations = {
         throw new Error('A comment or update must be provided');
       }
 
+      // Scope is checked in addReactionToCommentOrUpdate
       if (args.comment) {
         const commentId = await getDatabaseIdFromCommentReference(args.comment);
         return addReactionToCommentOrUpdate(commentId, req, args.emoji, IDENTIFIER_TYPES.COMMENT);
@@ -81,6 +86,7 @@ const emojiReactionMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
+    // eslint-disable-next-line graphql-mutations/require-scope-check -- scope check is performed inside removeReactionFromCommentOrUpdate
     resolve: async (_, args, req) => {
       mustBeLoggedInTo(req.remoteUser, 'remove this comment reaction');
 
@@ -88,43 +94,63 @@ const emojiReactionMutations = {
         throw new Error('A comment or update must be provided');
       }
 
+      // Scope and permissions are checked in removeReactionFromCommentOrUpdate
       if (args.comment) {
         const commentId = await getDatabaseIdFromCommentReference(args.comment);
-        const comment = await models.Comment.findByPk(commentId);
-        if (comment) {
-          checkRemoteUserCanUseComment(comment, req);
-        }
-        return removeReactionFromCommentOrUpdate(commentId, req.remoteUser, args.emoji, IDENTIFIER_TYPES.COMMENT);
+        return removeReactionFromCommentOrUpdate(commentId, req, args.emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (args.update) {
-        checkRemoteUserCanUseUpdates(req);
         const updateId = await getDatabaseIdFromUpdateReference(args.update);
-        return removeReactionFromCommentOrUpdate(updateId, req.remoteUser, args.emoji, IDENTIFIER_TYPES.UPDATE);
+        return removeReactionFromCommentOrUpdate(updateId, req, args.emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
   },
 };
 
-const addReactionToCommentOrUpdate = async (commentOrUpdateId, req, emoji, identifierType) => {
+type EntityIdentifierType = typeof IDENTIFIER_TYPES.COMMENT | typeof IDENTIFIER_TYPES.UPDATE;
+
+/**
+ * Loads the entity and checks the scope and permissions.
+ */
+const loadEntity = async (commentOrUpdateId: number, req: express.Request, identifierType: EntityIdentifierType) => {
   let commentOrUpdate;
+
+  // Check existence and token scope
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
     commentOrUpdate = await models.Comment.findByPk(commentOrUpdateId);
+    if (!commentOrUpdate) {
+      throw new ValidationFailed('This comment does not exist');
+    }
+
     checkRemoteUserCanUseComment(commentOrUpdate, req);
+    if (!(await canSeeComment(req, commentOrUpdate))) {
+      throw new Forbidden('You are not allowed to react on this comment');
+    }
   } else {
     commentOrUpdate = await models.Update.findByPk(commentOrUpdateId);
-    checkRemoteUserCanUseUpdates(req);
-  }
-
-  if (!commentOrUpdate) {
-    if (identifierType === IDENTIFIER_TYPES.COMMENT) {
-      throw new ValidationFailed('This comment does not exist');
-    } else {
+    if (!commentOrUpdate) {
       throw new ValidationFailed('This update does not exist');
     }
-  } else if (identifierType === IDENTIFIER_TYPES.COMMENT && commentOrUpdate.ExpenseId) {
-    const expense = await models.Expense.findByPk(commentOrUpdate.ExpenseId);
-    if (!expense || !(await canComment(req, expense))) {
-      throw new Forbidden('You are not allowed to comment or add reactions on this expense');
+
+    checkRemoteUserCanUseUpdates(req);
+    if (!(await canSeeUpdate(req, commentOrUpdate))) {
+      throw new Forbidden('You are not allowed to react on this update');
     }
+  }
+
+  return commentOrUpdate;
+};
+
+const addReactionToCommentOrUpdate = async (
+  commentOrUpdateId: number,
+  req: express.Request,
+  emoji: string,
+  identifierType: EntityIdentifierType,
+) => {
+  const commentOrUpdate = await loadEntity(commentOrUpdateId, req, identifierType);
+
+  // Check emoji is valid
+  if (!isValidEmoji(emoji)) {
+    throw new ValidationFailed(`Invalid emoji. Must be one of: ${REACTION_EMOJI.join(', ')}`);
   }
 
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
@@ -136,12 +162,19 @@ const addReactionToCommentOrUpdate = async (commentOrUpdateId, req, emoji, ident
   }
 };
 
-const removeReactionFromCommentOrUpdate = async (commentOrUpdateId, remoteUser, emoji, identifierType) => {
+const removeReactionFromCommentOrUpdate = async (
+  commentOrUpdateId: number,
+  req: express.Request,
+  emoji: string,
+  identifierType: EntityIdentifierType,
+) => {
+  const commentOrUpdate = await loadEntity(commentOrUpdateId, req, identifierType);
+
   const idColumn = identifierType === IDENTIFIER_TYPES.COMMENT ? 'CommentId' : 'UpdateId';
   const emojiRemoved = await models.EmojiReaction.destroy({
     where: {
       [idColumn]: commentOrUpdateId,
-      UserId: remoteUser.id,
+      UserId: req.remoteUser.id,
       emoji,
     },
   });
@@ -151,9 +184,9 @@ const removeReactionFromCommentOrUpdate = async (commentOrUpdateId, remoteUser, 
   }
 
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
-    return { comment: await models.Comment.findByPk(commentOrUpdateId), update: null };
+    return { comment: commentOrUpdate, update: null };
   } else {
-    return { update: await models.Update.findByPk(commentOrUpdateId), comment: null };
+    return { update: commentOrUpdate, comment: null };
   }
 };
 

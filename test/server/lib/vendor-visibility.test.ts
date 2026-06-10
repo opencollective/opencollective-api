@@ -326,7 +326,7 @@ describe('server/lib/vendor-visibility', () => {
       expect(await canUserUseVendor({ remoteUser: user, vendor, collective: inScopeCollective, host })).to.be.true;
     });
 
-    it('host admin cannot use a vendor on account outside scope', async () => {
+    it('host admin can use a vendor on account outside scope', async () => {
       const hostAdmin = await fakeUser();
       const host = await fakeActiveHost({ admin: hostAdmin });
       const inScopeCollective = await fakeCollective({ HostCollectiveId: host.id });
@@ -337,11 +337,33 @@ describe('server/lib/vendor-visibility', () => {
         data: { canBeUsedWithAccountIds: [inScopeCollective.id] },
       });
 
+      // Host admin authority is symmetric across both axes: they bypass the WHO policy gate AND
+      // the WHERE scope gate. Anyone running a host can use any of its vendors anywhere under it.
       expect(
         await canUserUseVendor({ remoteUser: hostAdmin, vendor, collective: otherCollective, host }),
-        'host admin status must not bypass vendor scope',
-      ).to.be.false;
+        'host admin must bypass the vendor scope check',
+      ).to.be.true;
       expect(await canUserUseVendor({ remoteUser: hostAdmin, vendor, collective: inScopeCollective, host })).to.be.true;
+    });
+
+    it('non-admin submitter is still rejected when the vendor is scoped elsewhere', async () => {
+      // Locks in that the host-admin bypass introduced for the test above doesn't leak to
+      // regular submitters — the WHERE scope still gates non-admins exactly as before.
+      const user = await fakeUser();
+      const host = await fakeActiveHost();
+      const inScopeCollective = await fakeCollective({ HostCollectiveId: host.id });
+      const otherCollective = await fakeCollective({ HostCollectiveId: host.id });
+      await user.populateRoles();
+      const vendor = await fakeVendor({
+        ParentCollectiveId: host.id,
+        data: {
+          canBeUsedWithAccountIds: [inScopeCollective.id],
+          useVendorPolicy: UseVendorPolicyValue.ALL_SUBMITTERS,
+        },
+      });
+
+      expect(await canUserUseVendor({ remoteUser: user, vendor, collective: otherCollective, host })).to.be.false;
+      expect(await canUserUseVendor({ remoteUser: user, vendor, collective: inScopeCollective, host })).to.be.true;
     });
   });
 });

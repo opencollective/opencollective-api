@@ -1,10 +1,13 @@
 import { expect } from 'chai';
 import config from 'config';
+import { sql } from 'kysely';
 import { times } from 'lodash';
 
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
+import { getKysely } from '../../../server/lib/kysely';
 import { EntityShortIdPrefix } from '../../../server/lib/permalink/entity-map';
 import {
+  buildKyselySearchConditions,
   buildSearchConditions,
   parseSearchTerm,
   sanitizeSearchTermForILike,
@@ -664,6 +667,117 @@ describe('server/lib/search', () => {
           stringArrayTransformFn: value => value.toUpperCase(),
         }),
       ).to.deep.eq([{ tags: { [Op.overlap]: ['HELLO WORLD'] } }]);
+    });
+  });
+
+  describe('buildKyselySearchConditions', () => {
+    const compileWithSearch = (searchTerm: string, config: Parameters<typeof buildKyselySearchConditions>[1]) => {
+      const kysely = getKysely();
+      const query = buildKyselySearchConditions(searchTerm, config)(kysely.selectFrom('Orders').selectAll('Orders'));
+      return query.compile();
+    };
+
+    it('returns query unchanged for an empty search', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('', { textFields: ['name'] });
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.be.empty;
+    });
+
+    it('applies no search filter when no fields apply to the parsed term', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('#4242', {});
+      expect(compiledSql).to.not.include('ilike');
+      expect(compiledSql).to.not.include('"Orders"."id"');
+      expect(parameters).to.not.include(4242);
+      expect(parameters).to.include(true);
+    });
+
+    it('builds exclusive id condition for #id', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('#4242', { idFields: ['Orders.id'] });
+      expect(compiledSql).to.include('"Orders"."id"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include(4242);
+    });
+
+    it('builds exclusive slug condition for @slug', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('@betree', { slugFields: ['slug'] });
+      expect(compiledSql).to.include('"slug"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include('betree');
+    });
+
+    it('builds exclusive publicId condition without inclusive ILIKE (Kysely deviation)', () => {
+      const publicId = 'acc_searchPubId';
+      const { sql: compiledSql, parameters } = compileWithSearch(publicId, {
+        slugFields: ['slug'],
+        textFields: ['name'],
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+      });
+      expect(compiledSql).to.include('"publicId"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include(publicId);
+    });
+
+    it('falls through to inclusive ILIKE when publicId prefix does not match', () => {
+      const publicId = 'tx_abc123';
+      const { sql: compiledSql } = compileWithSearch(publicId, {
+        slugFields: ['slug'],
+        textFields: ['name'],
+        publicIdFields: [{ field: 'publicId', prefix: EntityShortIdPrefix.Collective }],
+      });
+      expect(compiledSql).to.include('ilike');
+    });
+
+    it('builds inclusive conditions for numbers including id and amount', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('4242', {
+        slugFields: ['slug'],
+        textFields: ['name'],
+        idFields: ['Orders.id'],
+        amountFields: ['totalAmount'],
+        stringArrayFields: ['tags'],
+      });
+      expect(compiledSql).to.include('ilike');
+      expect(compiledSql).to.include('"Orders"."id"');
+      expect(compiledSql).to.include('"totalAmount"');
+      expect(parameters).to.include(4242);
+      expect(parameters).to.include(424200);
+    });
+
+    it('includes jsonb sql expression in textFields ILIKE OR', () => {
+      const { sql: compiledSql } = compileWithSearch('PO-123', {
+        textFields: [sql`"Orders".data->>'ponumber'`],
+      });
+      expect(compiledSql).to.include(`"Orders".data->>'ponumber'`);
+      expect(compiledSql).to.include('ilike');
+    });
+
+    it('uses exact match for dataFields on single-word text', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('ref_abc', {
+        dataFields: ['data.reference'],
+      });
+      expect(compiledSql).to.include('"data"."reference"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include('ref_abc');
+    });
+
+    it('falls through to inclusive ILIKE when email type has empty emailFields', () => {
+      const { sql: compiledSql, parameters } = compileWithSearch('a@b.com', {
+        emailFields: [],
+        textFields: ['data.email'],
+      });
+      expect(compiledSql).to.include('ilike');
+      expect(compiledSql).to.include('"data"."email"');
+      expect(parameters).to.not.include('a@b.com');
+    });
+
+    it('builds exclusive email condition when emailFields is set', () => {
+      const email = 'contributor@example.com';
+      const { sql: compiledSql, parameters } = compileWithSearch(email, {
+        emailFields: ['Users.email'],
+        textFields: ['description'],
+      });
+      expect(compiledSql).to.include('"Users"."email"');
+      expect(compiledSql).to.not.include('ilike');
+      expect(parameters).to.include(email);
     });
   });
 });
