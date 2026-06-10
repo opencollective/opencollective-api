@@ -1,11 +1,14 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import nock from 'nock';
+import { createSandbox } from 'sinon';
 
 import { activities } from '../../../../../server/constants';
+import roles from '../../../../../server/constants/roles';
+import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
-import { fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
 const createCollectiveMutation = gql`
@@ -14,17 +17,20 @@ const createCollectiveMutation = gql`
     $host: AccountReferenceInput
     $inviteMembers: [InviteMemberInput]
     $applicationData: JSON
+    $skipDefaultAdmin: Boolean
   ) {
     createCollective(
       collective: $collective
       host: $host
       inviteMembers: $inviteMembers
       applicationData: $applicationData
+      skipDefaultAdmin: $skipDefaultAdmin
     ) {
       name
       slug
       tags
       isActive
+      isPrivate
       ... on AccountWithHost {
         isApproved
         host {
@@ -51,23 +57,37 @@ const backYourStackCollectiveData = {
 };
 
 describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
-  beforeEach('reset db', async () => {
-    await utils.resetTestDB();
-  });
-
+  let sandbox, sendEmailSpy;
   let host;
 
-  beforeEach('create host', async () => {
-    host = await models.Collective.create({
+  beforeEach(async () => {
+    await utils.resetTestDB();
+    host = await fakeActiveHost({
       name: 'Open Source Collective',
       slug: 'opensource',
       type: 'ORGANIZATION',
       settings: { apply: true },
       hasMoneyManagement: true,
+      hasHosting: true,
     });
   });
 
+  beforeEach('setup email spy', () => {
+    sandbox = createSandbox();
+    sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
   describe('simple case', async () => {
+    let user;
+
+    beforeEach('create user', async () => {
+      user = await fakeUser();
+    });
+
     it('fails if not authenticated', async () => {
       const result = await utils.graphqlQueryV2(createCollectiveMutation, {
         collective: newCollectiveData,
@@ -84,6 +104,119 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       expect(result.data.createCollective.name).to.equal(newCollectiveData.name);
       expect(result.data.createCollective.slug).to.equal(newCollectiveData.slug);
       expect(result.data.createCollective.tags).to.deep.equal(newCollectiveData.tags);
+    });
+
+    it('collective created with host argument but the user is not a host admin', async () => {
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        { collective: newCollectiveData, host: { slug: host.slug } },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const resultAccount = result.data.createCollective;
+      expect(resultAccount.name).to.equal(newCollectiveData.name);
+      expect(resultAccount.slug).to.equal(newCollectiveData.slug);
+      expect(resultAccount.host.slug).to.equal(host.slug);
+      expect(resultAccount.isActive).to.be.false;
+      expect(resultAccount.isApproved).to.be.false;
+    });
+
+    it('collective created with host argument by a user that is a host admin', async () => {
+      await host.addUserWithRole(user, roles.ADMIN);
+      await user.populateRoles();
+
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        { collective: newCollectiveData, host: { slug: host.slug } },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const resultAccount = result.data.createCollective;
+      expect(resultAccount.name).to.equal(newCollectiveData.name);
+      expect(resultAccount.slug).to.equal(newCollectiveData.slug);
+      expect(resultAccount.host.slug).to.equal(host.slug);
+      expect(resultAccount.isActive).to.be.true;
+      expect(resultAccount.isApproved).to.be.true;
+    });
+
+    it('collective created with host argument by a user that is a host admin and the host has isPrivate flag set to true', async () => {
+      await host.update({ isPrivate: true });
+      await host.addUserWithRole(user, roles.ADMIN);
+      await user.populateRoles();
+
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        { collective: newCollectiveData, host: { slug: host.slug } },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const resultAccount = result.data.createCollective;
+      expect(resultAccount.name).to.equal(newCollectiveData.name);
+      expect(resultAccount.slug).to.equal(newCollectiveData.slug);
+      expect(resultAccount.host.slug).to.equal(host.slug);
+      expect(resultAccount.isActive).to.be.true;
+      expect(resultAccount.isApproved).to.be.true;
+      expect(resultAccount.isPrivate).to.be.true;
+    });
+
+    it('host admin invites a member using skipDefaultAdmin: the invitation email omits the inviter name', async () => {
+      const hostAdmin = user;
+      await host.addUserWithRole(hostAdmin, roles.ADMIN);
+      await hostAdmin.populateRoles();
+
+      const invitedUser = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        {
+          collective: { ...newCollectiveData, slug: 'skip-admin-collective' },
+          host: { slug: host.slug },
+          skipDefaultAdmin: true,
+          inviteMembers: [
+            {
+              memberAccount: { slug: invitedUser.collective.slug },
+              role: 'ADMIN',
+              description: 'Invited by host admin without default admin',
+            },
+          ],
+        },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
+      expect(sendEmailSpy.callCount).to.equal(1);
+
+      const [recipient, subject, html] = sendEmailSpy.args[0];
+      expect(recipient).to.equal(invitedUser.email);
+      expect(subject).to.equal(`Invitation to join ${newCollectiveData.name} on Open Collective`);
+      // skipDefaultAdmin branch: no inviter name
+      expect(html).to.include('You were just invited to the role of');
+      // normal branch must not appear
+      expect(html).to.not.include('just invited you to the role of');
+
+      const collective = await models.Collective.findOne({ where: { slug: 'skip-admin-collective' } });
+
+      // With skipDefaultAdmin: true, no one should be directly added as admin
+      const admins = await collective.getAdmins();
+      expect(admins).to.have.length(0);
+
+      // The invited user should have a pending MemberInvitation
+      const invitations = await models.MemberInvitation.findAll({
+        where: { CollectiveId: collective.id },
+        include: [{ association: 'memberCollective' }],
+      });
+      expect(invitations).to.have.length(1);
+      expect(invitations[0].memberCollective.slug).to.eq(invitedUser.collective.slug);
+      expect(invitations[0].role).to.eq(roles.ADMIN);
+      expect(invitations[0].description).to.eq('Invited by host admin without default admin');
     });
 
     it('invite members', async () => {
