@@ -30,7 +30,18 @@ describe('server/lib/open-search/batch-processor', () => {
     sentryReportErrorStub = sinon.stub(SentryLib, 'reportErrorToSentry');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    if (processor) {
+      if ((processor as any)._timeoutHandle) {
+        clearTimeout((processor as any)._timeoutHandle);
+        (processor as any)._timeoutHandle = null;
+      }
+
+      if ((processor as any)._processBatchPromise) {
+        await (processor as any)._processBatchPromise;
+      }
+    }
+
     sinon.restore();
   });
 
@@ -66,6 +77,7 @@ describe('server/lib/open-search/batch-processor', () => {
       }
 
       expect(processSpy.calledOnce).to.be.true;
+      await (processor as any)._processBatchPromise;
     });
 
     it('should process batch immediately when RECEIVING a FULL_ACCOUNT_RE_INDEX request', async () => {
@@ -78,6 +90,7 @@ describe('server/lib/open-search/batch-processor', () => {
       });
 
       expect(processSpy.calledOnce).to.be.true;
+      await (processor as any)._processBatchPromise;
     });
 
     it('should not add requests when processor is not started', async () => {
@@ -223,11 +236,17 @@ describe('server/lib/open-search/batch-processor', () => {
   });
 
   describe('_processBatch()', () => {
+    const sampleBulkOperations = {
+      operations: [{ index: { _index: 'test_collectives', _id: '1' } }, { id: 1 }],
+      deleteQuery: null,
+    };
+
     it('should handle errors gracefully', async () => {
       processor.start();
       clientStub.bulk.rejects(new Error('Test error'));
+      sinon.stub(processor as any, 'convertRequestsToBulkOperations').resolves(sampleBulkOperations);
 
-      processor.addToQueue({
+      (processor as any)._queue.push({
         type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
@@ -242,8 +261,9 @@ describe('server/lib/open-search/batch-processor', () => {
     it('should handle bulk response errors', async () => {
       processor.start();
       clientStub.bulk.resolves({ body: { items: [], errors: true, took: 0 } });
+      sinon.stub(processor as any, 'convertRequestsToBulkOperations').resolves(sampleBulkOperations);
 
-      processor.addToQueue({
+      (processor as any)._queue.push({
         type: OpenSearchRequestType.UPDATE,
         table: 'Collectives',
         payload: { id: 1 },
