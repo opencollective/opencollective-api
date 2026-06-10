@@ -22,7 +22,7 @@ import { webhook } from './webhook';
 
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 const PROVIDER_NAME = 'stripe';
-const STATE_CACHE_PREFIX = 'stripe_oauth_';
+export const STATE_CACHE_PREFIX = 'stripe_oauth_';
 const STATE_TTL_SECONDS = 60 * 45; // 45 minutes - users may need time to set up their Stripe Account
 
 /**
