@@ -5,14 +5,12 @@ import { GraphQLNonEmptyString } from 'graphql-scalars';
 import { sessionCache } from '../../../lib/cache';
 import logger from '../../../lib/logger';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import stripe from '../../../paymentProviders/stripe';
+import stripe, { STATE_CACHE_PREFIX } from '../../../paymentProviders/stripe';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 import GraphQLURL from '../scalar/URL';
-
-const STATE_CACHE_PREFIX = 'stripe_oauth_';
 
 const GraphQLStripeConnectAccountResponse = new GraphQLObjectType({
   name: 'StripeConnectAccountResponse',
