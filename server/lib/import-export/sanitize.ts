@@ -103,6 +103,7 @@ const PROD_SANITIZERS: { [k in ModelNames]: Sanitizer<k> } = {
   CurrencyExchangeRate: () => {},
   ManualPaymentProvider: () => {},
   Member: () => {},
+  PaymentIntent: () => {},
   PaypalPlan: () => {},
   PaypalProduct: () => {},
   RecurringExpense: () => {}, // Private data only exists in the expense itself
