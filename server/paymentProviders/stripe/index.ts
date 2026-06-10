@@ -46,7 +46,7 @@ const getOAuthAuthorizeUrl = (state: string): string => {
  *
  * Permission checks (the user being an admin of the Collective) are expected to be done by the caller.
  */
-export async function connectStripeAccount({
+async function connectStripeAccount({
   code,
   CollectiveId,
   CreatedByUserId,
@@ -190,6 +190,3 @@ export default {
 
   webhook,
 };
-
-// Internal exports for tests
-export const __testing = { STATE_CACHE_PREFIX, STATE_TTL_SECONDS };
