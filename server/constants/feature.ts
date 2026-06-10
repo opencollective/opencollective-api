@@ -102,8 +102,6 @@ enum FEATURE {
   ACCOUNT_MANAGEMENT = 'ACCOUNT_MANAGEMENT',
   KYC = 'KYC',
   PUBLIC_PROFILE = 'PUBLIC_PROFILE',
-  /** Whether host-issued contribution receipts include platform tips as line items */
-  SINGLE_RECEIPT_PLATFORM_TIP = 'SINGLE_RECEIPT_PLATFORM_TIP',
 }
 
 // features that can conditionally enabled/disabled based on subscription

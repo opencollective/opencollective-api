@@ -6,7 +6,6 @@ import { TransactionKind } from '../constants/transaction-kind';
 import models, { Op } from '../models';
 import { USTaxFormType } from '../models/LegalDocument';
 
-import { FEATURE, hasFeature } from './allowed-features';
 import { TOKEN_EXPIRATION_PDF } from './auth';
 import { fetchWithTimeout } from './fetch';
 import logger from './logger';
@@ -99,13 +98,13 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   > = {};
   for (const transaction of transactions) {
     if (transaction.kind === TransactionKind.PLATFORM_TIP) {
-      // For hosts opted in to single contributor receipts, platform tips are rendered as line items
-      // on the host-issued contribution receipt. Keep legacy standalone OFiTech tip receipts for all
-      // other hosts until the feature is fully rolled out.
+      // For hosts that opted in to single contributor receipts, platform tips are rendered as line
+      // items on the host-issued contribution receipt. Keep legacy standalone OFiTech tip receipts
+      // for all other hosts until the setting is fully rolled out.
       const relatedContribution = contributionByGroup[transaction.TransactionGroup];
       if (relatedContribution?.HostCollectiveId) {
         const contributionHost = await models.Collective.findByPk(relatedContribution.HostCollectiveId);
-        if (contributionHost && (await hasFeature(contributionHost, FEATURE.SINGLE_RECEIPT_PLATFORM_TIP))) {
+        if (contributionHost && get(contributionHost, 'settings.singleReceiptPlatformTip') === true) {
           // Do not add this platform tip to `invoicesByKey`, otherwise the dashboard would still
           // show a separate OFiTech receipt alongside the host-issued contribution receipt.
           continue;
