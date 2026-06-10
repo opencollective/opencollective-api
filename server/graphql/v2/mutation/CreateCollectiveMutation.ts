@@ -49,177 +49,172 @@ async function createCollective(_, args, req) {
     throw new RateLimitExceeded();
   }
 
-  return sequelize
-    .transaction(async transaction => {
-      const collectiveData = {
-        slug: args.collective.slug.toLowerCase(),
-        ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
-        isActive: false,
-        CreatedByUserId: remoteUser.id,
-        settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
-        isPrivate: host?.isPrivate ?? false,
-      };
+  const collective = await sequelize.transaction(async transaction => {
+    const collectiveData = {
+      slug: args.collective.slug.toLowerCase(),
+      ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
+      isActive: false,
+      CreatedByUserId: remoteUser.id,
+      settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
+      isPrivate: host?.isPrivate ?? false,
+    };
 
-      if (!isProd && args.testPayload) {
-        collectiveData['data'] = args.testPayload.data;
+    if (!isProd && args.testPayload) {
+      collectiveData['data'] = args.testPayload.data;
+    }
+
+    if (!canUseSlug(collectiveData.slug, remoteUser)) {
+      throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
+    }
+    const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug }, transaction });
+
+    if (collectiveWithSlug) {
+      throw new ValidationFailed('An account already exists for this URL, please choose another one.', null, {
+        extraInfo: { slugExists: true },
+      });
+    }
+
+    // Throw validation error if you have not invited enough admins
+    const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+    const requiredAdmins = minAdminsPolicy?.numberOfAdmins || 0;
+    const adminsIncludingInvitedCount = (args.inviteMembers?.length || 0) + 1;
+    if (requiredAdmins > adminsIncludingInvitedCount) {
+      throw new ValidationFailed(`This host policy requires at least ${requiredAdmins} admins for this account.`);
+    }
+
+    // Trigger Github validation when repository is on github.com
+    const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
+    if (args.applicationData?.useGithubValidation) {
+      const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
+      host = await defaultHostCollective('opensource');
+
+      try {
+        // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
+        const bypassGithubValidation = !isProd && remoteUser.email.match(/.*test.*@opencollective.com$/);
+
+        if (!bypassGithubValidation) {
+          const githubAccount = await models.ConnectedAccount.findOne({
+            where: { CollectiveId: remoteUser.CollectiveId, service: 'github' },
+            transaction,
+          });
+          if (githubAccount) {
+            // In e2e/CI environment, checkGithubAdmin will be stubbed
+            await github.checkGithubAdmin(githubHandle, githubAccount.token);
+
+            if (githubHandle.includes('/')) {
+              validatedRepositoryInfo = OSCValidator(await github.getValidatorInfo(githubHandle, githubAccount.token));
+            }
+          }
+        }
+        shouldAutomaticallyApprove = bypassGithubValidation;
+      } catch (error) {
+        throw new ValidationFailed(error.message);
       }
 
-      if (!canUseSlug(collectiveData.slug, remoteUser)) {
-        throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
+      if (githubHandle.includes('/')) {
+        collectiveData.settings.githubRepo = githubHandle;
+      } else {
+        collectiveData.settings.githubOrg = githubHandle;
       }
-      const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug }, transaction });
 
-      if (collectiveWithSlug) {
+      collectiveData.tags = collectiveData.tags || [];
+      if (!collectiveData.tags.includes('open source')) {
+        collectiveData.tags.push('open source');
+      }
+    } else if (args.host) {
+      if (!host) {
+        throw new ValidationFailed('Host Not Found');
+      }
+      if (!host.hasMoneyManagement) {
+        throw new ValidationFailed('Host account is not activated as Host.');
+      }
+    }
+
+    let collective;
+    try {
+      collective = await models.Collective.create(collectiveData, { transaction });
+    } catch (error) {
+      if (error.name === 'SequelizeUniqueConstraintError') {
         throw new ValidationFailed('An account already exists for this URL, please choose another one.', null, {
           extraInfo: { slugExists: true },
         });
+      } else {
+        throw error;
       }
+    }
 
-      // Throw validation error if you have not invited enough admins
-      const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-      const requiredAdmins = minAdminsPolicy?.numberOfAdmins || 0;
-      const adminsIncludingInvitedCount = (args.inviteMembers?.length || 0) + 1;
-      if (requiredAdmins > adminsIncludingInvitedCount) {
-        throw new ValidationFailed(`This host policy requires at least ${requiredAdmins} admins for this account.`);
-      }
+    // Add authenticated user as an admin
+    if (!args.skipDefaultAdmin) {
+      await collective.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id }, {}, transaction);
+    }
 
-      // Trigger Github validation when repository is on github.com
-      const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
-      if (args.applicationData?.useGithubValidation) {
-        const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
-        host = await defaultHostCollective('opensource');
+    if (args.inviteMembers && args.inviteMembers.length) {
+      await processInviteMembersInput(collective, args.inviteMembers, {
+        skipDefaultAdmin: args.skipDefaultAdmin,
+        transaction,
+        supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
+        user: remoteUser,
+      });
+    }
 
-        try {
-          // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
-          const bypassGithubValidation = !isProd && remoteUser.email.match(/.*test.*@opencollective.com$/);
+    // Add location
+    if (args.collective.location) {
+      await collective.setLocation(args.collective.location, transaction);
+    }
 
-          if (!bypassGithubValidation) {
-            const githubAccount = await models.ConnectedAccount.findOne({
-              where: { CollectiveId: remoteUser.CollectiveId, service: 'github' },
-              transaction,
-            });
-            if (githubAccount) {
-              // In e2e/CI environment, checkGithubAdmin will be stubbed
-              await github.checkGithubAdmin(githubHandle, githubAccount.token);
+    const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.collective);
+    if (avatar || banner) {
+      await collective.update(
+        { image: avatar?.url ?? collective.image, backgroundImage: banner?.url ?? collective.backgroundImage },
+        { transaction, hooks: false },
+      );
+    }
 
-              if (githubHandle.includes('/')) {
-                validatedRepositoryInfo = OSCValidator(
-                  await github.getValidatorInfo(githubHandle, githubAccount.token),
-                );
-              }
-            }
-          }
-          shouldAutomaticallyApprove = bypassGithubValidation;
-        } catch (error) {
-          throw new ValidationFailed(error.message);
-        }
+    return collective;
+  });
+  // We're out of the main SQL transaction now
 
-        if (githubHandle.includes('/')) {
-          collectiveData.settings.githubRepo = githubHandle;
-        } else {
-          collectiveData.settings.githubOrg = githubHandle;
-        }
+  // Automated approval if the creator is Github Sponsors
+  if (req.remoteUser) {
+    const remoteUserCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
+    if (remoteUserCollective.slug === 'github-sponsors') {
+      shouldAutomaticallyApprove = true;
+    }
+  }
 
-        collectiveData.tags = collectiveData.tags || [];
-        if (!collectiveData.tags.includes('open source')) {
-          collectiveData.tags.push('open source');
-        }
-      } else if (args.host) {
-        if (!host) {
-          throw new ValidationFailed('Host Not Found');
-        }
-        if (!host.hasMoneyManagement) {
-          throw new ValidationFailed('Host account is not activated as Host.');
-        }
-      }
+  // In test/dev environments, we can skip the approval process
+  if (args.skipApprovalTestOnly && !isProd) {
+    shouldAutomaticallyApprove = true;
+  }
 
-      let collective;
-      try {
-        collective = await models.Collective.create(collectiveData, { transaction });
-      } catch (error) {
-        if (error.name === 'SequelizeUniqueConstraintError') {
-          throw new ValidationFailed('An account already exists for this URL, please choose another one.', null, {
-            extraInfo: { slugExists: true },
-          });
-        } else {
-          throw error;
-        }
-      }
-
-      // Add authenticated user as an admin
-      if (!args.skipDefaultAdmin) {
-        await collective.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id }, {}, transaction);
-      }
-
-      if (args.inviteMembers && args.inviteMembers.length) {
-        await processInviteMembersInput(collective, args.inviteMembers, {
-          skipDefaultAdmin: args.skipDefaultAdmin,
-          transaction,
-          supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
-          user: remoteUser,
-        });
-      }
-
-      // Add location
-      if (args.collective.location) {
-        await collective.setLocation(args.collective.location, transaction);
-      }
-
-      const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.collective);
-      if (avatar || banner) {
-        await collective.update(
-          { image: avatar?.url ?? collective.image, backgroundImage: banner?.url ?? collective.backgroundImage },
-          { transaction, hooks: false },
-        );
-      }
-
-      return collective;
-    })
-    .then(async collective => {
-      // We're out of the main SQL transaction now
-
-      // Automated approval if the creator is Github Sponsors
-      if (req.remoteUser) {
-        const remoteUserCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
-        if (remoteUserCollective.slug === 'github-sponsors') {
-          shouldAutomaticallyApprove = true;
-        }
-      }
-
-      // In test/dev environments, we can skip the approval process
-      if (args.skipApprovalTestOnly && !isProd) {
-        shouldAutomaticallyApprove = true;
-      }
-
-      // Add the host if any
-      if (host) {
-        await collective.addHost(host, remoteUser, {
-          shouldAutomaticallyApprove,
-          message: args.message,
-          applicationData: { ...args.applicationData, validatedRepositoryInfo },
-        });
-        purgeCacheForCollective(host.slug);
-      }
-
-      // Will send an email to the authenticated user OR newly created user
-      // - tell them that their collective was successfully created
-      // - tell them which fiscal host they picked, if any
-      // - tell them the status of their host application
-      if (!args.skipDefaultAdmin) {
-        const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
-        collective.generateCollectiveCreatedActivity(remoteUser, req.userToken, {
-          host: get(host, 'info'),
-          hostPending: collective.approvedAt ? false : true,
-          accountType: collective.type === 'FUND' ? 'fund' : 'collective',
-          user: {
-            email: remoteUser.email,
-            collective: remoteUserCollective.info,
-          },
-        });
-      }
-
-      return collective;
+  // Add the host if any
+  if (host) {
+    await collective.addHost(host, remoteUser, {
+      shouldAutomaticallyApprove,
+      message: args.message,
+      applicationData: { ...args.applicationData, validatedRepositoryInfo },
     });
+    purgeCacheForCollective(host.slug);
+  }
+
+  // Will send an email to the authenticated user OR newly created user
+  // - tell them that their collective was successfully created
+  // - tell them which fiscal host they picked, if any
+  // - tell them the status of their host application
+  if (!args.skipDefaultAdmin) {
+    const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
+    collective.generateCollectiveCreatedActivity(remoteUser, req.userToken, {
+      host: get(host, 'info'),
+      hostPending: collective.approvedAt ? false : true,
+      accountType: collective.type === 'FUND' ? 'fund' : 'collective',
+      user: {
+        email: remoteUser.email,
+        collective: remoteUserCollective.info,
+      },
+    });
+  }
+
+  return collective;
 }
 
 const createCollectiveMutation = {
