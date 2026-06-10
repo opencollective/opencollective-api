@@ -1,5 +1,5 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get, uniq } from 'lodash';
 import moment from 'moment';
 
 import { TransactionKind } from '../constants/transaction-kind';
@@ -68,6 +68,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     .filter(t => t.kind === TransactionKind.PLATFORM_TIP)
     .map(t => t.TransactionGroup);
   let contributionByGroup = {};
+  const contributionHostsById = {};
   if (platformTipGroups.length) {
     const contributions = await models.Transaction.findAll({
       attributes: ['HostCollectiveId', 'TransactionGroup'],
@@ -82,6 +83,19 @@ export const getConsolidatedInvoicesData = async fromCollective => {
       result[contribution.TransactionGroup] = contribution;
       return result;
     }, {});
+
+    // Pre-fetch the contribution hosts in a single query (with their settings) to avoid an
+    // N+1 lookup when checking the single-receipt opt-in for each platform tip below.
+    const contributionHostIds = uniq(contributions.map(c => c.HostCollectiveId).filter(Boolean));
+    if (contributionHostIds.length) {
+      const contributionHosts = await models.Collective.findAll({
+        attributes: ['id', 'settings'],
+        where: { id: contributionHostIds },
+      });
+      for (const host of contributionHosts) {
+        contributionHostsById[host.id] = host;
+      }
+    }
   }
 
   const hostsById = {};
@@ -103,7 +117,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
       // for all other hosts until the setting is fully rolled out.
       const relatedContribution = contributionByGroup[transaction.TransactionGroup];
       if (relatedContribution?.HostCollectiveId) {
-        const contributionHost = await models.Collective.findByPk(relatedContribution.HostCollectiveId);
+        const contributionHost = contributionHostsById[relatedContribution.HostCollectiveId];
         if (contributionHost && get(contributionHost, 'settings.singleReceiptPlatformTip') === true) {
           // Do not add this platform tip to `invoicesByKey`, otherwise the dashboard would still
           // show a separate OFiTech receipt alongside the host-issued contribution receipt.
