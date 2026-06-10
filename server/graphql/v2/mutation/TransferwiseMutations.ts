@@ -114,6 +114,7 @@ export const transferwiseMutations = {
         return { connectedAccount, redirectUrl: redirect };
       } catch (e) {
         logger.error(`Error with Wise OAuth callback: ${e.message}`, { state: args.state });
+        await sessionCache.delete(cacheKey);
         throw e;
       }
     },

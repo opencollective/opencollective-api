@@ -104,12 +104,11 @@ export const stripeMutations = {
           CreatedByUserId,
         });
 
-        // Clear cached authorization state key so it can't be replayed
         await sessionCache.delete(cacheKey);
-
         return { connectedAccount, redirectUrl: redirect };
       } catch (e) {
         logger.error(`Error with Stripe OAuth callback: ${e.message}`, { state: args.state });
+        await sessionCache.delete(cacheKey);
         throw e;
       }
     },
