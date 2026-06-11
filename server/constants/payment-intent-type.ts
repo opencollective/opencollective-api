@@ -1,14 +1,22 @@
 enum PaymentIntentType {
+  // Platform billing
+  PlatformBilling = 'PlatformBilling',
+  PlatformBillingTipSettlement = 'PlatformBillingTipSettlement',
+
+  // Money out
   GrantRequest = 'GrantRequest',
   PaymentRequest = 'PaymentRequest',
-  PlatformBillingRequest = 'PlatformBillingRequest',
-  PlatformTipSettlementRequest = 'PlatformTipSettlementRequest',
-  ManualContributionRequest = 'ManualContributionRequest',
+  Charge = 'Charge',
+
+  // Money in
   Contribution = 'Contribution',
-  ExpectedContribution = 'ExpectedContribution',
   AddedFunds = 'AddedFunds',
+
+  // Transfers
   BalanceTransfer = 'BalanceTransfer',
-  LegacyPrepaidPayment = 'LegacyPrepaidPayment',
+  InternalTransfer = 'InternalTransfer',
+
+  // Other
   Other = 'Other',
 }
 

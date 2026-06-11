@@ -30,16 +30,20 @@ module.exports = {
       },
       type: {
         type: Sequelize.ENUM(
+          // Platform billing
+          'PlatformBilling',
+          'PlatformBillingTipSettlement',
+          // Money out
           'GrantRequest',
           'PaymentRequest',
-          'PlatformBillingRequest',
-          'PlatformTipSettlementRequest',
-          'ManualContributionRequest',
+          'Charge',
+          // Money in
           'Contribution',
-          'ExpectedContribution',
           'AddedFunds',
+          // Transfers
           'BalanceTransfer',
-          'LegacyPrepaidPayment',
+          'InternalTransfer',
+          // Other
           'Other',
         ),
         allowNull: false,
@@ -83,7 +87,11 @@ module.exports = {
         type: Sequelize.TEXT,
         allowNull: true,
       },
-      effectiveDate: {
+      ledgerScope: {
+        type: Sequelize.ENUM('EXTERNAL', 'FISCAL_HOST', 'ACCOUNT_HIERARCHY'),
+        allowNull: false,
+      },
+      paidAt: {
         type: Sequelize.DATE,
         allowNull: true,
       },
@@ -124,20 +132,20 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE INDEX "payment_intents__host_collective_effective_date"
-      ON "PaymentIntents" ("HostCollectiveId", "effectiveDate" DESC, id DESC)
+      CREATE INDEX "payment_intents__host_collective_paid_at"
+      ON "PaymentIntents" ("HostCollectiveId", "paidAt" DESC, id DESC)
       WHERE "deletedAt" IS NULL;
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE INDEX "payment_intents__payer_collective_effective_date"
-      ON "PaymentIntents" ("PayerCollectiveId", "effectiveDate" DESC)
+      CREATE INDEX "payment_intents__payer_collective_paid_at"
+      ON "PaymentIntents" ("PayerCollectiveId", "paidAt" DESC)
       WHERE "deletedAt" IS NULL;
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE INDEX "payment_intents__payee_collective_effective_date"
-      ON "PaymentIntents" ("PayeeCollectiveId", "effectiveDate" DESC)
+      CREATE INDEX "payment_intents__payee_collective_paid_at"
+      ON "PaymentIntents" ("PayeeCollectiveId", "paidAt" DESC)
       WHERE "deletedAt" IS NULL;
     `);
 
