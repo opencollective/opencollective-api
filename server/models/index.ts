@@ -317,8 +317,8 @@ PaymentIntent.belongsTo(Collective, { foreignKey: 'PayeeCollectiveId', as: 'paye
 PaymentIntent.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });
 PaymentIntent.belongsTo(Collective, { foreignKey: 'InitiatedByCollectiveId', as: 'initiatedByCollective' });
 PaymentIntent.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-PaymentIntent.belongsTo(Order);
-PaymentIntent.belongsTo(Expense);
+PaymentIntent.belongsTo(Order, { foreignKey: 'OrderId', as: 'order' });
+PaymentIntent.belongsTo(Expense, { foreignKey: 'ExpenseId', as: 'expense' });
 PaymentIntent.hasMany(Transaction, { foreignKey: 'PaymentIntentId', as: 'transactions' });
 
 // Transaction
