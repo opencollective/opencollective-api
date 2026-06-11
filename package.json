@@ -115,7 +115,7 @@
     "sequelize-temporal": "2.1.1",
     "sharp": "0.35.4",
     "spdx-license-list": "6.12.0",
-    "stripe": "17.7.0",
+    "stripe": "22.6.2",
     "tweetnacl": "1.0.3",
     "tweetnacl-util": "0.15.1",
     "uuid": "14.0.2",
