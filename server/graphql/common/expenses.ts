@@ -1786,9 +1786,9 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
   }
 };
 
-const checkExpenseType = async (
+export const checkExpenseType = async (
   newType: ExpenseType,
-  fromAccount: Collective,
+  fromAccount: Collective | null,
   account: Collective,
   parent: Collective | null,
   host: Collective | null,
@@ -1813,7 +1813,7 @@ const checkExpenseType = async (
   if (!existingExpense && [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(newType)) {
     if (!remoteUser?.isAdminOfPlatform()) {
       throw new ValidationFailed('Only platform admins can create platform expenses');
-    } else if (fromAccount.id !== PlatformConstants.PlatformCollectiveId) {
+    } else if (fromAccount?.id !== PlatformConstants.PlatformCollectiveId) {
       throw new ValidationFailed('Platform expenses can only be created for the platform account');
     }
   }
@@ -2659,6 +2659,24 @@ export async function submitExpenseDraft(
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
 
+  const collective = await models.Collective.findByPk(existingExpense.CollectiveId, {
+    include: [
+      { association: 'host', required: false },
+      { association: 'parent', required: false },
+    ],
+  });
+  const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
+  await checkExpenseType(
+    expenseData.type || existingExpense.type,
+    fromCollective,
+    collective,
+    collective.parent,
+    collective.host,
+    existingExpense,
+    req.remoteUser,
+    req,
+  );
+
   const options = {
     overrideRemoteUser: undefined,
     skipPermissionCheck: true,
@@ -2831,7 +2849,18 @@ export async function editExpenseDraft(
   opts?: { isNewExpenseFlow?: boolean },
 ) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
-    include: [{ model: models.ExpenseItem, as: 'items' }],
+    include: [
+      { model: models.ExpenseItem, as: 'items' },
+      {
+        model: models.Collective,
+        as: 'collective',
+        required: true,
+        include: [
+          { association: 'parent', required: false },
+          { association: 'host', required: false },
+        ],
+      },
+    ],
   });
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
@@ -2842,6 +2871,19 @@ export async function editExpenseDraft(
   }
   if (!req.remoteUser || req.remoteUser?.id !== existingExpense.UserId) {
     throw new Unauthorized('Only the author of the draft can edit it');
+  }
+
+  if (expenseData.type && existingExpense.type !== expenseData.type) {
+    await checkExpenseType(
+      expenseData.type,
+      null,
+      existingExpense.collective,
+      existingExpense.collective.parent,
+      existingExpense.collective.host,
+      existingExpense,
+      req.remoteUser,
+      req,
+    );
   }
 
   const currency = expenseData.currency || existingExpense.currency;
