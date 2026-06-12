@@ -610,14 +610,16 @@ export const notifyByEmail = async (activity: Activity) => {
           MemberCollectiveId: activity.FromCollectiveId,
         },
       });
+      const isPrivateNote = activity.data.comment.type === CommentType.PRIVATE_NOTE;
 
-      if (isCommentFromHostAdmin) {
+      if (isCommentFromHostAdmin && !isPrivateNote) {
         await notify.collective(activity, {
           replyTo: activity.data.host.data?.replyToEmail || undefined,
         });
       } else {
         await notify.collective(activity, {
           collectiveId: activity.data.host.id,
+          exclude: [activity.UserId],
           template: 'host.application.comment.created.host',
         });
       }

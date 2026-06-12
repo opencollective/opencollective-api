@@ -180,6 +180,24 @@ const EXPENSE_LOCKED_STATUSES = [
  * Throws if the comment belongs to an expense that is in a locked status (paid, processing, or scheduled for payment).
  * Fiscal host admins are exempt from this restriction.
  */
+async function assertCanEditOrDeleteComment(req, comment: Comment, action: 'edit' | 'delete'): Promise<void> {
+  if (comment.HostApplicationId && comment.type === CommentType.PRIVATE_NOTE) {
+    const hostApplication = await HostApplication.findByPk(comment.HostApplicationId);
+    if (!hostApplication || !req.remoteUser?.isAdmin(hostApplication.HostCollectiveId)) {
+      throw new Unauthorized('You need to be a host admin to edit or delete this comment');
+    }
+    return;
+  }
+
+  if (!canEditComment(req.remoteUser, comment)) {
+    throw new Unauthorized(
+      action === 'edit'
+        ? 'You must be the author, an admin, or a community manager of this collective to edit this comment'
+        : 'You need to be logged in as the author, an admin, a community manager, or as a host to delete this comment',
+    );
+  }
+}
+
 async function assertExpenseIsNotFulfilled(comment: Comment, remoteUser?: User): Promise<void> {
   if (comment.ExpenseId) {
     const expense = await Expense.findByPk(comment.ExpenseId);
@@ -208,11 +226,9 @@ async function editComment(commentData, req): Promise<Comment> {
   const comment = await loadCommentWithAccounts(commentData.id);
   if (!comment) {
     throw new NotFound(`This comment does not exist or has been deleted.`);
-  } else if (!canEditComment(req.remoteUser, comment)) {
-    throw new Unauthorized(
-      'You must be the author, an admin, or a community manager of this collective to edit this comment',
-    );
   }
+
+  await assertCanEditOrDeleteComment(req, comment, 'edit');
 
   checkRemoteUserCanUseComment(comment, req);
   await assertExpenseIsNotFulfilled(comment, req.remoteUser);
@@ -233,11 +249,9 @@ async function deleteComment(id: number, req): Promise<void> {
   const comment = await loadCommentWithAccounts(id);
   if (!comment) {
     throw new NotFound(`This comment does not exist or has been deleted.`);
-  } else if (!canEditComment(req.remoteUser, comment)) {
-    throw new Unauthorized(
-      'You need to be logged in as the author, an admin, a community manager, or as a host to delete this comment',
-    );
   }
+
+  await assertCanEditOrDeleteComment(req, comment, 'delete');
 
   checkRemoteUserCanUseComment(comment, req);
   await assertExpenseIsNotFulfilled(comment, req.remoteUser);
