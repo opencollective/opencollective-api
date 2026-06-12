@@ -125,6 +125,7 @@ class MemberInvitation extends ModelWithPublicId<
           CollectiveId: collective.id,
           FromCollectiveId: memberParams.MemberCollectiveId,
           HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+          UserId: memberParams.CreatedByUserId,
           data: {
             notify: false,
             memberCollective: memberCollective.activity,
@@ -345,6 +346,7 @@ MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAd
       CollectiveId: collective.id,
       FromCollectiveId: this.MemberCollectiveId,
       HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+      UserId: remoteUser.id,
       data: {
         role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
         invitation: pick(this, ['id', 'role', 'description', 'since']),
