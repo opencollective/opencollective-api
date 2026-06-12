@@ -94,7 +94,7 @@ export default {
         return collectiveIds.map(() => false);
       }
 
-      let administratedMembers = [];
+      let administratedMembers: { MemberCollectiveId: number }[] = [];
 
       // Aggregates all the profiles linked to users
       const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
@@ -107,7 +107,7 @@ export default {
       if (otherAccountsCollectiveIds.length) {
         await remoteUser.populateRoles();
         const adminOfCollectiveIds = remoteUser.getAdministratedCollectiveIds();
-        administratedMembers = await models.Member.findAll({
+        const members: { MemberCollectiveId: number }[] = await models.Member.findAll({
           attributes: ['MemberCollectiveId'],
           group: ['MemberCollectiveId'],
           raw: true,
@@ -126,6 +126,27 @@ export default {
             },
           },
         });
+        const invitedMembers: { MemberCollectiveId: number }[] = await models.MemberInvitation.findAll({
+          attributes: ['MemberCollectiveId'],
+          group: ['MemberCollectiveId'],
+          raw: true,
+          mapToModel: false,
+          where: { MemberCollectiveId: otherAccountsCollectiveIds, role: MemberRoles.ADMIN },
+          include: {
+            association: 'collective',
+            required: true,
+            attributes: [],
+            where: {
+              [Op.or]: [
+                { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
+                { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
+                { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
+              ],
+            },
+          },
+        });
+
+        administratedMembers = members.concat(invitedMembers);
       }
 
       // User must be self or directly administered by remoteUser
