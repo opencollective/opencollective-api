@@ -48,7 +48,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   }
 
   const where = {
-    kind: ['CONTRIBUTION', 'PLATFORM_TIP'],
+    kind: ['CONTRIBUTION', 'PLATFORM_TIP', 'ADDED_FUNDS'],
     createdAt: { [Op.lt]: moment().startOf('month') },
     [Op.or]: [{ FromCollectiveId: fromAccountCondition }, { UsingGiftCardFromCollectiveId: fromCollective.id }],
   };
