@@ -1604,19 +1604,20 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
 
 const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 
-async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey) {
-  const hostPayoutTwoFactorAuthenticationRollingLimit = get(
-    host,
-    'settings.payoutsTwoFactorAuth.rollingLimit',
-    1000000,
+const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${userId}_2fa_payment_limit_${hostId}`;
+
+async function validateExpensePayout2FALimit(req, host, expense) {
+  const expensePaidAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
+  const hostPayoutTwoFactorAuthenticationRollingLimit = Number(
+    get(host, 'settings.payoutsTwoFactorAuth.rollingLimit', 10_000_00),
   );
 
   const twoFactorSession =
     req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
-  const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
-  const expenseAmountInHostCurrency = await convertToCurrency(expense.amount, expense.currency, host.currency);
+  const currentPaidExpenseAmount = Number(currentPaidExpenseAmountCache) || 0;
+  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
 
   // requires a 2FA token to be present if there is no value in the cache (first payout by user)
   // or the this payout would put the user over the rolling limit.
@@ -1701,8 +1702,7 @@ export const scheduleExpenseForPayment = async (
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
 
     if (hostHasPayoutTwoFactorAuthenticationEnabled) {
-      const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
-      await validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense);
     }
   }
 
@@ -3858,12 +3858,12 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     const use2FARollingLimit =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
-    const totalPaidExpensesAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
+    const totalPaidExpensesAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
     let totalPaidExpensesAmount;
 
     if (use2FARollingLimit) {
       totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
-      await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense);
     } else {
       // Not using rolling limit, but still enforcing 2FA for all admins
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
