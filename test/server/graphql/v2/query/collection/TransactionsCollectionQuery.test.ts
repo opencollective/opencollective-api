@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import type Stripe from 'stripe';
+import type { Stripe } from '../../../../../../server/lib/stripe-types';
 
 import { roles } from '../../../../../../server/constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../../server/constants/paymentMethods';

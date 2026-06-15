@@ -839,6 +839,7 @@ const expenseMutations = {
       if (expense.data?.paymentIntent?.id) {
         const paymentIntent = await stripe.paymentIntents.retrieve(
           expense.data?.paymentIntent?.id,
+          undefined,
           !isPlatformHost
             ? {
                 stripeAccount: payeeHostStripeAccount.username,

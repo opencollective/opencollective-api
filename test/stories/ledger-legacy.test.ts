@@ -10,7 +10,7 @@ import { set } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
-import Stripe from 'stripe';
+import type { Stripe } from '../../server/lib/stripe-types';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';

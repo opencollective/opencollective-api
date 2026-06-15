@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 import { pick } from 'lodash';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
-import Stripe from 'stripe';
+import type { Stripe } from '../../../../../server/lib/stripe-types';
 
 import { activities } from '../../../../../server/constants';
 import { SupportedCurrency } from '../../../../../server/constants/currencies';

@@ -1,6 +1,6 @@
 import config from 'config';
 import { omit, toUpper } from 'lodash';
-import type Stripe from 'stripe';
+import type { Stripe } from '../../lib/stripe-types';
 
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';

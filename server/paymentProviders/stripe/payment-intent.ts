@@ -1,6 +1,6 @@
 import config from 'config';
 import { pick, toUpper } from 'lodash';
-import type Stripe from 'stripe';
+import type { Stripe } from '../../lib/stripe-types';
 
 import { Service } from '../../constants/connected-account';
 import logger from '../../lib/logger';
@@ -130,7 +130,7 @@ async function processRecurringOrder(order: Order) {
       data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } },
     });
 
-    paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
+    paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, undefined, {
       stripeAccount: hostStripeAccount.username,
     });
 

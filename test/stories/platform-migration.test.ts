@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
-import Stripe from 'stripe';
+import type { Stripe } from '../../server/lib/stripe-types';
 
 import { PAYMENT_METHOD_SERVICE } from '../../server/constants/paymentMethods';
 import PlatformConstants from '../../server/constants/platform';
