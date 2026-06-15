@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
-import Stripe from 'stripe';
+import type { Stripe } from '../../../server/lib/stripe-types';
 
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import { PAYMENT_METHOD_SERVICE } from '../../../server/constants/paymentMethods';

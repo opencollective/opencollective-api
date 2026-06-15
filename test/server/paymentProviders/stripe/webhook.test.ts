@@ -4,7 +4,8 @@ import { expect } from 'chai';
 import config from 'config';
 import { set } from 'lodash';
 import sinon, { assert, createSandbox } from 'sinon';
-import Stripe from 'stripe';
+
+import type { Stripe } from '../../../../server/lib/stripe-types';
 
 import { Service } from '../../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../../server/constants/expense-status';

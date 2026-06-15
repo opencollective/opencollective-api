@@ -3,7 +3,7 @@ import { get, result, toUpper } from 'lodash';
 import moment from 'moment';
 import assert from 'node:assert';
 import type { CreateOptions } from 'sequelize';
-import Stripe from 'stripe';
+import type { Stripe } from '../../lib/stripe-types';
 
 import { Service } from '../../constants/connected-account';
 import { SupportedCurrency } from '../../constants/currencies';
@@ -67,9 +67,9 @@ export const refundTransaction: BasePaymentProviderService['refundTransaction'] 
     [transaction, oppositeTransaction].filter(Boolean).map(t => t.update({ data: { ...t.data, refund } })),
   );
 
-  const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
+  const charge = await stripe.charges.retrieve(chargeId, undefined, { stripeAccount: hostStripeAccount.username });
   assert(charge, `Charge ${chargeId} not found in Stripe for host #${hostStripeAccount.CollectiveId}`);
-  const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
+  const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, undefined, {
     stripeAccount: hostStripeAccount.username,
   });
   const refundedFees = extractFees(refundBalance, refundBalance.currency);
@@ -118,6 +118,7 @@ export const refundTransactionOnlyInDatabase: BasePaymentProviderService['refund
   }
   const refundBalance = await stripe.balanceTransactions.retrieve(
     (refund?.balance_transaction || dispute?.balance_transactions[0].id) as string,
+    undefined,
     {
       stripeAccount: hostStripeAccount.username,
     },
@@ -153,7 +154,7 @@ export const createChargeTransactions = async (
 
   const hostFeeSharePercent = await getHostFeeSharePercent(order);
   const isSharedRevenue = !!hostFeeSharePercent;
-  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction as string, {
+  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction as string, undefined, {
     stripeAccount: hostStripeAccount.username,
   });
 
@@ -281,7 +282,7 @@ export async function resolvePaymentMethodForOrder(
   // might have expired and are not clonable.
   if (paymentMethod.data?.customerIdForHost && paymentMethod.data?.customerIdForHost?.[hostStripeAccount]) {
     const customerId = paymentMethod.data?.customerIdForHost?.[hostStripeAccount];
-    const customer = await stripe.customers.retrieve(customerId, {
+    const customer = await stripe.customers.retrieve(customerId, undefined, {
       stripeAccount: hostStripeAccount,
     });
     if (customer.deleted) {
@@ -693,7 +694,7 @@ async function createOrRetrieveStripePaymentMethod(
   }
 
   const stripeAccount = customerConnectedAccount.clientId;
-  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, undefined, {
     stripeAccount,
   });
 

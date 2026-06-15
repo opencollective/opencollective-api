@@ -1,6 +1,6 @@
 import { omit, pick } from 'lodash';
 import moment from 'moment';
-import type Stripe from 'stripe';
+import type { Stripe } from '../../lib/stripe-types';
 
 import { activities } from '../../constants';
 import { SupportedCurrency } from '../../constants/currencies';

@@ -40,7 +40,7 @@ async function reconcileConnectedAccount(connectedAccount) {
           expenses.map(expense => expense.data?.transactionId || expense.data?.refundTransactionId),
         );
 
-        const stripe = Stripe(
+        const stripe = new Stripe(
           host.id === PlatformConstants.PlatformCollectiveId ? config.stripe.secret : connectedAccount.token,
         );
 

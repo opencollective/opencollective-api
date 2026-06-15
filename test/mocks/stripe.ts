@@ -1,4 +1,4 @@
-import Stripe from 'stripe';
+import type { Stripe } from '../../server/lib/stripe-types';
 
 export default {
   accounts: {
@@ -63,6 +63,7 @@ export default {
         email: null,
         name: null,
         phone: null,
+        tax_id: null,
       },
       calculated_statement_descriptor: null,
       balance_transaction: 'txn_1Bat4NDjPFcHOcTm13n12JZ1',

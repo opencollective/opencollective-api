@@ -3,7 +3,7 @@ import assert from 'assert';
 import { get, groupBy, memoize, round, set, sumBy, truncate, uniq } from 'lodash';
 import moment from 'moment';
 import { Order, Transaction as SequelizeTransaction } from 'sequelize';
-import Stripe from 'stripe';
+import type { Stripe } from './stripe-types';
 
 import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
