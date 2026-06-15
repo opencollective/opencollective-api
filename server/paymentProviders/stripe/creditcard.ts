@@ -1,11 +1,11 @@
 import config from 'config';
 import { omit, toUpper } from 'lodash';
-import type { Stripe } from '../../lib/stripe-types';
 
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
+import type { Stripe } from '../../lib/stripe-types';
 import models, { Collective } from '../../models';
 import Order from '../../models/Order';
 import PaymentMethod from '../../models/PaymentMethod';

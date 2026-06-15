@@ -9,7 +9,6 @@ import { set } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
-import type { Stripe } from '../../server/lib/stripe-types';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../server/constants/paymentMethods';
@@ -18,6 +17,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
 import { roundCentsAmount } from '../../server/lib/currency';
 import { createRefundTransaction, executeOrder, findPaymentMethodProvider } from '../../server/lib/payments';
+import type { Stripe } from '../../server/lib/stripe-types';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import paymentProviders from '../../server/paymentProviders';
