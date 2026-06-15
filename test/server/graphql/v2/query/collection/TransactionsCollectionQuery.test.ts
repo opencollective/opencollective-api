@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import type { Stripe } from '../../../../../../server/lib/stripe-types';
 
 import { roles } from '../../../../../../server/constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../../server/constants/paymentMethods';
 import { TransactionKind } from '../../../../../../server/constants/transaction-kind';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../../server/graphql/v2/identifiers';
+import type { Stripe } from '../../../../../../server/lib/stripe-types';
 import {
   fakeAccountingCategory,
   fakeActiveHost,

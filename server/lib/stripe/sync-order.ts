@@ -1,10 +1,10 @@
 import { omit } from 'lodash';
-import type { Stripe } from '../stripe-types';
 
 import OrderStatuses from '../../constants/order-status';
 import models from '../../models';
 import { paymentIntentFailed, paymentIntentSucceeded } from '../../paymentProviders/stripe/webhook';
 import stripe from '../stripe';
+import type { Stripe } from '../stripe-types';
 
 export const syncOrder = async (order, { IS_DRY, logging }: { IS_DRY?; logging? } = {}) => {
   logging?.(`Processing order ${order.id}...`);

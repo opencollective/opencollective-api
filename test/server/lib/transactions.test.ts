@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import config from 'config';
 import { createSandbox } from 'sinon';
-import type { Stripe } from '../../../server/lib/stripe-types';
 
 import { SupportedCurrency } from '../../../server/constants/currencies';
 import { PAYMENT_METHOD_SERVICE } from '../../../server/constants/paymentMethods';
+import type { Stripe } from '../../../server/lib/stripe-types';
 import * as libtransactions from '../../../server/lib/transactions';
 import models from '../../../server/models';
 import * as store from '../../stores';

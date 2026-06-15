@@ -5,7 +5,6 @@ import { Request } from 'express';
 import { get, omit } from 'lodash';
 import moment from 'moment';
 import { Op, QueryTypes, Transaction } from 'sequelize';
-import type { Stripe } from '../../lib/stripe-types';
 import { v4 as uuid } from 'uuid';
 
 import ActivityTypes from '../../constants/activities';
@@ -28,6 +27,7 @@ import {
 } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, getDashboardObjectIdURL } from '../../lib/stripe';
+import type { Stripe } from '../../lib/stripe-types';
 import { createTransactionsFromPaidStripeExpense, getPaymentProcessorFeeVendor } from '../../lib/transactions';
 import models, { sequelize } from '../../models';
 import { ExpenseStatus } from '../../models/Expense';
@@ -480,9 +480,13 @@ async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!pm) {
-      const stripePaymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string, undefined, {
-        stripeAccount,
-      });
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(
+        paymentIntent.payment_method as string,
+        undefined,
+        {
+          stripeAccount,
+        },
+      );
 
       const stripeCustomer = stripePaymentMethod.customer
         ? typeof stripePaymentMethod.customer === 'string'
@@ -554,9 +558,13 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
     });
 
     if (!pm) {
-      const stripePaymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string, undefined, {
-        stripeAccount,
-      });
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(
+        paymentIntent.payment_method as string,
+        undefined,
+        {
+          stripeAccount,
+        },
+      );
 
       const stripeCustomer = stripePaymentMethod.customer
         ? typeof stripePaymentMethod.customer === 'string'

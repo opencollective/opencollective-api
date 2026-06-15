@@ -4,7 +4,6 @@ import { expect } from 'chai';
 import config from 'config';
 import { set } from 'lodash';
 import { assert, createSandbox } from 'sinon';
-import type { Stripe } from '../../../../server/lib/stripe-types';
 
 import { Service } from '../../../../server/constants/connected-account';
 import ExpenseStatuses from '../../../../server/constants/expense-status';
@@ -15,6 +14,7 @@ import { TransactionKind } from '../../../../server/constants/transaction-kind';
 import * as applyContributionAccountingCategoryRules from '../../../../server/lib/accounting/categorization/contribution-rules';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
+import type { Stripe } from '../../../../server/lib/stripe-types';
 import * as transactions from '../../../../server/lib/transactions';
 import models, { Collective, Expense } from '../../../../server/models';
 import * as common from '../../../../server/paymentProviders/stripe/common';

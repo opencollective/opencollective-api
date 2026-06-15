@@ -1,13 +1,13 @@
 import { expect } from 'chai';
 import moment from 'moment';
 import { createSandbox } from 'sinon';
-import type { Stripe } from '../../server/lib/stripe-types';
 
 import { PAYMENT_METHOD_SERVICE } from '../../server/constants/paymentMethods';
 import PlatformConstants from '../../server/constants/platform';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { TransactionTypes } from '../../server/constants/transactions';
 import stripe from '../../server/lib/stripe';
+import type { Stripe } from '../../server/lib/stripe-types';
 import { ConnectedAccount } from '../../server/models';
 import * as PaypalAPI from '../../server/paymentProviders/paypal/api';
 import * as StripeCommon from '../../server/paymentProviders/stripe/common';

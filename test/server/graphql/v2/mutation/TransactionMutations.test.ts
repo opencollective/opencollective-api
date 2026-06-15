@@ -3,7 +3,6 @@ import gql from 'fake-tag';
 import { pick } from 'lodash';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
-import type { Stripe } from '../../../../../server/lib/stripe-types';
 
 import { activities } from '../../../../../server/constants';
 import { SupportedCurrency } from '../../../../../server/constants/currencies';
@@ -15,6 +14,7 @@ import * as TransactionMutationHelpers from '../../../../../server/graphql/commo
 import emailLib from '../../../../../server/lib/email';
 import { calcFee, executeOrder } from '../../../../../server/lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe';
+import type { Stripe } from '../../../../../server/lib/stripe-types';
 import models from '../../../../../server/models';
 import stripeMocks from '../../../../mocks/stripe';
 import { fakeCollective, fakeOrder, fakeTransaction, fakeUser, randStr } from '../../../../test-helpers/fake-data';
