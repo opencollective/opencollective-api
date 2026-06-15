@@ -36,10 +36,10 @@ module.exports = {
           // Money out
           'GrantRequest',
           'PaymentRequest',
-          'Charge',
+          'CardCharge',
           // Money in
           'Contribution',
-          'AddedFunds',
+          'AddedMoney',
           // Transfers
           'BalanceTransfer',
           'InternalTransfer',
@@ -86,10 +86,6 @@ module.exports = {
       description: {
         type: Sequelize.TEXT,
         allowNull: true,
-      },
-      ledgerScope: {
-        type: Sequelize.ENUM('EXTERNAL', 'FISCAL_HOST', 'ACCOUNT_HIERARCHY'),
-        allowNull: false,
       },
       paidAt: {
         type: Sequelize.DATE,

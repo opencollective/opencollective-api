@@ -7,7 +7,6 @@ import {
   InferCreationAttributes,
 } from 'sequelize';
 
-import PaymentIntentLedgerScope from '../constants/payment-intent-ledger-scope';
 import PaymentIntentStatus from '../constants/payment-intent-status';
 import PaymentIntentType from '../constants/payment-intent-type';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
@@ -39,7 +38,6 @@ class PaymentIntent extends ModelWithPublicId<
   declare CreatedByUserId: ForeignKey<User['id']> | null;
   declare description: CreationOptional<string | null>;
   declare paidAt: CreationOptional<Date | null>;
-  declare ledgerScope: PaymentIntentLedgerScope;
   declare OrderId: ForeignKey<Order['id']> | null;
   declare ExpenseId: ForeignKey<Expense['id']> | null;
   declare createdAt: CreationOptional<Date>;
@@ -127,10 +125,6 @@ PaymentIntent.init(
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
-    },
-    ledgerScope: {
-      type: DataTypes.ENUM(...Object.values(PaymentIntentLedgerScope)),
-      allowNull: false,
     },
     paidAt: {
       type: DataTypes.DATE,

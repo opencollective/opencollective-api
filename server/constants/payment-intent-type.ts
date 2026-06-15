@@ -6,11 +6,11 @@ enum PaymentIntentType {
   // Money out
   GrantRequest = 'GrantRequest',
   PaymentRequest = 'PaymentRequest',
-  Charge = 'Charge',
+  CardCharge = 'CardCharge',
 
   // Money in
   Contribution = 'Contribution',
-  AddedFunds = 'AddedFunds',
+  AddedMoney = 'AddedMoney',
 
   // Transfers
   BalanceTransfer = 'BalanceTransfer',
