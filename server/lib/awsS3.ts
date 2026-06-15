@@ -30,11 +30,13 @@ import { reportErrorToSentry } from './sentry';
 
 export const S3_TRASH_PREFIX = 'trash/';
 
+const parseBooleanConfig = (value: unknown): boolean => value === true || value === 'true';
+
 // Create S3 service object & set credentials and region
 let s3: S3Client;
 if (config.aws.s3.key) {
   s3 = new S3Client({
-    forcePathStyle: config.aws.s3.forcePathStyle,
+    forcePathStyle: parseBooleanConfig(config.aws.s3.forcePathStyle),
     endpoint: config.aws.s3.endpoint,
     tls: config.aws.s3.sslEnabled,
     apiVersion: config.aws.s3.apiVersion,
