@@ -1,12 +1,12 @@
 import config from 'config';
 import { pick, toUpper } from 'lodash';
-import type { Stripe } from '../../lib/stripe-types';
 
 import { Service } from '../../constants/connected-account';
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
+import type { Stripe } from '../../lib/stripe-types';
 import models from '../../models';
 import Order from '../../models/Order';
 import { PaymentProviderServiceWithInternalRecurringManagement } from '../types';
