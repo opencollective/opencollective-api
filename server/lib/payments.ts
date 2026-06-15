@@ -1709,7 +1709,12 @@ export const getHostFeeSharePercent = async (
 };
 
 /** Account types that can only pay with balance-based methods (collective balance, gift card, prepaid). */
-export const BALANCE_ONLY_COLLECTIVE_TYPES = [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.PROJECT];
+export const BALANCE_ONLY_COLLECTIVE_TYPES = [
+  CollectiveType.COLLECTIVE,
+  CollectiveType.EVENT,
+  CollectiveType.PROJECT,
+  CollectiveType.FUND,
+];
 
 export const isBalanceOnlyCollectiveType = (type: CollectiveType | string): boolean =>
   BALANCE_ONLY_COLLECTIVE_TYPES.includes(type as CollectiveType);
