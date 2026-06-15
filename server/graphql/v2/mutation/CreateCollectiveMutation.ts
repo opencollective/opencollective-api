@@ -12,7 +12,7 @@ import { OSCValidator } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import models, { sequelize } from '../../../models';
+import models, { Collective, sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -49,7 +49,7 @@ async function createCollective(_, args, req) {
     throw new RateLimitExceeded();
   }
 
-  const collective = await sequelize.transaction(async transaction => {
+  const collective: Collective = await sequelize.transaction(async transaction => {
     const collectiveData = {
       slug: args.collective.slug.toLowerCase(),
       ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
@@ -197,22 +197,21 @@ async function createCollective(_, args, req) {
     purgeCacheForCollective(host.slug);
   }
 
-  // Will send an email to the authenticated user OR newly created user
-  // - tell them that their collective was successfully created
-  // - tell them which fiscal host they picked, if any
-  // - tell them the status of their host application
-  if (!args.skipDefaultAdmin) {
-    const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
-    collective.generateCollectiveCreatedActivity(remoteUser, req.userToken, {
-      host: get(host, 'info'),
-      hostPending: collective.approvedAt ? false : true,
-      accountType: collective.type === 'FUND' ? 'fund' : 'collective',
-      user: {
-        email: remoteUser.email,
-        collective: remoteUserCollective.info,
-      },
-    });
-  }
+  const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
+  collective.generateCollectiveCreatedActivity(remoteUser, req.userToken, {
+    host: get(host, 'info'),
+    hostPending: collective.approvedAt ? false : true,
+    accountType: collective.type === 'FUND' ? 'fund' : 'collective',
+    user: {
+      email: remoteUser.email,
+      collective: remoteUserCollective.info,
+    },
+    // Will send an email to the authenticated user OR newly created user
+    // - tell them that their collective was successfully created
+    // - tell them which fiscal host they picked, if any
+    // - tell them the status of their host application
+    notify: !args.skipDefaultAdmin,
+  });
 
   return collective;
 }
