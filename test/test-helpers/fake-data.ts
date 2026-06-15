@@ -28,6 +28,7 @@ import { crypto } from '../../server/lib/encryption';
 import { KYCProviderName } from '../../server/lib/kyc/providers';
 import { createTransactionsForManuallyPaidExpense } from '../../server/lib/transactions';
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
+import { parseToBoolean } from '../../server/lib/utils';
 import models, {
   Agreement,
   Collective,
@@ -88,7 +89,7 @@ export const multiple = <T extends (...args: any[]) => Promise<any>>(
   ...args: Parameters<T>
 ): Promise<Array<Awaited<ReturnType<T>>>> => Promise.all([...Array(n).keys()].map(() => fn(...args)));
 export const fakeOpenCollectiveS3URL = ({ key = randStr(), bucket = config.aws.s3.bucket } = {}) => {
-  if (config.aws.s3.endpoint && config.aws.s3.forcePathStyle) {
+  if (config.aws.s3.endpoint && parseToBoolean(config.aws.s3.forcePathStyle)) {
     return `${config.aws.s3.endpoint}/${bucket}/${key}`;
   } else {
     return `https://${bucket}.s3.us-west-1.amazonaws.com/${key}`;
