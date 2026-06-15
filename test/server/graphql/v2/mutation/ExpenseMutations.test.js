@@ -69,6 +69,7 @@ import {
   graphqlQueryV2,
   makeRequest,
   preloadAssociationsForTransactions,
+  resetCaches,
   resetTestDB,
   seedDefaultVendors,
   snapshotTransactions,
@@ -6094,6 +6095,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     after(() => sandbox.restore());
 
     before(async () => {
+      await resetCaches();
       hostAdmin = await fakeUser();
       user = await fakeUser();
       collectiveAdmin = await fakeUser();
