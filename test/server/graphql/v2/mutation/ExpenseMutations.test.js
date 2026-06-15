@@ -19,8 +19,8 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import { getFxRate } from '../../../../../server/lib/currency';
 import * as LibCurrency from '../../../../../server/lib/currency';
+import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';

@@ -17,8 +17,8 @@ import {
   fakeUserToken,
 } from '../../../../test-helpers/fake-data';
 import { createPrivateAccountFixture } from '../../../../test-helpers/private-account-fixture';
-import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
+import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 
 const createHostApplicationCommentContext = async () => {
   const host = await fakeActiveHost();
