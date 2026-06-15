@@ -1,6 +1,5 @@
 import { omit, pick } from 'lodash';
 import moment from 'moment';
-import type { Stripe } from '../../lib/stripe-types';
 
 import { activities } from '../../constants';
 import { SupportedCurrency } from '../../constants/currencies';
@@ -13,6 +12,7 @@ import { isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
+import type { Stripe } from '../../lib/stripe-types';
 import models from '../../models';
 import VirtualCard from '../../models/VirtualCard';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistVirtualCardTransaction } from '../utils';
