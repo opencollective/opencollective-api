@@ -42,6 +42,7 @@ import type Expense from './Expense';
 import type { ExpenseTaxDefinition } from './Expense';
 import { ModelWithPublicId } from './ModelWithPublicId';
 import Order, { OrderTax } from './Order';
+import type PaymentIntent from './PaymentIntent';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
@@ -187,6 +188,7 @@ class Transaction extends ModelWithPublicId<
   declare PayoutMethodId: number;
   declare PaymentMethodId: number;
   declare RefundTransactionId: number;
+  declare PaymentIntentId: number;
 
   // Associations
   declare createdByUser?: User;
@@ -197,6 +199,7 @@ class Transaction extends ModelWithPublicId<
   declare PaymentMethod?: PaymentMethod;
   declare PayoutMethod?: PayoutMethod;
   declare Order?: Order;
+  declare PaymentIntent?: PaymentIntent;
 
   // Getter Methods
   declare info?: Partial<Transaction>;
@@ -1695,6 +1698,17 @@ Transaction.init(
       type: DataTypes.INTEGER,
       references: {
         model: 'Expenses',
+        key: 'id',
+      },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+
+    PaymentIntentId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'PaymentIntents',
         key: 'id',
       },
       onDelete: 'SET NULL',
