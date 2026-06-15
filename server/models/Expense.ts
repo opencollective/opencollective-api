@@ -12,7 +12,7 @@ import {
   NonAttribute,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
-import Stripe from 'stripe';
+import type { Stripe } from '../lib/stripe-types';
 import validator from 'validator';
 
 import ActivityTypes from '../constants/activities';

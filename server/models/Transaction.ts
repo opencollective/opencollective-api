@@ -11,7 +11,7 @@ import {
   InferCreationAttributes,
   Transaction as SequelizeTransaction,
 } from 'sequelize';
-import Stripe from 'stripe';
+import type { Stripe } from '../lib/stripe-types';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';

@@ -1,6 +1,6 @@
 import config from 'config';
 import { pick, toUpper } from 'lodash';
-import type Stripe from 'stripe';
+import type { Stripe } from '../../lib/stripe-types';
 
 import OrderStatuses from '../../constants/order-status';
 import logger from '../../lib/logger';
@@ -64,7 +64,7 @@ const processOrder = async (order: Order): Promise<void> => {
       data: { ...order.data, stripePaymentIntent: paymentIntentSnapshot },
     });
 
-    stripePaymentIntent = await stripe.paymentIntents.confirm(stripePaymentIntent.id, {
+    stripePaymentIntent = await stripe.paymentIntents.confirm(stripePaymentIntent.id, undefined, {
       stripeAccount: hostStripeAccount.username,
     });
 
