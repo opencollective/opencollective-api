@@ -264,7 +264,6 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
       expect(sendEmailSpy.callCount).to.be.greaterThan(0);
 
-      console.log('getCalls', sendEmailSpy.getCalls());
       const isCollectiveAdminEmailSent = sendEmailSpy
         .getCalls()
         .some(
@@ -311,7 +310,8 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
         .getCalls()
         .some(
           call =>
-            call.args[0] === anotherHostAdmin.email && call.args[1].includes('New message about your application'),
+            call.args[0] === anotherHostAdmin.email &&
+            call.lastArg.template === 'host.application.comment.created.host',
         );
       expect(isOtherHostAdminEmailSent).to.be.true;
     });
