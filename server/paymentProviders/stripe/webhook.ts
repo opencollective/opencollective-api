@@ -20,6 +20,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import { applyContributionAccountingCategoryRules } from '../../lib/accounting/categorization/contribution-rules';
 import { getFxRate, isSupportedCurrency } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { lockUntilResolved } from '../../lib/mutex';
 import {
   createRefundTransaction,
   createSubscription,
@@ -183,20 +184,24 @@ export const mandateUpdated = async (event: Stripe.Event) => {
   });
 };
 
+const paymentIntentLockKey = (paymentIntent: Stripe.PaymentIntent) => `stripe-payment-intent-${paymentIntent.id}`;
+
 export async function paymentIntentSucceeded(event: Stripe.Event) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(paymentIntent), async () => {
+    const target = await paymentIntentTarget(paymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentSucceeded(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentSucceeded(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentSucceeded(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentSucceeded(event);
-    }
-  }
+  });
 }
 
 const handleOrderPaymentIntentSucceeded = async (event: Stripe.Event) => {
@@ -444,17 +449,19 @@ async function paymentIntentTarget(paymentIntent: Stripe.PaymentIntent): Promise
 export const paymentIntentProcessing = async (event: Stripe.Event) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(paymentIntent), async () => {
+    const target = await paymentIntentTarget(paymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentProcessing(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentProcessing(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentProcessing(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentProcessing(event);
-    }
-  }
+  });
 };
 
 async function handleOrderPaymentIntentProcessing(event: Stripe.Event) {
@@ -607,17 +614,19 @@ async function handleExpensePaymentIntentProcessing(event: Stripe.Event) {
 export async function paymentIntentFailed(event: Stripe.Event) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-  const target = await paymentIntentTarget(paymentIntent);
+  return lockUntilResolved(paymentIntentLockKey(paymentIntent), async () => {
+    const target = await paymentIntentTarget(paymentIntent);
 
-  switch (target) {
-    case 'EXPENSE': {
-      return handleExpensePaymentIntentFailed(event);
+    switch (target) {
+      case 'EXPENSE': {
+        return handleExpensePaymentIntentFailed(event);
+      }
+      case 'ORDER':
+      default: {
+        return handleOrderPaymentIntentFailed(event);
+      }
     }
-    case 'ORDER':
-    default: {
-      return handleOrderPaymentIntentFailed(event);
-    }
-  }
+  });
 }
 
 const handleOrderPaymentIntentFailed = async (event: Stripe.Event) => {
