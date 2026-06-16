@@ -728,6 +728,31 @@ describe('webhook', () => {
         expect(subscription.lastChargedAt).to.not.be.null;
       });
 
+      it('ignores a redelivered succeeded event when the charge was already recorded', async () => {
+        const chargeId = randStr('ch_fake');
+        set(event, 'data.object.charges.data[0].id', chargeId);
+        // Simulate a previous delivery that already recorded the transaction for this charge
+        await fakeTransaction({ OrderId: order.id, data: { charge: { id: chargeId } as Stripe.Charge } });
+
+        const createChargeTransactionsStub = sandbox.stub(common, 'createChargeTransactions').resolves();
+        const sendEmailNotificationsStub = sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        const subscription = await fakeSubscription({
+          CollectiveId: order.collective.id,
+          interval: 'month',
+          isActive: true,
+          chargeNumber: 2,
+        });
+        await order.update({ interval: 'month', SubscriptionId: subscription.id });
+
+        await webhook.paymentIntentSucceeded(event);
+
+        // The existing-charge dedup short-circuits the handler before any side effect
+        assert.notCalled(createChargeTransactionsStub);
+        assert.notCalled(sendEmailNotificationsStub);
+        await subscription.reload();
+        expect(subscription.chargeNumber).to.equal(2);
+      });
+
       it('passes firstPayment: false when paying a subscription that already has a SubscriptionId', async () => {
         sandbox
           .stub(common, 'createChargeTransactions')
