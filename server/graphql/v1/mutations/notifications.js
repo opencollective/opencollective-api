@@ -32,7 +32,7 @@ export async function editWebhooks(args, req) {
   }
 
   const getAllWebhooks = async () => {
-    return await models.Notification.findAll({
+    return await models.ActivitySubscription.findAll({
       where: { CollectiveId: args.collectiveId, channel: channels.WEBHOOK },
       order: [['createdAt', 'ASC']],
     });
@@ -46,7 +46,7 @@ export async function editWebhooks(args, req) {
   // Delete old
   if (toRemove.length > 0) {
     promises.push(
-      models.Notification.destroy({
+      models.ActivitySubscription.destroy({
         where: { id: { [Op.in]: toRemove.map(n => n.id) } },
       }),
     );
@@ -57,7 +57,7 @@ export async function editWebhooks(args, req) {
     promises.push(
       Promise.all(
         toCreate.map(notification =>
-          models.Notification.create({
+          models.ActivitySubscription.create({
             ...pick(notification, allowedFields),
             CollectiveId: args.collectiveId,
             UserId: req.remoteUser.id,
@@ -72,7 +72,7 @@ export async function editWebhooks(args, req) {
   if (toUpdate.length > 0) {
     promises.push(
       ...toUpdate.map(notification => {
-        return models.Notification.update(pick(notification, allowedFields), {
+        return models.ActivitySubscription.update(pick(notification, allowedFields), {
           where: { id: notification.id, CollectiveId: args.collectiveId },
         });
       }),

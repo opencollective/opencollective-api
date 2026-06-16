@@ -335,7 +335,7 @@ const generateEmailFromTemplate = (
 
 const isNotificationActive = async (template: string, data: SendMessageData) => {
   if (data.user && data.user.id) {
-    return models.Notification.isActive(template, data.user, data.collective);
+    return models.ActivitySubscription.isActive(template, data.user, data.collective);
   } else {
     return true;
   }

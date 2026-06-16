@@ -3,6 +3,7 @@ import sequelize, { Op } from '../lib/sequelize';
 import AccountingCategory from './AccountingCategory';
 import { AccountingCategoryRule } from './AccountingCategoryRule';
 import Activity from './Activity';
+import ActivitySubscription from './ActivitySubscription';
 import Agreement from './Agreement';
 import Application from './Application';
 import Collective from './Collective';
@@ -24,7 +25,6 @@ import ManualPaymentProvider from './ManualPaymentProvider';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
-import Notification from './Notification';
 import OAuthAuthorizationCode from './OAuthAuthorizationCode';
 import Order from './Order';
 import PaymentIntent from './PaymentIntent';
@@ -78,7 +78,7 @@ const models = {
   Member,
   MemberInvitation,
   MigrationLog,
-  Notification,
+  ActivitySubscription,
   OAuthAuthorizationCode,
   Order,
   PaymentIntent,
@@ -160,7 +160,7 @@ Collective.hasMany(LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocume
 Collective.hasMany(Member, { foreignKey: 'CollectiveId', as: 'members' });
 Collective.hasMany(Member, { foreignKey: 'CollectiveId', as: 'adminMembers', scope: { role: 'ADMIN' } });
 Collective.hasMany(Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
-Collective.hasMany(Notification);
+Collective.hasMany(ActivitySubscription);
 Collective.hasMany(Order, { foreignKey: 'CollectiveId', as: 'orders' });
 Collective.hasMany(PayoutMethod);
 Collective.hasMany(RequiredLegalDocument, { foreignKey: 'HostCollectiveId' });
@@ -254,9 +254,9 @@ MemberInvitation.belongsTo(Collective, { foreignKey: 'MemberCollectiveId', as: '
 MemberInvitation.belongsTo(Tier);
 MemberInvitation.belongsTo(User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
 
-// Notification.
-Notification.belongsTo(Collective);
-Notification.belongsTo(User);
+// ActivitySubscription.
+ActivitySubscription.belongsTo(Collective);
+ActivitySubscription.belongsTo(User);
 
 // OAuthAuthorizationCode
 OAuthAuthorizationCode.belongsTo(Application, { foreignKey: 'ApplicationId', as: 'application' });
@@ -359,7 +359,7 @@ User.hasMany(Activity);
 User.hasMany(ConnectedAccount, { foreignKey: 'CreatedByUserId' });
 User.hasMany(ExportRequest, { foreignKey: 'CreatedByUserId', as: 'exportRequests' });
 User.hasMany(Member, { foreignKey: 'CreatedByUserId' });
-User.hasMany(Notification);
+User.hasMany(ActivitySubscription);
 User.hasMany(Order, { foreignKey: 'CreatedByUserId', as: 'orders' });
 User.hasMany(PaymentMethod, { foreignKey: 'CreatedByUserId' });
 User.hasMany(Transaction, { foreignKey: 'CreatedByUserId', as: 'transactions' });
@@ -435,7 +435,7 @@ export {
   Member,
   MemberInvitation,
   MigrationLog,
-  Notification,
+  ActivitySubscription,
   OAuthAuthorizationCode,
   Order,
   PaymentMethod,

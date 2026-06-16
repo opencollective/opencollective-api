@@ -207,7 +207,7 @@ const getCollectives = () => {
 };
 
 const getUsers = collective => {
-  return models.Notification.findAll({
+  return models.ActivitySubscription.findAll({
     where: {
       channel: 'email',
       CollectiveId: collective.id,

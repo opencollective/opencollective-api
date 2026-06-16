@@ -28,7 +28,7 @@ export const unsubscribe = async (req, res, next) => {
       type = 'order.processed';
     }
 
-    await models.Notification.unsubscribe(type, 'email', user.id, collective?.id);
+    await models.ActivitySubscription.unsubscribe(type, 'email', user.id, collective?.id);
     res.send({ response: 'ok' });
   } catch (e) {
     next(e);

@@ -30,6 +30,7 @@ import { createTransactionsForManuallyPaidExpense } from '../../server/lib/trans
 import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, {
+  ActivitySubscription,
   Agreement,
   Collective,
   ConnectedAccount,
@@ -37,7 +38,6 @@ import models, {
   ExpenseAttachedFile,
   ExpenseItem,
   Location,
-  Notification,
   PaypalProduct,
   PersonalToken,
   PlatformSubscription,
@@ -880,8 +880,8 @@ export const fakeSubscription = (params = {}) => {
   });
 };
 
-export const fakeNotification = async (data: Partial<InferCreationAttributes<Notification>> = {}) => {
-  return models.Notification.create({
+export const fakeNotification = async (data: Partial<InferCreationAttributes<ActivitySubscription>> = {}) => {
+  return models.ActivitySubscription.create({
     channel: sample(Object.values(channels)),
     type: sample(Object.values(activities)),
     active: true,

@@ -12,42 +12,42 @@ export const GraphQLWebhook = new GraphQLObjectType({
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      resolve(notification) {
-        if (isEntityMigratedToPublicId(EntityShortIdPrefix.Notification, notification.createdAt)) {
-          return notification.publicId;
+      resolve(activitySubscription) {
+        if (isEntityMigratedToPublicId(EntityShortIdPrefix.ActivitySubscription, activitySubscription.createdAt)) {
+          return activitySubscription.publicId;
         } else {
-          return idEncode(notification.id, 'notification');
+          return idEncode(activitySubscription.id, 'activitySubscription');
         }
       },
     },
     publicId: {
       type: new GraphQLNonNull(GraphQLString),
-      description: `The resource public id (ie: ${EntityShortIdPrefix.Notification}_xxxxxxxx)`,
+      description: `The resource public id (ie: ${EntityShortIdPrefix.ActivitySubscription}_xxxxxxxx)`,
     },
     legacyId: {
       type: new GraphQLNonNull(GraphQLInt),
       deprecationReason: '2026-02-25: use publicId',
-      resolve(notification) {
-        return notification.id;
+      resolve(activitySubscription) {
+        return activitySubscription.id;
       },
     },
     activityType: {
       type: GraphQLActivityType,
-      resolve(notification) {
-        return notification.type;
+      resolve(activitySubscription) {
+        return activitySubscription.type;
       },
     },
     webhookUrl: {
       type: URL,
-      resolve(notification) {
-        return notification.webhookUrl;
+      resolve(activitySubscription) {
+        return activitySubscription.webhookUrl;
       },
     },
     account: {
       type: new GraphQLNonNull(GraphQLAccount),
-      resolve(notification, args, req) {
-        if (notification.CollectiveId) {
-          return req.loaders.Collective.byId.load(notification.CollectiveId);
+      resolve(activitySubscription, args, req) {
+        if (activitySubscription.CollectiveId) {
+          return req.loaders.Collective.byId.load(activitySubscription.CollectiveId);
         }
       },
     },
