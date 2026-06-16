@@ -10,6 +10,7 @@ import {
   fakePaymentMethod,
   fakeTransaction,
   fakeUser,
+  fakeUserToken,
 } from '../../../test-helpers/fake-data';
 import { makeRequest } from '../../../utils';
 
@@ -214,6 +215,14 @@ describe('server/graphql/common/transactions', () => {
       expect(await canDownloadInvoice(refundTransaction, undefined, fromCollectiveAccountantReq)).to.be.true;
       expect(await canDownloadInvoice(refundTransaction, undefined, hostAdminReq)).to.be.true;
       expect(await canDownloadInvoice(refundTransaction, undefined, rootAdminReq)).to.be.false;
+    });
+
+    it('returns false for OAuth token without transactions scope even when role checks pass', async () => {
+      const userToken = await fakeUserToken({ user: contributor, scope: ['email'] });
+      const contributorOAuthReq = makeRequest(contributor, undefined, undefined, undefined, userToken);
+
+      expect(await canDownloadInvoice(transaction, undefined, contributorOAuthReq)).to.be.false;
+      expect(await canDownloadInvoice(refundTransaction, undefined, contributorOAuthReq)).to.be.false;
     });
   });
 });

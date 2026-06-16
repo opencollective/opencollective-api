@@ -57,7 +57,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:16.13
+        image: postgres:16.14@sha256:081f1bc7bd5e143dbb6e487b710bbc27712cdcfaced4c071b8e47349aa1b4171
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -67,13 +67,15 @@ jobs:
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       minio:
-        image: minio/minio:edge-cicd
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
         ports:
           - 9000:9000
+        command: server /data
         options: --name=minio --health-cmd "curl http://localhost:9000/minio/health/live"
         env:
           MINIO_ROOT_USER: user
           MINIO_ROOT_PASSWORD: password
+          MINIO_BROWSER: 'off'
 
     steps:
       # man-db trigger on apt install is taking some time

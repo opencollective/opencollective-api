@@ -109,6 +109,7 @@ const modelsDeduplicationSchema: Record<ModelNames, { unique?: string[] }> = {
   Notification: {},
   OAuthAuthorizationCode: {},
   Order: { unique: ['totalAmount', 'currency', 'createdAt', 'quantity', 'status', 'interval', 'description'] },
+  PaymentIntent: {},
   PaymentMethod: { unique: ['uuid'] },
   PayoutMethod: {},
   PaypalPlan: {},

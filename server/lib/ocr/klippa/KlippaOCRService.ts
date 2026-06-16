@@ -80,7 +80,8 @@ export class KlippaOCRService implements ExpenseOCRService {
   }
 
   private async checkRateLimits(urls: string[]): Promise<void> {
-    let failedLimit, ocrStats;
+    let failedLimit: string | undefined;
+    let ocrStats: { month: number; week: number; day: number; hour: number } | undefined;
     const nbFilesToParse = urls.length;
     const limitsPerUser: Record<string, number> = config.limits.klippa.perUser;
 
@@ -90,7 +91,7 @@ export class KlippaOCRService implements ExpenseOCRService {
       failedLimit = 'hour';
     } else {
       // Check rate limit in DB
-      const ocrStats = await this.getUserKlippaOCRStats();
+      ocrStats = await this.getUserKlippaOCRStats();
       type statType = keyof typeof ocrStats;
       const checkLimit = (key: statType) => (ocrStats[key] || 0) + nbFilesToParse <= limitsPerUser[key];
       failedLimit = Object.keys(ocrStats).find(key => !checkLimit(key as statType));

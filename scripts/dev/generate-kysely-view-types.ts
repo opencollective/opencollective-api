@@ -213,6 +213,7 @@ async function fetchMaterializedViews(): Promise<TableMetadata[]> {
       meta = {
         name: it.table,
         isView: true,
+        isForeign: false,
         schema: it.schema,
         columns: [],
       };

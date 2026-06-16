@@ -8,6 +8,7 @@ import { roundCentsAmount } from '../../../../lib/currency';
 import { assertCanSeeAccount } from '../../../../lib/private-accounts';
 import { Op, sequelize } from '../../../../models';
 import Transaction from '../../../../models/Transaction';
+import { enforceScope } from '../../../common/scope-check';
 import { GraphQLTransactionGroupCollection } from '../../collection/TransactionGroupCollection';
 import { GraphQLTransactionKind } from '../../enum/TransactionKind';
 import { GraphQLTransactionType } from '../../enum/TransactionType';
@@ -38,6 +39,8 @@ export const TransactionGroupCollectionArgs = {
 };
 
 export const TransactionGroupCollectionResolver = async (args, req: express.Request): Promise<CollectionReturnType> => {
+  enforceScope(req, 'transactions');
+
   const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
   await assertCanSeeAccount(req, account);
 

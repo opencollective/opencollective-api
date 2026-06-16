@@ -19,11 +19,12 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import VirtualCardProviders from '../../../../../server/constants/virtual-card-providers';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import { getFxRate } from '../../../../../server/lib/currency';
 import * as LibCurrency from '../../../../../server/lib/currency';
+import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
 import * as kycExpensesCheck from '../../../../../server/lib/kyc/expenses/kyc-expenses-check';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
+import stripe from '../../../../../server/lib/stripe';
 import {
   TwoFactorAuthenticationHeader,
   TwoFactorMethod,
@@ -68,6 +69,7 @@ import {
   graphqlQueryV2,
   makeRequest,
   preloadAssociationsForTransactions,
+  resetCaches,
   resetTestDB,
   seedDefaultVendors,
   snapshotTransactions,
@@ -6093,6 +6095,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     after(() => sandbox.restore());
 
     before(async () => {
+      await resetCaches();
       hostAdmin = await fakeUser();
       user = await fakeUser();
       collectiveAdmin = await fakeUser();
@@ -6549,5 +6552,213 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const draftedExpense = result.data.draftExpenseAndInviteUser;
       expect(draftedExpense.lockedFields).to.deep.equal(['AMOUNT', 'TYPE']);
     });
+
+    describe('disabled expense type policy', () => {
+      const getDraftInviteData = payeeEmail => ({
+        description: 'Disabled type policy test draft',
+        type: 'INVOICE',
+        payee: { name: 'Invited Payee', email: payeeEmail },
+        items: [{ amount: 4200, incurredAt: '2020-10-08', description: 'Item' }],
+        payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+        currency: 'USD',
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the host', async () => {
+        const collectiveAdmin = await fakeUser();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the collective', async () => {
+        const collectiveAdmin = await fakeUser();
+        const disabledCollective = await fakeCollective({
+          admin: collectiveAdmin.collective,
+          settings: { expenseTypes: { INVOICE: false } },
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the account');
+      });
+
+      it('rejects draftExpenseAndInviteUser when disabled by the parent', async () => {
+        const collectiveAdmin = await fakeUser();
+        const parent = await fakeCollective({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({
+          ParentCollectiveId: parent.id,
+          admin: collectiveAdmin.collective,
+        });
+
+        const result = await graphqlQueryV2(
+          draftExpenseAndInviteUserMutation,
+          {
+            expense: getDraftInviteData(randEmail()),
+            account: { legacyId: disabledCollective.id },
+            skipInvite: true,
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the parent');
+      });
+
+      it('rejects draft submission when the expense type is disabled', async () => {
+        const payeeEmail = randEmail();
+        const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
+        const disabledCollective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
+        const draftExpense = await fakeExpense({
+          status: expenseStatus.DRAFT,
+          type: 'INVOICE',
+          CollectiveId: disabledCollective.id,
+          data: {
+            draftKey: 'fake-key',
+            payee: { email: payeeEmail },
+            items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+          },
+        });
+
+        const result = await graphqlQueryV2(
+          editExpenseMutation,
+          {
+            expense: {
+              id: idEncode(draftExpense.id, IDENTIFIER_TYPES.EXPENSE),
+              description: 'Submitted draft',
+              payee: { name: 'Invited Payee', email: payeeEmail },
+              payoutMethod: { type: 'PAYPAL', data: { email: randEmail(), currency: 'USD' } },
+              items: [{ amount: 4200, incurredAt: '2020-10-08T00:00:00.000Z', description: 'Item' }],
+            },
+            draftKey: 'fake-key',
+          },
+          await fakeUser(),
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
+        await draftExpense.reload();
+        expect(draftExpense.status).to.eq(expenseStatus.DRAFT);
+      });
+    });
+  });
+
+  describe('createExpenseStripePaymentIntent', () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+    });
+
+    afterEach(() => sandbox.restore());
+
+    const createPaymentIntentMutation = gql`
+      mutation CreateExpenseStripePaymentIntent($expense: ExpenseReferenceInput!) {
+        createExpenseStripePaymentIntent(expense: $expense) {
+          id
+          paymentIntentClientSecret
+          stripeAccount
+          stripeAccountPublishableSecret
+        }
+      }
+    `;
+
+    const setupStripeExpense = async ({ paymentIntent } = {}) => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      await fakeConnectedAccount({
+        CollectiveId: host.id,
+        service: 'stripe',
+        username: 'acct_test',
+        token: 'sk_test_token',
+        data: { publishableKey: 'pk_test_123' },
+      });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const payee = await fakeCollective({ HostCollectiveId: host.id });
+      const expense = await fakeExpense({
+        status: 'APPROVED',
+        amount: 1000,
+        currency: 'USD',
+        CollectiveId: collective.id,
+        FromCollectiveId: payee.id,
+        data: paymentIntent ? { paymentIntent } : {},
+      });
+      return { hostAdmin, expense };
+    };
+
+    const expenseRef = expense => ({ id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE) });
+
+    it('returns the stored PaymentIntent when it is still processing', async () => {
+      const { hostAdmin, expense } = await setupStripeExpense({
+        paymentIntent: { id: 'pi_inflight', amount: 1000, currency: 'usd' },
+      });
+      sandbox.stub(stripe.paymentIntents, 'retrieve').resolves({
+        id: 'pi_inflight',
+        amount: 1000,
+        currency: 'usd',
+        status: 'processing',
+        // eslint-disable-next-line camelcase
+        client_secret: 'cs_inflight',
+      });
+      const createStub = sandbox.stub(stripe.paymentIntents, 'create');
+
+      const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_inflight');
+      expect(result.data.createExpenseStripePaymentIntent.paymentIntentClientSecret).to.equal('cs_inflight');
+      expect(createStub.called).to.be.false;
+
+      await expense.reload();
+      expect(expense.data.paymentIntent.id).to.equal('pi_inflight'); // not overwritten
+    });
+
+    for (const status of ['canceled', 'succeeded']) {
+      it(`creates a new PaymentIntent when the stored one is ${status}`, async () => {
+        const { hostAdmin, expense } = await setupStripeExpense({
+          paymentIntent: { id: 'pi_old', amount: 1000, currency: 'usd' },
+        });
+        sandbox
+          .stub(stripe.paymentIntents, 'retrieve')
+          .resolves({ id: 'pi_old', amount: 1000, currency: 'usd', status });
+        sandbox.stub(stripe.customers, 'create').resolves({ id: 'cus_test' });
+        const createStub = sandbox
+          .stub(stripe.paymentIntents, 'create')
+          // eslint-disable-next-line camelcase
+          .resolves({ id: 'pi_new', client_secret: 'cs_new', status: 'requires_payment_method' });
+
+        const result = await graphqlQueryV2(createPaymentIntentMutation, { expense: expenseRef(expense) }, hostAdmin);
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.createExpenseStripePaymentIntent.id).to.equal('pi_new');
+        expect(createStub.calledOnce).to.be.true;
+
+        await expense.reload();
+        expect(expense.data.paymentIntent.id).to.equal('pi_new'); // overwritten with the fresh PI
+      });
+    }
   });
 });
