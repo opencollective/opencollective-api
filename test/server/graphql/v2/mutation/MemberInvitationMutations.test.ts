@@ -43,6 +43,7 @@ describe('MemberInvitationMutations', () => {
       $role: MemberRole!
       $description: String
       $since: DateTime
+      $privateNote: String
     ) {
       inviteMember(
         memberAccount: $memberAccount
@@ -50,6 +51,7 @@ describe('MemberInvitationMutations', () => {
         role: $role
         description: $description
         since: $since
+        privateNote: $privateNote
       ) {
         id
         role
@@ -91,6 +93,44 @@ describe('MemberInvitationMutations', () => {
       expect(createdMemberInvitation.since.toISOString()).to.equal(new Date('01 January 2022').toISOString());
       expect(sendEmailSpy.callCount).to.equal(1);
       expect(sendEmailSpy.args[0][1]).to.equal('Invitation to join webpack test collective on Open Collective');
+    });
+
+    it('attaches a sanitized private note to the invitation email activity', async () => {
+      const randomUserToInvite = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        inviteMemberMutation,
+        {
+          memberAccount: { id: idEncode(randomUserToInvite.collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          role: roles.MEMBER,
+          privateNote: '<script>alert(1)</script>Hi there!\nWelcome aboard.',
+        },
+        collectiveAdminUser,
+      );
+      await utils.waitForCondition(() => sendEmailSpy.callCount);
+
+      expect(result.errors).to.not.exist;
+
+      const emailActivity = await models.Activity.findOne({
+        where: {
+          type: ActivityTypes.COLLECTIVE_MEMBER_INVITED,
+          CollectiveId: collective.id,
+          FromCollectiveId: randomUserToInvite.collective.id,
+        },
+      });
+      expect(emailActivity).to.exist;
+      expect(emailActivity.data.privateNote).to.equal('Hi there!\nWelcome aboard.');
+
+      // Ensure the note is NOT persisted on the MemberInvitation record
+      const invitation = await models.MemberInvitation.findOne({
+        where: { CollectiveId: collective.id, MemberCollectiveId: randomUserToInvite.collective.id },
+      });
+      expect(invitation).to.exist;
+      expect(invitation).to.not.have.property('privateNote');
+      // Ensure the email was actually sent and contains the note
+      expect(sendEmailSpy.callCount).to.equal(1);
+      expect(sendEmailSpy.args[0][2]).to.include('Hi there!');
+      expect(sendEmailSpy.args[0][2]).to.not.include('<script>');
     });
 
     it('must be authenticated as an admin of the collective', async () => {

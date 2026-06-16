@@ -8,6 +8,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
+import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
@@ -73,6 +74,16 @@ const memberInvitationMutations = {
       since: {
         type: GraphQLDateTime,
       },
+      privateNote: {
+        type: GraphQLString,
+        description: 'Optional private note included in the invitation email sent to the invitee.',
+      },
+      isNewUser: {
+        type: GraphQLBoolean,
+        description:
+          'When true, the invited user account was just created from the invite form. The invitee will be required to complete their profile before accepting the invitation.',
+        defaultValue: false,
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
@@ -100,8 +111,14 @@ const memberInvitationMutations = {
         CreatedByUserId: req.remoteUser.id,
       };
 
+      // Sanitize private note (strip any HTML, preserve line breaks)
+      const privateNote = args.privateNote ? stripHTML(args.privateNote).trim() : null;
+
       // Invite member
-      return models.MemberInvitation.invite(account, memberParams);
+      return models.MemberInvitation.invite(account, memberParams, {
+        privateNote: privateNote,
+        isNewUser: args.isNewUser,
+      });
     },
   },
   inviteMembers: {

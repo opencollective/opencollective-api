@@ -12,6 +12,7 @@ import { OSCValidator } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
 import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
+import { stripHTML } from '../../../lib/sanitize-html';
 import models, { Collective, sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
@@ -148,14 +149,9 @@ async function createCollective(_, args, req) {
       await collective.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id }, {}, transaction);
     }
 
-    if (args.inviteMembers && args.inviteMembers.length) {
-      await processInviteMembersInput(collective, args.inviteMembers, {
-        skipDefaultAdmin: args.skipDefaultAdmin,
-        transaction,
-        supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
-        user: remoteUser,
-      });
-    }
+    // Note: member invitations (args.inviteMembers) are processed after the transaction
+    // commits (see below) so that downstream notification dispatch can find the newly
+    // created collective and invitee records.
 
     // Add location
     if (args.collective.location) {
@@ -173,6 +169,19 @@ async function createCollective(_, args, req) {
     return collective;
   });
   // We're out of the main SQL transaction now
+
+  // Process member invitations outside the transaction so that the activity dispatcher
+  // (which loads accounts/users in its own connection to send emails) can see the
+  // newly-created collective and invitee records.
+  if (args.inviteMembers && args.inviteMembers.length) {
+    const privateNote = args.privateNote ? stripHTML(args.privateNote).trim() : null;
+    await processInviteMembersInput(collective, args.inviteMembers, {
+      skipDefaultAdmin: args.skipDefaultAdmin,
+      supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
+      user: remoteUser,
+      privateNote,
+    });
+  }
 
   // Automated approval if the creator is Github Sponsors
   if (req.remoteUser) {
@@ -252,6 +261,10 @@ const createCollectiveMutation = {
     inviteMembers: {
       type: new GraphQLList(GraphQLInviteMemberInput),
       description: 'List of members to invite on Collective creation.',
+    },
+    privateNote: {
+      type: GraphQLString,
+      description: 'Optional private note included in the invitation email sent to invited members.',
     },
     skipApprovalTestOnly: {
       description: 'Marks the collective as approved directly. Only available in test/CI environments.',

@@ -219,6 +219,99 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       expect(invitations[0].description).to.eq('Invited by host admin without default admin');
     });
 
+    it('invites a new user via memberInfo: flags requiresProfileCompletion and surfaces the complete-profile CTA in the email', async () => {
+      const user = await models.User.createUserWithCollective(utils.data('user2'));
+      const newInviteeEmail = randEmail();
+
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        {
+          collective: { ...newCollectiveData, slug: 'new-invitee-collective' },
+          inviteMembers: [
+            {
+              memberInfo: { name: 'Brand New Admin', email: newInviteeEmail },
+              role: 'ADMIN',
+              description: 'A brand new admin',
+            },
+          ],
+        },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const collective = await models.Collective.findOne({ where: { slug: 'new-invitee-collective' } });
+
+      // The freshly-created invitee must be flagged for profile completion
+      const invitedUser = await models.User.findOne({
+        where: { email: newInviteeEmail },
+        include: [{ model: models.Collective, as: 'collective' }],
+      });
+      expect(invitedUser).to.exist;
+      expect(invitedUser.collective.data?.requiresProfileCompletion).to.equal(true);
+
+      // The invitation activity must carry the isNewUser flag so the email template renders the right CTA
+      const invitationActivity = await models.Activity.findOne({
+        where: { type: activities.COLLECTIVE_MEMBER_INVITED, CollectiveId: collective.id },
+      });
+      expect(invitationActivity).to.exist;
+      expect(invitationActivity.data.isNewUser).to.equal(true);
+
+      // The email sent to the invitee should link to /signup/profile with a `next` redirect back to the invitation
+      await utils.waitForCondition(() => sendEmailSpy.args.some(([to]) => to === newInviteeEmail));
+      const inviteeCall = sendEmailSpy.args.find(([to]) => to === newInviteeEmail);
+      expect(inviteeCall).to.exist;
+      const [, subject, html] = inviteeCall;
+      expect(subject).to.equal(`Invitation to join ${newCollectiveData.name} on Open Collective`);
+      expect(html).to.include('Sign up and view invitation');
+      expect(html).to.include('/signin?next=/signup/profile?next=%2Fmember-invitations%23invitation-');
+      // The plain "View invitation" CTA must not be rendered for new users
+      expect(html).to.not.match(/>\s*View invitation\s*</);
+    });
+
+    it('invites an existing user via memberAccount: the email keeps the regular View invitation CTA', async () => {
+      const user = await models.User.createUserWithCollective(utils.data('user2'));
+      const existingUserToInvite = await fakeUser();
+
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        {
+          collective: { ...newCollectiveData, slug: 'existing-invitee-collective' },
+          inviteMembers: [
+            {
+              memberAccount: { slug: existingUserToInvite.collective.slug },
+              role: 'ADMIN',
+              description: 'An admin with existing account',
+            },
+          ],
+        },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const collective = await models.Collective.findOne({ where: { slug: 'existing-invitee-collective' } });
+
+      // Existing user's collective must not be re-flagged for profile completion
+      await existingUserToInvite.collective.reload();
+      expect(existingUserToInvite.collective.data?.requiresProfileCompletion).to.not.equal(true);
+
+      const invitationActivity = await models.Activity.findOne({
+        where: { type: activities.COLLECTIVE_MEMBER_INVITED, CollectiveId: collective.id },
+      });
+      expect(invitationActivity).to.exist;
+      expect(invitationActivity.data.isNewUser).to.equal(false);
+
+      await utils.waitForCondition(() => sendEmailSpy.args.some(([to]) => to === existingUserToInvite.email));
+      const inviteeCall = sendEmailSpy.args.find(([to]) => to === existingUserToInvite.email);
+      expect(inviteeCall).to.exist;
+      const [, , html] = inviteeCall;
+      expect(html).to.include('View invitation');
+      expect(html).to.include('/member-invitations#invitation-');
+      expect(html).to.not.include('Sign up and view invitation');
+      expect(html).to.not.include('/signin?next=/signup/profile');
+    });
+
     it('invite members', async () => {
       const user = await models.User.createUserWithCollective(utils.data('user2'));
       const existingUserToInvite = await fakeUser();
