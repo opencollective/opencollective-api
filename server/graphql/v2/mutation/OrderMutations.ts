@@ -31,6 +31,7 @@ import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/
 import { checkCaptcha } from '../../../lib/check-captcha';
 import { roundCentsAmount } from '../../../lib/currency';
 import logger from '../../../lib/logger';
+import { isBalanceOnlyCollectiveType } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
 import { optsSanitizeHtmlForSimplified, sanitizeHTML } from '../../../lib/sanitize-html';
 import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
@@ -560,6 +561,10 @@ const orderMutations = {
       }
 
       if (hasPaymentMethodChanged) {
+        if (isBalanceOnlyCollectiveType(order.fromCollective.type)) {
+          throw new ValidationFailed('Changing the payment method is not allowed for this contribution');
+        }
+
         const previousOrderStatus = order.status;
         if (args.paypalSubscriptionId) {
           // Update from PayPal subscription ID

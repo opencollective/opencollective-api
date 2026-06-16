@@ -459,6 +459,25 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           expect(order.toAccount.legacyId).to.eq(toCollective.id);
         });
 
+        it('cannot create an order with a credit card on behalf of a collective', async () => {
+          const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+          const collectiveAdmin = await fakeUser();
+          await fromCollective.addUserWithRole(collectiveAdmin, roles.ADMIN);
+
+          const result = await callCreateOrder(
+            {
+              order: {
+                ...validOrderParams,
+                fromAccount: { legacyId: fromCollective.id },
+              },
+            },
+            collectiveAdmin,
+          );
+
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.match(/only pay with its balance/i);
+        });
+
         it('supports additional params', async () => {
           const tier = await fakeTier({
             CollectiveId: toCollective.id,
@@ -3194,6 +3213,49 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.updateOrder.paymentMethod.id).to.eq(idEncode(paymentMethod.id, 'paymentMethod'));
+      });
+
+      it('cannot update a collective balance recurring contribution to a credit card', async () => {
+        const host = await fakeActiveHost();
+        const fromCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const toCollective = await fakeCollective({ HostCollectiveId: host.id });
+        const collectiveAdmin = await fakeUser();
+        await fromCollective.addUserWithRole(collectiveAdmin, roles.ADMIN);
+
+        const collectiveBalancePaymentMethod = await models.PaymentMethod.findOne({
+          where: { type: PAYMENT_METHOD_TYPE.COLLECTIVE, CollectiveId: fromCollective.id },
+        });
+
+        const collectiveOrder = await fakeOrder(
+          {
+            CreatedByUserId: collectiveAdmin.id,
+            FromCollectiveId: fromCollective.id,
+            CollectiveId: toCollective.id,
+            PaymentMethodId: collectiveBalancePaymentMethod.id,
+            status: OrderStatuses.ACTIVE,
+            totalAmount: 1000,
+          },
+          { withSubscription: true },
+        );
+
+        const creditCardPaymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          data: { expMonth: 11, expYear: 2025 },
+          CollectiveId: collectiveAdmin.CollectiveId,
+        });
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(collectiveOrder.id, 'order') },
+            paymentMethod: { id: idEncode(creditCardPaymentMethod.id, 'paymentMethod') },
+          },
+          collectiveAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Changing the payment method is not allowed/i);
       });
 
       it('accepts publicId in PaymentMethodReferenceInput', async () => {
