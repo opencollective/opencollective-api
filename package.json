@@ -192,7 +192,7 @@
     "ts-unused-exports": "^11.0.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.60.1",
-    "ws": "^8.18.3"
+    "ws": "^8.21.0"
   },
   "scripts": {
     "build": "npm run build:clean && npm run build:updates && npm run build:server",
