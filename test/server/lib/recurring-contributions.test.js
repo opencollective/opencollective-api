@@ -353,6 +353,11 @@ describe('server/lib/recurring-contributions', () => {
         // And then the status of the processing is successful
         expect(entry.status).to.equal('processing');
 
+        expect(order.status).to.equal(status.PROCESSING);
+
+        // And no thank-you email is sent from the cron (the payment_intent.succeeded webhook owns it)
+        expect(sendSpy.called).to.be.false;
+
         // And then the dates are kept the same
         expect(order.Subscription.nextChargeDate.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());
         expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-01-27 0:0').getTime());

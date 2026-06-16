@@ -155,6 +155,8 @@ export async function processOrderWithSubscription(order, options) {
         }
 
         order.status = status.ACTIVE;
+      } else if (orderProcessedStatus === 'processing') {
+        order.status = status.PROCESSING;
       }
 
       if (orderProcessedStatus === 'success' || orderProcessedStatus === 'processing') {
