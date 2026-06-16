@@ -16,11 +16,24 @@ Subject: Invitation to join {{{collective.name}}} on Open Collective
   {{/if}}
 </p>
 
+{{#if privateNote}}
+<p style="margin-top: 24px;">
+  Personal note from <a href="{{accountUrl invitedByUser.collective}}">{{invitedByUser.collective.name}}</a>:
+</p>
+<blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{privateNote}}</blockquote>
+{{/if}}
+
 <p>
 Click on the button below to accept or decline:
 </p>
 
 <br />
+{{#if isNewUser}}
+<a class="btn blue" href="{{config.host.website}}/signin?next=/signup/profile?next=%2Fmember-invitations%23invitation-{{invitation.id}}">
+  <div style="font-size: 15px;">Sign up and view invitation</div>
+</a>
+{{else}}
 <a class="btn blue" href="{{config.host.website}}/member-invitations#invitation-{{invitation.id}}">
   <div style="font-size: 15px;">View invitation</div>
 </a>
+{{/if}}
