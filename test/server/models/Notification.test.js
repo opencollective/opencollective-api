@@ -1,3 +1,5 @@
+import dns from 'dns';
+
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
@@ -419,6 +421,63 @@ describe('server/models/Notification', () => {
 
       const notif2 = await Notification.create({ webhookUrl: 'google.com/stuff' });
       expect(notif2.webhookUrl).to.equal('https://google.com/stuff');
+    });
+
+    it('rejects webhook URLs that resolve to disallowed addresses', async () => {
+      sandbox.stub(dns.promises, 'resolve4').resolves(['127.0.0.1']);
+      sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+
+      await expect(Notification.create({ webhookUrl: 'http://127.0.0.1.nip.io/hook' })).to.be.rejectedWith(
+        'Validation error: Webhook URL resolves to a disallowed address',
+      );
+    });
+
+    it('allows trusted webhook provider URLs without DNS resolution checks', async () => {
+      const resolve4 = sandbox.stub(dns.promises, 'resolve4').resolves(['127.0.0.1']);
+      const resolve6 = sandbox
+        .stub(dns.promises, 'resolve6')
+        .rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+
+      const notif = await Notification.create({
+        channel: 'webhook',
+        webhookUrl: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX',
+      });
+
+      expect(notif.webhookUrl).to.equal('https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX');
+      expect(resolve4).to.not.have.been.called;
+      expect(resolve6).to.not.have.been.called;
+    });
+
+    it('skips DNS resolution when webhookUrl is unchanged', async () => {
+      const resolve4 = sandbox.stub(dns.promises, 'resolve4').resolves(['93.184.216.34']);
+      sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+
+      const notif = await Notification.create({
+        channel: 'webhook',
+        webhookUrl: 'https://example.com/hook',
+      });
+      expect(resolve4).to.have.been.calledOnce;
+      resolve4.resetHistory();
+
+      await notif.update({ active: false });
+      expect(resolve4).to.not.have.been.called;
+
+      await notif.update({ webhookUrl: 'https://example.com/hook' });
+      expect(resolve4).to.not.have.been.called;
+    });
+
+    it('runs DNS resolution when webhookUrl changes', async () => {
+      const resolve4 = sandbox.stub(dns.promises, 'resolve4').resolves(['93.184.216.34']);
+      sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+
+      const notif = await Notification.create({
+        channel: 'webhook',
+        webhookUrl: 'https://example.com/hook',
+      });
+      resolve4.resetHistory();
+
+      await notif.update({ webhookUrl: 'https://other.example.com/hook' });
+      expect(resolve4).to.have.been.called;
     });
   });
 });

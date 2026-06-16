@@ -10,6 +10,7 @@ import { ValidationFailed } from '../graphql/errors';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { getRootDomain, prependHttp } from '../lib/url-utils';
+import { assertWebhookUrlAllowed } from '../lib/webhooks';
 
 import Collective from './Collective';
 import Member from './Member';
@@ -418,6 +419,15 @@ Notification.init(
           if (isIP(parsedURL.hostname)) {
             throw new Error('IP addresses cannot be used as webhooks');
           }
+        },
+        notAResolvedPrivateAddress: async function (this: Notification, url: string) {
+          if (!url) {
+            return;
+          } else if (!this.isNewRecord && !this.changed('webhookUrl')) {
+            return;
+          }
+
+          await assertWebhookUrlAllowed(url);
         },
       },
       set(url: string) {

@@ -1,9 +1,195 @@
+import dns from 'dns';
+import http from 'http';
+import https from 'https';
+
+import ipaddr from 'ipaddr.js';
 import { pick } from 'lodash';
+import isIP from 'validator/lib/isIP';
 
 import { activities } from '../constants';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
+import { Activity } from '../models';
 
+import { isTrustedWebhookProviderUrl } from './trusted-webhook-providers';
 import { formatCurrency } from './utils';
+
+export { isTrustedWebhookProviderUrl };
+
+const DISALLOWED_WEBHOOK_HOSTNAME_SUFFIXES = ['.internal', '.localhost', '.local'];
+const DISALLOWED_WEBHOOK_HOSTNAMES = new Set(['localhost']);
+const DISALLOWED_IP_RANGES = new Set([
+  'broadcast',
+  'carrierGradeNat',
+  'linkLocal',
+  'loopback',
+  'multicast',
+  'private',
+  'reserved',
+  'uniqueLocal',
+  'unspecified',
+]);
+
+export class WebhookUrlNotAllowedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WebhookUrlNotAllowedError';
+  }
+}
+
+export const isDisallowedWebhookHostname = (hostname: string): boolean => {
+  const normalizedHostname = hostname.toLowerCase().replace(/\.$/, '');
+
+  if (DISALLOWED_WEBHOOK_HOSTNAMES.has(normalizedHostname)) {
+    return true;
+  }
+
+  return DISALLOWED_WEBHOOK_HOSTNAME_SUFFIXES.some(suffix => normalizedHostname.endsWith(suffix));
+};
+
+export const isDisallowedWebhookIpAddress = (ip: string): boolean => {
+  let address: ipaddr.IPv4 | ipaddr.IPv6;
+
+  try {
+    address = ipaddr.parse(ip);
+  } catch {
+    return true;
+  }
+
+  if (address.kind() === 'ipv6' && (address as ipaddr.IPv6).isIPv4MappedAddress()) {
+    address = (address as ipaddr.IPv6).toIPv4Address();
+  }
+
+  return DISALLOWED_IP_RANGES.has(address.range());
+};
+
+const parseWebhookHttpUrl = (url: string): URL => {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new WebhookUrlNotAllowedError('Webhook URL must be a valid URL');
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new WebhookUrlNotAllowedError('Webhook URL must use HTTP or HTTPS');
+  }
+
+  if (!parsed.hostname) {
+    throw new WebhookUrlNotAllowedError('Webhook URL must include a hostname');
+  }
+
+  if (isIP(parsed.hostname)) {
+    throw new WebhookUrlNotAllowedError('IP addresses cannot be used as webhooks');
+  }
+
+  if (isDisallowedWebhookHostname(parsed.hostname)) {
+    throw new WebhookUrlNotAllowedError('Webhook URL hostname is not allowed');
+  }
+
+  return parsed;
+};
+
+const resolveWebhookHostnameAddresses = async (hostname: string): Promise<string[]> => {
+  const [ipv4Result, ipv6Result] = await Promise.allSettled([
+    dns.promises.resolve4(hostname),
+    dns.promises.resolve6(hostname),
+  ]);
+  const addresses = [
+    ...(ipv4Result.status === 'fulfilled' ? ipv4Result.value : []),
+    ...(ipv6Result.status === 'fulfilled' ? ipv6Result.value : []),
+  ];
+
+  if (addresses.length === 0) {
+    const rejectedResult = [ipv4Result, ipv6Result].find(result => result.status === 'rejected') as
+      | PromiseRejectedResult
+      | undefined;
+    const error = rejectedResult?.reason;
+    throw new WebhookUrlNotAllowedError(
+      `Webhook URL hostname could not be resolved: ${error?.message || 'unknown error'}`,
+    );
+  }
+
+  return addresses;
+};
+
+const resolvePinnedWebhookAddresses = async (url: string): Promise<{ hostname: string; addresses: string[] }> => {
+  const parsed = parseWebhookHttpUrl(url);
+  const addresses = await resolveWebhookHostnameAddresses(parsed.hostname);
+
+  for (const address of addresses) {
+    if (isDisallowedWebhookIpAddress(address)) {
+      throw new WebhookUrlNotAllowedError('Webhook URL resolves to a disallowed address');
+    }
+  }
+
+  return { hostname: parsed.hostname, addresses };
+};
+
+export const assertWebhookUrlAllowed = async (url: string): Promise<void> => {
+  parseWebhookHttpUrl(url);
+
+  if (isTrustedWebhookProviderUrl(url)) {
+    return;
+  }
+
+  await resolvePinnedWebhookAddresses(url);
+};
+
+type DnsLookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  address: string | dns.LookupAddress[],
+  family?: number,
+) => void;
+
+const createPinnedHttpAgents = (addresses: string[]): { httpAgent: http.Agent; httpsAgent: https.Agent } => {
+  const lookup = (hostname: string, options: dns.LookupOptions | number, callback: DnsLookupCallback) => {
+    const lookupOptions = typeof options === 'object' ? options : { family: options };
+    const family = lookupOptions.family;
+    const pinnedAddresses = addresses
+      .map(address => ({
+        address,
+        family: address.includes(':') ? 6 : 4,
+      }))
+      .filter(entry => {
+        if (family === 4) {
+          return entry.family === 4;
+        } else if (family === 6) {
+          return entry.family === 6;
+        }
+
+        return true;
+      });
+
+    if (pinnedAddresses.length === 0) {
+      callback(new Error('Webhook URL has no allowed addresses for this address family'), '', 4);
+      return;
+    }
+
+    if (lookupOptions.all) {
+      callback(null, pinnedAddresses);
+      return;
+    }
+
+    callback(null, pinnedAddresses[0].address, pinnedAddresses[0].family);
+  };
+
+  return {
+    httpAgent: new http.Agent({ lookup }),
+    httpsAgent: new https.Agent({ lookup }),
+  };
+};
+
+export const getPinnedAxiosAgentsForWebhookUrl = async (
+  url: string,
+): Promise<{ httpAgent?: http.Agent; httpsAgent?: https.Agent }> => {
+  if (isTrustedWebhookProviderUrl(url)) {
+    return {};
+  }
+
+  const { addresses } = await resolvePinnedWebhookAddresses(url);
+  return createPinnedHttpAgents(addresses);
+};
 
 /**
  * Filter collective public information, returning a minimal subset for incognito users
@@ -111,9 +297,11 @@ const expenseActivities = [
 /**
  * Sanitize an activity to make it suitable for posting on external webhooks
  */
-export const sanitizeActivityForWebhookPayload = activity => {
+export const sanitizeActivityForWebhookPayload = (activity: Activity) => {
   // Fields commons to all activity types
-  const cleanActivity = pick(activity, ['createdAt', 'id', 'type', 'CollectiveId']);
+  const cleanActivity: Pick<Activity, 'createdAt' | 'id' | 'type' | 'CollectiveId'> & {
+    data?: Record<string, unknown>;
+  } = pick(activity, ['createdAt', 'id', 'type', 'CollectiveId']);
   const type = cleanActivity.type;
 
   // Alway have an empty data object for activity
@@ -139,8 +327,8 @@ export const sanitizeActivityForWebhookPayload = activity => {
   } else if (type === activities.COLLECTIVE_MEMBER_CREATED) {
     cleanActivity.data = pick(activity.data, ['member.role', 'member.description', 'member.since']);
     cleanActivity.data.order = getOrderInfo(activity.data.order);
-    cleanActivity.data.member.memberCollective = getCollectiveInfo(activity.data.member.memberCollective);
-    cleanActivity.data.member.tier = getTierInfo(activity.data.member.tier);
+    cleanActivity.data.member['memberCollective'] = getCollectiveInfo(activity.data.member.memberCollective);
+    cleanActivity.data.member['tier'] = getTierInfo(activity.data.member.tier);
   } else if (type === activities.TICKET_CONFIRMED) {
     cleanActivity.data = pick(activity.data, ['recipient.name']);
     cleanActivity.data.tier = getTierInfo(activity.data.tier);
@@ -173,7 +361,7 @@ const enrichActivityData = data => {
   Object.entries(data).forEach(([key, value]) => {
     if (value && typeof value === 'object') {
       enrichActivityData(value);
-    } else if (key === 'amount' || key === 'totalAmount') {
+    } else if ((key === 'amount' || key === 'totalAmount') && typeof value === 'number') {
       const amount = value;
       const currency = data['currency'];
       const interval = data['interval'];

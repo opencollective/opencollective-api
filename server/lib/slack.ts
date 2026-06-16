@@ -9,15 +9,12 @@ import activitiesLib from '../lib/activities';
 
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
+import { isTrustedWebhookProviderUrl, toDiscordSlackCompatibleWebhookUrl } from './trusted-webhook-providers';
 
 export const OPEN_COLLECTIVE_SLACK_CHANNEL = {
   ABUSE: 'abuse',
   ENGINEERING_ALERTS: 'engineeringAlerts',
 };
-
-// Mattermost is compatible with Slack webhooks
-const KNOWN_MATTERMOST_INSTANCES = ['https://chat.diglife.coop/hooks/'];
-const DISCORD_REGEX = /^https:\/\/discord(app)?\.com\/api\/webhooks\/.+$/;
 
 export default {
   /*
@@ -65,11 +62,7 @@ export default {
       return;
     }
 
-    let targetUrl = webhookUrl;
-    if (targetUrl.match(DISCORD_REGEX) && !targetUrl.match(/\/slack\/*$/)) {
-      // Discord slack-compatible webhook - See https://discord.com/developers/docs/resources/webhook#execute-slackcompatible-webhook
-      targetUrl = `${targetUrl.replace(/\/+$/, '')}/slack`;
-    }
+    const targetUrl = toDiscordSlackCompatibleWebhookUrl(webhookUrl);
 
     try {
       return await axios.post(targetUrl, slackOptions);
@@ -80,12 +73,6 @@ export default {
   },
 
   isSlackWebhookUrl(url) {
-    if (url.startsWith('https://hooks.slack.com/')) {
-      return true;
-    } else if (url.match(DISCORD_REGEX)) {
-      return true;
-    }
-
-    return KNOWN_MATTERMOST_INSTANCES.some(mattermostUrl => url.startsWith(mattermostUrl));
+    return isTrustedWebhookProviderUrl(url);
   },
 };
