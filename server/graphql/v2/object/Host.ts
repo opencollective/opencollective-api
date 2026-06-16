@@ -1033,6 +1033,11 @@ export const GraphQLHost = new GraphQLObjectType({
             type: new GraphQLList(GraphQLAccountReferenceInput),
             description: 'Filter by accounts participating in the agreement',
           },
+          includeChildren: {
+            type: new GraphQLNonNull(GraphQLBoolean),
+            defaultValue: false,
+            description: 'Include agreements from the children of the provided accounts (events/projects).',
+          },
         },
         async resolve(host, args, req) {
           if (!Agreement.canSeeAgreementsForHostCollectiveId(req.remoteUser, host.id)) {
@@ -1051,7 +1056,18 @@ export const GraphQLHost = new GraphQLObjectType({
 
             const allIds = accounts.map(account => account.id);
             const allParentIds = accounts.map(account => account.ParentCollectiveId).filter(Boolean);
-            includeWhereArgs['id'] = uniq([...allIds, ...allParentIds]);
+            const ids = [...allIds, ...allParentIds];
+
+            // Also include agreements of the provided accounts' children (events/projects).
+            if (args.includeChildren) {
+              const children = await Collective.findAll({
+                attributes: ['id'],
+                where: { ParentCollectiveId: allIds, type: { [Op.ne]: CollectiveType.VENDOR } },
+              });
+              ids.push(...children.map(child => child.id));
+            }
+
+            includeWhereArgs['id'] = uniq(ids);
           }
 
           const agreements = await Agreement.findAndCountAll({
