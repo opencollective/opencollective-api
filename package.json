@@ -161,7 +161,7 @@
     "chai-sorted": "^0.2.0",
     "cheerio": "^1.1.2",
     "chokidar": "^4.0.1",
-    "commitizen": "^4.3.1",
+    "commitizen": "^4.3.2",
     "cz-conventional-changelog": "^3.3.0",
     "eslint": "^10.0.0",
     "eslint-config-opencollective": "^7.1.0",
