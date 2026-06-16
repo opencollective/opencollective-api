@@ -137,6 +137,27 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       expect(createdTier).to.exist;
     });
 
+    it('rejects flexible tiers with presets lower than minimum amount', async () => {
+      const result = await graphqlQueryV2(
+        CREATE_TIER_MUTATION,
+        {
+          account: { legacyId: collective.id },
+          tier: {
+            name: 'flexible tier',
+            type: 'TIER',
+            amountType: 'FLEXIBLE',
+            frequency: 'YEARLY',
+            minimumAmount: { valueInCents: 7000, currency: 'USD' },
+            presets: [1000, 2500, 5000],
+          },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.include('minimum amount cannot be less than minimum suggested amounts');
+    });
+
     it('Always creates tier with collective currency', async () => {
       collective = await fakeCollective({ admin: adminUser, currency: 'EUR' });
       await fakeMember({ CollectiveId: memberUser.id, MemberCollectiveId: collective.id, role: roles.MEMBER });

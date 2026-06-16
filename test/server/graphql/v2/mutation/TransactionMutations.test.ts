@@ -18,8 +18,8 @@ import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } f
 import models from '../../../../../server/models';
 import stripeMocks from '../../../../mocks/stripe';
 import { fakeCollective, fakeOrder, fakeTransaction, fakeUser, randStr } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
+import { graphqlQueryV2 } from '../../../../utils';
 
 const STRIPE_TOKEN = 'tok_123456781234567812345678';
 

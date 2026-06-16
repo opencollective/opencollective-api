@@ -139,6 +139,38 @@ describe('server/models/Tier', () => {
         );
       });
     });
+
+    describe('flexible amount presets', () => {
+      it('rejects presets lower than minimum amount', async () => {
+        const createPromise = models.Tier.create({
+          ...validTierParams,
+          amountType: 'FLEXIBLE',
+          amount: null,
+          minimumAmount: 7000,
+          presets: [1000, 2500, 5000],
+          interval: 'year',
+        });
+
+        await expect(createPromise).to.be.rejectedWith(
+          SequelizeValidationError,
+          "Validation error: In A valid tier name's tier, minimum amount cannot be less than minimum suggested amounts",
+        );
+      });
+
+      it('accepts presets greater than or equal to minimum amount', async () => {
+        const tier = await models.Tier.create({
+          ...validTierParams,
+          amountType: 'FLEXIBLE',
+          amount: 7000,
+          minimumAmount: 7000,
+          presets: [7000, 10000, 20000],
+          interval: 'year',
+        });
+
+        expect(tier.minimumAmount).to.eq(7000);
+        expect(tier.presets).to.eql([7000, 10000, 20000]);
+      });
+    });
   });
 
   describe('requiresPayment', () => {

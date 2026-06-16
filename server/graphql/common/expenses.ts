@@ -1604,19 +1604,20 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
 
 const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 
-async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey) {
-  const hostPayoutTwoFactorAuthenticationRollingLimit = get(
-    host,
-    'settings.payoutsTwoFactorAuth.rollingLimit',
-    1000000,
+const getExpensePayout2FALimitCacheKey = (userId: number, hostId: number) => `${userId}_2fa_payment_limit_${hostId}`;
+
+async function validateExpensePayout2FALimit(req, host, expense) {
+  const expensePaidAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
+  const hostPayoutTwoFactorAuthenticationRollingLimit = Number(
+    get(host, 'settings.payoutsTwoFactorAuth.rollingLimit', 10_000_00),
   );
 
   const twoFactorSession =
     req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
-  const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
-  const expenseAmountInHostCurrency = await convertToCurrency(expense.amount, expense.currency, host.currency);
+  const currentPaidExpenseAmount = Number(currentPaidExpenseAmountCache) || 0;
+  const expenseAmountInHostCurrency = Number(await convertToCurrency(expense.amount, expense.currency, host.currency));
 
   // requires a 2FA token to be present if there is no value in the cache (first payout by user)
   // or the this payout would put the user over the rolling limit.
@@ -1701,8 +1702,7 @@ export const scheduleExpenseForPayment = async (
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
 
     if (hostHasPayoutTwoFactorAuthenticationEnabled) {
-      const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
-      await validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense);
     }
   }
 
@@ -1786,9 +1786,9 @@ const checkExpenseItems = (expenseType, items: ExpenseItem[] | Record<string, un
   }
 };
 
-const checkExpenseType = async (
+export const checkExpenseType = async (
   newType: ExpenseType,
-  fromAccount: Collective,
+  fromAccount: Collective | null,
   account: Collective,
   parent: Collective | null,
   host: Collective | null,
@@ -1813,7 +1813,7 @@ const checkExpenseType = async (
   if (!existingExpense && [ExpenseType.SETTLEMENT, ExpenseType.PLATFORM_BILLING].includes(newType)) {
     if (!remoteUser?.isAdminOfPlatform()) {
       throw new ValidationFailed('Only platform admins can create platform expenses');
-    } else if (fromAccount.id !== PlatformConstants.PlatformCollectiveId) {
+    } else if (fromAccount?.id !== PlatformConstants.PlatformCollectiveId) {
       throw new ValidationFailed('Platform expenses can only be created for the platform account');
     }
   }
@@ -2659,6 +2659,24 @@ export async function submitExpenseDraft(
 
   await checkLockedFields(existingExpense, { ...expenseData, payee: requestedPayee || args.expense.payee });
 
+  const collective = await models.Collective.findByPk(existingExpense.CollectiveId, {
+    include: [
+      { association: 'host', required: false },
+      { association: 'parent', required: false },
+    ],
+  });
+  const fromCollective = expenseData.fromCollective || requestedPayee || existingExpense.fromCollective;
+  await checkExpenseType(
+    expenseData.type || existingExpense.type,
+    fromCollective,
+    collective,
+    collective.parent,
+    collective.host,
+    existingExpense,
+    req.remoteUser,
+    req,
+  );
+
   const options = {
     overrideRemoteUser: undefined,
     skipPermissionCheck: true,
@@ -2831,7 +2849,18 @@ export async function editExpenseDraft(
   opts?: { isNewExpenseFlow?: boolean },
 ) {
   const existingExpense = await models.Expense.findByPk(expenseData.id, {
-    include: [{ model: models.ExpenseItem, as: 'items' }],
+    include: [
+      { model: models.ExpenseItem, as: 'items' },
+      {
+        model: models.Collective,
+        as: 'collective',
+        required: true,
+        include: [
+          { association: 'parent', required: false },
+          { association: 'host', required: false },
+        ],
+      },
+    ],
   });
   if (!existingExpense) {
     throw new NotFound('Expense not found.');
@@ -2842,6 +2871,19 @@ export async function editExpenseDraft(
   }
   if (!req.remoteUser || req.remoteUser?.id !== existingExpense.UserId) {
     throw new Unauthorized('Only the author of the draft can edit it');
+  }
+
+  if (expenseData.type && existingExpense.type !== expenseData.type) {
+    await checkExpenseType(
+      expenseData.type,
+      null,
+      existingExpense.collective,
+      existingExpense.collective.parent,
+      existingExpense.collective.host,
+      existingExpense,
+      req.remoteUser,
+      req,
+    );
   }
 
   const currency = expenseData.currency || existingExpense.currency;
@@ -3816,12 +3858,12 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
     const use2FARollingLimit =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
-    const totalPaidExpensesAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
+    const totalPaidExpensesAmountKey = getExpensePayout2FALimitCacheKey(req.remoteUser.id, host.id);
     let totalPaidExpensesAmount;
 
     if (use2FARollingLimit) {
       totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
-      await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense);
     } else {
       // Not using rolling limit, but still enforcing 2FA for all admins
       await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });

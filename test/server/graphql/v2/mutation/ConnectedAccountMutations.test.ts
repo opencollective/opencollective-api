@@ -7,8 +7,8 @@ import * as paypal from '../../../../../server/lib/paypal';
 import * as PlaidConnect from '../../../../../server/lib/plaid/connect';
 import models from '../../../../../server/models';
 import { fakeActiveHost, fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
+import { graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   const sandbox = createSandbox();

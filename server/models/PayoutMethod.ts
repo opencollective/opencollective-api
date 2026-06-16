@@ -170,8 +170,9 @@ class PayoutMethod extends ModelWithPublicId<
       throw new Error(`Invalid payout method type: ${type}`);
     }
 
+    const currency = cleanInput.currency || cleanInput.data?.currency;
     return PayoutMethod.create(
-      { ...cleanInput, type: type, CreatedByUserId: user.id, CollectiveId: collective.id },
+      { ...cleanInput, currency, type: type, CreatedByUserId: user.id, CollectiveId: collective.id },
       { transaction: dbTransaction },
     );
   }
@@ -240,7 +241,7 @@ class PayoutMethod extends ModelWithPublicId<
   };
 
   /** Filters out all the fields that cannot be edited by user */
-  private static filterUserInput(input: Record<string, unknown>): Record<string, unknown> {
+  private static filterUserInput(input) {
     const type = input['type'] as PayoutMethodTypes;
     return {
       ...pick(input, PayoutMethod.editableFields),

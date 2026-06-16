@@ -11,8 +11,8 @@ import ExpenseTypes from '../../../../../server/constants/expense-type';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
-import { getFxRate } from '../../../../../server/lib/currency';
 import * as LibCurrency from '../../../../../server/lib/currency';
+import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
 import {
   TwoFactorAuthenticationHeader,
@@ -44,6 +44,7 @@ import {
   graphqlQueryV2,
   makeRequest,
   preloadAssociationsForTransactions,
+  resetCaches,
   resetTestDB,
   snapshotTransactions,
   waitForCondition,
@@ -2891,6 +2892,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations-legacy', () => {
     after(() => sandbox.restore());
 
     before(async () => {
+      await resetCaches();
       hostAdmin = await fakeUser();
       user = await fakeUser();
       collectiveAdmin = await fakeUser();
