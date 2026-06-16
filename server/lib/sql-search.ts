@@ -326,6 +326,7 @@ export const searchCollectivesInDB = async (
     includeArchived,
     includeVendorsForHostId,
     includeAllVendors,
+    includePlatformVendors,
     vendorVisibleToAccountIds,
     isHost,
     onlyActive,
@@ -346,6 +347,7 @@ export const searchCollectivesInDB = async (
     includeArchived?: boolean;
     includeVendorsForHostId?: number;
     includeAllVendors?: boolean;
+    includePlatformVendors?: boolean;
     isHost?: boolean;
     onlyActive?: boolean;
     onlyOpenHosts?: boolean;
@@ -384,9 +386,18 @@ export const searchCollectivesInDB = async (
     countryCodes = `${countries.join(',')}`;
   }
 
+  // Open Collective platform-owned vendors (currently only the global VENDOR with slug 'oc-platform')
+  // are surfaced as an exception to the host/vendor gates below when this flag is set.
+  // Extend this clause with additional slugs/IDs when more platform-owned vendors are introduced.
+  const platformVendorsClause = includePlatformVendors ? `(c."slug" IN ('oc-platform'))` : null;
+
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
-    dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
-    dynamicConditions += 'AND c."approvedAt" IS NOT NULL ';
+    if (platformVendorsClause) {
+      dynamicConditions += `AND ((c."HostCollectiveId" IN (:hostCollectiveIds) AND c."approvedAt" IS NOT NULL) OR ${platformVendorsClause}) `;
+    } else {
+      dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
+      dynamicConditions += 'AND c."approvedAt" IS NOT NULL ';
+    }
   }
 
   if (parentCollectiveIds && parentCollectiveIds.length > 0) {
@@ -413,10 +424,16 @@ export const searchCollectivesInDB = async (
   }
 
   if (includeVendorsForHostId) {
-    dynamicConditions +=
-      'AND (c."type" != \'VENDOR\' OR (c."type" = \'VENDOR\' AND c."ParentCollectiveId" = :includeVendorsForHostId)) ';
+    const vendorClause = platformVendorsClause
+      ? `c."type" != 'VENDOR' OR (c."type" = 'VENDOR' AND c."ParentCollectiveId" = :includeVendorsForHostId) OR ${platformVendorsClause}`
+      : `c."type" != 'VENDOR' OR (c."type" = 'VENDOR' AND c."ParentCollectiveId" = :includeVendorsForHostId)`;
+    dynamicConditions += `AND (${vendorClause}) `;
   } else if (!types && !includeAllVendors) {
-    dynamicConditions += 'AND c."type" != \'VENDOR\' ';
+    if (platformVendorsClause) {
+      dynamicConditions += `AND (c."type" != 'VENDOR' OR ${platformVendorsClause}) `;
+    } else {
+      dynamicConditions += `AND c."type" != 'VENDOR' `;
+    }
   }
 
   if (!isNil(args.isPlatformSubscriber)) {

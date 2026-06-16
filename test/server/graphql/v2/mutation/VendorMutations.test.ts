@@ -351,6 +351,19 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       expect(result.errors[0].message).to.match(/Account is not a vendor/);
     });
 
+    it('cannot edit a platform-owned vendor (no parent host), even as a host admin', async () => {
+      const platformVendor = await fakeCollective({ type: CollectiveType.VENDOR, ParentCollectiveId: null });
+      const result = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: { legacyId: platformVendor.id, name: 'Hijacked' },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You're not authorized to edit this vendor/);
+    });
+
     it('edits a vendor account', async () => {
       const vendor = await fakeCollective({
         type: CollectiveType.VENDOR,
@@ -874,6 +887,21 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/You're not authorized to delete this vendor/);
+    });
+
+    it('cannot delete a platform-owned vendor (no parent host), even as a host admin', async () => {
+      const platformVendor = await fakeCollective({ type: CollectiveType.VENDOR, ParentCollectiveId: null });
+      const result = await graphqlQueryV2(
+        deleteVendorMutation,
+        {
+          vendor: { legacyId: platformVendor.id },
+        },
+        hostAdminUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You're not authorized to delete this vendor/);
+      await platformVendor.reload();
+      expect(platformVendor.deletedAt).to.be.null;
     });
 
     it('must be a vendor', async () => {

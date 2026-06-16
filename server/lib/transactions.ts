@@ -462,6 +462,7 @@ const kindStrings = {
   PAYMENT_PROCESSOR_COVER: `Cover of Payment Processor Fee`,
   PLATFORM_TIP: `Platform Tip`,
   PLATFORM_TIP_DEBT: `Platform Tip Debt`,
+  PLATFORM_TIP_TRANSFER: `Platform Tip Transfer`,
   PREPAID_PAYMENT_METHOD: `Prepaid Payment Method`,
 };
 
@@ -646,6 +647,18 @@ export const getTaxVendor = memoize(async (taxId): Promise<Collective> => {
 
   return Collective.findBySlug(vendorByTaxId[taxId] || vendorByTaxId['OTHER']);
 });
+
+/**
+ * Returns the Vendor account that holds platform tips on the host's ledger under the
+ * NEW_PLATFORM_TIPS_LEDGER feature, or null when the vendor is not seeded. The vendor is global
+ * (shared across all hosts); per-host scoping is achieved by `HostCollectiveId` on the
+ * transactions themselves. Deliberately not memoized: callers (tip creation, the monthly
+ * settlement cron) are low-frequency, and a process-lifetime cache would go stale across test DB
+ * resets and would pin null forever if resolved before the vendor exists.
+ */
+export const getOcPlatformVendor = async (): Promise<Collective | null> => {
+  return Collective.findBySlug('oc-platform', {}, false);
+};
 
 /**
  * Returns the Vendor account associated with a payment processor service. This function is memoized as

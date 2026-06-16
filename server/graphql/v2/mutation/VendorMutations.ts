@@ -168,6 +168,12 @@ const vendorMutations = {
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
       assert(vendor.type === CollectiveType.VENDOR, new ValidationFailed('Account is not a vendor'));
 
+      // Platform-owned vendors (e.g. the global `oc-platform` account) have no parent host and
+      // are managed by the platform directly — host admins must not be able to edit them.
+      if (!vendor.ParentCollectiveId) {
+        throw new Unauthorized("You're not authorized to edit this vendor");
+      }
+
       const host = await req.loaders.Collective.byId.load(vendor.ParentCollectiveId);
       assert(host, new NotFound('Vendor host not found'));
       if (!req.remoteUser.isAdminOfCollective(host)) {
@@ -340,6 +346,12 @@ const vendorMutations = {
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
       assert(vendor.type === CollectiveType.VENDOR, new ValidationFailed('Account is not a vendor'));
+
+      // Platform-owned vendors (e.g. the global `oc-platform` account) have no parent host and
+      // are managed by the platform directly — host admins must not be able to delete them.
+      if (!vendor.ParentCollectiveId) {
+        throw new Unauthorized("You're not authorized to delete this vendor");
+      }
 
       const host = await req.loaders.Collective.byId.load(vendor.ParentCollectiveId);
       assert(host, new NotFound('Vendor host not found'));

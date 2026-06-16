@@ -1,6 +1,8 @@
 export enum TransactionKind {
   /** Transactions coming from the "Add Funds" */
   ADDED_FUNDS = 'ADDED_FUNDS',
+  /** Stripe application fee transferring a platform tip from the host's OC Platform vendor balance directly to the platform's own account */
+  APPLICATION_FEE = 'APPLICATION_FEE',
   /** Transactions from transferring the remaining balance from a project/event/collective **/
   BALANCE_TRANSFER = 'BALANCE_TRANSFER',
   /** Transactions coming from the "Contribution Flow" */
@@ -25,6 +27,8 @@ export enum TransactionKind {
   PLATFORM_TIP = 'PLATFORM_TIP',
   /** Financial contribution to Open Collective added on top of another contribution */
   PLATFORM_TIP_DEBT = 'PLATFORM_TIP_DEBT',
+  /** Internal transfer releasing held platform tips from the OC Platform vendor to the host */
+  PLATFORM_TIP_TRANSFER = 'PLATFORM_TIP_TRANSFER',
   /** For prepaid budgets */
   PREPAID_PAYMENT_METHOD = 'PREPAID_PAYMENT_METHOD',
   /** For taxes */
