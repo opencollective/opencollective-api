@@ -2,14 +2,17 @@ import dns from 'dns';
 import http from 'http';
 import https from 'https';
 
+import config from 'config';
 import ipaddr from 'ipaddr.js';
 import { pick } from 'lodash';
 import isIP from 'validator/lib/isIP';
 
 import { activities } from '../constants';
+import { RateLimitExceeded } from '../graphql/errors';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { Activity } from '../models';
 
+import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 import { isTrustedWebhookProviderUrl } from './trusted-webhook-providers';
 import { formatCurrency } from './utils';
 
@@ -126,11 +129,40 @@ const resolvePinnedWebhookAddresses = async (url: string): Promise<{ hostname: s
   return { hostname: parsed.hostname, addresses };
 };
 
-export const assertWebhookUrlAllowed = async (url: string): Promise<void> => {
+type WebhookUrlValidationRateLimitContext = {
+  userId?: number | null;
+  collectiveId?: number | null;
+};
+
+const enforceWebhookUrlValidationRateLimit = async (context: WebhookUrlValidationRateLimitContext): Promise<void> => {
+  const key = context.userId
+    ? `webhook_url_validation_user_${context.userId}`
+    : context.collectiveId
+      ? `webhook_url_validation_collective_${context.collectiveId}`
+      : null;
+
+  if (!key) {
+    return;
+  }
+
+  const rateLimit = new RateLimit(key, config.limits.webhookUrlValidationPerUserPerHour, ONE_HOUR_IN_SECONDS);
+  if (!(await rateLimit.registerCall())) {
+    throw new RateLimitExceeded('Too many webhook URL validations. Please wait before trying again.');
+  }
+};
+
+export const assertWebhookUrlAllowed = async (
+  url: string,
+  context?: WebhookUrlValidationRateLimitContext,
+): Promise<void> => {
   parseWebhookHttpUrl(url);
 
   if (isTrustedWebhookProviderUrl(url)) {
     return;
+  }
+
+  if (context) {
+    await enforceWebhookUrlValidationRateLimit(context);
   }
 
   await resolvePinnedWebhookAddresses(url);

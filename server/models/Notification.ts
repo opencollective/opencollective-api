@@ -427,7 +427,7 @@ Notification.init(
             return;
           }
 
-          await assertWebhookUrlAllowed(url);
+          await assertWebhookUrlAllowed(url, { userId: this.UserId, collectiveId: this.CollectiveId });
         },
       },
       set(url: string) {

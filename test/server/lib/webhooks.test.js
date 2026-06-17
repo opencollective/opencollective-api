@@ -2,11 +2,13 @@ import dns from 'dns';
 
 import axios from 'axios';
 import { expect } from 'chai';
+import config from 'config';
 import { assert, createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import channels from '../../../server/constants/channels';
 import notifyLib from '../../../server/lib/notifications';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../server/lib/rate-limit';
 import slackLib from '../../../server/lib/slack';
 import {
   assertWebhookUrlAllowed,
@@ -21,6 +23,16 @@ import { resetTestDB } from '../../utils';
 
 describe('server/lib/webhooks', () => {
   describe('webhook URL security', () => {
+    let sandbox;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
     it('detects disallowed IP ranges', () => {
       expect(isDisallowedWebhookIpAddress('127.0.0.1')).to.be.true;
       expect(isDisallowedWebhookIpAddress('10.0.0.1')).to.be.true;
@@ -51,114 +63,150 @@ describe('server/lib/webhooks', () => {
       );
     });
 
-    describe('dispatch', () => {
-      let sandbox, axiosPostStub, slackPostActivityOnPublicChannelStub;
+    it('rate limits webhook URL DNS validations per user', async () => {
+      sandbox.stub(config, 'limits').value({ webhookUrlValidationPerUserPerHour: 1 });
+      const userId = 424242;
+      const rateLimitKey = `webhook_url_validation_user_${userId}`;
+      const rateLimit = new RateLimit(rateLimitKey, 1, ONE_HOUR_IN_SECONDS);
+      await rateLimit.reset();
+      await rateLimit.registerCall();
 
-      before(async () => {
-        await resetTestDB();
-        sandbox = createSandbox();
+      const resolve4 = sandbox.stub(dns.promises, 'resolve4').resolves(['93.184.216.34']);
+      sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+
+      await expect(assertWebhookUrlAllowed('https://example.com/hook', { userId })).to.be.rejectedWith(
+        'Too many webhook URL validations. Please wait before trying again.',
+      );
+      expect(resolve4).to.not.have.been.called;
+
+      await rateLimit.reset();
+    });
+
+    it('does not rate limit trusted webhook provider URLs', async () => {
+      sandbox.stub(config, 'limits').value({ webhookUrlValidationPerUserPerHour: 1 });
+      const userId = 424243;
+      const rateLimitKey = `webhook_url_validation_user_${userId}`;
+      const rateLimit = new RateLimit(rateLimitKey, 1, ONE_HOUR_IN_SECONDS);
+      await rateLimit.reset();
+      await rateLimit.registerCall();
+
+      const resolve4 = sandbox.stub(dns.promises, 'resolve4').resolves(['127.0.0.1']);
+      sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+
+      await assertWebhookUrlAllowed('https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX', { userId });
+
+      expect(resolve4).to.not.have.been.called;
+      await rateLimit.reset();
+    });
+  });
+
+  describe('dispatch', () => {
+    let sandbox, axiosPostStub, slackPostActivityOnPublicChannelStub;
+
+    before(async () => {
+      await resetTestDB();
+      sandbox = createSandbox();
+    });
+
+    beforeEach(() => {
+      axiosPostStub = sandbox.stub(axios, 'post').resolves({ status: 200 });
+      slackPostActivityOnPublicChannelStub = sandbox.stub(slackLib, 'postActivityOnPublicChannel').resolves();
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
+    it('does not dispatch generic webhooks that resolve to loopback addresses', async () => {
+      const resolve4 = sandbox.stub(dns.promises, 'resolve4');
+      sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+      resolve4.onCall(0).resolves(['93.184.216.34']);
+      resolve4.resolves(['127.0.0.1']);
+
+      const collective = await fakeCollective();
+      await fakeNotification({
+        channel: channels.WEBHOOK,
+        type: activities.COLLECTIVE_APPLY,
+        CollectiveId: collective.host.id,
+        webhookUrl: 'http://rebind.example/hook',
       });
 
-      beforeEach(() => {
-        axiosPostStub = sandbox.stub(axios, 'post').resolves({ status: 200 });
-        slackPostActivityOnPublicChannelStub = sandbox.stub(slackLib, 'postActivityOnPublicChannel').resolves();
-      });
-
-      afterEach(() => {
-        sandbox.restore();
-      });
-
-      it('does not dispatch generic webhooks that resolve to loopback addresses', async () => {
-        const resolve4 = sandbox.stub(dns.promises, 'resolve4');
-        sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
-        resolve4.onCall(0).resolves(['93.184.216.34']);
-        resolve4.resolves(['127.0.0.1']);
-
-        const collective = await fakeCollective();
-        await fakeNotification({
-          channel: channels.WEBHOOK,
+      const activity = await fakeActivity(
+        {
+          CollectiveId: collective.id,
           type: activities.COLLECTIVE_APPLY,
-          CollectiveId: collective.host.id,
-          webhookUrl: 'http://rebind.example/hook',
-        });
-
-        const activity = await fakeActivity(
-          {
-            CollectiveId: collective.id,
-            type: activities.COLLECTIVE_APPLY,
-            data: {
-              host: collective.host.info,
-              collective: collective.info,
-            },
+          data: {
+            host: collective.host.info,
+            collective: collective.info,
           },
-          { hooks: false },
-        );
+        },
+        { hooks: false },
+      );
 
-        await notifyLib(activity);
+      await notifyLib(activity);
 
-        assert.notCalled(axiosPostStub);
-        assert.notCalled(slackPostActivityOnPublicChannelStub);
+      assert.notCalled(axiosPostStub);
+      assert.notCalled(slackPostActivityOnPublicChannelStub);
+    });
+
+    it('still dispatches trusted provider webhooks', async () => {
+      const collective = await fakeCollective();
+      const notification = await fakeNotification({
+        channel: channels.WEBHOOK,
+        type: activities.COLLECTIVE_APPLY,
+        CollectiveId: collective.host.id,
+        webhookUrl: 'https://hooks.slack.com/services/xxxxx/yyyyy/zzzz',
       });
 
-      it('still dispatches trusted provider webhooks', async () => {
-        const collective = await fakeCollective();
-        const notification = await fakeNotification({
-          channel: channels.WEBHOOK,
+      const activity = await fakeActivity(
+        {
+          CollectiveId: collective.id,
           type: activities.COLLECTIVE_APPLY,
-          CollectiveId: collective.host.id,
-          webhookUrl: 'https://hooks.slack.com/services/xxxxx/yyyyy/zzzz',
-        });
-
-        const activity = await fakeActivity(
-          {
-            CollectiveId: collective.id,
-            type: activities.COLLECTIVE_APPLY,
-            data: {
-              host: collective.host.info,
-              collective: collective.info,
-            },
+          data: {
+            host: collective.host.info,
+            collective: collective.info,
           },
-          { hooks: false },
-        );
+        },
+        { hooks: false },
+      );
 
-        await notifyLib(activity);
+      await notifyLib(activity);
 
-        assert.notCalled(axiosPostStub);
-        assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
+      assert.notCalled(axiosPostStub);
+      assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
+    });
+
+    it('dispatches public webhooks with pinned agents', async () => {
+      sandbox.stub(dns.promises, 'resolve4').resolves(['93.184.216.34']);
+      sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
+
+      const collective = await fakeCollective();
+      const notification = await fakeNotification({
+        channel: channels.WEBHOOK,
+        type: activities.COLLECTIVE_APPLY,
+        CollectiveId: collective.host.id,
+        webhookUrl: 'https://example.com/webhook',
       });
 
-      it('dispatches public webhooks with pinned agents', async () => {
-        sandbox.stub(dns.promises, 'resolve4').resolves(['93.184.216.34']);
-        sandbox.stub(dns.promises, 'resolve6').rejects(Object.assign(new Error('ENODATA'), { code: 'ENODATA' }));
-
-        const collective = await fakeCollective();
-        const notification = await fakeNotification({
-          channel: channels.WEBHOOK,
+      const activity = await fakeActivity(
+        {
+          CollectiveId: collective.id,
           type: activities.COLLECTIVE_APPLY,
-          CollectiveId: collective.host.id,
-          webhookUrl: 'https://example.com/webhook',
-        });
-
-        const activity = await fakeActivity(
-          {
-            CollectiveId: collective.id,
-            type: activities.COLLECTIVE_APPLY,
-            data: {
-              host: collective.host.info,
-              collective: collective.info,
-            },
+          data: {
+            host: collective.host.info,
+            collective: collective.info,
           },
-          { hooks: false },
-        );
+        },
+        { hooks: false },
+      );
 
-        await notifyLib(activity);
+      await notifyLib(activity);
 
-        expect(axiosPostStub.calledOnce).to.be.true;
-        const axiosConfig = axiosPostStub.firstCall.args[2];
-        expect(axiosConfig.httpAgent).to.exist;
-        expect(axiosConfig.httpsAgent).to.exist;
-        expect(axiosPostStub.firstCall.args[0]).to.equal(notification.webhookUrl);
-      });
+      expect(axiosPostStub.calledOnce).to.be.true;
+      const axiosConfig = axiosPostStub.firstCall.args[2];
+      expect(axiosConfig.httpAgent).to.exist;
+      expect(axiosConfig.httpsAgent).to.exist;
+      expect(axiosPostStub.firstCall.args[0]).to.equal(notification.webhookUrl);
     });
   });
 
