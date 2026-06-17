@@ -72,17 +72,39 @@ describe('server/models/Order', () => {
 
     it('retries the lock if it fails', async () => {
       const lockSpy = sandbox.spy(order, 'lock');
-      await Promise.all([
-        order.lock(() => new Promise(resolve => setTimeout(resolve, 100))),
-        order.lock(() => {}, { retries: 1000, retryDelay: 1 }),
-      ]);
+
+      let firstCallResult, secondCallResult;
+      const firstCall = order.lock(
+        () =>
+          new Promise(resolve => {
+            setTimeout(() => {
+              resolve();
+              firstCallResult = 1;
+            }, 100);
+          }),
+      );
+      expect(firstCallResult).to.be.undefined;
+
+      const secondCall = order.lock(
+        () => {
+          secondCallResult = 2;
+        },
+        { retries: 1000, retryDelay: 10 },
+      );
+      expect(secondCallResult).to.be.undefined;
+
+      await firstCall;
+      await secondCall;
+
+      expect(firstCallResult).to.equal(1);
+      expect(secondCallResult).to.equal(2);
 
       expect(lockSpy.callCount).to.be.above(2); // Function is a recursive, we make sure it called itself at least once
       expect(lockSpy.firstCall.args[1]).to.not.exist; // We haven't passed any options to the first call
       expect(lockSpy.secondCall.args[1].retries).to.equal(1000);
-      expect(lockSpy.secondCall.args[1].retryDelay).to.equal(1);
+      expect(lockSpy.secondCall.args[1].retryDelay).to.equal(10);
       expect(lockSpy.thirdCall.args[1].retries).to.equal(999);
-      expect(lockSpy.thirdCall.args[1].retryDelay).to.equal(1);
+      expect(lockSpy.thirdCall.args[1].retryDelay).to.equal(10);
     });
 
     it('can clear all expired locks using Order.clearExpiredLocks', async () => {
