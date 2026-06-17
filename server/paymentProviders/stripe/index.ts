@@ -88,10 +88,10 @@ async function connectStripeAccount({
     );
   });
 
-  const { account } = connectedAccount.data;
+  const { account: stripeAccount } = connectedAccount.data;
   const location = await collective.getLocation();
 
-  if (!location?.structured && account.legal_entity) {
+  if (!location?.structured && stripeAccount.legal_entity) {
     const {
       line1: address1,
       line2: address2,
@@ -99,7 +99,7 @@ async function connectStripeAccount({
       state: zone,
       city,
       postal_code: postalCode,
-    } = account.legal_entity.address || {};
+    } = stripeAccount.legal_entity.address || {};
 
     await collective.setLocation({
       country,
@@ -108,16 +108,17 @@ async function connectStripeAccount({
   }
 
   try {
-    if (account.default_currency) {
-      await collective.setCurrency(account.default_currency.toUpperCase());
+    if (stripeAccount.default_currency) {
+      await collective.setCurrency(stripeAccount.default_currency.toUpperCase());
     }
   } catch (error) {
     logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
     reportErrorToSentry(error, { extra: { CollectiveId } });
   }
 
-  collective.timezone = collective.timezone || account.timezone;
-  await collective.save();
+  if (!collective.timezone && stripeAccount.timezone) {
+    await collective.update({ timezone: stripeAccount.timezone });
+  }
 
   return connectedAccount;
 }
