@@ -1,16 +1,27 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
+import assert from 'node:assert';
 
+import { CollectiveType } from '../../../constants/collectives';
 import { sessionCache } from '../../../lib/cache';
 import logger from '../../../lib/logger';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { Collective } from '../../../models';
 import stripe, { STATE_CACHE_PREFIX } from '../../../paymentProviders/stripe';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
 import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
 import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
 import GraphQLURL from '../scalar/URL';
+
+const assertCanConnectStripe = (account: Collective) => {
+  assert(account.type === CollectiveType.ORGANIZATION, 'Stripe accounts can only be linked to organizations');
+  assert(
+    account.hasMoneyManagement,
+    'Stripe accounts can only be linked to organizations with money management enabled',
+  );
+};
 
 const GraphQLStripeConnectAccountResponse = new GraphQLObjectType({
   name: 'StripeConnectAccountResponse',
@@ -48,15 +59,16 @@ export const stripeMutations = {
     ): Promise<string> => {
       checkRemoteUserCanUseConnectedAccounts(req);
 
-      const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-      if (!req.remoteUser.isAdmin(collective.id)) {
+      const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      if (!req.remoteUser.isAdmin(account.id)) {
         throw new Forbidden('You must be an admin of this account to connect a Stripe account.');
       }
+      assertCanConnectStripe(account);
 
       // We call it here to avoid calling it again in the callback resolver.
-      await TwoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
+      await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
-      return stripe.oauth.redirectUrl(req.remoteUser, collective.id, { redirect: args.redirect });
+      return stripe.oauth.redirectUrl(req.remoteUser, account.id, { redirect: args.redirect });
     },
   },
   connectStripeAccount: {
@@ -90,11 +102,14 @@ export const stripeMutations = {
         throw new Forbidden('You do not have permission to complete this Stripe connection');
       }
 
-      const collective = await fetchAccountWithReference(
+      const account = await fetchAccountWithReference(
         { legacyId: CollectiveId },
         { loaders: req.loaders, throwIfMissing: true },
       );
-      await TwoFactorAuthLib.enforceForAccount(req, collective);
+      assertCanConnectStripe(account);
+
+      await TwoFactorAuthLib.enforceForAccount(req, account);
+
       try {
         const connectedAccount = await stripe.connectStripeAccount({
           code: args.code,
