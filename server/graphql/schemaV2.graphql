@@ -4199,7 +4199,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
   hostFeePercent: Float
   totalHostedCollectives: Int @deprecated(reason: "2023-03-20: Renamed to totalHostedAccounts")
@@ -5016,7 +5016,7 @@ interface AccountWithPlatformSubscription {
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
 }
 
@@ -6722,7 +6722,7 @@ type ConnectedAccount {
   updatedAt: DateTime!
 
   """
-  When the bank account authorization expires and needs to be reconnected
+  For when the authorization expires after a certain time
   """
   authorizationExpiresAt: DateTime
   settings: JSON
@@ -12530,7 +12530,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
 }
 
@@ -16923,7 +16923,7 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
   Returns the current platform subscription
   """
   platformSubscription: PlatformSubscription
-  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling!
+  platformBilling(billingPeriod: PlatformBillingPeriodInput): PlatformBilling
   legacyPlan: HostPlan!
   email: String @deprecated(reason: "2022-07-18: This field is deprecated and will return null")
 
