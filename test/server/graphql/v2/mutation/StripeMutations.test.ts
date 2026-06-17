@@ -7,7 +7,7 @@ import { sessionCache } from '../../../../../server/lib/cache';
 import stripeLib from '../../../../../server/lib/stripe';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models from '../../../../../server/models';
-import { fakeActiveHost, fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const CONNECT_STRIPE_ACCOUNT_MUTATION = gql`

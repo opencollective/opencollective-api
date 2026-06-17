@@ -16,8 +16,8 @@ import {
   fakePaymentMethod,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
+import { graphqlQueryV2 } from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   const sandbox = createSandbox();

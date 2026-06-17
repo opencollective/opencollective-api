@@ -1,5 +1,3 @@
-/* eslint-disable camelcase */
-
 import { expect } from 'chai';
 import express from 'express';
 import request from 'supertest';
