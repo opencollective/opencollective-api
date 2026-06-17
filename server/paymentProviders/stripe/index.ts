@@ -10,7 +10,7 @@ import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
-import models from '../../models';
+import models, { sequelize } from '../../models';
 import User from '../../models/User';
 import { hashObject, validateRedirectUrl } from '../utils';
 
@@ -60,28 +60,32 @@ async function connectStripeAccount({
     throw new errors.NotFound(`Could not find Collective #${CollectiveId}`);
   }
 
-  // Replace any existing Stripe connected account for this collective
-  await models.ConnectedAccount.destroy({ where: { service: PROVIDER_NAME, CollectiveId } });
-
   const token = await stripe.oauth.token({
     grant_type: 'authorization_code',
     code,
   });
   const data = await stripe.accounts.retrieve(token.stripe_user_id);
-  const connectedAccount = await models.ConnectedAccount.create({
-    service: PROVIDER_NAME,
-    CollectiveId,
-    CreatedByUserId,
-    username: token.stripe_user_id,
-    token: token.access_token,
-    refreshToken: token.refresh_token,
-    hash: hashObject({ CollectiveId, username: token.stripe_user_id }),
-    data: {
-      publishableKey: token.stripe_publishable_key,
-      tokenType: token.token_type,
-      scope: token.scope,
-      account: data,
-    },
+  const connectedAccount = await sequelize.transaction(async transaction => {
+    // Replace any existing Stripe connected account for this collective
+    await models.ConnectedAccount.destroy({ where: { service: PROVIDER_NAME, CollectiveId }, transaction });
+    return await models.ConnectedAccount.create(
+      {
+        service: PROVIDER_NAME,
+        CollectiveId,
+        CreatedByUserId,
+        username: token.stripe_user_id,
+        token: token.access_token,
+        refreshToken: token.refresh_token,
+        hash: hashObject({ CollectiveId, username: token.stripe_user_id }),
+        data: {
+          publishableKey: token.stripe_publishable_key,
+          tokenType: token.token_type,
+          scope: token.scope,
+          account: data,
+        },
+      },
+      { transaction },
+    );
   });
 
   const { account } = connectedAccount.data;

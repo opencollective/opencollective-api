@@ -7,7 +7,7 @@ import { sessionCache } from '../../../../../server/lib/cache';
 import stripeLib from '../../../../../server/lib/stripe';
 import twoFactorAuthLib from '../../../../../server/lib/two-factor-authentication';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActiveHost, fakeCollective, fakeConnectedAccount, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const CONNECT_STRIPE_ACCOUNT_MUTATION = gql`
@@ -67,7 +67,7 @@ describe('server/graphql/v2/mutation/StripeMutations', () => {
     await resetTestDB();
     user = await fakeUser();
     otherUser = await fakeUser();
-    host = await fakeCollective({ admin: user, currency: 'USD' });
+    host = await fakeActiveHost({ admin: user, currency: 'USD' });
     await host.addUserWithRole(user, 'ADMIN');
   });
 
@@ -253,6 +253,40 @@ describe('server/graphql/v2/mutation/StripeMutations', () => {
       await host.reload();
       expect(host.currency).to.equal('EUR');
       expect(host.timezone).to.equal('Europe/Madrid');
+    });
+
+    it('replaces an existing Stripe connected account when reconnecting', async () => {
+      // Seed a pre-existing Stripe connected account for the host
+      const previousConnectedAccount = await fakeConnectedAccount({
+        service: 'stripe',
+        CollectiveId: host.id,
+        username: 'acct_old_999',
+        token: 'sk_test_old',
+        refreshToken: 'rt_old',
+      });
+
+      const state = 'state-reconnect';
+      const redirect = 'https://opencollective.com/dashboard/host/host-settings';
+      await setOAuthState(state, { CollectiveId: host.id, redirect, UserId: user.id });
+
+      const result = await graphqlQueryV2(CONNECT_STRIPE_ACCOUNT_MUTATION, { code: 'oauth-code', state }, user);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.connectStripeAccount.connectedAccount.service).to.equal('stripe');
+
+      // The previous connected account must have been removed
+      const previous = await models.ConnectedAccount.findByPk(previousConnectedAccount.id);
+      expect(previous).to.not.exist;
+
+      // Only the new connected account should exist for this host
+      const remaining = await models.ConnectedAccount.findAll({
+        where: { service: 'stripe', CollectiveId: host.id },
+      });
+      expect(remaining).to.have.length(1);
+      expect(remaining[0].id).to.not.equal(previousConnectedAccount.id);
+      expect(remaining[0].username).to.equal('acct_new_123');
+      expect(remaining[0].token).to.equal('sk_test_new');
+      expect(remaining[0].refreshToken).to.equal('rt_new');
     });
 
     it('enforces two-factor authentication for the account when completing the connection', async () => {
