@@ -11,6 +11,7 @@ import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import emailLib from '../../../../../server/lib/email';
 import { crypto } from '../../../../../server/lib/encryption';
+import { notify } from '../../../../../server/lib/notifications/email';
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models, { PlatformSubscription } from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
@@ -24,6 +25,8 @@ const createOrgMutation = gql`
     $inviteMembers: [InviteMemberInput]
     $captcha: CaptchaInputType
     $roleDescription: String
+    $hasMoneyManagement: Boolean
+    $hasHosting: Boolean
   ) {
     createOrganization(
       individual: $individual
@@ -31,6 +34,8 @@ const createOrgMutation = gql`
       inviteMembers: $inviteMembers
       captcha: $captcha
       roleDescription: $roleDescription
+      hasMoneyManagement: $hasMoneyManagement
+      hasHosting: $hasHosting
     ) {
       id
       name
@@ -174,6 +179,67 @@ describe('server/graphql/v2/mutation/OrganizationMutations', () => {
       expect(secondCall.args[2].loginLink).to.include(`next=/dashboard/${createdOrg.slug}`);
 
       sendEmailspy.restore();
+    });
+
+    describe('with money management at creation', () => {
+      const defaultNewPricing = config.features.newPricing;
+      let notifyCollectiveSpy;
+
+      before(() => {
+        config.features.newPricing = true;
+      });
+
+      after(() => {
+        config.features.newPricing = defaultNewPricing;
+      });
+
+      beforeEach(() => {
+        notifyCollectiveSpy = sinon.spy(notify, 'collective');
+      });
+
+      afterEach(() => {
+        notifyCollectiveSpy.restore();
+      });
+
+      it('dispatches money management notifications after the transaction commits', async () => {
+        const user = await fakeUser();
+        const variables = {
+          organization: {
+            name: 'Money Management Org',
+            slug: randStr('mm-org-'),
+            description: 'Organization with money management',
+            website: 'https://mm.org',
+            countryISO: 'US',
+            legalName: 'Money Management Org Legal',
+            currency: 'USD',
+          },
+          roleDescription: 'President',
+          hasMoneyManagement: true,
+        };
+
+        const result = await utils.graphqlQueryV2(createOrgMutation, variables, user);
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.createOrganization).to.exist;
+
+        const createdOrg = await models.Collective.findByPk(result.data.createOrganization.legacyId);
+        expect(createdOrg.hasMoneyManagement).to.be.true;
+
+        const activatedMoneyManagementCalls = notifyCollectiveSpy
+          .getCalls()
+          .filter(call => call.args[0].type === 'activated.moneyManagement');
+        expect(activatedMoneyManagementCalls).to.have.lengthOf(1);
+        expect(activatedMoneyManagementCalls[0].args[1]).to.deep.include({
+          collectiveId: createdOrg.id,
+          template: 'activated.moneyManagement',
+        });
+
+        const platformSubscriptionCalls = notifyCollectiveSpy
+          .getCalls()
+          .filter(call => call.args[0].type === 'platform.subscription.updated');
+        expect(platformSubscriptionCalls).to.have.lengthOf(1);
+        expect(platformSubscriptionCalls[0].args[0].CollectiveId).to.equal(createdOrg.id);
+      });
     });
   });
 

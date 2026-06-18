@@ -163,6 +163,37 @@ describe('server/models/PayoutMethod', () => {
     });
   });
 
+  describe('createFromUserData()', () => {
+    beforeEach(async () => {
+      await resetTestDB();
+    });
+
+    it('sets top-level currency from data.currency when not provided explicitly', async () => {
+      const user = await fakeUser();
+      const payoutMethod = await models.PayoutMethod.createFromUserData(
+        {
+          type: PayoutMethodTypes.BANK_ACCOUNT,
+          isSaved: false,
+          data: {
+            accountHolderName: 'Jane Smith',
+            currency: 'GBP',
+            type: 'sort_code',
+            details: {
+              legalType: 'PRIVATE',
+              sortCode: '070806',
+              accountNumber: '01656500',
+            },
+          },
+        },
+        user,
+        user.collective,
+      );
+
+      expect(payoutMethod.currency).to.eq('GBP');
+      expect(payoutMethod.data.currency).to.eq('GBP');
+    });
+  });
+
   describe('findSimilar()', () => {
     before(async () => {
       await resetTestDB();

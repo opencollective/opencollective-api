@@ -30,6 +30,7 @@ import {
   fakeOrganization,
   fakePayoutMethod,
   fakePrivateHost,
+  fakePrivateOrganization,
   fakeProject,
   fakeTransaction,
   fakeUser,
@@ -328,6 +329,15 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         UserId: submitterUser.id,
         description: 'Expense to public collective',
       });
+
+      const privatePayee = await fakePrivateOrganization();
+      await fakeExpense({
+        CollectiveId: publicCollective.id,
+        FromCollectiveId: privatePayee.id,
+        UserId: submitterUser.id,
+        status: ExpenseStatuses.PAID,
+        description: 'Expense from private org to public collective',
+      });
     });
 
     describe('when listing expenses from an individual', () => {
@@ -446,6 +456,17 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
           'Expense to private collective 1',
           'Expense to private collective 2',
         ]);
+      });
+
+      it('blocks unauthenticated access to private payee on public collective expenses', async () => {
+        const result = await graphqlQueryV2(expensesQuery, { account: { legacyId: publicCollective.id } }, null);
+
+        expect(result.errors).to.exist;
+        expect(
+          result.errors.some(error => error.message === 'This account is private. You must be a member to view it.'),
+        ).to.be.true;
+        // payee is non-null; resolver failure nulls the parent expense node
+        expect(result.data.expenses.nodes.some(node => node === null)).to.be.true;
       });
     });
   });

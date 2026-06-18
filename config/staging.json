@@ -30,10 +30,10 @@
   },
   "stripe": {
     "webhookSigningSecret": "whsec_ygKqDLhcNrbtmAfqunpHEYkAWGWJeHTP",
-    "redirectUri": "https://api-staging.opencollective.com/connected-accounts/stripe/callback"
+    "redirectUri": "https://staging.opencollective.com/services/stripe/oauth/callback"
   },
   "transferwise": {
-    "redirectUri": "https://api-staging.opencollective.com/connected-accounts/transferwise/callback"
+    "redirectUri": "https://staging.opencollective.com/services/transferwise/oauth/callback"
   },
   "paypal": {
     "connect": {

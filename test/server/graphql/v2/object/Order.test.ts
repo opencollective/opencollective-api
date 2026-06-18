@@ -9,6 +9,7 @@ import {
   fakeIncognitoProfile,
   fakeMember,
   fakeOrder,
+  fakePrivateOrganization,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -240,6 +241,26 @@ describe('server/graphql/v2/object/Order', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.order.fromAccount.legalName).to.be.null;
+    });
+
+    it('blocks unauthenticated access when fromAccount is private', async () => {
+      const publicHost = await fakeActiveHost();
+      const publicCollective = await fakeCollective({ HostCollectiveId: publicHost.id });
+      const privateFromAccount = await fakePrivateOrganization();
+      const contributor = await fakeUser();
+      const privateOrder = await fakeOrder({
+        CollectiveId: publicCollective.id,
+        FromCollectiveId: privateFromAccount.id,
+        CreatedByUserId: contributor.id,
+        status: OrderStatuses.PAID,
+      });
+
+      const result = await graphqlQueryV2(fromAccountQuery, { legacyId: privateOrder.id }, null);
+
+      expect(result.errors).to.exist;
+      expect(result.errors.some(error => error.message === 'This account is private. You must be a member to view it.'))
+        .to.be.true;
+      expect(result.data.order.fromAccount).to.be.null;
     });
   });
 });

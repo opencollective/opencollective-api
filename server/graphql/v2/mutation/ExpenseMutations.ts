@@ -678,20 +678,25 @@ const expenseMutations = {
         );
       }
 
-      const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
-
+      const collectiveWithAccounts = await models.Collective.findByPk(collective.id, {
+        include: [
+          { association: 'host', required: false },
+          { association: 'parent', required: false },
+        ],
+      });
       const fromCollective = await remoteUser.getCollective({ loaders: req.loaders });
       await checkExpenseType(
         expenseData.type,
         fromCollective,
-        collective,
-        collective.parent,
-        collective.host,
+        collectiveWithAccounts,
+        collectiveWithAccounts.parent,
+        collectiveWithAccounts.host,
         null,
         remoteUser,
         req,
       );
 
+      const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
       const currency = expenseData.currency || collective.currency;
       const items = await prepareExpenseItemInputs(req, currency, expenseData.items, {
         expenseType: expenseData.type,
@@ -699,7 +704,7 @@ const expenseMutations = {
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
-      let payee = null;
+      let payee;
       if (expenseData.payee?.legacyId || expenseData.payee?.id) {
         payee = (
           await fetchAccountWithReference(
@@ -853,7 +858,7 @@ const expenseMutations = {
         const matchesExpense =
           paymentIntent.amount === convertToStripeAmount(expense.currency, expense.amount) &&
           paymentIntent.currency?.toLowerCase() === expense.currency.toLowerCase() &&
-          !['canceled', 'succeeded', 'processing'].includes(paymentIntent.status);
+          !['canceled', 'succeeded'].includes(paymentIntent.status);
 
         if (matchesExpense) {
           return {

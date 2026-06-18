@@ -105,7 +105,6 @@ const createGiftCardsMutation = gqlV1 /* GraphQL */ `
       monthlyLimitPerMember
       expiryDate
       currency
-      limitedToTags
       limitedToHostCollectiveIds
     }
   }

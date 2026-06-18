@@ -157,7 +157,7 @@ export const runOCRForExpenseFile = async (
 };
 
 export const userCanUseOCR = async (user: User | undefined | null): Promise<boolean> => {
-  if (config.env.OC_ENV !== 'production') {
+  if (config.env !== 'production') {
     return true;
   }
 

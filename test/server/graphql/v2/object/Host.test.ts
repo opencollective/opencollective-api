@@ -152,6 +152,69 @@ describe('server/graphql/v2/object/Host', () => {
       expect(result.data.host.hostedAccountAgreements.totalCount).to.eql(2);
       expect(result.data.host.hostedAccountAgreements.nodes).to.have.length(2);
     });
+
+    it('includes agreements of children accounts with includeChildren', async () => {
+      const includeChildrenQuery = gql`
+        query Host($slug: String!, $accounts: [AccountReferenceInput], $includeChildren: Boolean!) {
+          host(slug: $slug) {
+            id
+            hostedAccountAgreements(accounts: $accounts, includeChildren: $includeChildren) {
+              totalCount
+              nodes {
+                id
+                title
+              }
+            }
+          }
+        }
+      `;
+
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const account = await fakeCollective({ HostCollectiveId: host.id });
+      const event = await fakeEvent({ ParentCollectiveId: account.id });
+      const project = await fakeProject({ ParentCollectiveId: account.id });
+      await models.Agreement.create({ title: 'parent agreement', CollectiveId: account.id, HostCollectiveId: host.id });
+      await models.Agreement.create({ title: 'event agreement', CollectiveId: event.id, HostCollectiveId: host.id });
+      await models.Agreement.create({
+        title: 'project agreement',
+        CollectiveId: project.id,
+        HostCollectiveId: host.id,
+      });
+
+      const withChildren = await graphqlQueryV2(
+        includeChildrenQuery,
+        { slug: host.slug, accounts: [{ slug: account.slug }], includeChildren: true },
+        hostAdmin,
+      );
+      const titles = withChildren.data.host.hostedAccountAgreements.nodes.map(n => n.title).sort();
+      expect(titles).to.eql(['event agreement', 'parent agreement', 'project agreement']);
+
+      const withoutChildren = await graphqlQueryV2(
+        includeChildrenQuery,
+        { slug: host.slug, accounts: [{ slug: account.slug }], includeChildren: false },
+        hostAdmin,
+      );
+      const parentOnly = withoutChildren.data.host.hostedAccountAgreements.nodes.map(n => n.title);
+      expect(parentOnly).to.eql(['parent agreement']);
+    });
+
+    it('resolves agreements when accounts are referenced by publicId', async () => {
+      const hostAdmin = await fakeUser();
+      const host = await fakeActiveHost({ admin: hostAdmin });
+      const account = await fakeCollective({ HostCollectiveId: host.id });
+      await account.reload();
+      await models.Agreement.create({ title: 'pubid agreement', CollectiveId: account.id, HostCollectiveId: host.id });
+
+      const result = await graphqlQueryV2(
+        hostQuery,
+        { slug: host.slug, accounts: [{ id: account.publicId }] },
+        hostAdmin,
+      );
+      expect(result.errors).to.be.undefined;
+      expect(result.data.host.hostedAccountAgreements.totalCount).to.eql(1);
+      expect(result.data.host.hostedAccountAgreements.nodes[0].title).to.eql('pubid agreement');
+    });
   });
 
   describe('hostedVirtualCards', () => {

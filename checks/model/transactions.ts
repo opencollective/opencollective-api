@@ -104,8 +104,7 @@ async function checkPaidTransactionsWithHostCollectiveId() {
     SELECT t.id
     FROM "Transactions" t
     INNER JOIN "Collectives" c ON t."CollectiveId" = c."id"
-    INNER JOIN "Orders" o ON t."OrderId" = o."id"
-    LEFT JOIN "PaymentMethods" pm ON pm."id" = o."PaymentMethodId"
+    INNER JOIN "PaymentMethods" pm ON pm."id" = t."PaymentMethodId"
     WHERE t."kind" = 'CONTRIBUTION'
     AND t."type" = 'DEBIT'
     AND pm."service" IN ('stripe', 'paypal')

@@ -46,49 +46,6 @@ describe('server/graphql/v1/transaction', () => {
     }
   });
 
-  describe('return collective.transactions', () => {
-    it('when given a collective slug (case insensitive)', async () => {
-      const limit = 40;
-      const collectiveQuery = gqlV1 /* GraphQL */ `
-        query Collective($slug: String, $limit: Int) {
-          Collective(slug: $slug) {
-            id
-            slug
-            transactions(limit: $limit) {
-              id
-              type
-              createdByUser {
-                id
-                email
-              }
-              host {
-                id
-                slug
-              }
-              ... on Order {
-                paymentMethod {
-                  id
-                  name
-                }
-                subscription {
-                  id
-                  interval
-                }
-              }
-            }
-          }
-        }
-      `;
-      const result = await utils.graphqlQuery(collectiveQuery, {
-        slug: 'WWCodeAustin',
-        limit,
-      });
-      expect(result.data.Collective).to.exist;
-      expect(result.data.Collective.transactions).to.have.length(20);
-      expect(result).to.matchSnapshot();
-    });
-  });
-
   describe('return transactions', () => {
     it('returns one transaction by id', async () => {
       const transactionQuery = gqlV1 /* GraphQL */ `

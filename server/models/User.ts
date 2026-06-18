@@ -264,7 +264,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       return false;
     }
 
-    let rolesArray: MemberRoles[] = [];
+    let rolesArray: MemberRoles[];
     if (typeof roles === 'string') {
       rolesArray = [roles];
     } else if (roles instanceof Set) {

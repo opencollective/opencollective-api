@@ -9,7 +9,7 @@ import { makeRequest, nockFixerRates, resetCaches, resetTestDB } from '../../../
 describe('server/graphql/loaders/index', () => {
   beforeEach(async () => {
     await resetTestDB();
-    resetCaches();
+    await resetCaches();
   });
 
   describe('Transaction.totalAmountDonatedFromTo', () => {

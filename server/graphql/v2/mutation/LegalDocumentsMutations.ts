@@ -85,7 +85,7 @@ export const legalDocumentsMutations = {
       }
 
       // Find (or create) an active request
-      let legalDocument = null;
+      let legalDocument;
       const activeRequests = existingLegalDocuments.filter(
         ld => ld.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED,
       );

@@ -7,6 +7,7 @@ import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { CollectiveType } from '../constants/collectives';
 import { SupportedCurrency } from '../constants/currencies';
 import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import OrderStatuses from '../constants/order-status';
@@ -1085,9 +1086,9 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const host = await collective.getHostCollective();
 
   // Use manual payment provider if available, otherwise fall back to legacy manual bank transfer
-  let providerAccount = null;
-  let providerInstructions = null;
-  let providerName = null;
+  let providerAccount;
+  let providerInstructions;
+  let providerName;
 
   const manualPaymentProvider =
     order.ManualPaymentProviderId && (await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId));
@@ -1544,3 +1545,9 @@ export const getHostFeeSharePercent = async (
   // Pick the first that is set as a Number
   return possibleValues.find(isNumber);
 };
+
+/** Account types that can only pay with balance-based methods (collective balance, gift card, prepaid). */
+export const BALANCE_ONLY_COLLECTIVE_TYPES = [CollectiveType.COLLECTIVE, CollectiveType.EVENT, CollectiveType.PROJECT];
+
+export const isBalanceOnlyCollectiveType = (type: CollectiveType | string): boolean =>
+  BALANCE_ONLY_COLLECTIVE_TYPES.includes(type as CollectiveType);

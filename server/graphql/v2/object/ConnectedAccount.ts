@@ -44,6 +44,16 @@ export const GraphQLConnectedAccount = new GraphQLObjectType<ConnectedAccount, E
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The date on which the ConnectedAccount was last updated',
     },
+    authorizationExpiresAt: {
+      type: GraphQLDateTime,
+      description: 'For when the authorization expires after a certain time',
+      async resolve(connectedAccount, _, req) {
+        if (!req.remoteUser?.isAdmin(connectedAccount.CollectiveId)) {
+          throw new Unauthorized('You need to be logged in as an admin of the account');
+        }
+        return connectedAccount.authorizationExpiresAt;
+      },
+    },
     settings: {
       type: GraphQLJSON,
       async resolve(connectedAccount, _, req) {
