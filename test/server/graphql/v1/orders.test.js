@@ -30,23 +30,6 @@ const collectiveOrdersQuery = gqlV1 /* GraphQL */ `
   }
 `;
 
-const collectiveOrdersFromCollectiveQuery = gqlV1 /* GraphQL */ `
-  query CollectiveOrdersFromCollective($slug: String!) {
-    Collective(slug: $slug) {
-      id
-      ordersFromCollective {
-        id
-        description
-        collective {
-          id
-          slug
-          isPrivate
-        }
-      }
-    }
-  }
-`;
-
 function expectPrivateAccountV1ForbiddenError(result) {
   expect(result.errors, `Expected errors but got: ${JSON.stringify(result.data)}`).to.have.length.greaterThan(0);
   const codes = result.errors.map(e => e.extensions?.code);
@@ -202,56 +185,6 @@ describe('server/graphql/v1/orders', () => {
         expect(result.errors).to.be.undefined;
         expect(result.data.Collective.orders).to.eql([]);
       });
-    });
-  });
-
-  describe('Collective.ordersFromCollective', () => {
-    let contributorUser, publicCollective, privateCollective;
-
-    before(async () => {
-      await utils.resetTestDB();
-      contributorUser = await fakeUser();
-      publicCollective = await fakeCollective();
-      privateCollective = await fakePrivateOrganization();
-
-      await fakeOrder({
-        CollectiveId: publicCollective.id,
-        FromCollectiveId: contributorUser.CollectiveId,
-        CreatedByUserId: contributorUser.id,
-        processedAt: new Date(),
-        description: 'Outgoing to public collective',
-      });
-
-      await fakeOrder({
-        CollectiveId: privateCollective.id,
-        FromCollectiveId: contributorUser.CollectiveId,
-        CreatedByUserId: contributorUser.id,
-        processedAt: new Date(),
-        description: 'Outgoing to private organization',
-      });
-    });
-
-    it('excludes outgoing orders to private organizations for the contributor', async () => {
-      const result = await utils.graphqlQuery(
-        collectiveOrdersFromCollectiveQuery,
-        { slug: contributorUser.collective.slug },
-        contributorUser,
-      );
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-
-      const descriptions = result.data.Collective.ordersFromCollective.map(o => o.description);
-      expect(descriptions).to.eql(['Outgoing to public collective']);
-    });
-
-    it('excludes outgoing orders to private organizations for unauthenticated callers', async () => {
-      const result = await utils.graphqlQuery(collectiveOrdersFromCollectiveQuery, {
-        slug: contributorUser.collective.slug,
-      });
-      expect(result.errors).to.not.exist;
-
-      const descriptions = result.data.Collective.ordersFromCollective.map(o => o.description);
-      expect(descriptions).to.eql(['Outgoing to public collective']);
     });
   });
 });

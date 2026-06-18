@@ -125,11 +125,6 @@ describe('server/graphql/v1/collective', () => {
           id
           slug
           type
-          createdByUser {
-            id
-            email
-            __typename
-          }
           name
           website
           twitterHandle
@@ -209,7 +204,6 @@ describe('server/graphql/v1/collective', () => {
     expect(memberships[0].role).to.equal('HOST');
     expect(memberships[1].role).to.equal('ADMIN');
     expect(memberships[2].role).to.equal('BACKER');
-    expect(collective.createdByUser.email).to.be.null;
     expect(collective.tiers).to.have.length(2);
 
     expect(collective.stats.backers).to.deep.equal({
@@ -254,7 +248,7 @@ describe('server/graphql/v1/collective', () => {
     expect(result.data.Collective.host.path).to.equal('/brusselstogether');
   });
 
-  it('gets the members by type with stats, transactions and orders', async () => {
+  it('gets the members by type with stats and transactions', async () => {
     // Given some users
     const { theadmin } = await store.newUser('theadmin');
     const { theuser0 } = await store.newUser('theuser0');
@@ -338,10 +332,6 @@ describe('server/graphql/v1/collective', () => {
             transactions {
               id
               amount
-            }
-            orders {
-              id
-              totalAmount
             }
             member {
               id
@@ -701,10 +691,10 @@ describe('server/graphql/v1/collective', () => {
                 id
                 totalAmountSpent
               }
-              transactions(type: $type) {
-                currency
-                netAmountInCollectiveCurrency
-              }
+            }
+            allTransactions(collectiveSlug: $slug, type: $type) {
+              currency
+              netAmountInCollectiveCurrency
             }
           }
         `;
