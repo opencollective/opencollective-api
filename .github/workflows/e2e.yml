@@ -52,7 +52,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis@sha256:0a972391db0b24ec336e35d1bc98b237237e26f82bf5120cf2f6b1688d1df973
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -67,7 +67,7 @@ jobs:
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
         ports:
           - 9000:9000
         command: server /data
