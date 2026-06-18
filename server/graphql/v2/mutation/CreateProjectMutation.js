@@ -42,8 +42,8 @@ async function createProject(_, args, req) {
     throw new Unauthorized('You are not authorized to create a project under this parent account');
   } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Forbidden(`You must be logged in as a member of the ${parent.slug} collective to create a Project`);
-  } else if (!['COLLECTIVE', 'ORGANIZATION'].includes(parent.type)) {
-    throw new BadRequest('Parent account must be a collective or organization');
+  } else if (!['COLLECTIVE', 'FUND', 'ORGANIZATION'].includes(parent.type)) {
+    throw new BadRequest('Parent account must be a Collective, a Fund or an Organization');
   } else if (parent.isFrozen()) {
     throw new Forbidden('This account is frozen and cannot create new projects at this time.');
   }
