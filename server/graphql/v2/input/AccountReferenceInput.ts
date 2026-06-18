@@ -191,9 +191,9 @@ export const fetchAccountsWithReferences = async (
     }
   };
 
-  // id and slug must always be included in the result if throwIfMissing is true
-  if (throwIfMissing && attributes && intersection(['id', 'slug'], attributes).length !== 2) {
-    attributes = uniq([...attributes, 'id', 'slug']);
+  // id, slug and publicId must always be included in the result if throwIfMissing is true,
+  if (throwIfMissing && attributes && intersection(['id', 'slug', 'publicId'], attributes).length !== 3) {
+    attributes = uniq([...attributes, 'id', 'slug', 'publicId']);
   }
 
   // Fetch accounts

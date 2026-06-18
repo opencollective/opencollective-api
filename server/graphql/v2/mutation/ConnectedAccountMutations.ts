@@ -116,9 +116,10 @@ const connectedAccountMutations = {
       } else if (connectedAccount.service === Service.GOCARDLESS) {
         await disconnectGoCardlessAccount(connectedAccount);
       } else if (([Service.STRIPE, Service.PAYPAL] as string[]).includes(connectedAccount.service)) {
-        const nbActiveOrders = await models.Order.countActiveRecurringForPaymentService(
-          connectedAccount.service as Service.STRIPE | Service.PAYPAL,
-        );
+        const nbActiveOrders = await models.Order.countActiveRecurringForPaymentService({
+          service: connectedAccount.service as Service.STRIPE | Service.PAYPAL,
+          HostCollectiveId: connectedAccount.CollectiveId,
+        });
 
         if (nbActiveOrders > 0) {
           throw new ValidationFailed(

@@ -1055,6 +1055,11 @@ interface Account {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -3916,6 +3921,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -4395,6 +4405,11 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
     Filter by accounts participating in the agreement
     """
     accounts: [AccountReferenceInput]
+
+    """
+    Include agreements from the children of the provided accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): AgreementCollection!
 
   """
@@ -11102,6 +11117,11 @@ type Bot implements Account {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -12186,6 +12206,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -13850,6 +13875,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -15231,6 +15261,11 @@ type Individual implements Account {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -16640,6 +16675,11 @@ type Organization implements Account & AccountWithContributions & AccountWithPla
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -18146,6 +18186,11 @@ type Vendor implements Account & AccountWithContributions {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -22492,6 +22537,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -23733,6 +23783,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     onlyChangelogUpdates: Boolean
     orderBy: UpdateChronologicalOrderInput! = { field: CREATED_AT, direction: DESC }
     searchTerm: String
+
+    """
+    Include updates from children accounts (events/projects).
+    """
+    includeChildren: Boolean! = false
   ): UpdateCollection!
 
   """
@@ -26089,6 +26144,36 @@ type Mutation {
     """
     transactionImport: TransactionsImportReferenceInput
   ): GoCardlessConnectAccountResponse!
+
+  """
+  Get the Stripe OAuth URL to initiate the account connection flow for a host. Scope: "connectedAccounts".
+  """
+  getStripeOAuthUrl(
+    """
+    The host account to connect Stripe to
+    """
+    account: AccountReferenceInput!
+
+    """
+    The URL or path to redirect the user to once the OAuth flow is complete
+    """
+    redirect: String
+  ): URL!
+
+  """
+  Complete the Stripe OAuth flow and connect the account to the host. Scope: "connectedAccounts".
+  """
+  connectStripeAccount(
+    """
+    The authorization code returned by Stripe in the OAuth callback
+    """
+    code: NonEmptyString!
+
+    """
+    The OAuth state token that was generated when initiating the connection
+    """
+    state: NonEmptyString!
+  ): StripeConnectAccountResponse!
 
   """
   Get the Wise (TransferWise) OAuth URL to initiate the account connection flow for a host. Scope: "connectedAccounts".
@@ -29051,6 +29136,18 @@ type GoCardlessConnectAccountResponse {
   The transactions import that was created
   """
   transactionsImport: TransactionsImport!
+}
+
+type StripeConnectAccountResponse {
+  """
+  The connected account that was created
+  """
+  connectedAccount: ConnectedAccount!
+
+  """
+  The URL to redirect the user to once the connection is complete
+  """
+  redirectUrl: URL
 }
 
 type TransferwiseConnectAccountResponse {
