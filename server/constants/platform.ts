@@ -33,7 +33,7 @@ const getPlatformConstants = () => ({
   },
 
   get PlatformCurrency(): SupportedCurrency {
-    return config.platform.currency || 'USD';
+    return (config.platform.currency || 'USD') as SupportedCurrency;
   },
 
   get PlatformAddress() {

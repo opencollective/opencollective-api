@@ -22,7 +22,7 @@ import PlatformConstants from '../server/constants/platform';
 import { generateLoaders, Loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
-import cache from '../server/lib/cache';
+import cache, { sessionCache } from '../server/lib/cache';
 import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
 /* Server code being used */
@@ -44,7 +44,10 @@ export const data = path => {
   return isArray(get(jsonData, path)) ? values(copy) : copy;
 };
 
-export const resetCaches = () => cache.clear();
+export const resetCaches = async () => {
+  await cache.clear();
+  await sessionCache.clear();
+};
 
 export const resetTestDB = async ({ groupedTruncate = true, retries = 5 } = {}) => {
   const resetFn = async () => {

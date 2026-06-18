@@ -53,6 +53,7 @@ export default [
     },
 
     rules: {
+      'preserve-caught-error': 'off',
       'opencollective-currency/no-math-round-amount-names': 'warn',
       'no-console': 'error',
       'import/no-commonjs': 'error',

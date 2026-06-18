@@ -24,6 +24,7 @@ export enum EntityShortIdPrefix {
   OAuthAuthorizationCode = 'oac',
   Order = 'or',
   PayoutMethod = 'po',
+  PaymentIntent = 'pi',
   PaymentMethod = 'pm',
   PersonalToken = 'pt',
   RecurringExpense = 're',

@@ -1085,9 +1085,9 @@ export const sendOrderPendingEmail = async (order: Order): Promise<void> => {
   const host = await collective.getHostCollective();
 
   // Use manual payment provider if available, otherwise fall back to legacy manual bank transfer
-  let providerAccount = null;
-  let providerInstructions = null;
-  let providerName = null;
+  let providerAccount;
+  let providerInstructions;
+  let providerName;
 
   const manualPaymentProvider =
     order.ManualPaymentProviderId && (await ManualPaymentProvider.findByPk(order.ManualPaymentProviderId));

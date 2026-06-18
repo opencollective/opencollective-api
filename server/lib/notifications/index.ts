@@ -5,10 +5,15 @@ import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { Activity, Notification } from '../../models';
 import logger from '../logger';
-import { reportErrorToSentry } from '../sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../sentry';
 import slackLib from '../slack';
 import { parseToBoolean } from '../utils';
-import { enrichActivityForWebhookPayload, sanitizeActivityForWebhookPayload } from '../webhooks';
+import {
+  enrichActivityForWebhookPayload,
+  getPinnedAxiosAgentsForWebhookUrl,
+  sanitizeActivityForWebhookPayload,
+  WebhookUrlNotAllowedError,
+} from '../webhooks';
 
 import { notifyByEmail } from './email';
 
@@ -32,9 +37,19 @@ const publishToWebhook = async (notification: Notification, activity: Activity):
     const sanitizedActivity = sanitizeActivityForWebhookPayload(activity);
     const enrichedActivity = enrichActivityForWebhookPayload(sanitizedActivity);
     try {
-      const response = await axios.post(notification.webhookUrl, enrichedActivity, { maxRedirects: 0, timeout: 30000 });
+      const agents = await getPinnedAxiosAgentsForWebhookUrl(notification.webhookUrl);
+      const response = await axios.post(notification.webhookUrl, enrichedActivity, {
+        maxRedirects: 0,
+        timeout: 30000,
+        ...agents,
+      });
       return response.status >= 200 && response.status < 300;
-    } catch {
+    } catch (error) {
+      if (error instanceof WebhookUrlNotAllowedError) {
+        reportMessageToSentry(`Blocked webhook delivery to disallowed URL`, {
+          extra: { notification, activity },
+        });
+      }
       // Silently fail, we ignore the fact that the webhook is not reachable
       return false;
     }

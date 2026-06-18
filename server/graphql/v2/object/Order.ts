@@ -16,6 +16,7 @@ import roles from '../../../constants/roles';
 import { canSeeIncognitoProfile } from '../../../lib/incognito';
 import { getHostFeePercent } from '../../../lib/payments';
 import { EntityShortIdPrefix, isEntityMigratedToPublicId } from '../../../lib/permalink/entity-map';
+import { assertCanSeeAccount } from '../../../lib/private-accounts';
 import { getDashboardObjectIdURL } from '../../../lib/stripe';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -188,7 +189,15 @@ export const GraphQLOrder = new GraphQLObjectType({
           if (req.remoteUser?.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, order.FromCollectiveId);
           }
-          return req.loaders.Collective.byId.load(order.FromCollectiveId);
+
+          // Orders are guarded above, but we still add this layer of protection just in case
+          const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+          if (!fromCollective) {
+            return null;
+          }
+
+          await assertCanSeeAccount(req, fromCollective);
+          return fromCollective;
         },
       },
       toAccount: {

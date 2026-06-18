@@ -30,7 +30,7 @@ async function removeDeletedEntries(indexName: OpenSearchIndexName, fromDate: Da
   const adapter = OpenSearchModelsAdapters[indexName];
   const pageSize = 20000; // We're only fetching the id, so we can fetch more entries at once
   let offset = 0;
-  let deletedEntries = [];
+  let deletedEntries;
   do {
     deletedEntries = await adapter.getModel().findAll({
       attributes: ['id'],
@@ -77,7 +77,7 @@ export async function syncOpenSearchIndex(
   const client = getOpenSearchClient({ throwIfUnavailable: true });
   const adapter = OpenSearchModelsAdapters[indexName];
   const limit = 5000;
-  let modelEntries = [];
+  let modelEntries;
   let maxId = undefined;
   let offset = 0;
   do {

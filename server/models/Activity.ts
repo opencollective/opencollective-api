@@ -1,4 +1,11 @@
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import {
+  CreationOptional,
+  ForeignKey,
+  InferAttributes,
+  InferCreationAttributes,
+  NonAttribute,
+  Transaction,
+} from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import dispatch from '../lib/notifications';
@@ -31,6 +38,21 @@ class Activity extends ModelWithPublicId<
   declare public OrderId: CreationOptional<number>;
   declare public createdAt: CreationOptional<Date>;
 }
+
+const scheduleActivityDispatch = (
+  activity: Activity,
+  { transaction, onlyAwaitEmails = true }: { transaction?: Transaction; onlyAwaitEmails?: boolean } = {},
+) => {
+  const runDispatch = () => dispatch(activity, { onlyAwaitEmails });
+
+  if (transaction) {
+    transaction.afterCommit(() => {
+      runDispatch();
+    });
+  } else {
+    return runDispatch();
+  }
+};
 
 Activity.init(
   {
@@ -120,11 +142,16 @@ Activity.init(
     sequelize,
     updatedAt: false,
     hooks: {
-      async afterCreate(activity) {
+      async afterCreate(activity, options) {
         if (activity.data?.notify !== false) {
-          const dispatchPromise = dispatch(activity, { onlyAwaitEmails: true }); // intentionally no return statement, needs to be async by default
-          if (activity.data?.awaitForDispatch) {
-            await dispatchPromise;
+          if (options?.transaction) {
+            // Defer until commit so related records (e.g. newly created collectives) are visible to notification handlers
+            scheduleActivityDispatch(activity, { transaction: options.transaction });
+          } else {
+            const dispatchPromise = scheduleActivityDispatch(activity); // intentionally no return statement, needs to be async by default
+            if (activity.data?.awaitForDispatch) {
+              await dispatchPromise;
+            }
           }
         }
       },
