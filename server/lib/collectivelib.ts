@@ -699,3 +699,12 @@ export const getInternalHostsIds = async (): Promise<number[]> => {
     ...hostCollectives.map(result => result?.id).filter(Boolean),
   ] as number[];
 };
+
+/**
+ * Defines the account types that are allowed to create projects.
+ */
+export const PROJECTS_ALLOWED_ACCOUNT_TYPES = [
+  CollectiveType.FUND,
+  CollectiveType.ORGANIZATION,
+  CollectiveType.COLLECTIVE,
+];

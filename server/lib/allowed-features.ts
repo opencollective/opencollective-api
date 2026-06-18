@@ -8,6 +8,8 @@ import { Forbidden } from '../graphql/errors';
 import { Loaders } from '../graphql/loaders';
 import { Collective, PlatformSubscription } from '../models';
 
+import { PROJECTS_ALLOWED_ACCOUNT_TYPES } from './collectivelib';
+
 type FEATURE_ACCESS = 'AVAILABLE' | 'DISABLED' | 'UNSUPPORTED';
 enum FEATURE_ACCESS_PARTY {
   EVERYONE = 'EVERYONE',
@@ -134,7 +136,7 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.PROJECTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
-    accountTypes: [CollectiveType.FUND, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
+    accountTypes: PROJECTS_ALLOWED_ACCOUNT_TYPES,
   },
   [FEATURE.PUBLIC_PROFILE]: {
     onlyPublicAccounts: true,

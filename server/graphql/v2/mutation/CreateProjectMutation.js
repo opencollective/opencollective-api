@@ -3,7 +3,7 @@ import { pick, set } from 'lodash';
 
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
-import { canUseSlug } from '../../../lib/collectivelib';
+import { canUseSlug, PROJECTS_ALLOWED_ACCOUNT_TYPES } from '../../../lib/collectivelib';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -42,8 +42,8 @@ async function createProject(_, args, req) {
     throw new Unauthorized('You are not authorized to create a project under this parent account');
   } else if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Forbidden(`You must be logged in as a member of the ${parent.slug} collective to create a Project`);
-  } else if (!['COLLECTIVE', 'ORGANIZATION'].includes(parent.type)) {
-    throw new BadRequest('Parent account must be a collective or organization');
+  } else if (!PROJECTS_ALLOWED_ACCOUNT_TYPES.includes(parent.type)) {
+    throw new BadRequest('This account can not be used to create a project');
   } else if (parent.isFrozen()) {
     throw new Forbidden('This account is frozen and cannot create new projects at this time.');
   }
