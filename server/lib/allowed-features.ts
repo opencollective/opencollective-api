@@ -1,6 +1,6 @@
 import { get, omit } from 'lodash';
 
-import { CollectiveType } from '../constants/collectives';
+import { CollectiveType, PROJECTS_ALLOWED_ACCOUNT_TYPES } from '../constants/collectives';
 import FEATURE, { CommercialFeatures } from '../constants/feature';
 import { freeFeatures } from '../constants/plans';
 import PlatformConstants from '../constants/platform';
@@ -134,7 +134,7 @@ const FeaturesAccess: Partial<
   },
   [FEATURE.PROJECTS]: {
     onlyAllowedFor: FEATURE_ACCESS_PARTY.ACTIVE_ACCOUNTS,
-    accountTypes: [CollectiveType.FUND, CollectiveType.ORGANIZATION, CollectiveType.COLLECTIVE],
+    accountTypes: PROJECTS_ALLOWED_ACCOUNT_TYPES,
   },
   [FEATURE.PUBLIC_PROFILE]: {
     onlyPublicAccounts: true,
