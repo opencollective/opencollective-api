@@ -111,7 +111,6 @@ if (require.main === module) {
   const program = new Command();
   program.showSuggestionAfterError();
   program.argument('<collectiveSlug>', 'Slug of the collective to cancel recurring contributions for');
-  program.option('--run', 'Actually cancel contributions (default: dry run)');
   program.option('--reason <reason>', 'Message to send to contributors');
   program.option(
     '--message-source <messageSource>',
@@ -126,7 +125,6 @@ if (require.main === module) {
   const options = program.opts();
 
   main(collectiveSlug, {
-    isDryRun: !options.run,
     reason: options.reason,
     messageSource: options.messageSource,
     includeChildren: options.children !== false,
