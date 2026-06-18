@@ -1,9 +1,10 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 import { pick, set } from 'lodash';
 
+import { PROJECTS_ALLOWED_ACCOUNT_TYPES } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
-import { canUseSlug, PROJECTS_ALLOWED_ACCOUNT_TYPES } from '../../../lib/collectivelib';
+import { canUseSlug } from '../../../lib/collectivelib';
 import { canSeePrivateAccount } from '../../../lib/private-accounts';
 import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
