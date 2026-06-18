@@ -14,14 +14,9 @@ import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/sql-s
 import models, { Op, sequelize } from '../../models';
 import { NotFound, Unauthorized } from '../errors';
 
-import {
-  CollectiveInterfaceType,
-  CollectiveSearchResultsType,
-  HostCollectiveOrderFieldType,
-  TypeOfCollectiveType,
-} from './CollectiveInterface';
+import { CollectiveInterfaceType, CollectiveSearchResultsType, TypeOfCollectiveType } from './CollectiveInterface';
 import { TransactionInterfaceType } from './TransactionInterface';
-import { InvoiceType, MemberType, OrderDirectionType, PaymentMethodType, TierType, UserType } from './types';
+import { InvoiceType, MemberType, PaymentMethodType, TierType, UserType } from './types';
 
 const queries = {
   // Still used by the collective page
@@ -203,14 +198,6 @@ const queries = {
         type: GraphQLString,
         description: 'Filter hosts by currency',
       },
-      orderBy: {
-        defaultValue: 'collectives',
-        type: HostCollectiveOrderFieldType,
-      },
-      orderDirection: {
-        defaultValue: 'DESC',
-        type: OrderDirectionType,
-      },
       limit: {
         defaultValue: 10,
         type: GraphQLInt,
@@ -229,7 +216,11 @@ const queries = {
       },
     },
     async resolve(_, args) {
-      const { collectives, total } = await rawQueries.getHosts(args);
+      const { collectives, total } = await rawQueries.getHosts({
+        ...args,
+        orderBy: 'collectives',
+        orderDirection: 'DESC',
+      });
       return {
         total,
         collectives,

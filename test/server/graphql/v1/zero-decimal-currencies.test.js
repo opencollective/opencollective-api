@@ -6,6 +6,8 @@ import * as store from '../../../stores';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/zero-decimal-currencies', () => {
+  let collectiveId;
+
   before(async () => {
     await utils.resetTestDB();
     // Given a host
@@ -14,6 +16,7 @@ describe('server/graphql/v1/zero-decimal-currencies', () => {
     const { collective } = await store.newCollectiveInHost('JapaneseCollective', 'JPY', hostCollective, null, {
       isActive: true,
     });
+    collectiveId = collective.id;
     // And given the host has a stripe account
     await store.stripeConnectedAccount(hostCollective.id);
 
@@ -32,34 +35,30 @@ describe('server/graphql/v1/zero-decimal-currencies', () => {
 
   describe('zero decimal currencies for stripe', () => {
     it('expense submission with zero decimal currencies', async () => {
-      const collectiveQuery = gqlV1 /* GraphQL */ `
-        query Collective($slug: String) {
-          Collective(slug: $slug) {
-            id
-            slug
-            transactions {
-              amount
-              netAmountInCollectiveCurrency(fetchHostFee: true)
-              hostFeeInHostCurrency(fetchHostFee: true)
-              platformFeeInHostCurrency
-              paymentProcessorFeeInHostCurrency
-              taxAmount
-            }
+      const transactionsQuery = gqlV1 /* GraphQL */ `
+        query AllTransactions($collectiveId: Int) {
+          allTransactions(CollectiveId: $collectiveId) {
+            amount
+            netAmountInCollectiveCurrency(fetchHostFee: true)
+            hostFeeInHostCurrency(fetchHostFee: true)
+            platformFeeInHostCurrency
+            paymentProcessorFeeInHostCurrency
+            taxAmount
           }
         }
       `;
-      const result = await utils.graphqlQuery(collectiveQuery, {
-        slug: 'JapaneseCollective',
+      const result = await utils.graphqlQuery(transactionsQuery, {
+        collectiveId,
       });
-      const amount = result.data.Collective.transactions[0].amount;
-      const platformFeeInHostCurrency = result.data.Collective.transactions[0].platformFeeInHostCurrency;
-      const paymentProcessorFeeInHostCurrency =
-        result.data.Collective.transactions[0].paymentProcessorFeeInHostCurrency;
-      const hostFeeInHostCurrency = result.data.Collective.transactions[0].hostFeeInHostCurrency;
-      const netAmountInCollectiveCurrency = result.data.Collective.transactions[0].netAmountInCollectiveCurrency;
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const amount = result.data.allTransactions[0].amount;
+      const platformFeeInHostCurrency = result.data.allTransactions[0].platformFeeInHostCurrency;
+      const paymentProcessorFeeInHostCurrency = result.data.allTransactions[0].paymentProcessorFeeInHostCurrency;
+      const hostFeeInHostCurrency = result.data.allTransactions[0].hostFeeInHostCurrency;
+      const netAmountInCollectiveCurrency = result.data.allTransactions[0].netAmountInCollectiveCurrency;
 
-      expect(result.data.Collective).to.exist;
-      expect(result.data.Collective.transactions).to.have.length(2);
+      expect(result.data.allTransactions).to.have.length(2);
       expect(amount).to.equal(10000);
       expect(platformFeeInHostCurrency).to.equal(-25 * 100);
       expect(paymentProcessorFeeInHostCurrency).to.equal(-35 * 100);
