@@ -78,7 +78,7 @@ const HostApplicationMutations = {
         description: 'A list of members to invite when applying to the host',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<Collective> {
       checkRemoteUserCanUseAccount(req);
 
       const collective = await fetchAccountWithReference(args.collective);
