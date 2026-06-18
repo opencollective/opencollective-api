@@ -11,24 +11,31 @@ import { TransactionsImportLockedError } from '../../server/models/TransactionsI
 import { runCronJob } from '../utils';
 
 // Every 60 minutes
-const refreshInterval = 60 * 60;
+const refreshIntervalMs = 60 * 60 * 1000;
 
-const run = async () => {
-  const importsToUpdate = await models.TransactionsImport.findAll({
+export const getGoCardlessImportsToSync = async (now = new Date()) => {
+  return models.TransactionsImport.findAll({
     where: {
       type: 'GOCARDLESS',
       data: { lockedAt: null },
       lastSyncAt: {
-        [Op.or]: [{ [Op.eq]: null }, { [Op.lt]: new Date(Date.now() - refreshInterval) }],
+        [Op.or]: [{ [Op.eq]: null }, { [Op.lt]: new Date(now.getTime() - refreshIntervalMs) }],
       },
     },
     include: [
       {
         association: 'connectedAccount',
         required: true,
+        where: {
+          [Op.or]: [{ authorizationExpiresAt: { [Op.eq]: null } }, { authorizationExpiresAt: { [Op.gte]: now } }],
+        },
       },
     ],
   });
+};
+
+const run = async () => {
+  const importsToUpdate = await getGoCardlessImportsToSync();
 
   for (const importInstance of importsToUpdate) {
     try {

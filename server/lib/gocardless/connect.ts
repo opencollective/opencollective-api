@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 
 import config from 'config';
 import { truncate } from 'lodash';
+import moment from 'moment';
 
 import { Service } from '../../constants/connected-account';
 import { Collective, ConnectedAccount, sequelize, TransactionsImport, User } from '../../models';
@@ -53,6 +54,34 @@ const supportedCountries = [
   'SE', // Sweden
   'GB', // United Kingdom
 ] as const;
+
+type GoCardlessAuthorizationData = {
+  institution?: { max_access_valid_for_days?: string };
+  requisition?: { created?: string };
+};
+
+export const getGoCardlessAuthorizationExpiresAt = (
+  gocardlessData: GoCardlessAuthorizationData | null | undefined,
+): Date | null => {
+  const maxAccessValidForDays = gocardlessData?.institution?.max_access_valid_for_days;
+  const requisitionCreated = gocardlessData?.requisition?.created;
+
+  if (!maxAccessValidForDays || !requisitionCreated) {
+    return null;
+  }
+
+  const accessValidForDays = parseInt(maxAccessValidForDays, 10);
+  if (!accessValidForDays || Number.isNaN(accessValidForDays)) {
+    return null;
+  }
+
+  const createdAt = moment.utc(requisitionCreated, moment.ISO_8601, true);
+  if (!createdAt.isValid()) {
+    return null;
+  }
+
+  return createdAt.add(accessValidForDays, 'days').toDate();
+};
 
 export const isGoCardlessSupportedCountry = (country: string): country is (typeof supportedCountries)[number] => {
   return (supportedCountries as readonly string[]).includes(country);
@@ -183,6 +212,11 @@ export const connectGoCardlessAccount = async (
     requisition.accounts.map(accountId => client.account(accountId).getMetadata()),
   );
 
+  const authorizationExpiresAt = getGoCardlessAuthorizationExpiresAt({
+    institution,
+    requisition,
+  });
+
   return sequelize.transaction(async transaction => {
     const connectedAccount = await ConnectedAccount.create(
       {
@@ -190,6 +224,7 @@ export const connectGoCardlessAccount = async (
         CreatedByUserId: remoteUser.id,
         service: Service.GOCARDLESS,
         clientId: requisition.id,
+        authorizationExpiresAt,
         data: {
           gocardless: {
             requisition,
@@ -274,10 +309,16 @@ export const reconnectGoCardlessAccount = async (
     throw new Error('The selected accounts are different from the ones associated with this connection');
   }
 
+  const authorizationExpiresAt = getGoCardlessAuthorizationExpiresAt({
+    institution: connectedAccount.data?.gocardless?.institution,
+    requisition,
+  });
+
   // Update the connected account with the new requisition data
   return sequelize.transaction(async transaction => {
     await connectedAccount.update(
       {
+        authorizationExpiresAt,
         data: {
           ...connectedAccount.data,
           gocardless: {

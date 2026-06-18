@@ -29,7 +29,7 @@
     "slowRequest": true
   },
   "stripe": {
-    "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback",
+    "redirectUri": "https://opencollective.com/services/stripe/oauth/callback",
     "oneTimePaymentMethodConfiguration": "pmc_1PP2hRDjPFcHOcTmxglZrPCg",
     "recurringPaymentMethodConfiguration": "pmc_1PP2kwDjPFcHOcTmsXkafnkI"
   },

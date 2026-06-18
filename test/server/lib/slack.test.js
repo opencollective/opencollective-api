@@ -76,6 +76,83 @@ describe('server/lib/slack', () => {
       done();
     });
   });
+
+  describe('isSlackWebhookUrl', () => {
+    it('recognizes Slack webhook URLs', () => {
+      expect(slackLib.isSlackWebhookUrl('https://hooks.slack.com/services/T000/B000/XXXX')).to.be.true;
+    });
+
+    it('recognizes Discord webhook URLs', () => {
+      expect(slackLib.isSlackWebhookUrl('https://discord.com/api/webhooks/123/abc')).to.be.true;
+      expect(slackLib.isSlackWebhookUrl('https://discordapp.com/api/webhooks/123/abc')).to.be.true;
+    });
+
+    it('recognizes known Mattermost webhook URLs', () => {
+      expect(slackLib.isSlackWebhookUrl('https://chat.diglife.coop/hooks/xxxxxxxxxxxxxxx')).to.be.true;
+    });
+
+    it('rejects non-provider webhook URLs', () => {
+      expect(slackLib.isSlackWebhookUrl('https://example.com/webhook')).to.be.false;
+      expect(slackLib.isSlackWebhookUrl('not-a-url')).to.be.false;
+    });
+
+    it('rejects lookalike URLs that do not parse to trusted hosts', () => {
+      expect(slackLib.isSlackWebhookUrl('http://hooks.slack.com/services/xxx')).to.be.false;
+      expect(slackLib.isSlackWebhookUrl('https://evil.com/hooks.slack.com/services/xxx')).to.be.false;
+      expect(slackLib.isSlackWebhookUrl('https://discord.com/not-webhooks/123')).to.be.false;
+      expect(slackLib.isSlackWebhookUrl('https://discord.com/api/webhooks/')).to.be.false;
+    });
+  });
+
+  describe('postMessage Discord URL handling', () => {
+    const message = 'hello';
+    let sandbox, originalTestSlack;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      originalTestSlack = process.env.TEST_SLACK;
+      process.env.TEST_SLACK = '1';
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+      if (originalTestSlack === undefined) {
+        delete process.env.TEST_SLACK;
+      } else {
+        process.env.TEST_SLACK = originalTestSlack;
+      }
+    });
+
+    it('appends /slack to Discord webhooks that are missing it', async () => {
+      const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
+      const webhookUrl = 'https://discord.com/api/webhooks/123/abc';
+
+      await slackLib.postMessage(message, webhookUrl);
+
+      expect(axiosPost.calledOnce).to.be.true;
+      expect(axiosPost.firstCall.args[0]).to.equal('https://discord.com/api/webhooks/123/abc/slack');
+    });
+
+    it('does not modify Discord webhooks that already end with /slack', async () => {
+      const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
+      const webhookUrl = 'https://discord.com/api/webhooks/123/abc/slack';
+
+      await slackLib.postMessage(message, webhookUrl);
+
+      expect(axiosPost.calledOnce).to.be.true;
+      expect(axiosPost.firstCall.args[0]).to.equal(webhookUrl);
+    });
+
+    it('does not modify non-Discord webhook URLs', async () => {
+      const axiosPost = sandbox.stub(axios, 'post').resolves({ status: 200 });
+      const webhookUrl = 'https://hooks.slack.com/services/T000/B000/XXXX';
+
+      await slackLib.postMessage(message, webhookUrl);
+
+      expect(axiosPost.calledOnce).to.be.true;
+      expect(axiosPost.firstCall.args[0]).to.equal(webhookUrl);
+    });
+  });
 });
 
 function expectPayload(sandbox, expectedPayload) {
