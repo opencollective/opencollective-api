@@ -181,14 +181,38 @@ const EXPENSE_LOCKED_STATUSES = [
  * Fiscal host admins are exempt from this restriction.
  */
 async function assertCanEditOrDeleteComment(req, comment: Comment, action: 'edit' | 'delete'): Promise<void> {
-  if (comment.HostApplicationId && comment.type === CommentType.PRIVATE_NOTE) {
-    const hostApplication = await HostApplication.findByPk(comment.HostApplicationId);
-    if (!hostApplication || !req.remoteUser?.isAdmin(hostApplication.HostCollectiveId)) {
-      throw new Unauthorized('You need to be a host admin to edit or delete this comment');
+  // Private notes
+  if (comment.type === CommentType.PRIVATE_NOTE) {
+    if (!req.remoteUser) {
+      throw new Unauthorized('You need to be logged in to edit or delete this comment');
+    } else if (comment.HostApplicationId) {
+      const hostApplication = await req.loaders.HostApplication.byId.load(comment.HostApplicationId);
+      if (!hostApplication || !req.remoteUser.isAdmin(hostApplication.HostCollectiveId)) {
+        throw new Unauthorized('You need to be a host admin to edit or delete this comment');
+      }
+      return;
+    } else if (comment.ExpenseId) {
+      const expense = await req.loaders.Expense.byId.load(comment.ExpenseId);
+      const collective = expense && (await req.loaders.Collective.byId.load(expense.CollectiveId));
+      const hostCollectiveId = expense?.HostCollectiveId || collective?.HostCollectiveId;
+      if (!hostCollectiveId || !req.remoteUser.isAdmin(hostCollectiveId)) {
+        throw new Unauthorized('You need to be a host admin to edit or delete this comment');
+      }
+      return;
+    } else if (comment.OrderId) {
+      const order = await req.loaders.Order.byId.load(comment.OrderId);
+      const collective = order && (await req.loaders.Collective.byId.load(order.CollectiveId));
+      if (!collective?.HostCollectiveId || !req.remoteUser.isAdmin(collective.HostCollectiveId)) {
+        throw new Unauthorized('You need to be a host admin to edit or delete this comment');
+      }
+      return;
+    } else {
+      // Throwing here means we've added privates notes on a new entity type without checking permissions
+      throw new Unauthorized('You are not authorized to edit or delete this private note');
     }
-    return;
   }
 
+  // General case
   if (!canEditComment(req.remoteUser, comment)) {
     throw new Unauthorized(
       action === 'edit'

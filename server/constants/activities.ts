@@ -32,6 +32,7 @@ enum ActivityTypes {
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
   CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
   ORDER_COMMENT_CREATED = 'order.comment.created',
+  HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Expenses
   COLLECTIVE_EXPENSE_CREATED = 'collective.expense.created',
   COLLECTIVE_EXPENSE_DELETED = 'collective.expense.deleted',
@@ -96,7 +97,6 @@ enum ActivityTypes {
   // Contact
   COLLECTIVE_CONTACT = 'collective.contact',
   HOST_APPLICATION_CONTACT = 'host.application.contact',
-  HOST_APPLICATION_COMMENT_CREATED = 'host.application.comment.created',
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
   CONTRIBUTION_REFUNDED = 'contribution.refunded',
