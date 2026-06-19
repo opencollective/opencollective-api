@@ -37,6 +37,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -64,6 +65,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -91,6 +93,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -119,6 +122,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -147,6 +151,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -181,6 +186,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -243,6 +249,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -326,6 +333,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
@@ -384,6 +392,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: 'package.json'
+          check-latest: true
           cache: 'npm'
 
       - name: Restore node_modules
