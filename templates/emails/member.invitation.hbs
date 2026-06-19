@@ -17,9 +17,13 @@ Subject: Invitation to join {{{collective.name}}} on Open Collective
 </p>
 
 {{#if privateNote}}
-<p style="margin-top: 24px;">
-  Personal note from <a href="{{accountUrl invitedByUser.collective}}">{{invitedByUser.collective.name}}</a>:
-</p>
+  {{#if skipDefaultAdmin}}
+    Private note:
+  {{else}}
+    <p style="margin-top: 24px;">
+      Private note from <a href="{{accountUrl invitedByUser.collective}}">{{invitedByUser.collective.name}}</a>:
+    </p>
+  {{/if}}
 <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{privateNote}}</blockquote>
 {{/if}}
 
