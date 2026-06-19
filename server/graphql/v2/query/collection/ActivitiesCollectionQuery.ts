@@ -10,6 +10,7 @@ import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activit
 import { CollectiveType } from '../../../../constants/collectives';
 import { assertCanSeeAccount, assertCanSeeAllAccounts } from '../../../../lib/private-accounts';
 import models, { Activity, Collective, Op, User } from '../../../../models';
+import { CommentType } from '../../../../models/Comment';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
 import { BadRequest, NotFound } from '../../../errors';
 import { GraphQLActivityCollection } from '../../collection/ActivityCollection';
@@ -165,11 +166,15 @@ const ActivitiesCollectionQuery = {
       }
     }
 
+    let canSeePrivateNotes = false;
     if (user) {
       where.UserId = user.id;
     }
     if (host) {
       where.HostCollectiveId = host.id;
+      if (req.remoteUser?.isAdmin(host.id)) {
+        canSeePrivateNotes = true;
+      }
     }
     if (args.dateFrom) {
       where.createdAt = { [Op.gte]: args.dateFrom };
@@ -182,6 +187,24 @@ const ActivitiesCollectionQuery = {
       where.type = selectedActivities.filter(type => !IGNORED_ACTIVITIES.includes(type));
     } else {
       where.type = { [Op.not]: IGNORED_ACTIVITIES };
+    }
+
+    if (!canSeePrivateNotes) {
+      where[Op.and] = where[Op.and] || [];
+      where[Op.and].push({
+        [Op.or]: [
+          {
+            type: {
+              [Op.notIn]: [
+                ActivityTypes.EXPENSE_COMMENT_CREATED,
+                ActivityTypes.ORDER_COMMENT_CREATED,
+                ActivityTypes.HOST_APPLICATION_COMMENT_CREATED,
+              ],
+            },
+          },
+          { 'data.comment.type': { [Op.not]: CommentType.PRIVATE_NOTE } },
+        ],
+      });
     }
 
     const order: Order = [[args.orderBy.field, args.orderBy.direction]];
