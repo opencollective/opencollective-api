@@ -388,7 +388,7 @@ MemberInvitation.prototype.sendEmail = async function (
       CollectiveId: collective.id,
       FromCollectiveId: this.MemberCollectiveId,
       HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-      UserId: remoteUser.id,
+      UserId: remoteUser?.id,
       data: {
         role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
         invitation: pick(this, ['id', 'role', 'description', 'since']),
