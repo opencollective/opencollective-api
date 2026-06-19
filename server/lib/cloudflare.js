@@ -17,7 +17,11 @@ if (isLiveServer && !hasConfig) {
   logger.info('A Cloudflare config was provided on a Live/Test environment. Some methods will be stubbed.');
 }
 
-const CloudflareLib = new Cloudflare({ apiEmail: cfConfig.email, apiKey: cfConfig.key });
+const CloudflareLib = new Cloudflare({
+  apiEmail: cfConfig.email,
+  apiKey: cfConfig.key,
+  fetch: globalThis.fetch,
+});
 
 // Export some helpers
 
