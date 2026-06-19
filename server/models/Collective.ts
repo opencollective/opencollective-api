@@ -2695,9 +2695,9 @@ class Collective extends ModelWithPublicId<
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  changeHost = async function (
-    newHostCollectiveId,
-    remoteUser = undefined,
+  changeHost = async (
+    newHostCollectiveId: number | null,
+    remoteUser: User | null = null,
     {
       pauseContributions = true,
       isChildren = false,
@@ -2715,12 +2715,13 @@ class Collective extends ModelWithPublicId<
       message?: string;
       shouldAutomaticallyApprove?: boolean;
     } = {},
-  ) {
-    // Skip
+  ) => {
+    // Skip if the host is the same
     if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
     }
 
+    // Pre-conditions checks
     const balance = await this.getBalance();
     if (balance > 0) {
       if (isChildren) {
@@ -2734,6 +2735,15 @@ class Collective extends ModelWithPublicId<
       }
     }
 
+    const blockingExpensesCount = await Expense.count({
+      where: { CollectiveId: this.id, status: expenseStatus.PROCESSING },
+    });
+
+    if (blockingExpensesCount > 0) {
+      throw new Error(`Unable to change host: there are still ${blockingExpensesCount} expenses in a processing state`);
+    }
+
+    // Proceed with host removal
     await Member.destroy({
       where: {
         CollectiveId: this.id,
@@ -2799,9 +2809,22 @@ class Collective extends ModelWithPublicId<
       },
     );
 
+    // Clear stale host references from unpaid expenses so payment authorization uses the current host
+    await Expense.update(
+      { HostCollectiveId: null },
+      {
+        where: {
+          CollectiveId: [this.id, ...children.map(c => c.id)],
+          status: { [Op.not]: 'PAID' },
+          HostCollectiveId: { [Op.not]: null },
+        },
+      },
+    );
+
     // If frozen, unfreeze
     if (this.isFrozen()) {
-      await this.unfreeze();
+      const message = 'Leaving current Fiscal Host';
+      await this.unfreeze(message, message, remoteUser);
     }
 
     // Reset current host
