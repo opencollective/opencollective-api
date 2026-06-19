@@ -1,5 +1,4 @@
 import { get } from 'lodash';
-import fetch, { RequestInit, Response } from 'node-fetch';
 
 import logger from './logger';
 

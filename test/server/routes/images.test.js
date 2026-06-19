@@ -4,7 +4,6 @@ import path from 'path';
 import { expect } from 'chai';
 import exif from 'exif-reader';
 import { omit, pick } from 'lodash';
-import fetch from 'node-fetch';
 import sharp from 'sharp';
 import request from 'supertest';
 
@@ -166,7 +165,7 @@ describe('server/routes/images', () => {
     expect(res.status).to.eq(200);
     expect(res.body.url).to.contain('.jpg');
     expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/exif.jpg/);
-    const fetchedFile = await fetch(res.body.url).then(res => res.buffer());
+    const fetchedFile = Buffer.from(await (await fetch(res.body.url)).arrayBuffer());
     const fetchedImage = await sharp(fetchedFile);
     const fetchedFileMetadata = await fetchedImage.metadata();
     expect(fetchedFileMetadata).to.containSubset(pick(imageMetadata, ['channels', 'depth', 'format', 'hasAlpha'])); // Some file metadata shouldn't be changed

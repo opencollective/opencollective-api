@@ -6,7 +6,6 @@
 import fs from 'fs';
 
 import { Command } from 'commander';
-import fetch from 'node-fetch';
 
 import { sleep } from '../server/lib/utils';
 

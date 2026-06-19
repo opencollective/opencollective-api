@@ -1,5 +1,4 @@
 import config from 'config';
-import fetch, { Response } from 'node-fetch';
 
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
