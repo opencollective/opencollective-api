@@ -78,7 +78,7 @@ import Expense, {
   ExpenseType,
 } from '../../models/Expense';
 import ExpenseAttachedFile from '../../models/ExpenseAttachedFile';
-import ExpenseItem from '../../models/ExpenseItem';
+import ExpenseItem, { sanitizeExpenseItemDescription } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
@@ -2116,7 +2116,7 @@ export const prepareExpenseItemInputs = async (
   req: express.Request,
   expenseCurrency: SupportedCurrency,
   itemsInput: Array<ExpenseItem | (Record<string, unknown> & { url?: string })>,
-  { isEditing = false } = {},
+  { isEditing = false, expenseType }: { isEditing?: boolean; expenseType?: string } = {},
 ): Promise<Array<Partial<ExpenseItem>>> => {
   if (!itemsInput) {
     return null;
@@ -2235,6 +2235,10 @@ export const prepareExpenseItemInputs = async (
       values.currency = expenseCurrency;
       values.expenseCurrencyFxRate = 1;
       values.expenseCurrencyFxRateSource = null;
+    }
+
+    if (expenseType && values.description) {
+      values.description = sanitizeExpenseItemDescription(values.description, expenseType);
     }
 
     return values;
@@ -2637,7 +2641,14 @@ export async function submitExpenseDraft(
   // It is a submit on behalf being completed
   let existingExpense = await models.Expense.findByPk(expenseData.id, {
     include: [
-      { model: models.Collective, as: 'collective' },
+      {
+        model: models.Collective,
+        as: 'collective',
+        include: [
+          { association: 'host', required: false },
+          { association: 'parent', required: false },
+        ],
+      },
       { model: models.Collective, as: 'fromCollective' },
     ],
   });
@@ -2890,6 +2901,7 @@ export async function editExpenseDraft(
   const items =
     (await prepareExpenseItemInputs(req, currency, expenseData.items || (existingExpense.data.items as any), {
       isEditing: true,
+      expenseType: expenseData.type || existingExpense.type,
     })) || existingExpense.items;
 
   const attachedFiles =

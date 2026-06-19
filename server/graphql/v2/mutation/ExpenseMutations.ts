@@ -653,10 +653,17 @@ const expenseMutations = {
         throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
       }
 
-      const collective = await fetchAccountWithReference(args.account, req);
+      let collective = await fetchAccountWithReference(args.account, req);
       if (!collective) {
         throw new ValidationFailed('Collective not found');
       }
+
+      collective = await models.Collective.findByPk(collective.id, {
+        include: [
+          { association: 'host', required: false },
+          { association: 'parent', required: false },
+        ],
+      });
 
       const isAllowedType = [
         CollectiveType.COLLECTIVE,
@@ -691,7 +698,9 @@ const expenseMutations = {
 
       const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
       const currency = expenseData.currency || collective.currency;
-      const items = await prepareExpenseItemInputs(req, currency, expenseData.items);
+      const items = await prepareExpenseItemInputs(req, currency, expenseData.items, {
+        expenseType: expenseData.type,
+      });
       const attachedFiles = await prepareAttachedFiles(req, expenseData.attachedFiles);
       const invoiceFile = await prepareInvoiceFile(req, expenseData.invoiceFile);
 
