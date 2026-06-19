@@ -327,6 +327,11 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       }
     });
 
+    // Users always administrate their own account
+    if (rolesSet.has(MemberRoles.ADMIN)) {
+      collectiveIds.add(this.CollectiveId);
+    }
+
     return collectiveIds;
   }
 
