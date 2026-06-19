@@ -607,6 +607,7 @@ class User extends ModelWithPublicId<EntityShortIdPrefix.User, InferAttributes<U
       currency: userData.currency,
       hostFeePercent: userData.hostFeePercent,
       isActive: false,
+      isPrivate: userData.isPrivate ?? false,
       hasMoneyManagement: Boolean(userData.hasMoneyManagement),
       hasHosting: userData.hasHosting,
       CreatedByUserId: userData.CreatedByUserId || this.id,

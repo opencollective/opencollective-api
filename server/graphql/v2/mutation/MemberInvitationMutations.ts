@@ -157,6 +157,7 @@ const memberInvitationMutations = {
       return await processInviteMembersInput(account, args.members, {
         supportedRoles: INVITABLE_ROLES,
         user: req.remoteUser,
+        isPrivate: account.isPrivate,
       });
     },
   },
