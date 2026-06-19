@@ -4,7 +4,6 @@ import { Mutex } from 'async-mutex';
 import jwt from 'jsonwebtoken';
 import { keyBy } from 'lodash';
 import moment from 'moment';
-import fetch from 'node-fetch';
 
 import { reportErrorToSentry } from '../sentry';
 
@@ -57,7 +56,7 @@ let cachedEntriesByAaguid: Record<string, MetadataEntry> = cachedMetadata.entrie
 export async function downloadFidoMetadata(): Promise<Metadata> {
   const fidoAlianceMetadataUrl = 'https://mds3.fidoalliance.org';
 
-  const response = await fetch(fidoAlianceMetadataUrl, { timeout: 15_000 });
+  const response = await fetch(fidoAlianceMetadataUrl, { signal: AbortSignal.timeout(15_000) });
   if (!response.ok) {
     throw new Error(`Failed to download FIDO metadata: ${response.statusText}`);
   }

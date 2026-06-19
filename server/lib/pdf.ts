@@ -199,7 +199,7 @@ export const getUSTaxFormPdf = async (formType: USTaxFormType, formData) => {
 
   const { status } = response;
   if (status >= 200 && status < 300) {
-    return response.buffer();
+    return Buffer.from(await response.arrayBuffer());
   } else {
     reportMessageToSentry(`Failed to generate PDF: ${status}`, { extra: { formType, formData } });
     throw new Error(`Failed to generate PDF`);
