@@ -479,7 +479,7 @@ class Collective extends ModelWithPublicId<
     let exists = true;
     let slug: string;
     while (exists) {
-      slug = cryptoRandomString({ length: 16, type: 'url-safe' });
+      slug = cryptoRandomString({ length: 16, type: 'alphanumeric' });
       exists = (await Collective.findOne({ where: { slug }, paranoid: false })) !== null;
     }
     return slug;
