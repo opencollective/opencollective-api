@@ -158,11 +158,54 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
 
       const resultAccount = result.data.createCollective;
       expect(resultAccount.name).to.equal(newCollectiveData.name);
-      expect(resultAccount.slug).to.equal(newCollectiveData.slug);
+      // When the host is private, slug is auto-generated and must NOT equal the user-supplied slug
+      expect(resultAccount.slug).to.not.equal(newCollectiveData.slug);
+      // The auto-generated private slug is a 16-character url-safe random string
+      expect(resultAccount.slug).to.match(/^[a-zA-Z0-9_~-]{16}$/);
       expect(resultAccount.host.slug).to.equal(host.slug);
       expect(resultAccount.isActive).to.be.true;
       expect(resultAccount.isApproved).to.be.true;
       expect(resultAccount.isPrivate).to.be.true;
+
+      // A new user invited via memberInfo on a private collective must also get a private profile
+      const invitedNewUserEmail = 'private-invited@oc-example.com';
+      const resultWithInvite = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        {
+          collective: { ...newCollectiveData, slug: 'another-private-slug' },
+          host: { slug: host.slug },
+          skipDefaultAdmin: true,
+          inviteMembers: [
+            {
+              memberInfo: { email: invitedNewUserEmail, name: 'Private Invitee' },
+              role: 'ADMIN',
+            },
+          ],
+        },
+        user,
+      );
+      resultWithInvite.errors && console.error(resultWithInvite.errors);
+      expect(resultWithInvite.errors).to.not.exist;
+
+      const invitedUser = await models.User.findOne({ where: { email: invitedNewUserEmail } });
+      expect(invitedUser).to.exist;
+      const invitedUserCollective = await models.Collective.findByPk(invitedUser.CollectiveId);
+      expect(invitedUserCollective.isPrivate).to.be.true;
+    });
+
+    it('collective created with a non-private host uses the user-supplied slug', async () => {
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        { collective: newCollectiveData, host: { slug: host.slug } },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const resultAccount = result.data.createCollective;
+      // When host.isPrivate is false (default), slug comes directly from the user input
+      expect(resultAccount.slug).to.equal(newCollectiveData.slug);
+      expect(resultAccount.isPrivate).to.be.false;
     });
 
     it('host admin invites a member using skipDefaultAdmin: the invitation email omits the inviter name', async () => {

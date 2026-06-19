@@ -36,7 +36,7 @@ async function createCollective(_, args, req) {
   const isProd = config.env === 'production';
   const { remoteUser, loaders } = req;
 
-  let host, validatedRepositoryInfo;
+  let host: Collective, validatedRepositoryInfo;
 
   if (args.host) {
     host = await fetchAccountWithReference(args.host, { loaders });
@@ -48,14 +48,17 @@ async function createCollective(_, args, req) {
     throw new RateLimitExceeded();
   }
 
+  const isPrivate = host?.isPrivate ?? false;
+  const slug = isPrivate ? await Collective.generatePrivateSlug() : args.collective.slug.toLowerCase();
+
   const collective: Collective = await sequelize.transaction(async transaction => {
     const collectiveData = {
-      slug: args.collective.slug.toLowerCase(),
       ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
+      slug,
       isActive: false,
       CreatedByUserId: remoteUser.id,
       settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
-      isPrivate: host?.isPrivate ?? false,
+      isPrivate,
     };
 
     if (!isProd && args.testPayload) {
@@ -178,6 +181,7 @@ async function createCollective(_, args, req) {
       supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
       user: remoteUser,
       privateNote,
+      isPrivate,
     });
   }
 

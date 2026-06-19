@@ -392,9 +392,9 @@ MemberInvitation.prototype.sendEmail = async function (
       data: {
         role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
         invitation: pick(this, ['id', 'role', 'description', 'since']),
-        collective: pick(collective, ['id', 'slug', 'name']),
-        memberCollective: pick(invitedUser.collective, ['id', 'slug', 'name']),
-        invitedByUser: pick(remoteUser, ['collective.id', 'collective.slug', 'collective.name']),
+        collective: collective.activity,
+        memberCollective: invitedUser.collective.activity,
+        invitedByUser: remoteUser?.collective?.activity,
         skipDefaultAdmin: skipDefaultAdmin,
         privateNote: privateNote || null,
         isNewUser: isNewUser || false,

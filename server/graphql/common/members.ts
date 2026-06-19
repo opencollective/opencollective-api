@@ -63,7 +63,8 @@ export async function processInviteMembersInput(
     supportedRoles?: readonly string[];
     user?;
     privateNote?: string;
-  },
+    isPrivate?: boolean;
+  } = {},
 ) {
   if (inviteMemberInputs.length > 30) {
     throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
@@ -94,6 +95,7 @@ export async function processInviteMembersInput(
           email,
           ...pick(inviteMember.memberInfo, ['name']),
           data: { requiresProfileCompletion: true },
+          isPrivate: options.isPrivate,
         };
         user = await models.User.createUserWithCollective(userData, options.transaction);
         isNewUser = true;

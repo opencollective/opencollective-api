@@ -495,6 +495,34 @@ describe('MemberInvitationMutations', () => {
       expect(sendEmailSpy.args[0][0]).to.equal(newUserEmail);
       sendEmailSpy.resetHistory();
     });
+
+    it('should create a new user with a private profile when inviting via memberInfo to a private collective', async () => {
+      const privateCollective = await fakeCollective({ admin: collectiveAdminUser, isPrivate: true });
+      const newUserEmail = 'private-profile-invitee@oc-example.com';
+
+      const result = await utils.graphqlQueryV2(
+        inviteMembersMutation,
+        {
+          account: { id: idEncode(privateCollective.id, IDENTIFIER_TYPES.ACCOUNT) },
+          members: [
+            {
+              memberInfo: { email: newUserEmail, name: 'Private Profile User' },
+              role: roles.ADMIN,
+              description: 'Admin invited to private collective',
+            },
+          ],
+        },
+        collectiveAdminUser,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const user = await models.User.findOne({ where: { email: newUserEmail } });
+      expect(user).to.exist;
+      const userCollective = await models.Collective.findByPk(user.CollectiveId);
+      expect(userCollective.isPrivate).to.be.true;
+    });
   });
 
   describe('editMemberInvitation', async () => {
