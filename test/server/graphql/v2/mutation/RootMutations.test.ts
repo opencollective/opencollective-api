@@ -88,7 +88,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const result = await callMoveExpenseMutation({ expenses: [] }, rootUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
-        'Variable "$destinationAccount" of required type "AccountReferenceInput!" was not provided.',
+        'Variable "$destinationAccount" has invalid value: Expected a value of non-null type "AccountReferenceInput!" to be provided.',
       );
     });
 

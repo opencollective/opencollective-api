@@ -783,7 +783,9 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         // call graphql mutation
         const gqlResult = await utils.graphqlQuery(createGiftCardsMutation, args, user1);
         expect(gqlResult.errors[0]).to.exist;
-        expect(gqlResult.errors[0].toString()).to.contain('"$currency" of required type "String!" was not provided.');
+        expect(gqlResult.errors[0].message).to.contain(
+          'Variable "$currency" has invalid value: Expected a value of non-null type "String!" to be provided.',
+        );
       }); /** End of "should fail creating a gift card because there is no currency defined" */
 
       it('should fail creating a gift card because there is no amount or monthlyLimitPerMember defined', async () => {
