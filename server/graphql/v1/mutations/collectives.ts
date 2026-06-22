@@ -435,6 +435,18 @@ export function editCollective(_, args, req) {
         }
       })
       .then(() => {
+        // Some settings are forbidden to be edited via GraphQL v1
+        const V1_FORBIDDEN_SETTINGS_KEYS = ['payoutsTwoFactorAuth'] as const;
+        if (newCollectiveData.settings !== undefined) {
+          for (const key of V1_FORBIDDEN_SETTINGS_KEYS) {
+            if (!isEqual(newCollectiveData.settings?.[key], collective.settings?.[key])) {
+              throw new ValidationFailed(
+                `Setting "${key}" cannot be edited via GraphQL v1. Use editAccountSetting on GraphQL v2.`,
+              );
+            }
+          }
+        }
+
         // we omit those attributes that have already been updated above
         return collective.update(omit(newCollectiveData, ['HostCollectiveId']));
       })
