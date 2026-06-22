@@ -1404,7 +1404,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         const result = await graphqlQueryV2(expensesQuery, queryParams);
         expect(result.errors).to.exist;
         // GraphQL validation error happens before resolver
-        expect(result.errors[0].message).to.include('Variable "$activity" got invalid value');
+        expect(result.errors[0].message).to.include('Variable "$activity" has invalid value');
       });
 
       it('Throws error when multiple invalid activity types are provided', async () => {
@@ -1415,7 +1415,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         const result = await graphqlQueryV2(expensesQuery, queryParams);
         expect(result.errors).to.exist;
         // GraphQL validation error happens before resolver
-        expect(result.errors[0].message).to.include('Variable "$activity" got invalid value');
+        expect(result.errors[0].message).to.include('Variable "$activity" has invalid value');
       });
 
       it('Throws error when activity type is not an expense-related activity', async () => {
