@@ -279,7 +279,8 @@
     ]
   },
   "overrides": {
-    "url-regex-safe": "4.0.0"
+    "url-regex-safe": "4.0.0",
+    "graphql": "17.0.1"
   },
   "nyc": {
     "reporter": [

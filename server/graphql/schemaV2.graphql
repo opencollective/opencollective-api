@@ -3890,7 +3890,7 @@ type Host implements Account & AccountWithContributions & AccountWithPlatformSub
   ): OAuthApplicationCollection
 
   "\n      Address. This field is public for hosts, otherwise:\n        - Users can see the addresses of the collectives they're admin of; if they are not an admin they can only see the country that the org belong to.\n        - Hosts can see the address of organizations submitting expenses to their collectives.\n    "
-  location: Location @deprecated(reason: "2026-04-22: This field has moved to the Organization type")
+  location: Location
   categories: [String]!
   stats: AccountStats
 
