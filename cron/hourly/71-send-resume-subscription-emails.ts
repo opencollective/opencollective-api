@@ -88,7 +88,6 @@ export async function run() {
         subscription: order.Subscription,
         fromCollective: order.fromCollective.minimal,
         collective: order.collective.minimal,
-        awaitForDispatch: true,
         messageForContributors: get(order.collective, 'data.resumeContributionsMessage'),
         messageSource: 'COLLECTIVE',
         reminder,
