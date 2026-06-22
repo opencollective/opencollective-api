@@ -402,11 +402,6 @@ jobs:
   graphql-inspector:
     name: GraphQL Inspector
     runs-on: ubuntu-latest
-    # kamilkisiela/graphql-inspector@v3.4.0 is bundled for the Node 20 action runtime, which GitHub
-    # now force-runs on Node 24 (Node 20 deprecation), crashing the action. The action is
-    # unmaintained (no Node 24 build), so opt back into Node 20 until we replace or drop this job.
-    env:
-      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     services:
       redis:
         image: redis
@@ -427,7 +422,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: GraphQL Inspector (V1)
-        uses: kamilkisiela/graphql-inspector@v3.4.0
+        uses: graphql-hive/graphql-inspector@v4.0.0
         with:
           name: 'GraphQL Inspector - Schema v1'
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -435,7 +430,7 @@ jobs:
           fail-on-breaking: false
 
       - name: GraphQL Inspector (V2)
-        uses: kamilkisiela/graphql-inspector@v3.4.0
+        uses: graphql-hive/graphql-inspector@v4.0.0
         with:
           name: 'GraphQL Inspector - Schema v2'
           github-token: ${{ secrets.GITHUB_TOKEN }}
