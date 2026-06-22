@@ -6,7 +6,14 @@ import { createSandbox } from 'sinon';
 import roles from '../../../../server/constants/roles';
 import * as CacheLib from '../../../../server/lib/cache';
 import models from '../../../../server/models';
-import { fakeCollective, fakeExpense, fakeOrder, fakeProject, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeActiveHost,
+  fakeCollective,
+  fakeExpense,
+  fakeOrder,
+  fakeProject,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, user1, user2, user3, collective1;
@@ -319,6 +326,129 @@ describe('server/graphql/v1/mutation', () => {
         expect(parentPendingExpense.status).to.equal('CANCELED');
         expect(parentPendingExpense.data.cancelledWhileArchivedFromCollective).to.be.true;
         expect(parentPendingExpense.data.previousStatus).to.equal('PENDING');
+      });
+    });
+
+    describe('sensitive settings guards', () => {
+      const editCollectiveMutation = gqlV1 /* GraphQL */ `
+        mutation EditCollective($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
+            id
+            settings
+            tags
+          }
+        }
+      `;
+
+      const editSettingsMutationV2 = `
+        mutation EditAccountSetting($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
+          editAccountSetting(account: $account, key: $key, value: $value) {
+            id
+            settings
+          }
+        }
+      `;
+
+      it('rejects payoutsTwoFactorAuth changes', async () => {
+        const admin = await fakeUser();
+        const testHost = await fakeActiveHost({
+          admin,
+          settings: {
+            payoutsTwoFactorAuth: { enabled: true, rollingLimit: 10_000_00 },
+          },
+        });
+
+        const v2Result = await utils.graphqlQueryV2(
+          editSettingsMutationV2,
+          {
+            account: { legacyId: testHost.id },
+            key: 'payoutsTwoFactorAuth',
+            value: { enabled: true, rollingLimit: 999_999_00 },
+          },
+          admin,
+        );
+        expect(v2Result.errors).to.exist;
+        expect(v2Result.errors[0].message).to.match(/two factor/i);
+
+        await testHost.reload();
+        const v1Result = await utils.graphqlQuery(
+          editCollectiveMutation,
+          {
+            collective: {
+              id: testHost.id,
+              settings: {
+                ...testHost.settings,
+                payoutsTwoFactorAuth: { enabled: true, rollingLimit: 999_999_00 },
+              },
+            },
+          },
+          admin,
+        );
+
+        expect(v1Result.errors).to.exist;
+        expect(v1Result.errors[0].message).to.match(/payoutsTwoFactorAuth.*cannot be edited via GraphQL v1/i);
+        await testHost.reload();
+        expect(testHost.settings.payoutsTwoFactorAuth.rollingLimit).to.eq(10_000_00);
+      });
+
+      it('rejects payoutsTwoFactorAuth removal', async () => {
+        const admin = await fakeUser();
+        const testHost = await fakeActiveHost({
+          admin,
+          settings: {
+            payoutsTwoFactorAuth: { enabled: true, rollingLimit: 10_000_00 },
+          },
+        });
+
+        // Can't remove
+        const resultRemove = await utils.graphqlQuery(
+          editCollectiveMutation,
+          { collective: { id: testHost.id, settings: {} } },
+          admin,
+        );
+        expect(resultRemove.errors).to.exist;
+        expect(resultRemove.errors[0].message).to.match(/payoutsTwoFactorAuth.*cannot be edited via GraphQL v1/i);
+
+        // Can't nullify
+        const resultNull = await utils.graphqlQuery(
+          editCollectiveMutation,
+          { collective: { id: testHost.id, settings: null } },
+          admin,
+        );
+        expect(resultNull.errors).to.exist;
+        expect(resultNull.errors[0].message).to.match(/payoutsTwoFactorAuth.*cannot be edited via GraphQL v1/i);
+
+        await testHost.reload();
+        expect(testHost.settings.payoutsTwoFactorAuth.rollingLimit).to.eq(10_000_00);
+      });
+
+      it('still allows unrelated settings edits', async () => {
+        const admin = await fakeUser();
+        const collective = await fakeCollective({
+          admin,
+          tags: ['old'],
+          settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 10_000_00 } },
+        });
+
+        const result = await utils.graphqlQuery(
+          editCollectiveMutation,
+          {
+            collective: {
+              id: collective.id,
+              tags: ['new'],
+              settings: {
+                tos: 'https://example.com/tos',
+                payoutsTwoFactorAuth: { enabled: true, rollingLimit: 10_000_00 },
+              },
+            },
+          },
+          admin,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data.editCollective.tags).to.deep.eq(['new']);
+        expect(result.data.editCollective.settings.tos).to.eq('https://example.com/tos');
+        expect(result.data.editCollective.settings.payoutsTwoFactorAuth.rollingLimit).to.eq(10_000_00);
       });
     });
   });
