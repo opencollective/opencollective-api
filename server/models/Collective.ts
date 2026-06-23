@@ -3385,24 +3385,30 @@ class Collective extends ModelWithPublicId<
   getHostCollective = async function ({
     loaders = null,
     returnEvenIfNotApproved = false,
+    transaction = undefined,
   } = {}): Promise<null | Collective> {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }
 
     if (this.HostCollectiveId) {
-      return loaders ? loaders.Collective.byId.load(this.HostCollectiveId) : Collective.findByPk(this.HostCollectiveId);
+      if (!transaction && loaders) {
+        return loaders.Collective.byId.load(this.HostCollectiveId);
+      } else {
+        return Collective.findByPk(this.HostCollectiveId, { transaction });
+      }
     }
 
     return Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },
       include: [{ model: Collective, as: 'memberCollective' }],
+      transaction,
     }).then(m => {
       if (m && m.memberCollective) {
         return m.memberCollective;
       }
-      return this.isHost().then(isHost => (isHost ? this : null));
+      return this.isHost({ transaction }).then(isHost => (isHost ? this : null));
     });
   };
 
