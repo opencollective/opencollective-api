@@ -211,7 +211,7 @@ jobs:
       PG_DATABASE: opencollective_test
     services:
       redis:
-        image: redis
+        image: redis@sha256:0a972391db0b24ec336e35d1bc98b237237e26f82bf5120cf2f6b1688d1df973
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -225,7 +225,7 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
         ports:
           - 9000:9000
         command: server /data
@@ -282,7 +282,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis@sha256:0a972391db0b24ec336e35d1bc98b237237e26f82bf5120cf2f6b1688d1df973
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -296,7 +296,7 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       opensearch:
-        image: opensearchproject/opensearch:3
+        image: opensearchproject/opensearch:3@sha256:123e6591a47b1d54686890551bdb35739c85193ecded381219fc9e059e18128f
         ports:
           - 9200:9200
         env:
@@ -309,7 +309,7 @@ jobs:
           --health-timeout=15s
           --health-retries=30
       minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
         ports:
           - 9000:9000
         command: server /data
@@ -362,7 +362,7 @@ jobs:
 
     services:
       redis:
-        image: redis
+        image: redis@sha256:0a972391db0b24ec336e35d1bc98b237237e26f82bf5120cf2f6b1688d1df973
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -409,7 +409,7 @@ jobs:
       ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     services:
       redis:
-        image: redis
+        image: redis@sha256:0a972391db0b24ec336e35d1bc98b237237e26f82bf5120cf2f6b1688d1df973
         ports:
           - 6379:6379
         options: --entrypoint redis-server
@@ -427,7 +427,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: GraphQL Inspector (V1)
-        uses: kamilkisiela/graphql-inspector@v3.4.0
+        uses: kamilkisiela/graphql-inspector@b29c3143fda6d5fe51d2720da13f158598a688c7 # v3.4.0
         with:
           name: 'GraphQL Inspector - Schema v1'
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -435,7 +435,7 @@ jobs:
           fail-on-breaking: false
 
       - name: GraphQL Inspector (V2)
-        uses: kamilkisiela/graphql-inspector@v3.4.0
+        uses: kamilkisiela/graphql-inspector@b29c3143fda6d5fe51d2720da13f158598a688c7 # v3.4.0
         with:
           name: 'GraphQL Inspector - Schema v2'
           github-token: ${{ secrets.GITHUB_TOKEN }}
