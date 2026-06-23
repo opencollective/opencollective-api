@@ -88,6 +88,11 @@ const vendorMutations = {
       const vendor = models.Collective.build(vendorData);
       await vendor.validate();
 
+      // Enforce 2FA before making any changes
+      if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
+      }
+
       // Attach images
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
       vendor.image = avatar?.url ?? vendor.image;
@@ -111,8 +116,6 @@ const vendorMutations = {
       }
 
       if (args.vendor.payoutMethod) {
-        await twoFactorAuthLib.enforceForAccount(req, host);
-
         if (
           args.vendor.payoutMethod.currency &&
           args.vendor.payoutMethod.data?.currency &&
@@ -184,6 +187,11 @@ const vendorMutations = {
         throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
       }
 
+      // Enforce 2FA before making any changes
+      if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
+      }
+
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
       const image = !isUndefined(args.vendor.imageUrl)
         ? args.vendor.imageUrl
@@ -246,8 +254,6 @@ const vendorMutations = {
       }
 
       if (args.vendor.payoutMethod) {
-        await twoFactorAuthLib.enforceForAccount(req, host);
-
         let payoutMethod;
 
         // Validate currency arguments
