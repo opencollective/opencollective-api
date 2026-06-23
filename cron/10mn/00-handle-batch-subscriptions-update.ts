@@ -87,7 +87,6 @@ const createActivity = (
       messageSource: order.data.messageSource,
       order: order.info,
       tier: order.Tier?.info,
-      awaitForDispatch: true, // To make sure we won't kill the process while emails are still being sent
       ...additionalData,
     },
   });

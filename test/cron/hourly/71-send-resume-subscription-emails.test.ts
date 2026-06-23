@@ -2,14 +2,25 @@ import { expect } from 'chai';
 import moment from 'moment';
 import sinon from 'sinon';
 
-import { run as runCronJob } from '../../../cron/hourly/71-send-resume-subscription-emails';
+import { run as runResumeSubscriptionEmails } from '../../../cron/hourly/71-send-resume-subscription-emails';
 import OrderStatuses from '../../../server/constants/order-status';
 import emailLib from '../../../server/lib/email';
+import {
+  disableActivityDispatchTracking,
+  enableActivityDispatchTracking,
+} from '../../../server/lib/notifications/activity-dispatch-tracker';
+import { Activity } from '../../../server/models';
 import { fakeCollective, fakeOrder, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('cron/hourly/71-send-resume-subscription-emails', () => {
   let sandbox, contributor, emailSendMessageSpy, collective, clock;
+
+  const runCronJob = async () => {
+    const result = await runResumeSubscriptionEmails();
+    await Activity.waitAllDispatch();
+    return result;
+  };
 
   before(async () => {
     await resetTestDB();
@@ -55,11 +66,13 @@ describe('cron/hourly/71-send-resume-subscription-emails', () => {
   });
 
   beforeEach(() => {
+    enableActivityDispatchTracking();
     // Spies
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
   });
 
   afterEach(() => {
+    disableActivityDispatchTracking();
     sandbox.restore();
     if (clock) {
       clock.restore();

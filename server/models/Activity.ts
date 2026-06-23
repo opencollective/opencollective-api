@@ -9,6 +9,7 @@ import {
 
 import ActivityTypes from '../constants/activities';
 import dispatch from '../lib/notifications';
+import { trackActivityDispatch, waitAllActivityDispatches } from '../lib/notifications/activity-dispatch-tracker';
 import { EntityShortIdPrefix } from '../lib/permalink/entity-map';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
@@ -37,6 +38,8 @@ class Activity extends ModelWithPublicId<
   declare public ExpenseId: ForeignKey<Expense['id']>;
   declare public OrderId: CreationOptional<number>;
   declare public createdAt: CreationOptional<Date>;
+
+  public static waitAllDispatch = waitAllActivityDispatches;
 }
 
 const scheduleActivityDispatch = (
@@ -47,10 +50,12 @@ const scheduleActivityDispatch = (
 
   if (transaction) {
     transaction.afterCommit(() => {
-      runDispatch();
+      trackActivityDispatch(runDispatch());
     });
   } else {
-    return runDispatch();
+    const dispatchPromise = runDispatch();
+    trackActivityDispatch(dispatchPromise);
+    return dispatchPromise;
   }
 };
 
@@ -144,15 +149,7 @@ Activity.init(
     hooks: {
       async afterCreate(activity, options) {
         if (activity.data?.notify !== false) {
-          if (options?.transaction) {
-            // Defer until commit so related records (e.g. newly created collectives) are visible to notification handlers
-            scheduleActivityDispatch(activity, { transaction: options.transaction });
-          } else {
-            const dispatchPromise = scheduleActivityDispatch(activity); // intentionally no return statement, needs to be async by default
-            if (activity.data?.awaitForDispatch) {
-              await dispatchPromise;
-            }
-          }
+          scheduleActivityDispatch(activity, { transaction: options.transaction });
         }
       },
     },
