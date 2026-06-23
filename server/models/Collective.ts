@@ -147,6 +147,7 @@ type TaxSettings = {
 type Settings = {
   goals?: Array<Goal>;
   collectivePage?: {
+    sections?: Array<{ section?: string; isEnabled?: boolean }>;
     showGoals?: boolean;
   };
   budget?: { version?: 'v0' | 'v1' | 'v2' | 'v3' };
@@ -177,6 +178,7 @@ type Settings = {
   };
   payoutsTwoFactorAuth?: {
     enabled?: boolean;
+    rollingLimit?: number;
   };
   customEmailMessage?: string;
   earlyAccess?: Record<string, boolean>;

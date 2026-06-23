@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
+import { assertSettingsChangeAllowed } from '../../../lib/account-settings';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { defaultHostCollective } from '../../../lib/collectivelib';
@@ -434,7 +435,7 @@ export function editCollective(_, args, req) {
           return collective.changeHost(newCollectiveData.HostCollectiveId, req.remoteUser);
         }
       })
-      .then(() => {
+      .then(async () => {
         // Some settings are forbidden to be edited via GraphQL v1
         const V1_FORBIDDEN_SETTINGS_KEYS = ['payoutsTwoFactorAuth'] as const;
         if (newCollectiveData.settings !== undefined) {
@@ -445,8 +446,11 @@ export function editCollective(_, args, req) {
               );
             }
           }
-        }
 
+          await assertSettingsChangeAllowed(req, collective, collective.settings, newCollectiveData.settings);
+        }
+      })
+      .then(() => {
         // we omit those attributes that have already been updated above
         return collective.update(omit(newCollectiveData, ['HostCollectiveId']));
       })
