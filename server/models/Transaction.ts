@@ -514,7 +514,7 @@ class Transaction extends ModelWithPublicId<
       const fromCollective = await Collective.findByPk(transaction.FromCollectiveId, {
         transaction: sequelizeTransaction,
       });
-      const fromCollectiveHost = await fromCollective.getHostCollective();
+      const fromCollectiveHost = await fromCollective.getHostCollective({ transaction: sequelizeTransaction });
 
       let oppositeTransaction = {
         ...transaction,
@@ -599,8 +599,8 @@ class Transaction extends ModelWithPublicId<
           oppositeTransaction.kind === 'EXPENSE' &&
           !oppositeTransaction.isRefund
         ) {
-          const collective = await Collective.findByPk(transaction.CollectiveId);
-          const collectiveHost = await collective.getHostCollective();
+          const collective = await Collective.findByPk(transaction.CollectiveId, { transaction: sequelizeTransaction });
+          const collectiveHost = await collective.getHostCollective({ transaction: sequelizeTransaction });
           if (collectiveHost.id !== fromCollectiveHost.id) {
             const hostFeePercent = fromCollective.hasMoneyManagement ? 0 : fromCollective.hostFeePercent;
             const taxAmountInHostCurrency = roundCentsAmount(
