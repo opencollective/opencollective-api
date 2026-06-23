@@ -216,11 +216,16 @@ class Transaction extends ModelWithPublicId<
   declare getOrder: BelongsToGetAssociationMixin<Order>;
   declare getExpense: BelongsToGetAssociationMixin<Expense>;
   declare hasPlatformTip: () => boolean;
-  declare getRelatedTransaction: (options: {
-    type?: string | string[];
-    kind?: string | string[];
-    isDebt?: boolean;
-  }) => Promise<Transaction>;
+  declare getRelatedTransaction: (
+    options: {
+      type?: string | string[];
+      kind?: string | string[];
+      isDebt?: boolean;
+    },
+    params?: {
+      sqlTransaction?: SequelizeTransaction;
+    },
+  ) => Promise<Transaction>;
 
   declare getRelatedTransactions: (
     options?: {
@@ -425,7 +430,9 @@ class Transaction extends ModelWithPublicId<
       }
 
       if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
-        transaction.PaymentMethod = await PaymentMethod.findByPk(transaction.PaymentMethodId);
+        transaction.PaymentMethod = await PaymentMethod.findByPk(transaction.PaymentMethodId, {
+          transaction: sequelizeTransaction,
+        });
       }
 
       if (
@@ -656,7 +663,7 @@ class Transaction extends ModelWithPublicId<
     }
 
     // This should be the host of the original transaction
-    const host = await Transaction.fetchHost(transaction);
+    const host = await Transaction.fetchHost(transaction, { sqlTransaction: sequelizeTransaction });
 
     // Create debt transaction
     const platformTipDebtTransactionData = {
@@ -902,13 +909,19 @@ class Transaction extends ModelWithPublicId<
       return;
     }
 
-    const paymentMethod = transaction.PaymentMethodId && (await PaymentMethod.findByPk(transaction.PaymentMethodId));
-    const payoutMethod = transaction.PayoutMethodId && (await PayoutMethod.findByPk(transaction.PayoutMethodId));
+    const paymentMethod =
+      transaction.PaymentMethodId &&
+      (await PaymentMethod.findByPk(transaction.PaymentMethodId, { transaction: sequelizeTransaction }));
+    const payoutMethod =
+      transaction.PayoutMethodId &&
+      (await PayoutMethod.findByPk(transaction.PayoutMethodId, { transaction: sequelizeTransaction }));
     let service = paymentMethod?.service || payoutMethod?.type || PayoutMethodTypes.OTHER;
     if (service === PayoutMethodTypes.BANK_ACCOUNT && !data?.transfer) {
       service = PayoutMethodTypes.OTHER;
     }
 
+    // SQL transaction should ideally be passed, but it's tricky because the function is memoized.
+    // Shouldn't be safe still.
     const vendor = await getPaymentProcessorFeeVendor(service);
 
     // The reference value is currently passed as "hostFeeInHostCurrency"
@@ -1065,11 +1078,11 @@ class Transaction extends ModelWithPublicId<
     hostFeeShareTransaction: Transaction;
     hostFeeShareDebtTransaction: Transaction;
   } | void> {
-    const host = await Transaction.fetchHost(transaction);
+    const host = await Transaction.fetchHost(transaction, { sqlTransaction: sequelizeTransaction });
 
     let hostFeeSharePercent = transaction.data?.hostFeeSharePercent;
     if (isNil(hostFeeSharePercent) && transaction.OrderId) {
-      const order = await Order.findByPk(transaction.OrderId);
+      const order = await Order.findByPk(transaction.OrderId, { transaction: sequelizeTransaction });
       hostFeeSharePercent = await getHostFeeSharePercent(order);
     }
 
@@ -1078,8 +1091,12 @@ class Transaction extends ModelWithPublicId<
     }
 
     // Skip if missing or misconfigured
-    const hostFeeShareCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
-    const hostFeeShareHostCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId);
+    const hostFeeShareCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId, {
+      transaction: sequelizeTransaction,
+    });
+    const hostFeeShareHostCollective = await Collective.findByPk(PlatformConstants.PlatformCollectiveId, {
+      transaction: sequelizeTransaction,
+    });
     if (!hostFeeShareCollective || !hostFeeShareHostCollective) {
       return;
     }
@@ -1235,18 +1252,21 @@ class Transaction extends ModelWithPublicId<
     return Transaction.createDoubleEntry(transaction);
   }
 
-  static async fetchHost(transaction: Transaction | TransactionCreationAttributes): Promise<Collective | null> {
+  static async fetchHost(
+    transaction: Transaction | TransactionCreationAttributes,
+    { sqlTransaction }: { sqlTransaction?: SequelizeTransaction } = {},
+  ): Promise<Collective | null> {
     let host;
     if (transaction.HostCollectiveId) {
-      host = await Collective.findByPk(transaction.HostCollectiveId);
+      host = await Collective.findByPk(transaction.HostCollectiveId, { transaction: sqlTransaction });
     }
     if (!host) {
       // throw new Error(`transaction.HostCollectiveId should always bet set`);
       reportMessageToSentry(`transaction.HostCollectiveId should always bet set`, {
         extra: { transaction: transaction.info },
       });
-      const collective = await Collective.findByPk(transaction.CollectiveId);
-      host = await collective.getHostCollective();
+      const collective = await Collective.findByPk(transaction.CollectiveId, { transaction: sqlTransaction });
+      host = await collective.getHostCollective({ transaction: sqlTransaction });
     }
     return host;
   }
