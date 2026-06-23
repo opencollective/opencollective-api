@@ -52,7 +52,7 @@ import {
   GraphQLPaymentMethodReferenceInput,
 } from '../../input/PaymentMethodReferenceInput';
 import { getDatabaseIdFromTierReference, GraphQLTierReferenceInput } from '../../input/TierReferenceInput';
-import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
+import { CollectionArgs, CollectionReturnType, collectionLimitArg } from '../../interface/Collection';
 import { UncategorizedValue } from '../../object/AccountingCategory';
 
 /**
@@ -153,7 +153,7 @@ const getCollectivesCondition = (
 };
 
 export const OrdersCollectionArgs = {
-  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
   accountingCategory: {
     type: new GraphQLList(GraphQLString),

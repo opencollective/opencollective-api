@@ -57,7 +57,7 @@ import {
   GraphQLPayoutMethodReferenceInput,
 } from '../../input/PayoutMethodReferenceInput';
 import { GraphQLVirtualCardReferenceInput } from '../../input/VirtualCardReferenceInput';
-import { CollectionArgs } from '../../interface/Collection';
+import { CollectionArgs, collectionLimitArg } from '../../interface/Collection';
 
 const oneDayInSeconds = 60 * 60 * 24;
 
@@ -84,7 +84,7 @@ export const getTransactionKindPriorityCase = tableName => `
   END`;
 
 export const TransactionsCollectionArgs = {
-  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  limit: collectionLimitArg(100),
   offset: CollectionArgs.offset,
   type: {
     type: GraphQLTransactionType,
