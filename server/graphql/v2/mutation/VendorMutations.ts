@@ -9,6 +9,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Activity, Collective, LegalDocument, Op, sequelize } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -110,6 +111,8 @@ const vendorMutations = {
       }
 
       if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
+
         if (
           args.vendor.payoutMethod.currency &&
           args.vendor.payoutMethod.data?.currency &&
@@ -156,7 +159,7 @@ const vendorMutations = {
         description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
       },
     },
-    resolve: async (_, args, req: Express.Request) => {
+    resolve: async (_, args, req) => {
       checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
@@ -243,6 +246,8 @@ const vendorMutations = {
       }
 
       if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
+
         let payoutMethod;
 
         // Validate currency arguments

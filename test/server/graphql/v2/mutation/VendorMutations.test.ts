@@ -4,6 +4,7 @@ import gql from 'fake-tag';
 import { CollectiveType } from '../../../../../server/constants/collectives';
 import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import MemberRoles from '../../../../../server/constants/roles';
+import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { EntityShortIdPrefix } from '../../../../../server/lib/permalink/entity-map';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
@@ -275,6 +276,34 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
       const vendor = await models.Collective.findByPk(result.data?.createVendor?.legacyId);
       expect(vendor.data.canBeUsedWithAccountIds).to.deep.equal([collectiveA.id]);
     });
+
+    it('blocks initial payout method when host requires 2FA for admins', async () => {
+      const twoFactorHostAdmin = await fakeUser();
+      const twoFactorHost = await fakeHost({
+        admin: twoFactorHostAdmin,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+
+      const result = await graphqlQueryV2(
+        createVendorMutation,
+        {
+          host: { legacyId: twoFactorHost.id },
+          vendor: {
+            name: 'New vendor',
+            payoutMethod: {
+              type: PayoutMethodTypes.PAYPAL,
+              name: 'Attacker payout',
+              data: { email: 'attacker-controlled@example.com', currency: 'USD' },
+              isSaved: true,
+            },
+          },
+        },
+        twoFactorHostAdmin,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+    });
   });
 
   describe('editVendor', () => {
@@ -416,6 +445,101 @@ describe('server/graphql/v2/mutation/VendorMutations', () => {
 
       await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
       await models.Expense.destroy({ where: { FromCollectiveId: vendor.id }, force: true });
+    });
+
+    it('blocks payout-method changes when host requires 2FA for admins', async () => {
+      const createPayoutMethodMutation = gql`
+        mutation CreatePayoutMethod($payoutMethod: PayoutMethodInput!, $account: AccountReferenceInput!) {
+          createPayoutMethod(payoutMethod: $payoutMethod, account: $account) {
+            id
+          }
+        }
+      `;
+
+      const editPayoutMethodMutation = gql`
+        mutation EditPayoutMethod($payoutMethod: PayoutMethodInput!) {
+          editPayoutMethod(payoutMethod: $payoutMethod) {
+            id
+          }
+        }
+      `;
+
+      const twoFactorHostAdmin = await fakeUser();
+      const twoFactorHost = await fakeHost({
+        admin: twoFactorHostAdmin,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+
+      const vendor = await fakeCollective({
+        type: CollectiveType.VENDOR,
+        ParentCollectiveId: twoFactorHost.id,
+      });
+
+      const existingPayoutMethod = await fakePayoutMethod({
+        CollectiveId: vendor.id,
+        isSaved: true,
+        type: PayoutMethodTypes.PAYPAL,
+        data: { email: 'vendor-original@example.com', currency: 'USD' },
+      });
+
+      const approvedExpense = await fakeExpense({
+        FromCollectiveId: vendor.id,
+        PayoutMethodId: existingPayoutMethod.id,
+        status: 'APPROVED',
+      });
+
+      const newPayoutMethodPayload = {
+        type: PayoutMethodTypes.PAYPAL,
+        name: 'Attacker payout',
+        data: { email: 'attacker-controlled@example.com', currency: 'USD' },
+        isSaved: true,
+      };
+
+      const createBlocked = await graphqlQueryV2(
+        createPayoutMethodMutation,
+        { payoutMethod: newPayoutMethodPayload, account: { legacyId: vendor.id } },
+        twoFactorHostAdmin,
+      );
+      expect(createBlocked.errors).to.exist;
+      expect(createBlocked.errors[0].message).to.equal('Two factor authentication must be configured');
+
+      const editBlocked = await graphqlQueryV2(
+        editPayoutMethodMutation,
+        {
+          payoutMethod: {
+            id: idEncode(existingPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
+            type: existingPayoutMethod.type,
+            name: 'Renamed',
+            data: existingPayoutMethod.data,
+          },
+        },
+        twoFactorHostAdmin,
+      );
+      expect(editBlocked.errors).to.exist;
+      expect(editBlocked.errors[0].message).to.equal('Two factor authentication must be configured');
+
+      const editVendorResult = await graphqlQueryV2(
+        editVendorMutation,
+        {
+          vendor: {
+            legacyId: vendor.id,
+            payoutMethod: newPayoutMethodPayload,
+          },
+        },
+        twoFactorHostAdmin,
+      );
+      expect(editVendorResult.errors).to.exist;
+      expect(editVendorResult.errors[0].message).to.equal('Two factor authentication must be configured');
+
+      await existingPayoutMethod.reload();
+      expect(existingPayoutMethod.isSaved).to.be.true;
+
+      await approvedExpense.reload();
+      expect(approvedExpense.PayoutMethodId).to.equal(existingPayoutMethod.id);
+
+      await models.Expense.destroy({ where: { id: approvedExpense.id }, force: true });
+      await models.PayoutMethod.destroy({ where: { CollectiveId: vendor.id }, force: true });
+      await models.Collective.destroy({ where: { id: vendor.id }, force: true });
     });
 
     it('prevents selecting a payout method owned by another account', async () => {
