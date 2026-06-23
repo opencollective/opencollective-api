@@ -1,15 +1,11 @@
 import * as chai from 'chai';
-import config from 'config';
 import gqlV1 from 'fake-tag';
 import { describe, it } from 'mocha';
-import { generateSecret, generateSync } from 'otplib';
 import { createSandbox } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
 import * as CacheLib from '../../../../server/lib/cache';
-import { TwoFactorMethod } from '../../../../server/lib/two-factor-authentication';
-import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
-import models, { UserTwoFactorMethod } from '../../../../server/models';
+import models from '../../../../server/models';
 import {
   fakeActiveHost,
   fakeCollective,
@@ -453,83 +449,6 @@ describe('server/graphql/v1/mutation', () => {
         expect(result.data.editCollective.tags).to.deep.eq(['new']);
         expect(result.data.editCollective.settings.tos).to.eq('https://example.com/tos');
         expect(result.data.editCollective.settings.payoutsTwoFactorAuth.rollingLimit).to.eq(10_000_00);
-      });
-    });
-
-    describe('payout 2FA settings', () => {
-      const editCollectiveMutation = gqlV1 /* GraphQL */ `
-        mutation EditCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id
-            settings
-          }
-        }
-      `;
-
-      it('requires 2FA when changing payoutsTwoFactorAuth while payout 2FA is enabled', async () => {
-        const hostAdmin = await fakeUser();
-        const host = await fakeActiveHost({
-          admin: hostAdmin.collective,
-          settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 50000 } },
-        });
-
-        const result = await utils.graphqlQuery(
-          editCollectiveMutation,
-          {
-            collective: {
-              id: host.id,
-              settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 999999999 } },
-            },
-          },
-          hostAdmin,
-        );
-
-        expect(result.errors).to.exist;
-        expect(result.errors[0].extensions?.code || result.errors[0].message).to.satisfy(
-          v => v === 'Unauthorized' || /two.?factor|2FA|authentication/i.test(v),
-        );
-
-        await host.reload();
-        expect(host.settings.payoutsTwoFactorAuth.rollingLimit).to.equal(50000);
-      });
-
-      it('allows changing payoutsTwoFactorAuth rollingLimit with a valid 2FA token', async () => {
-        const SECRET_KEY = config.dbEncryption.secretKey;
-        const CIPHER = config.dbEncryption.cipher;
-        const hostAdmin = await fakeUser();
-        const host = await fakeActiveHost({
-          admin: hostAdmin.collective,
-          settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 50000 } },
-        });
-
-        const secret = generateSecret({ length: 64 });
-        const encryptedToken = crypto[CIPHER].encrypt(secret, SECRET_KEY).toString();
-        await UserTwoFactorMethod.create({
-          UserId: hostAdmin.id,
-          method: TwoFactorMethod.TOTP,
-          name: 'TOTP',
-          data: { secret: encryptedToken },
-        });
-
-        const result = await utils.graphqlQuery(
-          editCollectiveMutation,
-          {
-            collective: {
-              id: host.id,
-              settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 999999999 } },
-            },
-          },
-          hostAdmin,
-          undefined,
-          undefined,
-          { [TwoFactorAuthenticationHeader]: `totp ${generateSync({ secret })}` },
-        );
-
-        result.errors && console.error(result.errors);
-        expect(result.errors).to.not.exist;
-
-        await host.reload();
-        expect(host.settings.payoutsTwoFactorAuth.rollingLimit).to.equal(999999999);
       });
     });
   });

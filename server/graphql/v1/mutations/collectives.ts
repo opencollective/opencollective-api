@@ -436,11 +436,6 @@ export function editCollective(_, args, req) {
         }
       })
       .then(async () => {
-        if (newCollectiveData.settings !== undefined) {
-          await assertSettingsChangeAllowed(req, collective, collective.settings, newCollectiveData.settings);
-        }
-      })
-      .then(() => {
         // Some settings are forbidden to be edited via GraphQL v1
         const V1_FORBIDDEN_SETTINGS_KEYS = ['payoutsTwoFactorAuth'] as const;
         if (newCollectiveData.settings !== undefined) {
@@ -451,8 +446,11 @@ export function editCollective(_, args, req) {
               );
             }
           }
-        }
 
+          await assertSettingsChangeAllowed(req, collective, collective.settings, newCollectiveData.settings);
+        }
+      })
+      .then(() => {
         // we omit those attributes that have already been updated above
         return collective.update(omit(newCollectiveData, ['HostCollectiveId']));
       })
