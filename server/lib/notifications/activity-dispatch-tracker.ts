@@ -1,6 +1,14 @@
 let trackingEnabled = false;
 const pendingDispatches = new Set<Promise<void>>();
 
+export const isActivityDispatchTrackingEnabled = (): boolean => {
+  return trackingEnabled;
+};
+
+export const getPendingActivityDispatches = (): Set<Promise<void>> => {
+  return pendingDispatches;
+};
+
 export const enableActivityDispatchTracking = (): void => {
   trackingEnabled = true;
 };
