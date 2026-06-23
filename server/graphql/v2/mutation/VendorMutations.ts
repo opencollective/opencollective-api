@@ -9,6 +9,7 @@ import ActivityTypes from '../../../constants/activities';
 import { CollectiveType } from '../../../constants/collectives';
 import { getDiffBetweenInstances } from '../../../lib/data';
 import { EntityShortIdPrefix, isEntityPublicId } from '../../../lib/permalink/entity-map';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Activity, Collective, LegalDocument, Op, sequelize } from '../../../models';
 import { ExpenseStatus } from '../../../models/Expense';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -87,6 +88,11 @@ const vendorMutations = {
       const vendor = models.Collective.build(vendorData);
       await vendor.validate();
 
+      // Enforce 2FA before making any changes
+      if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
+      }
+
       // Attach images
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
       vendor.image = avatar?.url ?? vendor.image;
@@ -156,7 +162,7 @@ const vendorMutations = {
         description: 'Whether to archive (true) or unarchive (unarchive) the vendor',
       },
     },
-    resolve: async (_, args, req: Express.Request) => {
+    resolve: async (_, args, req) => {
       checkRemoteUserCanUseHost(req);
 
       const vendor = await fetchAccountWithReference(args.vendor, { loaders: req.loaders, throwIfMissing: true });
@@ -179,6 +185,11 @@ const vendorMutations = {
 
       if (!canBeUsedWithAccounts.every(acc => acc.id === host.id || acc.HostCollectiveId === host.id)) {
         throw new Unauthorized("You're not authorized to set a vendor visbility for this account");
+      }
+
+      // Enforce 2FA before making any changes
+      if (args.vendor.payoutMethod) {
+        await twoFactorAuthLib.enforceForAccount(req, host);
       }
 
       const { avatar, banner } = await handleCollectiveImageUploadFromArgs(req.remoteUser, args.vendor);
