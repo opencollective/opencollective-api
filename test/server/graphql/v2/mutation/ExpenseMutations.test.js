@@ -10,6 +10,8 @@ import { createSandbox } from 'sinon';
 import { activities, expenseStatus, expenseTypes } from '../../../../../server/constants';
 import ExpenseTypes from '../../../../../server/constants/expense-type';
 import FEATURE from '../../../../../server/constants/feature';
+import PaymentIntentStatus from '../../../../../server/constants/payment-intent-status';
+import PaymentIntentType from '../../../../../server/constants/payment-intent-type';
 import { UseVendorPolicyValue } from '../../../../../server/constants/policies';
 import {
   US_TAX_FORM_THRESHOLD_POST_2026,
@@ -65,6 +67,11 @@ import {
   randStr,
 } from '../../../../test-helpers/fake-data';
 import { fakeGraphQLAmountInput } from '../../../../test-helpers/fake-graphql-data';
+import {
+  expectPaymentIntentForExpense,
+  expectPaymentIntentSoftDeletedForExpense,
+  expectTransactionsLinkedToPaymentIntent,
+} from '../../../../test-helpers/payment-intent';
 import {
   graphqlQueryV2,
   makeRequest,
@@ -542,6 +549,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
       expect(createdExpense.accountingCategory.id).to.eq(encodedAccountingCategoryId);
       expect(createdExpense.valuesByRole.submitter.accountingCategory.id).to.eq(encodedAccountingCategoryId);
+
+      await expectPaymentIntentForExpense(createdExpense.legacyId, {
+        status: PaymentIntentStatus.PENDING,
+        type: PaymentIntentType.PaymentRequest,
+        primaryTransactionGroup: null,
+        paidAt: null,
+      });
 
       // Should have updated collective's location
       await payee.reload({ include: [{ association: 'location' }] });
@@ -3936,6 +3950,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.data.deleteExpense.legacyId).to.eq(expense.id);
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.exist;
+        await expectPaymentIntentSoftDeletedForExpense(expense.id);
       });
 
       it('if collective admin', async () => {
@@ -4570,6 +4585,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, collectiveAdmin);
         expect(result.data.processExpense.status).to.eq('REJECTED');
+        await expectPaymentIntentForExpense(expense.id, { status: PaymentIntentStatus.ERROR });
       });
 
       it('Expense needs to be pending', async () => {
@@ -4716,6 +4732,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance);
         result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
+
+        const paymentIntent = await expectPaymentIntentForExpense(expense.id, {
+          status: PaymentIntentStatus.PAID,
+          type: PaymentIntentType.PaymentRequest,
+        });
+        expect(paymentIntent.primaryTransactionGroup).to.exist;
+        expect(paymentIntent.paidAt).to.exist;
+        await expectTransactionsLinkedToPaymentIntent(paymentIntent.primaryTransactionGroup, paymentIntent.id);
 
         // Check paidAt is set
         await expense.reload();

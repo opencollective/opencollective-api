@@ -1,11 +1,11 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { getTransactionKindPriorityCase } from '../../../lib/transactions/kind-priority';
 import { sequelize, Transaction } from '../../../models';
 import { GraphQLAccount } from '../interface/Account';
 import { GraphQLTransaction } from '../interface/Transaction';
 import { GraphQLAmount } from '../object/Amount';
-import { getTransactionKindPriorityCase } from '../query/collection/TransactionsCollectionQuery';
 
 export const GraphQLTransactionGroup = new GraphQLObjectType({
   name: 'TransactionGroup',

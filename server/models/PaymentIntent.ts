@@ -74,6 +74,7 @@ PaymentIntent.init(
       type: DataTypes.STRING,
       unique: true,
       allowNull: false,
+      defaultValue: sequelize.literal(`oc_nanoid('pi')`),
     },
     primaryTransactionGroup: {
       type: DataTypes.UUID,
