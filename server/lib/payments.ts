@@ -4,6 +4,7 @@ import DataLoader from 'dataloader';
 import debugLib from 'debug';
 import { escape, find, get, includes, isNil, isNumber, omit, pick, truncate } from 'lodash';
 import moment from 'moment';
+import { Transaction as SequelizeTransaction } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -17,7 +18,7 @@ import roles from '../constants/roles';
 import tiers from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { ManualPaymentProvider, Op } from '../models';
+import { ManualPaymentProvider, Op, sequelize } from '../models';
 import Activity from '../models/Activity';
 import { ManualPaymentProviderTypes, sanitizeManualPaymentProviderInstructions } from '../models/ManualPaymentProvider';
 import Order from '../models/Order';
@@ -398,15 +399,19 @@ export const buildRefundForTransaction = (
 export const refundPaymentProcessorFeeToCollective = async (
   transaction: Transaction,
   refundTransactionGroup: string,
-  data: { hostFeeMigration?: string } = {},
-  createdAt: Date = null,
+  refundKind?: RefundKind,
   {
+    data = {},
+    createdAt = null,
     hostCoverInHostCurrency = null,
+    sqlTransaction = undefined,
   }: {
     /** If the refunded amount is different from the original transaction amount */
     hostCoverInHostCurrency?: number;
+    sqlTransaction?: SequelizeTransaction;
+    createdAt?: Date;
+    data?: { hostFeeMigration?: string };
   } = {},
-  refundKind?: RefundKind,
 ): Promise<void> => {
   if (transaction.CollectiveId === transaction.HostCollectiveId) {
     return;
@@ -414,57 +419,66 @@ export const refundPaymentProcessorFeeToCollective = async (
 
   // Handle processor fees as separate transactions
   let processorFeeTransaction;
-  if (!transaction.paymentProcessorFeeInHostCurrency) {
-    processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction();
-    if (!processorFeeTransaction) {
+  const runInTransaction = async sqlTransaction => {
+    if (!transaction.paymentProcessorFeeInHostCurrency) {
+      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(null, { sqlTransaction });
+      if (!processorFeeTransaction) {
+        return;
+      }
+    }
+
+    const transactionCurrency = processorFeeTransaction?.currency || transaction.currency;
+    const hostCurrencyFxRate = await getFxRate(transactionCurrency, transaction.hostCurrency);
+    const originalProcessorFeeInHostCurrency = Math.abs(
+      processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency || 0,
+    );
+    let amountInHostCurrency;
+    if (isNil(hostCoverInHostCurrency)) {
+      amountInHostCurrency = originalProcessorFeeInHostCurrency;
+    } else {
+      // Cover only for the difference between the original processor fee and the refunded amount
+      amountInHostCurrency = Math.abs(hostCoverInHostCurrency);
+    }
+
+    // Skip creating transaction if amount is zero
+    if (amountInHostCurrency === 0) {
       return;
     }
-  }
 
-  const transactionCurrency = processorFeeTransaction?.currency || transaction.currency;
-  const hostCurrencyFxRate = await getFxRate(transactionCurrency, transaction.hostCurrency);
-  const originalProcessorFeeInHostCurrency = Math.abs(
-    processorFeeTransaction?.amountInHostCurrency || transaction.paymentProcessorFeeInHostCurrency || 0,
-  );
-  let amountInHostCurrency;
-  if (isNil(hostCoverInHostCurrency)) {
-    amountInHostCurrency = originalProcessorFeeInHostCurrency;
-  } else {
-    // Cover only for the difference between the original processor fee and the refunded amount
-    amountInHostCurrency = Math.abs(hostCoverInHostCurrency);
-  }
+    const amount = roundCentsAmount(amountInHostCurrency / hostCurrencyFxRate, transactionCurrency);
+    await Transaction.createDoubleEntry(
+      {
+        type: CREDIT,
+        kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
+        CollectiveId: transaction.CollectiveId,
+        FromCollectiveId: transaction.HostCollectiveId,
+        HostCollectiveId: transaction.HostCollectiveId,
+        OrderId: transaction.OrderId,
+        ExpenseId: transaction.ExpenseId,
+        PaymentMethodId: transaction.PaymentMethodId,
+        description: 'Cover of payment processor fee for refund',
+        isRefund: true,
+        TransactionGroup: refundTransactionGroup,
+        hostCurrency: transaction.hostCurrency,
+        amountInHostCurrency,
+        currency: transactionCurrency,
+        amount,
+        netAmountInCollectiveCurrency: amount,
+        hostCurrencyFxRate,
+        platformFeeInHostCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        data,
+        createdAt,
+        refundKind,
+      },
+      {
+        sequelizeTransaction: sqlTransaction,
+      },
+    );
+  };
 
-  // Skip creating transaction if amount is zero
-  if (amountInHostCurrency === 0) {
-    return;
-  }
-
-  const amount = roundCentsAmount(amountInHostCurrency / hostCurrencyFxRate, transactionCurrency);
-  await Transaction.createDoubleEntry({
-    type: CREDIT,
-    kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
-    CollectiveId: transaction.CollectiveId,
-    FromCollectiveId: transaction.HostCollectiveId,
-    HostCollectiveId: transaction.HostCollectiveId,
-    OrderId: transaction.OrderId,
-    ExpenseId: transaction.ExpenseId,
-    PaymentMethodId: transaction.PaymentMethodId,
-    description: 'Cover of payment processor fee for refund',
-    isRefund: true,
-    TransactionGroup: refundTransactionGroup,
-    hostCurrency: transaction.hostCurrency,
-    amountInHostCurrency,
-    currency: transactionCurrency,
-    amount,
-    netAmountInCollectiveCurrency: amount,
-    hostCurrencyFxRate,
-    platformFeeInHostCurrency: 0,
-    paymentProcessorFeeInHostCurrency: 0,
-    hostFeeInHostCurrency: 0,
-    data,
-    createdAt,
-    refundKind,
-  });
+  return sqlTransaction ? runInTransaction(sqlTransaction) : sequelize.transaction(runInTransaction);
 };
 
 async function refundPaymentProcessorFee(
@@ -474,88 +488,101 @@ async function refundPaymentProcessorFee(
   transactionGroup: string,
   clearedAt?: Date,
   refundKind?: RefundKind,
+  { sqlTransaction = undefined } = {},
 ): Promise<void> {
-  const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
-  let originalProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
+  const runInTransaction = async sqlTransaction => {
+    const isLegacyPaymentProcessorFee = Boolean(transaction.paymentProcessorFeeInHostCurrency);
+    let originalProcessorFeeInHostCurrency = transaction.paymentProcessorFeeInHostCurrency;
 
-  // Load processor fee transaction if using separate transactions
-  let processorFeeTransaction;
-  if (!transaction.paymentProcessorFeeInHostCurrency) {
-    processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction();
-    if (!processorFeeTransaction) {
-      // If there is no processor fee on the original transaction and no separate processor fee transaction, there is nothing to refund
-      reportMessageToSentry('No processor fee found for refund with refundedPaymentProcessorFee set', {
-        severity: 'warning',
-        extra: {
-          refundedPaymentProcessorFee: refundedPaymentProcessorFeeInHostCurrency,
-          transaction: transaction.info,
-        },
-      });
-      return;
-    } else {
-      originalProcessorFeeInHostCurrency = processorFeeTransaction.amountInHostCurrency;
-    }
-  }
-
-  // Refund processor fees if the processor sent money back
-  if (refundedPaymentProcessorFeeInHostCurrency) {
-    // Check amount for partial refunds
-    if (Math.abs(refundedPaymentProcessorFeeInHostCurrency) > Math.abs(originalProcessorFeeInHostCurrency)) {
-      reportMessageToSentry('Refunded more payment processor fees than initially charged', {
-        severity: 'warning',
-        extra: {
-          refundedPaymentProcessorFee: refundedPaymentProcessorFeeInHostCurrency,
-          transaction: transaction.info,
-        },
-      });
-    }
-
-    if (processorFeeTransaction) {
-      const processorFeeRefund = {
-        ...buildRefundForTransaction(
-          processorFeeTransaction,
-          user,
-          null,
-          {
-            refundedAmountInHostCurrency: refundedPaymentProcessorFeeInHostCurrency,
+    // Load processor fee transaction if using separate transactions
+    let processorFeeTransaction;
+    if (!transaction.paymentProcessorFeeInHostCurrency) {
+      processorFeeTransaction = await transaction.getPaymentProcessorFeeTransaction(null, { sqlTransaction });
+      if (!processorFeeTransaction) {
+        // If there is no processor fee on the original transaction and no separate processor fee transaction, there is nothing to refund
+        reportMessageToSentry('No processor fee found for refund with refundedPaymentProcessorFee set', {
+          severity: 'warning',
+          extra: {
+            refundedPaymentProcessorFee: refundedPaymentProcessorFeeInHostCurrency,
+            transaction: transaction.info,
           },
+        });
+        return;
+      } else {
+        originalProcessorFeeInHostCurrency = processorFeeTransaction.amountInHostCurrency;
+      }
+    }
+
+    // Refund processor fees if the processor sent money back
+    if (refundedPaymentProcessorFeeInHostCurrency) {
+      // Check amount for partial refunds
+      if (Math.abs(refundedPaymentProcessorFeeInHostCurrency) > Math.abs(originalProcessorFeeInHostCurrency)) {
+        reportMessageToSentry('Refunded more payment processor fees than initially charged', {
+          severity: 'warning',
+          extra: {
+            refundedPaymentProcessorFee: refundedPaymentProcessorFeeInHostCurrency,
+            transaction: transaction.info,
+          },
+        });
+      }
+
+      if (processorFeeTransaction) {
+        const processorFeeRefund = {
+          ...buildRefundForTransaction(
+            processorFeeTransaction,
+            user,
+            null,
+            {
+              refundedAmountInHostCurrency: refundedPaymentProcessorFeeInHostCurrency,
+            },
+            refundKind,
+          ),
+          TransactionGroup: transactionGroup,
+          clearedAt,
+        };
+
+        const processorFeeRefundTransaction = await Transaction.createDoubleEntry(processorFeeRefund, {
+          sequelizeTransaction: sqlTransaction,
+        });
+
+        await associateTransactionRefundId(
+          processorFeeTransaction,
+          processorFeeRefundTransaction,
+          sqlTransaction,
+          null,
           refundKind,
-        ),
-        TransactionGroup: transactionGroup,
-        clearedAt,
-      };
-
-      const processorFeeRefundTransaction = await Transaction.createDoubleEntry(processorFeeRefund);
-      await associateTransactionRefundId(processorFeeTransaction, processorFeeRefundTransaction, null, refundKind);
+        );
+      }
     }
-  }
 
-  if (
-    Math.abs(refundedPaymentProcessorFeeInHostCurrency) < Math.abs(originalProcessorFeeInHostCurrency) ||
-    isLegacyPaymentProcessorFee
-  ) {
-    // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
-    const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
-      ? await transaction.getRelatedTransaction({ type: DEBIT })
-      : transaction;
+    if (
+      Math.abs(refundedPaymentProcessorFeeInHostCurrency) < Math.abs(originalProcessorFeeInHostCurrency) ||
+      isLegacyPaymentProcessorFee
+    ) {
+      // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
+      const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
+        ? await transaction.getRelatedTransaction({ type: DEBIT }, { sqlTransaction })
+        : transaction;
 
-    const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-      // Host take at their charge the payment processor fee that is lost when refunding a transaction
-      await refundPaymentProcessorFeeToCollective(
-        transactionToRefundPaymentProcessorFee,
-        transactionGroup,
-        undefined,
-        undefined,
-        {
-          hostCoverInHostCurrency: isLegacyPaymentProcessorFee
-            ? originalProcessorFeeInHostCurrency
-            : Math.abs(originalProcessorFeeInHostCurrency) - Math.abs(refundedPaymentProcessorFeeInHostCurrency),
-        },
-        refundKind,
-      );
+      const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+      if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+        // Host take at their charge the payment processor fee that is lost when refunding a transaction
+        await refundPaymentProcessorFeeToCollective(
+          transactionToRefundPaymentProcessorFee,
+          transactionGroup,
+          refundKind,
+          {
+            sqlTransaction,
+            hostCoverInHostCurrency: isLegacyPaymentProcessorFee
+              ? originalProcessorFeeInHostCurrency
+              : Math.abs(originalProcessorFeeInHostCurrency) - Math.abs(refundedPaymentProcessorFeeInHostCurrency),
+          },
+        );
+      }
     }
-  }
+  };
+
+  return sqlTransaction ? runInTransaction(sqlTransaction) : sequelize.transaction(runInTransaction);
 }
 
 export async function refundHostFee(
@@ -565,60 +592,95 @@ export async function refundHostFee(
   transactionGroup: string,
   clearedAt?: Date,
   refundKind?: RefundKind,
+  { sqlTransaction = undefined } = {},
 ): Promise<void> {
-  const hostFeeTransaction = await transaction.getHostFeeTransaction({ type: CREDIT });
-  const buildRefund = transaction => {
-    return {
-      ...buildRefundForTransaction(transaction, user, null, { refundedPaymentProcessorFeeInHostCurrency }, refundKind),
-      TransactionGroup: transactionGroup,
-      clearedAt,
+  const runInTransaction = async sqlTransaction => {
+    const hostFeeTransaction = await transaction.getHostFeeTransaction({ type: CREDIT }, { sqlTransaction });
+    const buildRefund = transaction => {
+      return {
+        ...buildRefundForTransaction(
+          transaction,
+          user,
+          null,
+          { refundedPaymentProcessorFeeInHostCurrency },
+          refundKind,
+        ),
+        TransactionGroup: transactionGroup,
+        clearedAt,
+      };
     };
-  };
 
-  if (hostFeeTransaction && hostFeeTransaction.id !== transaction.id) {
-    const hostFeeRefund = buildRefund(hostFeeTransaction);
-    const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund);
-    await associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction, null, refundKind);
+    if (hostFeeTransaction && hostFeeTransaction.id !== transaction.id) {
+      const hostFeeRefund = buildRefund(hostFeeTransaction);
+      const hostFeeRefundTransaction = await Transaction.createDoubleEntry(hostFeeRefund, {
+        sequelizeTransaction: sqlTransaction,
+      });
+      await associateTransactionRefundId(
+        hostFeeTransaction,
+        hostFeeRefundTransaction,
+        sqlTransaction,
+        null,
+        refundKind,
+      );
 
-    // Refund Host Fee Share
-    const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction();
-    if (hostFeeShareTransaction) {
-      const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
-      const hostFeeShareRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareRefund);
-      await associateTransactionRefundId(hostFeeShareTransaction, hostFeeShareRefundTransaction, null, refundKind);
-
-      // Refund Host Fee Share Debt
-      const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction();
-      if (hostFeeShareDebtTransaction) {
-        const hostFeeShareSettlement = await TransactionSettlement.findOne({
-          where: {
-            TransactionGroup: transaction.TransactionGroup,
-            kind: TransactionKind.HOST_FEE_SHARE_DEBT,
-          },
+      // Refund Host Fee Share
+      const hostFeeShareTransaction = await transaction.getHostFeeShareTransaction(null, { sqlTransaction });
+      if (hostFeeShareTransaction) {
+        const hostFeeShareRefund = buildRefund(hostFeeShareTransaction);
+        const hostFeeShareRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareRefund, {
+          sequelizeTransaction: sqlTransaction,
         });
-        let hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.OWED;
-        if (hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
-          // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
-          // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice
-          await hostFeeShareSettlement.update({ status: TransactionSettlementStatus.SETTLED });
-          hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
-        }
-
-        const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
-        const hostFeeShareDebtRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtRefund);
         await associateTransactionRefundId(
-          hostFeeShareDebtTransaction,
-          hostFeeShareDebtRefundTransaction,
+          hostFeeShareTransaction,
+          hostFeeShareRefundTransaction,
+          sqlTransaction,
           null,
           refundKind,
         );
-        await TransactionSettlement.createForTransaction(
-          hostFeeShareDebtRefundTransaction,
-          hostFeeShareRefundSettlementStatus,
-        );
+
+        // Refund Host Fee Share Debt
+        const hostFeeShareDebtTransaction = await transaction.getHostFeeShareDebtTransaction(null, { sqlTransaction });
+        if (hostFeeShareDebtTransaction) {
+          const hostFeeShareSettlement = await TransactionSettlement.findOne({
+            transaction: sqlTransaction,
+            where: {
+              TransactionGroup: transaction.TransactionGroup,
+              kind: TransactionKind.HOST_FEE_SHARE_DEBT,
+            },
+          });
+          let hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.OWED;
+          if (hostFeeShareSettlement.status === TransactionSettlementStatus.OWED) {
+            // If the Host Fee Share is not INVOICED or SETTLED, we don't need to care about recording it.
+            // Otherwise, the Host Fee Share refund will be marked as OWED and deduced from the next invoice
+            await hostFeeShareSettlement.update(
+              { status: TransactionSettlementStatus.SETTLED },
+              { transaction: sqlTransaction },
+            );
+            hostFeeShareRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
+          }
+
+          const hostFeeShareDebtRefund = buildRefund(hostFeeShareDebtTransaction);
+          const hostFeeShareDebtRefundTransaction = await Transaction.createDoubleEntry(hostFeeShareDebtRefund, {
+            sequelizeTransaction: sqlTransaction,
+          });
+          await associateTransactionRefundId(
+            hostFeeShareDebtTransaction,
+            hostFeeShareDebtRefundTransaction,
+            sqlTransaction,
+            null,
+            refundKind,
+          );
+          await TransactionSettlement.createForTransaction(
+            hostFeeShareDebtRefundTransaction,
+            hostFeeShareRefundSettlementStatus,
+            sqlTransaction,
+          );
+        }
       }
     }
-  }
+  };
+
+  return sqlTransaction ? runInTransaction(sqlTransaction) : sequelize.transaction(runInTransaction);
 }
 
 async function refundTax(
@@ -627,17 +689,24 @@ async function refundTax(
   transactionGroup: string,
   clearedAt?: Date,
   refundKind?: RefundKind,
+  { sqlTransaction = undefined }: { sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<void> {
-  const taxTransaction = await transaction.getTaxTransaction();
-  if (taxTransaction) {
-    const taxRefundData = {
-      ...buildRefundForTransaction(taxTransaction, user, null, null, refundKind),
-      TransactionGroup: transactionGroup,
-      clearedAt,
-    };
-    const taxRefundTransaction = await Transaction.createDoubleEntry(taxRefundData);
-    await associateTransactionRefundId(taxTransaction, taxRefundTransaction, null, refundKind);
-  }
+  const runInTransaction = async sqlTransaction => {
+    const taxTransaction = await transaction.getTaxTransaction(null, { sqlTransaction });
+    if (taxTransaction) {
+      const taxRefundData = {
+        ...buildRefundForTransaction(taxTransaction, user, null, null, refundKind),
+        TransactionGroup: transactionGroup,
+        clearedAt,
+      };
+      const taxRefundTransaction = await Transaction.createDoubleEntry(taxRefundData, {
+        sequelizeTransaction: sqlTransaction,
+      });
+      await associateTransactionRefundId(taxTransaction, taxRefundTransaction, sqlTransaction, null, refundKind);
+    }
+  };
+
+  return sqlTransaction ? runInTransaction(sqlTransaction) : sequelize.transaction(runInTransaction);
 }
 
 /** Create refund transactions
@@ -672,109 +741,142 @@ export async function createRefundTransaction(
   transactionGroupId?: string,
   clearedAt?: Date,
   refundKind: RefundKind = RefundKind.REFUND,
+  { sqlTransaction = undefined }: { sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<Transaction> {
-  /* If the transaction passed isn't the one from the collective
-   * perspective, the opposite transaction is retrieved.
-   *
-   * However when the transaction is between the same collective (say an
-   * an expense from a collective to itself), then there will be no CREDIT
-   * transaction, and therefore we skip.
-   *
-   * */
-  if (transaction.type === DEBIT && transaction.FromCollectiveId !== transaction.CollectiveId) {
-    transaction = await transaction.getRelatedTransaction({ type: CREDIT });
-  }
+  const runInTransaction = async sqlTransaction => {
+    /* If the transaction passed isn't the one from the collective
+     * perspective, the opposite transaction is retrieved.
+     *
+     * However when the transaction is between the same collective (say an
+     * an expense from a collective to itself), then there will be no CREDIT
+     * transaction, and therefore we skip.
+     *
+     * */
+    if (transaction.type === DEBIT && transaction.FromCollectiveId !== transaction.CollectiveId) {
+      transaction = await transaction.getRelatedTransaction({ type: CREDIT }, { sqlTransaction });
+    }
 
-  if (!transaction) {
-    throw new Error('Cannot find any CREDIT transaction to refund');
-  } else if (transaction.RefundTransactionId) {
-    throw new Error('This transaction has already been refunded');
-  }
+    if (!transaction) {
+      throw new Error('Cannot find any CREDIT transaction to refund');
+    } else if (transaction.RefundTransactionId) {
+      throw new Error('This transaction has already been refunded');
+    }
 
-  const transactionGroup = transactionGroupId || uuid();
-  const buildRefund = transaction => {
-    return {
-      ...buildRefundForTransaction(transaction, user, data, { refundedPaymentProcessorFeeInHostCurrency }, refundKind),
-      clearedAt: clearedAt,
-      TransactionGroup: transactionGroup,
+    const transactionGroup = transactionGroupId || uuid();
+    const buildRefund = transaction => {
+      return {
+        ...buildRefundForTransaction(
+          transaction,
+          user,
+          data,
+          { refundedPaymentProcessorFeeInHostCurrency },
+          refundKind,
+        ),
+        clearedAt: clearedAt,
+        TransactionGroup: transactionGroup,
+      };
     };
-  };
 
-  // Refund Platform Tip
-  const platformTipTransaction = await transaction.getPlatformTipTransaction({ type: CREDIT });
-  if (platformTipTransaction && platformTipTransaction.id !== transaction.id) {
-    const platformTipRefund = buildRefund(platformTipTransaction);
-    const platformTipRefundTransaction = await Transaction.createDoubleEntry(platformTipRefund);
-    await associateTransactionRefundId(platformTipTransaction, platformTipRefundTransaction, data, refundKind);
-
-    // Refund Platform Tip Debt
-    // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
-    const platformTipDebtTransaction = await transaction.getPlatformTipDebtTransaction();
-    if (platformTipDebtTransaction && platformTipDebtTransaction.id !== transaction.id) {
-      // Update tip settlement status
-      const tipSettlement = await TransactionSettlement.findOne({
-        where: {
-          TransactionGroup: transaction.TransactionGroup,
-          kind: TransactionKind.PLATFORM_TIP_DEBT,
-        },
+    // Refund Platform Tip
+    const platformTipTransaction = await transaction.getPlatformTipTransaction({ type: CREDIT }, { sqlTransaction });
+    if (platformTipTransaction && platformTipTransaction.id !== transaction.id) {
+      const platformTipRefund = buildRefund(platformTipTransaction);
+      const platformTipRefundTransaction = await Transaction.createDoubleEntry(platformTipRefund, {
+        sequelizeTransaction: sqlTransaction,
       });
-      let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
-      if (tipSettlement.status === TransactionSettlementStatus.OWED) {
-        // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
-        // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice
-        await tipSettlement.update({ status: TransactionSettlementStatus.SETTLED });
-        tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
-      }
-
-      const platformTipDebtRefund = buildRefund(platformTipDebtTransaction);
-      const platformTipDebtRefundTransaction = await Transaction.createDoubleEntry(platformTipDebtRefund);
       await associateTransactionRefundId(
-        platformTipDebtTransaction,
-        platformTipDebtRefundTransaction,
+        platformTipTransaction,
+        platformTipRefundTransaction,
+        sqlTransaction,
         data,
         refundKind,
       );
-      await TransactionSettlement.createForTransaction(platformTipDebtRefundTransaction, tipRefundSettlementStatus);
+
+      // Refund Platform Tip Debt
+      // Tips directly collected (and legacy ones) do not have a "debt" transaction associated
+      const platformTipDebtTransaction = await transaction.getPlatformTipDebtTransaction(null, { sqlTransaction });
+      if (platformTipDebtTransaction && platformTipDebtTransaction.id !== transaction.id) {
+        // Update tip settlement status
+        const tipSettlement = await TransactionSettlement.findOne({
+          transaction: sqlTransaction,
+          where: {
+            TransactionGroup: transaction.TransactionGroup,
+            kind: TransactionKind.PLATFORM_TIP_DEBT,
+          },
+        });
+        let tipRefundSettlementStatus = TransactionSettlementStatus.OWED;
+        if (tipSettlement.status === TransactionSettlementStatus.OWED) {
+          // If the tip is not INVOICED or SETTLED, we don't need to care about recording it.
+          // Otherwise, the tip refund will be marked as OWED and deduced from the next invoice
+          await tipSettlement.update({ status: TransactionSettlementStatus.SETTLED }, { transaction: sqlTransaction });
+          tipRefundSettlementStatus = TransactionSettlementStatus.SETTLED;
+        }
+
+        const platformTipDebtRefund = buildRefund(platformTipDebtTransaction);
+        const platformTipDebtRefundTransaction = await Transaction.createDoubleEntry(platformTipDebtRefund, {
+          sequelizeTransaction: sqlTransaction,
+        });
+        await associateTransactionRefundId(
+          platformTipDebtTransaction,
+          platformTipDebtRefundTransaction,
+          sqlTransaction,
+          data,
+          refundKind,
+        );
+        await TransactionSettlement.createForTransaction(
+          platformTipDebtRefundTransaction,
+          tipRefundSettlementStatus,
+          sqlTransaction,
+        );
+      }
     }
-  }
 
-  // Refund Payment Processor Fee
-  await refundPaymentProcessorFee(
-    transaction,
-    user,
-    refundedPaymentProcessorFeeInHostCurrency,
-    transactionGroup,
-    clearedAt,
-    refundKind,
-  );
+    // Refund Payment Processor Fee
+    await refundPaymentProcessorFee(
+      transaction,
+      user,
+      refundedPaymentProcessorFeeInHostCurrency,
+      transactionGroup,
+      clearedAt,
+      refundKind,
+      { sqlTransaction },
+    );
 
-  // Refund Host Fee
-  await refundHostFee(
-    transaction,
-    user,
-    refundedPaymentProcessorFeeInHostCurrency,
-    transactionGroup,
-    clearedAt,
-    refundKind,
-  );
+    // Refund Host Fee
+    await refundHostFee(
+      transaction,
+      user,
+      refundedPaymentProcessorFeeInHostCurrency,
+      transactionGroup,
+      clearedAt,
+      refundKind,
+      { sqlTransaction },
+    );
 
-  // Refund Tax
-  await refundTax(transaction, user, transactionGroup, clearedAt, refundKind);
+    // Refund Tax
+    await refundTax(transaction, user, transactionGroup, clearedAt, refundKind, { sqlTransaction });
 
-  // Refund main transaction
-  const creditTransactionRefund = buildRefund(transaction);
-  const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund);
-  return associateTransactionRefundId(transaction, refundTransaction, data, refundKind);
+    // Refund main transaction
+    const creditTransactionRefund = buildRefund(transaction);
+    const refundTransaction = await Transaction.createDoubleEntry(creditTransactionRefund, {
+      sequelizeTransaction: sqlTransaction,
+    });
+    return associateTransactionRefundId(transaction, refundTransaction, sqlTransaction, data, refundKind);
+  };
+
+  return sqlTransaction ? runInTransaction(sqlTransaction) : sequelize.transaction(runInTransaction);
 }
 
 export async function associateTransactionRefundId(
   transaction: Transaction,
   refund: Transaction,
+  sqlTransaction: SequelizeTransaction,
   data?: TransactionData,
   refundKind?: RefundKind,
 ): Promise<Transaction> {
   const transactions = await Transaction.findAll({
     order: ['id'],
+    transaction: sqlTransaction,
     where: {
       [Op.or]: [
         { TransactionGroup: transaction.TransactionGroup, kind: transaction.kind },
@@ -797,19 +899,19 @@ export async function associateTransactionRefundId(
   if (refundCredit && debit) {
     debit.RefundTransactionId = refundCredit.id;
     debit.refundKind = refundKind;
-    await debit.save(); // User Ledger
+    await debit.save({ transaction: sqlTransaction }); // User Ledger
     refundCredit.RefundTransactionId = debit.id;
     refundCredit.refundKind = refundKind;
-    await refundCredit.save(); // User Ledger
+    await refundCredit.save({ transaction: sqlTransaction }); // User Ledger
   }
 
   if (refundDebit && credit) {
     credit.RefundTransactionId = refundDebit.id;
     credit.refundKind = refundKind;
-    await credit.save(); // Collective Ledger
+    await credit.save({ transaction: sqlTransaction }); // Collective Ledger
     refundDebit.RefundTransactionId = credit.id;
     refundDebit.refundKind = refundKind;
-    await refundDebit.save(); // Collective Ledger
+    await refundDebit.save({ transaction: sqlTransaction }); // Collective Ledger
   }
 
   // We need to return the same transactions we received because the
@@ -1503,13 +1605,17 @@ export const getHostFeePercent = async (
 
 export const getHostFeeSharePercent = async (
   order: Order,
-  { loaders = null }: { loaders?: loaders } = {},
+  { loaders = null, sqlTransaction = undefined }: { loaders?: loaders; sqlTransaction?: SequelizeTransaction } = {},
 ): Promise<number> => {
   if (!order.collective) {
-    order.collective = (await loaders?.Collective.byId.load(order.CollectiveId)) || (await order.getCollective());
+    if (loaders && !sqlTransaction) {
+      order.collective = await loaders.Collective.byId.load(order.CollectiveId);
+    } else {
+      order.collective = await order.getCollective({ transaction: sqlTransaction });
+    }
   }
 
-  const host = await order.collective.getHostCollective({ loaders });
+  const host = await order.collective.getHostCollective({ loaders, transaction: sqlTransaction });
 
   const plan = host.getLegacyPlan();
 
@@ -1522,7 +1628,7 @@ export const getHostFeeSharePercent = async (
 
   // Make sure payment method is available
   if (!order.paymentMethod && order.PaymentMethodId) {
-    order.paymentMethod = await order.getPaymentMethod();
+    order.paymentMethod = await order.getPaymentMethod({ transaction: sqlTransaction });
   }
 
   // Used by 1st party hosts to set Stripe and PayPal (aka "Crowfunding") share percent to zero
