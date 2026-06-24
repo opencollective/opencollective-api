@@ -1,5 +1,7 @@
 import { defineRelationMetricSource } from '..';
 
+import { AMOUNT_BAND_VALUES, CONTRIBUTION_FREQUENCY_VALUES } from './hosted-collectives-enum-values';
+
 export const HostedCollectivesTransactionSizes = defineRelationMetricSource('HostedCollectivesDailyTransactionSizes', {
   kind: 'dense',
   dateColumn: 'day',
@@ -39,26 +41,26 @@ export const HostedCollectivesTransactionSizes = defineRelationMetricSource('Hos
     kindClass: {
       name: 'kindClass',
       column: 'kindClass',
-      kind: 'enum',
-      description: 'Whether the transaction is a CONTRIBUTION (credit) or a PAYOUT (debit).',
+      kind: 'enumValues',
+      description: 'Whether the transaction is an incoming contribution (credit) or an outgoing payout (debit).',
+      values: [
+        { value: 'CONTRIBUTION', description: 'Incoming contribution (credit).' },
+        { value: 'PAYOUT', description: 'Outgoing payout / expense (debit).' },
+      ],
     },
     contributionFrequency: {
       name: 'contributionFrequency',
       column: 'contributionFrequency',
-      kind: 'enum',
-      description: 'Frequency class: ONE_TIME, RECURRING, ADDED_FUNDS; OTHER for payouts / non-contribution credits.',
+      kind: 'enumValues',
+      description: 'How a contribution recurs.',
+      values: CONTRIBUTION_FREQUENCY_VALUES,
     },
     amountBand: {
       name: 'amountBand',
       column: 'amountBand',
-      kind: 'string',
-      description: 'Human label for the transaction-size band (e.g. `<5`, `<100`, `>=50k`) in host currency units.',
-    },
-    amountBandIndex: {
-      name: 'amountBandIndex',
-      column: 'amountBandIndex',
-      kind: 'int',
-      description: 'Ordinal (0–16) of the transaction-size band, smallest first. Use to order the histogram.',
+      kind: 'enumValues',
+      description: 'Transaction-size band, by absolute amount in host-currency units.',
+      values: AMOUNT_BAND_VALUES,
     },
     hostCurrency: { name: 'hostCurrency', column: 'hostCurrency', kind: 'string' },
   },

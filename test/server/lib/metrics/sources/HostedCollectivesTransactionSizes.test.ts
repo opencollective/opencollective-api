@@ -5,6 +5,7 @@ import { TransactionKind } from '../../../../../server/constants/transaction-kin
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import { queryMetrics } from '../../../../../server/lib/metrics';
 import { HostedCollectivesTransactionSizes } from '../../../../../server/lib/metrics/sources';
+import { AMOUNT_BAND_VALUES } from '../../../../../server/lib/metrics/sources/hosted-collectives-enum-values';
 import { sequelize } from '../../../../../server/models';
 import {
   fakeActiveHost,
@@ -59,13 +60,13 @@ describe('server/lib/metrics/sources/HostedCollectivesTransactionSizes', () => {
     });
     event = await fakeEvent({ ParentCollectiveId: collective.id });
 
-    // Contributions across bands: 3.00 -> '0 – 5' (idx0); 30.00 + 30.00 -> '25 – 50' (idx3).
+    // Contributions across bands: 3.00 -> GT_0_LTE_5; 30.00 + 30.00 -> GT_25_LTE_50.
     await contribution(3_00, collective.id);
     await contribution(30_00, collective.id);
     await contribution(30_00, collective.id);
-    // Child event contribution (rolls up via mainAccount): 8.00 -> '5 – 10' (idx1).
+    // Child event contribution (rolls up via mainAccount): 8.00 -> GT_5_LTE_10.
     await contribution(8_00, event.id);
-    // Payout 200.00 -> '150 – 200' (idx7; bands are upper-inclusive).
+    // Payout 200.00 -> GT_150_LTE_200 (bands are upper-inclusive).
     await payout(200_00, collective.id);
 
     // Refund pair + internal — excluded by the view WHERE.
@@ -106,24 +107,24 @@ describe('server/lib/metrics/sources/HostedCollectivesTransactionSizes', () => {
       dateFrom: '2025-01-01',
       dateTo: '2026-01-01',
       filters: { host: host.id, ...extraFilters },
-      groupBy: ['amountBandIndex', 'kindClass'],
+      groupBy: ['amountBand', 'kindClass'],
       limit: 100,
     });
-    return new Map(result.rows.map(r => [`${r.group?.kindClass}:${r.group?.amountBandIndex}`, r.values]));
+    return new Map(result.rows.map(r => [`${r.group?.kindClass}:${r.group?.amountBand}`, r.values]));
   };
 
   it('buckets contributions into front-weighted size bands (children roll up via mainAccount)', async () => {
     const byBand = await histogram({ mainAccount: collective.id });
-    expect(byBand.get('CONTRIBUTION:0')?.transactionCount).to.equal(1); // 3.00
-    expect(byBand.get('CONTRIBUTION:1')?.transactionCount).to.equal(1); // event 8.00
-    expect(byBand.get('CONTRIBUTION:3')?.transactionCount).to.equal(2); // 30 + 30
-    expect(byBand.get('CONTRIBUTION:3')?.amount).to.equal(60_00);
+    expect(byBand.get('CONTRIBUTION:GT_0_LTE_5')?.transactionCount).to.equal(1); // 3.00
+    expect(byBand.get('CONTRIBUTION:GT_5_LTE_10')?.transactionCount).to.equal(1); // event 8.00
+    expect(byBand.get('CONTRIBUTION:GT_25_LTE_50')?.transactionCount).to.equal(2); // 30 + 30
+    expect(byBand.get('CONTRIBUTION:GT_25_LTE_50')?.amount).to.equal(60_00);
   });
 
   it('buckets payouts by absolute size under PAYOUT kindClass', async () => {
     const byBand = await histogram();
-    expect(byBand.get('PAYOUT:7')?.transactionCount).to.equal(1); // 200.00 -> '150 – 200'
-    expect(byBand.get('PAYOUT:7')?.amount).to.equal(200_00);
+    expect(byBand.get('PAYOUT:GT_150_LTE_200')?.transactionCount).to.equal(1); // 200.00 (upper-inclusive)
+    expect(byBand.get('PAYOUT:GT_150_LTE_200')?.amount).to.equal(200_00);
   });
 
   it('excludes refunds, refunded transactions and internal transfers', async () => {
@@ -157,7 +158,7 @@ describe('server/lib/metrics/sources/HostedCollectivesTransactionSizes', () => {
       dateFrom: '2025-01-01',
       dateTo: '2026-01-01',
       filters: { host: host.id },
-      groupBy: ['amountBandIndex', 'kindClass'],
+      groupBy: ['amountBand', 'kindClass'],
       limit: 100,
     });
     // Our host still only sees its own 5 clean transactions (4 contributions + 1 payout).
@@ -173,7 +174,7 @@ describe('server/lib/metrics/sources/HostedCollectivesTransactionSizes', () => {
       freqHost = await fakeActiveHost({ slug: 'metrics-sizes-frequency-host', currency: 'USD' });
       freqCollective = await fakeCollective({ HostCollectiveId: freqHost.id, currency: 'USD' });
 
-      // One-time contribution (no order) — 30.00 -> band idx3.
+      // One-time contribution (no order) — 30.00 -> band GT_25_LTE_50.
       await fakeTransaction(
         {
           type: TransactionTypes.CREDIT,
@@ -185,7 +186,7 @@ describe('server/lib/metrics/sources/HostedCollectivesTransactionSizes', () => {
         },
         { createDoubleEntry: true },
       );
-      // Recurring contribution (monthly order) — 30.00 -> band idx3.
+      // Recurring contribution (monthly order) — 30.00 -> band GT_25_LTE_50.
       const order = await fakeOrder({ CollectiveId: freqCollective.id, interval: 'month' });
       await fakeTransaction(
         {
@@ -199,7 +200,7 @@ describe('server/lib/metrics/sources/HostedCollectivesTransactionSizes', () => {
         },
         { createDoubleEntry: true },
       );
-      // Added funds — 200.00 -> band idx7 (upper-inclusive).
+      // Added funds — 200.00 -> band GT_150_LTE_200 (upper-inclusive).
       await fakeTransaction(
         {
           type: TransactionTypes.CREDIT,
@@ -221,18 +222,72 @@ describe('server/lib/metrics/sources/HostedCollectivesTransactionSizes', () => {
         dateFrom: '2025-01-01',
         dateTo: '2026-01-01',
         filters: { host: freqHost.id, account: freqCollective.id },
-        groupBy: ['contributionFrequency', 'amountBandIndex'],
+        groupBy: ['contributionFrequency', 'amountBand'],
         limit: 100,
       });
       const byKey = new Map(
-        result.rows.map(r => [`${r.group?.contributionFrequency}:${r.group?.amountBandIndex}`, r.values]),
+        result.rows.map(r => [`${r.group?.contributionFrequency}:${r.group?.amountBand}`, r.values]),
       );
-      // Even though one-time and recurring land in the SAME size band (idx3), the frequency
+      // Even though one-time and recurring land in the SAME size band (GT_25_LTE_50), the frequency
       // dimension keeps them as distinct rows.
-      expect(byKey.get('ONE_TIME:3')?.transactionCount).to.equal(1);
-      expect(byKey.get('RECURRING:3')?.transactionCount).to.equal(1);
-      expect(byKey.get('ADDED_FUNDS:7')?.transactionCount).to.equal(1);
-      expect(byKey.get('ADDED_FUNDS:7')?.amount).to.equal(200_00);
+      expect(byKey.get('ONE_TIME:GT_25_LTE_50')?.transactionCount).to.equal(1);
+      expect(byKey.get('RECURRING:GT_25_LTE_50')?.transactionCount).to.equal(1);
+      expect(byKey.get('ADDED_FUNDS:GT_150_LTE_200')?.transactionCount).to.equal(1);
+      expect(byKey.get('ADDED_FUNDS:GT_150_LTE_200')?.amount).to.equal(200_00);
+    });
+  });
+
+  describe('amountBand enum (filter + drift guard)', () => {
+    let enumHost: Awaited<ReturnType<typeof fakeActiveHost>>;
+    let enumCollective: Awaited<ReturnType<typeof fakeCollective>>;
+    // One amount that lands in each band (the upper bound, since bands are upper-inclusive).
+    const bandUpperBounds = [5, 10, 25, 50, 75, 100, 150, 200, 250, 500, 1000, 2000, 5000, 10000, 25000, 50000];
+
+    before(async () => {
+      enumHost = await fakeActiveHost({ slug: 'metrics-sizes-enum-host', currency: 'USD' });
+      enumCollective = await fakeCollective({ HostCollectiveId: enumHost.id, currency: 'USD' });
+      for (const dollars of [...bandUpperBounds, 60000 /* GT_50000 */]) {
+        await fakeTransaction(
+          {
+            type: TransactionTypes.CREDIT,
+            kind: TransactionKind.CONTRIBUTION,
+            CollectiveId: enumCollective.id,
+            HostCollectiveId: enumHost.id,
+            amount: dollars * 100,
+            createdAt: new Date('2025-06-15'),
+          },
+          { createDoubleEntry: true },
+        );
+      }
+      await refreshMV();
+    });
+
+    it('emits exactly the declared enum tokens (SQL CASE ↔ declared values drift guard)', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesTransactionSizes,
+        measures: ['transactionCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: enumHost.id, account: enumCollective.id },
+        groupBy: ['amountBand'],
+        limit: 100,
+      });
+      const emitted = result.rows.map(r => r.group?.amountBand).sort();
+      const declared = AMOUNT_BAND_VALUES.map(v => v.value).sort();
+      expect(emitted).to.deep.equal(declared);
+    });
+
+    it('filters by amountBand enum tokens', async () => {
+      const result = await queryMetrics({
+        source: HostedCollectivesTransactionSizes,
+        measures: ['transactionCount'],
+        dateFrom: '2025-01-01',
+        dateTo: '2026-01-01',
+        filters: { host: enumHost.id, account: enumCollective.id, amountBand: ['GT_0_LTE_5', 'GT_50000'] },
+        groupBy: ['amountBand'],
+        limit: 100,
+      });
+      expect(result.rows.map(r => r.group?.amountBand).sort()).to.deep.equal(['GT_0_LTE_5', 'GT_50000']);
     });
   });
 });

@@ -1,5 +1,7 @@
 import { defineRelationMetricSource } from '..';
 
+import { CONTRIBUTION_FREQUENCY_VALUES } from './hosted-collectives-enum-values';
+
 export const HostedCollectivesFinancialActivity = defineRelationMetricSource(
   'HostedCollectivesDailyFinancialActivity',
   {
@@ -59,10 +61,9 @@ export const HostedCollectivesFinancialActivity = defineRelationMetricSource(
       contributionFrequency: {
         name: 'contributionFrequency',
         column: 'contributionFrequency',
-        kind: 'enum',
-        description:
-          'Frequency class of the contribution: ONE_TIME, RECURRING (order has an interval), ADDED_FUNDS; ' +
-          'OTHER for payouts and non-contribution credits.',
+        kind: 'enumValues',
+        description: 'How a contribution recurs.',
+        values: CONTRIBUTION_FREQUENCY_VALUES,
       },
       hostCurrency: { name: 'hostCurrency', column: 'hostCurrency', kind: 'string' },
     },

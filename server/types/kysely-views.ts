@@ -164,7 +164,6 @@ export interface HostedCollectivesDailyTransactionSizesRow {
   hostCurrency?: string;
   kindClass?: string;
   contributionFrequency?: string;
-  amountBandIndex?: number;
   amountBand?: string;
   transactionCount?: number;
   amount?: number;
